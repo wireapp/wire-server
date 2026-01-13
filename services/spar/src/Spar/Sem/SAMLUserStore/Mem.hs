@@ -52,7 +52,8 @@ samlUserStoreToMem = (runState @(Map UserRefOrd UserId) mempty .) $
     -- 'GetAllByIssuerPaginated' and 'NextPage' are workarounds, please also see docs at
     -- 'Spar.Sem.SAMLUserStore.Cassandra.getAllSAMLUsersByIssuerPaginated'
     --
-    -- This mock only returns on `Page` for all results.
+    -- This mock only returns one `Page` for all results. This should be fine
+    -- for tests with small test samples.
     GetAllByIssuerPaginated is -> gets $ \userMap ->
       let entries =
             Data.Bifunctor.first unUserRefOrd
