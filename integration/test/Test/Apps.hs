@@ -98,7 +98,7 @@ testCreateApp = do
   BrigI.refreshIndex domain
   foundUserType new.name "app"
 
-  -- Owner and regular member still have the type "regular"
+  -- Regular members still have the type "regular"
   memberName <- regularMember %. "name" & asString
   foundUserType memberName "regular"
 
