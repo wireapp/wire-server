@@ -96,7 +96,6 @@ module Brig.App
     liftSem,
     lowerAppT,
     initHttpManagerWithTLSConfig,
-    adhocUserKeyStoreInterpreter,
     adhocSessionStoreInterpreter,
   )
 where
@@ -171,10 +170,6 @@ import Wire.ExternalAccess.External
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
-import Wire.UserKeyStore
-import Wire.UserKeyStore.Cassandra
-import Wire.UserStore
-import Wire.UserStore.Cassandra
 
 schemaVersion :: Int32
 schemaVersion = Migrations.lastSchemaVersion
@@ -631,12 +626,6 @@ instance HasRequestId (AppT r) where
 
 -------------------------------------------------------------------------------
 -- Ad hoc interpreters
-
--- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
-adhocUserKeyStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[UserKeyStore, UserStore, Embed IO] a -> m a
-adhocUserKeyStoreInterpreter action = do
-  clientState <- asks (.casClient)
-  liftIO $ runM . interpretUserStoreCassandra clientState . interpretUserKeyStoreCassandra clientState $ action
 
 -- | similarly to `wrapClient`, this function serves as a crutch while Brig is being polysemised.
 adhocSessionStoreInterpreter :: (MonadIO m, MonadReader Env m) => Sem '[SessionStore, Embed IO] a -> m a
