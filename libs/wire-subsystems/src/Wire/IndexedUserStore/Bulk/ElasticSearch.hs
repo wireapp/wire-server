@@ -129,7 +129,7 @@ syncAllUsersWithVersion mkVersion =
           mkUserDoc indexUser =
             indexUserToDoc
               (vis indexUser)
-              (fromMaybe (error "impossible") (Map.lookup indexUser.userId userTypes))
+              (Map.lookup indexUser.userId userTypes)
               ((.value) <$> Map.lookup indexUser.userId roles)
               indexUser
           mkDocVersion u = mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion (Map.lookup u.userId roles) u

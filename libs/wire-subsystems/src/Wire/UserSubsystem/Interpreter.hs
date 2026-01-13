@@ -734,7 +734,7 @@ syncUserIndex uid =
       tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
       userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis userType (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis (Just userType) (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version

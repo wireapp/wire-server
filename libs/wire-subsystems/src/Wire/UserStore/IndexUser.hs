@@ -149,13 +149,13 @@ indexUserToVersion role IndexUser {..} =
       const () <$$> writeTimeBumper
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> UserType -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound userType mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe UserType -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
         { udId = userId,
-          udType = Just userType,
+          udType = mUserType,
           udSearchable = value <$> searchable,
           udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,

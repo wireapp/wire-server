@@ -1103,7 +1103,7 @@ spec = describe "UserSubsystem.Interpreter" do
             storedUserToDoc user =
               let indexUser = storedUserToIndexUser user
                   userType = if isJust user.serviceId then UserTypeBot else UserTypeRegular
-               in indexUserToDoc defaultSearchVisibilityInbound userType Nothing indexUser
+               in indexUserToDoc defaultSearchVisibilityInbound (Just userType) Nothing indexUser
 
             indexFromStoredUsers :: [StoredUser] -> UserIndex
             indexFromStoredUsers storedUsers = do
