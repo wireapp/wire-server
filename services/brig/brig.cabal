@@ -344,6 +344,7 @@ executable brig-index
     , imports
     , optparse-applicative
     , tinylog
+    , yaml
 
 executable brig-integration
   import:         common-all

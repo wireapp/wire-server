@@ -162,9 +162,8 @@ spec:
           --tls-ca-certificate-file /certs/cassandra/{{- include "cassandraTlsSecretKey" .Values.config }}
           {{ end }}
 
-        integration-dynamic-backends-brig-index.sh \
-          --elasticsearch-server https://elastic:changeme@{{ .Values.config.elasticsearch.host }}:9200 \
-          --elasticsearch-ca-cert /certs/elasticsearch/{{ .Values.config.elasticsearch.tlsCaSecretRef.key }}
+        # brig-index reads ES/Cassandra/Galley settings from brig.yaml
+        BRIG_CONFIG_FILE=/etc/wire/brig/conf/brig.yaml integration-dynamic-backends-brig-index.sh
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}

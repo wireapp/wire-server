@@ -662,7 +662,7 @@ config:
             collabora:
               edition: COOL
             storage:
-              teamQuotaBytes: "1000000000000" # 1 TB
+              perUserQuotaBytes: "1000000000000" # 1 TB
 ```
 
 ### Allowed Global Operations
@@ -1473,7 +1473,7 @@ The ways differ regarding the kind of program:
 
 - *Services* expect a `cassandra.tlsCa: <filepath>` attribute in their config file.
 -  *\*-schema CLI commands* accept a `--tls-ca-certificate-file <filepath>` parameter.
-- *brig-index migrate-data* accepts a `--cassandra-ca-cert <filepath>` parameter.
+- *brig-index* reads connection settings (including Cassandra TLS) from `brig.yaml` via the `-c` flag: `brig-index -c /path/to/brig.yaml <command>`
 
 When a CA PEM file is configured, all Cassandra connections are opened with TLS
 encryption i.e. there is no fallback to unencrypted connections. This ensures

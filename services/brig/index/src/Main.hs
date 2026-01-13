@@ -22,6 +22,8 @@ where
 
 import Brig.Index.Eval
 import Brig.Index.Options
+import Brig.Options qualified as BrigOpts
+import Data.Yaml qualified as Yaml
 import Imports
 import Options.Applicative
 import System.Exit
@@ -29,10 +31,10 @@ import System.Logger.Class qualified as Log
 
 main :: IO ()
 main = do
-  cmd <- execParser (info (helper <*> commandParser) desc)
+  (configFile, cmd) <- execParser (info (helper <*> mainParser) desc)
   lgr <- initLogger
-  runCommand lgr cmd
-  -- TODO: dump metrics in a suitable format (NOT json)
+  brigOpts <- loadBrigConfig configFile
+  runCommand lgr brigOpts cmd
   exitSuccess
   where
     desc =
@@ -45,3 +47,32 @@ main = do
         . Log.setFormat Nothing
         . Log.setBufSize 0
         $ Log.defSettings
+
+-- | Load brig configuration from YAML file
+loadBrigConfig :: FilePath -> IO BrigOpts.Opts
+loadBrigConfig configFile =
+  Yaml.decodeFileEither configFile >>= \case
+    Left e ->
+      fail $
+        "Failed to parse configuration file "
+          <> configFile
+          <> ": "
+          <> show e
+    Right o -> pure o
+
+-- | Main parser: config file + command
+mainParser :: Parser (FilePath, Command)
+mainParser =
+  (,)
+    <$> configFileParser
+    <*> commandParser
+
+configFileParser :: Parser FilePath
+configFileParser =
+  strOption
+    ( long "config-file"
+        <> short 'c'
+        <> help "Path to brig.yaml configuration file"
+        <> showDefault
+        <> value "/etc/wire/brig/conf/brig.yaml"
+    )
