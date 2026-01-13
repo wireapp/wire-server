@@ -7,7 +7,7 @@
     nixpkgs_24_11.url = "github:nixos/nixpkgs?ref=nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     tom-bombadil = {
-      url = "path:/home/axeman/workspace/tom-bombadil";
+      url = "github:wireapp/tom-bombadil";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };

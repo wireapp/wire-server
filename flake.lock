@@ -354,14 +354,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1767870783,
-        "narHash": "sha256-0QStp+uH05bnGltPnOJM2FdeTJdgVIWkVM5wSFYVceM=",
-        "path": "/home/axeman/workspace/tom-bombadil",
-        "type": "path"
+        "lastModified": 1739181719,
+        "narHash": "sha256-W4g0e9u5CagGY8qqsHIZbP28iVkvvmz+hCkNz3b5GkE=",
+        "owner": "wireapp",
+        "repo": "tom-bombadil",
+        "rev": "53842ffb11e8d357b7d7bdf21b800c71a414ed06",
+        "type": "github"
       },
       "original": {
-        "path": "/home/axeman/workspace/tom-bombadil",
-        "type": "path"
+        "owner": "wireapp",
+        "repo": "tom-bombadil",
+        "type": "github"
       }
     },
     "wai-predicates": {
