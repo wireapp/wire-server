@@ -1,1 +1,0 @@
-Use nix flakes instead of niv and manually pinned git dependencies

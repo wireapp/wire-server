@@ -1,1 +1,0 @@
-Add a golden test for `IdP` (de-) serialization to ensure the format doesn't change due to future developments.

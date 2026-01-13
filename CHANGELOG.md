@@ -1,3 +1,130 @@
+# [2026-01-13] (Chart Release 5.25.0)
+
+## Release notes
+
+
+* Operators: if you override `galley.settings.featureFlags.cells` in your Helm values, update your override to include the newly required cells config fields (channels/groups/one2one/users/collabora/publicLinks/storage/metadata); if you use the chart defaults, no action is needed. (#4903)
+
+
+## API changes
+
+
+* Create new API version V15 and finalize API version V14 (#4942)
+
+* The `PUT /teams/:tid/features/cells` endpoint has changed in API version V14 and requires additional config values. (#4903)
+
+* Add new fields to apps: category, description, creator (#4879)
+
+* Add "get app" endpoint to Brig (`GET /teams/:tid/apps/:id`) (#4879)
+
+* Add [pagination to SCIM groups](https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.4) in Spar /scim/v2/Groups
+
+
+## Features
+
+
+* Add `meetingsPremium` feature flag to distinguish premium teams from trial teams. Meetings created by premium team members are marked as non-trial. Public endpoints: GET/PUT /teams/:tid/features/meetingsPremium. Internal endpoints: GET/PUT/PATCH /i/teams/:tid/features/meetingsPremium and lock status management.
+
+  Add `meetings` feature flag to control access to the meetings API. When disabled, all meetings endpoints return 403 Forbidden. The feature is enabled and unlocked by default. Public endpoints: GET/PUT /teams/:tid/features/meetings. Internal endpoints: GET/PUT/PATCH /i/teams/:tid/features/meetings and lock status management. (#PR_NOT_FOUND)
+
+* New team feature config `cellsInternal` (#4889, #4907, #4940)
+
+* The `cells` feature flag now contains a set of additional configuration values (#4903)
+
+* nginx-ingress-services chart: Add support for cert-manager Certificate
+  privateKey rotation policy configuration. This allows preserving private
+  keys across certificate renewals for client key pinning scenarios.
+
+  Configuration options:
+  - `tls.privateKey.rotationPolicy` - for ingress certificates
+  - `federator.tls.privateKey.rotationPolicy` - for federator certificate
+
+  Setting rotationPolicy to "Never" preserves the private key, enabling
+  scenarios where clients pin the server's public key rather than the
+  certificate itself. (#4945)
+
+* Allow configuring page size and parallelism for conversation migration to
+  PostgreSQL. This can be configured like this:
+
+  ```yaml
+  background-worker:
+    config:
+      migrateConversationsOptions:
+        pageSize: 10000
+        parallelism: 2
+  ``` (#4904)
+
+* Introduce new metrics for better tracking of conversation migration to postgresql:
+  1. `wire_local_convs_migration_failed`
+  2. `wire_user_remote_convs_migration_failed`
+
+  If any of these become `1`, it means the migration has failed. The logs would
+  contain the error. In order to restart the migration, the background-worker must
+  be restarted. (#4891)
+
+* Commits with a broken group info are now let through if the group was already broken (#4883)
+
+* When a SAML IdP is created on a multi-ingress domain (implying that
+  multi-ingress domains are configured in Spar) the domain is added as `domain`
+  field to that IdP's `extraInfo` (`WireIdP` type in Haskell.) To avoid confusion
+  in later lookups, at most one IdP can be configured per multi-ingress domain.
+  If multi-ingress is not configured or it's not configured for the specific
+  domain, no `domain` field gets added to the IdP. This guards against creating
+  multiple IdPs and then assigning them to multi-ingress domains. Thus, users who
+  don't use multi-ingress don't observe any change. This feature only opens the
+  door to later provide an IdP for a multi-ingress domain. (#4778)
+
+
+## Bug fixes and other updates
+
+
+* Fixed notification endpoint returning an empty page with `hasMore=true` (#4871)
+
+* Fix SCIM groups endpoint to only return SCIM-managed groups, not wire-managed groups (#4906)
+
+* Fixed: change user idp, external_id  or emails via scim (scim user update / patch failed to update parts of `ValidScimId`). (#4887)
+
+* Add `<?xml version="1.0" encoding="UTF-8"?>` to SAML/XML output. (#4898)
+
+* Make Swagger schema instances for `GET /search/results` and `GET /teams/{tid}/search` distinct (#4921)
+
+* Fix swagger docs for `GET` and `POST` on `/conversations/{cnv}/code` to show
+  that the response will always include the `uri` field. (#4911)
+
+* Reduce gc_grace_period for all conversation related tables to 1 day. This will
+  help restart the postgresql migration after a day, if it fails mid way. Lowering
+  it too much runs the risk of offline nodes resurrecting deleted data. (#4899)
+
+* Make underlying users for apps findable from `GET /search/contacts` (#4920)
+
+* Reject messages in MLS groups while in epoch 0. (#4811)
+
+* Optimize Postgresql queries for getting conversation members (#4896, #4896)
+
+* Since 5.23.23 (5866babe26f6b49511320dedb5b58a289ddcdbd4) RabbitMQ settings are
+  mandatory for Brig in both, federated and non-federated setups. Unfortunately,
+  this wasn't reflected in Brig's Helm chart. So, non-federated deployments were
+  failing. (#4886)
+
+
+## Internal changes
+
+
+* Upgrade nixpkgs and dependencies (icluding GHC from 9.8 to 9.10) (#4909)
+
+* Upgrade ormolu to match GHC 9.10. (#4923)
+
+* Fix postgres migrations on CI test runs (#4931)
+
+* Add `mls-users` tool to list all active users that don't support MLS. (#4888)
+
+* Add a golden test for `IdP` (de-) serialization to ensure the format doesn't change due to future developments. (#4927)
+
+* Explain MultiIngressSSO test helper functions a bit better. (#4882)
+
+* Use nix flakes instead of niv and manually pinned git dependencies (#4933)
+
+
 # [2025-11-26] (Chart Release 5.24.0)
 
 ## Release notes
