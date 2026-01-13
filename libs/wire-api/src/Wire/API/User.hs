@@ -470,7 +470,7 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 -- UserType
 
 data UserType = UserTypeRegular | UserTypeApp | UserTypeBot
-  deriving (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserType)
   deriving (A.FromJSON, A.ToJSON) via (Schema UserType)
 
@@ -485,20 +485,6 @@ instance ToSchema UserType where
           Schema.element "app" UserTypeApp,
           Schema.element "bot" UserTypeBot
         ]
-
-instance C.Cql UserType where
-  ctype = C.Tagged C.IntColumn
-
-  fromCql (C.CqlInt i) = case i of
-    0 -> pure UserTypeRegular
-    1 -> pure UserTypeApp
-    2 -> pure UserTypeBot
-    n -> Left $ "unexpected UserType: " ++ show n
-  fromCql _ = Left "UserType: int expected"
-
-  toCql UserTypeRegular = C.CqlInt 0
-  toCql UserTypeApp = C.CqlInt 1
-  toCql UserTypeBot = C.CqlInt 2
 
 --------------------------------------------------------------------------------
 -- UserProfile
@@ -593,7 +579,6 @@ instance FromJSON SelfProfile where
 -- | The data of an existing user.
 data User = User
   { userQualifiedId :: Qualified UserId,
-    userType :: UserType,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
@@ -731,8 +716,8 @@ instance FromJSON (EmailVisibility ()) where
     _ -> fail "unexpected value for EmailVisibility settings"
 
 -- | Create profile, overwriting the email field.  Called `mkUserProfile`.
-mkUserProfileWithEmail :: Maybe EmailAddress -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfileWithEmail memail u legalHoldStatus =
+mkUserProfileWithEmail :: Maybe EmailAddress -> UserType -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail memail userType u legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
   UserProfile
@@ -750,12 +735,12 @@ mkUserProfileWithEmail memail u legalHoldStatus =
       profileEmail = memail,
       profileLegalholdStatus = legalHoldStatus,
       profileSupportedProtocols = userSupportedProtocols u,
-      profileType = userType u,
+      profileType = userType,
       profileSearchable = userSearchable u
     }
 
-mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
+mkUserProfile :: EmailVisibilityConfigWithViewer -> UserType -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer userType u legalHoldStatus =
   let isEmailVisible = case emailVisibilityConfigAndViewer of
         EmailVisibleToSelf -> False
         EmailVisibleIfOnTeam -> isJust (userTeam u)
@@ -763,7 +748,7 @@ mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
         EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
           Just viewerTeamId == userTeam u
             && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
-   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) u legalHoldStatus
+   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) userType u legalHoldStatus
 
 --------------------------------------------------------------------------------
 -- NewUser

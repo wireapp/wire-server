@@ -214,7 +214,6 @@ appNewStoredUser creator new = do
         country = loc.lCountry,
         providerId = Nothing,
         serviceId = Nothing,
-        userType = Nothing,
         handle = Nothing,
         expires = Nothing,
         teamId = creator.teamId,

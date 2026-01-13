@@ -34,6 +34,7 @@ import System.Logger.Message qualified as Log
 import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
+import Wire.API.User
 import Wire.GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
@@ -116,6 +117,8 @@ syncAllUsersWithVersion mkVersion =
           teamIds = Map.keys teams
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
         (t,) <$> teamSearchVisibilityInbound t
+      userTypes :: Map UserId UserType <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 page $ \iu ->
+        (iu.userId,) <$> getUserType iu
       roles :: Map UserId (WithWritetime Role) <- fmap (Map.fromList . concat) . unsafePooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) -> do
         tms <- (.members) <$> selectTeamMemberInfos t (fmap (.userId) us)
         pure $ mapMaybe mkRoleWithWriteTime tms
@@ -123,6 +126,7 @@ syncAllUsersWithVersion mkVersion =
           mkUserDoc indexUser =
             indexUserToDoc
               (vis indexUser)
+              (fromMaybe (error "impossible") (Map.lookup indexUser.userId userTypes))
               ((.value) <$> Map.lookup indexUser.userId roles)
               indexUser
           mkDocVersion u = mkVersion . ES.ExternalDocVersion . docVersion $ indexUserToVersion (Map.lookup u.userId roles) u
@@ -173,3 +177,20 @@ teamSearchVisibilityInbound :: (Member GalleyAPIAccess r) => TeamId -> Sem r Sea
 teamSearchVisibilityInbound tid =
   searchVisibilityInboundFromFeatureStatus . (.status)
     <$> getFeatureConfigForTeam @_ @SearchVisibilityInboundConfig tid
+
+-- | TODO: this is duplicated code from UserSubsystem, we should probably expose it as an action there.
+getUserType ::
+  forall r.
+  IndexUser ->
+  Sem r UserType
+getUserType iu = case iu.serviceId of
+  Just _ -> pure UserTypeBot
+  Nothing -> do
+    {-
+    FUTUREWORK: *correct* type fields from search are coming in a separate PR
+    mmApp <- mapM (getApp iu.userId) (iu.teamId <&> (.value))
+    case join mmApp of
+      Just _ -> pure UserTypeApp
+      Nothing -> pure UserTypeRegular
+    -}
+    pure UserTypeApp

@@ -267,8 +267,8 @@ insertUser :: PrepQuery W (TupleType NewStoredUser) ()
 insertUser =
   "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, user_type, handle, team, managed_by, supported_protocols, searchable) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \country, provider, service, handle, team, managed_by, supported_protocols, searchable) \
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
 insertServiceUser =
@@ -285,7 +285,7 @@ selectUsers =
   [sql|
   SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
   activated, status, expires, language, country, provider,
-  service, user_type, handle, team, managed_by, supported_protocols, searchable
+  service, handle, team, managed_by, supported_protocols, searchable
   FROM user WHERE id IN ?
   |]
 

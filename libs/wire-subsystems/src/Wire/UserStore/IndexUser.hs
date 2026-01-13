@@ -44,7 +44,6 @@ data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
 
 data IndexUser = IndexUser
   { userId :: UserId,
-    userType :: Maybe UserType,
     teamId :: Maybe (WithWritetime TeamId),
     name :: WithWritetime Name,
     accountStatus :: Maybe (WithWritetime AccountStatus),
@@ -65,7 +64,6 @@ data IndexUser = IndexUser
 type instance
   TupleType IndexUser =
     ( UserId,
-      Maybe UserType,
       Maybe TeamId, Maybe (Writetime TeamId),
       Name, Writetime Name,
       Maybe AccountStatus, Maybe (Writetime AccountStatus),
@@ -84,7 +82,6 @@ type instance
 instance Record IndexUser where
   asTuple (IndexUser {..}) =
     ( userId,
-      userType,
       value <$> teamId, writetime <$> teamId,
       name.value, name.writetime,
       value <$> accountStatus, writetime <$> accountStatus,
@@ -102,7 +99,6 @@ instance Record IndexUser where
 
   asRecord
     ( u,
-      userType,
       mTeam, tTeam,
       name, tName,
       status, tStatus,
@@ -118,7 +114,6 @@ instance Record IndexUser where
       tWriteTimeBumper
     ) = IndexUser {
           userId = u,
-          userType = userType,
           teamId =  WithWriteTime <$> mTeam <*> tTeam,
           name = WithWriteTime name tName,
           accountStatus = WithWriteTime <$> status <*> tStatus,
@@ -154,13 +149,12 @@ indexUserToVersion role IndexUser {..} =
       const () <$$> writeTimeBumper
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> UserType -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound type_ mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udId = userId,
-          udType = userType,
+        { udType = Just type_,
           udSearchable = value <$> searchable,
           udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
@@ -176,7 +170,8 @@ indexUserToDoc searchVisInbound mRole IndexUser {..} =
           udHandle = value <$> handle,
           udNormalized = Just $ normalized name.value.fromName,
           udName = Just name.value,
-          udTeam = value <$> teamId
+          udTeam = value <$> teamId,
+          udId = userId
         }
     else -- We insert a tombstone-style user here, as it's easier than
     -- deleting the old one. It's mostly empty, but having the status here
@@ -220,8 +215,7 @@ normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =
   UserDoc
-    { udId = uid,
-      udType = Nothing,
+    { udType = Nothing,
       udSearchable = Nothing,
       udEmailUnvalidated = Nothing,
       udSso = Nothing,
@@ -237,5 +231,6 @@ emptyUserDoc uid =
       udHandle = Nothing,
       udNormalized = Nothing,
       udName = Nothing,
-      udTeam = Nothing
+      udTeam = Nothing,
+      udId = uid
     }

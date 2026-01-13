@@ -451,8 +451,9 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
     lhs :: UserLegalHoldStatus <- do
       teamMember <- lift $ join <$> (internalGetTeamMember storedUser.id `mapM` storedUser.teamId)
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
+    userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
     let user = mkUserFromStored domain locale storedUser
-        usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
+        usrProfile = mkUserProfile emailVisibilityConfigWithViewer userType user lhs
     lift $ deleteLocalIfExpired user
     pure $ usrProfile
 
@@ -707,6 +708,7 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 syncUserIndex ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
     Member Metrics r
@@ -730,8 +732,9 @@ syncUserIndex uid =
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
       tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
+      userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis userType (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -1167,3 +1170,20 @@ setUserSearchableImpl luid uid searchable = do
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
+
+-- * Helpers
+
+getUserType ::
+  forall r.
+  (Member AppStore r) =>
+  UserId ->
+  Maybe TeamId ->
+  Maybe ServiceId ->
+  Sem r UserType
+getUserType uid mTid mbServiceId = case mbServiceId of
+  Just _ -> pure UserTypeBot
+  Nothing -> do
+    mmApp <- mapM (getApp uid) mTid
+    case join mmApp of
+      Just _ -> pure UserTypeApp
+      Nothing -> pure UserTypeRegular
