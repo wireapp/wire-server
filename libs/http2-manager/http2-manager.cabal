@@ -50,6 +50,7 @@ library
     , http2
     , network
     , stm
+    , stm-containers
     , streaming-commons
     , text
     , time-manager
