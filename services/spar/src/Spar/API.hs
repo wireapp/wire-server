@@ -72,6 +72,7 @@ import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
 import qualified Data.UUID as UUID
+import qualified Data.X509 as X509
 import Data.X509.Extended
 import Imports
 import Network.Wai (Request, requestHeaders)
@@ -905,19 +906,25 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
             "IdP updated"
             idp
             zusr
-            ( Log.field "new-certificates" ((intercalate ";; " . map certToString . toList) newCerts)
-                . Log.field "removed-certificates" ((intercalate ";; " . map certToString . toList) removedCerts)
-                & logEndpointFields
-                  (previousIdP ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
-                  (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
+            ( logEndpointFields
+                (previousIdP ^. SAML.idpMetadata . SAML.edRequestURI)
+                (idp ^. SAML.idpMetadata . SAML.edRequestURI)
+                . logCertField "new-certificates" newCerts
+                . logCertField "removed-certificates" removedCerts
             )
-    logEndpointFields oldEndpoint newEndpoint logFields =
-      if oldEndpoint /= newEndpoint
-        then
-          Log.field "old-idp-endpoint" oldEndpoint
-            . Log.field "new-idp-endpoint" newEndpoint
-            . logFields
-        else logFields
+
+    logEndpointFields :: URI.URI -> URI.URI -> Msg -> Msg
+    logEndpointFields oldEndpoint newEndpoint
+      | oldEndpoint /= newEndpoint =
+          Log.field "old-idp-endpoint" (URI.serializeURIRef' oldEndpoint)
+            . Log.field "new-idp-endpoint" (URI.serializeURIRef' newEndpoint)
+    logEndpointFields _ _ = id
+
+    logCertField :: ByteString -> [X509.SignedCertificate] -> Msg -> Msg
+    logCertField fieldName certs
+      | not (null certs) =
+          Log.field fieldName ((intercalate ";; " . map certToString . toList) certs)
+    logCertField _ _ = id
 
     compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
     compareNonEmpty xs ys =

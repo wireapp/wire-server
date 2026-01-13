@@ -243,7 +243,7 @@ spec =
                       <> fromString issuerString
                       <> ", domain=None, user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", new-certificates=, removed-certificates=\n"
+                      <> "\n"
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
@@ -269,7 +269,7 @@ spec =
                       <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", new-certificates=, removed-certificates=\n"
+                      <> "\n"
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
