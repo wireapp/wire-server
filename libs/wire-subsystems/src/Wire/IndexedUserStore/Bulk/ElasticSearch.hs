@@ -109,10 +109,13 @@ syncAllUsersWithVersion mkVersion =
 
     mkUserDocs :: ConduitT [IndexUser] [(ES.DocId, UserDoc, ES.VersionControl)] (Sem r) ()
     mkUserDocs = Conduit.mapM $ \page -> do
-      -- TODO: extract team visibilities, roles and user type more efficiently sending one query per page
-      -- TODO: introduce type ExtendedUser (or something), which
+      -- FUTUREWORK: extract team visibilities, roles and user type
+      -- more efficiently sending one query per page
+
+      -- FUTUREWORK: introduce type ExtendedUser (or something), which
       -- contains User, Maybe Role, UserType, ..., and pass around
       -- ExtendedUser.  this should make the code less convoluted.
+
       let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) . value <$> u.teamId) page
           teamIds = Map.keys teams
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
@@ -178,7 +181,8 @@ teamSearchVisibilityInbound tid =
   searchVisibilityInboundFromFeatureStatus . (.status)
     <$> getFeatureConfigForTeam @_ @SearchVisibilityInboundConfig tid
 
--- | TODO: this is duplicated code from UserSubsystem, we should probably expose it as an action there.
+-- | FUTUREWORK: this is duplicated code from UserSubsystem, we should
+-- probably expose it as an action there.
 getUserType ::
   forall r.
   IndexUser ->
@@ -187,7 +191,8 @@ getUserType iu = case iu.serviceId of
   Just _ -> pure UserTypeBot
   Nothing -> do
     {-
-    FUTUREWORK: *correct* type fields from search are coming in a separate PR
+    FUTUREWORK: *correct* type fields from search are coming in a separate PR:
+
     mmApp <- mapM (getApp iu.userId) (iu.teamId <&> (.value))
     case join mmApp of
       Just _ -> pure UserTypeApp
