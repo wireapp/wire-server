@@ -63,9 +63,12 @@ spec =
             _cfgDomainConfigs = Left anyMultiIngressDomainCfg
           }
       host = Just "backend.example.com"
-      miHostAsText = "backend-2.example.com"
-      miDomain = either (error . show) id $ mkDomain miHostAsText
-      miHost = Just miHostAsText
+      miHost1AsText = "backend-1.example.com"
+      miDomain1 = either (error . show) id $ mkDomain miHost1AsText
+      miHost1 = Just miHost1AsText
+      miHost2AsText = "backend-2.example.com"
+      miDomain2 = either (error . show) id $ mkDomain miHost2AsText
+      miHost2 = Just miHost2AsText
       multiIngressSamlConfig =
         Config
           { -- The log level only matters for log output, not production.
@@ -76,7 +79,7 @@ spec =
             _cfgSPPort = 8081,
             _cfgDomainConfigs =
               Right $
-                Map.fromList [(miDomain, anyMultiIngressDomainCfg)]
+                Map.fromList [(miDomain1, anyMultiIngressDomainCfg), (miDomain2, anyMultiIngressDomainCfg)]
           }
       idpHandle = Just $ unsafeRange "some-idp"
       apiVersionV2 = Just WireIdPAPIV2
@@ -151,14 +154,14 @@ spec =
                       <> fromString idpEndpointString
                       <> "\n"
                   )
-                expectedLogLineWithDomain = expectedLogLine . TL.encodeUtf8 . TL.fromStrict $ miHostAsText
+                expectedLogLineWithDomain = expectedLogLine . TL.encodeUtf8 . TL.fromStrict $ miHost1AsText
                 expectedLogLineWithoutDomain = expectedLogLine "None"
 
             forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
               (logs, _res) <-
                 interpretWithLoggingMock
                   Nothing
-                  (idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                  (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
               logs `shouldContain` [expectedLogLineWithDomain]
 
               -- >=V7 does not bother with multi-ingress domains for IdPs as it can
@@ -212,7 +215,7 @@ spec =
                       <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
                       <> fromString issuerString
                       <> ", domain="
-                      <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText
+                      <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
                       <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
@@ -222,7 +225,7 @@ spec =
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing apiVersionV2 idpHandle
+              idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpDelete zUser (idp ^. idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
@@ -254,7 +257,7 @@ spec =
               idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp ^. idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
-          it "should log IdP update  with domain for multi-ingress" $ do
+          it "should log IdP update with domain for multi-ingress" $ do
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             user :: User <- generate arbitrary
             let idPMetadataInfo' =
@@ -269,7 +272,7 @@ spec =
                       <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
                       <> fromString issuerString
                       <> ", domain="
-                      <> (TL.encodeUtf8 . TL.fromStrict) miHostAsText
+                      <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
                       <> ", user="
                       <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
                       <> ", idp-endpoint="
@@ -279,8 +282,39 @@ spec =
                   )
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate multiIngressSamlConfig tid zUser miHost idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate multiIngressSamlConfig zUser miHost idPMetadataInfo' (idp ^. idpId) Nothing
+              idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
+              idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo' (idp ^. idpId) Nothing
+            logs `shouldContain` [expectedLogLine]
+
+          it "should log IdP update with changed domain for multi-ingress" $ do
+            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+            user :: User <- generate arbitrary
+            let idPMetadataInfo' =
+                  idPMetadataInfo
+                    & idpMetadataRecord . SAML.edIssuer .~ issuer
+                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+
+                expectedLogLine =
+                  ( Info,
+                    "IdP updated, team="
+                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                      <> fromString issuerString
+                      <> ", old-domain="
+                      <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
+                      <> ", new-domain="
+                      <> (TL.encodeUtf8 . TL.fromStrict) miHost2AsText
+                      <> ", user="
+                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                      <> ", idp-endpoint="
+                      <> fromString idpEndpointString
+                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                      <> "\n"
+                  )
+
+            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+              idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
+              idpUpdate multiIngressSamlConfig zUser miHost2 idPMetadataInfo' (idp ^. idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
           it "should log IdP update (changed cert)" $ do
