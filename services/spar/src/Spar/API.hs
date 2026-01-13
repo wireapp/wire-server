@@ -894,6 +894,8 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
       when otherIdpsOnSameDomain $
         throwSparSem SparIdPDomainInUse
 
+    -- We cannot simply call `logIdPAction` here, because we need diffs for
+    -- some values (old vs. new)
     logIdPUpdate idp previousIdP =
       let (removedCerts, newCerts) =
             compareNonEmpty
