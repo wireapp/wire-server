@@ -209,7 +209,7 @@ persistFeature ::
   Sem r (LockableFeature cfg)
 persistFeature tid feat = do
   setDbFeature tid feat
-  getFeatureForTeam tid :: Sem r (LockableFeature cfg)
+  getFeatureForTeam tid
 
 pushFeatureEvent ::
   forall cfg r.

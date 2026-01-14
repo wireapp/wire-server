@@ -1066,9 +1066,18 @@ updateLocalStateOfRemoteConv rcu con = do
       let localUsers = getLocalUsers (tDomain loc) . crmTargets $ action
       E.deleteMembersInRemoteConversation rconvId localUsers
       pure (Just sca, [])
+    sca@(SomeConversationAction SConversationMemberUpdateTag _) ->
+      pure (Just sca, [])
     sca@(SomeConversationAction SConversationDeleteTag _) -> do
       E.deleteMembersInRemoteConversation rconvId presentUsers
       pure (Just sca, [])
+    sca@(SomeConversationAction SConversationRenameTag _) -> pure (Just sca, [])
+    sca@(SomeConversationAction SConversationMessageTimerUpdateTag _) -> pure (Just sca, [])
+    sca@(SomeConversationAction SConversationReceiptModeUpdateTag _) -> pure (Just sca, [])
+    sca@(SomeConversationAction SConversationAccessDataTag _) -> pure (Just sca, [])
+    sca@(SomeConversationAction SConversationUpdateProtocolTag _) -> pure (Just sca, [])
+    sca@(SomeConversationAction SConversationUpdateAddPermissionTag _) -> pure (Just sca, [])
+    sca@(SomeConversationAction SConversationResetTag _) -> pure (Just sca, [])
 
   -- On conversation join, the member(s) joining are not included in the presentUsers,
   -- however they are included in the alreadyPresentUsers from the incoming request.
