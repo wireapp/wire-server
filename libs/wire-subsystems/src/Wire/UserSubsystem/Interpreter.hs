@@ -451,13 +451,11 @@ getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
     lhs :: UserLegalHoldStatus <- do
       teamMember <- lift $ join <$> (internalGetTeamMember storedUser.id `mapM` storedUser.teamId)
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
+    userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
     let user = mkUserFromStored domain locale storedUser
-        usrProfile = mkUserProfile emailVisibilityConfigWithViewer user lhs
-    app <- lift $ mapM (getApp storedUser.id) storedUser.teamId
+        usrProfile = mkUserProfile emailVisibilityConfigWithViewer userType user lhs
     lift $ deleteLocalIfExpired user
-    pure $ case join app of
-      Nothing -> usrProfile
-      Just _ -> usrProfile {profileType = UserTypeApp}
+    pure $ usrProfile
 
 getSelfProfileImpl ::
   ( Member (Input UserSubsystemConfig) r,
@@ -578,6 +576,7 @@ guardLockedHandleField user updateOrigin handle = do
 
 updateUserProfileImpl ::
   ( Member UserStore r,
+    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member Events r,
     Member GalleyAPIAccess r,
@@ -642,6 +641,7 @@ updateHandleImpl ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member UserStore r,
+    Member AppStore r,
     Member IndexedUserStore r,
     Member Metrics r
   ) =>
@@ -708,13 +708,14 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 syncUserIndex ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
     Member Metrics r
   ) =>
   UserId ->
   Sem r ()
-syncUserIndex uid = do
+syncUserIndex uid =
   getIndexUser uid
     >>= maybe deleteFromIndex upsert
   where
@@ -731,8 +732,9 @@ syncUserIndex uid = do
           (teamSearchVisibilityInbound . value)
           indexUser.teamId
       tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
+      userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis (Just userType) (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -760,6 +762,7 @@ searchUsersImpl ::
   forall r fedM.
   ( Member UserStore r,
     Member GalleyAPIAccess r,
+    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
     Member FederationConfigStore r,
@@ -795,6 +798,7 @@ searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
 searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
+    Member AppStore r,
     Member UserStore r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r
@@ -823,7 +827,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
           esMaxResults
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
-  let esContacts = map userDocToContact (searchResults esResult)
+  let esContacts = map userDocToContact' (searchResults esResult)
       -- Prepend results matching exact handle and results from ES.
       allContacts = case maybeExactHandleMatch of
         Nothing -> esContacts
@@ -839,15 +843,13 @@ searchLocally searcher searchTerm maybeMaxResults = do
     handleTeamVisibility _ SearchVisibilityStandard = AllUsers
     handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = TeamOnly t
 
-    userDocToContact :: UserDoc -> Contact
-    userDocToContact userDoc =
-      Contact
-        { contactQualifiedId = tUntagged $ qualifyAs searcher userDoc.udId,
-          contactName = maybe "" fromName userDoc.udName,
-          contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
-          contactHandle = Handle.fromHandle <$> userDoc.udHandle,
-          contactTeam = userDoc.udTeam
-        }
+    userDocToContact' :: UserDoc -> Contact
+    userDocToContact' userDoc =
+      runIdentity $
+        userDocToContact
+          (tUntagged $ qualifyAs searcher userDoc.udId)
+          (Identity . maybe "" fromName)
+          userDoc
 
     mkTeamSearchInfo :: Maybe TeamId -> Sem r TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = do
@@ -864,27 +866,26 @@ searchLocally searcher searchTerm maybeMaxResults = do
 
     exactHandleSearch :: Sem r (Maybe Contact)
     exactHandleSearch = runMaybeT $ do
-      handle <- MaybeT . pure $ Handle.parseHandle searchTerm
+      handle <- hoistMaybe $ Handle.parseHandle searchTerm
       owner <- MaybeT $ UserStore.lookupHandle handle
       storedUser <- MaybeT $ UserStore.getUser owner
       config <- lift input
-      let contact = contactFromStoredUser (tDomain searcher) storedUser
-          isContactVisible =
+      let isContactVisible =
             (config.searchSameTeamOnly && (snd . tUnqualified $ searcher) == storedUser.teamId)
               || (not config.searchSameTeamOnly)
       if isContactVisible && fromMaybe True storedUser.searchable
-        then pure contact
-        else MaybeT $ pure Nothing
-
-    contactFromStoredUser :: Domain -> StoredUser -> Contact
-    contactFromStoredUser domain storedUser =
-      Contact
-        { contactQualifiedId = Qualified storedUser.id domain,
-          contactName = fromName storedUser.name,
-          contactHandle = Handle.fromHandle <$> storedUser.handle,
-          contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
-          contactTeam = storedUser.teamId
-        }
+        then do
+          userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
+          pure $
+            Contact
+              { contactQualifiedId = Qualified storedUser.id (tDomain searcher),
+                contactName = fromName storedUser.name,
+                contactHandle = Handle.fromHandle <$> storedUser.handle,
+                contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
+                contactTeam = storedUser.teamId,
+                contactType = userType
+              }
+        else hoistMaybe Nothing
 
 searchRemotely ::
   ( Member FederationConfigStore r,
@@ -1053,6 +1054,7 @@ getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHan
 acceptTeamInvitationImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
+    Member AppStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
@@ -1117,6 +1119,7 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
 removeEmailEitherImpl ::
   ( Member UserKeyStore r,
     Member UserStore r,
+    Member AppStore r,
     Member Events r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -1151,6 +1154,7 @@ checkUserIsAdminImpl uid = do
 
 setUserSearchableImpl ::
   ( Member UserStore r,
+    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
@@ -1166,3 +1170,20 @@ setUserSearchableImpl luid uid searchable = do
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
+
+-- * Helpers
+
+getUserType ::
+  forall r.
+  (Member AppStore r) =>
+  UserId ->
+  Maybe TeamId ->
+  Maybe ServiceId ->
+  Sem r UserType
+getUserType uid mTid mbServiceId = case mbServiceId of
+  Just _ -> pure UserTypeBot
+  Nothing -> do
+    mmApp <- mapM (getApp uid) mTid
+    case join mmApp of
+      Just _ -> pure UserTypeApp
+      Nothing -> pure UserTypeRegular

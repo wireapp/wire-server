@@ -42,6 +42,7 @@ import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
+import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
@@ -81,7 +82,8 @@ type AllEffects =
     EmailSubsystem,
     UserStore,
     State [StoredUser],
-    State (Map EmailAddress [SentMail])
+    State (Map EmailAddress [SentMail]),
+    State [StoredApp]
   ]
 
 runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
@@ -92,6 +94,7 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
             local = toLocalUnsafe localDomain ()
           }
    in run
+        . evalState mempty
         . evalState mempty
         . evalState mempty
         . inMemoryUserStoreInterpreter

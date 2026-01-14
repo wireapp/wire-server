@@ -522,10 +522,17 @@ miniGetAllProfiles ::
   Sem r [UserProfile]
 miniGetAllProfiles = do
   users <- gets (.users)
+  apps <- gets (.apps)
   dom <- input
   pure $
     map
-      (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) defUserLegalHoldStatus)
+      ( \u ->
+          let userType
+                | any ((== u.id) . (.id)) apps = UserTypeApp
+                | isJust u.serviceId = UserTypeBot
+                | otherwise = UserTypeRegular
+           in mkUserProfileWithEmail Nothing userType (mkUserFromStored dom miniLocale u) defUserLegalHoldStatus
+      )
       users
 
 miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]

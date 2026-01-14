@@ -40,7 +40,7 @@ import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Index.Eval (initIndex, runCommand)
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
-import Brig.Options (ElasticSearchOpts)
+import Brig.Options
 import Brig.Options qualified as Opt
 import Brig.Options qualified as Opts
 import Brig.User.Search.Index

@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -30,12 +29,11 @@ import Control.Lens hiding (setting, (#), (.=))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Aeson.Key qualified as Key
 import Data.Domain (Domain)
-import Data.Handle (Handle (fromHandle))
 import Data.Id
 import Data.Qualified (Qualified (Qualified))
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
-import Wire.API.User (ColourId (..), Name (fromName))
+import Wire.API.User (Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
@@ -80,7 +78,7 @@ queryIndex (IndexQuery q f _) s = do
     r <-
       ES.searchByType idx mappingName search
         >>= ES.parseEsResponse @_ @(ES.SearchResult UserDoc)
-    either (throwM . IndexLookupError) (traverse (userDocToContact localDomain) . mkResult) r
+    either (throwM . IndexLookupError) (traverse (userDocToContact' localDomain) . mkResult) r
   where
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
@@ -94,14 +92,12 @@ queryIndex (IndexQuery q f _) s = do
               searchHasMore = Nothing
             }
 
-userDocToContact :: (MonadThrow m) => Domain -> UserDoc -> m Contact
-userDocToContact localDomain UserDoc {..} = do
-  let contactQualifiedId = Qualified udId localDomain
-  contactName <- maybe (throwM $ IndexError "Name not found") (pure . fromName) udName
-  let contactColorId = fromIntegral . fromColourId <$> udColourId
-      contactHandle = fromHandle <$> udHandle
-      contactTeam = udTeam
-  pure $ Contact {..}
+    userDocToContact' :: (MonadThrow m) => Domain -> UserDoc -> m Contact
+    userDocToContact' localDomain userDoc = do
+      userDocToContact
+        (Qualified userDoc.udId localDomain)
+        (maybe (throwM $ IndexError "Name not found") (pure . fromName))
+        userDoc
 
 -- | The default or canonical 'IndexQuery'.
 --

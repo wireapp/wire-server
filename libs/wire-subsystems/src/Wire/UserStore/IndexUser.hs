@@ -149,12 +149,14 @@ indexUserToVersion role IndexUser {..} =
       const () <$$> writeTimeBumper
     ]
 
-indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe UserType -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
-        { udSearchable = value <$> searchable,
+        { udId = userId,
+          udType = mUserType,
+          udSearchable = value <$> searchable,
           udEmailUnvalidated = value <$> unverifiedEmail,
           udSso = sso . value =<< ssoId,
           udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
@@ -169,8 +171,7 @@ indexUserToDoc searchVisInbound mRole IndexUser {..} =
           udHandle = value <$> handle,
           udNormalized = Just $ normalized name.value.fromName,
           udName = Just name.value,
-          udTeam = value <$> teamId,
-          udId = userId
+          udTeam = value <$> teamId
         }
     else -- We insert a tombstone-style user here, as it's easier than
     -- deleting the old one. It's mostly empty, but having the status here
@@ -214,7 +215,8 @@ normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 emptyUserDoc :: UserId -> UserDoc
 emptyUserDoc uid =
   UserDoc
-    { udSearchable = Nothing,
+    { udType = Nothing,
+      udSearchable = Nothing,
       udEmailUnvalidated = Nothing,
       udSso = Nothing,
       udScimExternalId = Nothing,

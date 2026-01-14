@@ -40,6 +40,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
+import Hasql.Pool
 import Imports
 import Polysemy
 import Polysemy.Embed (runEmbedded)
@@ -47,7 +48,7 @@ import Polysemy.Error
 import Polysemy.TinyLog hiding (Logger)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
-import Util.Options (initCredentials)
+import Util.Options
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.BlockListStore (BlockListStore)
@@ -98,6 +99,7 @@ type BrigIndexEffectStack =
     Metrics,
     TinyLog,
     Concurrency 'Unsafe,
+    Error UsageError,
     Embed IO,
     Final IO
   ]
@@ -129,6 +131,7 @@ runSem brigOpts logger action = do
 
   runFinal
     . embedToFinal
+    . throwErrorToIOFinal @UsageError
     . unsafelyPerformConcurrency
     . loggerToTinyLogReqId reqId logger
     . ignoreMetrics

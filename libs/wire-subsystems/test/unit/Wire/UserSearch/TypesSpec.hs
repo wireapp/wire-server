@@ -64,7 +64,8 @@ userDoc1 =
       udScimExternalId = Nothing,
       udSso = Nothing,
       udEmailUnvalidated = Nothing,
-      udSearchable = Nothing
+      udSearchable = Nothing,
+      udType = Nothing
     }
 
 -- Dont touch this. This represents serialized legacy data.

@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.6
+-- Dumped from database version 17.7
+-- Dumped by pg_dump version 17.7
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;

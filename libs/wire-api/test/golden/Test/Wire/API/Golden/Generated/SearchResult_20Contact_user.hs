@@ -24,6 +24,7 @@ import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import Data.UUID qualified as UUID (fromString)
 import Imports (Bool (..), Maybe (Just, Nothing), fromJust)
+import Wire.API.User (UserType (UserTypeRegular))
 import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..))
 
 testObject_SearchResult_20Contact_user_1 :: SearchResult Contact
@@ -66,7 +67,8 @@ testObject_SearchResult_20Contact_user_3 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = FullSearch,
@@ -90,7 +92,8 @@ testObject_SearchResult_20Contact_user_4 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Nothing,
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -101,7 +104,8 @@ testObject_SearchResult_20Contact_user_4 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -112,7 +116,8 @@ testObject_SearchResult_20Contact_user_4 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Nothing,
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -123,7 +128,8 @@ testObject_SearchResult_20Contact_user_4 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -134,7 +140,8 @@ testObject_SearchResult_20Contact_user_4 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -145,7 +152,8 @@ testObject_SearchResult_20Contact_user_4 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = FullSearch,
@@ -169,7 +177,8 @@ testObject_SearchResult_20Contact_user_5 =
               contactName = "z",
               contactColorId = Just 1,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = FullSearch,
@@ -205,7 +214,8 @@ testObject_SearchResult_20Contact_user_7 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -216,7 +226,8 @@ testObject_SearchResult_20Contact_user_7 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Nothing,
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = FullSearch,
@@ -240,7 +251,8 @@ testObject_SearchResult_20Contact_user_8 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = FullSearch,
@@ -288,7 +300,8 @@ testObject_SearchResult_20Contact_user_11 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Nothing,
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -299,7 +312,8 @@ testObject_SearchResult_20Contact_user_11 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = ExactHandleSearch,
@@ -335,7 +349,8 @@ testObject_SearchResult_20Contact_user_13 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -346,7 +361,8 @@ testObject_SearchResult_20Contact_user_13 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -357,7 +373,8 @@ testObject_SearchResult_20Contact_user_13 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -368,7 +385,8 @@ testObject_SearchResult_20Contact_user_13 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = ExactHandleSearch,
@@ -392,7 +410,8 @@ testObject_SearchResult_20Contact_user_14 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -403,7 +422,8 @@ testObject_SearchResult_20Contact_user_14 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = ExactHandleSearch,
@@ -475,7 +495,8 @@ testObject_SearchResult_20Contact_user_19 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -486,7 +507,8 @@ testObject_SearchResult_20Contact_user_19 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = ExactHandleSearch,
@@ -510,7 +532,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -521,7 +544,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -532,7 +556,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -543,7 +568,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -554,7 +580,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -565,7 +592,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -576,7 +604,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -587,7 +616,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -598,7 +628,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Nothing,
               contactHandle = Just "",
-              contactTeam = Nothing
+              contactTeam = Nothing,
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -609,7 +640,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -620,7 +652,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -631,7 +664,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Just "",
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+              contactType = UserTypeRegular
             },
           Contact
             { contactQualifiedId =
@@ -642,7 +676,8 @@ testObject_SearchResult_20Contact_user_20 =
               contactName = "",
               contactColorId = Just 0,
               contactHandle = Nothing,
-              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
+              contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+              contactType = UserTypeRegular
             }
         ],
       searchPolicy = ExactHandleSearch,
