@@ -165,15 +165,24 @@ handleEvent runSem monitor wpath e = do
 -- reloaded, otherwise there is a window of time (after reloading settings,
 -- but before the new watch is set) where changes to the settings can go
 -- undetected
+--
+-- We use CloseWrite events (Linux-only) instead of Modified events for
+-- triggering reloads. CloseWrite is generated when a file is closed after
+-- being opened for writing, which reliably indicates the write is complete.
+-- Modified events may fire multiple times during a write operation (before
+-- the file is fully written) and would cause duplicate reloads.
+--
+-- On macOS (FSEvents), CloseWrite is not available, but the tests are
+-- disabled there anyway (fsnotify tests don't work in nix sandbox on macOS).
 getActions :: WatchedPath -> Event -> [MonitorAction]
-getActions (WatchedFile path) (Modified filePath _ _)
+getActions (WatchedFile path) (CloseWrite filePath _ _)
   | filePath == path = [ReloadSettings]
 getActions (WatchedFile path) (Added filePath _ _)
   | filePath == path = [ReplaceWatch path, ReloadSettings]
 getActions (WatchedDir _dir paths) (Added filePath _ _)
   | Set.member (takeFileName filePath) paths =
       [ReplaceWatch filePath, ReloadSettings]
-getActions (WatchedDir _dir paths) (Modified filePath _ _)
+getActions (WatchedDir _dir paths) (CloseWrite filePath _ _)
   | Set.member (takeFileName filePath) paths = [ReloadSettings]
 getActions _ _ = []
 
