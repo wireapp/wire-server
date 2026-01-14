@@ -18,16 +18,11 @@
 module Federator.Monitor.Internal where
 
 import Control.Exception (try)
-import Data.ByteString (packCStringLen, useAsCStringLen)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
-import Data.Text.Encoding.Error qualified as Text
 import Federator.Options (RunSettings (..))
-import GHC.Foreign (peekCStringLen, withCStringLen)
-import GHC.IO.Encoding (getFileSystemEncoding)
-import Imports
+import Imports hiding (makeAbsolute)
 import Network.Wai.Utilities.Exception
 import OpenSSL.Session (SSLContext)
 import OpenSSL.Session qualified as SSL
@@ -38,17 +33,17 @@ import Polysemy.Final (Final)
 import Polysemy.Resource qualified as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import System.Directory (makeAbsolute)
+import System.FSNotify
 import System.FilePath
-import System.INotify
 import System.Logger (Logger)
 import System.Logger.Message qualified as Log
-import System.Posix.ByteString (RawFilePath)
 import System.Posix.Files
 import Wire.Arbitrary
 import Wire.Sem.Logger.TinyLog qualified as Log
 
 data Monitor = Monitor
-  { monINotify :: INotify,
+  { monWatchManager :: WatchManager,
     monOnNewContext :: SSLContext -> IO (),
     monWatches :: IORef Watches,
     monSettings :: RunSettings,
@@ -56,24 +51,9 @@ data Monitor = Monitor
     monLock :: MVar ()
   }
 
--- This is needed because the normal Posix file system API uses strings, while
--- the inotify API uses bytestrings.
--- /Note/: File paths are strings obtained using the "file system encoding",
--- which is the same as the locale encoding, but uses some escaping tricks to
--- be able to represent arbitrary data as strings.
-rawPath :: FilePath -> IO RawFilePath
-rawPath path = do
-  encoding <- getFileSystemEncoding
-  withCStringLen encoding path packCStringLen
-
-fromRawPath :: RawFilePath -> IO FilePath
-fromRawPath path = do
-  encoding <- getFileSystemEncoding
-  useAsCStringLen path (peekCStringLen encoding)
-
 data WatchedPath
-  = WatchedFile RawFilePath
-  | WatchedDir RawFilePath (Set RawFilePath)
+  = WatchedFile FilePath
+  | WatchedDir FilePath (Set FilePath)
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform WatchedPath)
 
@@ -88,19 +68,15 @@ mergePaths = Set.fromList . merge . sort
         | dir1 == dir2 -> merge (WatchedDir dir1 (paths1 <> paths2) : ws)
       _ -> w1 : merge (w2 : ws)
 
-watchedPath :: WatchedPath -> RawFilePath
+watchedPath :: WatchedPath -> FilePath
 watchedPath (WatchedFile path) = path
 watchedPath (WatchedDir dir _) = dir
-
-watchPathEvents :: WatchedPath -> [EventVariety]
-watchPathEvents (WatchedFile _) = [CloseWrite]
-watchPathEvents (WatchedDir _ _) = [MoveIn, Create]
 
 -- Since we are watching a filesystem path, and not an inode, we need to replace a
 -- file watch when the file gets overwritten.
 -- This type is a map of paths to watches used to keep track of both file and
 -- directory watches as they get deleted and recreated.
-type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
+type Watches = Map FilePath (StopListening, WatchedPath)
 
 runSemDefault :: Logger -> Sem '[TinyLog, Embed IO, Final IO] a -> IO a
 runSemDefault logger = Polysemy.runFinal . Polysemy.embedToFinal . Log.loggerToTinyLog logger
@@ -120,13 +96,14 @@ delMonitor monitor = Polysemy.resourceToIOFinal
   $ do
     watches <- readIORef (monWatches monitor)
     traverse_ stop watches
+    embed $ stopManager (monWatchManager monitor)
   where
-    stop (wd, _) = do
+    stop (stopListening, wpath) = do
       -- ignore exceptions when removing watches
-      embed . void . try @IOException $ removeWatch wd
+      embed . void . try @IOException $ stopListening
       Log.trace $
         Log.msg ("stopped watching file" :: Text)
-          . Log.field "descriptor" (show wd)
+          . Log.field "path" (watchedPath wpath)
 
 mkMonitor ::
   ( Member TinyLog r,
@@ -140,17 +117,16 @@ mkMonitor ::
   RunSettings ->
   Sem r Monitor
 mkMonitor runSem onNewContext rs = do
-  inotify <- embed initINotify
+  mgr <- embed startManager
   Log.trace $
-    Log.msg ("inotify initialized" :: Text)
-      . Log.field "inotify" (show inotify)
+    Log.msg ("fsnotify watch manager initialized" :: Text)
 
   lock <- embed @IO $ newMVar ()
   watchesVar <- embed @IO $ newIORef mempty
 
   let monitor =
         Monitor
-          { monINotify = inotify,
+          { monWatchManager = mgr,
             monOnNewContext = onNewContext,
             monWatches = watchesVar,
             monSettings = rs,
@@ -162,7 +138,7 @@ mkMonitor runSem onNewContext rs = do
   traverse_ (addWatchedFile monitor) (toList paths)
   pure monitor
 
-data Action = ReplaceWatch RawFilePath | ReloadSettings
+data MonitorAction = ReplaceWatch FilePath | ReloadSettings
   deriving (Eq, Ord, Show)
 
 handleEvent ::
@@ -189,13 +165,16 @@ handleEvent runSem monitor wpath e = do
 -- reloaded, otherwise there is a window of time (after reloading settings,
 -- but before the new watch is set) where changes to the settings can go
 -- undetected
-getActions :: WatchedPath -> Event -> [Action]
-getActions (WatchedFile path) (Closed _ mpath True)
-  | maybe True (== path) mpath = [ReloadSettings]
-getActions (WatchedDir dir paths) (MovedIn _ path _)
-  | Set.member path paths = [ReplaceWatch (dir <> "/" <> path), ReloadSettings]
-getActions (WatchedDir dir paths) (Created _ path)
-  | Set.member path paths = [ReplaceWatch (dir <> "/" <> path), ReloadSettings]
+getActions :: WatchedPath -> Event -> [MonitorAction]
+getActions (WatchedFile path) (Modified filePath _ _)
+  | filePath == path = [ReloadSettings]
+getActions (WatchedFile path) (Added filePath _ _)
+  | filePath == path = [ReplaceWatch path, ReloadSettings]
+getActions (WatchedDir _dir paths) (Added filePath _ _)
+  | Set.member (takeFileName filePath) paths =
+      [ReplaceWatch filePath, ReloadSettings]
+getActions (WatchedDir _dir paths) (Modified filePath _ _)
+  | Set.member (takeFileName filePath) paths = [ReloadSettings]
 getActions _ _ = []
 
 applyAction ::
@@ -204,7 +183,7 @@ applyAction ::
     Member (Polysemy.Error FederationSetupError) r
   ) =>
   Monitor ->
-  Action ->
+  MonitorAction ->
   Sem r ()
 applyAction monitor ReloadSettings = do
   sslCtx' <- mkSSLContext (monSettings monitor)
@@ -218,7 +197,7 @@ applyAction monitor (ReplaceWatch path) = do
       addWatchedFile monitor wpath
       case wpath of
         WatchedDir dir paths ->
-          traverse_ (applyAction monitor . ReplaceWatch . ((dir <> "/") <>)) paths
+          traverse_ (applyAction monitor . ReplaceWatch . (dir </>)) (Set.toList paths)
         WatchedFile _ -> pure ()
 
 addWatchedFile ::
@@ -232,17 +211,15 @@ addWatchedFile monitor wpath = do
   r <-
     embed . try @SomeException $
       addWatchAndSave
-        (monINotify monitor)
-        (watchPathEvents wpath)
+        (monWatchManager monitor)
         (monWatches monitor)
         wpath
         (monHandler monitor wpath)
-  let pathText = Text.decodeUtf8With Text.lenientDecode (watchedPath wpath)
+  let pathText = Text.pack (watchedPath wpath)
   case r of
-    Right w ->
+    Right _ ->
       Log.trace $
         Log.msg ("watching file" :: Text)
-          . Log.field "descriptor" (show w)
           . Log.field "path" pathText
     Left e -> do
       Log.err $
@@ -251,25 +228,31 @@ addWatchedFile monitor wpath = do
           . Log.field "error" (displayException e)
 
 addWatchAndSave ::
-  INotify ->
-  [EventVariety] ->
+  WatchManager ->
   IORef Watches ->
   WatchedPath ->
   (Event -> IO ()) ->
-  IO WatchDescriptor
-addWatchAndSave inotify events watchesVar wpath handler = do
+  IO ()
+addWatchAndSave mgr watchesVar wpath handler = do
   let path = watchedPath wpath
+      -- For files, watch the parent directory; for directories, watch the directory itself
+      dirToWatch = case wpath of
+        WatchedFile fp -> takeDirectory fp
+        WatchedDir dir _ -> dir
+      -- Create filter predicate based on what we're watching
+      predicate = case wpath of
+        WatchedFile fp -> \event -> eventPath event == fp
+        WatchedDir _ files -> \event -> Set.member (takeFileName (eventPath event)) files
   -- create a new watch
-  w' <- addWatch inotify events path handler
+  stopListening <- watchDir mgr dirToWatch predicate handler
   -- atomically save it in the map, and return the old one
-  mw <-
+  mOld <-
     atomicModifyIORef watchesVar $
-      swap . Map.alterF (,Just (w', wpath)) path
+      swap . Map.alterF (,Just (stopListening, wpath)) path
   -- remove the old watch
-  case mw of
+  case mOld of
     Nothing -> pure ()
-    Just (w, _) -> void . try @IOException $ removeWatch w
-  pure w'
+    Just (oldStopListening, _) -> void . try @IOException $ oldStopListening
 
 certificatePaths :: RunSettings -> [FilePath]
 certificatePaths rs =
@@ -300,9 +283,8 @@ resolveSymlink path' = do
 watchedPaths :: (FilePath -> IO (Maybe FilePath)) -> FilePath -> IO [WatchedPath]
 watchedPaths resolve path' = do
   path <- makeAbsolute path'
-  rpath <- rawPath path
   dirs <- watchedDirs resolve path
-  pure $ WatchedFile rpath : dirs
+  pure $ WatchedFile path : dirs
 
 watchedDirs :: (FilePath -> IO (Maybe FilePath)) -> FilePath -> IO [WatchedPath]
 watchedDirs resolve path = do
@@ -313,9 +295,8 @@ watchedDirs resolve path = do
       then pure [] -- base case: root directory
       else do
         wds <- watchedDirs resolve dir
-        rdir <- rawPath (dropTrailingPathSeparator dir)
-        rbase <- rawPath base
-        pure $ WatchedDir rdir (Set.singleton rbase) : wds
+        let normalizedDir = dropTrailingPathSeparator dir
+        pure $ WatchedDir normalizedDir (Set.singleton base) : wds
   pure (dirs0 ++ dirs1)
 
 data FederationSetupError

@@ -172,6 +172,12 @@ let
   };
 
   hackagePins = {
+    # Cross-platform file system watching for federator certificate monitoring
+    fsnotify = {
+      version = "0.4.4.0";
+      sha256 = "sha256-oBY1EN5YeFvFaSdeD9vUdooW1V6h7uip24BCft6G6xQ=";
+    };
+
     # start pinned dependencies for http2
     http-semantics = {
       version = "0.4.0";

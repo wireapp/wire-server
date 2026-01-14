@@ -20,19 +20,18 @@ module Test.Federator.Monitor (tests) where
 import Control.Concurrent.Chan
 import Control.Exception (bracket)
 import Control.Monad.Trans.Cont
-import Data.ByteString qualified as BS
-import Data.ByteString.Char8 qualified as B8
 import Data.Set qualified as Set
 import Federator.Monitor
 import Federator.Monitor.Internal
 import Federator.Options
-import Imports
+import Imports hiding (getCurrentDirectory, makeAbsolute)
 import OpenSSL.Session (SSLContext)
 import Polysemy qualified
 import Polysemy.Error qualified as Polysemy
+import System.Directory (getCurrentDirectory, makeAbsolute)
 import System.FilePath
 import System.IO.Temp
-import System.Posix (createSymbolicLink, getWorkingDirectory)
+import System.Posix (createSymbolicLink)
 import System.Timeout
 import Test.Federator.Options (defRunSettings)
 import Test.Tasty
@@ -218,7 +217,7 @@ testMonitorSymlinkUpdate =
       settings <- withSymlinkSettings
       _ <- withSilentMonitor reloads settings
       liftIO $ do
-        wd <- getWorkingDirectory
+        wd <- getCurrentDirectory
 
         removeFile (clientCertificate settings)
         createSymbolicLink
@@ -374,32 +373,26 @@ testMergeWatchedPaths =
          in mergedCount <= origCount,
       testProperty "has the same paths" $ \(wpaths :: [WatchedPath]) ->
         let f (WatchedFile path) = [path]
-            f (WatchedDir dir files) = map (dir <>) (Set.toList files)
+            f (WatchedDir dir files) = map (dir </>) (Set.toList files)
             mergedPaths = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
             origPaths = Set.fromList (wpaths >>= f)
          in mergedPaths == origPaths
     ]
 
-newtype Path = Path {getRawPath :: ByteString}
-
-getPath :: Path -> IO FilePath
-getPath = fromRawPath . getRawPath
+-- Wrapper for testing path operations
+newtype Path = Path {getPath :: FilePath}
+  deriving (Show)
 
 getAbsolutePath :: Path -> IO FilePath
-getAbsolutePath p = do
-  path <- getPath p
-  makeAbsolute ("/" <> path)
-
-instance Show Path where
-  show = show . getRawPath
+getAbsolutePath p = makeAbsolute ("/" <> getPath p)
 
 instance Arbitrary Path where
   arbitrary =
-    Path . B8.intercalate "/"
-      <$> listOf (BS.pack <$> listOf1 ch)
+    Path . intercalate "/"
+      <$> listOf (listOf1 ch)
     where
-      ch :: Gen Word8
-      ch = arbitrary `suchThat` (/= fromIntegral (ord '/'))
+      ch :: Gen Char
+      ch = arbitrary `suchThat` (/= '/')
 
 trivialResolve :: FilePath -> IO (Maybe FilePath)
 trivialResolve _ = pure Nothing
@@ -415,8 +408,8 @@ testDirectoryTraversal =
           pure (length wpaths == length (splitPath path)),
       testProperty "relative paths are resolved correctly" $
         \(path' :: Path) -> ioProperty $ do
-          dir <- getWorkingDirectory
-          path <- getPath path'
+          dir <- getCurrentDirectory
+          let path = getPath path'
           wpaths <- watchedPaths trivialResolve path
           wpaths' <- watchedPaths trivialResolve (dir </> path)
           pure $ wpaths == wpaths',
@@ -424,10 +417,10 @@ testDirectoryTraversal =
         evalContT $ do
           settings <- withKubernetesSettings
           liftIO $ do
-            rroot <- rawPath $ takeDirectory (clientCertificate settings)
+            let root = takeDirectory (clientCertificate settings)
             wpaths <- mergePaths <$> watchedPaths resolveSymlink (clientCertificate settings)
             assertBool "symlink targets should be watched" $
               Set.member
-                (WatchedDir rroot (Set.fromList ["cert.pem", "..data", "..foo"]))
+                (WatchedDir root (Set.fromList ["cert.pem", "..data", "..foo"]))
                 wpaths
     ]
