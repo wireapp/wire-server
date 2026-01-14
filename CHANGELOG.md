@@ -52,7 +52,8 @@
       migrateConversationsOptions:
         pageSize: 10000
         parallelism: 2
-  ``` (#4904)
+  ```
+  (#4904)
 
 * Introduce new metrics for better tracking of conversation migration to postgresql:
   1. `wire_local_convs_migration_failed`
