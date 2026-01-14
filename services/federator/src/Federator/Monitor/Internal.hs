@@ -58,7 +58,7 @@ data WatchedPath
   deriving (Arbitrary) via (GenericUniform WatchedPath)
 
 mergePaths :: [WatchedPath] -> Set WatchedPath
-mergePaths = Set.fromList . merge . sort
+mergePaths wpaths = Set.fromList $ filterRedundant $ merge $ sort wpaths
   where
     merge [] = []
     merge [w] = [w]
@@ -67,6 +67,17 @@ mergePaths = Set.fromList . merge . sort
       (WatchedDir dir1 paths1, WatchedDir dir2 paths2)
         | dir1 == dir2 -> merge (WatchedDir dir1 (paths1 <> paths2) : ws)
       _ -> w1 : merge (w2 : ws)
+    -- Filter out WatchedFile entries that are already covered by a WatchedDir
+    -- This prevents duplicate watches on the same directory for the same file,
+    -- which would cause duplicate events with fsnotify
+    filterRedundant ws =
+      let dirs = Map.fromList [(dir, files) | WatchedDir dir files <- ws]
+          isCovered (WatchedFile path) =
+            case Map.lookup (takeDirectory path) dirs of
+              Just files -> Set.member (takeFileName path) files
+              Nothing -> False
+          isCovered _ = False
+       in filter (not . isCovered) ws
 
 watchedPath :: WatchedPath -> FilePath
 watchedPath (WatchedFile path) = path
