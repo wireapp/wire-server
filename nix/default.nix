@@ -65,6 +65,7 @@ let
         pkgs.niv
         pkgs.zip
         pkgs.entr
+        pkgs.postgresql
       ] ++ docsPkgs;
     };
   inherit (pkgs) mls-test-cli;
