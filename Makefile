@@ -21,7 +21,6 @@ ingress-nginx-controller nginx-ingress-services reaper restund \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
-# (run `psql -h localhost -p 5432 -d backendA -U wire-server -w` for the list of options for PSQL_DB)
 PSQL_DB               ?= backendA
 export PSQL_DB
 
@@ -355,8 +354,8 @@ cqlsh:
 .PHONY: psql
 psql:
 	@grep -q wire-server:wire-server ~/.pgpass || \
-	  echo "consider running 'echo localhost:5432:wire-server:wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
-	pg_dump -h localhost -p 5432 $(PSQL_DB) -U wire-server -w --schema-only || \
+	  echo "consider running 'echo localhost:5432:$(PSQL_DB):wire-server:posty-the-gres > ~/.pgpass ; chmod 600 ~/.pgpass '"
+	psql -h localhost -p 5432 $(PSQL_DB) -U wire-server -w || \
 	  echo 'if the database is missing, consider running "make postgres-reset", or setting $$PSQL_DB to the correct table space.'
 
 .PHONY: db-reset-package
