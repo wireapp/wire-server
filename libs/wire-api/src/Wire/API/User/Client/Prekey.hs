@@ -38,19 +38,20 @@ where
 import Cassandra (ColumnType (IntColumn), Cql (ctype, fromCql, toCql), Tagged (..), Value (CqlInt))
 import Codec.CBOR.Decoding qualified as CBOR
 import Codec.CBOR.Read qualified as CBOR
-import Codec.CBOR.Term qualified as CBOR
 import Crypto.Hash (SHA256, hash)
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import Data.Aeson qualified as A
 import Data.Bifunctor (first)
 import Data.Bits
 import Data.ByteArray (convert)
 import Data.ByteString qualified as BS
 import Data.ByteString.Base64 qualified as B64
-import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion qualified as B
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
+import Data.Json.Util (base64Schema)
 import Data.OpenApi qualified as S
-import Data.Schema
+import Data.Schema (Schema (..), ToSchema (..), array, field, named, object, withParser, (.=))
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -67,10 +68,63 @@ instance Cql PrekeyId where
   fromCql _ = Left "PrekeyId: Int expected"
 
 --------------------------------------------------------------------------------
+-- EDHOC Specific Types
+newtype EdhocPublicKey = EdhocPublicKey {unEdhocPublicKey :: ByteString}
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON EdhocPublicKey where
+  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unEdhocPublicKey
+
+instance FromJSON EdhocPublicKey where
+  parseJSON = withText "EdhocPublicKey" $ \t ->
+    either (const $ fail "Not base 64-encoded") (pure . EdhocPublicKey) $
+      B64.decode (B.toByteString' t)
+
+instance ToSchema EdhocPublicKey where
+  schema = named "EdhocPublicKey" $ EdhocPublicKey <$> unEdhocPublicKey .= base64Schema
+
+newtype EdhocIdentityKey = EdhocIdentityKey {unEdhocIdentityKey :: EdhocPublicKey}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToJSON, FromJSON, ToSchema)
+
+newtype EdhocSignature = EdhocSignature {unEdhocSignature :: ByteString}
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON EdhocSignature where
+  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unEdhocSignature
+
+instance FromJSON EdhocSignature where
+  parseJSON = withText "EdhocSignature" $ \t ->
+    either (const $ fail "Not base 64-encoded") (pure . EdhocSignature) $
+      B64.decode (B.toByteString' t)
+
+instance ToSchema EdhocSignature where
+  schema = named "EdhocSignature" $ EdhocSignature <$> unEdhocSignature .= base64Schema
+
+-- Decoders for new types
+
+decodeEdhocPublicKey :: CBOR.Decoder s EdhocPublicKey
+decodeEdhocPublicKey = do
+  n <- CBOR.decodeMapLen
+  unless (n == 1) $ fail $ "Schema Mismatch: Expected Map of 1 element, found " <> show n
+  k <- CBOR.decodeInt
+  unless (k == 0) $ fail $ "Unknown Key: Expected 0, found " <> show k
+  EdhocPublicKey <$> CBOR.decodeBytes
+
+decodeEdhocIdentityKey :: CBOR.Decoder s EdhocIdentityKey
+decodeEdhocIdentityKey = do
+  n <- CBOR.decodeMapLen
+  unless (n == 1) $ fail $ "Schema Mismatch: Expected Map of 1 element, found " <> show n
+  k <- CBOR.decodeInt
+  unless (k == 0) $ fail $ "Unknown Key: Expected 0, found " <> show k
+  EdhocIdentityKey <$> decodeEdhocPublicKey
+
+--------------------------------------------------------------------------------
 -- Prekey
 
 data Prekey = Prekey
   { prekeyId :: PrekeyId,
+    -- | Prekey bundle
     prekeyKey :: Text
   }
   deriving stock (Eq, Show, Generic)
@@ -109,46 +163,25 @@ data PrekeyParseError
 
 -- | Represents the EDHOC Prekey Bundle payload.
 --
--- Structure based on X3DH Key Agreement Protocol patterns:
---
--- * **Root Object**: CBOR Map (Major Type 5).
--- * **Key 0** (@Unsigned Int@): Protocol Version or Algorithm Identifier.
---   Indicates the version of the handshake or algorithm suite being used (e.g., Curve25519 + AES-GCM).
--- * **Key 1** (@Unsigned Int@): **The Prekey ID** (Target of extraction).
---   The specific ID of the key being retrieved.
--- * **Key 2** (@Map@): **Identity Public Key**.
---   The long-term X25519 public key of the recipient (e.g., Map {0: Bytes(32)}).
--- * **Key 3** (@Map@): **Signed Prekey Public Key**.
---   A medium-term key (e.g., Map {0: {0: Bytes(32)}}).
--- * **Key 4** (@Null@): **One-Time Prekey**.
---   This field is Null if the server is out of one-time keys for this user.
---
--- = References
---
--- * <https://www.rfc-editor.org/rfc/rfc8949.html RFC 8949>: Concise Binary Object Representation (CBOR)
--- * <https://www.rfc-editor.org/rfc/rfc7748.html RFC 7748>: Elliptic Curves for Security (X25519)
--- * <https://www.rfc-editor.org/rfc/rfc9052.html RFC 9052>: CBOR Object Signing and Encryption (COSE)
+-- Structure based on `PrekyBundle` from proteus <https://github.com/wireapp/proteus/blob/b92dbc2d0c77105cae3911a7388acba05450a06d/src/internal/keys.rs#L246-L253>
 data EdhocPrekeyPayload = EdhocPrekeyPayload
   { -- | Key 0
     edhocProtocolVersion :: Word,
     -- | Key 1
     edhocPrekeyId :: PrekeyId,
     -- | Key 2
-    edhocIdentityKey :: CBOR.Term,
+    edhocIdentityKey :: EdhocIdentityKey,
     -- | Key 3
-    edhocSignedPrekey :: CBOR.Term,
+    edhocSignedPrekey :: EdhocPublicKey,
     -- | Key 4
-    edhocOneTimePrekey :: CBOR.Term
+    edhocOneTimePrekey :: Maybe EdhocSignature
   }
   deriving stock (Eq, Show, Generic)
 
 -- | Parses a Base64 CBOR-encoded payload to extract the 'PrekeyId'.
---
--- This function expects the input to be a Base64 encoded CBOR Map adhering to the rules
--- defined in __RFC 8949__ and following the X3DH Key Agreement Protocol patterns.
 parseEDHOCPrekeyId :: Prekey -> Either PrekeyParseError PrekeyId
 parseEDHOCPrekeyId pk = do
-  bs <- first (PrekeyParseBase64Error . ("Base64 decoding error: " <>)) $ B64.decode $ toByteString' $ prekeyKey pk
+  bs <- first (PrekeyParseBase64Error . ("Base64 decoding error: " <>)) $ B64.decode $ B.toByteString' $ prekeyKey pk
   case CBOR.deserialiseFromBytes decodeEdhocPrekeyPayload (LBS.fromStrict bs) of
     Left (CBOR.DeserialiseFailure off msg) -> Left $ PrekeyParseCborError off msg
     Right (rest, payload)
@@ -158,14 +191,13 @@ parseEDHOCPrekeyId pk = do
 decodeEdhocPrekeyPayload :: CBOR.Decoder s EdhocPrekeyPayload
 decodeEdhocPrekeyPayload = do
   n <- CBOR.decodeMapLen
-  unless (n == 5) $ fail $ "Schema Mismatch: Expected Map of 5 elements, found " <> show n
   (m0, m1, m2, m3, m4) <- go n (Nothing, Nothing, Nothing, Nothing, Nothing)
   EdhocPrekeyPayload
     <$> maybe (fail "Missing Key 0") pure m0
     <*> maybe (fail "Missing Key 1") pure m1
     <*> maybe (fail "Missing Key 2") pure m2
     <*> maybe (fail "Missing Key 3") pure m3
-    <*> maybe (fail "Missing Key 4") pure m4
+    <*> pure m4 -- Key 4 is optional
   where
     go 0 acc = pure acc
     go i (m0, m1, m2, m3, m4) = do
@@ -179,14 +211,13 @@ decodeEdhocPrekeyPayload = do
           when (v < 0) $ fail "Value Error: Prekey ID cannot be negative"
           go (i - 1) (m0, Just (PrekeyId (fromIntegral v)), m2, m3, m4)
         2 -> do
-          v <- CBOR.decodeTerm
+          v <- decodeEdhocIdentityKey
           go (i - 1) (m0, m1, Just v, m3, m4)
         3 -> do
-          v <- CBOR.decodeTerm
+          v <- decodeEdhocPublicKey
           go (i - 1) (m0, m1, m2, Just v, m4)
-        4 -> do
-          v <- CBOR.decodeTerm
-          go (i - 1) (m0, m1, m2, m3, Just v)
+        4 ->
+          go (i - 1) (m0, m1, m2, m3, Nothing) -- If null, Nothing
         other -> fail $ "Unknown Key: " <> show other
 
 --------------------------------------------------------------------------------
