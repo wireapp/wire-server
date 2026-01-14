@@ -226,7 +226,7 @@ instance FromJSON ConversationRolesList where
 -- expose this constructor outside of this module.
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToByteString, Hashable, Cql, PostgresUnmarshall Text)
+  deriving newtype (ToByteString, Hashable, Cql, PostgresUnmarshall Text, PostgresMarshall Text)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema RoleName
 
 instance ToSchema RoleName where
@@ -241,9 +241,6 @@ instance ToSchema RoleName where
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") pure . parseRoleName
-
-instance PostgresMarshall RoleName Text where
-  postgresMarshall = fromRoleName
 
 instance Arbitrary RoleName where
   arbitrary =

@@ -110,7 +110,7 @@ withMigrationLocks lockType maxWait convOrUsers action = do
 
     acquireLocks :: Hasql.Statement [Int64] ()
     acquireLocks =
-      lmapPG @[_] @(Vector _)
+      lmapPG @(Vector _)
         case lockType of
           LockExclusive ->
             [resultlessStatement|SELECT (1 :: int)
@@ -123,7 +123,7 @@ withMigrationLocks lockType maxWait convOrUsers action = do
 
     releaseLocks :: Hasql.Statement [Int64] ()
     releaseLocks =
-      lmapPG @[_] @(Vector _)
+      lmapPG @(Vector _)
         case lockType of
           LockExclusive ->
             [resultlessStatement|SELECT (1 :: int)

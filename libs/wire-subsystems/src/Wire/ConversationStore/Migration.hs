@@ -319,7 +319,7 @@ saveConvToPostgres allConvData = do
         )
         ()
     insertConv =
-      lmapPG @_ @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _)
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
@@ -385,7 +385,7 @@ saveConvToPostgres allConvData = do
         )
         ()
     insertLocalMembers =
-      lmapPG @_ @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _) @_
         [resultlessStatement|INSERT INTO conversation_member
                              (conv, "user", service, provider, otr_muted_status, otr_muted_ref,
                               otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role)
@@ -397,7 +397,7 @@ saveConvToPostgres allConvData = do
                             |]
     insertRemoteMembers :: Hasql.Statement ([ConvId], [Domain], [UserId], [RoleName]) ()
     insertRemoteMembers =
-      lmapPG @_ @(Vector _, Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO local_conversation_remote_member
                              (conv, user_remote_domain, user_remote_id, conversation_role)
                              SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: uuid[], $4 :: text[])
@@ -424,7 +424,7 @@ saveConvToPostgres allConvData = do
 
     insertMLSClients :: Hasql.Statement ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool]) ()
     insertMLSClients =
-      lmapPG @_ @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO mls_group_member_client
                              (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
                              SELECT *
@@ -454,7 +454,7 @@ saveConvToPostgres allConvData = do
 
     insertSubConvs :: Hasql.Statement ([ConvId], [SubConvId], [Maybe CipherSuiteTag], [Epoch], [UTCTime], [GroupId], [Maybe GroupInfoData]) ()
     insertSubConvs =
-      lmapPG @_ @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO subconversation
                              (conv_id, subconv_id, cipher_suite, epoch, epoch_timestamp, group_id, public_group_state)
                              SELECT *
@@ -495,7 +495,7 @@ saveRemoteMemberStatusToPostgres uid statusses =
   where
     insertStatuses :: Hasql.Statement ([UserId], [Domain], [ConvId], [Maybe MutedStatus], [Maybe Text], [Bool], [Maybe Text], [Bool], [Maybe Text]) ()
     insertStatuses =
-      lmapPG @_ @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO remote_conversation_local_member
                              ("user", conv_remote_domain, conv_remote_id, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref)
                              SELECT *

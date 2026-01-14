@@ -158,7 +158,7 @@ upsertConversationImpl lcnv nc = do
   pure storedConv
   where
     insertConvStatement =
-      lmapPG @_ @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _)
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
@@ -255,7 +255,7 @@ getConversationsImpl cids = do
   where
     selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
     selectMetadata =
-      dimapPG @[_] @(Vector _)
+      dimapPG @(Vector _) @[_]
         @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
         @[ConvRowWithId]
         [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
@@ -267,7 +267,7 @@ getConversationsImpl cids = do
                         |]
     selectAllLocalMembers :: Hasql.Statement [ConvId] [LocalMemberRow]
     selectAllLocalMembers =
-      dimapPG @[_] @(Vector _)
+      dimapPG @(Vector _) @[_]
         [vectorStatement|SELECT (conv :: uuid), ("user" :: uuid), (service :: uuid?), (provider :: uuid?), (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?), (hidden :: boolean?), (hidden_ref :: text?), (conversation_role :: text?)
                          FROM conversation_member
@@ -282,7 +282,7 @@ getConversationsImpl cids = do
                         |]
     selectAllRemoteMembers :: Hasql.Statement [ConvId] [RemoteMemberRow]
     selectAllRemoteMembers =
-      dimapPG @[_] @(Vector _)
+      dimapPG @(Vector _) @[_]
         [vectorStatement|SELECT (conv :: uuid), (user_remote_domain :: text), (user_remote_id :: uuid), (conversation_role :: text)
                          FROM local_conversation_remote_member
                          WHERE conv = ANY ($1 :: uuid[])
@@ -393,7 +393,7 @@ getRemoteConversationStatusImpl uid remoteConvs = do
   where
     select :: Hasql.Statement (UserId, Domain, [ConvId]) [(ConvId, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)]
     select =
-      dimapPG @_ @(_, _, Vector _)
+      dimapPG @(_, _, Vector _)
         [vectorStatement|SELECT (conv_remote_id :: uuid),
                                 (otr_muted_status :: integer?), (otr_muted_ref :: text?),
                                 (otr_archived :: boolean?), (otr_archived_ref :: text?),
@@ -410,7 +410,7 @@ selectConversationsImpl uid cids =
   where
     select :: Hasql.Statement (UserId, [ConvId]) [ConvId]
     select =
-      dimapPG @_ @(_, Vector _)
+      dimapPG @(_, Vector _)
         [vectorStatement|SELECT (conv :: uuid) from conversation_member
                          WHERE "user" = ($1 :: uuid)
                          AND conv = ANY ($2 :: uuid[])
@@ -445,7 +445,7 @@ setConversationAccessImpl convId accessData =
   where
     update :: Hasql.Statement (ConvId, Set Access, Set AccessRole) ()
     update =
-      lmapPG @_ @(_, Vector _, Vector _)
+      lmapPG @(_, Vector _, Vector _)
         [resultlessStatement|UPDATE conversation
                              SET access = ($2 :: integer[]), access_roles_v2 = ($3 :: integer[])
                              WHERE id = ($1 :: uuid)|]
@@ -638,7 +638,7 @@ upsertMembersInRemoteConversationImpl (tUntagged -> Qualified cnv domain) users 
   where
     upsert :: Hasql.Statement ([UserId], [Domain], [ConvId]) ()
     upsert =
-      lmapPG @_ @(Vector _, Vector _, Vector _)
+      lmapPG @(Vector _, Vector _, Vector _)
         [resultlessStatement|INSERT INTO remote_conversation_local_member ("user", conv_remote_domain, conv_remote_id)
                              SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: uuid[])
                              ON CONFLICT ("user", conv_remote_domain, conv_remote_id) DO NOTHING
@@ -829,7 +829,7 @@ haveRemoteConvsImpl uid =
   where
     select :: Hasql.Statement [UserId] [UserId]
     select =
-      dimapPG @[_] @(Vector _) @(Vector _) @[_]
+      dimapPG @(Vector _) @[_] @(Vector _) @[_]
         [vectorStatement|SELECT DISTINCT "user" :: uuid
                          FROM remote_conversation_local_member
                          WHERE "user" = ANY ($1 :: uuid[])
@@ -842,7 +842,7 @@ selectRemoteMembersImpl uids (tUntagged -> Qualified cid domain) = do
   where
     select :: Hasql.Statement (Domain, ConvId, [UserId]) [UserId]
     select =
-      dimapPG @_ @(_, _, Vector _)
+      dimapPG @(_, _, Vector _)
         [vectorStatement|SELECT ("user" :: uuid)
                          FROM remote_conversation_local_member
                          WHERE conv_remote_domain = ($1 :: text)
@@ -944,7 +944,7 @@ deleteMembersImpl cid users =
   where
     deleteLocalsStmt :: Hasql.Statement (ConvId, [UserId]) ()
     deleteLocalsStmt =
-      lmapPG @_ @(_, Vector _)
+      lmapPG @(_, Vector _)
         [resultlessStatement|DELETE FROM conversation_member
                              WHERE conv = ($1 :: uuid)
                              AND "user" = ANY($2 :: uuid[])
@@ -952,7 +952,7 @@ deleteMembersImpl cid users =
 
     deleteRemotesStmt :: Hasql.Statement (ConvId, Domain, [UserId]) ()
     deleteRemotesStmt =
-      lmapPG @_ @(_, _, Vector _)
+      lmapPG @(_, _, Vector _)
         [resultlessStatement|DELETE FROM local_conversation_remote_member
                              WHERE conv = ($1 :: uuid)
                              AND user_remote_domain = ($2 :: text)
@@ -965,7 +965,7 @@ deleteMembersInRemoteConversationImpl (tUntagged -> Qualified cid domain) uids =
   where
     delete :: Hasql.Statement (Domain, ConvId, [UserId]) ()
     delete =
-      lmapPG @_ @(_, _, Vector _)
+      lmapPG @(_, _, Vector _)
         [resultlessStatement|DELETE FROM remote_conversation_local_member
                              WHERE conv_remote_domain = ($1 :: text)
                              AND conv_remote_id = ($2 :: uuid)
@@ -1270,7 +1270,7 @@ searchConversationsImpl req =
       literal "with conv as (select id, name, access from conversation"
         <> where_
           ( [ clause1 "team" "=" req.team,
-              clause1 "group_conv_type" "=" (postgresMarshall @_ @Int32 Channel)
+              clause1 "group_conv_type" "=" (postgresMarshall @Int32 Channel)
             ]
               <> [ clause
                      (sortOrderOperator req.sortOrder)
