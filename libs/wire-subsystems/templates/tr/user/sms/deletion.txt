@@ -1,2 +1,0 @@
-${brand} hesabınızı silmek için tıklayın.
-${url}

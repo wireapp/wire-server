@@ -1,1 +1,0 @@
-Guten Tag, Ihr Login-Code für Wire lautet: ${code}. Noch einmal, Ihr Code lautet: ${code}

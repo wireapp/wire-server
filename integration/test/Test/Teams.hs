@@ -141,7 +141,7 @@ testInvitePersonalUserToTeam = do
         -- personal user invitations have a different invitation URL than non-existing user invitations
         newUserInv <- invitations & findM (\i -> (i %. "email" >>= asString) <&> (== newUserEmail))
         newUserInvUrl <- newUserInv %. "url" & asString
-        newUserInvUrl `shouldContainString` "/register"
+        newUserInvUrl `shouldContainString` "/join"
 
         personalUserInv <- invitations & findM (\i -> (i %. "email" >>= asString) <&> (== email))
         personalUserInvUrl <- personalUserInv %. "url" & asString

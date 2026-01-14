@@ -52,7 +52,7 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
-import Brig.Team.Email qualified as Team
+import Brig.Template (InvitationUrlTemplates)
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra
 import Brig.User.API.Handle qualified as Handle
@@ -167,7 +167,6 @@ import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
 import Wire.EmailSubsystem
-import Wire.EmailSubsystem.Template
 import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
@@ -393,7 +392,7 @@ servantSitemap ::
     Member UserKeyStore r,
     Member ActivationCodeStore r,
     Member UserStore r,
-    Member (Input TeamTemplates) r,
+    Member (Input InvitationUrlTemplates) r,
     Member UserSubsystem r,
     Member TeamInvitationSubsystem r,
     Member VerificationCodeSubsystem r,
@@ -906,7 +905,7 @@ upgradePersonalToTeam ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member EmailSending r
+    Member EmailSubsystem r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -930,7 +929,6 @@ createUser ::
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
     Member HashPassword r,
-    Member EmailSending r,
     Member ActivationCodeStore r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -992,15 +990,15 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
       | otherwise =
           liftSem $ sendActivationMail email name key code locale
 
-    sendWelcomeEmail :: (Member EmailSending r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
+    sendWelcomeEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (Public.CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
         pure ()
       Public.NewTeamMember _ ->
-        Team.sendMemberWelcomeMail e t n l
+        liftSem $ sendMemberWelcomeEmail e t n l
       Public.NewTeamMemberSSO _ ->
-        Team.sendMemberWelcomeMail e t n l
+        liftSem $ sendMemberWelcomeEmail e t n l
 
 getSelf :: (Member UserSubsystem r) => Local UserId -> Handler r Public.SelfProfile
 getSelf self =

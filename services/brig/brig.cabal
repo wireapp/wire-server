@@ -191,7 +191,6 @@ library
     Brig.Schema.V90_DomainRegistrationTeamIndex
     Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
     Brig.Team.API
-    Brig.Team.Email
     Brig.Team.Template
     Brig.Template
     Brig.User.API.Handle
@@ -366,6 +365,7 @@ executable brig-integration
     API.Team
     API.Team.Util
     API.TeamUserSearch
+    API.Template
     API.User
     API.User.Account
     API.User.Auth

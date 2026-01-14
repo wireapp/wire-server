@@ -1,1 +1,0 @@
-Hei, sinu Wire kinnituskood on: ${code}. Veelkord, kood on: ${code}

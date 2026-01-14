@@ -1,3 +1,0 @@
-Mã đăng nhập ${brand} của bạn là ${code}.
-
-Mở ${url} để đăng nhập.

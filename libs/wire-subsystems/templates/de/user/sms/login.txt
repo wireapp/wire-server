@@ -1,4 +1,0 @@
-Ihr Login-Code für ${brand} lautet ${code}.
-
-
-Öffnen Sie ${url}, um sich anzumelden.

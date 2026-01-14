@@ -164,6 +164,17 @@ brig:
       general:
         emailSender: backend-integrationk8s@wire.com
         smsSender: dummy
+      user:
+        activationUrl: https://example.com/verify/?key=${key}&code=${code}
+        smsActivationUrl: https://example.com/v/${code}
+        passwordResetUrl: https://example.com/reset/?key=${key}&code=${code}
+        deletionUrl: https://example.com/d/?key=${key}&code=${code}
+      team:
+        tInvitationUrl: https://example.com/join/?team-code=${code}
+        tExistingUserInvitationUrl: https://example.com/accept-invitation/?team-code=${code}
+        tActivationUrl: https://example.com/verify/?key=${key}&code=${code}
+        tCreatorWelcomeUrl: https://example.com/login
+        tMemberWelcomeUrl: https://example.com/download
   test:
     elasticsearch:
       additionalHost: {{ .Values.elasticsearch.additionalHost }}

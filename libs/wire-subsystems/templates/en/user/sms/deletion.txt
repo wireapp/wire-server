@@ -1,2 +1,0 @@
-Tap to delete your ${brand} account.
-${url}

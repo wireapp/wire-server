@@ -1,3 +1,0 @@
-Your ${brand} login code is ${code}.
-
-Sisselogimiseks ava aadress ${url}
