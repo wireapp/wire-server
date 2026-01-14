@@ -56,6 +56,7 @@ import qualified Network.HTTP2.Server.Internal as Server
 import Network.Socket
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
+import qualified StmContainers.Map as StmMap
 import System.Random (randomRIO)
 import qualified System.TimeManager
 import Test.Hspec
@@ -201,7 +202,7 @@ specTemplate mCtx = do
     Just deadConn <- withTestServer mCtx $ \TestServer {..} -> do
       echoTest mgr (isJust mCtx) serverPort
       readIORef acceptedConns `shouldReturn` 1
-      Map.lookup (isJust mCtx, "localhost", serverPort) <$> readTVarIO (connections mgr)
+      atomically $ StmMap.lookup (isJust mCtx, "localhost", serverPort) (connections mgr)
 
     let brokenRequest = sendRequestWithConnection deadConn (Client.requestBuilder "GET" "/echo" [] "some body") $ \_ -> do
           expectationFailure "Expected no response when request is made to a dead server"
@@ -222,7 +223,8 @@ specTemplate mCtx = do
     -- See "should fail with appropriate error when a dead connection is used"
     -- to know what happens when we don't wait for the background thread to go
     -- away.
-    Just deadConn <- Map.lookup (isJust mCtx, "localhost", port) <$> readTVarIO (connections mgr)
+    Just deadConn <-
+      atomically $ StmMap.lookup (isJust mCtx, "localhost", port) (connections mgr)
     void $ waitCatch $ backgroundThread deadConn
 
     withTestServerOnPort mCtx port $ \TestServer {..} -> do

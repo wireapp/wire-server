@@ -50,6 +50,7 @@ library
     , http2
     , network
     , stm
+    , stm-containers
     , streaming-commons
     , text
     , time-manager
@@ -95,5 +96,6 @@ test-suite http2-manager-tests
     , network
     , random
     , stm
+    , stm-containers
     , streaming-commons
     , time-manager
