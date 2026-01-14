@@ -19,6 +19,6 @@ rustPlatform.buildRustPackage {
   name = "rusty_jwt-tools_ffi-${version}";
   inherit version src;
   # `buildRustPackage` requires `cargoHash`. So we have to update it as well
-    # when the Git `rev` is changed.
+  # when the Git `rev` is changed.
   cargoHash = "sha256-gvFEwb+Cxnk7GhWrKs4hEhfyAI/QiE8Zqd2ZXXLbvuE=";
 }
