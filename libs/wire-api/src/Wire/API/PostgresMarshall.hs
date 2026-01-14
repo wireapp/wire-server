@@ -41,8 +41,8 @@ import Data.Vector qualified as V
 import Hasql.Statement
 import Imports
 
-class PostgresMarshall a b where
-  postgresMarshall :: a -> b
+class PostgresMarshall db domain where
+  postgresMarshall :: domain -> db
 
 instance {-# OVERLAPPABLE #-} (a ~ b) => PostgresMarshall a b where
   postgresMarshall = id
@@ -500,31 +500,31 @@ instance (PostgresMarshall a1 b1, PostgresMarshall a2 b2, PostgresMarshall a3 b3
       postgresMarshall a20
     )
 
-instance PostgresMarshall (Id a) UUID where
+instance PostgresMarshall UUID (Id a) where
   postgresMarshall = toUUID
 
-instance PostgresMarshall BotId UUID where
+instance PostgresMarshall UUID BotId where
   postgresMarshall = toUUID . botUserId
 
-instance PostgresMarshall ClientId Text where
+instance PostgresMarshall Text ClientId where
   postgresMarshall = clientToText
 
-instance PostgresMarshall Object Value where
+instance PostgresMarshall Value Object where
   postgresMarshall = Object
 
-instance PostgresMarshall Milliseconds Int64 where
+instance PostgresMarshall Int64 Milliseconds where
   postgresMarshall = msToInt64
 
-instance PostgresMarshall Domain Text where
+instance PostgresMarshall Text Domain where
   postgresMarshall = domainText
 
 instance (PostgresMarshall a b) => PostgresMarshall (Maybe a) (Maybe b) where
   postgresMarshall = fmap postgresMarshall
 
-instance (PostgresMarshall a b) => PostgresMarshall [a] (Vector b) where
+instance (PostgresMarshall b a) => PostgresMarshall (Vector b) [a] where
   postgresMarshall = V.fromList . map postgresMarshall
 
-instance (PostgresMarshall a b) => PostgresMarshall (Set a) (Vector b) where
+instance (PostgresMarshall b a) => PostgresMarshall (Vector b) (Set a) where
   postgresMarshall = V.fromList . map postgresMarshall . Set.toList
 
 instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
@@ -532,8 +532,8 @@ instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
 
 ---
 
-class PostgresUnmarshall a b where
-  postgresUnmarshall :: a -> Either Text b
+class PostgresUnmarshall db domain where
+  postgresUnmarshall :: db -> Either Text domain
 
 instance {-# OVERLAPPABLE #-} (a ~ b) => PostgresUnmarshall a b where
   postgresUnmarshall = Right
@@ -857,14 +857,14 @@ instance PostgresUnmarshall Int64 Milliseconds where
 
 ---
 
-lmapPG :: (PostgresMarshall a b, Profunctor p) => p b x -> p a x
+lmapPG :: (PostgresMarshall db domain, Profunctor p) => p db x -> p domain x
 lmapPG = lmap postgresMarshall
 
-rmapPG :: (PostgresUnmarshall x y) => Statement a x -> Statement a y
+rmapPG :: (PostgresUnmarshall db domain) => Statement x db -> Statement x domain
 rmapPG = refineResult postgresUnmarshall
 
 dimapPG ::
-  (PostgresMarshall a b, PostgresUnmarshall x y) =>
-  Statement b x ->
-  Statement a y
+  (PostgresMarshall dbIn domainIn, PostgresUnmarshall dbOut domainOut) =>
+  Statement dbIn dbOut ->
+  Statement domainIn domainOut
 dimapPG = refineResult postgresUnmarshall . lmapPG

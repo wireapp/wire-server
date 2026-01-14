@@ -592,7 +592,7 @@ instance C.Cql Access where
   fromCql (C.CqlInt i) = mapLeft Text.unpack $ accessFromInt32 i
   fromCql _ = Left "Access value: int expected"
 
-instance PostgresMarshall Access Int32 where
+instance PostgresMarshall Int32 Access where
   postgresMarshall = accessToInt32
 
 instance PostgresUnmarshall Int32 Access where
@@ -677,7 +677,7 @@ instance C.Cql AccessRole where
   fromCql (C.CqlInt i) = mapLeft Text.unpack $ accessRoleFromInt32 i
   fromCql _ = Left "AccessRoleV2 value: int expected"
 
-instance PostgresMarshall AccessRole Int32 where
+instance PostgresMarshall Int32 AccessRole where
   postgresMarshall = accessRoleToInt32
 
 instance PostgresUnmarshall Int32 AccessRole where
@@ -792,7 +792,7 @@ instance C.Cql ConvType where
   fromCql (C.CqlInt i) = mapLeft Text.unpack $ convTypeFromInt32 i
   fromCql _ = Left "conv-type: int expected"
 
-instance PostgresMarshall ConvType Int32 where
+instance PostgresMarshall Int32 ConvType where
   postgresMarshall = convTypeToInt32
 
 instance PostgresUnmarshall Int32 ConvType where
@@ -834,7 +834,7 @@ instance ToSchema ReceiptMode where
     (S.schema . description ?~ "Conversation receipt mode") $
       ReceiptMode <$> unReceiptMode .= schema
 
-instance PostgresMarshall ReceiptMode Int32 where
+instance PostgresMarshall Int32 ReceiptMode where
   postgresMarshall = unReceiptMode
 
 --------------------------------------------------------------------------------
@@ -859,7 +859,7 @@ instance C.Cql GroupConvType where
   fromCql (C.CqlInt i) = Right . toEnum . fromIntegral $ i
   fromCql _ = Left "GroupConvType: int expected"
 
-instance PostgresMarshall GroupConvType Int32 where
+instance PostgresMarshall Int32 GroupConvType where
   postgresMarshall = fromIntegral . fromEnum
 
 instance PostgresUnmarshall Int32 GroupConvType where
@@ -1294,7 +1294,7 @@ instance C.Cql AddPermission where
   fromCql (C.CqlInt i) = Right . toEnum . fromIntegral $ i
   fromCql _ = Left "AddPermission: int expected"
 
-instance PostgresMarshall AddPermission Int32 where
+instance PostgresMarshall Int32 AddPermission where
   postgresMarshall = fromIntegral . fromEnum
 
 instance PostgresUnmarshall Int32 AddPermission where

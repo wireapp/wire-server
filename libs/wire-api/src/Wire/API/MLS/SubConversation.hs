@@ -49,7 +49,8 @@ import Wire.Arbitrary
 -- conversation. The pair of a qualified conversation ID and a subconversation
 -- ID identifies globally.
 newtype SubConvId = SubConvId {unSubConvId :: Text}
-  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString, ToJSON, FromJSON, S.ToSchema, PostgresUnmarshall Text)
+  deriving newtype (Eq, ToSchema, Ord, S.ToParamSchema, ToByteString)
+  deriving newtype (ToJSON, FromJSON, S.ToSchema, PostgresUnmarshall Text, PostgresMarshall Text)
   deriving stock (Generic)
   deriving stock (Show)
 
@@ -68,9 +69,6 @@ instance Arbitrary SubConvId where
     n <- choose (1, 255)
     cs <- replicateM n (arbitrary `suchThat` isValidSubConvChar)
     pure $ SubConvId (T.pack cs)
-
-instance PostgresMarshall SubConvId Text where
-  postgresMarshall = unSubConvId
 
 isValidSubConvChar :: Char -> Bool
 isValidSubConvChar c = isPrint c && isAscii c && not (isSpace c)

@@ -58,7 +58,7 @@ instance Cql CellsState where
   fromCql (CqlInt i) = mapLeft Text.unpack $ cellsStateFromInt32 i
   fromCql _ = Left "cells_state: int expected"
 
-instance PostgresMarshall CellsState Int32 where
+instance PostgresMarshall Int32 CellsState where
   postgresMarshall = cellsStateToInt32
 
 instance PostgresUnmarshall Int32 CellsState where

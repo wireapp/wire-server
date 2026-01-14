@@ -39,7 +39,7 @@ import Wire.Util
 
 data DeletionType = DeleteConv | DeleteUser
 
-instance PostgresMarshall DeletionType Text where
+instance PostgresMarshall Text DeletionType where
   postgresMarshall = \case
     DeleteConv -> "conv"
     DeleteUser -> "user"

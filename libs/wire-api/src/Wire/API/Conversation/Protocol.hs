@@ -73,7 +73,7 @@ instance C.Cql ProtocolTag where
   fromCql (C.CqlInt i) = mapLeft Text.unpack $ protocolTagFromInt32 i
   fromCql _ = Left "protocol: int expected"
 
-instance PostgresMarshall ProtocolTag Int32 where
+instance PostgresMarshall Int32 ProtocolTag where
   postgresMarshall = fromIntegral . fromEnum
 
 instance PostgresUnmarshall Int32 ProtocolTag where

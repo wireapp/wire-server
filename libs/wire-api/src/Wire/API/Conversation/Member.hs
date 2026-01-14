@@ -163,11 +163,8 @@ instance ToSchema Member where
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, ToSchema, Arbitrary, C.Cql, PostgresUnmarshall Int32)
+  deriving newtype (Num, ToSchema, Arbitrary, C.Cql, PostgresUnmarshall Int32, PostgresMarshall Int32)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MutedStatus
-
-instance PostgresMarshall MutedStatus Int32 where
-  postgresMarshall = fromMutedStatus
 
 data OtherMember = OtherMember
   { omQualifiedId :: Qualified UserId,

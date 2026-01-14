@@ -51,7 +51,7 @@ instance C.Cql Epoch where
   fromCql (C.CqlBigInt n) = pure (Epoch (fromIntegral n))
   fromCql _ = Left "epoch: bigint expected"
 
-instance PostgresMarshall Epoch Int64 where
+instance PostgresMarshall Int64 Epoch where
   postgresMarshall = fromIntegral . epochNumber
 
 instance PostgresUnmarshall Int64 Epoch where
