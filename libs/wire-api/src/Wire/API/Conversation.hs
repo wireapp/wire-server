@@ -125,6 +125,7 @@ import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.Event.LeaveReason
+import Wire.API.History
 import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.PostgresMarshall
@@ -153,7 +154,8 @@ data ConversationMetadata = ConversationMetadata
     cnvmGroupConvType :: Maybe GroupConvType,
     cnvmChannelAddPermission :: Maybe AddPermission,
     cnvmCellsState :: CellsState,
-    cnvmParent :: Maybe ConvId
+    cnvmParent :: Maybe ConvId,
+    cnvmHistory :: History
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -173,7 +175,8 @@ defConversationMetadata mCreator =
       cnvmGroupConvType = Just GroupConversation,
       cnvmChannelAddPermission = Nothing,
       cnvmCellsState = def,
-      cnvmParent = Nothing
+      cnvmParent = Nothing,
+      cnvmHistory = def
     }
 
 accessRolesVersionedSchema :: Maybe Version -> ObjectSchema SwaggerDoc (Set AccessRole)
@@ -237,6 +240,7 @@ conversationMetadataObjectSchema sch =
     <*> cnvmChannelAddPermission .= optField "add_permission" (maybeWithDefault A.Null schema)
     <*> cnvmCellsState .= (fromMaybe def <$> optField "cells_state" schema)
     <*> cnvmParent .= optField "parent" (maybeWithDefault A.Null schema)
+    <*> cnvmHistory .= (fromMaybe def <$> optField "history" schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
@@ -884,7 +888,8 @@ data NewConv = NewConv
     newConvCells :: Bool,
     newConvChannelAddPermission :: Maybe AddPermission,
     newConvSkipCreator :: Bool,
-    newConvParent :: Maybe ConvId
+    newConvParent :: Maybe ConvId,
+    newConvHistory :: History
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -969,6 +974,7 @@ newConvSchema v sch =
               (description ?~ "Parent conversation")
               schema
           )
+      <*> newConvHistory .= (fromMaybe def <$> optField "history" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

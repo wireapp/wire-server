@@ -34,6 +34,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation qualified as MLS
 import Wire.API.MLS.SubConversation
@@ -158,7 +159,8 @@ toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp
           cnvmGroupConvType = mgct,
           cnvmCellsState = fromMaybe def mcells,
           cnvmChannelAddPermission = mAp,
-          cnvmParent = mparent
+          cnvmParent = mparent,
+          cnvmHistory = HistoryPrivate
         }
 
 newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation

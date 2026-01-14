@@ -859,7 +859,8 @@ newRegularConversation lusr newConv = do
                     if newConv.newConvCells
                       then CellsPending
                       else CellsDisabled,
-                  cnvmParent = newConv.newConvParent
+                  cnvmParent = newConv.newConvParent,
+                  cnvmHistory = newConv.newConvHistory
                 },
             users = newConvUsersRoles,
             protocol = newConvProtocol newConv,

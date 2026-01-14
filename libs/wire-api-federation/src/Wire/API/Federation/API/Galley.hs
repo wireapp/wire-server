@@ -44,6 +44,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley.Notifications as Notifications
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
+import Wire.API.History
 import Wire.API.MLS.Keys
 import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.SubConversation
@@ -353,7 +354,8 @@ data ConversationCreated conv = ConversationCreated
     receiptMode :: Maybe ReceiptMode,
     protocol :: Protocol,
     groupConvType :: Maybe GroupConvType,
-    channelAddPermission :: Maybe AddPermission
+    channelAddPermission :: Maybe AddPermission,
+    history :: Maybe History
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
@@ -364,6 +366,7 @@ instance (Arbitrary a) => Arbitrary (ConversationCreated a) where
   arbitrary =
     ConversationCreated
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

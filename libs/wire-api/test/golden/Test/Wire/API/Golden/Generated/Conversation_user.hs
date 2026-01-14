@@ -39,6 +39,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
@@ -62,7 +63,8 @@ testObject_Conversation_user_1 =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsReady,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryPrivate
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -113,7 +115,8 @@ testObject_Conversation_user_2 =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsPending,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryShared (HistorySharingConfig {depth = HistoryDurationFinite 3600})
           },
       cnvProtocol = ProtocolProteus,
       cnvMembers =
@@ -183,7 +186,8 @@ testObject_Conversation_user_3 =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryPrivate
           },
       cnvMembers =
         OwnConvMembers
@@ -249,7 +253,8 @@ testObject_Conversation_user_4 =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryShared (HistorySharingConfig {depth = HistoryDurationInfinite})
           },
       cnvMembers =
         OwnConvMembers
@@ -293,7 +298,8 @@ testObject_Conversation_user_5 =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryPrivate
           },
       cnvMembers =
         OwnConvMembers

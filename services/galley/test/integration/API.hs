@@ -1928,6 +1928,7 @@ postConvHelper g zusr newUsers = do
           Nothing
           False
           Nothing
+          def
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -1972,6 +1973,7 @@ postConvO2OFailWithSelf = do
           Nothing
           False
           Nothing
+          def
   post (g . path "one2one-conversations" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -2226,6 +2228,7 @@ accessConvMeta = do
           Nothing
           def
           Nothing
+          def
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)

@@ -38,6 +38,7 @@ import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import Types
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.History
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.API.UserGroup (UpdateUserGroupChannels (..))
 
@@ -67,7 +68,8 @@ createChannel manager (ApiUrl apiUrl) (Token token) userId teamId channelName = 
             newConvCells = False,
             newConvChannelAddPermission = Nothing,
             newConvSkipCreator = False,
-            newConvParent = Nothing
+            newConvParent = Nothing,
+            newConvHistory = HistoryPrivate
           }
       body = encode newConv
 
