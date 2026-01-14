@@ -28,7 +28,12 @@ mkDerivation {
     utf8-string
   ];
   librarySystemDepends = [ rusty_jwt_tools_ffi ];
-  testHaskellDepends = [ hspec imports string-conversions ];
+  testHaskellDepends = [
+    hspec
+    imports
+    string-conversions
+    transformers
+  ];
   description = "FFI to rusty-jwt-tools";
   license = lib.licenses.agpl3Only;
 }
