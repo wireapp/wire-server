@@ -78,8 +78,6 @@ import Galley.API.Util
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Data.Types qualified as Data
 import Galley.Effects
-import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.TeamStore qualified as E
 import Galley.Env
 import Galley.Options
 import Imports
@@ -112,19 +110,22 @@ import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
+import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 getBotConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   BotId ->
   ConvId ->
@@ -151,7 +152,7 @@ getUnqualifiedOwnConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConvId ->
@@ -165,7 +166,7 @@ getUnqualifiedConversation ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConvId ->
@@ -180,9 +181,9 @@ getConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -201,9 +202,9 @@ getOwnConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -220,7 +221,7 @@ getRemoteConversation ::
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -236,7 +237,7 @@ getRemoteConversations ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -305,7 +306,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 
 getRemoteConversationsWithFailures ::
   ( Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -353,7 +354,7 @@ getRemoteConversationsWithFailures lusr convs = do
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)
-          . Logger.field "error" (show e)
+          . Logger.field "error" (displayException e)
       pure . Left $ failedGetConversationRemotely (sequenceA rcids) e
     handleFailure (Right c) = pure . Right . traverse (.convs) $ c
 
@@ -361,7 +362,7 @@ getConversationRoles ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConvId ->
@@ -501,7 +502,7 @@ getConversationsInternal luser mids mstart msize = do
 listConversations ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -585,7 +586,7 @@ getSelfMember ::
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -605,8 +606,7 @@ getSelfMember lusr cnv = do
       pure $ Just $ conv.cnvMembers.cmSelf
 
 getLocalSelf ::
-  ( Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   ConvId ->
   Sem r (Maybe Public.Member)
@@ -640,18 +640,18 @@ getConversationByReusableCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Key ->
   Value ->
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
-  c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) False Nothing (ConversationCode key value Nothing)
+  c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) False Nothing (ConversationCode key value)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled (Data.convTeam conv)
@@ -685,14 +685,14 @@ getConversationGuestLinksStatus ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   ConvId ->
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
-  mTeamMember <- maybe (pure Nothing) (flip E.getTeamMember uid) conv.metadata.cnvmTeam
+  mTeamMember <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember uid) conv.metadata.cnvmTeam
   ensureConvAdmin conv uid mTeamMember
   getConversationGuestLinksFeatureStatus (Data.convTeam conv)
 
@@ -777,10 +777,11 @@ getMLSOne2OneConversationV5 ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -798,10 +799,11 @@ getMLSOne2OneConversationInternal ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -817,10 +819,11 @@ getMLSOne2OneConversationV6 ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -843,10 +846,11 @@ getMLSOne2OneConversation ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -883,7 +887,7 @@ getRemoteMLSOne2OneConversation ::
   ( Member (Error InternalError) r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSNotEnabled) r,
     Member TinyLog r
   ) =>
@@ -941,7 +945,7 @@ isMLSOne2OneEstablished ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member TinyLog r
   ) =>
   Local UserId ->
@@ -972,7 +976,7 @@ isRemoteMLSOne2OneEstablished ::
   ( Member (ErrorS 'NotConnected) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS MLSNotEnabled) r,
     Member TinyLog r
   ) =>
@@ -994,7 +998,7 @@ searchChannels ::
   ( Member ConversationStore r,
     Member (ErrorS NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -1007,7 +1011,7 @@ searchChannels ::
   Sem r ConversationPage
 searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable = do
   r <- runError @(Tagged OperationDenied ()) $ do
-    mem <- E.getTeamMember tid (tUnqualified lusr)
+    mem <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
     void $ permissionCheck SearchChannels mem
   case r of
     Left e | not discoverable -> throw e

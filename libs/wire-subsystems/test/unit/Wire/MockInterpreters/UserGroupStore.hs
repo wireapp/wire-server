@@ -28,7 +28,6 @@ import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.MockInterpreters.Now
 import Wire.MockInterpreters.Random
-import Wire.PaginationState
 import Wire.Sem.Random qualified as Rnd
 import Wire.UserGroupStore
 
@@ -62,8 +61,8 @@ userGroupStoreTestInterpreter =
   interpret $ \case
     CreateUserGroup tid ng mb -> createUserGroupImpl tid ng mb
     GetUserGroup tid gid includeChannels -> getUserGroupImpl tid gid includeChannels
-    GetUserGroups req -> getUserGroupsImpl req
-    GetUserGroupsWithMembers req -> getUserGroupsWithMembersImpl req
+    GetUserGroups tid req -> getUserGroupsImpl tid req
+    GetUserGroupsWithMembers tid req -> getUserGroupsWithMembersImpl tid req
     GetUserGroupsForConv cid -> getUserGroupsForConvImpl cid
     UpdateUserGroup tid gid gup -> updateUserGroupImpl tid gid gup
     DeleteUserGroup tid gid -> deleteUserGroupImpl tid gid
@@ -124,16 +123,16 @@ filterChannels includeChannels ug =
     then (ug :: UserGroup) {channelsCount = Just $ maybe 0 length ug.channels}
     else (ug :: UserGroup) {channels = mempty}
 
-getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPage
-getUserGroupsImpl req = do
-  UserGroupPage pages count <- getUserGroupsWithMembersImpl req
+getUserGroupsImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupPageRequest -> Sem r UserGroupPage
+getUserGroupsImpl tid req = do
+  UserGroupPage pages count <- getUserGroupsWithMembersImpl tid req
   pure $ UserGroupPage (map removeMembers pages) count
   where
     removeMembers :: UserGroup -> UserGroupMeta
     removeMembers UserGroup_ {..} = UserGroup_ {members = Const (), ..}
 
-getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => UserGroupPageRequest -> Sem r UserGroupPageWithMembers
-getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
+getUserGroupsWithMembersImpl :: (UserGroupStoreInMemEffectConstraints r) => TeamId -> UserGroupPageRequest -> Sem r UserGroupPageWithMembers
+getUserGroupsWithMembersImpl tid UserGroupPageRequest {..} = do
   meta <- ((snd <$>) . sieve . fmap (_2 %~ (filterChannels includeChannels)) . Map.toList) <$> get @UserGroupInMemState
   pure $ UserGroupPage meta (length meta)
   where
@@ -142,6 +141,7 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
       dropBeforeStart,
       orderByKeys,
       narrowToSearchString,
+      narrowToManagedBy,
       narrowToTeam ::
         [((TeamId, UserGroupId), UserGroup)] -> [((TeamId, UserGroupId), UserGroup)]
 
@@ -150,9 +150,13 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
         . dropBeforeStart
         . orderByKeys
         . narrowToSearchString
+        . narrowToManagedBy
         . narrowToTeam
 
-    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == team)
+    narrowToTeam = filter (\((thisTid, _), _) -> thisTid == tid)
+
+    narrowToManagedBy =
+      filter (\(_, ug) -> maybe True (== ug.managedBy) managedByFilter)
 
     narrowToSearchString =
       filter (\(_, ug) -> maybe True (`T.isInfixOf` userGroupNameToText ug.name) searchString)
@@ -164,6 +168,8 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
           (PaginationSortByName _, Desc) -> (n', i') `compare` (n, i)
           (PaginationSortByCreatedAt _, Asc) -> (c, i) `compare` (c', i')
           (PaginationSortByCreatedAt _, Desc) -> (c', i') `compare` (c, i)
+          (PaginationOffset _, Asc) -> i `compare` i'
+          (PaginationOffset _, Desc) -> i' `compare` i
           where
             n = ug.name
             n' = ug'.name
@@ -173,7 +179,9 @@ getUserGroupsWithMembersImpl UserGroupPageRequest {..} = do
             c' = ug'.createdAt
 
     dropBeforeStart = do
-      dropWhile sqlConds
+      case paginationState of
+        PaginationOffset n -> drop (fromIntegral n)
+        _ -> dropWhile sqlConds
       where
         sqlConds :: ((TeamId, UserGroupId), UserGroup) -> Bool
         sqlConds ((_, _), row) =

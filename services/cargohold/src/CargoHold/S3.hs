@@ -427,8 +427,6 @@ octets = MIME.Type (MIME.Application "octet-stream") []
 
 exec ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r
   ) =>
   (Text -> r) ->
@@ -439,8 +437,6 @@ exec req = do
 
 execCatch ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r
   ) =>
   (Text -> r) ->

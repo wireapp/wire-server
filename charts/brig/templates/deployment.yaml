@@ -146,7 +146,6 @@ spec:
             value: {{ join "," .noProxyList | quote }}
           {{- end }}
           {{- end }}
-          {{- if .Values.config.enableFederation }}
           - name: RABBITMQ_USERNAME
             valueFrom:
               secretKeyRef:
@@ -157,7 +156,6 @@ spec:
               secretKeyRef:
                 name: brig
                 key: rabbitmqPassword
-          {{- end }}
           ports:
             - containerPort: {{ .Values.service.internalPort }}
           startupProbe:

@@ -26,7 +26,6 @@ import API.Teams.LegalHold.Util
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Chan
 import Control.Lens hiding ((#))
 import Data.Id
@@ -34,7 +33,6 @@ import Data.LegalHold
 import Data.PEM
 import Data.Range
 import Data.Time.Clock qualified as Time
-import Galley.Cassandra.LegalHold
 import Galley.Env qualified as Galley
 import Imports
 import Network.HTTP.Types.Status (status200, status404)
@@ -53,6 +51,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User.Client
+import Wire.LegalHoldStore.Cassandra
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Legalhold" [testsPublic s, testsInternal s]

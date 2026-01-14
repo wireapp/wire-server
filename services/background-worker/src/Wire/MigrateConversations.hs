@@ -25,20 +25,22 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.ConversationStore.Migration
 
-startWorker :: AppT IO CleanupAction
-startWorker = do
+startWorker :: MigrationOptions -> AppT IO CleanupAction
+startWorker migOpts = do
   cassClient <- asks (.cassandraGalley)
   pgPool <- asks (.hasqlPool)
   logger <- asks (.logger)
 
   Log.info logger $ Log.msg (Log.val "starting conversation migration")
   convMigCounter <- register $ counter $ Prometheus.Info "wire_local_convs_migrated_to_pg" "Number of local conversations migrated to Postgresql"
-  convMigFinished <- register $ counter $ Prometheus.Info "wire_local_convs_migration_finished" "Whether the conversation migration to Postgresql is finished"
+  convMigFinished <- register $ counter $ Prometheus.Info "wire_local_convs_migration_finished" "Whether the conversation migration to Postgresql is finished successfully"
+  convMigFailed <- register $ counter $ Prometheus.Info "wire_local_convs_migration_failed" "Whether the conversation migration to Postgresql has failed"
   userMigCounter <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migrated_to_pg" "Number of users whose remote conversation membership data is migrated to Postgresql"
-  userMigFinished <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_finished" "Whether the migration of remote conversation membership data to Postgresql is finished"
+  userMigFinished <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_finished" "Whether the migration of remote conversation membership data to Postgresql is finished successfully"
+  userMigFailed <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_failed" "Whether the migration of remote conversation membership data to Postgresql has failed"
 
-  convLoop <- async . lift $ migrateConvsLoop cassClient pgPool logger convMigCounter convMigFinished
-  userLoop <- async . lift $ migrateUsersLoop cassClient pgPool logger userMigCounter userMigFinished
+  convLoop <- async . lift $ migrateConvsLoop migOpts cassClient pgPool logger convMigCounter convMigFinished convMigFailed
+  userLoop <- async . lift $ migrateUsersLoop migOpts cassClient pgPool logger userMigCounter userMigFinished userMigFailed
 
   Log.info logger $ Log.msg (Log.val "started conversation migration")
   pure $ do

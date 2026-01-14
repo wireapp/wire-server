@@ -70,6 +70,7 @@ module Wire.API.Team.Member
     rolePermissions,
     IsPerm (..),
     HiddenPerm (..),
+    mkSingleTeamMembersPage,
   )
 where
 
@@ -236,6 +237,15 @@ type TeamMembersPage' = MultiTablePage TeamMembersPagingName "members" TeamMembe
 newtype TeamMembersPage = TeamMembersPage {unTeamMembersPage :: TeamMembersPage'}
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMembersPage)
+
+mkSingleTeamMembersPage :: [TeamMemberOptPerms] -> TeamMembersPage
+mkSingleTeamMembersPage members =
+  TeamMembersPage
+    MultiTablePage
+      { mtpResults = members,
+        mtpHasMore = False,
+        mtpPagingState = MultiTablePagingState TeamMembersTable Nothing
+      }
 
 instance ToSchema TeamMembersPage where
   schema =
@@ -511,12 +521,12 @@ permissionsRole (Permissions p p') =
     permsRole perms =
       listToMaybe
         [ role
-          | role <- [minBound ..],
-            -- if a there is a role that is strictly less permissive than the perms set that
-            -- we encounter, we downgrade.  this shouldn't happen in real life, but it has
-            -- happened to very old users on a staging environment, where a user (probably)
-            -- was create before the current publicly visible permissions had been stabilized.
-            rolePerms role `Set.isSubsetOf` perms
+        | role <- [minBound ..],
+          -- if a there is a role that is strictly less permissive than the perms set that
+          -- we encounter, we downgrade.  this shouldn't happen in real life, but it has
+          -- happened to very old users on a staging environment, where a user (probably)
+          -- was create before the current publicly visible permissions had been stabilized.
+          rolePerms role `Set.isSubsetOf` perms
         ]
 
 -- | Internal function for 'rolePermissions'.  (It works iff the two sets in 'Permissions' are

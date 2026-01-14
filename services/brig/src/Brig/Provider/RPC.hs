@@ -46,6 +46,7 @@ import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import Network.Wai.Utilities.Exception
 import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import System.Logger.Class qualified as Log
@@ -98,7 +99,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayException ex)
+    onExc ex = lift (extLogError scon ex) >> throwE (ServiceUnavailableWith $ displayExceptionNoBacktrace ex)
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

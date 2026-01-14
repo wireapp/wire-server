@@ -438,6 +438,9 @@ nginx_conf:
     - path: /teams/([^/]*)/apps$
       envs:
       - all
+    - path: /teams/([^/]*)/apps/([^/]*)$
+      envs:
+      - all
     - path: /teams/([^/]*)/apps/([^/]*)/cookies$
       envs:
       - all

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,34 +17,38 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Intra.Spar
-  ( deleteTeam,
-    lookupScimUserInfo,
-  )
-where
+module Wire.ProposalStore where
 
-import Bilge
-import Data.ByteString.Conversion
-import Data.Id
-import Galley.Intra.Util
-import Galley.Monad
 import Imports
-import Network.HTTP.Types.Method
-import Wire.API.User (ScimUserInfo)
+import Polysemy
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 
--- | Notify Spar that a team is being deleted.
-deleteTeam :: TeamId -> App ()
-deleteTeam tid = do
-  void . call Spar $
-    method DELETE
-      . paths ["i", "teams", toByteString' tid]
-      . expect2xx
+data ProposalStore m a where
+  StoreProposal ::
+    GroupId ->
+    Epoch ->
+    ProposalRef ->
+    ProposalOrigin ->
+    RawMLS Proposal ->
+    ProposalStore m ()
+  GetProposal ::
+    GroupId ->
+    Epoch ->
+    ProposalRef ->
+    ProposalStore m (Maybe (RawMLS Proposal))
+  GetAllPendingProposalRefs ::
+    GroupId ->
+    Epoch ->
+    ProposalStore m [ProposalRef]
+  GetAllPendingProposals ::
+    GroupId ->
+    Epoch ->
+    ProposalStore m [(Maybe ProposalOrigin, RawMLS Proposal)]
+  DeleteAllProposals ::
+    GroupId ->
+    ProposalStore m ()
 
--- | Get the SCIM user info for a user.
-lookupScimUserInfo :: UserId -> App ScimUserInfo
-lookupScimUserInfo uid = do
-  response <-
-    call Spar $
-      method POST
-        . paths ["i", "scim", "userinfo", toByteString' uid]
-  responseJsonError response
+makeSem ''ProposalStore

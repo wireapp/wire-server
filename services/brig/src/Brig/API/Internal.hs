@@ -44,7 +44,6 @@ import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
@@ -89,6 +88,7 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
@@ -358,8 +358,7 @@ authAPI =
       )
 
 federationRemotesAPI ::
-  ( Member FederationConfigStore r
-  ) =>
+  (Member FederationConfigStore r) =>
   ServerT BrigIRoutes.FederationRemotesAPI (Handler r)
 federationRemotesAPI =
   Named @"add-federation-remotes" addFederationRemote
@@ -378,8 +377,7 @@ getFederationRemoteTeams domain =
   lift $ liftSem $ E.getFederationRemoteTeams domain
 
 addFederationRemoteTeam ::
-  ( Member FederationConfigStore r
-  ) =>
+  (Member FederationConfigStore r) =>
   Domain ->
   FederationRemoteTeam ->
   (Handler r) ()
@@ -398,8 +396,7 @@ getFederationRemotes :: (Member FederationConfigStore r) => (Handler r) Federati
 getFederationRemotes = lift $ liftSem $ E.getFederationConfigs
 
 addFederationRemote ::
-  ( Member FederationConfigStore r
-  ) =>
+  (Member FederationConfigStore r) =>
   FederationDomainConfig ->
   (Handler r) ()
 addFederationRemote fedDomConf = do
@@ -775,15 +772,13 @@ getActivationCode email = do
   maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
 
 getPasswordResetCodeH ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   EmailAddress ->
   Handler r GetPasswordResetCodeResp
 getPasswordResetCodeH email = getPasswordResetCode email
 
 getPasswordResetCode ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   EmailAddress ->
   Handler r GetPasswordResetCodeResp
 getPasswordResetCode email =
@@ -1003,8 +998,7 @@ getAccountsByInternalH getByData = do
   lift . liftSem $ getAccountsBy (qualifyAs loc getByData)
 
 createGroupInternalH ::
-  ( Member UserGroupSubsystem r
-  ) =>
+  (Member UserGroupSubsystem r) =>
   CreateGroupInternalRequest ->
   Handler r UserGroup
 createGroupInternalH req =
@@ -1016,8 +1010,7 @@ createGroupInternalH req =
       req.newGroup
 
 getGroupInternalH ::
-  ( Member UserGroupSubsystem r
-  ) =>
+  (Member UserGroupSubsystem r) =>
   TeamId ->
   UserGroupId ->
   Bool ->
@@ -1026,25 +1019,25 @@ getGroupInternalH tid uid includeChannels =
   lift . liftSem $ getGroupInternal tid uid includeChannels
 
 getGroupsInternalH ::
-  ( Member UserGroupSubsystem r
-  ) =>
+  (Member UserGroupSubsystem r) =>
   TeamId ->
   Maybe T.Text ->
+  Maybe ManagedBy ->
+  Word ->
+  Maybe Word ->
   Handler r UserGroupPageWithMembers
-getGroupsInternalH tid nameContains =
-  lift . liftSem $ getGroupsInternal tid nameContains
+getGroupsInternalH tid nameContains managedBy startIndex mbCount =
+  lift . liftSem $ getGroupsInternal tid nameContains managedBy startIndex mbCount
 
 updateGroupInternalH ::
-  ( Member UserGroupSubsystem r
-  ) =>
+  (Member UserGroupSubsystem r) =>
   UpdateGroupInternalRequest ->
   Handler r ()
 updateGroupInternalH req =
   lift . liftSem $ resetUserGroupInternal req
 
 deleteGroupManagedInternalH ::
-  ( Member UserGroupSubsystem r
-  ) =>
+  (Member UserGroupSubsystem r) =>
   TeamId ->
   UserGroupId ->
   ManagedBy ->

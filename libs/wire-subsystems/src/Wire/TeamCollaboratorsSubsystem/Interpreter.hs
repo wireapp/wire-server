@@ -101,8 +101,7 @@ getAllTeamCollaboratorsImpl zUser team = do
   Store.getAllTeamCollaborators team
 
 internalGetTeamCollaboratorsWithIdsImpl ::
-  ( Member Store.TeamCollaboratorsStore r
-  ) =>
+  (Member Store.TeamCollaboratorsStore r) =>
   Set TeamId ->
   Set UserId ->
   Sem r [TeamCollaborator]
@@ -110,8 +109,7 @@ internalGetTeamCollaboratorsWithIdsImpl = do
   Store.getTeamCollaboratorsWithIds
 
 internalUpdateTeamCollaboratorImpl ::
-  ( Member Store.TeamCollaboratorsStore r
-  ) =>
+  (Member Store.TeamCollaboratorsStore r) =>
   UserId ->
   TeamId ->
   Set CollaboratorPermission ->
@@ -120,8 +118,7 @@ internalUpdateTeamCollaboratorImpl user team perms = do
   Store.updateTeamCollaborator user team perms
 
 internalRemoveTeamCollaboratorImpl ::
-  ( Member Store.TeamCollaboratorsStore r
-  ) =>
+  (Member Store.TeamCollaboratorsStore r) =>
   UserId ->
   TeamId ->
   Sem r ()

@@ -76,8 +76,7 @@ interpretIndexedUserStoreES cfg =
     GetTeamSize tid -> getTeamSizeImpl cfg tid
 
 getTeamSizeImpl ::
-  ( Member (Embed IO) r
-  ) =>
+  (Member (Embed IO) r) =>
   IndexedUserStoreConfig ->
   TeamId ->
   Sem r TeamSize

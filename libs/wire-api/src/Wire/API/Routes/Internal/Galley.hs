@@ -94,6 +94,8 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut AppsConfig
     :<|> IFeatureStatusLockStatusPut SimplifiedUserConnectionRequestQRCodeConfig
     :<|> IFeatureStatusLockStatusPut StealthUsersConfig
+    :<|> IFeatureStatusLockStatusPut MeetingsConfig
+    :<|> IFeatureStatusLockStatusPut MeetingsPremiumConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -117,8 +119,7 @@ type InternalAPI = "i" :> InternalAPIBase
 type InternalAPIBase =
   Named
     "status"
-    ( "status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ()
-    )
+    ("status" :> MultiVerb 'GET '[JSON] '[RespondEmpty 200 "OK"] ())
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members for all conversations the user was in
     :<|> Named
@@ -265,6 +266,12 @@ type ITeamsAPIBase =
                         :> Get '[JSON] TeamMemberInfoList
                     )
              :<|> Named
+                    "unchecked-select-team-members"
+                    ( "get-by-ids"
+                        :> ReqBody '[JSON] UserIds
+                        :> Post '[JSON] [TeamMember]
+                    )
+             :<|> Named
                     "unchecked-get-team-member"
                     ( Capture "uid" UserId
                         :> CanThrow 'TeamMemberNotFound
@@ -303,6 +310,13 @@ type ITeamsAPIBase =
                :> CanThrow 'TeamMemberNotFound
                :> CanThrow 'NotATeamMember
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "User is team owner")
+           )
+    :<|> Named
+           "finalize-delete-team"
+           ( "finalize-delete"
+               :> ZLocalUser
+               :> ZOptConn
+               :> PostNoContent
            )
     :<|> "search-visibility"
       :> ( Named "get-search-visibility-internal" (Get '[JSON] TeamSearchVisibilityView)

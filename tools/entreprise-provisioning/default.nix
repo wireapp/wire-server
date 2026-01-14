@@ -23,6 +23,7 @@
 , types-common
 , uuid
 , vector
+, wai-utilities
 , wire-api
 }:
 mkDerivation {
@@ -46,6 +47,7 @@ mkDerivation {
     types-common
     uuid
     vector
+    wai-utilities
     wire-api
   ];
   testHaskellDepends = [

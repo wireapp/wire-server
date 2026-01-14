@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , base
-, bytestring-conversion
 , cassandra-util
 , containers
 , gitignoreSource
@@ -24,7 +23,6 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     base
-    bytestring-conversion
     cassandra-util
     containers
     imports

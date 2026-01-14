@@ -78,9 +78,9 @@ dispatchJob job = do
         . interpretRace
         . runDelay
         . runError
-        . mapError @FederationError (T.pack . show)
+        . mapError @FederationError (T.pack . displayException)
         . mapError @UsageError (T.pack . show)
-        . mapError @ParseException (T.pack . show)
+        . mapError @ParseException (T.pack . displayException)
         . mapError @MigrationError (T.pack . show)
         . interpretTinyLog env job.requestId job.jobId
         . runInputConst env.hasqlPool

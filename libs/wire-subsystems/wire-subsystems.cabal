@@ -21,6 +21,14 @@ extra-source-files:
   test/resources/**/*.txt
   test/resources/**/*.yaml
 
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
 common common-all
   default-language:   GHC2021
   ghc-options:
@@ -80,6 +88,7 @@ common common-all
     , amazonka
     , amazonka-core
     , amazonka-ses
+    , amazonka-sqs
     , amqp
     , async
     , attoparsec
@@ -106,6 +115,7 @@ common common-all
     , extended
     , extra
     , file-embed
+    , galley-types
     , hashable
     , HaskellNet
     , HaskellNet-SSL
@@ -141,6 +151,7 @@ common common-all
     , polysemy-wire-zoo
     , profunctors
     , prometheus-client
+    , proto-lens
     , QuickCheck
     , raw-strings-qq
     , resource-pool
@@ -166,6 +177,7 @@ common common-all
     , token-bucket
     , transformers
     , types-common
+    , types-common-journal
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -263,6 +275,10 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.LegalHoldStore
+    Wire.LegalHoldStore.Cassandra
+    Wire.LegalHoldStore.Cassandra.Queries
+    Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
@@ -278,10 +294,13 @@ library
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
     Wire.PropertySubsystem.Interpreter
+    Wire.ProposalStore
+    Wire.ProposalStore.Cassandra
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
     Wire.ScimSubsystem
+    Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
     Wire.ServiceStore
     Wire.ServiceStore.Cassandra
@@ -298,8 +317,14 @@ library
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
+    Wire.TeamJournal
+    Wire.TeamJournal.Aws
+    Wire.TeamStore
+    Wire.TeamStore.Cassandra
+    Wire.TeamStore.Cassandra.Queries
     Wire.TeamSubsystem
     Wire.TeamSubsystem.GalleyAPI
+    Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
@@ -405,6 +430,7 @@ library
     , time-out
     , time-units
     , tinylog
+    , tls
     , token-bucket
     , transformers
     , types-common
@@ -421,14 +447,14 @@ library
     , zauth
 
 test-suite wire-subsystems-tests
-  import:             common-all
-  type:               exitcode-stdio-1.0
+  import:         common-all
+  type:           exitcode-stdio-1.0
 
   -- include everything in source dirs we want to watch when running
   -- `ghcid --command 'cabal repl test:wire-subsystems-tests' --test='main'`.
-  hs-source-dirs:     test/unit
-  main-is:            ../Main.hs
-  ghc-options:        -fplugin=Polysemy.Plugin -Wno-x-partial -threaded
+  hs-source-dirs: test/unit
+  main-is:        ../Main.hs
+  ghc-options:    -fplugin=Polysemy.Plugin -Wno-x-partial -threaded
 
   -- cabal-fmt: expand test/unit
   other-modules:
@@ -486,7 +512,9 @@ test-suite wire-subsystems-tests
     Wire.Util
     Wire.VerificationCodeSubsystem.InterpreterSpec
 
-  build-tool-depends: hspec-discover:hspec-discover
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
+
   build-depends:
     , hspec
     , QuickCheck

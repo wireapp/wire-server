@@ -421,7 +421,7 @@ changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (liftSem $ GalleyAPIAccess.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toNonEmpty =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (TeamSubsystem.internalGetTeamMembers tid Nothing))
+  uids <- toNonEmpty =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (TeamSubsystem.internalGetTeamMembersWithLimit tid Nothing))
   API.changeAccountStatus uids s !>> accountStatusError
   where
     toNonEmpty (x : xs) = pure $ x :| xs

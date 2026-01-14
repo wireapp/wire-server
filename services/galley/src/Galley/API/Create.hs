@@ -51,9 +51,7 @@ import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Effects.FederatorAccess qualified as E
-import Galley.Effects.TeamStore qualified as E
-import Galley.Options
+import Galley.Options (Opts)
 import Galley.Types.Teams (notTeamMember)
 import Galley.Validation
 import Imports hiding ((\\))
@@ -68,6 +66,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
 import Wire.API.Push.V2 qualified as PushV2
@@ -83,6 +82,8 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -90,6 +91,9 @@ import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 ----------------------------------------------------------------------------
@@ -114,7 +118,7 @@ createGroupConversationUpToV3 ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -124,7 +128,9 @@ createGroupConversationUpToV3 ::
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -160,17 +166,19 @@ createGroupOwnConversation ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -206,17 +214,19 @@ createGroupConversation ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -254,7 +264,7 @@ createGroupConvAndMkResponse ::
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member P.TinyLog r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
@@ -263,7 +273,9 @@ createGroupConvAndMkResponse ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -295,17 +307,19 @@ createGroupConversationGeneric ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamFeatureStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member Random r
+    Member Random r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -347,9 +361,10 @@ createGroupConversationGeneric lusr conn newConv joinType = do
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamSubsystem r
   ) =>
   UserList UserId ->
   Sem r ()
@@ -370,7 +385,8 @@ checkCreateConvPermissions ::
     Member TeamStore r,
     Member (Input Opts) r,
     Member TeamFeatureStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   NewConv ->
@@ -414,7 +430,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       when (length allUsers > 1 || newConv.newConvProtocol == BaseProtocolMLSTag) $ do
         void $ permissionCheck AddRemoveConvMember teamAssociation
 
-  convLocalMemberships <- mapM (E.getTeamMember convTeam) (ulLocals allUsers)
+  convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
@@ -444,9 +460,9 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     ensureCreateChannelPermissions _ Nothing = do
       throwS @NotATeamMember
 
-getTeamMember :: (Member TeamStore r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
-getTeamMember uid (Just tid) = E.getTeamMember tid uid
-getTeamMember uid Nothing = E.getUserTeams uid >>= maybe (pure Nothing) (flip E.getTeamMember uid) . headMay
+getTeamMember :: (Member TeamStore r, Member TeamSubsystem r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
+getTeamMember uid (Just tid) = TeamSubsystem.internalGetTeamMember uid tid
+getTeamMember uid Nothing = TeamStore.getUserTeams uid >>= maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember uid) . headMay
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
@@ -491,12 +507,13 @@ createOne2OneConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -524,13 +541,13 @@ createOne2OneConversation lusr zcon j =
   where
     verifyMembership ::
       ( Member (ErrorS 'NoBindingTeamMembers) r,
-        Member TeamStore r
+        Member TeamSubsystem r
       ) =>
       TeamId ->
       UserId ->
       Sem r ()
     verifyMembership tid u = do
-      membership <- E.getTeamMember tid u
+      membership <- TeamSubsystem.internalGetTeamMember u tid
       when (isNothing membership) $
         throwS @'NoBindingTeamMembers
     checkBindingTeamPermissions ::
@@ -540,21 +557,22 @@ createOne2OneConversation lusr zcon j =
         Member (ErrorS OperationDenied) r,
         Member (ErrorS 'TeamNotFound) r,
         Member TeamCollaboratorsSubsystem r,
-        Member TeamStore r
+        Member TeamStore r,
+        Member TeamSubsystem r
       ) =>
       Local UserId ->
       TeamId ->
       Sem r (Maybe TeamId)
     checkBindingTeamPermissions lother tid = do
       mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
-      zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
+      zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
       case (mTeamCollaborator, zusrMembership) of
         (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
         (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
         (Just collaborator, Just member) ->
           unless (hasPermission collaborator CollaboratorPermission.ImplicitConnection || hasPermission member CreateConversation) $
             throwS @OperationDenied
-      E.getTeamBinding tid >>= \case
+      TeamStore.getTeamBinding tid >>= \case
         Just Binding -> do
           when (isJust zusrMembership) $
             verifyMembership tid (tUnqualified lusr)
@@ -576,7 +594,7 @@ createLegacyOne2OneConversationUnchecked ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -620,7 +638,7 @@ createOne2OneConversationUnchecked ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -645,7 +663,7 @@ createOne2OneConversationLocally ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -700,7 +718,7 @@ createConnectConversation ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -872,7 +890,7 @@ notifyCreatedConversation ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member Now r,

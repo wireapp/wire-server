@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -29,7 +30,11 @@ import Control.Monad.Reader
 import Control.Monad.STM (STM, atomically)
 import Data.Aeson
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Foldable as Fold
 import Data.Hashable
+import Data.Maybe (fromMaybe)
+import Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
 import Data.Text (Text, pack)
 import Data.Time.Calendar
 import Data.Time.Clock
@@ -50,7 +55,7 @@ import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.ResourceType
-import Web.Scim.Schema.Schema (Schema (Group20, User20))
+import Web.Scim.Schema.Schema (Schema (Group20, ListResponse20, User20))
 import Web.Scim.Schema.User hiding (displayName)
 
 -- | Tag used in the mock server.
@@ -155,7 +160,7 @@ instance GroupTypes Mock where
   type GroupId Mock = Id
 
 instance GroupDB Mock TestServer where
-  getGroups () mbFilter = do
+  getGroups () mbFilter mbStartIndex mbCount = do
     m <- asks groupDB
     groups <- map snd <$> liftSTM (ListT.toList $ STMMap.listT m)
     case mbFilter of
@@ -170,7 +175,7 @@ instance GroupDB Mock TestServer where
              in pureSorted $ filter p groups
           _ -> throwScim $ badRequest InvalidFilter $ Just "Only displayName filter supported"
     where
-      pureSorted groups = pure $ fromList $ sortWith (Common.id . thing) groups
+      pureSorted groups = pure $ toPage (fromMaybe 1 mbStartIndex) mbCount $ sortWith (Common.id . thing) groups
 
   getGroup () gid = do
     m <- asks groupDB
@@ -201,6 +206,31 @@ instance GroupDB Mock TestServer where
     liftSTM (STMMap.lookup gid m) >>= \case
       Nothing -> throwScim (notFound "Group" (pack (show gid)))
       Just _ -> liftSTM $ STMMap.delete gid m
+
+toPage :: forall a. Int -> Maybe Int -> [a] -> ListResponse a
+toPage (max 1 -> startIx) mbCount list = case mbCount of
+  Nothing ->
+    ListResponse
+      { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
+        totalResults = totalResults',
+        startIndex = startIx,
+        itemsPerPage = Seq.length list',
+        resources = Fold.toList list'
+      }
+  Just count ->
+    let (page, _rest) = Seq.splitAt (fromIntegral safeCount) list'
+        safeCount = max 0 (min count maxBound)
+     in ListResponse
+          { Web.Scim.Schema.ListResponse.schemas = [ListResponse20],
+            totalResults = totalResults',
+            startIndex = startIx,
+            itemsPerPage = Seq.length page,
+            resources = Fold.toList page
+          }
+  where
+    totalResults' = length list
+    list' :: Seq a
+    list' = Seq.drop (startIx - 1) (Seq.fromList list)
 
 ----------------------------------------------------------------------------
 -- AuthDB
@@ -234,9 +264,11 @@ createMeta rType =
       lastModified = testDate,
       version = Weak "testVersion",
       location =
-        Common.URI $ -- FUTUREWORK: getting the actual schema, authority, and path here
-        -- is a bit of work, but it may be required one day.
-          URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" ""
+        Common.URI
+          (URI "https:" (Just $ URI.URIAuth "" "example.com" "") "/Users/id" "" "")
+          -- FUTUREWORK: getting the actual schema, authority, and
+          -- path here is a bit of work, but it may be required one
+          -- day.
     }
 
 -- Natural transformation from our transformer stack to the Servant stack

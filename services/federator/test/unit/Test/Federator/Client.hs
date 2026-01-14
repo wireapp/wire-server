@@ -221,7 +221,7 @@ testClientConnectionError = do
   result <- runFederatorClient env (fedClient @'Brig @"get-user-by-handle" handle)
   case result of
     Left (FederatorClientHTTP2Error (FederatorClientConnectionError _)) -> pure ()
-    Left x -> assertFailure $ "Expected connection error, got: " <> show x
+    Left x -> assertFailure $ "Expected connection error, got: " <> displayException x
     Right _ -> assertFailure "Expected connection with the server to fail"
 
 testResponseHeaders :: IO ()

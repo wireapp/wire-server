@@ -84,4 +84,4 @@ instance HasCellsState CellsState where
   getCellsState = id
 
 instance HasCellsState () where
-  getCellsState = def
+  getCellsState _ = def

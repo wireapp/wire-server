@@ -44,12 +44,12 @@ import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
-import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
+import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
-import Galley.Effects.TeamStore (getLegalHoldFlag, getTeamMember)
+import Galley.Env (FanoutLimit)
 import Galley.Options
 import Galley.Types.Teams
 import Imports
@@ -62,17 +62,21 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
 import Wire.API.Event.FeatureConfig
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 patchFeatureInternal ::
   forall cfg r.
@@ -84,7 +88,9 @@ patchFeatureInternal ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockableFeaturePatch cfg ->
@@ -118,17 +124,18 @@ setFeature ::
     Member (ErrorS OperationDenied) r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
-  zusrMembership <- getTeamMember tid uid
+  zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
   void $ permissionCheck ChangeTeamFeature zusrMembership
   setFeatureUnchecked tid feat
 
@@ -143,7 +150,9 @@ setFeatureInternal ::
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -159,10 +168,11 @@ setFeatureUnchecked ::
     SetFeatureForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
     Member (Input Opts) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -205,8 +215,9 @@ pushFeatureEvent ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member NotificationSubsystem r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Event ->
@@ -243,7 +254,8 @@ setFeatureForTeam ::
     Member P.TinyLog r,
     Member NotificationSubsystem r,
     Member TeamFeatureStore r,
-    Member TeamStore r
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockableFeature cfg ->
@@ -324,11 +336,12 @@ instance SetFeatureConfig LegalholdConfig where
         Member (ErrorS 'UserLegalHoldIllegalOperation) r,
         Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
         Member ExternalAccess r,
-        Member FederatorAccess r,
+        Member (FederationAPIAccess FederatorClient) r,
         Member FireAndForget r,
         Member NotificationSubsystem r,
         Member ConversationSubsystem r,
         Member (Input (Local ())) r,
+        Member (Input (FeatureDefaults LegalholdConfig)) r,
         Member (Input Env) r,
         Member Now r,
         Member LegalHoldStore r,
@@ -340,14 +353,17 @@ instance SetFeatureConfig LegalholdConfig where
         Member Random r,
         Member (Embed IO) r,
         Member TeamCollaboratorsSubsystem r,
-        Member MLSCommitLockStore r
+        Member MLSCommitLockStore r,
+        Member (Input FanoutLimit) r,
+        Member TeamSubsystem r,
+        Member (Input ConversationSubsystemConfig) r
       )
 
   prepareFeature tid feat = do
     -- this extra do is to encapsulate the assertions running before the actual operation.
     -- enabling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
-    featureLegalHold <- getLegalHoldFlag
+    featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
     case featureLegalHold of
       FeatureLegalHoldDisabledByDefault -> do
         pure ()
@@ -451,6 +467,15 @@ instance SetFeatureConfig DomainRegistrationConfig
 
 instance SetFeatureConfig CellsConfig
 
+instance SetFeatureConfig CellsInternalConfig where
+  type
+    SetFeatureForTeamConstraints CellsInternalConfig r =
+      (Member (Error TeamFeatureError) r)
+
+  prepareFeature _ feat = do
+    unless (feat.status == FeatureStatusEnabled && feat.lockStatus == LockStatusUnlocked) $ do
+      throw InvalidStatusUpdate
+
 instance SetFeatureConfig ConsumableNotificationsConfig
 
 instance SetFeatureConfig ChatBubblesConfig
@@ -460,3 +485,7 @@ instance SetFeatureConfig AppsConfig
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 
 instance SetFeatureConfig StealthUsersConfig
+
+instance SetFeatureConfig MeetingsConfig
+
+instance SetFeatureConfig MeetingsPremiumConfig

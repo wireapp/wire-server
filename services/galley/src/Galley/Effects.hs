@@ -21,8 +21,8 @@ module Galley.Effects
 
     -- * Effects to access the Intra API
     BrigAPIAccess,
-    FederatorAccess,
-    SparAccess,
+    FederationAPIAccess,
+    SparAPIAccess,
 
     -- * External services
     ExternalAccess,
@@ -65,59 +65,61 @@ import Data.Qualified
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
-import Galley.Effects.FederatorAccess
-import Galley.Effects.LegalHoldStore
-import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.SparAccess
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
-import Galley.Effects.TeamStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Teams
-import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.Client
 import Wire.API.Team.Feature
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
+import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
+import Wire.LegalHoldStore
+import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
 import Wire.NotificationSubsystem
+import Wire.ProposalStore
 import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Now
 import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random
 import Wire.ServiceStore
+import Wire.SparAPIAccess
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamJournal (TeamJournal)
+import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ SparAccess,
-     TeamCollaboratorsSubsystem,
+  '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
+     TeamSubsystem,
+     SparAPIAccess,
      NotificationSubsystem,
      ExternalAccess,
      BrigAPIAccess,
-     TeamSubsystem,
      GundeckAPIAccess,
      Rpc,
-     FederatorAccess,
+     FederationAPIAccess FederatorClient,
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,
@@ -128,12 +130,14 @@ type GalleyEffects1 =
      HashPassword,
      Random,
      CustomBackendStore,
-     LegalHoldStore,
      SearchVisibilityStore,
+     TeamStore,
+     TeamJournal,
+     LegalHoldStore,
+     Input LegalHoldEnv,
      UserGroupStore,
      ServiceStore,
      TeamNotificationStore,
-     TeamStore,
      ConversationStore,
      MLSCommitLockStore,
      TeamFeatureStore,
@@ -141,8 +145,9 @@ type GalleyEffects1 =
      TeamMemberStore CassandraPaging,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
+     Input FanoutLimit,
      Input AllTeamFeatures,
-     Input (Maybe [TeamId], FeatureDefaults LegalholdConfig),
+     Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
      Now,

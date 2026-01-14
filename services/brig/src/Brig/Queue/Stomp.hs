@@ -34,7 +34,7 @@ import Control.Retry hiding (retryPolicy)
 import Data.Aeson as Aeson
 import Data.ByteString.Lazy qualified as BL
 import Data.Conduit.Network.TLS
-import Data.Text
+import Data.Text hiding (show)
 import Data.Text.Encoding
 import Network.Mom.Stompl.Client.Queue hiding (try)
 import System.Logger.Class as Log
@@ -166,7 +166,7 @@ listen b q callback =
       Log.err $
         msg (val "Exception when listening to a STOMP queue")
           ~~ field "queue" (show q)
-          ~~ field "error" (show e)
+          ~~ field "error" (displayException e)
       pure True
 
 -- Note [exception handling]

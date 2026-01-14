@@ -133,7 +133,7 @@ mkApp opts = do
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
         . Metrics.servantPrometheusMiddleware (Proxy @ServantCombinedAPI)
         . GZip.gunzip
-        . GZip.gzip GZip.def
+        . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName
 
     servantApp :: Env -> Wai.Application
@@ -241,7 +241,7 @@ pendingActivationCleanup = do
     safeForever funName action =
       forever $
         action `catchAny` \exc -> do
-          err $ "error" .= show exc ~~ msg (val $ UTF8.fromString funName <> " failed")
+          err $ "error" .= displayException exc ~~ msg (val $ UTF8.fromString funName <> " failed")
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 

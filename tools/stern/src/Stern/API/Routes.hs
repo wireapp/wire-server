@@ -308,7 +308,9 @@ type SternAPI =
                :> MkFeaturePutRoute EnforceFileDownloadLocationConfig
            )
     :<|> Named "get-route-cells" (MkFeatureGetRoute CellsConfig)
-    :<|> Named "put-route-cells" (MkFeatureStatusPutRoute CellsConfig)
+    :<|> Named "put-route-cells" (MkFeaturePutRoute CellsConfig)
+    :<|> Named "get-route-cells-internal" (MkFeatureGetRoute CellsInternalConfig)
+    :<|> Named "put-route-cells-internal" (MkFeaturePutRoute CellsInternalConfig)
     :<|> Named "get-route-guest-links" (MkFeatureGetRoute GuestLinksConfig)
     :<|> Named "put-route-guest-links" (MkFeatureStatusPutRoute GuestLinksConfig)
     :<|> Named "get-route-self-deleting-messages" (MkFeatureGetRoute SelfDeletingMessagesConfig)
@@ -325,6 +327,10 @@ type SternAPI =
     :<|> Named "put-route-apps-config" (MkFeatureStatusPutRoute AppsConfig)
     :<|> Named "get-route-stealth-users-config" (MkFeatureGetRoute StealthUsersConfig)
     :<|> Named "put-route-stealth-users-config" (MkFeatureStatusPutRoute StealthUsersConfig)
+    :<|> Named "get-route-meetings-config" (MkFeatureGetRoute MeetingsConfig)
+    :<|> Named "put-route-meetings-config" (MkFeatureStatusPutRoute MeetingsConfig)
+    :<|> Named "get-route-meetings-premium-config" (MkFeatureGetRoute MeetingsPremiumConfig)
+    :<|> Named "put-route-meetings-premium-config" (MkFeatureStatusPutRoute MeetingsPremiumConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -476,6 +482,8 @@ type SternAPI =
     :<|> Named "lock-unlock-route-consumable-notifications-config" (MkFeatureLockUnlockRoute ConsumableNotificationsConfig)
     :<|> Named "lock-unlock-route-chat-bubbles-config" (MkFeatureLockUnlockRoute ChatBubblesConfig)
     :<|> Named "lock-unlock-route-apps-config" (MkFeatureLockUnlockRoute AppsConfig)
+    :<|> Named "lock-unlock-route-meetings-config" (MkFeatureLockUnlockRoute MeetingsConfig)
+    :<|> Named "lock-unlock-route-meetings-premium-config" (MkFeatureLockUnlockRoute MeetingsPremiumConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger

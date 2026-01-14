@@ -60,6 +60,7 @@ import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User.Orphans (samlSchemaOptions)
 import Wire.API.Util.Aeson (defaultOptsDropChar)
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
@@ -82,7 +83,8 @@ data WireIdP = WireIdP
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
     -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
     _replacedBy :: Maybe SAML.IdPId,
-    _handle :: IdPHandle
+    _handle :: IdPHandle,
+    _domain :: Maybe ZHostValue
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform WireIdP)

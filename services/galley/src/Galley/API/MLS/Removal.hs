@@ -35,8 +35,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
 import Galley.Effects
-import Galley.Effects.ProposalStore
-import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -55,7 +53,9 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random
 import Wire.StoredConversation
@@ -70,7 +70,7 @@ createAndSendRemoveProposals ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Random r,
     Traversable t
   ) =>
@@ -128,7 +128,7 @@ removeClientsWithClientMapRecursively ::
     Member NotificationSubsystem r,
     Member ConversationStore r,
     Member ProposalStore r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Random r,
     Traversable f
   ) =>
@@ -159,7 +159,7 @@ removeClientsFromSubConvs ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Random r,
     Traversable f,
     Member ConversationStore r
@@ -195,7 +195,7 @@ removeClient ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member ConversationStore r,
     Member ProposalStore r,
@@ -231,7 +231,7 @@ removeUser ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member ConversationStore r,
     Member ProposalStore r,
@@ -277,7 +277,7 @@ removeExtraneousClients ::
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member ConversationStore r,
     Member ProposalStore r,

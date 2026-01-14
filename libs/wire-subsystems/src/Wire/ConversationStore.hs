@@ -231,3 +231,10 @@ data PostgresMigrationOpts = PostgresMigrationOpts
 instance FromJSON PostgresMigrationOpts where
   parseJSON = withObject "PostgresMigrationOpts" $ \o ->
     PostgresMigrationOpts <$> o .: "conversation"
+
+getConvOrSubGroupInfo ::
+  (Member ConversationStore r) =>
+  ConvOrSubConvId ->
+  Sem r (Maybe GroupInfoData)
+getConvOrSubGroupInfo (Conv c) = getGroupInfo c
+getConvOrSubGroupInfo (SubConv c s) = getSubConversationGroupInfo c s

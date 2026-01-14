@@ -161,8 +161,6 @@ parseDeleteMessage url m = do
 sendEnv ::
   ( MonadReader AWS.Env m,
     MonadResource m,
-    Typeable a,
-    Typeable (AWS.AWSResponse a),
     AWS.AWSRequest a
   ) =>
   a ->

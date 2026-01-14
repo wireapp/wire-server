@@ -49,6 +49,7 @@ packages:
   , tools/db/inconsistencies/
   , tools/db/migrate-sso-feature-flag/
   , tools/db/migrate-features/
+  , tools/db/mls-users/
   , tools/db/move-team/
   , tools/db/phone-users/
   , tools/db/repair-handles/
@@ -68,14 +69,32 @@ benchmarks: True
 program-options
     ghc-options: -Werror
 
--- NOTE:
--- - these packages are not provided by nix, reason being, that
---   there is a bug in the nixpkgs haskell compatibility which
---   makes it such that they cannot be installed by the nixpkgs code
--- - these packages have bounds that are justified with their current
---   dependency set, however, we have updated their dependencies, such
---   that they work with newer base and ghc (api) versions
-allow-newer:
-  , proto-lens-protoc:base
-  , proto-lens-protoc:ghc
-  , proto-lens-setup:Cabal
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+package polysemy-wire-zoo
+  flags: +nix-dev-env
+package dns-util
+  flags: +nix-dev-env
+package wire-subsystems
+  flags: +nix-dev-env
+package wai-utilities
+  flags: +nix-dev-env
+package wire-api-federation
+  flags: +nix-dev-env
+package http2-manager
+  flags: +nix-dev-env
+package hscim
+  flags: +nix-dev-env
+package extended
+  flags: +nix-dev-env
+package metrics-wai
+  flags: +nix-dev-env
+package wire-server-enterprise
+  flags: +nix-dev-env
+package spar
+  flags: +nix-dev-env
+package wire-message-proto-lens
+  flags: +nix-dev-env
+package types-common-journal
+  flags: +nix-dev-env

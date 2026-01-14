@@ -143,14 +143,6 @@ runSyncUserGroupAndChannel (SyncUserGroupAndChannel {..}) = do
               action
               def
 
-localBotsAndUsers :: (Foldable f) => f LocalMember -> ([BotMember], [LocalMember])
-localBotsAndUsers = foldMap botOrUser
-  where
-    botOrUser m = case m.service of
-      -- we drop invalid bots here, which shouldn't happen
-      Just _ -> (toList (newBotMember m), [])
-      Nothing -> ([], [m])
-
 runSyncUserGroup ::
   ( Member UserGroupStore r,
     Member BackgroundJobsPublisher r,

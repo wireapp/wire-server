@@ -1,19 +1,3 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -51,7 +35,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.TeamStore
 import Galley.Options
 import Galley.Types.Teams
 import Imports
@@ -66,6 +49,8 @@ import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.User.Client as Client
 import Wire.BrigAPIAccess
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 data LegalholdConflicts = LegalholdConflicts
 
@@ -76,8 +61,8 @@ guardQualifiedLegalholdPolicyConflicts ::
     Member (Error LegalholdConflicts) r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamSubsystem r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -100,8 +85,8 @@ guardLegalholdPolicyConflicts ::
   ( Member BrigAPIAccess r,
     Member (Error LegalholdConflicts) r,
     Member (Input Opts) r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamSubsystem r
   ) =>
   LegalholdProtectee ->
   UserClients ->
@@ -120,12 +105,16 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
     FeatureLegalHoldDisabledByDefault -> guardLegalholdPolicyConflictsUid self otherClients
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> guardLegalholdPolicyConflictsUid self otherClients
 
+-- | Guard notification handling against legal-hold policy conflicts.
+-- Ensures that if any user has a LH client then no user can be missing consent.
+-- See also: "Brig.API.Connection.checkLegalholdPolicyConflict"
+-- and "Galley.API.Action.checkLHPolicyConflictsLocal".
 guardLegalholdPolicyConflictsUid ::
   forall r.
   ( Member BrigAPIAccess r,
     Member (Error LegalholdConflicts) r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamSubsystem r
   ) =>
   UserId ->
   UserClients ->
@@ -152,7 +141,7 @@ guardLegalholdPolicyConflictsUid self (Map.keys . userClients -> otherUids) = do
             checkUserConsentMissing user =
               case userTeam user of
                 Just tid -> do
-                  mbMem <- getTeamMember tid (Wire.API.User.userId user)
+                  mbMem <- TeamSubsystem.internalGetTeamMember (Wire.API.User.userId user) tid
                   case mbMem of
                     Nothing -> pure True -- it's weird that there is a member id but no member, we better bail
                     Just mem -> pure $ case mem ^. legalHoldStatus of

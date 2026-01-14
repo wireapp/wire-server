@@ -1,0 +1,12 @@
+-- disable profilling. if you are using hls/lsp, you probably want to
+-- enable this. same as `ghc-options: -fwrite-ide-info`.
+profiling: False
+profiling-detail: late
+
+-- .ghc.environment is not used in .cabal-v2 and may conflict with hls.
+write-ghc-environment-files: never
+
+-- disable optimization. very important for dev machines. implies `ghc-options: -O0`.
+optimization: False
+
+test-show-details: direct

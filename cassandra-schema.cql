@@ -1114,7 +1114,7 @@ CREATE TABLE galley_test.team_conv (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1295,7 +1295,7 @@ CREATE TABLE galley_test.member (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1381,7 +1381,7 @@ CREATE TABLE galley_test.member_remote_user (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1508,7 +1508,7 @@ CREATE TABLE galley_test.user (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1600,7 +1600,7 @@ CREATE TABLE galley_test.mls_group_member_client (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1654,7 +1654,7 @@ CREATE TABLE galley_test.conversation (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1698,7 +1698,7 @@ CREATE TABLE galley_test.subconversation (
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -2050,6 +2050,7 @@ CREATE TABLE spar_test.issuer_idp (
 CREATE TABLE spar_test.idp (
     idp uuid PRIMARY KEY,
     api_version int,
+    domain text,
     extra_public_keys list<blob>,
     handle text,
     issuer text,

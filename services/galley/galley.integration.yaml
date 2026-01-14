@@ -163,6 +163,49 @@ settings:
       defaults:
         status: enabled
         lockStatus: unlocked
+        config:
+          channels:
+            enabled: true
+            default: enabled
+          groups:
+            enabled: true
+            default: enabled
+          one2one:
+            enabled: true
+            default: enabled
+          users:
+            externals: true
+            guests: false
+          collabora:
+            enabled: false
+          publicLinks:
+            enableFiles: true
+            enableFolders: true
+            enforcePassword: false
+            enforceExpirationMax: 0
+            enforceExpirationDefault: 0
+          storage:
+            perFileQuotaBytes: "100000000"
+            recycle:
+              autoPurgeDays: 30
+              disable: false
+              allowSkip: false
+          metadata:
+            namespaces:
+              usermetaTags:
+                defaultValues: []
+                allowFreeValues: true
+    cellsInternal:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+        config:
+          backend:
+            url: https://cells-beta.wire.com
+          collabora:
+            edition: COOL
+          storage:
+            perUserQuotaBytes: "1000000000000"
     allowedGlobalOperations:
       status: enabled
       config:
@@ -182,6 +225,14 @@ settings:
         status: disabled
         lockStatus: locked
     stealthUsers:
+      defaults:
+        status: disabled
+        lockStatus: locked
+    meetings:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    meetingsPremium:
       defaults:
         status: disabled
         lockStatus: locked

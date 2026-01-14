@@ -24,8 +24,6 @@ import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Qualified
 import Galley.API.Error
 import Galley.Effects
-import Galley.Effects.LegalHoldStore qualified as LegalHoldData
-import Galley.Effects.TeamStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -37,6 +35,9 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.LegalHoldStore qualified as LegalHoldData
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -45,15 +46,15 @@ getUserStatus ::
   ( Member (Error InternalError) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member LegalHoldStore r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
   UserId ->
   Sem r Public.UserLegalHoldStatusResponse
 getUserStatus _lzusr tid uid = do
-  teamMember <- noteS @'TeamMemberNotFound =<< getTeamMember tid uid
+  teamMember <- noteS @'TeamMemberNotFound =<< TeamSubsystem.internalGetTeamMember uid tid
   let status = view legalHoldStatus teamMember
   (mlk, lcid) <- case status of
     UserLegalHoldNoConsent -> pure (Nothing, Nothing)

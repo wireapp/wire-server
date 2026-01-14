@@ -58,6 +58,10 @@ module Wire.API.Team
     newTeamDeleteData,
     tdAuthPassword,
     tdVerificationCode,
+
+    -- * Misc
+    TeamCreationTime (..),
+    tcTime,
   )
 where
 
@@ -219,6 +223,13 @@ instance ToSchema Icon where
     where
       desc =
         "S3 asset key for an icon image with retention information. Allows special value 'default'."
+
+-- | Cassandra writetime(binding) timestamp
+newtype TeamCreationTime = TeamCreationTime
+  { _tcTime :: Int64
+  }
+
+makeLenses ''TeamCreationTime
 
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),

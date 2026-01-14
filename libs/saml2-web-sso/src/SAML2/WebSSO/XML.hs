@@ -49,6 +49,7 @@ import Data.Typeable (Proxy (Proxy), Typeable)
 import Data.X509 qualified as X509
 import GHC.Stack
 import Network.URI qualified as URI
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import SAML2.Bindings.Identifiers qualified as HX
 import SAML2.Core qualified as HX
 import SAML2.Metadata.Metadata qualified as HX
@@ -83,10 +84,10 @@ defNameSpaces =
 encode :: forall a. (HasXMLRoot a) => a -> LT
 encode = Text.XML.renderText settings . renderToDocument
   where
-    settings = def {rsNamespaces = nameSpaces (Proxy @a), rsXMLDeclaration = False}
+    settings = def {rsNamespaces = nameSpaces (Proxy @a), rsXMLDeclaration = True}
 
 decode :: forall m a. (HasXMLRoot a, MonadError String m) => LT -> m a
-decode = either (throwError . show @SomeException) parseFromDocument . parseText def
+decode = either (throwError . displayExceptionNoBacktrace @SomeException) parseFromDocument . parseText def
 
 encodeElem :: forall a. (HasXML a) => a -> LT
 encodeElem = Text.XML.renderText settings . mkDocument' . render
@@ -96,7 +97,7 @@ encodeElem = Text.XML.renderText settings . mkDocument' . render
     mkDocument' bad = error $ "encodeElem: " <> show bad
 
 decodeElem :: forall a m. (HasXML a, MonadError String m) => LT -> m a
-decodeElem = either (throwError . show @SomeException) parseFromDocument . parseText def
+decodeElem = either (throwError . displayExceptionNoBacktrace @SomeException) parseFromDocument . parseText def
 
 renderToDocument :: (HasXMLRoot a) => a -> Document
 renderToDocument = mkDocument . renderRoot
@@ -516,7 +517,7 @@ exportConditions conds =
       HX.conditions =
         [HX.OneTimeUse | conds ^. condOneTimeUse]
           <> [ HX.AudienceRestriction (HX.Audience . exportURI <$> hsrs)
-               | hsrs <- conds ^. condAudienceRestriction
+             | hsrs <- conds ^. condAudienceRestriction
              ]
     }
 

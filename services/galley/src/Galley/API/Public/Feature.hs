@@ -67,7 +67,9 @@ featureAPI =
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
     <@> featureAPIGetPut
-    <@> featureAPIGetPut
+    <@> mkNamedAPI @'("get", CellsConfig) getFeature
+    <@> mkNamedAPI @"put-CellsConfig@v13" setFeature
+    <@> mkNamedAPI @'("put", CellsConfig) setFeature
     <@> mkNamedAPI @'("get", AllowedGlobalOperationsConfig) getFeature
     <@> mkNamedAPI @'("get", AssetAuditLogConfig) getFeature
     <@> mkNamedAPI @'("get", ConsumableNotificationsConfig) getFeature
@@ -75,6 +77,9 @@ featureAPI =
     <@> mkNamedAPI @'("get", AppsConfig) getFeature
     <@> mkNamedAPI @'("get", SimplifiedUserConnectionRequestQRCodeConfig) getFeature
     <@> mkNamedAPI @'("get", StealthUsersConfig) getFeature
+    <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
+    <@> featureAPIGetPut @MeetingsConfig
+    <@> featureAPIGetPut @MeetingsPremiumConfig
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

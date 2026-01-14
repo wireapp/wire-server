@@ -66,6 +66,9 @@ config:
   # `settings.postgresMigration.conversation` with `migration-to-postgresql`
   # before setting this to `true`.
   migrateConversations: false
+  migrateConversationsOptions:
+    pageSize: 10000
+    parallelism: 2
 
   backendNotificationPusher:
     pushBackoffMinWait: 10000 # in microseconds, so 10ms

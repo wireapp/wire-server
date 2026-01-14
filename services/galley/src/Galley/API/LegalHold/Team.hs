@@ -28,23 +28,24 @@ import Data.Default
 import Data.Id
 import Data.Range
 import Galley.Effects
-import Galley.Effects.LegalHoldStore qualified as LegalHoldData
 import Galley.Effects.TeamFeatureStore
-import Galley.Effects.TeamStore
+import Galley.Env
 import Galley.Types.Teams as Team
 import Imports
 import Polysemy
+import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
+import Wire.LegalHoldStore qualified as LegalHoldData
 
 assertLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member (ErrorS 'LegalHoldNotEnabled) r
   ) =>
   TeamId ->
@@ -54,14 +55,15 @@ assertLegalHoldEnabledForTeam tid =
     throwS @'LegalHoldNotEnabled
 
 computeLegalHoldFeatureStatus ::
-  ( Member TeamStore r,
-    Member LegalHoldStore r
+  ( Member LegalHoldStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   DbFeature LegalholdConfig ->
   Sem r FeatureStatus
-computeLegalHoldFeatureStatus tid dbFeature =
-  getLegalHoldFlag >>= \case
+computeLegalHoldFeatureStatus tid dbFeature = do
+  featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
+  case featureLegalHold of
     FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
     FeatureLegalHoldDisabledByDefault ->
       pure (applyDbFeature dbFeature def).status
@@ -72,8 +74,8 @@ computeLegalHoldFeatureStatus tid dbFeature =
 isLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamStore r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r Bool
@@ -85,7 +87,8 @@ isLegalHoldEnabledForTeam tid = do
 ensureNotTooLargeToActivateLegalHold ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
-    Member TeamStore r
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r ()
@@ -94,11 +97,17 @@ ensureNotTooLargeToActivateLegalHold tid = do
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
     throwS @'CannotEnableLegalHoldServiceLargeTeam
 
-teamSizeBelowLimit :: (Member TeamStore r) => Int -> Sem r Bool
+teamSizeBelowLimit ::
+  ( Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r
+  ) =>
+  Int ->
+  Sem r Bool
 teamSizeBelowLimit teamSize = do
-  limit <- fromIntegral . fromRange <$> fanoutLimit
+  limit <- fromIntegral . fromRange <$> input @FanoutLimit
   let withinLimit = teamSize <= limit
-  getLegalHoldFlag >>= \case
+  featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
+  case featureLegalHold of
     FeatureLegalHoldDisabledPermanently -> pure withinLimit
     FeatureLegalHoldDisabledByDefault -> pure withinLimit
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->

@@ -156,7 +156,7 @@ run opts = withTracer \tracer -> do
           . requestIdMiddleware (env ^. applog) defaultRequestIdHeaderName
           . Metrics.servantPrometheusMiddleware (Proxy @(GundeckAPI :<|> InternalAPI))
           . GZip.gunzip
-          . GZip.gzip GZip.def
+          . GZip.gzip GZip.defaultGzipSettings
           . catchErrors (env ^. applog) defaultRequestIdHeaderName
 
 mkApp :: Env -> Wai.Application

@@ -59,7 +59,7 @@ wrapMonadClientSPImpl action =
                       . SAML.CustomError
                       . SparCassandraError
                       . LText.pack
-                      . show @SomeException
+                      . displayException @SomeException
                   )
 
 instance (Member (Final IO) r) => Catch.MonadThrow (SPImpl r) where

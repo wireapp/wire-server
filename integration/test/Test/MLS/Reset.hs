@@ -62,7 +62,7 @@ testResetSelfConversation = do
   void $ createAddCommit alice1 convId [alice] >>= sendAndConsumeCommitBundle
   mlsConv <- getMLSConv convId
 
-  conv' <- resetMLSConversation alice conv
+  conv' <- resetMLSConversation alice1 conv
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   convId' <- objConvId conv'
@@ -79,11 +79,14 @@ testResetOne2OneConversation :: (HasCallStack) => App ()
 testResetOne2OneConversation = do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  void . replicateM 2 $ uploadNewKeyPackage def bob1
+  void . for [alice1, bob1] $ \cid -> replicateM 2 $ uploadNewKeyPackage def cid
   otherDomain <- asString OtherDomain
   conv <- getMLSOne2OneConversation alice bob >>= getJSON 200
   convOwnerDomain <- asString $ conv %. "conversation.qualified_id.domain"
-  let user = if convOwnerDomain == otherDomain then bob else alice
+  let (user, other) =
+        if convOwnerDomain == otherDomain
+          then (bob1, alice)
+          else (alice1, bob)
   convId <- objConvId (conv %. "conversation")
 
   resetOne2OneGroup def alice1 conv
@@ -95,9 +98,9 @@ testResetOne2OneConversation = do
   conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
   conv' %. "epoch" `shouldMatchInt` 0
   convId' <- objConvId conv'
-  resetOne2OneGroupGeneric def alice1 conv' (conv %. "public_keys")
+  resetOne2OneGroupGeneric def user conv' (conv %. "public_keys")
 
-  void $ createAddCommit alice1 convId' [bob] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit user convId' [other] >>= sendAndConsumeCommitBundle
 
   conv'' <- getConversation user convId >>= getJSON 200
   conv'' %. "epoch" `shouldMatchInt` 1

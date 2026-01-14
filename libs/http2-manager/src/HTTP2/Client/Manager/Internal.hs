@@ -43,7 +43,9 @@ import qualified Data.Text.Encoding as Text
 import Data.Unique
 import Foreign.Marshal.Alloc (mallocBytes)
 import GHC.IO.Exception
+import qualified Network.HPACK as HPACK
 import qualified Network.HTTP2.Client as HTTP2
+import qualified Network.HTTP2.Client.Internal as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
 import System.IO.Error
@@ -157,9 +159,20 @@ sendRequestWithConnection conn req k = do
   result :: MVar r <- newEmptyMVar
   threadKilled :: MVar SomeException <- newEmptyMVar
   putMVar (connectionActionMVar conn) (SendRequest (Request req (putMVar result <=< k) threadKilled))
-  race (takeMVar result) (takeMVar threadKilled) >>= \case
+
+  let waitResult = takeMVar result
+      waitError = takeMVar threadKilled
+      waitDeath = do
+        res <- waitCatch (backgroundThread conn)
+        pure $
+          case res of
+            Left e -> e
+            Right _ -> SomeException ConnectionAlreadyClosed
+
+  race waitResult (race waitError waitDeath) >>= \case
     Left r -> pure r
-    Right (SomeException e) -> throw e
+    Right (Left e) -> throwIO e
+    Right (Right e) -> throwIO e
 
 -- | Make an HTTP2 request, if it is the first time the 'Http2Manager' sees this
 -- target, it creates the connection and keeps it around for
@@ -338,12 +351,13 @@ startPersistentHTTP2ConnectionWithHook ctx (tlsEnabled, hostname, port) cl remov
           }
       -- Sends error to requests which show up too late, i.e. after the
       -- connection is already closed
-      tooLateNotifier e = forever $ do
-        takeMVar sendReqMVar >>= \case
-          SendRequest Request {..} -> do
-            -- No need to get stuck here
-            void $ tryPutMVar exceptionMVar (SomeException e)
-          CloseConnection -> pure ()
+      tooLateNotifier e = do
+        forever $ do
+          takeMVar sendReqMVar >>= \case
+            SendRequest Request {..} -> do
+              -- No need to get stuck here
+              void $ tryPutMVar exceptionMVar (SomeException e)
+            CloseConnection -> pure ()
 
       -- Sends errors to the request threads when an error occurs
       cleanupThreadsWith (SomeException e) = do
@@ -360,6 +374,7 @@ startPersistentHTTP2ConnectionWithHook ctx (tlsEnabled, hostname, port) cl remov
         -- 1 second is hopefully enough to ensure that this thread is seen
         -- as finished.
         void $ async $ race_ (tooLateNotifier e) (threadDelay 1_000_000)
+        throwIO e
 
       hostnameForTLS =
         if removeTrailingDot
@@ -466,11 +481,17 @@ data ConnectionAlreadyClosed = ConnectionAlreadyClosed
 
 instance Exception ConnectionAlreadyClosed
 
-bufsize :: Int
+bufsize :: HPACK.BufferSize
 bufsize = 4096
 
 allocHTTP2Config :: Transport -> IO HTTP2.Config
-allocHTTP2Config (InsecureTransport sock) = HTTP2.allocSimpleConfig sock bufsize
+allocHTTP2Config (InsecureTransport sock) = do
+  res <- try $ HTTP2.allocSimpleConfig sock bufsize
+  case res of
+    Left (e :: SomeException) -> do
+      throwIO e
+    Right conf -> do
+      pure conf
 allocHTTP2Config (SecureTransport ssl) = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
@@ -505,5 +526,6 @@ allocHTTP2Config (SecureTransport ssl) = do
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
         HTTP2.confTimeoutManager = timmgr,
         HTTP2.confMySockAddr = mysa,
-        HTTP2.confPeerSockAddr = peersa
+        HTTP2.confPeerSockAddr = peersa,
+        HTTP2.confReadNTimeout = False
       }

@@ -20,7 +20,7 @@ module Testlib.Certs where
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
 import qualified Crypto.PubKey.RSA as RSA
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
-import Crypto.Store.PKCS8 (PrivateKeyFormat (PKCS8Format), keyToPEM)
+import Crypto.Store.PKCS8 (PrivateKeyFormat (PKCS8Format), keyPairFromPrivKey, keyToPEM)
 import Crypto.Store.X509 (pubKeyToPEM)
 import Data.ASN1.OID (OIDable (getObjectID))
 import Data.Hourglass
@@ -43,7 +43,7 @@ signedCertToString = toPem . PEM "CERTIFICATE" [] . encodeSignedObject
 
 -- | convert a private key to string
 privateKeyToString :: RSA.PrivateKey -> String
-privateKeyToString = toPem . keyToPEM PKCS8Format . PrivKeyRSA
+privateKeyToString = toPem . keyToPEM PKCS8Format . keyPairFromPrivKey . PrivKeyRSA
 
 -- | convert a public key to string
 publicKeyToString :: RSA.PublicKey -> String

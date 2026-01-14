@@ -52,6 +52,7 @@ import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities as Wai
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Server qualified as Server
 import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
@@ -173,7 +174,9 @@ sitemap' =
     :<|> Named @"get-route-enforce-file-download-location" (mkFeatureGetRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"put-route-enforce-file-download-location" (mkFeaturePutRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"get-route-cells" (mkFeatureGetRoute @CellsConfig)
-    :<|> Named @"put-route-cells" (mkFeatureStatusPutRoute @CellsConfig)
+    :<|> Named @"put-route-cells" (mkFeaturePutRoute @CellsConfig)
+    :<|> Named @"get-route-cells-internal" (mkFeatureGetRoute @CellsInternalConfig)
+    :<|> Named @"put-route-cells-internal" (mkFeaturePutRoute @CellsInternalConfig)
     :<|> Named @"get-route-guest-links" (mkFeatureGetRoute @GuestLinksConfig)
     :<|> Named @"put-route-guest-links" (mkFeatureStatusPutRoute @GuestLinksConfig)
     :<|> Named @"get-route-self-deleting-messages" (mkFeatureGetRoute @SelfDeletingMessagesConfig)
@@ -190,6 +193,10 @@ sitemap' =
     :<|> Named @"put-route-apps-config" (mkFeatureStatusPutRoute @AppsConfig)
     :<|> Named @"get-route-stealth-users-config" (mkFeatureGetRoute @StealthUsersConfig)
     :<|> Named @"put-route-stealth-users-config" (mkFeatureStatusPutRoute @StealthUsersConfig)
+    :<|> Named @"get-route-meetings-config" (mkFeatureGetRoute @MeetingsConfig)
+    :<|> Named @"put-route-meetings-config" (mkFeatureStatusPutRoute @MeetingsConfig)
+    :<|> Named @"get-route-meetings-premium-config" (mkFeatureGetRoute @MeetingsPremiumConfig)
+    :<|> Named @"put-route-meetings-premium-config" (mkFeatureStatusPutRoute @MeetingsPremiumConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -224,6 +231,8 @@ sitemap' =
     :<|> Named @"lock-unlock-route-consumable-notifications-config" (mkFeatureLockUnlockRoute @ConsumableNotificationsConfig)
     :<|> Named @"lock-unlock-route-chat-bubbles-config" (mkFeatureLockUnlockRoute @ChatBubblesConfig)
     :<|> Named @"lock-unlock-route-apps-config" (mkFeatureLockUnlockRoute @AppsConfig)
+    :<|> Named @"lock-unlock-route-meetings-config" (mkFeatureLockUnlockRoute @MeetingsConfig)
+    :<|> Named @"lock-unlock-route-meetings-premium-config" (mkFeatureLockUnlockRoute @MeetingsPremiumConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =
@@ -446,16 +455,16 @@ getUserData uid mMaxConvs mMaxNotifs = do
   notfs <-
     ( Intra.getUserNotifications uid (fromMaybe 100 mMaxNotifs)
         <&> toJSON @[QueuedNotification]
-      )
+    )
       `catchE` (pure . String . T.pack . show)
 
   -- galeb
   consent <-
     (Intra.getUserConsentValue uid <&> toJSON @ConsentValue)
-      `catchE` (pure . String . T.pack . show)
+      `catchE` (pure . String . T.pack . displayExceptionNoBacktrace)
   consentLog <-
     (Intra.getUserConsentLog uid <&> toJSON @ConsentLog)
-      `catchE` (pure . String . T.pack . show)
+      `catchE` (pure . String . T.pack . displayExceptionNoBacktrace)
   let em = userEmail account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
@@ -463,7 +472,7 @@ getUserData uid mMaxConvs mMaxNotifs = do
       (pure $ toJSON noEmail)
       ( \e ->
           (Intra.getMarketoResult e <&> toJSON)
-            `catchE` (pure . String . T.pack . show)
+            `catchE` (pure . String . T.pack . displayExceptionNoBacktrace)
       )
       em
   pure . UserMetaInfo . KeyMap.fromList $

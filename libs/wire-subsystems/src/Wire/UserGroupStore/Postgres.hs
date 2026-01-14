@@ -48,7 +48,7 @@ import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
 import Wire.PaginationState
 import Wire.Postgres
-import Wire.UserGroupStore (UserGroupPageRequest (..), UserGroupStore (..))
+import Wire.UserGroupStore (UserGroupStore (..))
 
 type UserGroupStorePostgresEffectConstraints r =
   ( Member (Embed IO) r,
@@ -64,8 +64,8 @@ interpretUserGroupStoreToPostgres =
   interpret $ \case
     CreateUserGroup team newUserGroup managedBy -> createUserGroup team newUserGroup managedBy
     GetUserGroup team userGroupId includeChannels -> getUserGroup team userGroupId includeChannels
-    GetUserGroups req -> getUserGroups req
-    GetUserGroupsWithMembers req -> getUserGroupsWithMembers req
+    GetUserGroups tid req -> getUserGroups tid req
+    GetUserGroupsWithMembers tid req -> getUserGroupsWithMembers tid req
     GetUserGroupsForConv convId -> getUserGroupsForConv convId
     UpdateUserGroup tid gid gup -> updateGroup tid gid gup
     DeleteUserGroup tid gid -> deleteGroup tid gid
@@ -223,15 +223,15 @@ getUserGroup team id_ includeChannels = do
 
 getUserGroupsWithMembers ::
   forall r.
-  ( UserGroupStorePostgresEffectConstraints r
-  ) =>
+  (UserGroupStorePostgresEffectConstraints r) =>
+  TeamId ->
   UserGroupPageRequest ->
   Sem r UserGroupPageWithMembers
-getUserGroupsWithMembers req =
+getUserGroupsWithMembers tid req =
   runTransaction TxSessions.ReadCommitted TxSessions.Read $
     UserGroupPage
       <$> Tx.statement () (refineResult (mapM toUserGroup) $ buildStatement query rows)
-      <*> getUserGroupCount req
+      <*> getUserGroupCount tid req
   where
     rows :: HD.Result [(UUID, Text, Int32, UTCTime, Vector UUID, Int32)]
     rows =
@@ -262,7 +262,7 @@ getUserGroupsWithMembers req =
             "from user_group ug",
             "left join user_group_member gm on ug.id = gm.user_group_id"
           ]
-          <> [where_ (groupMatchIdName req <> groupPaginationWhereClause req)]
+          <> [where_ (groupMatchIdName tid req <> groupPaginationWhereClause req)]
           <> [ literal "group by ug.team_id, ug.id"
              ]
           <> groupPaginationOrderBy req
@@ -277,11 +277,17 @@ getUserGroupsWithMembers req =
           members = Identity (fmap Id members' :: Vector UserId)
       pure $ UserGroup_ {..}
 
-groupMatchIdName :: UserGroupPageRequest -> [QueryFragment]
-groupMatchIdName req =
-  clause1 "ug.team_id" "=" req.team
-    : case req.searchString of
+groupMatchIdName :: TeamId -> UserGroupPageRequest -> [QueryFragment]
+groupMatchIdName tid req =
+  clause1 "ug.team_id" "=" tid
+    : managedByClause
+      <> nameClause
+  where
+    nameClause = case req.searchString of
       Just name -> [like "ug.name" name]
+      Nothing -> []
+    managedByClause = case req.managedByFilter of
+      Just managedBy -> [clause1 "ug.managed_by" "=" (managedByToInt32 managedBy)]
       Nothing -> []
 
 groupPaginationWhereClause :: UserGroupPageRequest -> [QueryFragment]
@@ -291,22 +297,22 @@ groupPaginationWhereClause req = case paginationClause req.paginationState of
 
 groupPaginationOrderBy :: UserGroupPageRequest -> [QueryFragment]
 groupPaginationOrderBy req =
-  [ orderBy
-      [ (sortColumn req.paginationState, req.sortOrder),
-        ("ug.id", req.sortOrder)
-      ],
-    limit (pageSizeToInt32 req.pageSize)
+  [ orderBy $
+      case req.paginationState of
+        PaginationSortByName _ -> [("ug.name", req.sortOrder), ("ug.id", req.sortOrder)]
+        PaginationSortByCreatedAt _ -> [("ug.created_at", req.sortOrder), ("ug.id", req.sortOrder)]
+        _ -> [("ug.id", req.sortOrder)],
+    limit $
+      fromIntegral @_ @Int32 (pageSizeToWord req.pageSize)
   ]
-  where
-    sortColumn :: PaginationState a -> Text
-    sortColumn = \case
-      PaginationSortByName _ -> "ug.name"
-      PaginationSortByCreatedAt _ -> "ug.created_at"
+    <> case req.paginationState of
+      PaginationOffset n -> [offset (fromIntegral n :: Int32)]
+      _ -> []
 
-getUserGroupCount :: UserGroupPageRequest -> Tx.Transaction Int
-getUserGroupCount req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder
+getUserGroupCount :: TeamId -> UserGroupPageRequest -> Tx.Transaction Int
+getUserGroupCount tid req = Tx.statement () $ refineResult parseCount $ buildStatement query decoder
   where
-    query = literal "select count(*) from user_group ug" <> where_ (groupMatchIdName req)
+    query = literal "select count(*) from user_group ug" <> where_ (groupMatchIdName tid req)
     decoder = HD.singleRow (HD.column (HD.nonNullable HD.int8))
 
 decodeUuidVector :: HD.Row (Vector UUID)
@@ -329,12 +335,13 @@ getUserGroups ::
   ( UserGroupStorePostgresEffectConstraints r,
     Member (Input (Local ())) r
   ) =>
+  TeamId ->
   UserGroupPageRequest ->
   Sem r UserGroupPage
-getUserGroups req@(UserGroupPageRequest {..}) = do
+getUserGroups tid req@(UserGroupPageRequest {..}) = do
   loc <- inputQualifyLocal ()
   runTransaction TxSessions.ReadCommitted TxSessions.Read $
-    UserGroupPage <$> getUserGroupsSession loc <*> getUserGroupCount req
+    UserGroupPage <$> getUserGroupsSession loc <*> getUserGroupCount tid req
   where
     getUserGroupsSession :: Local () -> Tx.Transaction [UserGroupMeta]
     getUserGroupsSession loc =
@@ -345,7 +352,7 @@ getUserGroups req@(UserGroupPageRequest {..}) = do
                 [ literal "select",
                   literal selectors,
                   literal "from user_group as ug",
-                  where_ (groupMatchIdName req <> groupPaginationWhereClause req)
+                  where_ (groupMatchIdName tid req <> groupPaginationWhereClause req)
                 ]
                   <> groupPaginationOrderBy req
             )

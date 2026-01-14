@@ -57,6 +57,7 @@ import Galley.Effects
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Imports
+import Network.Wai.Utilities.Exception
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -77,6 +78,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley hiding (id)
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
@@ -93,6 +95,7 @@ import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -100,6 +103,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserList (UserList (UserList))
 
 type FederationAPI = "federation" :> FedApi 'Galley
@@ -143,7 +147,8 @@ onClientRemoved ::
     Member Now r,
     Member ProposalStore r,
     Member Random r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -266,7 +271,7 @@ leaveConversation ::
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -275,9 +280,10 @@ leaveConversation ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   LeaveConversationRequest ->
@@ -334,7 +340,7 @@ leaveConversation requestingDomain lc = do
 
       pure $ LeaveConversationResponse (Right ())
   where
-    internalErr = InternalErrorWithDescription . LT.pack . displayException
+    internalErr = InternalErrorWithDescription . LT.pack . displayExceptionNoBacktrace
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -392,14 +398,14 @@ sendMessage ::
     Member ClientStore r,
     Member ConversationStore r,
     Member (Error InvalidInput) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member Now r,
     Member ExternalAccess r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -423,10 +429,10 @@ onUserDeleted ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (Input Env) r,
     Member ProposalStore r,
     Member Random r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   UserDeletedConversationsNotification ->
@@ -480,7 +486,7 @@ updateConversation ::
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member (Error InternalError) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
@@ -489,7 +495,7 @@ updateConversation ::
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member TinyLog r,
     Member Resource r,
     Member ConversationStore r,
@@ -497,7 +503,9 @@ updateConversation ::
     Member TeamFeatureStore r,
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TeamStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -619,7 +627,7 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -630,11 +638,13 @@ sendMLSCommitBundle ::
     Member TeamFeatureStore r,
     Member Resource r,
     Member TeamStore r,
+    Member TeamSubsystem r,
     Member P.TinyLog r,
     Member Random r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -679,17 +689,17 @@ sendMLSMessage ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member TeamStore r,
     Member P.TinyLog r,
     Member ProposalStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamStore r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -716,7 +726,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
 getSubConversationForRemoteUser ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Domain ->
   GetSubConversationsRequest ->
@@ -735,8 +745,9 @@ leaveSubConversation ::
     Member (Error FederationError) r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r,
-    Member E.MLSCommitLockStore r
+    Member TeamSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
@@ -757,7 +768,7 @@ deleteSubConversationForRemoteUser ::
   ( Member ConversationStore r,
     Member (Input (Local ())) r,
     Member Resource r,
-    Member TeamStore r,
+    Member TeamSubsystem r,
     Member E.MLSCommitLockStore r
   ) =>
   Domain ->
@@ -968,11 +979,11 @@ queryGroupInfo origDomain req =
 
 updateTypingIndicator ::
   ( Member NotificationSubsystem r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member ConversationStore r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Domain ->
   TypingDataUpdateRequest ->
@@ -990,8 +1001,7 @@ updateTypingIndicator origDomain TypingDataUpdateRequest {..} = do
   pure (either TypingDataUpdateError TypingDataUpdateSuccess ret)
 
 onTypingIndicatorUpdated ::
-  ( Member NotificationSubsystem r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Domain ->
   TypingDataUpdated ->
   Sem r EmptyResponse

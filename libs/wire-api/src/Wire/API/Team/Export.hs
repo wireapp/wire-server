@@ -35,6 +35,7 @@ import Data.Time.Clock
 import Data.Time.Format
 import Data.Vector (fromList)
 import Imports
+import Network.Wai.Utilities.Exception
 import Test.QuickCheck
 import Wire.API.Team.Role (Role)
 import Wire.API.User (AccountStatus (..), Name)
@@ -150,7 +151,7 @@ parseByteString bstr =
 
 parseUTCTime :: ByteString -> Parser UTCTime
 parseUTCTime b = do
-  s <- either (fail . displayException) pure $ T.decodeUtf8' b
+  s <- either (fail . displayExceptionNoBacktrace) pure $ T.decodeUtf8' b
   parseTimeM False defaultTimeLocale timestampFormat (T.unpack s)
 
 parseAccountStatus :: ByteString -> Parser AccountStatus

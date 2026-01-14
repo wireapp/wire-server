@@ -33,6 +33,8 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Handle
 import Data.Id
+import Data.Json.Util (BigIntString (..))
+import Data.Misc (HttpsUrl)
 import Data.Range (unsafeRange)
 import Data.Schema
 import Data.Set qualified as Set
@@ -104,6 +106,7 @@ tests s =
       test s "i/domain-registration" testDomainRegistration,
       test s "GET /teams/:tid/features/domainRegistration" $ testFeatureStatus @DomainRegistrationConfig,
       test s "PUT /teams/:tid/features/domainRegistration{,'?lockOrUnlock'}" $ testFeatureStatusWithLock @DomainRegistrationConfig,
+      test s "/teams/:tid/features/cells" testCellsConfigRoutes,
       test s "/teams/:tid/features/channels" $ testLockedFeatureConfig @ChannelsConfig,
       test s "PUT /teams/:tid/features/channels{,'?lockOrUnlock'}" $ testLockStatus @ChannelsConfig,
       test s "PUT /teams/:tid/features/digitalSignatures{,'?lockOrUnlock'}" $ testLockStatus @DigitalSignaturesConfig,
@@ -116,11 +119,16 @@ tests s =
       test s "PUT /teams/:tid/features/sndFactorPasswordChallenge{,'?lockOrUnlock'}" $ testLockStatus @SndFactorPasswordChallengeConfig,
       test s "PUT /teams/:tid/features/limitedEventFanout{,'?lockOrUnlock'}" $ testLockStatus @LimitedEventFanoutConfig,
       test s "PUT /teams/:tid/features/cells{,'?lockOrUnlock'}" $ testLockStatus @CellsConfig,
+      test s "/teams/:tid/features/cellsInternal" testCellsInternalConfig,
       test s "PUT /teams/:tid/features/consumableNotifications{,'?lockOrUnlock'}" $ testLockStatus @ConsumableNotificationsConfig,
       test s "PUT /teams/:tid/features/chatBubbles{,'?lockOrUnlock'}" $ testLockStatus @ChatBubblesConfig,
       test s "/teams/:tid/features/chatBubbles" $ testFeatureStatus @ChatBubblesConfig,
       test s "PUT /teams/:tid/features/apps{,'?lockOrUnlock'}" $ testLockStatus @AppsConfig,
-      test s "/teams/:tid/features/apps" $ testFeatureStatus @AppsConfig
+      test s "/teams/:tid/features/apps" $ testFeatureStatus @AppsConfig,
+      test s "PUT /teams/:tid/features/meetings{,'?lockOrUnlock'}" $ testLockStatus @MeetingsConfig,
+      test s "/teams/:tid/features/meetings" $ testFeatureStatus @MeetingsConfig,
+      test s "PUT /teams/:tid/features/meetingsPremium{,'?lockOrUnlock'}" $ testLockStatus @MeetingsPremiumConfig,
+      test s "/teams/:tid/features/meetingsPremium" $ testFeatureStatus @MeetingsPremiumConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`
@@ -326,6 +334,84 @@ testFeatureConfig = do
   putFeatureConfig @cfg tid cfg {status = newStatus} !!! const 200 === statusCode
   cfg' <- getFeatureConfig @cfg tid
   liftIO $ cfg'.status @?= newStatus
+
+testCellsConfigRoutes :: TestM ()
+testCellsConfigRoutes = do
+  (_, tid, _) <- createTeamWithNMembers 1
+  cfg <- getFeatureConfig @CellsConfig tid
+  -- at the time of writing the galley.integration.yaml has the feature enabled and unlocked
+  liftIO $ cfg @?= def {status = FeatureStatusEnabled, lockStatus = LockStatusUnlocked}
+
+  putFeatureStatusLock @CellsConfig tid LockStatusUnlocked Nothing !!! const 200 === statusCode
+
+  let updatedConfig :: LockableFeature CellsConfig
+      updatedConfig =
+        LockableFeature
+          { status = FeatureStatusEnabled,
+            lockStatus = LockStatusUnlocked,
+            config =
+              CellsConfig
+                { channels = CellsProperty {enabled = False, default_ = Enforced},
+                  groups = CellsProperty {enabled = True, default_ = Disabled},
+                  one2one = CellsProperty {enabled = True, default_ = Enabled},
+                  users = CellsUsers {externals = False, guests = True},
+                  collabora = CellsCollaboraStatus {enabled = True},
+                  publicLinks =
+                    CellsPublicLinks
+                      { enableFiles = True,
+                        enableFolders = False,
+                        enforcePassword = True,
+                        enforceExpirationMax = 86400,
+                        enforceExpirationDefault = 3600
+                      },
+                  storage =
+                    CellsConfigStorage
+                      { perFileQuotaBytes = NumBytes (BigIntString 2000000000),
+                        recycle =
+                          CellsRecycle
+                            { autoPurgeDays = 14,
+                              disable = False,
+                              allowSkip = True
+                            }
+                      },
+                  metadata =
+                    CellsMetadata
+                      { namespaces =
+                          CellsNamespaces
+                            { usermetaTags =
+                                CellsUserMetaTags
+                                  { defaultValues = ["default-tag"],
+                                    allowFreeValues = False
+                                  }
+                            }
+                      }
+                }
+          }
+
+  putFeatureConfig @CellsConfig tid updatedConfig !!! const 200 === statusCode
+  cfg' <- getFeatureConfig @CellsConfig tid
+  liftIO $ cfg' @?= updatedConfig
+
+testCellsInternalConfig :: TestM ()
+testCellsInternalConfig = do
+  (_, tid, _) <- createTeamWithNMembers 1
+  cfg <- getFeatureConfig @CellsInternalConfig tid
+  let newBackend :: HttpsUrl
+      newBackend = fromMaybe (error "invalid url") . fromByteString $ "https://cells-internal.example.com"
+      newCfg =
+        cfg
+          { config =
+              cfg.config
+                { backend = CellsBackend newBackend,
+                  collabora = CellsCollabora Cool,
+                  storage = CellsStorage (NumBytes (BigIntString 2000000000000))
+                }
+          } ::
+          LockableFeature CellsInternalConfig
+
+  putFeatureConfig @CellsInternalConfig tid newCfg !!! const 200 === statusCode
+  cfg' <- getFeatureConfig @CellsInternalConfig tid
+  liftIO $ cfg' @?= newCfg
 
 testGetFeatureConfig ::
   forall cfg.

@@ -428,6 +428,7 @@ data TeamFeatureError
   | MLSProtocolMismatch
   | MLSE2EIDMissingCrlProxy
   | EmptyDownloadLocation
+  | InvalidStatusUpdate
 
 instance IsSwaggerError TeamFeatureError where
   -- Do not display in Swagger
@@ -460,6 +461,7 @@ instance (Member (Error DynError) r) => ServerEffect (Error TeamFeatureError) r 
     MLSProtocolMismatch -> DynError 400 "mls-protocol-mismatch" "The default protocol needs to be part of the supported protocols"
     MLSE2EIDMissingCrlProxy -> DynError 400 "mls-e2eid-missing-crl-proxy" "The field 'crlProxy' is missing in the request payload"
     EmptyDownloadLocation -> DynError 400 "empty-download-location" "Download location cannot be empty"
+    InvalidStatusUpdate -> DynError 400 "invalid-status-update" "Status must be enabled and lock status must be unlocked"
 
 type instance ErrorEffect TeamFeatureError = Error TeamFeatureError
 

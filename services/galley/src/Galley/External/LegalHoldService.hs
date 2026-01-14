@@ -29,7 +29,6 @@ where
 
 import Bilge qualified
 import Bilge.Response
-import Brig.Types.Team.LegalHold
 import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Aeson
 import Data.ByteString.Char8 qualified as BS8
@@ -39,7 +38,6 @@ import Data.Id
 import Data.Misc
 import Data.Qualified (Local, QualifiedWithTag (tUntagged), tUnqualified)
 import Data.Set qualified as Set
-import Galley.Effects.LegalHoldStore as LegalHoldData
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.HTTP.Types
@@ -49,7 +47,9 @@ import System.Logger.Class qualified as Log
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import Wire.API.Team.LegalHold.External
+import Wire.API.Team.LegalHold.Internal
 import Wire.BrigAPIAccess
+import Wire.LegalHoldStore as LegalHoldData
 
 ----------------------------------------------------------------------
 -- api

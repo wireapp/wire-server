@@ -20,6 +20,7 @@
 module Wire.NotificationSubsystem where
 
 import Control.Concurrent.Async (Async)
+import Control.Lens (view)
 import Data.Aeson
 import Data.Default
 import Data.Id
@@ -28,7 +29,11 @@ import Polysemy
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate)
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
+import Wire.API.Push.V2 qualified as PushV2
+import Wire.API.Team.Member
+import Wire.API.Team.Member qualified as Mem
 import Wire.Arbitrary
+import Wire.StoredConversation (LocalMember (..))
 
 data Recipient = Recipient
   { recipientUserId :: UserId,
@@ -36,6 +41,16 @@ data Recipient = Recipient
   }
   deriving stock (Show, Ord, Eq, Generic)
   deriving (Arbitrary) via GenericUniform Recipient
+
+userRecipient :: UserId -> Recipient
+userRecipient u = Recipient u PushV2.RecipientClientsAll
+
+membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
+membersToRecipients Nothing = map (userRecipient . view Mem.userId)
+membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view Mem.userId)
+
+localMemberToRecipient :: LocalMember -> Recipient
+localMemberToRecipient = userRecipient . (.id_)
 
 data Push = Push
   { conn :: Maybe ConnId,

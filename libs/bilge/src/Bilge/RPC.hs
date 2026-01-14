@@ -39,6 +39,7 @@ import Data.Text.Lazy (pack)
 import Data.Text.Lazy qualified as T
 import Imports hiding (log)
 import Network.HTTP.Client qualified as HTTP
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import System.Logger.Class
 import Wire.OpenTelemetry (withClientInstrumentation)
 
@@ -100,7 +101,7 @@ rpc' sys r f = do
 
 rpcExceptionMsg :: RPCException -> Msg -> Msg
 rpcExceptionMsg (RPCException sys req ex) =
-  "remote" .= sys ~~ "path" .= HTTP.path req ~~ headers ~~ msg (show ex)
+  "remote" .= sys ~~ "path" .= HTTP.path req ~~ headers ~~ msg (displayExceptionNoBacktrace ex)
   where
     headers = foldr hdr id (HTTP.requestHeaders req)
     hdr (k, v) x = x ~~ original k .= v

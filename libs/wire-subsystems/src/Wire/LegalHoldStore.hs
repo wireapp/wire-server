@@ -1,46 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
+module Wire.LegalHoldStore where
 
-module Galley.Effects.LegalHoldStore
-  ( -- * LegalHold store effect
-    LegalHoldStore (..),
-
-    -- * Store actions
-    createSettings,
-    getSettings,
-    removeSettings,
-    insertPendingPrekeys,
-    selectPendingPrekeys,
-    dropPendingPrekeys,
-    setUserLegalHoldStatus,
-    setTeamLegalholdWhitelisted,
-    unsetTeamLegalholdWhitelisted,
-    isTeamLegalholdWhitelisted,
-    validateServiceKey,
-
-    -- * Intra actions
-    makeVerifiedRequest,
-    makeVerifiedRequestFreshManager,
-  )
-where
-
-import Brig.Types.Team.LegalHold
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
 import Data.LegalHold
@@ -49,6 +10,7 @@ import Imports
 import Network.HTTP.Client qualified as Http
 import Polysemy
 import Wire.API.Provider.Service
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client.Prekey
 
 data LegalHoldStore m a where
@@ -62,7 +24,6 @@ data LegalHoldStore m a where
   SetTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m ()
   UnsetTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m ()
   IsTeamLegalholdWhitelisted :: TeamId -> LegalHoldStore m Bool
-  -- intra actions
   MakeVerifiedRequestFreshManager ::
     Fingerprint Rsa ->
     HttpsUrl ->

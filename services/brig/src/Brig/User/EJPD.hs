@@ -104,7 +104,7 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (reallyIncludeContacts, userTeam target) of
           (True, Just tid) -> do
-            memberList <- liftSem $ TeamSubsystem.internalGetTeamMembers tid Nothing
+            memberList <- liftSem $ TeamSubsystem.internalGetTeamMembersWithLimit tid Nothing
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull <-

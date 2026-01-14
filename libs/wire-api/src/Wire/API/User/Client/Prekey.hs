@@ -32,6 +32,7 @@ module Wire.API.User.Client.Prekey
   )
 where
 
+import Cassandra (ColumnType (IntColumn), Cql (ctype, fromCql, toCql), Tagged (..), Value (CqlInt))
 import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits
@@ -47,6 +48,12 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, FromJSON, Arbitrary, S.ToSchema, ToSchema)
+
+instance Cql PrekeyId where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . keyId
+  fromCql (CqlInt i) = pure $ PrekeyId (fromIntegral i)
+  fromCql _ = Left "PrekeyId: Int expected"
 
 --------------------------------------------------------------------------------
 -- Prekey

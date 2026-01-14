@@ -46,7 +46,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
-  GetTeamMembers tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
+  GetTeamMembersWithLimit tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
   GetTeamId _ -> error "GetTeamId not implemented in miniGalleyAPIAccess"
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
@@ -55,6 +55,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetTeamSearchVisibility _ ->
     pure SearchVisibilityStandard
   ChangeTeamStatus {} -> error "ChangeTeamStatus not implemented in miniGalleyAPIAccess"
+  FinalizeDeleteTeam {} -> error "FinalizeDeleteTeam not implemented in miniGalleyAPIAccess"
   MemberIsTeamOwner tid uid ->
     pure $ memberIsTeamOwnerImpl teams tid uid
   GetAllTeamFeaturesForUser _ -> pure configs
@@ -68,6 +69,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
   InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
   GetTeamContacts _ -> pure Nothing
+  SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

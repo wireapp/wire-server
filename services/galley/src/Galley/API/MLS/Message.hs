@@ -58,8 +58,6 @@ import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.FederatorAccess
-import Galley.Effects.TeamStore qualified as TeamStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -74,6 +72,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
@@ -89,9 +88,13 @@ import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all
@@ -181,7 +184,9 @@ postMLSCommitBundle ::
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -210,7 +215,9 @@ postMLSCommitBundleFromLocalUser ::
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Version ->
   Local UserId ->
@@ -243,7 +250,9 @@ postMLSCommitBundleToLocalConv ::
     Members MLSBundleStaticErrors r,
     HasProposalEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -309,7 +318,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
         lift $
-          checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
+          checkGroupState convOrSub newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
         events <-
@@ -328,7 +337,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         pure (events, newClients)
       Nothing -> do
         (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
-        lift $ checkGroupState convOrSub.conv.mcMetadata.cnvmTeam newIndexMap bundle.groupInfo.value
+        lift $ checkGroupState convOrSub newIndexMap bundle.groupInfo.value
         let senderIdentity' = senderIdentity {index = Just action.add}
         processExternalCommit
           senderIdentity'
@@ -380,7 +389,7 @@ postMLSCommitBundleToRemoteConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (Input EnableOutOfSyncCheck) r,
     Member ExternalAccess r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationStore r,
     Member TinyLog r
@@ -525,10 +534,13 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
       for_ convOrSub.ciphersuite $ \ciphersuite -> do
         checkConversationOutOfSync mempty lConvOrSub ciphersuite
 
-      -- reject application messages older than 2 epochs
-      -- FUTUREWORK: consider rejecting this message if the conversation epoch is 0
+      -- reject application messages for epoch 0
       let epochInt :: Epoch -> Integer
           epochInt = fromIntegral . epochNumber
+      when (epochInt msg.epoch == 0) . throw $
+        mlsProtocolError "Application messages at epoch 0 are not supported"
+
+      -- reject application messages older than 2 epochs
       case convOrSub.mlsMeta.cnvmlsActiveData of
         Nothing -> throw $ mlsProtocolError "Application messages at epoch 0 are not supported"
         Just activeData ->
@@ -593,8 +605,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
     MLSMessageResponseOutOfSyncError e -> throw e
 
 storeGroupInfo ::
-  ( Member ConversationStore r
-  ) =>
+  (Member ConversationStore r) =>
   ConvOrSubConvId ->
   GroupInfoData ->
   Sem r ()

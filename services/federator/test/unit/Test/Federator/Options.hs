@@ -136,7 +136,7 @@ testSettings =
           Left e ->
             assertFailure $
               "expected invalid client certificate exception, got: "
-                <> show e
+                <> displayException e
           Right _ ->
             assertFailure "expected failure for non-existing client certificate, got success",
       testCase "failToStartWithInvalidServerCredentials" failToStartWithInvalidServerCredentials,
@@ -158,7 +158,7 @@ testSettings =
           Left e ->
             assertFailure $
               "expected invalid client certificate exception, got: "
-                <> show e
+                <> displayException e
           Right _ ->
             assertFailure "expected failure for invalid private key, got success"
     ]
@@ -184,7 +184,7 @@ failToStartWithInvalidServerCredentials = do
     Left e ->
       assertFailure $
         "expected invalid client certificate exception, got: "
-          <> show e
+          <> displayException e
     Right _ ->
       assertFailure "expected failure for invalid client certificate, got success"
 

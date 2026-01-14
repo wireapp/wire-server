@@ -41,6 +41,7 @@ import CargoHold.API.Error
 import CargoHold.CloudFront
 import CargoHold.Options hiding (cloudFront, s3Bucket)
 import Conduit
+import Control.Exception.Lens
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Retry
@@ -151,16 +152,14 @@ instance Exception Error
 -- Utilities
 
 sendCatch ::
-  (MonadCatch m, AWSRequest r, MonadResource m, Typeable r, Typeable (AWSResponse r)) =>
+  (MonadCatch m, AWSRequest r, MonadResource m) =>
   AWS.Env ->
   r ->
   m (Either AWS.Error (AWSResponse r))
-sendCatch env = AWS.trying AWS._Error . AWS.send env
+sendCatch env = trying AWS._Error . AWS.send env
 
 exec ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r,
     MonadLogger m,
     MonadIO m,
@@ -176,7 +175,7 @@ exec env request = do
     Left err -> do
       Logger.info env.logger $
         Log.field "remote" (Log.val "S3")
-          ~~ Log.msg (show err)
+          ~~ Log.msg (displayException err)
           ~~ Log.msg (show req)
       -- We re-throw the error, but distinguish between user errors and server
       -- errors. Logging it here also gives us the request that caused it.
@@ -190,8 +189,6 @@ rethrowError e = case e of
 
 execStream ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r
   ) =>
   Env ->
@@ -204,7 +201,7 @@ execStream env request = do
     Left err -> do
       Logger.info env.logger $
         Log.field "remote" (Log.val "S3")
-          ~~ Log.msg (show err)
+          ~~ Log.msg (displayException err)
           ~~ Log.msg (show req)
       -- We just re-throw the error, but logging it here also gives us the request
       -- that caused it.
@@ -213,8 +210,6 @@ execStream env request = do
 
 execCatch ::
   ( AWSRequest r,
-    Typeable r,
-    Typeable (AWSResponse r),
     Show r,
     MonadLogger m,
     MonadIO m
@@ -229,7 +224,7 @@ execCatch env request = do
     Left err -> do
       Log.info $
         Log.field "remote" (Log.val "S3")
-          ~~ Log.msg (show err)
+          ~~ Log.msg (displayException err)
           ~~ Log.msg (show req)
       pure Nothing
     Right r -> pure $ Just r

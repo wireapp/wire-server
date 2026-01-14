@@ -234,6 +234,36 @@ The `conferenceCalling` section is optional in `featureFlags`. If it is omitted 
 
 See also: conference falling for personal accounts (below).
 
+### Meetings
+
+The `meetings` feature flag controls whether a user can initiate a meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+
+```yaml
+meetings:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetings/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+
+### Meetings Premium
+
+The `meetingsPremium` feature flag controls whether a team has premium meetings features. When enabled, meetings created by team members are not marked as trial. When disabled, meetings are trial and limited to 25 minutes. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+
+```yaml
+meetingsPremium:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetingsPremium/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+
 ### File Sharing
 
 File sharing is enabled and unlocked by default. If you want a different configuration, use the following syntax:
@@ -579,6 +609,60 @@ cells:
   defaults:
     status: disabled
     lockStatus: locked
+    config:
+      channels:
+        enabled: true
+        default: enabled
+      groups:
+        enabled: true
+        default: enabled
+      one2one:
+        enabled: true
+        default: enabled
+      users:
+        externals: true
+        guests: false
+      collabora:
+        enabled: false
+      publicLinks:
+        enableFiles: true
+        enableFolders: true
+        enforcePassword: false
+        enforceExpirationMax: 0
+        enforceExpirationDefault: 0
+      storage:
+        perFileQuotaBytes: "100000000"
+        recycle:
+          autoPurgeDays: 30
+          disable: false
+          allowSkip: false
+      metadata:
+        namespaces:
+          usermetaTags:
+            defaultValues: []
+            allowFreeValues: true
+```
+
+### Cells Internal
+
+Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string.
+
+```yaml
+# galley.yaml
+config:
+  settings:
+    featureFlags:
+      cellsInternal:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+          config:
+            backend:
+              url: https://cells-beta.wire.com
+            collabora:
+              edition: COOL
+            storage:
+              perUserQuotaBytes: "1000000000000" # 1 TB
 ```
 
 ### Allowed Global Operations
@@ -1303,6 +1387,40 @@ clear as there are multiple `ssoUri`s defined. So, the SCIM base URI needs to
 be set explicitly in `scimBaseUri`. In spar's YAML config file `scimBaseUri` is
 always required.
 
+#### SAML IdPs
+
+The multi-ingress configuration also affects SAML IdPs: The multi-ingress
+domain (as specified by the internal `Z-Host` header; according to the domain
+the `/identity-providers` endpoints are accessed on) is stored in the IdP's
+configuration data. It can be observed as field `domain` in responses of
+`/identity-providers`.
+
+For example:
+```json
+{
+    "extraInfo": {
+        "apiVersion": "WireIdPAPIV2",
+        "domain": "nginz-https.ernie.example.com",
+        "handle": "IdP 1",
+        "oldIssuers": [
+            "https://issuer.net/_c4590f08-14da-446b-89d0-fcb46ac8ccf9"
+        ],
+        "replacedBy": null,
+        "team": "ce2c2ade-8b93-4db3-b1d3-44ce1d987ca6"
+    },
+    "id": "ba6afb01-3edf-416c-8561-42e7ecc9b00a",
+    "metadata": {
+        "certAuthnResponse": [
+            "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIBOTCBxKADAgECAg4TIFmNatMeqaAE8BWQBTANBgkqhkiG9w0BAQsFADAAMB4XDTI1MDkxODE2MjY1NVoXDTQ1MDkxMzE2MjY1NVowADB6MA0GCSqGSIb3DQEBAQUAA2kAMGYCYQC/KgI1kw9+dXc/XUQ8Q6no9GsT9gX1g3sekVEI7UuxrcHd+Tapzi1T99TdnBDedXCAxGTW6Rwhu3F20j0iAi0neWzi5xv+1KWxK0djzJ0Kxk5AcdDx/Tz+t1Uzd4VXkhECAREwDQYJKoZIhvcNAQELBQADYQAsFrbuDmGZphl9d9VdHyh8a9lIFh3oO5et+tPqFTTRPbbfEewqvtwFWvP9Gf1qgjk0qwKX3GDsFejQf4h94qU1Zf0IE8J/WyIiwEWRvZgAQ9UmqKljmbHKssyNwsl6tTY=</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
+        ],
+        "issuer": "https://issuer.net/_2ab62f21-44c0-4c60-a115-d05b5129141d",
+        "requestURI": "https://requri.net/22169147-7d84-4991-9652-d7434986b7d8"
+    }
+}
+```
+
+There can be at most one IdP per multi-ingress domain. Creating more returns an
+error. Though, IdPs can be reconfigured as long as this invariant holds.
 
 ### Webapp
 

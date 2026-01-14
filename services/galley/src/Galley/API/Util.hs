@@ -20,7 +20,7 @@
 
 module Galley.API.Util where
 
-import Control.Lens (to, view, (^.))
+import Control.Lens (view, (^.))
 import Control.Monad.Extra (allM, anyM)
 import Control.Monad.Trans.Maybe
 import Data.Bifunctor
@@ -46,11 +46,7 @@ import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.CodeStore
-import Galley.Effects.FederatorAccess
-import Galley.Effects.LegalHoldStore
-import Galley.Effects.TeamStore
-import Galley.Effects.TeamStore qualified as E
-import Galley.Options
+import Galley.Env
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -72,6 +68,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
@@ -80,7 +77,6 @@ import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
-import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Member.Error
@@ -91,15 +87,22 @@ import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
 import Wire.ExternalAccess
+import Wire.FederationAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
+import Wire.LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.TeamSubsystem qualified as TeamSubsytem
 import Wire.UserList
 
 data NoChanges = NoChanges
@@ -130,7 +133,8 @@ ensureConnectedOrSameTeam ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -151,7 +155,8 @@ ensureConnectedToLocalsOrSameTeam ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   [UserId] ->
@@ -163,7 +168,7 @@ ensureConnectedToLocalsOrSameTeam (tUnqualified -> u) uids = do
   icUsers <- getTeamCollaborators uTeams
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM (uTeams `union` icTeams) $ \team ->
-    fmap (view Mem.userId) <$> selectTeamMembers team uids
+    fmap (view Mem.userId) <$> TeamSubsytem.internalSelectTeamMembers team uids
   -- Do not check connections for users that are on the same team
   ensureConnectedToLocals u ((uids \\ join sameTeamUids) \\ icUsers)
   where
@@ -298,7 +303,7 @@ ensureConvRoleNotElevated origMember targetRole = do
 
 checkGroupIdSupport ::
   ( Member (ErrorS GroupIdVersionNotSupported) r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local x ->
   StoredConversation ->
@@ -318,7 +323,7 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   -- check that each remote backend is compatible with group ID version >= 2
   let (_, remoteUsers) = partitionQualified loc joinAction.users
   lift
-    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @Brig remoteUsers)
+    . (failOnFirstError <=< runFederatedConcurrentlyEither @_ @_ @Brig remoteUsers)
     $ \_ -> do
       guardVersion $ \fedV -> fedV >= groupIdFedVersion GroupIdVersion2
   where
@@ -381,13 +386,13 @@ assertTeamExists tid = do
 
 assertOnTeam ::
   ( Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   TeamId ->
   Sem r ()
 assertOnTeam uid tid =
-  getTeamMember tid uid >>= \case
+  TeamSubsystem.internalGetTeamMember uid tid >>= \case
     Nothing -> throwS @'NotATeamMember
     Just _ -> pure ()
 
@@ -440,12 +445,6 @@ acceptOne2One lusr conv conn = do
     promote = do
       acceptConnectConversation cid
       pure $ Data.convSetType One2OneConv conv
-
-localMemberToRecipient :: LocalMember -> Recipient
-localMemberToRecipient = userRecipient . (.id_)
-
-userRecipient :: UserId -> Recipient
-userRecipient u = Recipient u PushV2.RecipientClientsAll
 
 memberJoinEvent ::
   Local UserId ->
@@ -601,25 +600,6 @@ bmFromMembers lmems rusers = case localBotsAndUsers lmems of
 convBotsAndMembers :: StoredConversation -> BotsAndMembers
 convBotsAndMembers conv = bmFromMembers (conv.localMembers) (conv.remoteMembers)
 
-localBotsAndUsers :: (Foldable f) => f LocalMember -> ([BotMember], [LocalMember])
-localBotsAndUsers = foldMap botOrUser
-  where
-    botOrUser m = case m.service of
-      -- we drop invalid bots here, which shouldn't happen
-      Just _ -> (toList (newBotMember m), [])
-      Nothing -> ([], [m])
-
-nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
-nonTeamMembers cm tm = filter (not . isMemberOfTeam . (.id_)) cm
-  where
-    -- FUTUREWORK: remote members: teams and their members are always on the same backend
-    isMemberOfTeam = \case
-      uid -> isTeamMember uid tm
-
-membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . view Mem.userId)
-membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view Mem.userId)
-
 getSelfMemberFromLocals ::
   (Foldable t, Member (ErrorS 'ConvNotFound) r) =>
   UserId ->
@@ -660,7 +640,7 @@ getConversationAsMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -676,7 +656,7 @@ getConversationAsViewer ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -692,7 +672,7 @@ getConversationAsViewer qusr lcnv = do
         =<< runMaybeT
           ( do
               uid <- hoistMaybe $ foldQualified lcnv (Just . tUnqualified) (const Nothing) qusr
-              tm <- MaybeT $ E.getTeamMember tid uid
+              tm <- MaybeT $ TeamSubsystem.internalGetTeamMember uid tid
               guard $ hasManageChannelsPermission c tm
           )
     (Nothing, Nothing) -> throwAccessDenied
@@ -786,7 +766,7 @@ ensureConversationAccess ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member TeamStore r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   StoredConversation ->
@@ -794,7 +774,7 @@ ensureConversationAccess ::
   Sem r ()
 ensureConversationAccess zusr conv access = do
   ensureAccess conv access
-  zusrMembership <- maybe (pure Nothing) (`getTeamMember` zusr) (Data.convTeam conv)
+  zusrMembership <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
 
 ensureAccess ::
@@ -938,7 +918,7 @@ registerRemoteConversationMemberships ::
     Member (Error UnreachableBackends) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    Member FederatorAccess r
+    Member (FederationAPIAccess FederatorClient) r
   ) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
@@ -1049,7 +1029,7 @@ consentGiven = \case
   UserLegalHoldNoConsent -> ConsentNotGiven
 
 checkConsent ::
-  (Member TeamStore r) =>
+  (Member TeamSubsystem r) =>
   Map UserId TeamId ->
   UserId ->
   Sem r ConsentGiven
@@ -1059,7 +1039,7 @@ checkConsent teamsOfUsers other = do
 -- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
 -- doesn't belong to a team.
 getLHStatus ::
-  (Member TeamStore r) =>
+  (Member TeamSubsystem r) =>
   Maybe TeamId ->
   UserId ->
   Sem r UserLegalHoldStatus
@@ -1067,18 +1047,19 @@ getLHStatus teamOfUser other = do
   case teamOfUser of
     Nothing -> pure defUserLegalHoldStatus
     Just team -> do
-      mMember <- getTeamMember team other
+      mMember <- TeamSubsystem.internalGetTeamMember other team
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 anyLegalholdActivated ::
-  ( Member (Input Opts) r,
-    Member TeamStore r
+  ( Member (Input ConversationSubsystemConfig) r,
+    Member TeamStore r,
+    Member TeamSubsystem r
   ) =>
   [UserId] ->
   Sem r Bool
 anyLegalholdActivated uids = do
-  opts <- input
-  case view (settings . featureFlags . to npProject) opts of
+  cfg <- input
+  case legalholdDefaults cfg of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> check
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> check
@@ -1089,15 +1070,16 @@ anyLegalholdActivated uids = do
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
 allLegalholdConsentGiven ::
-  ( Member (Input Opts) r,
+  ( Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member TeamSubsystem r
   ) =>
   [UserId] ->
   Sem r Bool
 allLegalholdConsentGiven uids = do
-  opts <- input
-  case view (settings . featureFlags . to npProject) opts of
+  cfg <- input
+  case legalholdDefaults cfg of
     FeatureLegalHoldDisabledPermanently -> pure False
     FeatureLegalHoldDisabledByDefault -> do
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
@@ -1116,7 +1098,7 @@ allLegalholdConsentGiven uids = do
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
-  (Member TeamStore r) =>
+  (Member TeamStore r, Member TeamSubsystem r) =>
   [UserId] ->
   Sem r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
@@ -1129,15 +1111,20 @@ getLHStatusForUsers uids =
             (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
       )
 
-getTeamMembersForFanout :: (Member TeamStore r) => TeamId -> Sem r TeamMemberList
+getTeamMembersForFanout ::
+  ( Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
+  ) =>
+  TeamId ->
+  Sem r TeamMemberList
 getTeamMembersForFanout tid = do
-  lim <- fanoutLimit
-  getTeamMembersWithLimit tid lim
+  lim <- input
+  TeamSubsystem.internalGetTeamMembersWithLimit tid (Just lim)
 
 ensureMemberLimit ::
   ( Foldable f,
     ( Member (ErrorS 'TooManyMembers) r,
-      Member (Input Opts) r
+      Member (Input ConversationSubsystemConfig) r
     )
   ) =>
   ProtocolTag ->
@@ -1146,8 +1133,8 @@ ensureMemberLimit ::
   Sem r ()
 ensureMemberLimit ProtocolMLSTag _ _ = pure ()
 ensureMemberLimit _ old new = do
-  o <- input
-  let maxSize = fromIntegral (o ^. settings . maxConvSize)
+  cfg <- input
+  let maxSize = fromIntegral (cfg.maxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
 

@@ -42,7 +42,8 @@
 # Using these tweaks we can get a haskell package set which has wire-server
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
-pkgs:
+
+{ pkgs, pkgs_24_11, bomDependenciesDrv, inputs, }:
 let
   inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
@@ -94,9 +95,7 @@ let
   inherit (lib) attrsets;
 
   pinnedPackages = import ./haskell-pins.nix {
-    inherit pkgs;
-    inherit (pkgs) fetchgit;
-    inherit lib;
+    inherit lib inputs;
   };
 
   localPackages = { enableOptimization, enableDocs, enableTests }: hsuper: hself:
@@ -324,43 +323,52 @@ let
   ];
 
   images = localMods@{ enableOptimization, enableDocs, enableTests }:
-    let exes = staticExecs localMods;
+    let
+      exes = staticExecs localMods;
+      allImages = attrsets.mapAttrs
+        (execName: drv:
+          pkgs.dockerTools.streamLayeredImage {
+            name = "quay.io/wire/${execName}";
+            maxLayers = 10;
+            contents = [
+              pkgs.cacert
+              pkgs.iana-etc
+              pkgs.dumb-init
+              pkgs.dockerTools.fakeNss
+              pkgs.dockerTools.usrBinEnv
+              drv
+              tmpDir
+            ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
+            # Any mkdir running in this step won't actually make it to the image,
+            # hence we use the tmpDir derivation in the contents
+            fakeRootCommands = ''
+              chmod 1777 tmp
+              chmod 1777 var/tmp
+            '';
+            config = {
+              Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
+              Env = [
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+                "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
+                "LANG=en_GB.UTF-8"
+                # Use stable conventions for tracing http in opentelemetry
+                # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
+                "OTEL_SEMCONV_STABILITY_OPT_IN=http"
+              ];
+              User = "65534";
+            };
+          }
+        )
+        exes;
     in
-    attrsets.mapAttrs
-      (execName: drv:
-        pkgs.dockerTools.streamLayeredImage {
-          name = "quay.io/wire/${execName}";
-          maxLayers = 10;
-          contents = [
-            pkgs.cacert
-            pkgs.iana-etc
-            pkgs.dumb-init
-            pkgs.dockerTools.fakeNss
-            pkgs.dockerTools.usrBinEnv
-            drv
-            tmpDir
-          ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName (extraContents exes)) (builtins.getAttr execName (extraContents exes));
-          # Any mkdir running in this step won't actually make it to the image,
-          # hence we use the tmpDir derivation in the contents
-          fakeRootCommands = ''
-            chmod 1777 tmp
-            chmod 1777 var/tmp
-          '';
-          config = {
-            Entrypoint = [ "${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}" ];
-            Env = [
-              "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
-              "LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive"
-              "LANG=en_GB.UTF-8"
-              # Use stable conventions for tracing http in opentelemetry
-              # https://opentelemetry.io/blog/2023/http-conventions-declared-stable/#migration-plan
-              "OTEL_SEMCONV_STABILITY_OPT_IN=http"
-            ];
-            User = "65534";
-          };
-        }
-      )
-      exes;
+    allImages
+    // {
+      all = pkgs.linkFarm "all-images" (attrsets.mapAttrsToList
+        (name: path:
+          { inherit name path; }
+        )
+        allImages);
+    };
 
   localModsEnableAll = {
     enableOptimization = true;
@@ -380,7 +388,7 @@ let
 
   imagesList = pkgs.writeTextFile {
     name = "imagesList";
-    text = "${lib.concatStringsSep "\n" (builtins.attrNames (images localModsEnableAll))}";
+    text = "${lib.concatStringsSep "\n" (builtins.attrNames (staticExecs localModsEnableAll))}";
   };
   wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll { } { }));
 
@@ -422,7 +430,7 @@ let
     pkgs.kubelogin-oidc
     pkgs.nixpkgs-fmt
     pkgs.openssl
-    pkgs.ormolu
+    pkgs.haskellPackages.ormolu
     pkgs.vacuum-go
     pkgs.shellcheck
     pkgs.treefmt
@@ -439,17 +447,18 @@ let
   # nicely in docker.nix at the root of https://github.com/nixos/nix. We get
   # this file using "${pkgs.nix.src}/docker.nix" so we don't have to also pin
   # the nix repository along with the nixpkgs repository.
-  ciImage = import "${pkgs.nix.src}/docker.nix" {
+  ciImage = import "${pkgs.nixVersions.latest.src}/docker.nix" {
     inherit pkgs;
     name = "quay.io/wire/wire-server-ci";
     maxLayers = 2;
+    nix = pkgs.nixVersions.latest;
     # We don't need to push the "latest" tag, every step in CI should depend
     # deterministically on a specific image.
     tag = null;
     bundleNixpkgs = false;
     extraPkgs = commonTools ++ [ pkgs.cachix ];
     nixConf = {
-      experimental-features = "nix-command";
+      experimental-features = "nix-command flakes";
     };
   };
 
@@ -474,9 +483,8 @@ let
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 
-  tom-bombadil = builtins.getFlake "github:wireapp/tom-bombadil";
   localPkgs = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
-  bomDependencies = tom-bombadil.lib.${builtins.currentSystem}.bomDependenciesDrv pkgs localPkgs haskellPackages;
+  bomDependencies = bomDependenciesDrv pkgs localPkgs haskellPackages;
 in
 {
   inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies;
@@ -498,12 +506,12 @@ in
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "98" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
       pkgs.ghcid
       pkgs.kind
       pkgs.netcat
       pkgs.niv
-      pkgs.haskellPackages.apply-refact
+      pkgs.haskell.packages.ghc912.apply-refact
       (pkgs.python3.withPackages
         (ps: with ps; [
           black
@@ -525,7 +533,7 @@ in
       pkgs.sbomqs
       pkgs.postgresql
 
-      pkgs.cabal-install
+      pkgs_24_11.cabal-install
       pkgs.nix-prefetch-git
       pkgs.haskellPackages.cabal-plan
       pkgs.lsof

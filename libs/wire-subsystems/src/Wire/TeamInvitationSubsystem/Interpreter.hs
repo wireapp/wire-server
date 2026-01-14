@@ -27,6 +27,7 @@ import Data.Set qualified as Set
 import Data.Text.Ascii qualified as AsciiText
 import Data.Text.Encoding qualified as Text
 import Imports
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input, runInputConst)
@@ -265,7 +266,7 @@ logInvitationRequest context action =
   runError action >>= \case
     Left e -> do
       Log.warn $
-        msg @String ("Failed to create invitation: " <> show e)
+        msg @String ("Failed to create invitation: " <> displayExceptionNoBacktrace e)
           . context
       throw e
     Right res@(_, code) -> do

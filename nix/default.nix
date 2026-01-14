@@ -1,15 +1,5 @@
+{ pkgs, pkgs_24_11, bomDependenciesDrv, inputs, }:
 let
-  sources = import ./sources.nix;
-
-  pkgs = import sources.nixpkgs {
-    config.allowUnfree = true;
-    overlays = [
-      # All wire-server specific packages
-      (import ./overlay.nix)
-      (import ./overlay-docs.nix)
-    ];
-  };
-
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -20,7 +10,7 @@ let
     '';
   };
 
-  wireServer = import ./wire-server.nix pkgs;
+  wireServer = import ./wire-server.nix { inherit pkgs pkgs_24_11 bomDependenciesDrv inputs; };
   nginz = pkgs.callPackage ./nginz.nix { };
 
   # packages necessary to build wire-server docs

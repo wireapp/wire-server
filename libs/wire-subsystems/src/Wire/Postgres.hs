@@ -38,6 +38,7 @@ module Wire.Postgres
 
     -- * Runners
     runStatement,
+    runSession,
     runTransaction,
     runPipeline,
     parseCount,
@@ -56,6 +57,7 @@ module Wire.Postgres
     clause1,
     orderBy,
     limit,
+    offset,
     buildStatement,
 
     -- * Type classes
@@ -91,14 +93,21 @@ type PGConstraints r =
     Member (Error Hasql.UsageError) r
   )
 
+runSession ::
+  (PGConstraints r) =>
+  Session a ->
+  Sem r a
+runSession sess = do
+  pool <- input
+  liftIO (use pool sess) >>= either throw pure
+
 runStatement ::
   (PGConstraints r) =>
   a ->
   Statement a b ->
   Sem r b
-runStatement a stmt = do
-  pool <- input
-  liftIO (use pool (statement a stmt)) >>= either throw pure
+runStatement a stmt =
+  runSession $ statement a stmt
 
 runTransaction ::
   (PGConstraints r) =>
@@ -106,17 +115,15 @@ runTransaction ::
   Mode ->
   Transaction a ->
   Sem r a
-runTransaction isolationLevel mode t = do
-  pool <- input
-  liftIO (use pool $ Transaction.transaction isolationLevel mode t) >>= either throw pure
+runTransaction isolationLevel mode t =
+  runSession $ Transaction.transaction isolationLevel mode t
 
 runPipeline ::
   (PGConstraints r) =>
   Pipeline a ->
   Sem r a
-runPipeline p = do
-  pool <- input
-  liftIO (use pool $ pipeline p) >>= either throw pure
+runPipeline p =
+  runSession $ pipeline p
 
 class PostgresValue a where
   postgresType :: Text
@@ -274,6 +281,10 @@ orderBy os =
 limit :: forall a. (PostgresValue a) => a -> QueryFragment
 limit n = paramLiteral (valueEncoder n) $ \i ->
   "limit " <> argPattern (postgresType @a) i
+
+offset :: forall a. (PostgresValue a) => a -> QueryFragment
+offset n = paramLiteral (valueEncoder n) $ \i ->
+  "offset " <> argPattern (postgresType @a) i
 
 buildStatement :: QueryFragment -> Dec.Result b -> Statement () b
 buildStatement frag dec =

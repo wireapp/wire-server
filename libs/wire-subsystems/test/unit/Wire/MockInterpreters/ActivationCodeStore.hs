@@ -40,8 +40,7 @@ emailKeyToCode =
     . show
 
 inMemoryActivationCodeStoreInterpreter ::
-  ( Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r
-  ) =>
+  (Member (State (Map EmailKey (Maybe UserId, ActivationCode))) r) =>
   InterpreterFor ActivationCodeStore r
 inMemoryActivationCodeStoreInterpreter = interpret \case
   LookupActivationCode ek -> gets (!? ek)

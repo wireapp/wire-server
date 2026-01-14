@@ -98,6 +98,7 @@ library
     , uri-bytestring
     , wai
     , wai-extra
+    , wai-utilities
     , wire-otel
 
   default-language:   GHC2021

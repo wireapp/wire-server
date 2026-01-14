@@ -21,6 +21,7 @@ module Test.MLS where
 
 import API.Brig (claimKeyPackages, deleteClient)
 import API.Galley
+import qualified API.GalleyInternal as I
 import Data.Bits
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64 as Base64
@@ -91,6 +92,28 @@ testPastStaleApplicationMessage otherDomain = do
 
   -- bob's application messages are now rejected
   void $ postMLSMessage bob1 msg2.message >>= getJSON 409
+
+testEpochZeroApplicationMessage :: (HasCallStack) => App ()
+testEpochZeroApplicationMessage = do
+  [alice] <- createAndConnectUsers [make OwnDomain]
+  alice1 <- createMLSClient def alice
+  conv <- createNewGroup def alice1
+  void $ createAddCommit alice1 conv [] >>= sendAndConsumeCommitBundle
+  mlsConv <- getMLSConv conv
+
+  -- send message, make sure that's succeeding
+  msg <- createApplicationMessage mlsConv.convId alice1 "group is initialised"
+  postMLSMessage alice1 msg.message >>= assertStatus 201
+
+  -- reset conversation, so it exists on server and client with epoch 0
+  convId' <- objConvId =<< resetMLSConversation alice1 conv
+
+  -- send message, make sure that's failing
+  msg' <- createApplicationMessage convId' alice1 "group not initialised"
+  postMLSMessage alice1 msg'.message >>= flip withResponse \resp -> do
+    j <- getJSON 400 resp
+    j %. "label" `shouldMatch` "mls-protocol-error"
+    j %. "message" `shouldMatch` "Application messages at epoch 0 are not supported"
 
 testFutureStaleApplicationMessage :: (HasCallStack) => App ()
 testFutureStaleApplicationMessage = do
@@ -1114,6 +1137,46 @@ testGroupInfoCheckDisabled = do
   bindResponse (postMLSCommitBundle mp2.sender (mkBundle mp2 {groupInfo = mp1.groupInfo}))
     $ \resp -> do
       resp.status `shouldMatchInt` 201
+
+testGroupInfoAlreadyBroken :: (HasCallStack) => App ()
+testGroupInfoAlreadyBroken = do
+  withModifiedBackend
+    ( def
+        { galleyCfg =
+            setField "settings.checkGroupInfo" True
+        }
+    )
+    $ \domain -> do
+      (alice, tid, [bob, charlie, dee]) <- createTeam domain 4
+      [alice1, bob1, charlie1, dee1] <- traverse (createMLSClient def) [alice, bob, charlie, dee]
+      traverse_ (uploadNewKeyPackage def) [bob1, charlie1, dee1]
+
+      conv <- postConversation alice1 defMLS {team = Just tid} >>= getJSON 201
+      convId <- objConvId conv
+      createGroup def alice1 convId
+
+      -- add bob normally
+      mp1 <- createAddCommit alice1 convId [bob]
+      void $ sendAndConsumeCommitBundle mp1
+
+      -- make a commit with an old group info
+      mp2 <- createAddCommit alice1 convId [charlie]
+      void $ sendAndConsumeCommitBundle mp2 {groupInfo = mp1.groupInfo}
+
+      -- enable feature
+      do
+        I.setTeamFeatureLockStatus alice tid "mls" "unlocked"
+        mls <-
+          defAllFeatures
+            %. "mls.config"
+            >>= setField "groupInfoDiagnostics" True
+        let feat = object ["status" .= "enabled", "config" .= mls]
+        void $ setTeamFeatureConfig alice tid "mls" feat >>= getJSON 200
+
+      -- make another commit with an old group info
+      -- the group was already broken previously, so this should be accepted
+      mp3 <- createAddCommit alice1 convId [dee]
+      void $ sendAndConsumeCommitBundle mp3 {groupInfo = mp1.groupInfo}
 
 testAddUsersDirectlyShouldFail :: (HasCallStack) => App ()
 testAddUsersDirectlyShouldFail = do

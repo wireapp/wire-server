@@ -65,7 +65,6 @@ import Brig.IO.Intra (guardLegalhold)
 import Brig.IO.Intra qualified as Intra
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra (MonadClient)
@@ -98,6 +97,7 @@ import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User qualified as Code
 import Wire.API.User.Client

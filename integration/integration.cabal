@@ -141,6 +141,7 @@ library
     Test.FeatureFlags.Apps
     Test.FeatureFlags.AssetAuditLog
     Test.FeatureFlags.Cells
+    Test.FeatureFlags.CellsInternal
     Test.FeatureFlags.Channels
     Test.FeatureFlags.ChatBubbles
     Test.FeatureFlags.ClassifiedDomains
@@ -152,6 +153,8 @@ library
     Test.FeatureFlags.FileSharing
     Test.FeatureFlags.GuestLinks
     Test.FeatureFlags.LegalHold
+    Test.FeatureFlags.Meeting
+    Test.FeatureFlags.MeetingPremium
     Test.FeatureFlags.Mls
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
@@ -196,6 +199,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
     Test.Swagger

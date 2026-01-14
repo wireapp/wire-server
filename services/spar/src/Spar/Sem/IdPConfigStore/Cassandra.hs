@@ -38,6 +38,7 @@ import Spar.Data.Instances ()
 import Spar.Error
 import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
 import URI.ByteString
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
 import qualified Wire.API.User.IdentityProvider as IP
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
@@ -67,7 +68,7 @@ idPToCassandra =
       ClearReplacedBy r -> embed @m $ clearReplacedBy r
       DeleteIssuer i t -> embed @m $ deleteIssuer i t
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId, Maybe Text)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId, Maybe Text, Maybe ZHostValue)
 
 insertIdPConfig ::
   forall m.
@@ -91,7 +92,8 @@ insertIdPConfig idp = do
         idp ^. SAML.idpExtraInfo . IP.apiVersion,
         idp ^. SAML.idpExtraInfo . IP.oldIssuers,
         idp ^. SAML.idpExtraInfo . IP.replacedBy,
-        Just (unIdPHandle $ idp ^. SAML.idpExtraInfo . handle)
+        Just (unIdPHandle $ idp ^. SAML.idpExtraInfo . handle),
+        idp ^. SAML.idpExtraInfo . IP.domain
       )
     addPrepQuery
       byIssuer
@@ -119,7 +121,7 @@ insertIdPConfig idp = do
       getAllIdPsByIssuerUnsafe issuer >>= mapM_ (failIfNot thisVersion)
 
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
     -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
     byIssuer :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()
@@ -177,18 +179,19 @@ getIdPConfig idpid = do
           apiVersion,
           oldIssuers,
           replacedBy,
-          mHandle
+          mHandle,
+          idpDomain
           ) = do
           let _edCertAuthnResponse = certsHead NL.:| certsTail
               _idpMetadata = SAML.IdPMetadata {..}
-              _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy (mkHandle mHandle)
+              _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy (mkHandle mHandle) idpDomain
           pure $ SAML.IdPConfig {..}
 
   mbidp <- traverse toIdp =<< retry x1 (query1 sel $ params LocalQuorum (Identity idpid))
   maybe (throwError IdpNotFound) pure mbidp
   where
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle, domain FROM idp WHERE idp = ?"
 
     selTid :: PrepQuery R (Identity SAML.IdPId) (Identity (Maybe TeamId))
     selTid = "SELECT team FROM idp WHERE idp = ?"

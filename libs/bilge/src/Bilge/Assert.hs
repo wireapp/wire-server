@@ -43,6 +43,7 @@ import Data.ByteString qualified as S
 import Data.ByteString.Lazy qualified as Lazy
 import Imports
 import Network.HTTP.Client
+import Network.Wai.Utilities.Exception (displayExceptionNoBacktrace)
 import System.Console.ANSI
 import Text.Printf
 
@@ -98,7 +99,7 @@ io <!! aa = do
     msg (i, Just m) = printf "%2d: " i ++ err m
     msg _ = ""
     printErr :: SomeException -> m a
-    printErr e = error $ title "Error executing request: " ++ err (show e)
+    printErr e = error $ title "Error executing request: " ++ err (displayExceptionNoBacktrace e)
 
 -- | Like '<!!' but discards the 'Response'.
 (!!!) ::

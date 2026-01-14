@@ -25,6 +25,14 @@ source-repository head
   location: https://github.com/wireapp/wire-server
   subdir:   libs/hscim
 
+-- This flags removes build-tool-depends when compiling things in the dev
+-- environment.
+-- https://github.com/NixOS/nixpkgs/issues/130556#issuecomment-2762237786
+flag nix-dev-env
+  description: In a Nix dev environment.
+  default:     False
+  manual:      True
+
 library
   exposed-modules:
     Web.Scim.AttrName
@@ -92,6 +100,7 @@ library
     , base
     , bytestring
     , case-insensitive
+    , containers
     , email-validate
     , hashable
     , hspec
@@ -206,7 +215,9 @@ test-suite spec
     -Wall -threaded -rtsopts -with-rtsopts=-N -Wredundant-constraints
     -Wunused-packages
 
-  build-tool-depends: hspec-discover:hspec-discover
+  if !flag(nix-dev-env)
+    build-tool-depends: hspec-discover:hspec-discover
+
   build-depends:
       aeson
     , attoparsec
@@ -219,14 +230,17 @@ test-suite spec
     , hspec-expectations
     , hspec-wai
     , http-types
+    , HUnit
     , hw-hspec-hedgehog
     , indexed-traversable
+    , lens-aeson
     , microlens
     , network-uri
     , servant
     , servant-server
     , stm-containers
     , text
+    , vector
     , wai
     , wai-extra
 

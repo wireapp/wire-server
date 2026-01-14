@@ -226,6 +226,7 @@ import Prelude
     ($!),
     (^),
     (^^),
+    type (~),
   )
 import Prelude qualified as P
 

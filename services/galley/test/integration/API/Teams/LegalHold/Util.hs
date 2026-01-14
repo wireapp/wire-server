@@ -27,7 +27,6 @@ import API.SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Test.Arbitrary ()
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
@@ -516,7 +515,7 @@ assertMatchChan c match = go []
             match n
             refill buf
             `catchAll` \e -> case asyncExceptionFromException e of
-              Just x -> error $ show (x :: SomeAsyncException)
+              Just x -> error $ displayException (x :: SomeAsyncException)
               Nothing -> go (n : buf)
         Nothing -> do
           refill buf
@@ -551,8 +550,7 @@ errWith wantStatus wantBody rsp = liftIO $ do
   assertEqual "" wantStatus (statusCode rsp)
   assertBool
     (show $ responseBody rsp)
-    ( maybe False wantBody (responseJsonMaybe rsp)
-    )
+    (maybe False wantBody (responseJsonMaybe rsp))
 
 ------------------------------------
 

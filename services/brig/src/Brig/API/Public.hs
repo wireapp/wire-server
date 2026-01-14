@@ -237,22 +237,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V14)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V15)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V14
-        <> serviceSwagger @BrigAPITag @'V14
-        <> serviceSwagger @GalleyAPITag @'V14
-        <> serviceSwagger @SparAPITag @'V14
-        <> serviceSwagger @CargoholdAPITag @'V14
-        <> serviceSwagger @CannonAPITag @'V14
-        <> serviceSwagger @GundeckAPITag @'V14
-        <> serviceSwagger @ProxyAPITag @'V14
-        <> serviceSwagger @OAuthAPITag @'V14
+    ( serviceSwagger @VersionAPITag @'V15
+        <> serviceSwagger @BrigAPITag @'V15
+        <> serviceSwagger @GalleyAPITag @'V15
+        <> serviceSwagger @SparAPITag @'V15
+        <> serviceSwagger @CargoholdAPITag @'V15
+        <> serviceSwagger @CannonAPITag @'V15
+        <> serviceSwagger @GundeckAPITag @'V15
+        <> serviceSwagger @ProxyAPITag @'V15
+        <> serviceSwagger @OAuthAPITag @'V15
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V14) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V15) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V14)) = swaggerPregenUIServer $(pregenSwagger V14)
 versionedSwaggerDocsAPI (Just (VersionNumber V13)) = swaggerPregenUIServer $(pregenSwagger V13)
 versionedSwaggerDocsAPI (Just (VersionNumber V12)) = swaggerPregenUIServer $(pregenSwagger V12)
 versionedSwaggerDocsAPI (Just (VersionNumber V11)) = swaggerPregenUIServer $(pregenSwagger V11)
@@ -309,7 +310,7 @@ versionedSwaggerDocsAPI Nothing = tocPage
                   renderLink "swagger.json" ("/" <> v <> "/api/swagger.json"),
                   "<br>"
                 ]
-                | v <- versionToLByteString <$> [minBound :: Version ..]
+              | v <- versionToLByteString <$> [minBound :: Version ..]
               ]
 
         internal :: [LByteString]
@@ -325,7 +326,7 @@ versionedSwaggerDocsAPI Nothing = tocPage
                   renderLink "swagger.json" ("/api-internal/swagger-ui/" <> s <> "-swagger.json"),
                   "<br>"
                 ]
-                | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
+              | s <- ["brig", "galley", "spar", "cargohold", "gundeck", "cannon", "proxy"]
               ]
 
         federated :: [LByteString]
@@ -338,10 +339,10 @@ versionedSwaggerDocsAPI Nothing = tocPage
                          renderLink "swagger.json" ("/" <> v <> "/api-federation/swagger-ui/" <> s <> "-swagger.json"),
                          "<br>"
                        ]
-                     | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
+                   | v <- versionToLByteString <$> [minBound :: Fed.Version ..]
                    ]
                    <> "<br>"
-                 | s <- ["brig", "galley", "cargohold"]
+               | s <- ["brig", "galley", "cargohold"]
                ]
 
         versionToLByteString :: (ToHttpApiData v) => v -> LByteString
@@ -631,6 +632,7 @@ servantSitemap =
     appsAPI :: ServerT AppsAPI (Handler r)
     appsAPI =
       Named @"create-app" createApp
+        :<|> Named @"get-app" getApp
         :<|> Named @"refresh-app-cookie" refreshAppCookie
 
 ---------------------------------------------------------------------------
@@ -1248,8 +1250,7 @@ beginPasswordReset (Public.NewPasswordReset target) =
   lift (liftSem $ createPasswordResetCode $ mkEmailKey target)
 
 completePasswordReset ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   Public.CompletePasswordReset ->
   Handler r ()
 completePasswordReset req = do
@@ -1706,18 +1707,17 @@ getUserGroups ::
   Bool ->
   Bool ->
   Handler r UserGroupPage
-getUserGroups lusr q sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
+getUserGroups lusr searchString sortBy sortOrder pageSize lastName lastCreatedAt lastId includeChannels includeMemberCount =
   lift . liftSem $
-    UserGroup.getGroups
-      (tUnqualified lusr)
-      UserGroup.GroupSearch
-        { query = q,
-          sortBy,
-          sortOrder,
-          pageSize,
-          lastName = fmap userGroupNameToText lastName,
-          lastCreatedAt = fmap fromUTCTimeMillis lastCreatedAt,
-          lastId,
+    UserGroup.getGroups (tUnqualified lusr) $
+      UserGroupPageRequest
+        { pageSize = fromMaybe def pageSize,
+          managedByFilter = Nothing,
+          sortOrder = fromMaybe Desc sortOrder,
+          paginationState = case fromMaybe def sortBy of
+            SortByName -> PaginationSortByName $ (,) <$> fmap userGroupNameToText lastName <*> lastId
+            SortByCreatedAt -> PaginationSortByCreatedAt $ (,) <$> fmap fromUTCTimeMillis lastCreatedAt <*> lastId,
+          searchString,
           includeMemberCount,
           includeChannels
         }
@@ -1753,6 +1753,9 @@ checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r GetApp
+getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
+
 refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
 refreshAppCookie lusr tid appId = do
   mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId
@@ -1766,8 +1769,7 @@ deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingRes
 deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
-  ( Member AuthenticationSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   Public.PasswordResetKey ->
   Public.PasswordReset ->
   (Handler r) ()

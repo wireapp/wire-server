@@ -47,6 +47,7 @@ import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore (getConversation)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 
@@ -75,7 +76,8 @@ rmClient ::
     Member (Error InternalError) r,
     Member ProposalStore r,
     Member Random r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   UserId ->
   ClientId ->

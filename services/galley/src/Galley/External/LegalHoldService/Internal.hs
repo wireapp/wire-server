@@ -59,7 +59,7 @@ makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuil
         . Bilge.secure
         . prependPath (uriPath url)
     errHandler e = do
-      Log.info . Log.msg $ "error making request to legalhold service: " <> show e
+      Log.info . Log.msg $ "error making request to legalhold service: " <> displayException e
       throwM (legalHoldServiceUnavailable e)
     prependPath :: ByteString -> Http.Request -> Http.Request
     prependPath pth req = req {Http.path = pth </> Http.path req}

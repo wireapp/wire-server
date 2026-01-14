@@ -54,8 +54,7 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.Effects
 import Galley.Effects.ClientStore
-import Galley.Effects.FederatorAccess
-import Galley.Effects.TeamStore
+import Galley.Env
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
@@ -83,10 +82,14 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
+import Wire.TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 data UserType = User | Bot
 
@@ -218,7 +221,8 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  (Member FederatorAccess r) =>
+  forall r.
+  (Member (FederationAPIAccess FederatorClient) r) =>
   [RemoteMember] ->
   Sem r [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))]
 getRemoteClients remoteMembers =
@@ -233,7 +237,9 @@ getRemoteClients remoteMembers =
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 postRemoteOtrMessage ::
-  (Member FederatorAccess r) =>
+  ( Member (FederationAPIAccess FederatorClient) r,
+    Member (Error FederationError) r
+  ) =>
   Local UserId ->
   Remote ConvId ->
   ByteString ->
@@ -259,7 +265,9 @@ postBroadcast ::
     Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (Input FanoutLimit) r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -278,7 +286,7 @@ postBroadcast lusr con msg = runError $ do
   now <- Now.get
 
   tid <- lookupBindingTeam senderUser
-  limit <- fromIntegral . fromRange <$> fanoutLimit
+  limit <- fromIntegral . fromRange <$> input @FanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $
     throwS @'BroadcastLimitExceeded
@@ -331,7 +339,7 @@ postBroadcast lusr con msg = runError $ do
   where
     maybeFetchLimitedTeamMemberList ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
-        Member TeamStore r
+        Member TeamSubsystem r
       ) =>
       Int ->
       TeamId ->
@@ -343,11 +351,12 @@ postBroadcast lusr con msg = runError $ do
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
         throwS @'BroadcastLimitExceeded
-      selectTeamMembers tid localUserIdsToLookup
+      TeamSubsystem.internalSelectTeamMembers tid localUserIdsToLookup
 
     maybeFetchAllMembersInTeam ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
-        Member TeamStore r
+        Member (Input FanoutLimit) r,
+        Member TeamSubsystem r
       ) =>
       TeamId ->
       Sem r [TeamMember]
@@ -361,14 +370,14 @@ postQualifiedOtrMessage ::
   ( Member BrigAPIAccess r,
     Member ClientStore r,
     Member ConversationStore r,
-    Member FederatorAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
-    Member TeamStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -526,8 +535,8 @@ guardQualifiedLegalholdPolicyConflictsWrapper ::
   ( Member BrigAPIAccess r,
     Member (Error (MessageNotSent MessageSendingStatus)) r,
     Member (Input Opts) r,
-    Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member TeamSubsystem r
   ) =>
   UserType ->
   Qualified UserId ->

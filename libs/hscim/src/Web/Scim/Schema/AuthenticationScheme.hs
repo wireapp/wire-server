@@ -25,7 +25,7 @@ module Web.Scim.Schema.AuthenticationScheme
 where
 
 import Data.Aeson
-import Data.Text
+import Data.Text hiding (show)
 import GHC.Generics
 import Network.URI.Static
 import Web.Scim.Schema.Common

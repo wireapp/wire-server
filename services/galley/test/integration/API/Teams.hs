@@ -865,8 +865,7 @@ testDeleteBindingTeamSingleMember = do
         . zUser owner
         . zConn "conn"
         . json
-          ( newTeamMemberDeleteData (Just Util.defPassword)
-          )
+          (newTeamMemberDeleteData (Just Util.defPassword))
     )
     !!! const 202
       === statusCode

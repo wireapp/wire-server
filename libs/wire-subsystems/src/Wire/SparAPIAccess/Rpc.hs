@@ -30,6 +30,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import System.Logger.Message
 import Util.Options
+import Wire.API.User (ScimUserInfo)
 import Wire.API.User.IdentityProvider
 import Wire.ParseException
 import Wire.Rpc
@@ -47,6 +48,8 @@ interpretSparAPIAccessToRpc sparEndpoint =
   interpret $
     runInputConst sparEndpoint . \case
       GetIdentityProviders tid -> getIdentityProvidersImpl tid
+      DeleteTeam tid -> deleteTeamImpl tid
+      LookupScimUserInfo uid -> lookupScimUserInfoImpl uid
 
 sparRequest ::
   (Member Rpc r, Member (Input Endpoint) r) =>
@@ -74,6 +77,36 @@ getIdentityProvidersImpl tid = do
     getReq =
       method GET
         . paths ["i", "identity-providers", toByteString' tid]
+
+-- | Notify Spar that a team is being deleted.
+deleteTeamImpl ::
+  ( Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  TeamId ->
+  Sem r ()
+deleteTeamImpl tid = do
+  void $ sparRequest delReq
+  where
+    delReq =
+      method DELETE
+        . paths ["i", "teams", toByteString' tid]
+        . expect2xx
+
+-- | Get the SCIM user info for a user.
+lookupScimUserInfoImpl ::
+  ( Member (Error ParseException) r,
+    Member (Input Endpoint) r,
+    Member Rpc r
+  ) =>
+  UserId ->
+  Sem r ScimUserInfo
+lookupScimUserInfoImpl uid = do
+  decodeBodyOrThrow "spar" =<< sparRequest postReq
+  where
+    postReq =
+      method POST
+        . paths ["i", "scim", "userinfo", toByteString' uid]
 
 -- FUTUREWORK: This is duplicated in Wire/GalleyAPIAccess/Rpc. Move to a common module.
 decodeBodyOrThrow :: forall a r. (Typeable a, FromJSON a, Member (Error ParseException) r) => Text -> Response (Maybe BL.ByteString) -> Sem r a

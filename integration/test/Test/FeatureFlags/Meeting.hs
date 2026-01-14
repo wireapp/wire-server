@@ -1,8 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,14 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.SparAccess where
+module Test.FeatureFlags.Meeting where
 
-import Data.Id
-import Polysemy
-import Wire.API.User (ScimUserInfo)
+import Test.FeatureFlags.Util
+import Testlib.Prelude
 
-data SparAccess m a where
-  DeleteTeam :: TeamId -> SparAccess m ()
-  LookupScimUserInfo :: UserId -> SparAccess m ScimUserInfo
+testPatchMeeting :: (HasCallStack) => App ()
+testPatchMeeting = checkPatch OwnDomain "meetings" enabled
 
-makeSem ''SparAccess
+testMeeting :: (HasCallStack) => APIAccess -> App ()
+testMeeting access =
+  mkFeatureTests "meetings"
+    & addUpdate disabled
+    & addUpdate enabled
+    & runFeatureTests OwnDomain access

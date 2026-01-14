@@ -18,25 +18,24 @@
 module Galley.API.MLS.Keys (getMLSRemovalKey, SomeKeyPair (..)) where
 
 import Control.Error.Util (hush)
-import Control.Lens (view)
 import Data.Proxy
-import Galley.Env
 import Imports hiding (getFirst)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Keys
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
 
 data SomeKeyPair where
   SomeKeyPair :: forall ss. (IsSignatureScheme ss) => Proxy ss -> KeyPair ss -> SomeKeyPair
 
 getMLSRemovalKey ::
-  (Member (Input Env) r) =>
+  (Member (Input ConversationSubsystemConfig) r) =>
   SignatureSchemeTag ->
   Sem r (Maybe SomeKeyPair)
 getMLSRemovalKey ss = fmap hush . runError @() $ do
-  keysByPurpose <- note () =<< inputs (view mlsKeys)
+  keysByPurpose <- note () =<< inputs (.mlsKeys)
   let keys = keysByPurpose.removal
   case ss of
     Ed25519 -> pure $ SomeKeyPair (Proxy @Ed25519) (mlsKeyPair_ed25519 keys)

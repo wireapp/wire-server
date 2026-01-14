@@ -18,13 +18,47 @@
 module Wire.API.UserGroup.Pagination where
 
 import Data.Aeson qualified as A
+import Data.Default
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Time.Clock
 import GHC.Generics
 import Imports
 import Wire.API.Pagination
+import Wire.API.User.Profile
 import Wire.API.UserGroup
 import Wire.Arbitrary as Arbitrary
+
+-- | Request for a paginated list of user groups.
+--
+-- (This is not technically API, but since it is used by several
+-- different wire-subsystems we've moved it here anyway.)
+data UserGroupPageRequest = UserGroupPageRequest
+  { searchString :: Maybe Text,
+    managedByFilter :: Maybe ManagedBy,
+    paginationState :: PaginationState UserGroupId,
+    sortOrder :: SortOrder,
+    pageSize :: PageSize,
+    includeMemberCount :: Bool,
+    includeChannels :: Bool
+  }
+
+instance Default UserGroupPageRequest where
+  def =
+    UserGroupPageRequest
+      { searchString = Nothing,
+        managedByFilter = Nothing,
+        paginationState = PaginationSortByCreatedAt Nothing, -- default sort by is 'createdAt', with no state
+        sortOrder = Desc,
+        pageSize = def, -- default is 15
+        includeMemberCount = True,
+        includeChannels = False
+      }
+
+data PaginationState a
+  = PaginationSortByName (Maybe (Text, a))
+  | PaginationSortByCreatedAt (Maybe (UTCTime, a))
+  | PaginationOffset Word
 
 -- | User group without members
 type UserGroupPage = UserGroupPage_ UserGroupMeta
@@ -33,8 +67,6 @@ type UserGroupPage = UserGroupPage_ UserGroupMeta
 type UserGroupPageWithMembers = UserGroupPage_ UserGroup
 
 -- * User group pages
-
---
 
 -- | User group pages with different types of user groups.
 data UserGroupPage_ a = UserGroupPage
