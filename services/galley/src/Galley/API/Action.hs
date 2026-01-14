@@ -1069,7 +1069,6 @@ updateLocalStateOfRemoteConv rcu con = do
     sca@(SomeConversationAction SConversationDeleteTag _) -> do
       E.deleteMembersInRemoteConversation rconvId presentUsers
       pure (Just sca, [])
-    sca -> pure (Just sca, [])
 
   -- On conversation join, the member(s) joining are not included in the presentUsers,
   -- however they are included in the alreadyPresentUsers from the incoming request.
