@@ -72,8 +72,6 @@ type MaxSkewSecsWord16 = Word16
 
 type ExpiryEpochWord64 = Word64
 
-type EpochWord64 = Word64
-
 type BackendBundleCStr = CString
 
 type DisplayNameCStr = CString
@@ -92,7 +90,6 @@ foreign import ccall unsafe "generate_dpop_access_token"
     MethodCStr ->
     MaxSkewSecsWord16 ->
     ExpiryEpochWord64 ->
-    EpochWord64 ->
     BackendBundleCStr ->
     IO (Ptr HsResult)
 
@@ -115,11 +112,10 @@ generateDpopAccessTokenFfi ::
   MethodCStr ->
   MaxSkewSecsWord16 ->
   ExpiryEpochWord64 ->
-  EpochWord64 ->
   BackendBundleCStr ->
   IO (Maybe (Ptr HsResult))
-generateDpopAccessTokenFfi dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys = do
-  ptr <- generate_dpop_access_token dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration now backendKeys
+generateDpopAccessTokenFfi dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration backendKeys = do
+  ptr <- generate_dpop_access_token dpopProof user client handle displayName tid domain nonce uri method maxSkewSecs expiration backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
@@ -152,10 +148,9 @@ generateDpopToken ::
   StdMethod ->
   MaxSkewSecs ->
   ExpiryEpoch ->
-  NowEpoch ->
   PemBundle ->
   ExceptT DPoPTokenGenerationError m ByteString
-generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
+generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri method maxSkewSecs maxExpiration backendPubkeyBundle = do
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr uid
   handleCStr <- toCStr handle
@@ -181,7 +176,6 @@ generateDpopToken dpopProof uid cid handle displayName tid domain nonce uri meth
           methodCStr
           (_unMaxSkewSecs maxSkewSecs)
           (_unExpiryEpoch maxExpiration)
-          (_unNowEpoch now)
           backendPubkeyBundleCStr
 
   let mkAccessToken response = do

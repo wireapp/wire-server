@@ -63,8 +63,6 @@ data JwtTools m a where
     Word16 ->
     -- | The expiration date and time, in seconds since "the epoch"
     Epoch ->
-    -- | Current time in seconds since "the epoch"
-    Epoch ->
     -- | PEM format concatenated private key and public key of the Wire backend
     PEMKeys ->
     JwtTools m (Either CertEnrollmentError DPoPAccessToken)
@@ -73,7 +71,7 @@ makeSem ''JwtTools
 
 interpretJwtTools :: (Member (Embed IO) r) => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \case
-  GenerateDPoPAccessToken proof cid handle displayName tid nonce uri method skew ex now pem ->
+  GenerateDPoPAccessToken proof cid handle displayName tid nonce uri method skew ex pem ->
     mapLeft RustError
       <$> runExceptT
         ( DPoPAccessToken
@@ -90,7 +88,6 @@ interpretJwtTools = interpret $ \case
               method
               (Jwt.MaxSkewSecs skew)
               (Jwt.ExpiryEpoch (epochNumber ex))
-              (Jwt.NowEpoch (epochNumber now))
               (Jwt.PemBundle (toByteString' pem))
         )
   where
