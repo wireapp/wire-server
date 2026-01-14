@@ -37,6 +37,7 @@
 , extra
 , file-embed
 , galley-types
+, generics-sop
 , gitignoreSource
 , hashable
 , HaskellNet
@@ -93,6 +94,7 @@
 , servant-server
 , singletons
 , sodium-crypto-sign
+, sop-core
 , ssl-util
 , statistics
 , stomp-queue
@@ -162,6 +164,7 @@ mkDerivation {
     extra
     file-embed
     galley-types
+    generics-sop
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -212,6 +215,7 @@ mkDerivation {
     servant-server
     singletons
     sodium-crypto-sign
+    sop-core
     ssl-util
     statistics
     stomp-queue
@@ -275,6 +279,7 @@ mkDerivation {
     extra
     file-embed
     galley-types
+    generics-sop
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -326,6 +331,7 @@ mkDerivation {
     servant-server
     singletons
     sodium-crypto-sign
+    sop-core
     ssl-util
     statistics
     stomp-queue
