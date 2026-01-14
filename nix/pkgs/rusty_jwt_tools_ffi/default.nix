@@ -4,6 +4,7 @@
 , pkg-config
 , perl
 , gitMinimal
+, stdenv
 }:
 
 # TODO: update to crate2nix once https://github.com/wireapp/rusty-jwt-tools as a
@@ -41,4 +42,16 @@ rustPlatform.buildRustPackage {
     cp ${cargoLockFile} Cargo.lock
   '';
   doCheck = false;
+
+  # Fix install_name on Darwin to use absolute paths
+  postInstall = lib.optionalString stdenv.isDarwin ''
+    for lib in $out/lib/librusty_jwt_tools_ffi*.dylib; do
+      if [ -f "$lib" ]; then
+        libname=$(basename "$lib")
+        install_name_tool -id "$out/lib/$libname" "$lib"
+      fi
+    done
+  '';
+
+  nativeBuildInputs = lib.optionals stdenv.isDarwin [ stdenv.cc.bintools ];
 }
