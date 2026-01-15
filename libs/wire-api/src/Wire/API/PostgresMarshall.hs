@@ -29,6 +29,7 @@ import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
 import Data.ByteString.Conversion qualified as BSC
 import Data.Domain
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
 import Data.Profunctor
@@ -36,6 +37,10 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID
+import qualified Data.Code as Code
+import Wire.API.Password
+import Wire.API.Password.Scrypt
+import Wire.API.Password.Argon2id
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Statement
@@ -530,6 +535,17 @@ instance (PostgresMarshall b a) => PostgresMarshall (Vector b) (Set a) where
 instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
   postgresMarshall = V.map postgresMarshall
 
+instance PostgresMarshall Text Code.Key where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
+instance PostgresMarshall Text Code.Value where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
+instance PostgresMarshall ByteString Password where
+  postgresMarshall = Text.encodeUtf8 . \case
+    Argon2Password p -> encodeArgon2HashedPassword p
+    ScryptPassword p -> encodeScryptPassword p
+
 ---
 
 class PostgresUnmarshall db domain where
@@ -855,6 +871,15 @@ instance (PostgresUnmarshall a b, Ord b) => PostgresUnmarshall (Vector a) (Set b
 instance PostgresUnmarshall Int64 Milliseconds where
   postgresUnmarshall = Right . int64ToMs
 
+instance PostgresUnmarshall Text Code.Key where
+  postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
+
+instance PostgresUnmarshall Text Code.Value where
+  postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
+
+instance PostgresUnmarshall ByteString Password where
+  postgresUnmarshall =
+    mapLeft Text.pack . parsePassword . Text.decodeUtf8
 ---
 
 lmapPG :: (PostgresMarshall db domain, Profunctor p) => p db x -> p domain x

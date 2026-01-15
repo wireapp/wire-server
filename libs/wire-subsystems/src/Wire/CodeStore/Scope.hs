@@ -19,6 +19,7 @@ module Wire.CodeStore.Scope where
 
 import Cassandra hiding (Value)
 import Imports
+import Wire.API.PostgresMarshall
 
 data Scope = ReusableCode
   deriving (Eq, Show, Generic)
@@ -30,3 +31,9 @@ instance Cql Scope where
 
   fromCql (CqlInt 1) = pure ReusableCode
   fromCql _ = Left "unknown Scope"
+
+instance PostgresMarshall  Int32 Scope where
+  postgresMarshall = todo
+
+instance PostgresUnmarshall Int32 Scope where
+  postgresUnmarshall = todo
