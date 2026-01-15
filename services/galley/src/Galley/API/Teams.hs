@@ -131,7 +131,7 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigRead
+import Wire.FeaturesConfigStore
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -711,7 +711,7 @@ deleteTeamMember ::
     Member Now r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
@@ -739,7 +739,7 @@ deleteNonBindingTeamMember ::
     Member Now r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
@@ -767,7 +767,7 @@ deleteTeamMember' ::
     Member Now r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
@@ -1308,7 +1308,7 @@ removeTeamCollaborator ::
     Member ConversationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member (Input FanoutLimit) r,

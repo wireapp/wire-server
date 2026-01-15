@@ -39,7 +39,6 @@ import Data.SOP
 import Data.Tagged
 import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.TeamFeatureStore
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -50,8 +49,9 @@ import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Mul
 import Wire.API.Team.Feature
 import Wire.ConversationStore as ConversationStore
 import Wire.FeaturesConfigCompute (FeaturesConfigCompute)
-import Wire.FeaturesConfigRead
-import Wire.FeaturesConfigRead.Types
+import Wire.FeaturesConfigStore
+import Wire.FeaturesConfigStore.Types
+import Wire.TeamFeatureStore
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -62,7 +62,7 @@ getFeatureInternal ::
   ( GetFeatureConfig cfg,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   TeamId ->
   Sem r (LockableFeature cfg)
@@ -92,7 +92,7 @@ getTeamAndCheckMembership uid = do
 getAllTeamFeatures ::
   forall r.
   ( Member TeamFeatureStore r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member FeaturesConfigCompute r
   ) =>
   TeamId ->
@@ -116,7 +116,7 @@ getAllTeamFeaturesForUser ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member TeamSubsystem r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member FeaturesConfigCompute r
   ) =>
   UserId ->
@@ -134,7 +134,7 @@ getSingleFeatureForUser ::
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     Member TeamSubsystem r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   UserId ->
   Sem r (LockableFeature cfg)
@@ -152,7 +152,7 @@ guardSecondFactorDisabled ::
   ( Member (ErrorS 'AccessDenied) r,
     Member TeamStore r,
     Member ConversationStore r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   UserId ->
   ConvId ->
@@ -174,7 +174,7 @@ featureEnabledForTeam ::
   ( GetFeatureConfig cfg,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   TeamId ->
   Sem r Bool

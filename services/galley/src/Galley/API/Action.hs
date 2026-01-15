@@ -118,7 +118,7 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
-import Wire.FeaturesConfigRead
+import Wire.FeaturesConfigStore
 import Wire.FederationAPIAccess qualified as E
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
@@ -259,7 +259,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Random r,
       Member TeamFeatureStore r,
       Member TinyLog r,
-      Member FeaturesConfigRead r
+      Member FeaturesConfigStore r
     )
   HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
     ( Member (Error NoChanges) r,

@@ -33,7 +33,6 @@ import Galley.API.Error
 import Galley.API.Teams.Features.Get
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Galley.Effects.TeamFeatureStore qualified as TFS
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -42,6 +41,7 @@ import Polysemy.TinyLog
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature.TH
 import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.TeamFeatureStore qualified as TFS
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,

@@ -29,7 +29,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
-import Wire.FeaturesConfigRead (getAllTeamFeaturesForTeamMember)
+import Wire.FeaturesConfigStore (getAllTeamFeaturesForTeamMember)
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =

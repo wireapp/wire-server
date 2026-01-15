@@ -93,7 +93,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigRead (FeaturesConfigRead)
+import Wire.FeaturesConfigStore (FeaturesConfigStore)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -348,7 +348,7 @@ rmUser ::
     Member (Input FanoutLimit) r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->

@@ -45,7 +45,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.FeaturesConfigRead (FeaturesConfigRead)
+import Wire.FeaturesConfigStore (FeaturesConfigStore)
 
 data GroupInfoMismatch = GroupInfoMismatch
   {clients :: [(Int, ClientIdentity)]}
@@ -57,7 +57,7 @@ checkGroupState ::
     Member (Input Opts) r,
     Member (Error MLSProtocolError) r,
     Member ConversationStore r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   ConvOrSubConv ->
   IndexMap ->
@@ -103,7 +103,7 @@ existingGroupStateMismatch convOrSub =
         Right m -> pure m
 
 isGroupInfoCheckEnabled ::
-  ( Member FeaturesConfigRead r,
+  ( Member FeaturesConfigStore r,
     Member (Input Opts) r
   ) =>
   Maybe TeamId ->

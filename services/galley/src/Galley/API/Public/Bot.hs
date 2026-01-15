@@ -33,7 +33,7 @@ import Wire.API.Event.Team qualified as Public ()
 import Wire.API.Provider.Bot
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
-import Wire.FeaturesConfigRead (FeaturesConfigRead)
+import Wire.FeaturesConfigStore (FeaturesConfigStore)
 import Wire.TeamSubsystem (TeamSubsystem)
 
 botAPI :: API BotAPI GalleyEffects
@@ -49,7 +49,7 @@ getBotConversation ::
     Member (ErrorS 'ConvNotFound) r,
     Member TeamStore r,
     Member TeamSubsystem r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   BotId ->
   ConvId ->

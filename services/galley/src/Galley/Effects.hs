@@ -67,7 +67,6 @@ import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
@@ -86,7 +85,7 @@ import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
 import Wire.FeaturesConfigCompute (FeaturesConfigCompute)
-import Wire.FeaturesConfigRead (FeaturesConfigRead)
+import Wire.FeaturesConfigStore (FeaturesConfigStore)
 import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
@@ -105,6 +104,7 @@ import Wire.ServiceStore
 import Wire.SparAPIAccess
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamFeatureStore
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -115,7 +115,7 @@ type GalleyEffects1 =
   '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
      Input AllTeamFeatures,
-     FeaturesConfigRead,
+     FeaturesConfigStore,
      FeaturesConfigCompute,
      TeamSubsystem,
      SparAPIAccess,

@@ -82,7 +82,7 @@ import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigRead
+import Wire.FeaturesConfigStore
 import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -126,7 +126,7 @@ createGroupConversationUpToV3 ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r,
@@ -175,7 +175,7 @@ createGroupOwnConversation ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r
@@ -223,7 +223,7 @@ createGroupConversation ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r
@@ -271,7 +271,7 @@ createGroupConvAndMkResponse ::
     Member NotificationSubsystem r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r,
@@ -316,7 +316,7 @@ createGroupConversationGeneric ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r
@@ -383,7 +383,7 @@ checkCreateConvPermissions ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member TeamStore r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
@@ -439,7 +439,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     ensureCreateChannelPermissions ::
       forall r.
       ( Member (ErrorS OperationDenied) r,
-        Member FeaturesConfigRead r,
+        Member FeaturesConfigStore r,
         Member (ErrorS NotATeamMember) r,
         Member (ErrorS ChannelsNotEnabled) r,
         Member (ErrorS NotAnMlsConversation) r

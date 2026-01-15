@@ -1,8 +1,12 @@
+-- import Data.SOP
+-- import Wire.API.Team.Feature
+--
+-- type AllTeamFeatures = NP LockableFeature Features
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
-module Wire.FeaturesConfigRead.Types where
+module Wire.FeaturesConfigStore.Types where
 
 import Data.Id (TeamId, UserId)
 import Data.SOP.Sing (SListI)

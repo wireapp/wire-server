@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.TeamFeatureStore where
+module Wire.TeamFeatureStore where
 
 import Data.Id
 import Polysemy

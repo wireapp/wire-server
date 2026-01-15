@@ -8,6 +8,8 @@ import Galley.Types.Teams
 import Polysemy
 import Wire.API.Team.Feature
 
+newtype ExposeInvitationURLsAllowlist = ExposeInvitationURLsAllowlist {unExposeInvitationURLsAllowlist :: [TeamId]}
+
 data FeaturesConfigCompute m a where
   ResolveGenericDbFeature ::
     forall cfg m.

@@ -109,7 +109,7 @@ import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
-import Wire.FeaturesConfigRead
+import Wire.FeaturesConfigStore
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
 import Wire.RateLimit
@@ -640,7 +640,7 @@ getConversationByReusableCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member HashPassword r,
     Member RateLimit r,
     Member TeamSubsystem r
@@ -667,7 +667,7 @@ getConversationByReusableCode lusr key value = do
 ensureGuestLinksEnabled ::
   forall r.
   ( Member (ErrorS 'GuestLinksDisabled) r,
-    Member FeaturesConfigRead r
+    Member FeaturesConfigStore r
   ) =>
   Maybe TeamId ->
   Sem r ()
@@ -681,7 +681,7 @@ getConversationGuestLinksStatus ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member FeaturesConfigRead r,
+    Member FeaturesConfigStore r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -695,7 +695,7 @@ getConversationGuestLinksStatus uid convId = do
 
 getConversationGuestLinksFeatureStatus ::
   forall r.
-  (Member FeaturesConfigRead r) =>
+  (Member FeaturesConfigStore r) =>
   Maybe TeamId ->
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksFeatureStatus Nothing = getFeatureForServer

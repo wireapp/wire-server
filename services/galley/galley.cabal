@@ -132,7 +132,6 @@ library
     Galley.API.Teams.Export
     Galley.API.Teams.Features
     Galley.API.Teams.Features.Get
-    Galley.API.Teams.Features.Interpreter
     Galley.API.Teams.Notifications
     Galley.API.Update
     Galley.API.Util
@@ -157,7 +156,6 @@ library
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
-    Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
     Galley.Env

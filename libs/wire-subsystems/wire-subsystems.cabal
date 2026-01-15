@@ -257,8 +257,10 @@ library
     Wire.ExternalAccess
     Wire.ExternalAccess.External
     Wire.FeaturesConfigCompute
-    Wire.FeaturesConfigRead
-    Wire.FeaturesConfigRead.Types
+    Wire.FeaturesConfigCompute.Interpreter
+    Wire.FeaturesConfigStore
+    Wire.FeaturesConfigStore.Interpreter
+    Wire.FeaturesConfigStore.Types
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
@@ -280,6 +282,7 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
     Wire.LegalHoldStore.Cassandra.Queries
@@ -319,6 +322,7 @@ library
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem
     Wire.TeamCollaboratorsSubsystem.Interpreter
+    Wire.TeamFeatureStore
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter

@@ -49,7 +49,6 @@ import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, permissionChe
 import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
-import Galley.Effects.TeamFeatureStore
 import Galley.Env (FanoutLimit)
 import Galley.Options
 import Galley.Types.Teams
@@ -72,16 +71,17 @@ import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FeaturesConfigCompute (FeaturesConfigCompute, resolveServerFeature)
-import Wire.FeaturesConfigRead (FeaturesConfigRead)
+import Wire.FeaturesConfigStore (FeaturesConfigStore)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamFeatureStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
-type ComputeFeatureConstraints cfg r = (Member FeaturesConfigCompute r, Member FeaturesConfigRead r)
+type ComputeFeatureConstraints cfg r = (Member FeaturesConfigCompute r, Member FeaturesConfigStore r)
 
 patchFeatureInternal ::
   forall cfg r.
@@ -402,7 +402,7 @@ instance SetFeatureConfig MLSConfig where
     SetFeatureForTeamConstraints MLSConfig (r :: EffectRow) =
       ( Member (Input Opts) r,
         Member TeamFeatureStore r,
-        Member FeaturesConfigRead r,
+        Member FeaturesConfigStore r,
         Member (Error TeamFeatureError) r
       )
   prepareFeature tid feat = do
@@ -441,7 +441,7 @@ instance SetFeatureConfig MlsMigrationConfig where
       ( Member (Input Opts) r,
         Member (Error TeamFeatureError) r,
         Member TeamFeatureStore r,
-        Member FeaturesConfigRead r
+        Member FeaturesConfigStore r
       )
   prepareFeature tid feat = do
     (mlsConfig :: LockableFeature MLSConfig) <- getFeatureForTeam tid
