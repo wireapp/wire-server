@@ -170,8 +170,6 @@ data IdPMetadataInfo = IdPMetadataValue
   }
   deriving (Eq, Show, Generic)
 
-makeLenses ''IdPMetadataInfo
-
 -- | We want to store the raw xml text from the registration request in the database for
 -- trouble shooting, but @SAML.XML@ only gives us access to the xml tree, not the raw text.
 -- 'RawXML' helps with that.

@@ -1,7 +1,6 @@
 module Test.Spar.Saml.IdPSpec where
 
 import Arbitrary ()
-import Control.Lens ((.~), (^.))
 import Data.Domain
 import Data.Id (idToText, parseIdFromText)
 import qualified Data.List.NonEmpty as NonEmptyL
@@ -28,7 +27,7 @@ import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem
 import Spar.Sem.ScimTokenStore
 import Spar.Sem.ScimTokenStore.Mem
-import System.FilePath
+import System.FilePath ((</>))
 import System.Logger (Msg)
 import System.Logger.Class (Level (..))
 import Test.Hspec
@@ -37,7 +36,7 @@ import qualified Text.XML.DSig as DSig
 import URI.ByteString (parseURI, strictURIParserOptions)
 import URI.ByteString.QQ (uri)
 import Wire.API.User (User (..))
-import Wire.API.User.IdentityProvider (IdPMetadataInfo (..), WireIdPAPIVersion (..), idpMetadataRecord)
+import Wire.API.User.IdentityProvider (IdPMetadataInfo (..), WireIdPAPIVersion (..))
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
 import Wire.Sem.Random
 import Wire.Sem.Random.Null
@@ -101,8 +100,12 @@ spec =
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine =
                   ( Info,
@@ -136,8 +139,12 @@ spec =
             idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine :: LByteString -> LogLine
                 expectedLogLine domainPart =
@@ -180,8 +187,12 @@ spec =
             user :: User <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine =
                   ( Info,
@@ -199,7 +210,7 @@ spec =
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpDelete zUser (idp ^. idpId) Nothing
+              idpDelete zUser (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
           it "should log IdP deletion with domain for multi-ingress" $ do
@@ -207,8 +218,12 @@ spec =
             user :: User <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine =
                   ( Info,
@@ -228,7 +243,7 @@ spec =
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpDelete zUser (idp ^. idpId) Nothing
+              idpDelete zUser (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
         describe "idp-update" $ do
@@ -237,8 +252,12 @@ spec =
             user :: User <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine =
                   ( Info,
@@ -256,7 +275,7 @@ spec =
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp ^. idpId) Nothing
+              idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
           it "should log IdP update with domain for multi-ingress" $ do
@@ -264,8 +283,12 @@ spec =
             user :: User <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine =
                   ( Info,
@@ -285,7 +308,7 @@ spec =
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo' (idp ^. idpId) Nothing
+              idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
           it "should log IdP update with changed domain for multi-ingress" $ do
@@ -293,8 +316,12 @@ spec =
             user :: User <- generate arbitrary
             let idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 expectedLogLine =
                   ( Info,
@@ -316,7 +343,7 @@ spec =
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate multiIngressSamlConfig zUser miHost2 idPMetadataInfo' (idp ^. idpId) Nothing
+              idpUpdate multiIngressSamlConfig zUser miHost2 idPMetadataInfo' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
           it "should log IdP update (changed cert)" $ do
@@ -329,8 +356,12 @@ spec =
                 newRequestURI = either (error . show) id . parseURI strictURIParserOptions . fromString $ newIdpEndpointString
                 idPMetadataInfo' =
                   idPMetadataInfo
-                    & idpMetadataRecord . SAML.edIssuer .~ issuer
-                    & idpMetadataRecord . SAML.edRequestURI .~ idpEndpoint
+                    { _idpMetadataRecord =
+                        (idPMetadataInfo._idpMetadataRecord)
+                          { SAML._edIssuer = issuer,
+                            SAML._edRequestURI = idpEndpoint
+                          }
+                    }
 
                 newCert = either (error . show) id $ DSig.parseKeyInfo False newKeyInfo
                 newIdPMetadata :: IdPMetadata =
@@ -363,7 +394,7 @@ spec =
 
             (logs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo'' (idp ^. idpId) Nothing
+              idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo'' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
 
 type LogLine = (Level, LByteString)
