@@ -98,10 +98,8 @@ import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
-import Galley.Effects.CodeStore qualified as E
 import Galley.Env
 import Galley.Options
 import Imports hiding (forkIO)
@@ -134,6 +132,9 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore qualified as E
+import Wire.CodeStore.Code
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)

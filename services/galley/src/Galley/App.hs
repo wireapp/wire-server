@@ -54,7 +54,6 @@ import Data.Range
 import Data.Text qualified as Text
 import Galley.API.Error
 import Galley.Cassandra.Client
-import Galley.Cassandra.Code
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
@@ -108,6 +107,7 @@ import Wire.API.Team.Feature
 import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
+import Wire.CodeStore.Cassandra
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
@@ -346,6 +346,7 @@ evalGalley e =
         . mapError toResponse -- DynError
         . interpretQueue (e ^. deleteQueue)
         . nowToIO
+        . runInputConst (e ^. convCodeURI)
         . runInputConst (e ^. options)
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e

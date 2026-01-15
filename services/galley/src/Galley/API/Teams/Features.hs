@@ -67,6 +67,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
+import Wire.CodeStore
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)

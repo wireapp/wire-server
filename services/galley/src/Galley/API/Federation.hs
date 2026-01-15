@@ -93,6 +93,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
+import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)

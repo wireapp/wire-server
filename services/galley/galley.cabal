@@ -138,7 +138,6 @@ library
     Galley.App
     Galley.Cassandra
     Galley.Cassandra.Client
-    Galley.Cassandra.Code
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -147,12 +146,9 @@ library
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
-    Galley.Data.Scope
     Galley.Data.TeamNotifications
-    Galley.Data.Types
     Galley.Effects
     Galley.Effects.ClientStore
-    Galley.Effects.CodeStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
