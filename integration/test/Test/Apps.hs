@@ -102,6 +102,28 @@ testCreateApp = do
   memberName <- regularMember %. "name" & asString
   foundUserType memberName "regular"
 
+  -- this did confuse me, but it's correct:
+  do
+    -- member can find their owner.
+    exactMatchTerm <- owner %. "name" & asString
+    searchContacts regularMember exactMatchTerm OwnDomain `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      void $ resp.json %. "documents" >>= asList >>= assertOne
+
+  do
+    -- owner can't find themselves.
+    exactMatchTerm <- owner %. "name" & asString
+    searchContacts owner exactMatchTerm OwnDomain `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "documents" `shouldMatch` ([] :: [()])
+
+  do
+    -- search visibility between teams is "only exact handle" by default.
+    exactMatchTerm <- regularMember2 %. "name" & asString
+    searchContacts owner exactMatchTerm OwnDomain `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      void $ resp.json %. "documents" `shouldMatch` ([] :: [()])
+
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
   (alice, tid, [bob]) <- createTeam OwnDomain 2
