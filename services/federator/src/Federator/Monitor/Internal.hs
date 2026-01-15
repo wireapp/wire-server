@@ -73,9 +73,12 @@ mergePaths wpaths = Set.fromList $ filterRedundant $ merge $ sort wpaths
     filterRedundant ws =
       let dirs = Map.fromList [(dir, files) | WatchedDir dir files <- ws]
           isCovered (WatchedFile path) =
-            case Map.lookup (takeDirectory path) dirs of
-              Just files -> Set.member (takeFileName path) files
-              Nothing -> False
+            let dir = takeDirectory path
+                file = takeFileName path
+             in -- Don't filter if filename is empty (edge case for root paths)
+                file /= "" && case Map.lookup dir dirs of
+                  Just files -> Set.member file files
+                  Nothing -> False
           isCovered _ = False
        in filter (not . isCovered) ws
 
