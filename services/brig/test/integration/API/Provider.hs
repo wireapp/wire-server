@@ -1411,7 +1411,7 @@ getBotPreKeyIds brig bid =
       . header "Z-Type" "bot"
       . header "Z-Bot" (toByteString' bid)
 
-updateBotPrekeys :: Brig -> BotId -> [Prekey] -> Http ResponseLBS
+updateBotPrekeys :: Brig -> BotId -> [UncheckedPrekeyBundle] -> Http ResponseLBS
 updateBotPrekeys brig bid prekeys =
   post $
     brig
@@ -1762,7 +1762,7 @@ data TestBot = TestBot
     testBotConv :: !Ext.BotConvView,
     testBotToken :: !Text,
     testBotLastPrekey :: !LastPrekey,
-    testBotPrekeys :: ![Prekey],
+    testBotPrekeys :: ![UncheckedPrekeyBundle],
     testBotLocale :: !Locale,
     testBotOrigin :: !Ext.BotUserView
   }

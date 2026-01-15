@@ -46,7 +46,7 @@ tests =
       testToJSON @(UserMap.QualifiedUserMap (Set Client.Client)),
       testToJSON @Client.UserClientPrekeyMap,
       testToJSON @Client.UserClients,
-      testToJSON @Prekey.Prekey,
+      testToJSON @Prekey.UncheckedPrekeyBundle,
       testToJSON @Prekey.PrekeyBundle,
       testToJSON @Prekey.ClientPrekey,
       testToJSON @Client.QualifiedUserClientPrekeyMap,
