@@ -103,6 +103,7 @@ import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.LeaveReason
+import Wire.API.History
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
@@ -189,6 +190,7 @@ data EventType
   | Typing
   | ProtocolUpdate
   | AddPermissionUpdate
+  | ConvHistoryUpdate
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -238,6 +240,7 @@ data EventData
   | EdMLSWelcome ByteString
   | EdProtocolUpdate P.ProtocolTag
   | EdAddPermissionUpdate Conv.AddPermissionUpdate
+  | EdConvHistoryUpdate History
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -261,6 +264,7 @@ genEventData = \case
   ConvReset -> EdConvReset <$> arbitrary
   ProtocolUpdate -> EdProtocolUpdate <$> arbitrary
   AddPermissionUpdate -> EdAddPermissionUpdate <$> arbitrary
+  ConvHistoryUpdate -> EdConvHistoryUpdate <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
@@ -282,6 +286,7 @@ eventDataType EdConvDelete = ConvDelete
 eventDataType (EdConvReset _) = ConvReset
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
+eventDataType (EdConvHistoryUpdate _) = ConvHistoryUpdate
 
 isCellsConversationEvent :: EventType -> Bool
 isCellsConversationEvent eventType =
@@ -305,6 +310,7 @@ isCellsConversationEvent eventType =
     MLSWelcome -> False
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
+    ConvHistoryUpdate -> False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -507,6 +513,7 @@ taggedEventDataSchema =
       ConvReset -> tag _EdConvReset (unnamed schema)
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)
+      ConvHistoryUpdate -> tag _EdConvHistoryUpdate (unnamed schema)
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =

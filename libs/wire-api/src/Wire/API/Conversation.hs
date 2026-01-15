@@ -1339,6 +1339,10 @@ instance ToSchema ExtraConversationData where
       $ ExtraConversationData
         <$> newGroupId .= optField "group_id" (maybeWithDefault A.Null schema)
 
+data ConversationHistoryUpdate = ConversationHistoryUpdate
+  { history :: History
+  }
+
 --------------------------------------------------------------------------------
 -- MultiVerb instances
 

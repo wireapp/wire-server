@@ -67,6 +67,7 @@ import Wire.API.Conversation.Protocol hiding (protocolTag)
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
+import Wire.API.History
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.Arbitrary (Arbitrary (..))
@@ -86,6 +87,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction ConversationUpdateProtocolTag = ProtocolTag
   ConversationAction ConversationUpdateAddPermissionTag = AddPermissionUpdate
   ConversationAction ConversationResetTag = MLSReset
+  ConversationAction ConversationHistoryUpdateTag = History
 
 data SomeConversationAction where
   SomeConversationAction :: Sing tag -> ConversationAction tag -> SomeConversationAction
@@ -165,6 +167,7 @@ conversationActionSchema SConversationAccessDataTag = schema
 conversationActionSchema SConversationUpdateProtocolTag = schema
 conversationActionSchema SConversationUpdateAddPermissionTag = schema
 conversationActionSchema SConversationResetTag = schema
+conversationActionSchema SConversationHistoryUpdateTag = schema
 
 instance FromJSON SomeConversationAction where
   parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
@@ -235,6 +238,7 @@ conversationActionToEvent tag now eventFrom qcnv convData subconv tid action =
         SConversationUpdateProtocolTag -> EdProtocolUpdate action
         SConversationUpdateAddPermissionTag -> EdAddPermissionUpdate action
         SConversationResetTag -> EdConvReset $ ConversationReset {groupId = action.groupId, newGroupId = convData.newGroupId}
+        SConversationHistoryUpdateTag -> EdConvHistoryUpdate action
    in Event
         { evtConv = qcnv,
           evtSubConv = subconv,
