@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.7
--- Dumped by pg_dump version 17.7
+-- Dumped from database version 17.6
+-- Dumped by pg_dump version 17.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -101,6 +101,22 @@ CREATE TABLE public.conversation (
 
 
 ALTER TABLE public.conversation OWNER TO "wire-server";
+
+--
+-- Name: conversation_codes; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.conversation_codes (
+    key text NOT NULL,
+    scope integer NOT NULL,
+    conversation uuid,
+    password bytea,
+    value text,
+    expires_at timestamp with time zone
+);
+
+
+ALTER TABLE public.conversation_codes OWNER TO "wire-server";
 
 --
 -- Name: conversation_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -283,6 +299,14 @@ ALTER TABLE ONLY public.collaborators
 
 
 --
+-- Name: conversation_codes conversation_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_codes
+    ADD CONSTRAINT conversation_codes_pkey PRIMARY KEY (key, scope);
+
+
+--
 -- Name: conversation_member conversation_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -390,6 +414,20 @@ CREATE INDEX collaborators_team_id_idx ON public.collaborators USING btree (team
 --
 
 CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user_id);
+
+
+--
+-- Name: conversation_codes_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_codes_expires_at_idx ON public.conversation_codes USING btree (expires_at);
+
+
+--
+-- Name: conversation_codes_key_scope_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_codes_key_scope_expires_at_idx ON public.conversation_codes USING btree (key, scope, expires_at);
 
 
 --
