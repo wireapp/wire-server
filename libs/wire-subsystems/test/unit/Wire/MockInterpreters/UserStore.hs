@@ -115,6 +115,9 @@ inMemoryUserStoreInterpreter = interpret $ \case
         if u.id == uid
           then u {Wire.StoredUser.searchable = Just searchable} :: StoredUser
           else u
+  DeleteServiceUser {} -> error "DeleteServiceUser: Not implemented"
+  LookupServiceUsers {} -> error "lookupServiceUsers: Not implemented"
+  LookupServiceUsersForTeam {} -> error "lookupServiceUsersForteam: Not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

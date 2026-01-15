@@ -62,6 +62,9 @@ interpretUserStoreCassandra casClient =
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
       SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
+      DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
+      LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid mPagingState
+      LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid mPagingState
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -259,6 +262,66 @@ setUserSearchableImpl uid (SetSearchable searchable) = retry x5 $ write q (param
   where
     q :: PrepQuery W (Bool, UserId) ()
     q = "UPDATE user SET searchable = ? WHERE id = ?"
+
+deleteServiceUserImpl :: ProviderId -> ServiceId -> BotId -> Client ()
+deleteServiceUserImpl pid sid bid = do
+  lookupServiceUser pid sid bid >>= \case
+    Nothing -> pure ()
+    Just (_, mbTid) -> retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency LocalQuorum
+      addPrepQuery cql (pid, sid, bid)
+      for_ mbTid $ \tid ->
+        addPrepQuery cqlTeam (pid, sid, tid, bid)
+  where
+    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
+    cql =
+      "DELETE FROM service_user \
+      \WHERE provider = ? AND service = ? AND user = ?"
+    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
+    cqlTeam =
+      "DELETE FROM service_team \
+      \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
+
+lookupServiceUser ::
+  ProviderId ->
+  ServiceId ->
+  BotId ->
+  Client (Maybe (ConvId, Maybe TeamId))
+lookupServiceUser pid sid bid =
+  retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
+    cql =
+      "SELECT conv, team FROM service_user \
+      \WHERE provider = ? AND service = ? AND user = ?"
+
+lookupServiceUsersImpl ::
+  ProviderId ->
+  ServiceId ->
+  Maybe PagingState ->
+  Client (PageWithState (BotId, ConvId, Maybe TeamId))
+lookupServiceUsersImpl pid sid mPagingState =
+  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState)
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
+    cql =
+      "SELECT user, conv, team FROM service_user \
+      \WHERE provider = ? AND service = ?"
+
+lookupServiceUsersForTeamImpl ::
+  ProviderId ->
+  ServiceId ->
+  TeamId ->
+  Maybe PagingState ->
+  Client (PageWithState (BotId, ConvId))
+lookupServiceUsersForTeamImpl pid sid tid mPagingState =
+  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState)
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
+    cql =
+      "SELECT user, conv FROM service_team \
+      \WHERE provider = ? AND service = ? AND team = ?"
 
 --------------------------------------------------------------------------------
 -- Queries

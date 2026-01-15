@@ -29,8 +29,6 @@ module Brig.Data.User
     lookupName,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
-    lookupServiceUsers,
-    lookupServiceUsersForTeam,
     lookupFeatureConferenceCalling,
     userExists,
 
@@ -46,7 +44,6 @@ module Brig.Data.User
 
     -- * Deletions
     deleteEmailUnvalidated,
-    deleteServiceUser,
   )
 where
 
@@ -56,7 +53,6 @@ import Brig.Types.Intra
 import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
-import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
 import Data.HavePendingInvitations
@@ -205,26 +201,6 @@ updateFeatureConferenceCalling uid mStatus =
 deleteEmailUnvalidated :: (MonadClient m) => UserId -> m ()
 deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
 
-deleteServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m ()
-deleteServiceUser pid sid bid = do
-  lookupServiceUser pid sid bid >>= \case
-    Nothing -> pure ()
-    Just (_, mbTid) -> retry x5 . batch $ do
-      setType BatchLogged
-      setConsistency LocalQuorum
-      addPrepQuery cql (pid, sid, bid)
-      for_ mbTid $ \tid ->
-        addPrepQuery cqlTeam (pid, sid, tid, bid)
-  where
-    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
-    cql =
-      "DELETE FROM service_user \
-      \WHERE provider = ? AND service = ? AND user = ?"
-    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
-    cqlTeam =
-      "DELETE FROM service_team \
-      \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
-
 updateStatus :: (MonadClient m) => UserId -> AccountStatus -> m ()
 updateStatus u s =
   retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
@@ -271,42 +247,6 @@ lookupUsers hpi usrs = do
   loc <- defaultUserLocale <$> asks (.settings)
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
-
-lookupServiceUser :: (MonadClient m) => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
-lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
-  where
-    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
-    cql =
-      "SELECT conv, team FROM service_user \
-      \WHERE provider = ? AND service = ? AND user = ?"
-
--- | NB: might return a lot of users, and therefore we do streaming here (page-by-page).
-lookupServiceUsers ::
-  (MonadClient m) =>
-  ProviderId ->
-  ServiceId ->
-  ConduitM () [(BotId, ConvId, Maybe TeamId)] m ()
-lookupServiceUsers pid sid =
-  paginateC cql (paramsP LocalQuorum (pid, sid) 100) x1
-  where
-    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
-    cql =
-      "SELECT user, conv, team FROM service_user \
-      \WHERE provider = ? AND service = ?"
-
-lookupServiceUsersForTeam ::
-  (MonadClient m) =>
-  ProviderId ->
-  ServiceId ->
-  TeamId ->
-  ConduitM () [(BotId, ConvId)] m ()
-lookupServiceUsersForTeam pid sid tid =
-  paginateC cql (paramsP LocalQuorum (pid, sid, tid) 100) x1
-  where
-    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
-    cql =
-      "SELECT user, conv FROM service_team \
-      \WHERE provider = ? AND service = ? AND team = ?"
 
 lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
 lookupFeatureConferenceCalling uid = do

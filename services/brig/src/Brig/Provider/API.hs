@@ -27,8 +27,6 @@ module Brig.Provider.API
   )
 where
 
-import Bilge.IO (MonadHttp)
-import Bilge.RPC (HasRequestId)
 import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
@@ -42,11 +40,10 @@ import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
-import Cassandra (MonadClient)
+import Cassandra.Exec (paginateWithStateC)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens ((^.))
-import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
@@ -89,8 +86,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
-import System.Logger.Class (MonadLogger)
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Bot qualified as Public
@@ -134,7 +129,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.RateLimit
-import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledMapConcurrentlyN_)
 import Wire.Sem.Now (Now)
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -155,7 +150,8 @@ botAPI ::
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
-    Member UserStore r
+    Member UserStore r,
+    Member (Embed HttpClientIO) r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -179,7 +175,10 @@ servicesAPI ::
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
     Member (Error UserSubsystemError) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Concurrency Unsafe) r,
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
@@ -576,27 +575,23 @@ deleteService pid sid del = do
   lift . liftSem $ enqueueServiceDeletion pid sid
 
 finishDeleteService ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m,
-    MonadUnliftIO m
+  ( Member UserStore r,
+    Member (Embed HttpClientIO) r,
+    Member (Concurrency Unsafe) r
   ) =>
   ProviderId ->
   ServiceId ->
-  m ()
+  Sem r ()
 finishDeleteService pid sid = do
-  mbSvc <- DB.lookupService pid sid
+  mbSvc <- embed $ DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     runConduit $
-      User.lookupServiceUsers pid sid
-        .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
-    RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
+      paginateWithStateC (UserStore.lookupServiceUsers pid sid)
+        .| C.mapM_ (unsafePooledMapConcurrentlyN_ 16 kick)
+    embed $ RPC.removeServiceConn pid sid
+    embed $ DB.deleteService pid sid name tags
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
@@ -690,7 +685,10 @@ getServiceTagList _ = do
 updateServiceWhitelist ::
   ( Member GalleyAPIAccess r,
     Member TeamSubsystem r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member (Concurrency Unsafe) r,
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   UserId ->
   ConnId ->
@@ -717,13 +715,10 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      lift
-        $ fmap
-          wrapHttpClient
-          runConduit
-        $ User.lookupServiceUsersForTeam pid sid tid
+      lift . liftSem . runConduit $
+        paginateWithStateC (UserStore.lookupServiceUsersForTeam pid sid tid)
           .| C.mapM_
-            ( pooledMapConcurrentlyN_
+            ( unsafePooledMapConcurrentlyN_
                 16
                 (uncurry (deleteBot uid (Just con)))
             )
@@ -867,7 +862,7 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBot :: (Member GalleyAPIAccess r) => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
+removeBot :: (Member GalleyAPIAccess r, Member (Embed HttpClientIO) r, Member UserStore r) => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   guardSecondFactorDisabled (Just zusr)
   -- Get the conversation and check preconditions
@@ -888,7 +883,7 @@ removeBot zusr zcon cid bid = do
   case bot >>= omService of
     Nothing -> pure Nothing
     Just _ -> do
-      lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
+      lift . liftSem $ Public.RemoveBotResponse <$$> deleteBot zusr (Just zcon) bid cid
 
 guardConvAdmin :: OwnConversation -> ExceptT HttpError (AppT r) ()
 guardConvAdmin conv = do
@@ -952,12 +947,12 @@ botGetUserClients _ uid = do
   where
     pubClient c = Public.PubClient c.clientId c.clientClass
 
-botDeleteSelf :: (Member GalleyAPIAccess r) => BotId -> ConvId -> (Handler r) ()
+botDeleteSelf :: (Member GalleyAPIAccess r, Member (Embed HttpClientIO) r, Member UserStore r) => BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
   guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybe (throwStd (errorToWai @'E.InvalidBot)) pure $ (userService =<< bot)
-  _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
+  _ <- lift . liftSem $ deleteBot (botUserId bid) Nothing bid cid
   pure ()
 
 --------------------------------------------------------------------------------
@@ -989,33 +984,26 @@ activate pid old new = do
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot ::
-  ( MonadHttp m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadUnliftIO m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m
-  ) =>
+  (Member (Embed HttpClientIO) r, Member UserStore r) =>
   UserId ->
   Maybe ConnId ->
   BotId ->
   ConvId ->
-  m (Maybe Public.Event)
+  Sem r (Maybe Public.Event)
 deleteBot zusr zcon bid cid = do
   -- Remove the bot from the conversation
-  ev <- RPC.removeBotMember zusr zcon cid bid
+  ev <- embed $ RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  mbUser <- User.lookupUser NoPendingInvitations buid
-  User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
+  mbUser <- embed $ User.lookupUser NoPendingInvitations buid
+  embed $ User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
-    User.deleteServiceUser pid sid bid
+    UserStore.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  void $ runExceptT $ User.updateStatus buid Deleted
+  void . embed . runExceptT $ User.updateStatus buid Deleted
   pure ev
 
 validateServiceKey :: (MonadIO m) => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
