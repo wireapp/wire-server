@@ -222,6 +222,11 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.CodeStore
+    Wire.CodeStore.Cassandra
+    Wire.CodeStore.Cassandra.Queries
+    Wire.CodeStore.Code
+    Wire.CodeStore.Scope
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
