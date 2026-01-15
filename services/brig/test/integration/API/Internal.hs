@@ -23,9 +23,9 @@ module API.Internal
   )
 where
 
+import API.UserPendingActivation (userExists)
 import Bilge
 import Bilge.Assert
-import Brig.Data.User
 import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Cassandra qualified as Cass

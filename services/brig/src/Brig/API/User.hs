@@ -627,7 +627,7 @@ changeSingleAccountStatus ::
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
-  unlessM (wrapClientE $ Data.userExists uid) $ throwE AccountNotFound
+  unlessM (lift . liftSem $ UserStore.doesUserExist uid) $ throwE AccountNotFound
   ev <- mkUserEvent (NonEmpty.singleton uid) status
   lift . liftSem $ do
     UserStore.updateAccountStatus uid status

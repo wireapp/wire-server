@@ -45,6 +45,7 @@ interpretUserStoreCassandra casClient =
     runEmbedded (runClient casClient) . embed . \case
       CreateUser new mbConv -> createUserImpl new mbConv
       GetUsers uids -> getUsersImpl uids
+      DoesUserExist uid -> doesUserExistImpl uid
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
       UpdateUser uid update -> updateUserImpl uid update
@@ -100,6 +101,13 @@ getUsersImpl :: [UserId] -> Client [StoredUser]
 getUsersImpl usrs =
   map asRecord
     <$> retry x1 (query selectUsers (params LocalQuorum (Identity usrs)))
+
+doesUserExistImpl :: UserId -> Client Bool
+doesUserExistImpl uid =
+  isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
+  where
+    idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
+    idSelect = "SELECT id FROM user WHERE id = ?"
 
 getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
 getIndexUserImpl u = do

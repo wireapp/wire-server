@@ -28,7 +28,6 @@ module Brig.Data.User
     lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupFeatureConferenceCalling,
-    userExists,
 
     -- * Updates
     activateUser,
@@ -157,9 +156,6 @@ newStoredUserViaScim uid externalId tid locale name email = do
         searchable = True
       }
 
-userExists :: (MonadClient m) => UserId -> m Bool
-userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
-
 activateUser :: (MonadClient m) => UserId -> UserIdentity -> m ()
 activateUser u ident = do
   let email = emailIdentity ident
@@ -198,9 +194,6 @@ lookupFeatureConferenceCalling uid = do
 
 -------------------------------------------------------------------------------
 -- Queries
-
-idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
-idSelect = "SELECT id FROM user WHERE id = ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"

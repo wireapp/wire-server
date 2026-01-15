@@ -42,6 +42,7 @@ inMemoryUserStoreInterpreter ::
 inMemoryUserStoreInterpreter = interpret $ \case
   CreateUser new _ -> modify (newStoredUserToStoredUser new :)
   GetUsers uids -> gets $ filter (\user -> user.id `elem` uids)
+  DoesUserExist uid -> gets (any (\u -> u.id == uid))
   UpdateUser uid update -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
