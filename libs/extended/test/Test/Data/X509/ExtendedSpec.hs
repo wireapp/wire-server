@@ -12,7 +12,7 @@ spec :: Spec
 spec =
   describe "Data.X509.Extended" $ do
     describe "certToString" $ do
-      it "should render a representative string of a certificate from stars' Keyloak" $ do
+      it "should render a representative string of a certificate from stars' Keycloak" $ do
         let pemFilePath = "test/data/" <> "sven-test.pem"
             expected = "Issuer: CN=sven-test; Subject: CN=sven-test; SHA1 Fingerprint: F4:A2:73:D7:B7:2E:EA:66:E1:CB:81:E9:58:BC:1A:E9:CF:3C:95:C4"
         checkDecodingWithPEMFile pemFilePath expected
