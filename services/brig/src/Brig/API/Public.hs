@@ -885,7 +885,8 @@ createAccessToken ::
     Member PublicKeyBundle r,
     IsElem endpoint api,
     HasLink endpoint,
-    MkLink endpoint Link ~ (ClientId -> Link)
+    MkLink endpoint Link ~ (ClientId -> Link),
+    Member UserSubsystem r
   ) =>
   StdMethod ->
   Local UserId ->
@@ -1268,7 +1269,8 @@ sendActivationCode ::
     Member UserKeyStore r,
     Member ActivationCodeStore r,
     Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member UserSubsystem r
   ) =>
   Public.SendActivationCode ->
   Handler r ()

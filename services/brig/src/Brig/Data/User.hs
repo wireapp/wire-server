@@ -24,8 +24,6 @@ module Brig.Data.User
     newStoredUserViaScim,
 
     -- * Lookups
-    lookupUser,
-    lookupUsers,
     lookupName,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
@@ -40,22 +38,17 @@ where
 
 import Brig.App
 import Brig.Options
-import Brig.Types.Intra
 import Cassandra hiding (Set)
 import Control.Error
 import Control.Lens hiding (from)
-import Data.Domain
 import Data.Handle (Handle)
-import Data.HavePendingInvitations
 import Data.Id
-import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Qualified
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
 import Wire.API.Password
-import Wire.API.Provider.Service
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.RichInfo
@@ -167,9 +160,6 @@ newStoredUserViaScim uid externalId tid locale name email = do
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
-lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
-lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
-
 activateUser :: (MonadClient m) => UserId -> UserIdentity -> m ()
 activateUser u ident = do
   let email = emailIdentity ident
@@ -198,15 +188,6 @@ lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
 
--- | Return users with given IDs.
---
--- Skips nonexistent users. /Does not/ skip users who have been deleted.
-lookupUsers :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> [UserId] -> m [User]
-lookupUsers hpi usrs = do
-  loc <- defaultUserLocale <$> asks (.settings)
-  domain <- viewFederationDomain
-  toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
-
 lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params LocalQuorum (Identity uid))
@@ -217,41 +198,6 @@ lookupFeatureConferenceCalling uid = do
 
 -------------------------------------------------------------------------------
 -- Queries
-
-type Activated = Bool
-
--- UserRow is the same as AccountRow from the user subsystem.  when migrating this code there,
--- consider eliminating it instead.
-type UserRow =
-  ( UserId,
-    Name,
-    Maybe TextStatus,
-    Maybe Pict,
-    Maybe EmailAddress,
-    Maybe EmailAddress,
-    Maybe UserSSOId,
-    ColourId,
-    Maybe [Asset],
-    Activated,
-    Maybe AccountStatus,
-    Maybe UTCTimeMillis,
-    Maybe Language,
-    Maybe Country,
-    Maybe ProviderId,
-    Maybe ServiceId,
-    Maybe Handle,
-    Maybe TeamId,
-    Maybe ManagedBy,
-    Maybe (Set BaseProtocolTag),
-    Maybe Bool
-  )
-
-usersSelect :: PrepQuery R (Identity [UserId]) UserRow
-usersSelect =
-  "SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, service, \
-  \handle, team, managed_by, supported_protocols, searchable \
-  \FROM user where id IN ?"
 
 idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
 idSelect = "SELECT id FROM user WHERE id = ?"
@@ -270,89 +216,3 @@ userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDAT
 
 userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
-
--------------------------------------------------------------------------------
--- Conversions
-
-toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
-toUsers domain defLocale havePendingInvitations = fmap mk . filter fp
-  where
-    fp :: UserRow -> Bool
-    fp =
-      case havePendingInvitations of
-        WithPendingInvitations -> const True
-        NoPendingInvitations ->
-          ( \( _uid,
-               _name,
-               _textStatus,
-               _pict,
-               _email,
-               _emailUnvalidated,
-               _ssoid,
-               _accent,
-               _assets,
-               _activated,
-               status,
-               _expires,
-               _lan,
-               _con,
-               _pid,
-               _sid,
-               _handle,
-               _tid,
-               _managed_by,
-               _prots,
-               _searchable
-               ) -> status /= Just PendingInvitation
-          )
-
-    mk :: UserRow -> User
-    mk
-      ( uid,
-        name,
-        textStatus,
-        pict,
-        email,
-        emailUnvalidated,
-        ssoid,
-        accent,
-        assets,
-        activated,
-        status,
-        expires,
-        lan,
-        con,
-        pid,
-        sid,
-        handle,
-        tid,
-        managed_by,
-        prots,
-        searchable
-        ) =
-        let ident = toIdentity activated email ssoid
-            expiration = if status == Just Ephemeral then expires else Nothing
-            loc = toLocaleWithDefault defLocale (lan, con)
-            svc = newServiceRef <$> sid <*> pid
-         in User
-              (Qualified uid domain)
-              ident
-              emailUnvalidated
-              name
-              textStatus
-              (fromMaybe noPict pict)
-              (fromMaybe [] assets)
-              accent
-              (fromMaybe Active status)
-              loc
-              svc
-              handle
-              expiration
-              tid
-              (fromMaybe ManagedByWire managed_by)
-              (fromMaybe defSupportedProtocols prots)
-              (fromMaybe True searchable)
-
-    toLocaleWithDefault :: Locale -> (Maybe Language, Maybe Country) -> Locale
-    toLocaleWithDefault _ (Just l, c) = Locale l c
-    toLocaleWithDefault l _ = l

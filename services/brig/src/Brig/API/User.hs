@@ -32,7 +32,6 @@ module Brig.API.User
     changeSingleAccountStatus,
     getLegalHoldStatus,
     Data.lookupName,
-    Data.lookupUser,
     Data.lookupRichInfoMultiUsers,
     revokeIdentity,
     deleteUserNoVerify,
@@ -766,7 +765,8 @@ sendActivationCode ::
     Member ActivationCodeStore r,
     Member UserKeyStore r,
     Member (Polysemy.Error.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member UserSubsystem r
   ) =>
   EmailAddress ->
   Maybe Locale ->
@@ -808,7 +808,8 @@ sendActivationCode email loc = do
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
-      u <- maybe (notFound uid) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations uid)
+      luid <- qualifyLocal uid
+      u <- maybe (notFound uid) pure =<< lift (liftSem $ User.getLocalAccountBy WithPendingInvitations luid)
       (aKey, aCode) <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u

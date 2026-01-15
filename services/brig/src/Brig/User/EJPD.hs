@@ -26,7 +26,6 @@ import Brig.API.Handler
 import Brig.API.User (lookupHandle)
 import Brig.App
 import Brig.Data.Connection qualified as Conn
-import Brig.Data.User (lookupUser)
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Aeson qualified as A
@@ -52,6 +51,8 @@ import Wire.Rpc
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserStore (UserStore)
+import Wire.UserSubsystem (UserSubsystem)
+import Wire.UserSubsystem qualified as User
 
 -- FUTUREWORK(mangoiv): this uses 'UserStore' and should hence go to 'UserSubSystem'
 ejpdRequest ::
@@ -60,7 +61,8 @@ ejpdRequest ::
     Member NotificationSubsystem r,
     Member UserStore r,
     Member Rpc r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserSubsystem r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
@@ -71,8 +73,8 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
     -- find uid given handle
     responseItemForHandle :: Handle -> AppT r (Maybe EJPDResponseItemRoot)
     responseItemForHandle hdl = do
-      mbUid <- liftSem $ lookupHandle hdl
-      mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
+      mbUid <- traverse qualifyLocal =<< liftSem (lookupHandle hdl)
+      mbUsr <- maybe (pure Nothing) (liftSem . User.getLocalAccountBy NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . responseItemForExistingUser includeContacts) mbUsr
 
     -- construct response item given uid
@@ -94,7 +96,8 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             localContacts <-
               catMaybes <$> do
                 forM contacts $ \(uid', relationDropHistory -> rel) -> do
-                  mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid' -- FUTUREWORK: use polysemy effect, not wrapClient
+                  luid' <- qualifyLocal uid'
+                  mbUsr <- liftSem $ User.getLocalAccountBy NoPendingInvitations luid' -- FUTUREWORK: use polysemy effect, not wrapClient
                   maybe (pure Nothing) (fmap (Just . EJPDContactFound rel . toEJPDResponseItemLeaf) . responseItemForExistingUser False) mbUsr
 
             pure . Just . Set.fromList $ localContacts
@@ -109,7 +112,8 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
             contactsFull <-
               forM members $ \uid' -> do
-                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
+                luid' <- qualifyLocal uid'
+                mbUsr <- liftSem $ User.getLocalAccountBy NoPendingInvitations luid'
                 maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
 
             let listType = Team.toNewListType (memberList ^. Team.teamMemberListType)

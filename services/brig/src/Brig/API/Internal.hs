@@ -133,6 +133,7 @@ import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
@@ -207,7 +208,8 @@ ejpdAPI ::
     Member NotificationSubsystem r,
     Member UserStore r,
     Member Rpc r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserSubsystem r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
@@ -488,9 +490,10 @@ getMLSClient lusr cid suiteTag = do
         mlsSignatureKey = Map.lookup ss keys
       }
 
-getVerificationCode :: forall r. (Member VerificationCodeSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
+getVerificationCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = runMaybeT do
-  user <- MaybeT . wrapClientE $ API.lookupUser NoPendingInvitations uid
+  luid <- qualifyLocal uid
+  user <- MaybeT . lift . liftSem $ User.getLocalAccountBy NoPendingInvitations luid
   email <- MaybeT . pure $ userEmail user
   let key = mkKey email
   code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
@@ -971,7 +974,7 @@ updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
+    lift (liftSem $ User.getLocalAccountBy WithPendingInvitations luid) >>= \case
       Just _ -> lift . liftSem $ updateUserProfile luid Nothing UpdateOriginScim (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
