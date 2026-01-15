@@ -1,0 +1,2 @@
+Simplify and modernize the Nix setup of `rusty-jwt-tools`. This includes
+updating to version `0.14.0`.

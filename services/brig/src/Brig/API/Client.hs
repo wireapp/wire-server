@@ -622,6 +622,5 @@ createAccessToken luid cid method link proof = do
           method
           maxSkewSeconds
           expiresAt
-          now
           pubKeyBundle
   pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)
