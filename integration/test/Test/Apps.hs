@@ -54,6 +54,19 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
 
+  -- getApp, getApps
+  bindResponse (getApp owner tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  bindResponse (getApps owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    void $ resp.json >>= asList >>= assertOne
+  bindResponse (createApp owner tid (new {name = "fmappie"})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  bindResponse (getApps owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json >>= asList
+    (sort <$> ((%. "name") `mapM` apps)) `shouldMatch` ["chappie", "fmappie"]
+
   -- Creator should have type "regular"
   bindResponse (getUser owner owner) $ \resp -> do
     resp.status `shouldMatchInt` 200

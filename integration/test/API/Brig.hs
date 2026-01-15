@@ -1240,9 +1240,16 @@ createApp creator tid new = do
           "password" .= defPassword
         ]
 
+-- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-app
 getApp :: (MakesValue self) => self -> String -> String -> App Response
 getApp self tid uid = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", uid]
+  submit "GET" req
+
+-- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-apps
+getApps :: (MakesValue self) => self -> String -> App Response
+getApps self tid = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
   submit "GET" req
 
 refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response

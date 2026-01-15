@@ -52,6 +52,7 @@ appSubsystemErrorToHttpError =
 data AppSubsystem m a where
   CreateApp :: Local UserId -> TeamId -> Apps.NewApp -> AppSubsystem m Apps.CreatedApp
   GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m Apps.GetApp
+  GetApps :: Local UserId -> TeamId -> AppSubsystem m [Apps.GetApp]
   RefreshAppCookie ::
     Local UserId ->
     TeamId ->

@@ -2126,6 +2126,15 @@ type AppsAPI =
                :> Get '[JSON] GetApp
            )
     :<|> Named
+           "get-apps"
+           ( Summary "Get all apps in a team"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Get '[JSON] [GetApp]
+           )
+    :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
                :> ZLocalUser
