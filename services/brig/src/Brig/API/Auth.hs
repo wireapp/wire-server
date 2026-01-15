@@ -86,7 +86,8 @@ accessH ::
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -113,7 +114,8 @@ access ::
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
@@ -247,7 +249,8 @@ legalHoldLogin ::
     Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
@@ -265,7 +268,8 @@ ssoLogin ::
     Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   SsoLogin ->
   Maybe Bool ->

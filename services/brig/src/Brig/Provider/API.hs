@@ -1003,7 +1003,7 @@ deleteBot zusr zcon bid cid = do
     UserStore.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  void . embed . runExceptT $ User.updateStatus buid Deleted
+  UserStore.updateAccountStatus buid Deleted
   pure ev
 
 validateServiceKey :: (MonadIO m) => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))

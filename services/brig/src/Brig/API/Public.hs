@@ -1504,7 +1504,8 @@ activate ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member UserStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1519,7 +1520,8 @@ activateKey ::
     Member TinyLog r,
     Member Events r,
     Member UserSubsystem r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member UserStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

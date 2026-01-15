@@ -30,6 +30,7 @@ import Polysemy.Embed
 import Polysemy.Error
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
+import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SetSearchable (SetSearchable))
@@ -47,8 +48,15 @@ interpretUserStoreCassandra casClient =
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
       UpdateUser uid update -> updateUserImpl uid update
+      UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
+      DeleteEmailUnvalidated uid -> deleteEmailUnvalidatedImpl uid
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
+      UpdateSSOId uid ssoId -> updateSSOIdImpl uid ssoId
+      UpdateManagedBy uid managedBy -> updateManagedByImpl uid managedBy
+      UpdateAccountStatus uid accountStatus -> updateAccountStatusImpl uid accountStatus
+      UpdateRichInfo uid richInfo -> updateRichInfoImpl uid richInfo
+      UpdateFeatureConferenceCalling uid feat -> updateFeatureConferenceCallingImpl uid feat
       DeleteUser user -> deleteUserImpl user
       LookupHandle hdl -> lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> lookupHandleImpl One hdl
@@ -146,6 +154,12 @@ updateUserImpl uid update =
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
     for_ update.supportedProtocols \a -> addPrepQuery userSupportedProtocolsUpdate (a, uid)
 
+updateEmailImpl :: UserId -> EmailAddress -> Client ()
+updateEmailImpl u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
+  where
+    userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
+    userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
+
 updateEmailUnvalidatedImpl :: UserId -> EmailAddress -> Client ()
 updateEmailUnvalidatedImpl u e =
   retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
@@ -153,11 +167,55 @@ updateEmailUnvalidatedImpl u e =
     userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
     userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
+deleteEmailUnvalidatedImpl :: UserId -> Client ()
+deleteEmailUnvalidatedImpl u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
+  where
+    userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
+    userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
+
 updateUserHandleEitherImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
 updateUserHandleEitherImpl uid update =
   runM $ runError do
     claimed <- embed $ claimHandleImpl uid update.old update.new
     unless claimed $ throw StoredUserUpdateHandleExists
+
+updateSSOIdImpl :: UserId -> Maybe UserSSOId -> Client Bool
+updateSSOIdImpl u ssoid = do
+  mteamid <- getUserTeamImpl u
+  case mteamid of
+    Just _ -> do
+      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      pure True
+    Nothing -> pure False
+  where
+    userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
+    userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+
+updateManagedByImpl :: UserId -> ManagedBy -> Client ()
+updateManagedByImpl u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
+  where
+    userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
+    userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
+
+updateAccountStatusImpl :: UserId -> AccountStatus -> Client ()
+updateAccountStatusImpl u s =
+  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
+  where
+    userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
+    userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+
+updateRichInfoImpl :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
+updateRichInfoImpl u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
+  where
+    userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
+    userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
+
+updateFeatureConferenceCallingImpl :: (MonadClient m) => UserId -> Maybe FeatureStatus -> m ()
+updateFeatureConferenceCallingImpl uid mStatus =
+  retry x5 $ write update (params LocalQuorum (mStatus, uid))
+  where
+    update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
+    update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 -- | Claim a new handle for an existing 'User': validate it, and in case of success, assign it
 -- to user and mark it as taken.

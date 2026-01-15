@@ -56,6 +56,13 @@ inMemoryUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
           else u
+  UpdateEmail uid email -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u =
+        if u.id == uid
+          then u {email = Just email} :: StoredUser
+          else u
   UpdateEmailUnvalidated uid email -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
@@ -63,6 +70,20 @@ inMemoryUserStoreInterpreter = interpret $ \case
         if u.id == uid
           then u {emailUnvalidated = Just email} :: StoredUser
           else u
+  DeleteEmailUnvalidated uid -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u =
+        if u.id == uid
+          then u {emailUnvalidated = Nothing} :: StoredUser
+          else u
+  UpdateSSOId uid ssoId -> do
+    updateUserInStore uid (\u -> u {ssoId = ssoId})
+    gets (any (\u -> u.id == uid))
+  UpdateManagedBy uid managedBy -> updateUserInStore uid (\u -> u {managedBy = Just managedBy})
+  UpdateAccountStatus uid accountStatus -> updateUserInStore uid (\u -> u {status = Just accountStatus})
+  UpdateRichInfo {} -> error "UpdateRichInfo: Not implemented"
+  UpdateFeatureConferenceCalling {} -> error "UpdateFeatureConferenceCalling: Not implemented"
   GetIndexUser uid -> do
     mUser <- gets @[StoredUser] $ find (\user -> user.id == uid)
     pure $ storedUserToIndexUser <$> mUser
@@ -192,3 +213,12 @@ newStoredUserToStoredUser new =
       supportedProtocols = Just new.supportedProtocols,
       searchable = Just new.searchable
     }
+
+updateUserInStore :: (Member (State [StoredUser]) r) => UserId -> (StoredUser -> StoredUser) -> Sem r ()
+updateUserInStore uid f = modify (map doUpdate)
+  where
+    doUpdate :: StoredUser -> StoredUser
+    doUpdate u =
+      if u.id == uid
+        then f u
+        else u

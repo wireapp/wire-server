@@ -33,17 +33,8 @@ module Brig.Data.User
     userExists,
 
     -- * Updates
-    updateEmail,
-    updateSSOId,
-    updateManagedBy,
     activateUser,
     deactivateUser,
-    updateStatus,
-    updateRichInfo,
-    updateFeatureConferenceCalling,
-
-    -- * Deletions
-    deleteEmailUnvalidated,
   )
 where
 
@@ -173,38 +164,6 @@ newStoredUserViaScim uid externalId tid locale name email = do
         searchable = True
       }
 
-updateEmail :: (MonadClient m) => UserId -> EmailAddress -> m ()
-updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
-
-updateSSOId :: (MonadClient m) => UserId -> Maybe UserSSOId -> m Bool
-updateSSOId u ssoid = do
-  mteamid <- lookupUserTeam u
-  case mteamid of
-    Just _ -> do
-      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
-      pure True
-    Nothing -> pure False
-
-updateManagedBy :: (MonadClient m) => UserId -> ManagedBy -> m ()
-updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
-
-updateRichInfo :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
-updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
-
-updateFeatureConferenceCalling :: (MonadClient m) => UserId -> Maybe FeatureStatus -> m ()
-updateFeatureConferenceCalling uid mStatus =
-  retry x5 $ write update (params LocalQuorum (mStatus, uid))
-  where
-    update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
-    update = fromString "update user set feature_conference_calling = ? where id = ?"
-
-deleteEmailUnvalidated :: (MonadClient m) => UserId -> m ()
-deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
-
-updateStatus :: (MonadClient m) => UserId -> AccountStatus -> m ()
-updateStatus u s =
-  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
-
 userExists :: (MonadClient m) => UserId -> m Bool
 userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
@@ -306,29 +265,11 @@ richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
-userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
-userEmailUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email = ? WHERE id = ?"
-
-userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
-userEmailUnvalidatedDelete = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET email_unvalidated = null WHERE id = ?"
-
-userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
-userSSOIdUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET sso_id = ? WHERE id = ?"
-
-userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
-userManagedByUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET managed_by = ? WHERE id = ?"
-
-userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
-userStatusUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET status = ? WHERE id = ?"
-
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = false WHERE id = ?"
 
 userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
 userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"
-
-userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
-userRichInfoUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE rich_info SET json = ? WHERE user = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

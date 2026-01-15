@@ -214,17 +214,17 @@ createUserSpar new = do
   account <- lift $ newStoredUser new' Nothing (Just tid) handle'
   domain <- viewFederationDomain
   let u = newStoredUserToUser (Qualified account domain)
-  lift $ do
+  lift . liftSem $ do
     let uid = account.id
 
     -- FUTUREWORK: make this transactional if possible
-    liftSem $ UserStore.createUser account Nothing
+    UserStore.createUser account Nothing
     case unRichInfo <$> newUserSparRichInfo new of
-      Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
+      Just richInfo -> UserStore.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
-    liftSem $ GalleyAPIAccess.createSelfConv uid
-    liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Events.generateUserEvent uid Nothing (UserCreated u)
+    GalleyAPIAccess.createSelfConv uid
+    User.internalUpdateSearchIndex uid
+    Events.generateUserEvent uid Nothing (UserCreated u)
 
   -- Add to team
   userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO u tid (SSOIdentity ident Nothing) (newUserSparRole new)
@@ -524,10 +524,10 @@ createUser rateLimitKey new = do
               !>> activationErrorToRegisterError
           pure Nothing
 
-initAccountFeatureConfig :: UserId -> (AppT r) ()
+initAccountFeatureConfig :: (Member UserStore r) => UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
   mStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNew . _Just)
-  wrapClient $ traverse_ (Data.updateFeatureConferenceCalling uid . Just) mStatus
+  liftSem $ traverse_ (UserStore.updateFeatureConferenceCalling uid . Just) mStatus
 
 -- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
@@ -595,11 +595,11 @@ revokeIdentity key = do
 
 changeAccountStatus ::
   forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member (Concurrency 'Unsafe) r,
+  ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   NonEmpty UserId ->
   AccountStatus ->
@@ -613,7 +613,7 @@ changeAccountStatus usrs status = do
       UserId ->
       Sem r ()
     update ev u = do
-      embed $ Data.updateStatus u status
+      UserStore.updateAccountStatus u status
       User.internalUpdateSearchIndex u
       Events.generateUserEvent u Nothing (ev u)
 
@@ -621,7 +621,8 @@ changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   AccountStatus ->
@@ -629,10 +630,10 @@ changeSingleAccountStatus ::
 changeSingleAccountStatus uid status = do
   unlessM (wrapClientE $ Data.userExists uid) $ throwE AccountNotFound
   ev <- mkUserEvent (NonEmpty.singleton uid) status
-  lift $ do
-    wrapClient $ Data.updateStatus uid status
-    liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Events.generateUserEvent uid Nothing (ev uid)
+  lift . liftSem $ do
+    UserStore.updateAccountStatus uid status
+    User.internalUpdateSearchIndex uid
+    Events.generateUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::
   ( Traversable t,
@@ -660,7 +661,8 @@ activate ::
     Member TinyLog r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -674,7 +676,8 @@ activateNoVerifyEmailDomain ::
     Member TinyLog r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -688,7 +691,8 @@ activateWithCurrency ::
     Member TinyLog r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Bool ->
   ActivationTarget ->
@@ -735,7 +739,8 @@ preverify tgt code = do
 onActivated ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   ActivationEvent ->
   AppT r (UserId, Maybe UserIdentity, Bool)
@@ -746,10 +751,10 @@ onActivated (AccountActivated account) = liftSem $ do
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing $ UserActivated account
   pure (uid, userIdentity account, True)
-onActivated (EmailActivated uid email) = do
-  liftSem $ User.internalUpdateSearchIndex uid
-  liftSem $ Events.generateUserEvent uid Nothing (emailUpdated uid email)
-  wrapHttpClient $ Data.deleteEmailUnvalidated uid
+onActivated (EmailActivated uid email) = liftSem $ do
+  User.internalUpdateSearchIndex uid
+  Events.generateUserEvent uid Nothing (emailUpdated uid email)
+  UserStore.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}

@@ -295,7 +295,6 @@ teamsAPI ::
   ( Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member BlockListStore r,
-    Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member UserStore r,
     Member (Concurrency 'Unsafe) r,
@@ -342,7 +341,8 @@ authAPI ::
     Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -441,13 +441,13 @@ getAccountConferenceCallingConfig uid = do
   mDefStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNull)
   pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
-putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
+putAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
 putAccountConferenceCallingConfig uid feat = do
-  lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just feat.status) $> NoContent
+  lift . liftSem $ UserStore.updateFeatureConferenceCalling uid (Just feat.status) $> NoContent
 
-deleteAccountConferenceCallingConfig :: UserId -> Handler r NoContent
+deleteAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handler r NoContent
 deleteAccountConferenceCallingConfig uid =
-  lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
+  lift . liftSem $ UserStore.updateFeatureConferenceCalling uid Nothing $> NoContent
 
 getMLSClientH :: UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
 getMLSClientH usr cid suite = do
@@ -789,7 +789,8 @@ changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -862,13 +863,14 @@ addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 updateSSOIdH ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   UserId ->
   UserSSOId ->
   (Handler r) UpdateSSOIdResponse
 updateSSOIdH uid ssoid = lift $ do
-  success <- wrapClient $ Data.updateSSOId uid (Just ssoid)
+  success <- liftSem $ UserStore.updateSSOId uid (Just ssoid)
   liftSem $
     if success
       then do
@@ -879,12 +881,13 @@ updateSSOIdH uid ssoid = lift $ do
 
 deleteSSOIdH ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse
 deleteSSOIdH uid = lift $ do
-  success <- wrapClient $ Data.updateSSOId uid Nothing
+  success <- liftSem $ UserStore.updateSSOId uid Nothing
   if success
     then liftSem $ do
       UserSubsystem.internalUpdateSearchIndex uid
@@ -892,11 +895,11 @@ deleteSSOIdH uid = lift $ do
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 
-updateManagedByH :: UserId -> ManagedByUpdate -> (Handler r) NoContent
+updateManagedByH :: (Member UserStore r) => UserId -> ManagedByUpdate -> (Handler r) NoContent
 updateManagedByH uid (ManagedByUpdate managedBy) = do
-  NoContent <$ lift (wrapClient $ Data.updateManagedBy uid managedBy)
+  NoContent <$ lift (liftSem $ UserStore.updateManagedBy uid managedBy)
 
-updateRichInfoH :: UserId -> RichInfoUpdate -> (Handler r) NoContent
+updateRichInfoH :: (Member UserStore r) => UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =
   NoContent <$ do
     let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
@@ -904,7 +907,7 @@ updateRichInfoH uid rup =
     when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
-    lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
+    lift $ liftSem $ UserStore.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
 updateLocale :: (Member UserSubsystem r) => UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
 updateLocale uid upd@(LocaleUpdate locale) = do

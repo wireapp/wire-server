@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Wire.API.Password
+import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SetSearchable)
@@ -73,8 +74,14 @@ data UserStore m a where
   GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
+  UpdateEmail :: UserId -> EmailAddress -> UserStore m ()
+  DeleteEmail :: UserId -> UserStore m ()
   UpdateEmailUnvalidated :: UserId -> EmailAddress -> UserStore m ()
+  DeleteEmailUnvalidated :: UserId -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
+  UpdateSSOId :: UserId -> Maybe UserSSOId -> UserStore m Bool
+  UpdateManagedBy :: UserId -> ManagedBy -> UserStore m ()
+  UpdateAccountStatus :: UserId -> AccountStatus -> UserStore m ()
   DeleteUser :: User -> UserStore m ()
   -- | This operation looks up a handle but is guaranteed to not give you stale locks.
   --   It is potentially slower and less resilient than 'GlimpseHandle'.
@@ -94,9 +101,10 @@ data UserStore m a where
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
+  UpdateRichInfo :: UserId -> RichInfoAssocList -> UserStore m ()
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
-  DeleteEmail :: UserId -> UserStore m ()
   SetUserSearchable :: UserId -> SetSearchable -> UserStore m ()
+  UpdateFeatureConferenceCalling :: UserId -> Maybe FeatureStatus -> UserStore m ()
   DeleteServiceUser :: ProviderId -> ServiceId -> BotId -> UserStore m ()
   LookupServiceUsers :: ProviderId -> ServiceId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId, Maybe TeamId))
   LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId))
