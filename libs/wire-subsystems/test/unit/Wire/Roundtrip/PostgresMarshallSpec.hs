@@ -15,28 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.CodeStore.Scope where
+module Wire.Roundtrip.PostgresMarshallSpec (spec) where
 
-import Cassandra hiding (Value)
 import Imports
+import Test.Hspec
+import Test.Hspec.QuickCheck
+import Test.QuickCheck
 import Wire.API.PostgresMarshall
-import Wire.Arbitrary
+import Wire.Arbitrary qualified as Arbitrary ()
+import Wire.CodeStore.Scope
 
-data Scope = ReusableCode
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform Scope
+spec :: Spec
+spec = do
+  focus $ describe "Wire.API.PostgresMarshall roundtrip tests" $ do
+    prop "Scope" (testRoundTrip @Int32 @Scope)
 
-instance Cql Scope where
-  ctype = Tagged IntColumn
-
-  toCql ReusableCode = CqlInt 1
-
-  fromCql (CqlInt 1) = pure ReusableCode
-  fromCql _ = Left "unknown Scope"
-
-instance PostgresMarshall Int32 Scope where
-  postgresMarshall ReusableCode = 1
-
-instance PostgresUnmarshall Int32 Scope where
-  postgresUnmarshall 1 = Right ReusableCode
-  postgresUnmarshall _ = Left "unknown Scope"
+testRoundTrip ::
+  forall db domain.
+  ( PostgresMarshall db domain,
+    PostgresUnmarshall db domain,
+    Eq domain,
+    Show domain
+  ) =>
+  domain -> Property
+testRoundTrip value =
+  let actual = postgresUnmarshall @db @domain . postgresMarshall @db @domain $ value
+      expected = Right value
+   in actual === expected
