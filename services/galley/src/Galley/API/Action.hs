@@ -234,6 +234,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member Random r
     )
+  HasConversationActionEffects 'ConversationHistoryUpdateTag r =
+    ()
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
       Member (Error NoChanges) r

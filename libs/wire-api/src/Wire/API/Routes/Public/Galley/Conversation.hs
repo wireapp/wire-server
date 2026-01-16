@@ -1338,6 +1338,25 @@ type ConversationAPI =
                     (UpdateResult Event)
            )
     :<|> Named
+           "update-conversation-history"
+           ( Summary "Update history settings of a conversation"
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow ('ActionDenied 'ModifyConversationHistory)
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "history"
+               :> ReqBody '[JSON] ConversationHistoryUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "History unchanged" "History updated" Event)
+                    (UpdateResult Event)
+           )
+    :<|> Named
            "get-conversation-self-unqualified"
            ( Summary "Get self membership properties (deprecated)"
                :> Description "Use `/conversations/:domain/:conv` instead and get the self member from `response.members.self`."

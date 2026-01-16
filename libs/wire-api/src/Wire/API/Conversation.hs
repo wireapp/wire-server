@@ -88,6 +88,7 @@ module Wire.API.Conversation
     ConversationRemoveMembers (..),
     AddPermissionUpdate (..),
     ExtraConversationData (..),
+    ConversationHistoryUpdate (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -1342,6 +1343,15 @@ instance ToSchema ExtraConversationData where
 data ConversationHistoryUpdate = ConversationHistoryUpdate
   { history :: History
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationHistoryUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationHistoryUpdate
+
+instance ToSchema ConversationHistoryUpdate where
+  schema =
+    object "ConversationHistoryUpdate" $
+      ConversationHistoryUpdate
+        <$> (.history) .= field "history" schema
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

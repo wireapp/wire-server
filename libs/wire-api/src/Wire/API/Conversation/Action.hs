@@ -202,6 +202,7 @@ $( singletons
        conversationActionPermission ConversationUpdateProtocolTag = LeaveConversation
        conversationActionPermission ConversationUpdateAddPermissionTag = ModifyAddPermission
        conversationActionPermission ConversationResetTag = LeaveConversation
+       conversationActionPermission ConversationHistoryUpdateTag = ModifyConversationHistory
        |]
  )
 
