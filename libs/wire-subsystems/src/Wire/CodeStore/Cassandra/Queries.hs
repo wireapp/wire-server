@@ -32,3 +32,6 @@ lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation
 
 deleteCode :: PrepQuery W (Key, Scope) ()
 deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
+
+selectAllCodes :: PrepQuery R () (Key, Scope, Value, Int32, ConvId, Maybe Password)
+selectAllCodes = "SELECT key, scope, value, ttl(value), conversation, password FROM conversation_codes"
