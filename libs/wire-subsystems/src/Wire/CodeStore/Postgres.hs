@@ -54,12 +54,9 @@ interpretCodeStoreToPostgres = interpret $ \case
     Code.generate cid s t
   GetConversationCodeURI mbHost -> do
     convCodeURI <- input
-    case convCodeURI of
-      Left uri -> pure (Just uri)
-      Right map' ->
-        case mbHost of
-          Just host -> pure (Map.lookup host map')
-          Nothing -> pure Nothing
+    pure $ case convCodeURI of
+      Left uri -> Just uri
+      Right map' -> mbHost >>= flip Map.lookup map'
 
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c mPw = do

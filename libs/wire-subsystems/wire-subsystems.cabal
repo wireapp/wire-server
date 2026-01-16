@@ -228,6 +228,7 @@ library
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries
     Wire.CodeStore.Code
+    Wire.CodeStore.DualWrite
     Wire.CodeStore.Postgres
     Wire.CodeStore.Scope
     Wire.ConversationStore

@@ -108,7 +108,8 @@ import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.CodeStore.Cassandra
-import Wire.CodeStore.Postgres (interpretCodeStoreToPostgres)
+import Wire.CodeStore.DualWrite
+import Wire.CodeStore.Postgres
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
@@ -293,7 +294,7 @@ evalGalley e =
       convCodesStoreInterpreter =
         case (e ^. options . postgresMigration).conversationCodes of
           CassandraStorage -> interpretCodeStoreToCassandra
-          MigrationToPostgresql -> interpretCodeStoreToCassandra -- TODO: implement migration interpreter
+          MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCodeStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
