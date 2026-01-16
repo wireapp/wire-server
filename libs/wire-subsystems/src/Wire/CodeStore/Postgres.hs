@@ -104,7 +104,7 @@ lookupCode k s = do
                           conversation :: uuid,
                           password :: bytea?
                         FROM conversation_codes
-                        WHERE key = ($1 :: text) AND scope = ($2 :: int) AND expires_at < now ()
+                        WHERE key = ($1 :: text) AND scope = ($2 :: int) AND expires_at > now ()
                         |]
 
 deleteCode :: (PGConstraints r) => Key -> Scope -> Sem r ()
