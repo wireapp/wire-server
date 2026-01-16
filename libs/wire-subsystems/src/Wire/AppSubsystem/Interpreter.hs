@@ -193,7 +193,7 @@ getAppsImpl lusr tid = do
   pure $ mkApp <$> matchAndZip storedApps us
   where
     matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
-    matchAndZip as us = catMaybes $ f <$> as
+    matchAndZip as us = mapMaybe f as
       where
         f a = (a,) <$> Map.lookup a.id umap
         umap = Map.fromList $ (\u -> (u.id, u)) <$> us
