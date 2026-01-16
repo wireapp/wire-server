@@ -31,6 +31,7 @@ import Test.Wire.API.Roundtrip.ByteString qualified as Roundtrip.ByteString
 import Test.Wire.API.Roundtrip.CSV qualified as Roundtrip.CSV
 import Test.Wire.API.Roundtrip.HttpApiData qualified as Roundtrip.HttpApiData
 import Test.Wire.API.Roundtrip.MLS qualified as Roundtrip.MLS
+import Test.Wire.API.Roundtrip.PostgresMarshall as PostgresMarshall
 import Test.Wire.API.Routes qualified as Routes
 import Test.Wire.API.Routes.Version qualified as Routes.Version
 import Test.Wire.API.Routes.Version.Wai qualified as Routes.Version.Wai
@@ -67,5 +68,6 @@ main =
         Routes.Version.tests,
         unsafePerformIO Routes.Version.Wai.tests,
         RawJson.tests,
-        OAuth.tests
+        OAuth.tests,
+        PostgresMarshall.tests
       ]
