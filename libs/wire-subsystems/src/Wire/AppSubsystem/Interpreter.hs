@@ -19,6 +19,7 @@ module Wire.AppSubsystem.Interpreter where
 
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
@@ -70,6 +71,7 @@ runAppSubsystem ::
 runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
   GetApp lusr tid uid -> getAppImpl lusr tid uid
+  GetApps lusr tid -> getAppsImpl lusr tid
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
 
 createAppImpl ::
@@ -164,6 +166,37 @@ getAppImpl lusr tid uid = do
         category = storedApp.category,
         description = storedApp.description
       }
+
+getAppsImpl ::
+  ( Member AppStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  Sem r [Apps.GetApp]
+getAppsImpl lusr tid = do
+  void $ ensureTeamMember lusr tid
+  storedApps <- Store.getApps tid
+  us <- Store.getUsers ((.id) <$> storedApps)
+  let mkApp (storedApp, u) =
+        Apps.GetApp
+          { name = u.name,
+            pict = fromMaybe (Pict []) u.pict,
+            assets = fromMaybe [] u.assets,
+            accentId = u.accentId,
+            meta = storedApp.meta,
+            category = storedApp.category,
+            description = storedApp.description
+          }
+  pure $ mkApp <$> matchAndZip storedApps us
+  where
+    matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
+    matchAndZip as us = mapMaybe f as
+      where
+        f a = (a,) <$> Map.lookup a.id umap
+        umap = Map.fromList $ (\u -> (u.id, u)) <$> us
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,
