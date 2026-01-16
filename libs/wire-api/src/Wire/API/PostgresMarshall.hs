@@ -27,9 +27,10 @@ where
 import Data.Aeson
 import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
-import Data.ByteString.Conversion qualified as BSC
-import Data.Domain
 import Data.ByteString.Conversion (toByteString')
+import Data.ByteString.Conversion qualified as BSC
+import Data.Code qualified as Code
+import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Profunctor
@@ -37,14 +38,13 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID
-import qualified Data.Code as Code
-import Wire.API.Password
-import Wire.API.Password.Scrypt
-import Wire.API.Password.Argon2id
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Statement
 import Imports
+import Wire.API.Password
+import Wire.API.Password.Argon2id
+import Wire.API.Password.Scrypt
 
 class PostgresMarshall db domain where
   postgresMarshall :: domain -> db
@@ -542,9 +542,10 @@ instance PostgresMarshall Text Code.Value where
   postgresMarshall = Text.decodeUtf8 . toByteString'
 
 instance PostgresMarshall ByteString Password where
-  postgresMarshall = Text.encodeUtf8 . \case
-    Argon2Password p -> encodeArgon2HashedPassword p
-    ScryptPassword p -> encodeScryptPassword p
+  postgresMarshall =
+    Text.encodeUtf8 . \case
+      Argon2Password p -> encodeArgon2HashedPassword p
+      ScryptPassword p -> encodeScryptPassword p
 
 ---
 
@@ -880,6 +881,7 @@ instance PostgresUnmarshall Text Code.Value where
 instance PostgresUnmarshall ByteString Password where
   postgresUnmarshall =
     mapLeft Text.pack . parsePassword . Text.decodeUtf8
+
 ---
 
 lmapPG :: (PostgresMarshall db domain, Profunctor p) => p db x -> p domain x

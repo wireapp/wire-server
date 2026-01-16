@@ -21,19 +21,19 @@ module Wire.CodeStore.Postgres
 where
 
 import Data.Code
+import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
-import Imports
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
+import Imports
 import Polysemy
-import Wire.API.PostgresMarshall
 import Polysemy.Input
 import Wire.API.Password
+import Wire.API.PostgresMarshall
 import Wire.CodeStore (CodeStore (..))
 import Wire.CodeStore.Code as Code
 import Wire.Postgres
-import Data.Id
 
 interpretCodeStoreToPostgres ::
   ( PGConstraints r,
@@ -61,7 +61,7 @@ interpretCodeStoreToPostgres = interpret $ \case
           Just host -> pure (Map.lookup host map')
           Nothing -> pure Nothing
 
-insertCode :: PGConstraints r => Code -> Maybe Password -> Sem r ()
+insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c mPw = do
   let k = codeKey c
   let v = codeValue c
@@ -78,12 +78,12 @@ insertCode c mPw = do
                              VALUES
                                ($1 :: text, $2 :: int, $3 :: uuid, $4 :: bytea?, $5 :: text, now() + make_interval(secs => $6 :: int))
         |]
-                             -- ON CONFLICT (key, scope) DO UPDATE
-                             -- SET conversation = EXCLUDED.conversation,
-                             --     password = EXCLUDED.password,
-                             --     value = EXCLUDED.value,
-                             --     expires_at = EXCLUDED.expires_at; 
 
+-- ON CONFLICT (key, scope) DO UPDATE
+-- SET conversation = EXCLUDED.conversation,
+--     password = EXCLUDED.password,
+--     value = EXCLUDED.value,
+--     expires_at = EXCLUDED.expires_at;
 
 lookupCode :: Key -> Scope -> Sem r (Maybe (Code, Maybe Password))
 lookupCode k s =
