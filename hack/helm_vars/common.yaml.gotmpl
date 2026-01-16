@@ -19,6 +19,12 @@ conversationStore: cassandra
 conversationStore: {{ env "PREFERRED_STORE" }}
 {{- end }}
 
+{{- if (eq (env "CONVERSATION_CODES_STORE") "") }}
+conversationCodesStore: cassandra
+{{- else }}
+conversationCodesStore: {{ env "CONVERSATION_CODES_STORE" }}
+{{- end }}
+
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}
 {{- else }}

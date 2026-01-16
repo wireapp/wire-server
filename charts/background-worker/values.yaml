@@ -87,6 +87,7 @@ config:
   # Controls where conversation data is stored/accessed
   postgresMigration:
     conversation: cassandra
+    conversationCodes: cassandra
 
 secrets:
   {}

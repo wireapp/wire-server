@@ -77,3 +77,4 @@ backgroundJobs:
 
 postgresMigration:
   conversation: postgresql
+  conversationCodes: postgresql
