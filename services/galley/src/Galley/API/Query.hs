@@ -75,8 +75,6 @@ import Galley.API.Mapping qualified as Mapping
 import Galley.API.One2One
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
-import Galley.Data.Types (Code (codeConversation))
-import Galley.Data.Types qualified as Data
 import Galley.Effects
 import Galley.Env
 import Galley.Options
@@ -108,6 +106,9 @@ import Wire.API.Routes.MultiTablePaging qualified as Public
 import Wire.API.Team.Feature as Public
 import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
+import Wire.CodeStore
+import Wire.CodeStore.Code (Code (codeConversation))
+import Wire.CodeStore.Code qualified as Data
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.FederationAPIAccess qualified as E

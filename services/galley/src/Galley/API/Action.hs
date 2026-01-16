@@ -75,9 +75,7 @@ import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
-import Galley.Data.Scope (Scope (ReusableCode))
 import Galley.Effects
-import Galley.Effects.CodeStore qualified as E
 import Galley.Env (Env)
 import Galley.Options (Opts)
 import Galley.Validation
@@ -116,6 +114,9 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
+import Wire.CodeStore
+import Wire.CodeStore qualified as E
+import Wire.CodeStore.Scope (Scope (ReusableCode))
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))

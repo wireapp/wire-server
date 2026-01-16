@@ -15,56 +15,45 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Code
+module Wire.CodeStore.Cassandra
   ( interpretCodeStoreToCassandra,
   )
 where
 
 import Cassandra
-import Control.Lens
 import Data.Code
 import Data.Map qualified as Map
-import Galley.Cassandra.Queries qualified as Cql
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Data.Types
-import Galley.Data.Types qualified as Code
-import Galley.Effects.CodeStore (CodeStore (..))
-import Galley.Env
+import Data.Misc (HttpsUrl)
 import Imports
 import Polysemy
 import Polysemy.Input
-import Polysemy.TinyLog
 import Wire.API.Password
+import Wire.CodeStore (CodeStore (..))
+import Wire.CodeStore.Cassandra.Queries qualified as Cql
+import Wire.CodeStore.Code as Code
+import Wire.Util (embedClientInput)
 
 interpretCodeStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input Env) r,
-    Member TinyLog r
+    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
   GetCode k s -> do
-    logEffect "CodeStore.GetCode"
-    embedClient $ lookupCode k s
+    embedClientInput $ lookupCode k s
   CreateCode code mPw -> do
-    logEffect "CodeStore.CreateCode"
-    embedClient $ insertCode code mPw
+    embedClientInput $ insertCode code mPw
   DeleteCode k s -> do
-    logEffect "CodeStore.DeleteCode"
-    embedClient $ deleteCode k s
+    embedClientInput $ deleteCode k s
   MakeKey cid -> do
-    logEffect "CodeStore.MakeKey"
     Code.mkKey cid
   GenerateCode cid s t -> do
-    logEffect "CodeStore.GenerateCode"
     Code.generate cid s t
   GetConversationCodeURI mbHost -> do
-    logEffect "CodeStore.GetConversationCodeURI"
-    env <- input
-    case env ^. convCodeURI of
+    convCodeURI <- input
+    case convCodeURI of
       Left uri -> pure (Just uri)
       Right map' ->
         case mbHost of

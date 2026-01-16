@@ -17,35 +17,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.CodeStore
-  ( -- * Code store effect
-    CodeStore (..),
-
-    -- * Create code
-    createCode,
-
-    -- * Read code
-    getCode,
-
-    -- * Delete code
-    deleteCode,
-
-    -- * Code generation
-    makeKey,
-    generateCode,
-
-    -- * Configuration
-    getConversationCodeURI,
-  )
-where
+module Wire.CodeStore where
 
 import Data.Code
 import Data.Id
 import Data.Misc
-import Galley.Data.Types
 import Imports
 import Polysemy
 import Wire.API.Password
+import Wire.CodeStore.Code
 
 data CodeStore m a where
   CreateCode :: Code -> Maybe Password -> CodeStore m ()

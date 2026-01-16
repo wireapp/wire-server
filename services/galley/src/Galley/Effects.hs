@@ -32,7 +32,6 @@ module Galley.Effects
 
     -- * Store effects
     ClientStore,
-    CodeStore,
     ConversationStore,
     CustomBackendStore,
     LegalHoldStore,
@@ -61,9 +60,11 @@ module Galley.Effects
 where
 
 import Data.Id
+import Data.Map (Map)
+import Data.Misc (HttpsUrl)
 import Data.Qualified
+import Data.Text (Text)
 import Galley.Effects.ClientStore
-import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
@@ -73,6 +74,7 @@ import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Teams
+import Imports (Either)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -82,6 +84,7 @@ import Wire.API.Federation.Client
 import Wire.API.Team.Feature
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
@@ -150,6 +153,7 @@ type GalleyEffects1 =
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
+     Input (Either HttpsUrl (Map Text HttpsUrl)),
      Now,
      Queue DeleteItem,
      Error DynError,

@@ -29,9 +29,6 @@ module Galley.Cassandra.Queries
   ( selectCustomBackend,
     upsertCustomBackend,
     deleteCustomBackend,
-    insertCode,
-    lookupCode,
-    deleteCode,
     upsertMemberAddClient,
     upsertMemberRmClient,
     selectClients,
@@ -56,26 +53,12 @@ import Data.Id
 import Data.LegalHold
 import Data.Misc
 import Data.Text.Lazy qualified as LT
-import Galley.Data.Scope
 import Imports
 import Text.RawString.QQ
-import Wire.API.Conversation.Code
-import Wire.API.Password (Password)
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
-
--- Conversations accessible by code -----------------------------------------
-
-insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Maybe Password, Int32) ()
-insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope, password) VALUES (?, ?, ?, ?, ?) USING TTL ?"
-
-lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId, Maybe Password)
-lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation_codes WHERE key = ? AND scope = ?"
-
-deleteCode :: PrepQuery W (Key, Scope) ()
-deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- Clients ------------------------------------------------------------------
 
