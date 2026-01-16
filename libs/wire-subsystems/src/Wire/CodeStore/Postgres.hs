@@ -77,18 +77,43 @@ insertCode c mPw = do
                                (key, scope, conversation, password, value, expires_at)
                              VALUES
                                ($1 :: text, $2 :: int, $3 :: uuid, $4 :: bytea?, $5 :: text, now() + make_interval(secs => $6 :: int))
-        |]
+                             ON CONFLICT (key, scope) DO UPDATE
+                             SET conversation = ($3 :: uuid),
+                                 password = ($4 :: bytea?),
+                                 value = ($5 :: text),
+                                 expires_at = now() + make_interval(secs => $6 :: int)
+         |]
 
--- ON CONFLICT (key, scope) DO UPDATE
--- SET conversation = EXCLUDED.conversation,
---     password = EXCLUDED.password,
---     value = EXCLUDED.value,
---     expires_at = EXCLUDED.expires_at;
+lookupCode :: (PGConstraints r) => Key -> Scope -> Sem r (Maybe (Code, Maybe Password))
+lookupCode k s = do
+  mRow <- runStatement (k, s) selectCode
+  pure $ fmap (toCode k s) mRow
+  where
+    selectCode :: Hasql.Statement (Key, Scope) (Maybe (Value, Int32, ConvId, Maybe Password))
+    selectCode =
+      dimapPG
+        -- on the extraction of the remaining seconds of the TTL
+        -- `expires_at - now()` produces an interval representing how much time is left
+        -- `EXTRACT(EPOCH FROM interval)` converts that interval to seconds (a double precision)
+        -- `FLOOR(...)` truncates fractional seconds
+        -- `GREATEST(0, ...)` clamps negatives to 0 (expired rows)
+        -- `::int4` casts to 32‑bit integer.
+        [maybeStatement|SELECT 
+                          value :: text,
+                          GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - now()))))::int4 AS ttl_secs,
+                          conversation :: uuid,
+                          password :: bytea?
+                        FROM conversation_codes
+                        WHERE key = ($1 :: text) AND scope = ($2 :: int) AND expires_at < now ()
+                        |]
 
-lookupCode :: Key -> Scope -> Sem r (Maybe (Code, Maybe Password))
-lookupCode k s =
-  -- fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (k, s)))
-  todo
-
-deleteCode :: Key -> Scope -> Sem r ()
-deleteCode k s = todo -- retry x5 $ write Cql.deleteCode (params LocalQuorum (k, s))
+deleteCode :: (PGConstraints r) => Key -> Scope -> Sem r ()
+deleteCode k s =
+  runStatement (k, s) delete
+  where
+    delete :: Hasql.Statement (Key, Scope) ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM conversation_codes
+                             WHERE key = ($1 :: text) AND scope = ($2 :: int)
+                            |]
