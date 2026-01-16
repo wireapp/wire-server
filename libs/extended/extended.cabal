@@ -28,6 +28,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Data.Time.Clock.DiffTime
+    Data.X509.Extended
     Hasql.Pool.Extended
     Network.AMQP.Extended
     Network.RabbitMqAdmin
@@ -88,11 +89,14 @@ library
   build-depends:
       aeson
     , amqp
+    , asn1-types
     , base
     , bytestring
     , cassandra-util
     , containers
+    , crypton
     , crypton-connection
+    , crypton-x509
     , crypton-x509-store
     , data-default
     , errors
@@ -103,6 +107,7 @@ library
     , http-client-tls
     , http-types
     , imports
+    , memory
     , metrics-wai
     , monad-control
     , prometheus-client
@@ -129,6 +134,7 @@ test-suite extended-tests
   main-is:            Spec.hs
   other-modules:
     Paths_extended
+    Test.Data.X509.ExtendedSpec
     Test.System.Logger.ExtendedSpec
 
   hs-source-dirs:     test
@@ -186,6 +192,9 @@ test-suite extended-tests
   build-depends:
       aeson
     , base
+    , bytestring
+    , crypton-pem
+    , crypton-x509
     , extended
     , hspec
     , imports

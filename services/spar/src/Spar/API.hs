@@ -42,6 +42,15 @@ module Spar.API
     IdpGetAll,
     IdpCreate,
     IdpDelete,
+
+    -- * published to enable testing
+
+    -- FUTUREWORK: This module should be split into two: Servant handler
+    -- subtilities and the functions that do the actual work.
+    idpCreate,
+    idpCreateV7,
+    idpDelete,
+    idpUpdate,
   )
 where
 
@@ -62,6 +71,9 @@ import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
 import Data.Time
+import qualified Data.UUID as UUID
+import qualified Data.X509 as X509
+import Data.X509.Extended
 import Imports
 import Network.Wai (Request, requestHeaders)
 import Network.Wai.Utilities.Request
@@ -107,6 +119,7 @@ import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
+import qualified System.Logger as Log
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
@@ -213,6 +226,7 @@ apiSSO opts =
 apiIDP ::
   ( Member Random r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -239,7 +253,7 @@ apiINTERNAL ::
     Member (Error SparError) r,
     Member SAMLUserStore r,
     Member ScimUserTimesStore r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member Random r,
     Member GalleyAccess r,
     Member BrigAccess r
@@ -472,7 +486,7 @@ authContext e = authHandler e :. EmptyContext
 
 idpGet ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -505,7 +519,7 @@ idpGetRaw zusr idpid = do
 
 idpGetAll ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -519,7 +533,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 
 idpGetAllByTeamId ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -542,7 +556,7 @@ idpGetAllByTeamId tid = do
 idpDelete ::
   forall r.
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -573,6 +587,11 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
+  logIdPAction
+    "IdP deleted"
+    idp
+    mbzusr
+    id
   pure NoContent
   where
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
@@ -626,7 +645,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
 -- (internal) https://wearezeta.atlassian.net/wiki/spaces/PAD/pages/1107001440/2024-03-27+scim+user+provisioning+and+saml2+sso+associating+scim+peers+and+saml2+idps
 idpCreate ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -636,13 +655,14 @@ idpCreate ::
   ) =>
   SAML.Config ->
   TeamId ->
+  Maybe UserId ->
   Maybe ZHostValue ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
   GalleyAccess.assertSSOEnabled tid
   guardMultiIngressDuplicateDomain tid mbHost
@@ -653,6 +673,11 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+  logIdPAction
+    "IdP created"
+    idp
+    zUser
+    (Log.field "replaces" (maybe "None" (UUID.toString . SAML.fromIdPId) mReplaces))
   pure idp
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -670,6 +695,19 @@ idpCreate samlConfig tid uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmet
       when (zHost `elem` domains) $
         throwSparSem SparIdPDomainInUse
 
+logIdPAction :: (Member (Logger (Msg -> Msg)) r) => String -> IdP -> Maybe UserId -> (Msg -> Msg) -> Sem r ()
+logIdPAction msg idp zUser additionalFields =
+  Logger.info $
+    Log.msg (msg)
+      . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
+      . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
+      . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
+      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "user" (maybe "None" idToText zUser)
+      . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
+      . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
+      . additionalFields
+
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
 filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
 filterMultiIngressZHost (Right domainMap) (Just zHost) | (Domain zHost) `Map.member` domainMap = Just zHost
@@ -677,7 +715,7 @@ filterMultiIngressZHost _ _ = Nothing
 
 idpCreateV7 ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member ScimTokenStore r,
@@ -687,14 +725,15 @@ idpCreateV7 ::
   ) =>
   SAML.Config ->
   TeamId ->
+  Maybe UserId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateV7 samlConfig tid idpmeta mReplaces mApiversion mHandle = do
+idpCreateV7 samlConfig tid zUser idpmeta mReplaces mApiversion mHandle = do
   assertNoScimOrNoIdP
-  idpCreate samlConfig tid Nothing idpmeta mReplaces mApiversion mHandle
+  idpCreate samlConfig tid zUser Nothing idpmeta mReplaces mApiversion mHandle
   where
     -- In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
     -- data contains no information about the idp issuer, only the user name, so no valid saml
@@ -736,7 +775,7 @@ validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -760,8 +799,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
   mbIdp <- case apiversion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
     WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe (_idpMetadata ^. SAML.edIssuer) teamId
-  Logger.log Logger.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  Logger.log Logger.Debug $ show (_idpId, oldIssuersList, mbIdp)
+  Logger.log Logger.Debug . Log.msg $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  Logger.log Logger.Debug . Log.msg $ show (_idpId, oldIssuersList, mbIdp)
 
   let failWithIdPClash :: m ()
       failWithIdPClash = throwSparSem . SparNewIdPAlreadyInUse $ case apiversion of
@@ -780,7 +819,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
 -- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -800,7 +839,7 @@ idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
 
 idpUpdateXML ::
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -815,7 +854,7 @@ idpUpdateXML ::
   Maybe (Range 1 32 Text) ->
   Sem r IdP
 idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
-  (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
+  (teamid, idp, previousIdP) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
@@ -833,6 +872,7 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
+  logIdPUpdate idp'' previousIdP
   pure idp''
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -854,6 +894,60 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
       when otherIdpsOnSameDomain $
         throwSparSem SparIdPDomainInUse
 
+    -- We cannot simply call `logIdPAction` here, because we need diffs for
+    -- some values (old vs. new)
+    logIdPUpdate :: (Member (Logger (Msg -> Msg)) r) => IdP -> IdP -> Sem r ()
+    logIdPUpdate idp previousIdP =
+      let (removedCerts, newCerts) =
+            compareNonEmpty
+              (previousIdP ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+              (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+       in Logger.info $
+            Log.msg ("IdP updated" :: String)
+              . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
+              . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
+              . logChangeableScalar
+                "issuer"
+                URI.serializeURIRef'
+                (previousIdP ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer)
+                (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer)
+              . logChangeableScalar
+                "domain"
+                (fromMaybe "None")
+                (previousIdP ^. SAML.idpExtraInfo . domain)
+                (idp ^. SAML.idpExtraInfo . domain)
+              . Log.field "user" (maybe "None" idToText zusr)
+              . logChangeableScalar
+                "idp-endpoint"
+                URI.serializeURIRef'
+                (previousIdP ^. SAML.idpMetadata . SAML.edRequestURI)
+                (idp ^. SAML.idpMetadata . SAML.edRequestURI)
+              . logCertField "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to toList)
+              . logCertField "new-certificates" newCerts
+              . logCertField "removed-certificates" removedCerts
+
+    logChangeableScalar :: (Eq a, Log.ToBytes b) => ByteString -> (a -> b) -> a -> a -> Msg -> Msg
+    logChangeableScalar baseFieldName toFieldVal old new
+      | old /= new =
+          Log.field ("old-" <> baseFieldName) (toFieldVal old)
+            . Log.field ("new-" <> baseFieldName) (toFieldVal new)
+    logChangeableScalar baseFieldName toFieldVal old _new =
+      Log.field baseFieldName (toFieldVal old)
+
+    logCertField :: ByteString -> [X509.SignedCertificate] -> Msg -> Msg
+    logCertField fieldName certs
+      | not (null certs) =
+          Log.field fieldName ((intercalate ";; " . map certToString) certs)
+    logCertField _ _ = id
+
+    compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
+    compareNonEmpty xs ys =
+      let l = nub . toList $ xs
+          r = nub . toList $ ys
+          onlyL = l \\ r
+          onlyR = r \\ l
+       in (onlyL, onlyR)
+
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as
 -- an earlier IdP under the same ID); request uri is https.  Keep track of old issuer in extra
@@ -862,7 +956,7 @@ validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAccess r,
     Member BrigAccess r,
     Member IdPConfigStore r,
@@ -871,7 +965,7 @@ validateIdPUpdate ::
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
-  m (TeamId, IdP)
+  m (TeamId, IdP, IdP)
 validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
   (_, teamId) <- authorizeIdP zusr previousIdP
@@ -904,7 +998,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
-  pure (teamId, SAML.IdPConfig {..})
+  pure (teamId, SAML.IdPConfig {..}, previousIdP)
   where
     -- If the new issuer was previously used, it has to be removed from the list of old issuers,
     -- to prevent it from getting deleted in a later step
@@ -919,12 +1013,12 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
             . URI.serializeURIRef
         uri = _idpMetadata ^. SAML.edIssuer . SAML.fromIssuer
 
-withDebugLog :: (Member (Logger String) r) => String -> (a -> Maybe String) -> Sem r a -> Sem r a
+withDebugLog :: (Member (Logger (Msg -> Msg)) r) => String -> (a -> Maybe String) -> Sem r a -> Sem r a
 withDebugLog msg showval action = do
-  Logger.log Logger.Debug $ "entering " ++ msg
+  Logger.log Logger.Debug . Log.msg $ "entering " ++ msg
   val <- action
   let mshowedval = showval val
-  Logger.log Logger.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  Logger.log Logger.Debug . Log.msg $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
 authorizeIdP ::

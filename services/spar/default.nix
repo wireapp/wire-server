@@ -22,6 +22,7 @@
 , crypton-x509
 , exceptions
 , extended
+, filepath
 , gitignoreSource
 , hscim
 , HsOpenSSL
@@ -212,6 +213,7 @@ mkDerivation {
     bytestring-conversion
     containers
     cookie
+    filepath
     hscim
     hspec
     imports

@@ -5,11 +5,15 @@
 { mkDerivation
 , aeson
 , amqp
+, asn1-types
 , base
 , bytestring
 , cassandra-util
 , containers
+, crypton
 , crypton-connection
+, crypton-pem
+, crypton-x509
 , crypton-x509-store
 , data-default
 , errors
@@ -24,6 +28,7 @@
 , http-types
 , imports
 , lib
+, memory
 , metrics-wai
 , monad-control
 , prometheus-client
@@ -52,11 +57,14 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
+    asn1-types
     base
     bytestring
     cassandra-util
     containers
+    crypton
     crypton-connection
+    crypton-x509
     crypton-x509-store
     data-default
     errors
@@ -67,6 +75,7 @@ mkDerivation {
     http-client-tls
     http-types
     imports
+    memory
     metrics-wai
     monad-control
     prometheus-client
@@ -89,6 +98,9 @@ mkDerivation {
   testHaskellDepends = [
     aeson
     base
+    bytestring
+    crypton-pem
+    crypton-x509
     hspec
     imports
     string-conversions
