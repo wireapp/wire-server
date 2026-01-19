@@ -15,14 +15,10 @@ dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster
 
 {{- if (eq (env "PREFERRED_STORE") "") }}
 conversationStore: cassandra
-{{- else }}
-conversationStore: {{ env "PREFERRED_STORE" }}
-{{- end }}
-
-{{- if (eq (env "CONVERSATION_CODES_STORE") "") }}
 conversationCodesStore: cassandra
 {{- else }}
-conversationCodesStore: {{ env "CONVERSATION_CODES_STORE" }}
+conversationStore: {{ env "PREFERRED_STORE" }}
+conversationCodesStore: {{ env "PREFERRED_STORE" }}
 {{- end }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
