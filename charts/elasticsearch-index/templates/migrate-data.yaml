@@ -21,6 +21,17 @@ spec:
         chart: "{{.Chart.Name}}-{{.Chart.Version}}"
     spec:
       restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-brig
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until kubectl get configmap brig && kubectl get secret brig; do
+                echo "Waiting for brig...";
+                sleep 5;
+              done
       containers:
         # Reindexes all users when a new migration is detected.
         - name: brig-index
