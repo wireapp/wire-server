@@ -83,8 +83,10 @@ inMemoryUserStoreInterpreter = interpret $ \case
     gets (any (\u -> u.id == uid))
   UpdateManagedBy uid managedBy -> updateUserInStore uid (\u -> u {managedBy = Just managedBy})
   UpdateAccountStatus uid accountStatus -> updateUserInStore uid (\u -> u {status = Just accountStatus})
-  UpdateRichInfo {} -> error "UpdateRichInfo: Not implemented"
+  ActivateUser uid identity -> updateUserInStore uid (\u -> u {activated = True, email = emailIdentity identity})
+  DeactivateUser uid -> updateUserInStore uid (\u -> u {activated = False})
   UpdateFeatureConferenceCalling {} -> error "UpdateFeatureConferenceCalling: Not implemented"
+  LookupFeatureConferenceCalling {} -> error "FeatureConferenceCalling: Not implemented"
   GetIndexUser uid -> do
     mUser <- gets @[StoredUser] $ find (\user -> user.id == uid)
     pure $ storedUserToIndexUser <$> mUser
@@ -111,6 +113,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
         us' <- f us
         put us'
   DeleteUser user -> modify @[StoredUser] $ filter (\u -> u.id /= User.userId user)
+  LookupName uid -> (.name) <$$> gets (find $ \u -> u.id == uid)
   LookupHandle h -> lookupHandleImpl h
   GlimpseHandle h -> lookupHandleImpl h
   LookupStatus uid -> lookupStatusImpl uid
@@ -121,7 +124,9 @@ inMemoryUserStoreInterpreter = interpret $ \case
       map
         (\u -> if u.id == uid then u {teamId = Just tid} :: StoredUser else u)
   GetActivityTimestamps _ -> pure []
-  GetRichInfo _ -> error "rich info not implemented"
+  GetRichInfo _ -> error "GetRichInfo: not implemented"
+  LookupRichInfos _ -> error "LookupRichInfos: not implemented"
+  UpdateRichInfo {} -> error "UpdateRichInfo: Not implemented"
   GetUserAuthenticationInfo _uid -> error "Not implemented"
   DeleteEmail uid -> modify (map doUpdate)
     where

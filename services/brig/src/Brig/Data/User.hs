@@ -22,24 +22,12 @@ module Brig.Data.User
   ( -- * Creation
     newStoredUser,
     newStoredUserViaScim,
-
-    -- * Lookups
-    lookupName,
-    lookupRichInfoMultiUsers,
-    lookupUserTeam,
-    lookupFeatureConferenceCalling,
-
-    -- * Updates
-    activateUser,
-    deactivateUser,
   )
 where
 
 import Brig.App
 import Brig.Options
-import Cassandra hiding (Set)
 import Control.Error
-import Control.Lens hiding (from)
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
@@ -48,9 +36,7 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
 import Wire.API.Password
-import Wire.API.Team.Feature
 import Wire.API.User
-import Wire.API.User.RichInfo
 import Wire.AuthenticationSubsystem.Config
 import Wire.StoredUser
 
@@ -155,57 +141,3 @@ newStoredUserViaScim uid externalId tid locale name email = do
         supportedProtocols = defSupportedProtocols,
         searchable = True
       }
-
-activateUser :: (MonadClient m) => UserId -> UserIdentity -> m ()
-activateUser u ident = do
-  let email = emailIdentity ident
-  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, u))
-
-deactivateUser :: (MonadClient m) => UserId -> m ()
-deactivateUser u =
-  retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
-
-lookupName :: (MonadClient m) => UserId -> m (Maybe Name)
-lookupName u =
-  fmap runIdentity
-    <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
-
--- | Returned rich infos are in the same order as users
-lookupRichInfoMultiUsers :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
-lookupRichInfoMultiUsers users = do
-  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
-    <$> retry x1 (query richInfoSelectMulti (params LocalQuorum (Identity users)))
-
--- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
--- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
--- successful login.
-lookupUserTeam :: (MonadClient m) => UserId -> m (Maybe TeamId)
-lookupUserTeam u =
-  (runIdentity =<<)
-    <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
-
-lookupFeatureConferenceCalling :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
-lookupFeatureConferenceCalling uid = do
-  let q = query1 select (params LocalQuorum (Identity uid))
-  (>>= runIdentity) <$> retry x1 q
-  where
-    select :: PrepQuery R (Identity UserId) (Identity (Maybe FeatureStatus))
-    select = fromString "select feature_conference_calling from user where id = ?"
-
--------------------------------------------------------------------------------
--- Queries
-
-nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
-nameSelect = "SELECT name FROM user WHERE id = ?"
-
-richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
-richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
-
-teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
-teamSelect = "SELECT team FROM user WHERE id = ?"
-
-userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
-userDeactivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = false WHERE id = ?"
-
-userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
-userActivatedUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET activated = true, email = ? WHERE id = ?"

@@ -27,7 +27,6 @@ module Brig.Data.Activation
 where
 
 import Brig.App (AppT, adhocUserKeyStoreInterpreter, liftSem, qualifyLocal, wrapClientE)
-import Brig.Data.User
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
@@ -97,7 +96,7 @@ activateKey k c u = do
         Nothing -> do
           claim key uid
           let ident = EmailIdentity (emailKeyOrig key)
-          wrapClientE (activateUser uid ident)
+          lift . liftSem $ UserStore.activateUser uid ident
           let a' = a {userIdentity = Just ident}
           pure . Just $ AccountActivated a'
         Just _ -> do

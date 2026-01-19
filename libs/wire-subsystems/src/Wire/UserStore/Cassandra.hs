@@ -56,9 +56,13 @@ interpretUserStoreCassandra casClient =
       UpdateSSOId uid ssoId -> updateSSOIdImpl uid ssoId
       UpdateManagedBy uid managedBy -> updateManagedByImpl uid managedBy
       UpdateAccountStatus uid accountStatus -> updateAccountStatusImpl uid accountStatus
+      ActivateUser uid identity -> activateUserImpl uid identity
+      DeactivateUser uid -> deactivateUserImpl uid
       UpdateRichInfo uid richInfo -> updateRichInfoImpl uid richInfo
       UpdateFeatureConferenceCalling uid feat -> updateFeatureConferenceCallingImpl uid feat
+      LookupFeatureConferenceCalling uid -> lookupFeatureConferenceCallingImpl uid
       DeleteUser user -> deleteUserImpl user
+      LookupName uid -> lookupNameImpl uid
       LookupHandle hdl -> lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> lookupHandleImpl One hdl
       LookupStatus uid -> lookupStatusImpl uid
@@ -68,6 +72,7 @@ interpretUserStoreCassandra casClient =
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
+      LookupRichInfos uids -> lookupRichInfosImpl uids
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
       SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
@@ -211,6 +216,49 @@ updateAccountStatusImpl u s =
   where
     userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
     userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+
+activateUserImpl :: (MonadClient m) => UserId -> UserIdentity -> m ()
+activateUserImpl u ident = do
+  let email = emailIdentity ident
+  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, u))
+  where
+    userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
+    userActivatedUpdate = "UPDATE user SET activated = true, email = ? WHERE id = ?"
+
+deactivateUserImpl :: (MonadClient m) => UserId -> m ()
+deactivateUserImpl u =
+  retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
+  where
+    userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
+    userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
+
+lookupNameImpl :: (MonadClient m) => UserId -> m (Maybe Name)
+lookupNameImpl u =
+  fmap runIdentity
+    <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
+  where
+    nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
+    nameSelect = "SELECT name FROM user WHERE id = ?"
+
+-- | Returned rich infos are in the same order as users
+lookupRichInfosImpl :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
+lookupRichInfosImpl users = do
+  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
+    <$> retry x1 (query richInfoSelectMulti (params LocalQuorum (Identity users)))
+  where
+    richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
+    richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
+
+lookupFeatureConferenceCallingImpl :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
+lookupFeatureConferenceCallingImpl uid = do
+  let q = query1 select (params LocalQuorum (Identity uid))
+  (>>= runIdentity) <$> retry x1 q
+  where
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe FeatureStatus))
+    select = fromString "select feature_conference_calling from user where id = ?"
+
+-------------------------------------------------------------------------------
+-- Queries
 
 updateRichInfoImpl :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
 updateRichInfoImpl u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))

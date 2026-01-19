@@ -83,7 +83,10 @@ data UserStore m a where
   UpdateSSOId :: UserId -> Maybe UserSSOId -> UserStore m Bool
   UpdateManagedBy :: UserId -> ManagedBy -> UserStore m ()
   UpdateAccountStatus :: UserId -> AccountStatus -> UserStore m ()
+  ActivateUser :: UserId -> UserIdentity -> UserStore m ()
+  DeactivateUser :: UserId -> UserStore m ()
   DeleteUser :: User -> UserStore m ()
+  LookupName :: UserId -> UserStore m (Maybe Name)
   -- | This operation looks up a handle but is guaranteed to not give you stale locks.
   --   It is potentially slower and less resilient than 'GlimpseHandle'.
   LookupHandle :: Handle -> UserStore m (Maybe UserId)
@@ -102,10 +105,12 @@ data UserStore m a where
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
+  LookupRichInfos :: [UserId] -> UserStore m [(UserId, RichInfo)]
   UpdateRichInfo :: UserId -> RichInfoAssocList -> UserStore m ()
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
   SetUserSearchable :: UserId -> SetSearchable -> UserStore m ()
   UpdateFeatureConferenceCalling :: UserId -> Maybe FeatureStatus -> UserStore m ()
+  LookupFeatureConferenceCalling :: UserId -> UserStore m (Maybe FeatureStatus)
   DeleteServiceUser :: ProviderId -> ServiceId -> BotId -> UserStore m ()
   LookupServiceUsers :: ProviderId -> ServiceId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId, Maybe TeamId))
   LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId))

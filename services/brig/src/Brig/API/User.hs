@@ -31,8 +31,6 @@ module Brig.API.User
     changeAccountStatus,
     changeSingleAccountStatus,
     getLegalHoldStatus,
-    Data.lookupName,
-    Data.lookupRichInfoMultiUsers,
     revokeIdentity,
     deleteUserNoVerify,
     deleteUsersNoVerify,
@@ -73,7 +71,6 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
-import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
@@ -249,7 +246,7 @@ createUserSpar new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        wrapClient $ activateUser uid ident
+        liftSem $ UserStore.activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem $
           Log.info $
@@ -472,7 +469,7 @@ createUser rateLimitKey new = do
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
         -- ('insertAccount' sets column activated to False; here it is set to True.)
-        wrapClient $ activateUser uid ident
+        liftSem $ UserStore.activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem do
           Log.info $
@@ -489,7 +486,7 @@ createUser rateLimitKey new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        wrapClient $ activateUser uid ident
+        liftSem $ UserStore.activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem $
           Log.info $
@@ -579,7 +576,8 @@ checkRestrictedUserCreation new = do
 -- boils down to deactivating the user.
 revokeIdentity ::
   ( Member UserSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   EmailAddress ->
   AppT r ()
@@ -587,7 +585,7 @@ revokeIdentity key = do
   mu <- liftSem . lookupKey . mkEmailKey $ key
   for_ mu $ \u -> do
     deactivate <- maybe False (not . isSSOIdentity) <$> fetchUserIdentity u
-    when deactivate . wrapClient . Data.deactivateUser $ u
+    when deactivate . liftSem . UserStore.deactivateUser $ u
 
 -------------------------------------------------------------------------------
 -- Change Account Status

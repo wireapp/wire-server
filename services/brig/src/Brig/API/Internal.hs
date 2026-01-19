@@ -37,7 +37,6 @@ import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
-import Brig.Data.User qualified as Data
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
@@ -437,9 +436,9 @@ updateFederationRemote dom fedcfg = do
             "keeping track of remote domains in the brig config file is deprecated, but as long as we \
             \do that, removing or updating items listed in the config file is not allowed."
 
-getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
+getAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handler r (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid = do
-  mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
+  mStatus <- lift $ liftSem $ UserStore.lookupFeatureConferenceCalling uid
   mDefStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNull)
   pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
@@ -837,7 +836,8 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 
 revokeIdentityH ::
   ( Member UserSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   EmailAddress ->
   Handler r NoContent
@@ -847,7 +847,8 @@ updateConnectionInternalH ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   UpdateConnectionsInternal ->
   (Handler r) NoContent
@@ -951,9 +952,9 @@ getRichInfoH uid =
   RichInfo . fromMaybe mempty
     <$> lift (liftSem $ UserStore.getRichInfo uid)
 
-getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
+getRichInfoMultiH :: (Member UserStore r) => Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
-  lift $ wrapClient $ BrigIRoutes.GetRichInfoMultiResponse <$> API.lookupRichInfoMultiUsers uids
+  lift $ liftSem $ BrigIRoutes.GetRichInfoMultiResponse <$> UserStore.lookupRichInfos uids
 
 updateHandleH ::
   (Member UserSubsystem r) =>

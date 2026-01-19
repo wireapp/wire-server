@@ -43,7 +43,6 @@ import Brig.App
 import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
-import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -1329,7 +1328,8 @@ updateLocalConnection ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   UserId ->
   ConnId ->
@@ -1347,7 +1347,8 @@ updateConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserStore r
   ) =>
   UserId ->
   ConnId ->
@@ -1478,9 +1479,9 @@ updateUserEmail ::
   Public.EmailUpdate ->
   (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
-  maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
+  maybeZuserTeamId <- lift . liftSem $ UserStore.getUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
-  maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
+  maybeEmailOwnerTeamId <- lift . liftSem $ UserStore.getUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   lEmailOwnerId <- qualifyLocal emailOwnerId
   void . lift . liftSem $

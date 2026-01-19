@@ -33,7 +33,6 @@ import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
 import Brig.App
 import Brig.Data.Client qualified as User
-import Brig.Data.User qualified as User
 import Brig.Options (Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
@@ -665,19 +664,20 @@ searchServiceProfiles _ Nothing Nothing _ = do
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
 searchTeamServiceProfiles ::
+  (Member UserStore r) =>
   UserId ->
   TeamId ->
   Maybe (Range 1 128 Text) ->
   Maybe Bool ->
   Maybe (Range 10 100 Int32) ->
-  (Handler r) Public.ServiceProfilePage
+  Handler r Public.ServiceProfilePage
 searchTeamServiceProfiles uid tid prefix mFilterDisabled mSize = do
   -- Check that the user actually belong to the team they claim they
   -- belong to. (Note: the 'tid' team might not even exist but we'll throw
   -- 'insufficientTeamPermissions' anyway)
   let filterDisabled = fromMaybe True mFilterDisabled
   let size = fromMaybe (unsafeRange 20) mSize
-  teamId <- lift $ wrapClient $ User.lookupUserTeam uid
+  teamId <- lift $ liftSem $ UserStore.getUserTeam uid
   unless (Just tid == teamId) $
     throwStd insufficientTeamPermissions
   -- Get search results
