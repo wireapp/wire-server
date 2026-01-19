@@ -68,6 +68,7 @@ migrateConversations: false
 migrateConversationsOptions:
   pageSize: 10000
   parallelism: 2
+migrateConversationCodes: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:

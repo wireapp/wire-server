@@ -1818,6 +1818,7 @@ background-worker:
     migrateConversations: false
 ```
 
+-- TODO: updated this sections for conversation_codes
 #### Migration for existing installations
 
 Existing installations should migrate the conversation data to PostgreSQL from

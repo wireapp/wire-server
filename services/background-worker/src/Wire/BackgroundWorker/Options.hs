@@ -52,6 +52,7 @@ data Opts = Opts
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: !Bool,
     migrateConversationsOptions :: !MigrationOptions,
+    migrateConversationCodes :: !Bool,
     backgroundJobs :: BackgroundJobsConfig,
     federationDomain :: Domain
   }

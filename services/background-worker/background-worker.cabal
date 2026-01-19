@@ -21,6 +21,7 @@ library
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
+    Wire.MigrateConversationCodes
     Wire.MigrateConversations
 
   hs-source-dirs:     src
