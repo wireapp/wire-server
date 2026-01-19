@@ -1,0 +1,1 @@
+Elasticsearch re-indexing requires postgres access now.  If you run `brig-index` directly anywhere, make sure to add the relevant settings.  The Elasticsearch index must be refilled from Cassandra in order for the changes to the search results to take effect.  See https://docs.wire.com/latest/developer/reference/elastic-search.html?h=index#refill-es-documents-from-cassandra
