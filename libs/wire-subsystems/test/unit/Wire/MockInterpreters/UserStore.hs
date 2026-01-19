@@ -19,7 +19,6 @@
 
 module Wire.MockInterpreters.UserStore where
 
-import Cassandra.Util
 import Data.Handle
 import Data.Id
 import Data.Time
@@ -150,22 +149,23 @@ storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =
   -- If we really care about this, we could start storing the writetimes, but we
   -- don't need it right now
-  let withDefaultTime x = WithWriteTime x $ Writetime $ UTCTime (YearDay 0 1) 0
+  let defaultTime = UTCTime (YearDay 0 1) 0
    in IndexUser
         { userId = storedUser.id,
-          teamId = withDefaultTime <$> storedUser.teamId,
-          name = withDefaultTime storedUser.name,
-          accountStatus = withDefaultTime <$> storedUser.status,
-          handle = withDefaultTime <$> storedUser.handle,
-          email = withDefaultTime <$> storedUser.email,
-          colourId = withDefaultTime storedUser.accentId,
-          activated = withDefaultTime storedUser.activated,
-          serviceId = withDefaultTime <$> storedUser.serviceId,
-          managedBy = withDefaultTime <$> storedUser.managedBy,
-          ssoId = withDefaultTime <$> storedUser.ssoId,
+          teamId = storedUser.teamId,
+          name = storedUser.name,
+          accountStatus = storedUser.status,
+          handle = storedUser.handle,
+          email = storedUser.email,
+          colourId = storedUser.accentId,
+          activated = storedUser.activated,
+          serviceId = storedUser.serviceId,
+          managedBy = storedUser.managedBy,
+          ssoId = storedUser.ssoId,
           unverifiedEmail = Nothing,
-          searchable = withDefaultTime <$> storedUser.searchable,
-          writeTimeBumper = Nothing
+          searchable = storedUser.searchable,
+          createdAt = defaultTime,
+          updatedAt = defaultTime
         }
 
 lookupLocaleImpl :: (Member (State [StoredUser]) r) => UserId -> Sem r (Maybe ((Maybe Language, Maybe Country)))
