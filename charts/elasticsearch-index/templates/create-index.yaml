@@ -35,16 +35,6 @@ spec:
         {{- end }}
       {{- end }}
       initContainers:
-        - name: wait-for-brig
-          image: busybox
-          command:
-            - sh
-            - -c
-            - |
-              until kubectl get configmap brig && kubectl get secret brig; do
-                echo "Waiting for brig...";
-                sleep 5;
-              done
         # Creates index in elasticsearch only when it doesn't exist.
         # Does nothing if the index exists.
         - name: brig-index-create
