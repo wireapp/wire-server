@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, icu, cryptobox, stdenv, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -72,6 +72,12 @@ hself: hsuper: {
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
   system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
+  # FSEvents doesn't work in nix sandbox on macOS; on Linux inotify works fine
+  fsnotify = (if stdenv.isDarwin then hlib.dontCheck else (x: x))
+    (hlib.markUnbroken hsuper.fsnotify);
+
+  # Federator monitor tests use fsnotify which doesn't work in nix sandbox on macOS
+  federator = (if stdenv.isDarwin then hlib.dontCheck else (x: x)) hsuper.federator;
 
   # -----------------
   # version overrides
@@ -90,8 +96,10 @@ hself: hsuper: {
   hoogle = hlib.justStaticExecutables (hlib.dontCheck (hsuper.hoogle));
 
   # Extra dependencies/flags for local packages
-  http2-manager = hlib.enableCabalFlag hsuper.http2-manager "-f-test-trailing-dot";
+  cryptobox-haskell = hlib.addBuildDepends hsuper.cryptobox-haskell [ cryptobox ];
+  http2-manager = hlib.disableCabalFlag hsuper.http2-manager "test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
+  text-icu-translit = hlib.addPkgconfigDepend hsuper.text-icu-translit icu;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;

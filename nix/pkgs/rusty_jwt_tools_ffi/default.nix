@@ -4,6 +4,7 @@
 , pkg-config
 , perl
 , gitMinimal
+, stdenv
 }:
 
 let
@@ -21,4 +22,16 @@ rustPlatform.buildRustPackage {
   # `buildRustPackage` requires `cargoHash`. So we have to update it as well
   # when the Git `rev` is changed.
   cargoHash = "sha256-gvFEwb+Cxnk7GhWrKs4hEhfyAI/QiE8Zqd2ZXXLbvuE=";
+
+  # Fix install_name on Darwin to use absolute paths
+  postInstall = lib.optionalString stdenv.isDarwin ''
+    for lib in $out/lib/librusty_jwt_tools_ffi*.dylib; do
+      if [ -f "$lib" ]; then
+        libname=$(basename "$lib")
+        install_name_tool -id "$out/lib/$libname" "$lib"
+      fi
+    done
+  '';
+
+  nativeBuildInputs = lib.optionals stdenv.isDarwin [ stdenv.cc.bintools ];
 }
