@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -36,9 +36,9 @@ startWorker = do
   failed <- register $ counter $ Prometheus.Info "wire_conv_codes_migration_failed" "Whether the conversation codes migration to Postgresql has failed"
   let conf = MigrationOptions 10000
 
-  convLoop <- async . lift $ migrateCodesLoop conf cassClient pgPool logger count finished failed
+  migrationLoop <- async . lift $ migrateCodesLoop conf cassClient pgPool logger count finished failed
 
   Log.info logger $ Log.msg (Log.val "started conversation codes migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling conversation codes migration")
-    cancel convLoop
+    cancel migrationLoop
