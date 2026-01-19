@@ -14,22 +14,18 @@ module Test.Migration.Conversation where
 
 import API.Galley
 import Control.Applicative
-import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
-import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import GHC.Stack
 import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import Test.Migration.Util
 import Testlib.Prelude
 import Testlib.ResourcePool
-import Text.Regex.TDFA ((=~))
 import UnliftIO
 
 -- | Our test setup cannot process updates to many MLS convs concurrently, so we
@@ -84,7 +80,9 @@ testMigrationToPostgresMLS = do
 
                 actualConvs `shouldMatchSet` ((convIdToQidObject <$> expectedConvs) <> otherMelConvs)
 
-                when (phase == 3) $ waitForMigration domainM
+                when (phase == 3) $ do
+                  waitForMigration domainM convMigrationFinishedCounterName
+                  waitForMigration domainM userMigrationFinishedCounterName
         runPhase 1
         runPhase 2
         runPhase 3
@@ -191,7 +189,9 @@ testMigrationToPostgresProteus = do
 
                 actualConvs `shouldMatchSet` ((convIdToQidObject <$> expectedConvs) <> otherMelConvs)
 
-                when (phase == 3) $ waitForMigration domainM
+                when (phase == 3) $ do
+                  waitForMigration domainM convMigrationFinishedCounterName
+                  waitForMigration domainM userMigrationFinishedCounterName
         runPhase 1
         runPhase 2
         runPhase 3
@@ -292,17 +292,11 @@ instance Semigroup TestConvList where
         addMelConvs = IntMap.unionWith (<>) l1.addMelConvs l2.addMelConvs
       }
 
-waitForMigration :: (HasCallStack) => String -> App ()
-waitForMigration domainM = do
-  metrics <-
-    getMetrics domainM BackgroundWorker `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
-      pure $ Text.decodeUtf8 resp.body
-  let (_, _, _, convFinishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "^wire_local_convs_migration_finished\\ ([0-9]+\\.[0-9]+)$")
-  let (_, _, _, userFinishedMatches) :: (Text, Text, Text, [Text]) = (metrics =~ Text.pack "^wire_user_remote_convs_migration_finished\\ ([0-9]+\\.[0-9]+)$")
-  when (convFinishedMatches /= [Text.pack "1.0"] || userFinishedMatches /= [Text.pack "1.0"]) $ do
-    liftIO $ threadDelay 100_000
-    waitForMigration domainM
+convMigrationFinishedCounterName :: String
+convMigrationFinishedCounterName = "^wire_local_convs_migration_finished"
+
+userMigrationFinishedCounterName :: String
+userMigrationFinishedCounterName = "^wire_user_remote_convs_migration_finished"
 
 phase1Overrides, phase2Overrides, phase3Overrides, phase4Overrides, phase5Overrides :: ServiceOverrides
 phase1Overrides =
