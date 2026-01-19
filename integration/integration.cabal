@@ -126,7 +126,6 @@ library
     Test.Client
     Test.Connection
     Test.Conversation
-    Test.Conversation.Migration
     Test.Demo
     Test.DNSMock
     Test.DomainVerification
@@ -174,6 +173,7 @@ library
     Test.LegalHold
     Test.Login
     Test.MessageTimer
+    Test.Migration.Conversation
     Test.MLS
     Test.MLS.Clients
     Test.MLS.History

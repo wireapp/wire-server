@@ -10,7 +10,7 @@
 -- The tests are from the perspective of mel, a user on the dynamic backend,
 -- called backendM (migrating backend). There are also users called mark and mia
 -- on this backend.
-module Test.Conversation.Migration where
+module Test.Migration.Conversation where
 
 import API.Galley
 import Control.Applicative
