@@ -23,6 +23,7 @@ import System.Logger qualified as Log
 import UnliftIO
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
+import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
 
 startWorker :: MigrationOptions -> AppT IO CleanupAction

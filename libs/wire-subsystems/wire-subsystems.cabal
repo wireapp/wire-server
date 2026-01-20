@@ -297,6 +297,7 @@ library
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.Migration
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState

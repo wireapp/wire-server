@@ -22,15 +22,11 @@ module Wire.CodeStore.Migration
 where
 
 import Cassandra hiding (Value)
-import Cassandra.Settings
-import Data.Aeson (FromJSON)
 import Data.Code (Key, Value)
 import Data.Conduit
-import Data.Conduit.Internal hiding (yield)
 import Data.Conduit.List qualified as C
 import Data.Id (ConvId)
 import Data.Misc (HttpsUrl)
-import GHC.Generics (Generically (..))
 import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
@@ -46,10 +42,10 @@ import Wire.CodeStore
 import Wire.CodeStore.Cassandra.Queries qualified as Cql
 import Wire.CodeStore.Code
 import Wire.CodeStore.Postgres qualified as Postgres
+import Wire.Migration
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
-import Wire.Util (embedClient)
 
 type EffectStack =
   [ State Int,
@@ -60,12 +56,6 @@ type EffectStack =
     Embed IO,
     Final IO
   ]
-
-data MigrationOptions = MigrationOptions
-  { pageSize :: Int32
-  }
-  deriving (Show, Eq, Generic)
-  deriving (FromJSON) via Generically MigrationOptions
 
 migrateCodesLoop ::
   MigrationOptions ->
@@ -146,20 +136,8 @@ migrateAllCodes ::
 migrateAllCodes migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllCodes")
   withCount (paginateSem Cql.selectAllCodes (paramsP LocalQuorum () migOpts.pageSize) x5)
-    .| logRetrievedPage migOpts.pageSize
+    .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_ (traverse_ (handleErrors (migrateCodeRow migCounter)))
-
-logRetrievedPage :: (Member TinyLog r) => Int32 -> ConduitM (Int32, [(Key, Scope, Value, Int32, ConvId, Maybe Password)]) [(Key, Scope, Value, Int32, ConvId, Maybe Password)] (Sem r) ()
-logRetrievedPage pageSize =
-  C.mapM
-    ( \(i, rows) -> do
-        let estimatedRowsSoFar = (i - 1) * pageSize + fromIntegral (length rows)
-        info $ Log.msg (Log.val "retrieved page") . Log.field "estimatedRowsSoFar" estimatedRowsSoFar
-        pure rows
-    )
-
-withCount :: (Monad m) => ConduitM () [a] m () -> ConduitM () (Int32, [a]) m ()
-withCount = zipSources (C.sourceList [1 ..])
 
 handleErrors ::
   ( Member (State Int) r,
@@ -192,36 +170,3 @@ migrateCodeRow migCounter (k, s, v, ttl, cnv, mPw) =
     let (code, _) = toCode k s (v, ttl, cnv, mPw)
     Postgres.interpretCodeStoreToPostgres $ createCode code mPw
     liftIO $ Prometheus.incCounter migCounter
-
-paginateSem ::
-  forall a b q r.
-  ( Tuple a,
-    Tuple b,
-    RunQ q,
-    Member (Input ClientState) r,
-    Member TinyLog r,
-    Member (Embed IO) r
-  ) =>
-  q R a b ->
-  QueryParams a ->
-  RetrySettings ->
-  ConduitT () [b] (Sem r) ()
-paginateSem q p r = do
-  go =<< lift getFirstPage
-  where
-    go page = do
-      lift $ info $ Log.msg (Log.val "got a page")
-      unless (null (result page)) $
-        yield (result page)
-      when (hasMore page) $
-        go =<< lift (getNextPage page)
-
-    getFirstPage :: Sem r (Page b)
-    getFirstPage = do
-      client <- input
-      embedClient client $ retry r (paginate q p)
-
-    getNextPage :: Page b -> Sem r (Page b)
-    getNextPage page = do
-      client <- input
-      embedClient client $ retry r (nextPage page)

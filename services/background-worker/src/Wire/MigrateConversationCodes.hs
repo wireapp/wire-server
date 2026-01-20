@@ -25,8 +25,8 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 
-startWorker :: AppT IO CleanupAction
-startWorker = do
+startWorker :: MigrationOptions -> AppT IO CleanupAction
+startWorker migOpts = do
   cassClient <- asks (.cassandraGalley)
   pgPool <- asks (.hasqlPool)
   logger <- asks (.logger)
@@ -34,9 +34,8 @@ startWorker = do
   count <- register $ counter $ Prometheus.Info "wire_conv_codes_migrated_to_pg" "Number of conversation codes migrated to Postgresql"
   finished <- register $ counter $ Prometheus.Info "wire_conv_codes_migration_finished" "Whether the conversation codes migration to Postgresql is finished successfully"
   failed <- register $ counter $ Prometheus.Info "wire_conv_codes_migration_failed" "Whether the conversation codes migration to Postgresql has failed"
-  let conf = MigrationOptions 10000
 
-  migrationLoop <- async . lift $ migrateCodesLoop conf cassClient pgPool logger count finished failed
+  migrationLoop <- async . lift $ migrateCodesLoop migOpts cassClient pgPool logger count finished failed
 
   Log.info logger $ Log.msg (Log.val "started conversation codes migration")
   pure $ do

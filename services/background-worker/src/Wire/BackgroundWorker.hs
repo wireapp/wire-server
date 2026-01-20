@@ -36,6 +36,7 @@ import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.MigrateConversationCodes qualified as MigrateConversationCodes
 import Wire.MigrateConversations qualified as MigrateConversations
+import Wire.Migration
 
 run :: Opts -> IO ()
 run opts = do
@@ -61,7 +62,7 @@ run opts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversation-codes" $
-            MigrateConversationCodes.startWorker
+            MigrateConversationCodes.startWorker (MigrationOptions 10000 1)
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
