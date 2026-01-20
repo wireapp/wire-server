@@ -1822,21 +1822,24 @@ background-worker:
 
 #### Migration for existing installations
 
-Existing installations should migrate the conversation data to PostgreSQL from
+Existing installations should migrate conversation data to PostgreSQL from
 Cassandra. This is necessary for channel search and management of channels from
 the team-management UI. It is highly recommended to take a backup of the Galley
 Cassandra before triggering the migration.
 
-The migration needs to happen in 3 steps:
+Migrations are independent and can be run separately, in batches, or all at
+once. This is expected, because migrations will be released over time. The
+pattern below applies per store. Use it for `conversation` and
+`conversationCodes` now, and for future stores as they are added.
 
-1. Prepare wire-server for migration.
+**Migration pattern per store(s)**
 
-   This step make sure that wire-server keep working as expected during the
-   migration. To do this deploy wire-server with this config change:
-
-   Configure both `galley` and `background-worker` so that newly created
-   conversations are written to PostgreSQL while existing data still reads from
-   Cassandra:
+1. Prepare the selected store(s) for migration by setting
+   `postgresMigration.<store>` to `migration-to-postgresql`. This enables the
+   migration interpreter for that store, which ensures data is written to
+   PostgreSQL (store-specific details are handled internally).
+   The configuration must be consistent across `galley` and
+   `background-worker`.
 
    ```yaml
    galley:
@@ -1853,13 +1856,10 @@ The migration needs to happen in 3 steps:
        migrateConversationCodes: false
    ```
 
-   This change should restart all the galley pods, any new conversations will
-   now be written to PostgreSQL.
+   This change should restart all the galley pods, and new writes will follow
+   the migration interpreter.
 
-2. Trigger the migration and wait.
-
-   This step will actually carry out the migration. To do this deploy
-   wire-server with this config change:
+2. Run the backfill for the selected store(s) via background-worker.
 
    ```yaml
    background-worker:
@@ -1868,15 +1868,13 @@ The migration needs to happen in 3 steps:
        migrateConversationCodes: true
    ```
 
-   This change should restart the background-worker pods. It is recommended to
-   watch the logs and wait for both of these two metrics to report `1.0`:
-   `wire_local_convs_migration_finished` and `wire_user_remote_convs_migration_finished`.
-   This can take a long time depending on number of conversations in the DB.
+   Wait for the store-specific migration metrics to reach `1.0`. For
+   conversations: `wire_local_convs_migration_finished` and
+   `wire_user_remote_convs_migration_finished`. For conversation codes:
+   `wire_conv_codes_migration_finished`.
 
-3. Configure wire-server to only use PostgreSQL for conversations.
-
-   This will be the configuration which must be used from now on for every new
-   release.
+3. Cut over reads and writes to PostgreSQL for the selected store(s). This
+   configuration must be used from now on for every new release.
 
    ```yaml
    galley:
@@ -1892,6 +1890,14 @@ The migration needs to happen in 3 steps:
        migrateConversations: false
        migrateConversationCodes: false
    ```
+
+**How to run migrations independently or in batches**
+
+- To migrate a single store, set only that store’s `postgresMigration.<store>`
+  and `migrate<Store>` flags; leave others unchanged.
+- To migrate a batch, set multiple stores to `migration-to-postgresql` and
+  enable only the matching `migrate<Store>` flags together.
+- To reduce load, run large stores alone and group small stores together.
 
 ## Configure Cells
 
