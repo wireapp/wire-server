@@ -48,9 +48,8 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.ConversationStore as ConversationStore
-import Wire.FeaturesConfigCompute (FeaturesConfigCompute)
-import Wire.FeaturesConfigStore
-import Wire.FeaturesConfigStore.Types
+import Wire.FeaturesConfigSubsystem
+import Wire.FeaturesConfigSubsystem.Types
 import Wire.TeamFeatureStore
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -62,7 +61,7 @@ getFeatureInternal ::
   ( GetFeatureConfig cfg,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   Sem r (LockableFeature cfg)
@@ -92,8 +91,8 @@ getTeamAndCheckMembership uid = do
 getAllTeamFeatures ::
   forall r.
   ( Member TeamFeatureStore r,
-    Member FeaturesConfigStore r,
-    Member FeaturesConfigCompute r
+    Member FeaturesConfigSubsystem r,
+    GetFeatureConfigEffects r
   ) =>
   TeamId ->
   Sem r AllTeamFeatures
@@ -116,8 +115,8 @@ getAllTeamFeaturesForUser ::
     Member TeamFeatureStore r,
     Member TeamStore r,
     Member TeamSubsystem r,
-    Member FeaturesConfigStore r,
-    Member FeaturesConfigCompute r
+    Member FeaturesConfigSubsystem r,
+    GetFeatureConfigEffects r
   ) =>
   UserId ->
   Sem r AllTeamFeatures
@@ -134,7 +133,7 @@ getSingleFeatureForUser ::
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     Member TeamSubsystem r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   Sem r (LockableFeature cfg)
@@ -152,7 +151,7 @@ guardSecondFactorDisabled ::
   ( Member (ErrorS 'AccessDenied) r,
     Member TeamStore r,
     Member ConversationStore r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   ConvId ->
@@ -174,7 +173,7 @@ featureEnabledForTeam ::
   ( GetFeatureConfig cfg,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   Sem r Bool

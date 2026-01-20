@@ -256,11 +256,10 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
-    Wire.FeaturesConfigCompute
-    Wire.FeaturesConfigCompute.Interpreter
-    Wire.FeaturesConfigStore
-    Wire.FeaturesConfigStore.Interpreter
-    Wire.FeaturesConfigStore.Types
+    Wire.FeaturesConfigSubsystem
+    Wire.FeaturesConfigSubsystem.Interpreter
+    Wire.FeaturesConfigSubsystem.Types
+    Wire.FeaturesConfigSubsystem.Utils
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore

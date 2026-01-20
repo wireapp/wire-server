@@ -89,7 +89,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigStore
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
@@ -187,7 +187,7 @@ postMLSCommitBundle ::
     Member MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -218,7 +218,7 @@ postMLSCommitBundleFromLocalUser ::
     Member MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   Version ->
   Local UserId ->
@@ -253,7 +253,7 @@ postMLSCommitBundleToLocalConv ::
     Member MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   Qualified UserId ->
   ClientId ->

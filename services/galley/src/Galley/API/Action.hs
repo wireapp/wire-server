@@ -118,7 +118,7 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
-import Wire.FeaturesConfigStore
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
@@ -259,7 +259,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Random r,
       Member TeamFeatureStore r,
       Member TinyLog r,
-      Member FeaturesConfigStore r
+      Member FeaturesConfigSubsystem r
     )
   HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
     ( Member (Error NoChanges) r,
@@ -541,9 +541,8 @@ performAction tag origUser lconv action = do
       traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
       pure $ mkPerformActionResult action -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
-      let action' = action :: ConversationMemberUpdate
-      void $ ensureOtherMember lconv (cmuTarget action') storedConv
-      E.setOtherMember lcnv (cmuTarget action') (cmuUpdate action')
+      void $ ensureOtherMember lconv (cmuTarget action) storedConv
+      E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
       pure $ mkPerformActionResult action
     SConversationDeleteTag -> do
       let deleteGroup groupId = do
@@ -567,25 +566,21 @@ performAction tag origUser lconv action = do
 
       pure $ mkPerformActionResult action
     SConversationRenameTag -> do
-      let action' = action :: ConversationRename
       zusrMembership <- join <$> forM storedConv.metadata.cnvmTeam (TeamSubsystem.internalGetTeamMember (qUnqualified origUser))
       for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
-      cn <- rangeChecked (cupName action')
+      cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure $ mkPerformActionResult action
     SConversationMessageTimerUpdateTag -> do
-      let action' = action :: ConversationMessageTimerUpdate
-      when (Data.convMessageTimer storedConv == cupMessageTimer action') noChanges
-      E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action')
+      when (Data.convMessageTimer storedConv == cupMessageTimer action) noChanges
+      E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
       pure $ mkPerformActionResult action
     SConversationReceiptModeUpdateTag -> do
-      let action' = action :: ConversationReceiptModeUpdate
-      when (Data.convReceiptMode storedConv == Just (cruReceiptMode action')) noChanges
-      E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action')
+      when (Data.convReceiptMode storedConv == Just (cruReceiptMode action)) noChanges
+      E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
       pure $ mkPerformActionResult action
     SConversationAccessDataTag -> do
-      let action' = action :: ConversationAccessData
-      (bm, act) <- performConversationAccessData origUser lconv action'
+      (bm, act) <- performConversationAccessData origUser lconv action
       pure
         PerformActionResult
           { extraTargets = bm,
@@ -593,8 +588,7 @@ performAction tag origUser lconv action = do
             extraConversationData = def
           }
     SConversationUpdateProtocolTag -> do
-      let action' = action :: ProtocolTag
-      case (protocolTag (tUnqualified lconv).protocol, action', convTeam (tUnqualified lconv)) of
+      case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
         (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
           let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
               epoch = Epoch 0
@@ -617,9 +611,8 @@ performAction tag origUser lconv action = do
           noChanges
         (_, _, _) -> throwS @'ConvInvalidProtocolTransition
     SConversationUpdateAddPermissionTag -> do
-      let action' = action :: AddPermissionUpdate
-      when (storedConv.metadata.cnvmChannelAddPermission == Just (addPermission action')) noChanges
-      E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action')
+      when (storedConv.metadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
+      E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
       pure $ mkPerformActionResult action
     SConversationResetTag -> do
       newGroupId <- resetLocalMLSMainConversation origUser lconv action
@@ -1046,6 +1039,7 @@ updateLocalStateOfRemoteConv rcu con = do
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
 
+  let sca = cu.action
   (mActualAction, extraTargets) <- case cu.action of
     SomeConversationAction SConversationJoinTag action -> do
       let ConversationJoin toAdd role joinType = action
@@ -1058,26 +1052,26 @@ updateLocalStateOfRemoteConv rcu con = do
             (nonEmpty allAddedUsers),
           addedLocalUsers
         )
-    sca@(SomeConversationAction SConversationLeaveTag _) -> do
+    SomeConversationAction SConversationLeaveTag _ -> do
       let users = foldQualified loc (pure . tUnqualified) (const []) cu.origUserId
       E.deleteMembersInRemoteConversation rconvId users
       pure (Just sca, [])
-    sca@(SomeConversationAction SConversationRemoveMembersTag action) -> do
+    SomeConversationAction SConversationRemoveMembersTag action -> do
       let localUsers = getLocalUsers (tDomain loc) . crmTargets $ action
       E.deleteMembersInRemoteConversation rconvId localUsers
       pure (Just sca, [])
-    sca@(SomeConversationAction SConversationMemberUpdateTag _) ->
+    SomeConversationAction SConversationMemberUpdateTag _ ->
       pure (Just sca, [])
-    sca@(SomeConversationAction SConversationDeleteTag _) -> do
+    SomeConversationAction SConversationDeleteTag _ -> do
       E.deleteMembersInRemoteConversation rconvId presentUsers
       pure (Just sca, [])
-    sca@(SomeConversationAction SConversationRenameTag _) -> pure (Just sca, [])
-    sca@(SomeConversationAction SConversationMessageTimerUpdateTag _) -> pure (Just sca, [])
-    sca@(SomeConversationAction SConversationReceiptModeUpdateTag _) -> pure (Just sca, [])
-    sca@(SomeConversationAction SConversationAccessDataTag _) -> pure (Just sca, [])
-    sca@(SomeConversationAction SConversationUpdateProtocolTag _) -> pure (Just sca, [])
-    sca@(SomeConversationAction SConversationUpdateAddPermissionTag _) -> pure (Just sca, [])
-    sca@(SomeConversationAction SConversationResetTag _) -> pure (Just sca, [])
+    SomeConversationAction SConversationRenameTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationMessageTimerUpdateTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationReceiptModeUpdateTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationAccessDataTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationUpdateProtocolTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationUpdateAddPermissionTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationResetTag _ -> pure (Just sca, [])
 
   -- On conversation join, the member(s) joining are not included in the presentUsers,
   -- however they are included in the alreadyPresentUsers from the incoming request.

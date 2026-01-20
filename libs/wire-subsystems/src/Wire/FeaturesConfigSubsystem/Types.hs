@@ -1,19 +1,32 @@
--- import Data.SOP
--- import Wire.API.Team.Feature
---
--- type AllTeamFeatures = NP LockableFeature Features
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 
-module Wire.FeaturesConfigStore.Types where
+module Wire.FeaturesConfigSubsystem.Types where
 
+import Data.Default
 import Data.Id (TeamId, UserId)
 import Data.SOP.Sing (SListI)
-import Galley.Types.Teams (FeatureDefaults, GetFeatureDefaults)
+import Galley.Types.Teams
+import Imports
 import Polysemy
+import Polysemy.Input
 import Wire.API.Team.Feature
-import Wire.FeaturesConfigCompute
+import Wire.BrigAPIAccess (BrigAPIAccess, getAccountConferenceCallingConfigClient)
+import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
+import Wire.LegalHold
+import Wire.LegalHoldStore
+
+type GetFeatureConfigEffects r =
+  ( Member (Input FeatureFlags) r,
+    Member (Input ExposeInvitationURLsAllowlist) r,
+    Member LegalHoldStore r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member BrigAPIAccess r
+  )
+
+newtype ExposeInvitationURLsAllowlist
+  = ExposeInvitationURLsAllowlist [TeamId]
 
 -- | Don't export methods of this typeclass
 class
@@ -24,36 +37,35 @@ class
   GetFeatureConfig cfg
   where
   getFeatureForUser ::
-    (Member FeaturesConfigCompute r) =>
+    (GetFeatureConfigEffects r) =>
     UserId ->
     Sem r (LockableFeature cfg)
   default getFeatureForUser ::
-    (Member FeaturesConfigCompute r) =>
+    (GetFeatureConfigEffects r) =>
     UserId ->
     Sem r (LockableFeature cfg)
   getFeatureForUser _uid = resolveServerFeature
   computeFeature ::
-    (Member FeaturesConfigCompute r) =>
+    (GetFeatureConfigEffects r) =>
     TeamId ->
     LockableFeature cfg ->
     DbFeature cfg ->
     Sem r (LockableFeature cfg)
   default computeFeature ::
-    (Member FeaturesConfigCompute r) =>
     TeamId ->
     LockableFeature cfg ->
     DbFeature cfg ->
     Sem r (LockableFeature cfg)
-  computeFeature tid defFeature dbFeature =
-    resolveGenericDbFeature tid defFeature dbFeature
+  computeFeature _tid defFeature dbFeature =
+    pure $ resolveDbFeature defFeature dbFeature
 
-class (GetFeatureConfig cfg, Member FeaturesConfigCompute r) => GetAllFeaturesForServerConstraints r cfg
+class (GetFeatureConfig cfg, GetFeatureConfigEffects r) => GetAllFeaturesForServerConstraints r cfg
 
-instance (GetFeatureConfig cfg, Member FeaturesConfigCompute r) => GetAllFeaturesForServerConstraints r cfg
+instance (GetFeatureConfig cfg, GetFeatureConfigEffects r) => GetAllFeaturesForServerConstraints r cfg
 
-class (GetFeatureConfig cfg, Member FeaturesConfigCompute r) => GetAllTeamFeaturesForUserConstraints r cfg
+class (GetFeatureConfig cfg, GetFeatureConfigEffects r) => GetAllTeamFeaturesForUserConstraints r cfg
 
-instance (GetFeatureConfig cfg, Member FeaturesConfigCompute r) => GetAllTeamFeaturesForUserConstraints r cfg
+instance (GetFeatureConfig cfg, GetFeatureConfigEffects r) => GetAllTeamFeaturesForUserConstraints r cfg
 
 instance GetFeatureConfig SSOConfig
 
@@ -65,7 +77,7 @@ instance GetFeatureConfig DigitalSignaturesConfig
 
 instance GetFeatureConfig LegalholdConfig where
   computeFeature tid defFeature dbFeature =
-    resolveLegalhold tid defFeature dbFeature
+    setLockableFeatureStatus defFeature <$> computeLegalHoldFeatureStatus tid dbFeature
 
 instance GetFeatureConfig FileSharingConfig
 
@@ -74,11 +86,16 @@ instance GetFeatureConfig AppLockConfig
 instance GetFeatureConfig ClassifiedDomainsConfig
 
 instance GetFeatureConfig ConferenceCallingConfig where
-  getFeatureForUser uid =
-    resolveConferenceCallingUser uid
+  getFeatureForUser uid = do
+    feat <- getAccountConferenceCallingConfigClient uid
+    pure $ withLockStatus (def @(LockableFeature ConferenceCallingConfig)).lockStatus feat
 
-  computeFeature tid defFeature dbFeature =
-    resolveConferenceCalling tid defFeature dbFeature
+  computeFeature _tid defFeature dbFeature =
+    pure $
+      let feat = applyDbFeature dbFeature $ setLockableFeatureStatus defFeature FeatureStatusEnabled
+       in case feat.lockStatus of
+            LockStatusLocked -> setLockableFeatureLockStatus defFeature LockStatusLocked
+            LockStatusUnlocked -> feat
 
 instance GetFeatureConfig SelfDeletingMessagesConfig
 
@@ -93,8 +110,11 @@ instance GetFeatureConfig MLSConfig
 instance GetFeatureConfig ChannelsConfig
 
 instance GetFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
-  computeFeature tid defFeature dbFeature =
-    resolveExposeInvitationURLsToTeamAdmin tid defFeature dbFeature
+  computeFeature tid defFeature dbFeature = do
+    (ExposeInvitationURLsAllowlist allowList) <- inputs id
+    let teamAllowed = tid `elem` allowList
+        lockStatus = if teamAllowed then LockStatusUnlocked else LockStatusLocked
+    pure $ resolveDbFeature defFeature (dbFeatureLockStatus lockStatus <> dbFeature)
 
 instance GetFeatureConfig OutlookCalIntegrationConfig
 

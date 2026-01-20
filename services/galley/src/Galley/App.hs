@@ -113,9 +113,8 @@ import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
-import Wire.FeaturesConfigCompute (ExposeInvitationURLsAllowlist (..))
-import Wire.FeaturesConfigCompute.Interpreter (runFeaturesConfigCompute)
-import Wire.FeaturesConfigStore.Interpreter (runFeaturesConfigStore)
+import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
@@ -285,7 +284,6 @@ logAndMapError fErr fLog logMsg action =
 
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
-  -- let convStoreInterpreter :: _
   let convStoreInterpreter =
         case (e ^. options . postgresMigration).conversation of
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
@@ -354,6 +352,8 @@ evalGalley e =
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
         . runInputConst (currentFanoutLimit (e ^. options))
+        . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
+        . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
@@ -387,12 +387,7 @@ evalGalley e =
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretSparAPIAccessToRpc (e ^. options . spar)
         . interpretTeamSubsystem teamSubsystemConfig
-        . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
-        . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
-        . runFeaturesConfigCompute
-        . raiseUnder @(Input ExposeInvitationURLsAllowlist)
-        . runFeaturesConfigStore
-        . raise2Under @(Input FeatureFlags)
+        . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem

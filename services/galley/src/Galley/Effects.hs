@@ -84,8 +84,8 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
-import Wire.FeaturesConfigCompute (FeaturesConfigCompute)
-import Wire.FeaturesConfigStore (FeaturesConfigStore)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
@@ -115,8 +115,7 @@ type GalleyEffects1 =
   '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
      Input AllTeamFeatures,
-     FeaturesConfigStore,
-     FeaturesConfigCompute,
+     FeaturesConfigSubsystem,
      TeamSubsystem,
      SparAPIAccess,
      NotificationSubsystem,
@@ -150,6 +149,8 @@ type GalleyEffects1 =
      TeamMemberStore CassandraPaging,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
+     Input ExposeInvitationURLsAllowlist,
+     Input FeatureFlags,
      Input FanoutLimit,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),

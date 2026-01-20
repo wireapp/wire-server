@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
-module Wire.FeaturesConfigStore.Interpreter where
+module Wire.FeaturesConfigSubsystem.Interpreter where
 
 import Data.Id
 import Data.Qualified (tUnqualified)
@@ -13,25 +13,23 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
-import Wire.FeaturesConfigCompute
-import Wire.FeaturesConfigCompute.Interpreter
-import Wire.FeaturesConfigStore
-import Wire.FeaturesConfigStore.Types
+import Wire.FeaturesConfigSubsystem
+import Wire.FeaturesConfigSubsystem.Types
+import Wire.FeaturesConfigSubsystem.Utils
 import Wire.TeamFeatureStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
-runFeaturesConfigStore ::
+runFeaturesConfigSubsystem ::
   forall r a.
-  ( Member (Input FeatureFlags) r,
-    Member TeamFeatureStore r,
-    Member FeaturesConfigCompute r,
+  ( Member TeamFeatureStore r,
     Member TeamSubsystem r,
-    Member (ErrorS 'NotATeamMember) r
+    Member (ErrorS 'NotATeamMember) r,
+    GetFeatureConfigEffects r
   ) =>
-  Sem (FeaturesConfigStore : r) a ->
+  Sem (FeaturesConfigSubsystem : r) a ->
   Sem r a
-runFeaturesConfigStore = interpret $ \case
+runFeaturesConfigSubsystem = interpret $ \case
   GetFeature uid tid -> do
     void $ TeamSubsystem.internalGetTeamMember uid tid >>= noteS @'NotATeamMember
     doGetFeatureForTeam tid
@@ -55,22 +53,20 @@ doGetFeatureForTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     Member TeamFeatureStore r,
-    Member (Input FeatureFlags) r,
-    Member FeaturesConfigCompute r
+    GetFeatureConfigEffects r
   ) =>
   TeamId ->
   Sem r (LockableFeature cfg)
 doGetFeatureForTeam tid = do
   dbFeature <- getDbFeature tid
-  defFeature <- doResolveServerFeature
+  defFeature <- resolveServerFeature
   computeFeature tid defFeature dbFeature
 
 doGetFeatureForTeamUser ::
   forall cfg r.
   ( GetFeatureConfig cfg,
-    Member (Input FeatureFlags) r,
     Member TeamFeatureStore r,
-    Member FeaturesConfigCompute r
+    GetFeatureConfigEffects r
   ) =>
   UserId ->
   Maybe TeamId ->
@@ -80,9 +76,8 @@ doGetFeatureForTeamUser _uid (Just tid) = doGetFeatureForTeam tid
 
 doGetAllTeamFeatures ::
   forall r.
-  ( Member (Input FeatureFlags) r,
-    Member TeamFeatureStore r,
-    Member FeaturesConfigCompute r
+  ( Member TeamFeatureStore r,
+    GetFeatureConfigEffects r
   ) =>
   TeamId ->
   Sem r AllTeamFeatures
@@ -98,4 +93,4 @@ doGetAllTeamFeaturesForServer :: forall r. (Member (Input FeatureFlags) r) => Se
 doGetAllTeamFeaturesForServer =
   hsequence' $
     hcpure (Proxy @GetFeatureConfig) $
-      Comp doResolveServerFeature
+      Comp resolveServerFeature
