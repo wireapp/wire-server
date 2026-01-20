@@ -2,6 +2,7 @@ module Test.Migration.ConversationCodes where
 
 import API.Galley
 import Control.Applicative
+import Control.Concurrent.Timeout
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import SetupHelpers
@@ -14,8 +15,6 @@ testConversationCodesMigration (TaggedBool hasPassword) = do
   resourcePool <- asks (.resourcePool)
   let pw = if hasPassword then Just "funky password" else Nothing
 
-  -- TODO:
-  --  - test expiry
   runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
     let domain = backend.berDomain
 
@@ -98,6 +97,43 @@ testConversationCodesMigration (TaggedBool hasPassword) = do
         res.status `shouldMatchInt` 404
         res.json %. "label" `shouldMatch` "no-conversation-code"
 
+testConversationCodesMigrationExpiration :: (HasCallStack) => App ()
+testConversationCodesMigrationExpiration = do
+  resourcePool <- asks (.resourcePool)
+  let pw = Nothing
+
+  runCodensity (acquireResources 1 resourcePool) $ \[backend] -> do
+    let domain = backend.berDomain
+
+    (admin, code1, conv, mem) <- runCodensity (startDynamicBackend backend (confWithExpiry "cassandra" False 2)) $ \_ -> do
+      (admin, _, mem : _) <- createTeam domain 2
+      conv <- postConversation admin (allowGuests defProteus) >>= getJSON 201
+      code1 <- genCode admin conv pw
+      pure (admin, code1, conv, mem)
+
+    code2 <- runCodensity (startDynamicBackend backend (confWithExpiry "migration-to-postgresql" False 2)) $ \_ -> do
+      waitForCodeToExpire admin conv pw
+      checkCantJoin mem code1
+      genCode admin conv pw
+
+    code3 <- runCodensity (startDynamicBackend backend (confWithExpiry "migration-to-postgresql" True 2)) $ \_ -> do
+      waitForCodeToExpire admin conv pw
+      checkCantJoin mem code2
+      genCode admin conv pw
+
+    code4 <- runCodensity (startDynamicBackend backend (confWithExpiry "migration-to-postgresql" False 2)) $ \_ -> do
+      waitForCodeToExpire admin conv pw
+      checkCantJoin mem code3
+      genCode admin conv pw
+    runCodensity (startDynamicBackend backend (confWithExpiry "postgresql" False 2)) $ \_ -> do
+      waitForCodeToExpire admin conv pw
+      checkCantJoin mem code4
+  where
+    checkCantJoin user (k, v) = do
+      bindResponse (getJoinCodeConv user k v) $ \res -> do
+        res.status `shouldMatchInt` 404
+        res.json %. "label" `shouldMatch` "no-conversation-code"
+
 -- HELPER
 
 genCode :: (HasCallStack, MakesValue user, MakesValue conv) => user -> conv -> Maybe String -> App (String, String)
@@ -116,6 +152,15 @@ getCode user conv pw =
     v <- payload %. "code" & asString
     pure (k, v)
 
+waitForCodeToExpire :: (MakesValue user, MakesValue conv) => user -> conv -> Maybe String -> App ()
+waitForCodeToExpire user conv pw = do
+  res <- getConversationCode user conv pw
+  if res.status == 404
+    then pure ()
+    else do
+      liftIO $ threadDelay 100_000
+      waitForCodeToExpire user conv pw
+
 joinWithCode :: (HasCallStack, MakesValue user) => user -> Value -> (String, String) -> App ()
 joinWithCode user conv (k, v) =
   bindResponse (getJoinCodeConv user k v) $ \res -> do
@@ -123,9 +168,14 @@ joinWithCode user conv (k, v) =
     res.json %. "id" `shouldMatch` (objQidObject conv & objId)
 
 conf :: String -> Bool -> ServiceOverrides
-conf db runMigration =
+conf db runMigration = confWithExpiry db runMigration 604800
+
+confWithExpiry :: String -> Bool -> Int -> ServiceOverrides
+confWithExpiry db runMigration expiry =
   def
-    { galleyCfg = setField "postgresMigration.conversationCodes" db,
+    { galleyCfg =
+        setField "postgresMigration.conversationCodes" db
+          >=> setField "settings.guestLinkTTLSeconds" expiry,
       backgroundWorkerCfg = setField "migrateConversationCodes" runMigration
     }
 
