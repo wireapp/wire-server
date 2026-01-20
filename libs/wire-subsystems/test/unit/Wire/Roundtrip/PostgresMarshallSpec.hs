@@ -27,7 +27,7 @@ import Wire.CodeStore.Scope
 
 spec :: Spec
 spec = do
-  focus $ describe "Wire.API.PostgresMarshall roundtrip tests" $ do
+  describe "Wire.API.PostgresMarshall roundtrip tests" $ do
     prop "Scope" (testRoundTrip @Int32 @Scope)
 
 testRoundTrip ::
