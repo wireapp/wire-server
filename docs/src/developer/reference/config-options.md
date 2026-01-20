@@ -1811,14 +1811,15 @@ galley:
   config:
     postgresMigration:
       conversation: postgresql
+      conversationCodes: postgresql
 background-worker:
   config:
     postgresMigration:
       conversation: postgresql
+      conversationCodes: postgresql
     migrateConversations: false
 ```
 
--- TODO: updated this sections for conversation_codes
 #### Migration for existing installations
 
 Existing installations should migrate the conversation data to PostgreSQL from
@@ -1842,11 +1843,14 @@ The migration needs to happen in 3 steps:
      config:
        postgresMigration:
          conversation: migration-to-postgresql
+         conversationCodes: migration-to-postgresql
    background-worker:
      config:
        postgresMigration:
          conversation: migration-to-postgresql
+         conversationCodes: migration-to-postgresql
        migrateConversations: false
+       migrateConversationCodes: false
    ```
 
    This change should restart all the galley pods, any new conversations will
@@ -1861,6 +1865,7 @@ The migration needs to happen in 3 steps:
    background-worker:
      config:
        migrateConversations: true
+       migrateConversationCodes: true
    ```
 
    This change should restart the background-worker pods. It is recommended to
@@ -1878,11 +1883,14 @@ The migration needs to happen in 3 steps:
      config:
        postgresMigration:
          conversation: postgresql
+         conversationCodes: postgresql
    background-worker:
      config:
        postgresMigration:
          conversation: postgresql
+         conversationCodes: postgresql
        migrateConversations: false
+       migrateConversationCodes: false
    ```
 
 ## Configure Cells
