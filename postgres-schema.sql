@@ -109,10 +109,10 @@ ALTER TABLE public.conversation OWNER TO "wire-server";
 CREATE TABLE public.conversation_codes (
     key text NOT NULL,
     scope integer NOT NULL,
-    conversation uuid,
+    conversation uuid NOT NULL,
     password bytea,
-    value text,
-    expires_at timestamp with time zone
+    value text NOT NULL,
+    expires_at timestamp with time zone NOT NULL
 );
 
 
