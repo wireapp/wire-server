@@ -338,7 +338,7 @@ cassandra-schema: db-migrate cassandra-schema-impl
 cassandra-schema-impl:
 	./hack/bin/cassandra_dump_schema > ./cassandra-schema.cql
 
-.PHONY: postgres-reset postgres-schema-impl
+.PHONY: postgres-schema
 postgres-schema: postgres-reset postgres-schema-impl
 
 .PHONY: postgres-schema-impl
@@ -393,21 +393,43 @@ postgres-reset: c
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-2
 	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --reset --dbname dyn-3
 
+.PHONY: postgres-migrate
+postgres-migrate: c
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname backendA
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname backendB
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname dyn-1
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname dyn-2
+	./dist/brig -c ./services/brig/brig.integration.yaml migrate-postgres --dbname dyn-3
+
 .PHONY: es-reset
 es-reset: c
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./dist/brig-index reset \
 		--elasticsearch-index-prefix directory2 \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 	./integration/scripts/integration-dynamic-backends-brig-index.sh \
 		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
+		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
+	@echo -e "\n'brig-index reset' only deletes the index and regenerates the mapping, but doesn't generate or populate a new index, so you need to call 'make es-reindex explicitly now!\n"
+
+.PHONY: es-reindex
+es-reindex: c
+	./dist/brig-index reindex \
+		--pg-pool-size 10 \
+		--pg-pool-acquisition-timeout 10s \
+		--pg-pool-aging-timeout 1d \
+		--pg-pool-idleness-timeout 1h \
+		--pg-settings '{"host":"127.0.0.1","port":"5432","user":"wire-server","dbname":"backendA"}' \
+		--pg-password-file ./libs/wire-subsystems/test/resources/postgres-credentials.yaml \
+		--elasticsearch-server https://localhost:9200 \
+		--elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
 		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
 
 .PHONY: rabbitmq-reset
@@ -416,7 +438,7 @@ rabbitmq-reset: rabbit-clean
 # Migrate all keyspaces and reset the ES index
 # Does not migrate postgres as brig does that on startup.
 .PHONY: db-migrate
-db-migrate: c
+db-migrate: c postgres-migrate
 	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
@@ -426,20 +448,7 @@ db-migrate: c
 	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
 	./integration/scripts/integration-dynamic-backends-db-schemas.sh --replication-factor 1 > /dev/null
-	./dist/brig-index reset \
-		--elasticsearch-index-prefix directory \
-		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./dist/brig-index reset \
-		--elasticsearch-index-prefix directory2 \
-		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
-	./integration/scripts/integration-dynamic-backends-brig-index.sh \
-		--elasticsearch-server https://localhost:9200 \
-	  --elasticsearch-ca-cert ./libs/wire-subsystems/test/resources/elasticsearch-ca.pem \
-		--elasticsearch-credentials ./libs/wire-subsystems/test/resources/elasticsearch-credentials.yaml > /dev/null
+	make es-reset
 
 #################################
 ## dependencies
