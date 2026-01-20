@@ -34,9 +34,8 @@ import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
-import Wire.MigrateConversationCodes qualified as MigrateConversationCodes
-import Wire.MigrateConversations qualified as MigrateConversations
 import Wire.Migration
+import Wire.PostgresMigrations qualified as Migrations
 
 run :: Opts -> IO ()
 run opts = do
@@ -55,14 +54,14 @@ run opts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversations" $
-            MigrateConversations.startWorker opts.migrateConversationsOptions
+            Migrations.conversations opts.migrateConversationsOptions
       else pure $ pure ()
   cleanUpConvCodesMigration <-
     if opts.migrateConversationCodes
       then
         runAppT env $
           withNamedLogger "migrate-conversation-codes" $
-            MigrateConversationCodes.startWorker (MigrationOptions 10000 1)
+            Migrations.conversationCodes (MigrationOptions 10000 1)
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
