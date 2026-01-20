@@ -34,6 +34,7 @@ data IndexedUserStoreBulk m a where
   -- | Overwrite all users in the ES index, use it when trying to fix some
   -- inconsistency or while introducing a new field in the mapping.
   ForceSyncAllUsers :: IndexedUserStoreBulk m ()
+  -- | Run `ForceSyncAllUsers` iff the index version is out of date.
   MigrateData :: IndexedUserStoreBulk m ()
 
 makeSem ''IndexedUserStoreBulk
