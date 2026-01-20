@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Wire.FeaturesConfigSubsystem.Utils where
