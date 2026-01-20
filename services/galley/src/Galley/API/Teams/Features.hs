@@ -71,8 +71,8 @@ import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
-import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
+import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
