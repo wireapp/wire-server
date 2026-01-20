@@ -28,7 +28,9 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
+import Prometheus qualified
 import System.Logger qualified as Log
+import UnliftIO qualified
 import Wire.Util (embedClient)
 
 data MigrationOptions = MigrationOptions
@@ -37,6 +39,49 @@ data MigrationOptions = MigrationOptions
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via Generically MigrationOptions
+
+migrationLoop ::
+  Log.Logger ->
+  ByteString ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  (Sem r () -> IO (Int, a)) ->
+  ConduitT () Void (Sem r) () ->
+  IO ()
+migrationLoop logger name migFinished migFailed interpreter migration = do
+  go 0 `UnliftIO.catch` handleIOError
+  where
+    handleIOError :: SomeException -> IO ()
+    handleIOError exc = do
+      Prometheus.incCounter migFailed
+      Log.err logger $
+        Log.msg (Log.val "migration failed, it won't restart unless the background-worker is restarted.")
+          . Log.field "migration" name
+          . Log.field "error" (displayException exc)
+      UnliftIO.throwIO exc
+
+    go :: Int -> IO ()
+    go nIter = do
+      runMigration >>= \case
+        0 -> do
+          Log.info logger $
+            Log.msg (Log.val "finished migration")
+              . Log.field "attempt" nIter
+              . Log.field "migration" name
+          Prometheus.incCounter migFinished
+        n -> do
+          Log.info logger $
+            Log.msg (Log.val "finished migration with errors")
+              . Log.field "migration" name
+              . Log.field "errors" n
+              . Log.field "attempt" nIter
+          go (nIter + 1)
+
+    runMigration :: IO Int
+    runMigration =
+      fmap fst
+        . interpreter
+        $ runConduit migration
 
 logRetrievedPage :: (Member TinyLog r) => Int32 -> (a -> b) -> ConduitM (Int32, [a]) [b] (Sem r) ()
 logRetrievedPage pageSize toRow =

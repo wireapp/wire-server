@@ -51,7 +51,6 @@ import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
-import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
@@ -80,7 +79,17 @@ import Wire.StoredConversation
 
 -- * Top level logic
 
-type EffectStack = [State Int, Input ClientState, Input Hasql.Pool, Async, Race, TinyLog, Embed IO, Concurrency 'Unsafe, Final IO]
+type EffectStack =
+  [ State Int,
+    Input ClientState,
+    Input Hasql.Pool,
+    Async,
+    Race,
+    TinyLog,
+    Embed IO,
+    Concurrency 'Unsafe,
+    Final IO
+  ]
 
 migrateConvsLoop ::
   MigrationOptions ->
@@ -92,7 +101,13 @@ migrateConvsLoop ::
   Prometheus.Counter ->
   IO ()
 migrateConvsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
-  migrationLoop cassClient pgPool logger "conversations" migFinished migFailed $ migrateAllConversations migOpts migCounter
+  migrationLoop
+    logger
+    "conversations"
+    migFinished
+    migFailed
+    (interpreter cassClient pgPool logger "conversations")
+    (migrateAllConversations migOpts migCounter)
 
 migrateUsersLoop ::
   MigrationOptions ->
@@ -104,43 +119,13 @@ migrateUsersLoop ::
   Prometheus.Counter ->
   IO ()
 migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
-  migrationLoop cassClient pgPool logger "users" migFinished migFailed $ migrateAllUsers migOpts migCounter
-
-migrationLoop :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Prometheus.Counter -> Prometheus.Counter -> ConduitT () Void (Sem EffectStack) () -> IO ()
-migrationLoop cassClient pgPool logger name migFinished migFailed migration = do
-  go 0 `UnliftIO.catch` handleIOError
-  where
-    handleIOError :: SomeException -> IO ()
-    handleIOError exc = do
-      Prometheus.incCounter migFailed
-      Log.err logger $
-        Log.msg (Log.val "migration failed, it won't restart unless the background-worker is restarted.")
-          . Log.field "migration" name
-          . Log.field "error" (displayException exc)
-      UnliftIO.throwIO exc
-
-    go :: Int -> IO ()
-    go nIter = do
-      runMigration >>= \case
-        0 -> do
-          Log.info logger $
-            Log.msg (Log.val "finished migration")
-              . Log.field "attempt" nIter
-              . Log.field "migration" name
-          Prometheus.incCounter migFinished
-        n -> do
-          Log.info logger $
-            Log.msg (Log.val "finished migration with errors")
-              . Log.field "migration" name
-              . Log.field "errors" n
-              . Log.field "attempt" nIter
-          go (nIter + 1)
-
-    runMigration :: IO Int
-    runMigration =
-      fmap fst
-        . interpreter cassClient pgPool logger name
-        $ runConduit migration
+  migrationLoop
+    logger
+    "users"
+    migFinished
+    migFailed
+    (interpreter cassClient pgPool logger "users")
+    (migrateAllUsers migOpts migCounter)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =

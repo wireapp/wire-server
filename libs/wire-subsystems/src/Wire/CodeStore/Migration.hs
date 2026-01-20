@@ -36,7 +36,6 @@ import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
-import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Password
 import Wire.CodeStore
 import Wire.CodeStore.Cassandra.Queries qualified as Cql
@@ -67,55 +66,20 @@ migrateCodesLoop ::
   Prometheus.Counter ->
   IO ()
 migrateCodesLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
-  migrationLoop cassClient pgPool logger migFinished migFailed (migrateAllCodes migOpts migCounter)
+  migrationLoop
+    logger
+    "conversation codes"
+    migFinished
+    migFailed
+    (interpreter cassClient pgPool logger "conversation codes")
+    (migrateAllCodes migOpts migCounter)
 
-migrationLoop ::
-  ClientState ->
-  Hasql.Pool ->
-  Log.Logger ->
-  Prometheus.Counter ->
-  Prometheus.Counter ->
-  ConduitT () Void (Sem EffectStack) () ->
-  IO ()
-migrationLoop cassClient pgPool logger migFinished migFailed migration = do
-  go `UnliftIO.catch` handleIOError
-  where
-    handleIOError :: SomeException -> IO ()
-    handleIOError exc = do
-      Prometheus.incCounter migFailed
-      Log.err logger $
-        Log.msg (Log.val "migration failed, it won't restart unless the background-worker is restarted.")
-          . Log.field "migration" (Log.val "conversation-codes")
-          . Log.field "error" (displayException exc)
-      UnliftIO.throwIO exc
-
-    go :: IO ()
-    go =
-      runMigration >>= \case
-        0 -> do
-          Prometheus.incCounter migFinished
-          Log.info logger $
-            Log.msg (Log.val "finished migration")
-              . Log.field "migration" (Log.val "conversation-codes")
-        failed -> do
-          Prometheus.incCounter migFailed
-          Log.warn logger $
-            Log.msg (Log.val "finished migration with errors")
-              . Log.field "migration" (Log.val "conversation-codes")
-              . Log.field "failed" failed
-
-    runMigration :: IO Int
-    runMigration =
-      fmap fst
-        . interpreter cassClient pgPool logger
-        $ runConduit migration
-
-interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> Sem EffectStack a -> IO (Int, a)
-interpreter cassClient pgPool logger =
+interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
+interpreter cassClient pgPool logger name =
   runFinal
     . embedToFinal
     . loggerToTinyLog logger
-    . mapLogger (Log.field "migration" (Log.val "conversation-codes") .)
+    . mapLogger (Log.field "migration" (Log.val name) .)
     . raiseUnder
     . runInputConst (Right mempty)
     . runInputConst pgPool
