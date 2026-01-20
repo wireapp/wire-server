@@ -215,9 +215,8 @@ createUserSpar new = do
 
     -- FUTUREWORK: make this transactional if possible
     UserStore.createUser account Nothing
-    case unRichInfo <$> newUserSparRichInfo new of
-      Just richInfo -> UserStore.updateRichInfo uid richInfo
-      Nothing -> pure () -- Nothing to do
+    for_ new.newUserSparRichInfo $
+      UserStore.updateRichInfo uid . unRichInfo
     GalleyAPIAccess.createSelfConv uid
     User.internalUpdateSearchIndex uid
     Events.generateUserEvent uid Nothing (UserCreated u)
