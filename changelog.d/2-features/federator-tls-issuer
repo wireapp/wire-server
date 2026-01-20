@@ -1,0 +1,1 @@
+nginx-ingress-services: Add `federator.tls.issuer` option to use a separate ClusterIssuer for federation mTLS certificates.

@@ -16,8 +16,13 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   issuerRef:
+    {{- if .Values.federator.tls.issuer.name }}
+    name: {{ .Values.federator.tls.issuer.name | quote }}
+    kind: {{ .Values.federator.tls.issuer.kind | default .Values.tls.issuer.kind }}
+    {{- else }}
     name: {{ include "nginx-ingress-services.getIssuerName" . | quote }}
     kind: {{ .Values.tls.issuer.kind }}
+    {{- end }}
   usages:
     - server auth
     - client auth
