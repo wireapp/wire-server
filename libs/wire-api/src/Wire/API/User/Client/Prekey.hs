@@ -20,10 +20,10 @@
 
 module Wire.API.User.Client.Prekey
   ( PrekeyId (..),
-    Prekey (..),
+    UncheckedPrekeyBundle (..),
     clientIdFromPrekey,
-    parseEDHOCPrekeyId,
-    EdhocPrekeyPayload (..),
+    parsePrekeyBundlePrekeyId,
+    PrekeyBundlePrekeyPayload (..),
     PrekeyParseError (..),
     LastPrekey,
     lastPrekey,
@@ -68,73 +68,73 @@ instance Cql PrekeyId where
   fromCql _ = Left "PrekeyId: Int expected"
 
 --------------------------------------------------------------------------------
--- EDHOC Specific Types
-newtype EdhocPublicKey = EdhocPublicKey {unEdhocPublicKey :: ByteString}
+-- PrekeyBundle Specific Types
+newtype PrekeyBundlePublicKey = PrekeyBundlePublicKey {unPrekeyBundlePublicKey :: ByteString}
   deriving stock (Eq, Show, Generic)
 
-instance ToJSON EdhocPublicKey where
-  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unEdhocPublicKey
+instance ToJSON PrekeyBundlePublicKey where
+  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unPrekeyBundlePublicKey
 
-instance FromJSON EdhocPublicKey where
-  parseJSON = withText "EdhocPublicKey" $ \t ->
-    either (const $ fail "Not base 64-encoded") (pure . EdhocPublicKey) $
+instance FromJSON PrekeyBundlePublicKey where
+  parseJSON = withText "PrekeyBundlePublicKey" $ \t ->
+    either (const $ fail "Not base 64-encoded") (pure . PrekeyBundlePublicKey) $
       B64.decode (B.toByteString' t)
 
-instance ToSchema EdhocPublicKey where
-  schema = named "EdhocPublicKey" $ EdhocPublicKey <$> unEdhocPublicKey .= base64Schema
+instance ToSchema PrekeyBundlePublicKey where
+  schema = named "PrekeyBundlePublicKey" $ PrekeyBundlePublicKey <$> unPrekeyBundlePublicKey .= base64Schema
 
-newtype EdhocIdentityKey = EdhocIdentityKey {unEdhocIdentityKey :: EdhocPublicKey}
+newtype PrekeyBundleIdentityKey = PrekeyBundleIdentityKey {unPrekeyBundleIdentityKey :: PrekeyBundlePublicKey}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, FromJSON, ToSchema)
 
-newtype EdhocSignature = EdhocSignature {unEdhocSignature :: ByteString}
+newtype PrekeyBundleSignature = PrekeyBundleSignature {unPrekeyBundleSignature :: ByteString}
   deriving stock (Eq, Show, Generic)
 
-instance ToJSON EdhocSignature where
-  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unEdhocSignature
+instance ToJSON PrekeyBundleSignature where
+  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unPrekeyBundleSignature
 
-instance FromJSON EdhocSignature where
-  parseJSON = withText "EdhocSignature" $ \t ->
-    either (const $ fail "Not base 64-encoded") (pure . EdhocSignature) $
+instance FromJSON PrekeyBundleSignature where
+  parseJSON = withText "PrekeyBundleSignature" $ \t ->
+    either (const $ fail "Not base 64-encoded") (pure . PrekeyBundleSignature) $
       B64.decode (B.toByteString' t)
 
-instance ToSchema EdhocSignature where
-  schema = named "EdhocSignature" $ EdhocSignature <$> unEdhocSignature .= base64Schema
+instance ToSchema PrekeyBundleSignature where
+  schema = named "PrekeyBundleSignature" $ PrekeyBundleSignature <$> unPrekeyBundleSignature .= base64Schema
 
 -- Decoders for new types
 
-decodeEdhocPublicKey :: CBOR.Decoder s EdhocPublicKey
-decodeEdhocPublicKey = do
+decodePrekeyBundlePublicKey :: CBOR.Decoder s PrekeyBundlePublicKey
+decodePrekeyBundlePublicKey = do
   n <- CBOR.decodeMapLen
   unless (n == 1) $ fail $ "Schema Mismatch: Expected Map of 1 element, found " <> show n
   k <- CBOR.decodeInt
   unless (k == 0) $ fail $ "Unknown Key: Expected 0, found " <> show k
-  EdhocPublicKey <$> CBOR.decodeBytes
+  PrekeyBundlePublicKey <$> CBOR.decodeBytes
 
-decodeEdhocIdentityKey :: CBOR.Decoder s EdhocIdentityKey
-decodeEdhocIdentityKey = do
+decodePrekeyBundleIdentityKey :: CBOR.Decoder s PrekeyBundleIdentityKey
+decodePrekeyBundleIdentityKey = do
   n <- CBOR.decodeMapLen
   unless (n == 1) $ fail $ "Schema Mismatch: Expected Map of 1 element, found " <> show n
   k <- CBOR.decodeInt
   unless (k == 0) $ fail $ "Unknown Key: Expected 0, found " <> show k
-  EdhocIdentityKey <$> decodeEdhocPublicKey
+  PrekeyBundleIdentityKey <$> decodePrekeyBundlePublicKey
 
 --------------------------------------------------------------------------------
--- Prekey
+-- UncheckedPrekeyBundle
 
-data Prekey = Prekey
+data UncheckedPrekeyBundle = UncheckedPrekeyBundle
   { prekeyId :: PrekeyId,
     -- | Prekey bundle
     prekeyKey :: Text
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Prekey)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Prekey
+  deriving (Arbitrary) via (GenericUniform UncheckedPrekeyBundle)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema UncheckedPrekeyBundle
 
-instance ToSchema Prekey where
+instance ToSchema UncheckedPrekeyBundle where
   schema =
-    object "Prekey" $
-      Prekey
+    object "UncheckedPrekeyBundle" $
+      UncheckedPrekeyBundle
         <$> prekeyId .= field "id" schema
         <*> prekeyKey .= field "key" schema
 
@@ -143,7 +143,7 @@ instance ToSchema Prekey where
 -- This works by taking the SHA256 hash of the prekey, truncating it to its
 -- first 8 bytes, and interpreting the resulting bytestring as a big endian
 -- Word64.
-clientIdFromPrekey :: Prekey -> ClientId
+clientIdFromPrekey :: UncheckedPrekeyBundle -> ClientId
 clientIdFromPrekey =
   ClientId
     . foldl' (\w d -> (w `shiftL` 8) .|. fromIntegral d) 0
@@ -161,38 +161,38 @@ data PrekeyParseError
   | PrekeyParseTrailingBytes
   deriving stock (Eq, Show, Generic)
 
--- | Represents the EDHOC Prekey Bundle payload.
+-- | Represents the Prekey Bundle payload.
 --
 -- Structure based on `PrekyBundle` from proteus <https://github.com/wireapp/proteus/blob/b92dbc2d0c77105cae3911a7388acba05450a06d/src/internal/keys.rs#L246-L253>
-data EdhocPrekeyPayload = EdhocPrekeyPayload
+data PrekeyBundlePrekeyPayload = PrekeyBundlePrekeyPayload
   { -- | Key 0
-    edhocProtocolVersion :: Word,
+    prekeyBundleProtocolVersion :: Word,
     -- | Key 1
-    edhocPrekeyId :: PrekeyId,
+    prekeyBundlePrekeyId :: PrekeyId,
     -- | Key 2
-    edhocIdentityKey :: EdhocIdentityKey,
+    prekeyBundleIdentityKey :: PrekeyBundleIdentityKey,
     -- | Key 3
-    edhocSignedPrekey :: EdhocPublicKey,
+    prekeyBundleSignedPrekey :: PrekeyBundlePublicKey,
     -- | Key 4
-    edhocOneTimePrekey :: Maybe EdhocSignature
+    prekeyBundleOneTimePrekey :: Maybe PrekeyBundleSignature
   }
   deriving stock (Eq, Show, Generic)
 
 -- | Parses a Base64 CBOR-encoded payload to extract the 'PrekeyId'.
-parseEDHOCPrekeyId :: Prekey -> Either PrekeyParseError PrekeyId
-parseEDHOCPrekeyId pk = do
+parsePrekeyBundlePrekeyId :: UncheckedPrekeyBundle -> Either PrekeyParseError PrekeyId
+parsePrekeyBundlePrekeyId pk = do
   bs <- first (PrekeyParseBase64Error . ("Base64 decoding error: " <>)) $ B64.decode $ B.toByteString' $ prekeyKey pk
-  case CBOR.deserialiseFromBytes decodeEdhocPrekeyPayload (LBS.fromStrict bs) of
+  case CBOR.deserialiseFromBytes decodePrekeyBundlePrekeyPayload (LBS.fromStrict bs) of
     Left (CBOR.DeserialiseFailure off msg) -> Left $ PrekeyParseCborError off msg
     Right (rest, payload)
-      | LBS.null rest -> Right (edhocPrekeyId payload)
+      | LBS.null rest -> Right (prekeyBundlePrekeyId payload)
       | otherwise -> Left PrekeyParseTrailingBytes
 
-decodeEdhocPrekeyPayload :: CBOR.Decoder s EdhocPrekeyPayload
-decodeEdhocPrekeyPayload = do
+decodePrekeyBundlePrekeyPayload :: CBOR.Decoder s PrekeyBundlePrekeyPayload
+decodePrekeyBundlePrekeyPayload = do
   n <- CBOR.decodeMapLen
   (m0, m1, m2, m3, m4) <- go n (Nothing, Nothing, Nothing, Nothing, Nothing)
-  EdhocPrekeyPayload
+  PrekeyBundlePrekeyPayload
     <$> maybe (fail "Missing Key 0") pure m0
     <*> maybe (fail "Missing Key 1") pure m1
     <*> maybe (fail "Missing Key 2") pure m2
@@ -211,10 +211,10 @@ decodeEdhocPrekeyPayload = do
           when (v < 0) $ fail "Value Error: Prekey ID cannot be negative"
           go (i - 1) (m0, Just (PrekeyId (fromIntegral v)), m2, m3, m4)
         2 -> do
-          v <- decodeEdhocIdentityKey
+          v <- decodePrekeyBundleIdentityKey
           go (i - 1) (m0, m1, Just v, m3, m4)
         3 -> do
-          v <- decodeEdhocPublicKey
+          v <- decodePrekeyBundlePublicKey
           go (i - 1) (m0, m1, m2, Just v, m4)
         4 ->
           go (i - 1) (m0, m1, m2, m3, Nothing) -- If null, Nothing
@@ -224,7 +224,7 @@ decodeEdhocPrekeyPayload = do
 -- LastPrekey
 
 newtype LastPrekey = LastPrekey
-  {unpackLastPrekey :: Prekey}
+  {unpackLastPrekey :: UncheckedPrekeyBundle}
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema LastPrekey
 
@@ -243,12 +243,12 @@ lastPrekeyId :: PrekeyId
 lastPrekeyId = PrekeyId maxBound
 
 lastPrekey :: Text -> LastPrekey
-lastPrekey = LastPrekey . Prekey lastPrekeyId
+lastPrekey = LastPrekey . UncheckedPrekeyBundle lastPrekeyId
 
 -- for tests only
 -- This fake last prekey has the wrong prekeyId
 fakeLastPrekey :: LastPrekey
-fakeLastPrekey = LastPrekey $ Prekey (PrekeyId 7) "pQABAQcCoQBYIDXdN8VlKb5lbgPmoDPLPyqNIEyShG4oT/DlW0peRRZUA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
+fakeLastPrekey = LastPrekey $ UncheckedPrekeyBundle (PrekeyId 7) "pQABAQcCoQBYIDXdN8VlKb5lbgPmoDPLPyqNIEyShG4oT/DlW0peRRZUA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
 
 --------------------------------------------------------------------------------
 -- PrekeyBundle
@@ -273,7 +273,7 @@ instance ToSchema PrekeyBundle where
 
 data ClientPrekey = ClientPrekey
   { prekeyClient :: ClientId,
-    prekeyData :: Prekey
+    prekeyData :: UncheckedPrekeyBundle
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientPrekey)

@@ -29,7 +29,7 @@ import Data.Json.Util ((#))
 import Imports
 import Wire.API.Locale (Locale)
 import Wire.API.Provider.Bot (BotConvView, BotUserView)
-import Wire.API.User.Client.Prekey (LastPrekey, Prekey)
+import Wire.API.User.Client.Prekey (LastPrekey, UncheckedPrekeyBundle)
 import Wire.API.User.Profile (Asset, ColourId, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -89,7 +89,7 @@ instance ToJSON NewBotRequest where
 -- The returned optional data overrides the defaults taken from
 -- the 'Service' definition.
 data NewBotResponse = NewBotResponse
-  { rsNewBotPrekeys :: [Prekey],
+  { rsNewBotPrekeys :: [UncheckedPrekeyBundle],
     rsNewBotLastPrekey :: LastPrekey,
     rsNewBotName :: Maybe Name,
     rsNewBotColour :: Maybe ColourId,
