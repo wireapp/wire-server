@@ -97,7 +97,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
   let convOrSub = tUnqualified lConvOrSub
       qusr = cidQualifiedUser senderIdentity.client
       cm = convOrSub.members
-      newUserClients = Map.assocs (paAdd action)
+      newUserClients = Map.assocs (unClientMap (paAdd action))
 
   -- check that all pending proposals are referenced in the commit
   allPendingProposals <-
@@ -135,9 +135,9 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
           -- subconversation case, an empty list is returned.
           membersToRemove <- case convOrSub of
             SubConv _ _ -> pure []
-            Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
+            Conv _ -> mapMaybe hush <$$> for (Map.assocs (unClientMap (paRemove action))) $
               \(qtarget, Map.keysSet -> clients) -> runError @() $ do
-                let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
+                let clientsInConv = foldMap Map.keysSet (cmLookup qtarget cm)
                 let removedClients = Set.intersection clients clientsInConv
 
                 -- ignore user if none of their clients are being removed
@@ -242,7 +242,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
-    for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
+    for_ (Map.assocs (unClientMap (paRemove action))) $ \(qtarget, clients) -> do
       removeMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Map.keysSet clients)
 
     -- add clients to the conversation state

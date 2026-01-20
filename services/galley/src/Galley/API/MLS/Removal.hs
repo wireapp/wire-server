@@ -249,7 +249,8 @@ removeUser lc includeMain qusr = do
         getClients =
           map (first (mkClientIdentity qusr))
             . Map.assocs
-            . Map.findWithDefault mempty qusr
+            . fold
+            . cmLookup qusr
             . (.members)
     case includeMain of
       RemoveUserIncludeMain ->

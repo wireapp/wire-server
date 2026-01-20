@@ -82,9 +82,7 @@ data ProposalAction = ProposalAction
 
 instance Semigroup ProposalAction where
   ProposalAction add1 rem1 <> ProposalAction add2 rem2 =
-    ProposalAction
-      (Map.unionWith mappend add1 add2)
-      (Map.unionWith mappend rem1 rem2)
+    ProposalAction (add1 <> add2) (rem1 <> rem2)
 
 instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty

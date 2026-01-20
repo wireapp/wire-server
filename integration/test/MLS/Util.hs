@@ -74,7 +74,8 @@ data MessagePackage = MessagePackage
     convId :: ConvId,
     message :: ByteString,
     welcome :: Maybe ByteString,
-    groupInfo :: Maybe ByteString
+    groupInfo :: Maybe ByteString,
+    appMessage :: Maybe ByteString
   }
 
 toRandomFile :: ByteString -> App FilePath
@@ -445,7 +446,8 @@ createAddCommitWithKeyPackages cid convId clientsAndKeyPackages = do
         convId = convId,
         message = commit,
         welcome = Just welcome,
-        groupInfo = Just gi
+        groupInfo = Just gi,
+        appMessage = Nothing
       }
 
 createRemoveCommit :: (HasCallStack) => ClientIdentity -> ConvId -> [ClientIdentity] -> App MessagePackage
@@ -502,7 +504,8 @@ createRemoveCommit cid convId targets = do
         convId = convId,
         message = commit,
         welcome = Just welcome,
-        groupInfo = Just gi
+        groupInfo = Just gi,
+        appMessage = Nothing
       }
 
 createAddProposals :: (HasCallStack) => ConvId -> ClientIdentity -> [Value] -> App [MessagePackage]
@@ -528,7 +531,8 @@ createReInitProposal convId cid = do
         convId = convId,
         message = prop,
         welcome = Nothing,
-        groupInfo = Nothing
+        groupInfo = Nothing,
+        appMessage = Nothing
       }
 
 createAddProposalWithKeyPackage ::
@@ -551,7 +555,8 @@ createAddProposalWithKeyPackage convId cid (_, kp) = do
         convId = convId,
         message = prop,
         welcome = Nothing,
-        groupInfo = Nothing
+        groupInfo = Nothing,
+        appMessage = Nothing
       }
 
 createPendingProposalCommit :: (HasCallStack) => ConvId -> ClientIdentity -> App MessagePackage
@@ -585,7 +590,8 @@ createPendingProposalCommit convId cid = do
         convId = convId,
         message = commit,
         welcome = welcome,
-        groupInfo = Just pgs
+        groupInfo = Just pgs,
+        appMessage = Nothing
       }
 
 createExternalCommit ::
@@ -630,7 +636,8 @@ createExternalCommit convId cid mgi = do
         convId = convId,
         message = commit,
         welcome = Nothing,
-        groupInfo = Just newPgs
+        groupInfo = Just newPgs,
+        appMessage = Nothing
       }
 
 data MLSNotificationTag = MLSNotificationMessageTag | MLSNotificationWelcomeTag
@@ -721,7 +728,7 @@ consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessage
         else pure False
 
 mlsCliConsume :: (HasCallStack) => ConvId -> Ciphersuite -> ClientIdentity -> ByteString -> App ByteString
-mlsCliConsume convId cs cid msgData =
+mlsCliConsume convId cs cid msgData = do
   mlscli
     (Just convId)
     cs
@@ -834,7 +841,11 @@ readWelcome fp = runMaybeT $ do
   liftIO $ BS.readFile fp
 
 mkBundle :: MessagePackage -> ByteString
-mkBundle mp = mp.message <> foldMap mkGroupInfoMessage mp.groupInfo <> fold mp.welcome
+mkBundle mp =
+  mp.message
+    <> foldMap mkGroupInfoMessage mp.groupInfo
+    <> fold mp.welcome
+    <> fold mp.appMessage
 
 mkGroupInfoMessage :: ByteString -> ByteString
 mkGroupInfoMessage gi = BS.pack [0x00, 0x01, 0x00, 0x04] <> gi
@@ -913,7 +924,8 @@ createApplicationMessage convId cid messageContent = do
         convId = convId,
         message = message,
         welcome = Nothing,
-        groupInfo = Nothing
+        groupInfo = Nothing,
+        appMessage = Nothing
       }
 
 leaveConv ::

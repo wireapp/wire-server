@@ -91,6 +91,7 @@ import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
+import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.LegalHoldStore as LegalHoldStore
@@ -517,4 +518,4 @@ iGetMLSClientListForConv ::
   Sem r ClientList
 iGetMLSClientListForConv gid = do
   cm <- E.lookupMLSClients gid
-  pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))
+  pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs (unClientMap cm)))

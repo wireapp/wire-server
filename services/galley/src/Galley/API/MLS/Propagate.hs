@@ -35,7 +35,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
-import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -64,7 +63,7 @@ propagateMessage ::
   Local ConvOrSubConv ->
   Maybe ConnId ->
   RawMLS Message ->
-  ClientMap LeafIndex ->
+  ClientMap a ->
   Sem r ()
 propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
   now <- Now.get
@@ -120,14 +119,12 @@ propagateMessage qusr mSenderClient lConvOrSub con msg cm = do
     localMemberRecipient loc lm = do
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lm.id_
-      clients <- nonEmpty $ Map.keys (Map.findWithDefault mempty localUserQId cmWithoutSender)
+      clients <- nonEmpty $ cmLookupClients localUserQId cmWithoutSender
       pure $ Recipient localUserId (RecipientClientsSome clients)
 
     remoteMemberMLSClients :: RemoteMember -> Maybe (UserId, NonEmpty ClientId)
     remoteMemberMLSClients rm = do
       let remoteUserQId = tUntagged rm.id_
           remoteUserId = qUnqualified remoteUserQId
-      clients <-
-        nonEmpty . map fst $
-          Map.assocs (Map.findWithDefault mempty remoteUserQId cmWithoutSender)
+      clients <- nonEmpty $ cmLookupClients remoteUserQId cmWithoutSender
       pure (remoteUserId, clients)

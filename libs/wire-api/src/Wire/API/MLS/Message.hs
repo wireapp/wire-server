@@ -76,7 +76,8 @@ data Message = Message
   { protocolVersion :: ProtocolVersion,
     content :: MessageContent
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Message
 
 mkMessage :: MessageContent -> Message
 mkMessage = Message defaultProtocolVersion
@@ -102,7 +103,8 @@ data MessageContent
   | MessageWelcome (RawMLS Welcome)
   | MessageGroupInfo (RawMLS GroupInfo)
   | MessageKeyPackage (RawMLS KeyPackage)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform MessageContent
 
 instance HasField "wireFormat" MessageContent WireFormatTag where
   getField (MessagePrivate _) = WireFormatPrivateTag
@@ -148,7 +150,8 @@ data PublicMessage = PublicMessage
     -- https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6.2-4
     membershipTag :: Maybe ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform PublicMessage
 
 instance ParseMLS PublicMessage where
   parseMLS = do
@@ -179,7 +182,8 @@ data PrivateMessage = PrivateMessage
     encryptedSenderData :: ByteString,
     ciphertext :: ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PrivateMessage)
 
 instance ParseMLS PrivateMessage where
   parseMLS =
@@ -190,6 +194,15 @@ instance ParseMLS PrivateMessage where
       <*> parseMLSBytes @VarInt
       <*> parseMLSBytes @VarInt
       <*> parseMLSBytes @VarInt
+
+instance SerialiseMLS PrivateMessage where
+  serialiseMLS msg = do
+    serialiseMLS msg.groupId
+    serialiseMLS msg.epoch
+    serialiseMLS msg.tag
+    serialiseMLSBytes @VarInt msg.authenticatedData
+    serialiseMLSBytes @VarInt msg.encryptedSenderData
+    serialiseMLSBytes @VarInt msg.ciphertext
 
 -- | https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol-20/draft-ietf-mls-protocol.html#section-6-4
 data SenderTag
@@ -242,7 +255,8 @@ data FramedContent = FramedContent
     authenticatedData :: ByteString,
     content :: FramedContentData
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform FramedContent
 
 instance ParseMLS FramedContent where
   parseMLS =
@@ -265,7 +279,8 @@ data FramedContentDataTag
   = FramedContentApplicationDataTag
   | FramedContentProposalTag
   | FramedContentCommitTag
-  deriving (Enum, Bounded, Eq, Ord, Show)
+  deriving (Enum, Bounded, Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform FramedContentDataTag)
 
 instance ParseMLS FramedContentDataTag where
   parseMLS = parseMLSEnum @Word8 "ContentType"
@@ -278,7 +293,8 @@ data FramedContentData
   = FramedContentApplicationData ByteString
   | FramedContentProposal (RawMLS Proposal)
   | FramedContentCommit (RawMLS Commit)
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform FramedContentData
 
 framedContentDataTag :: FramedContentData -> FramedContentDataTag
 framedContentDataTag (FramedContentApplicationData _) = FramedContentApplicationDataTag
@@ -326,7 +342,8 @@ data FramedContentAuthData = FramedContentAuthData
     -- Present iff it is part of a commit.
     confirmationTag :: Maybe ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform FramedContentAuthData
 
 parseFramedContentAuthData :: FramedContentDataTag -> Get FramedContentAuthData
 parseFramedContentAuthData t = do

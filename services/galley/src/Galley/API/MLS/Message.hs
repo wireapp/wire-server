@@ -265,6 +265,9 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
   let convOrSub = tUnqualified lConvOrSub
 
+  -- validate application message
+  traverse_ (validateMessage qusr c lConvOrSub (Just (succ bundle.epoch))) bundle.appMessage
+
   ciphersuite <-
     note (mlsProtocolError "Unsupported ciphersuite") $
       cipherSuiteTag bundle.groupInfo.value.groupContext.cipherSuite
@@ -314,7 +317,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
         -- reject message if the conversation is out of sync
         lift $ do
-          let newUsers = Map.keysSet action.paAdd
+          let newUsers = Map.keysSet (unClientMap action.paAdd)
           checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
         lift $
@@ -333,7 +336,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             bundle.commit.value
         -- the sender client is included in the Add action on the first commit,
         -- but it doesn't need to get a welcome message, so we filter it out here
-        let newClients = filter ((/=) senderIdentity.client) (cmIdentities (paAdd action))
+        let newClients = cmRemoveClient senderIdentity.client (paAdd action)
         pure (events, newClients)
       Nothing -> do
         (newIndexMap, action) <- lift $ getExternalCommitData senderIdentity.client lConvOrSub bundle.epoch bundle.commit.value
@@ -347,15 +350,25 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           bundle.epoch
           action
           bundle.commit.value.path
-        pure ([], [])
+        pure ([], mempty)
     lift $ do
       updateOutOfSyncFlag senderIdentity.client lConvOrSub
       storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
       propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage convOrSub.members
     pure (events, newClients)
 
+  -- send welcome messages
   for_ bundle.welcome $ \welcome ->
-    sendWelcomes lConvOrSubId qusr conn newClients welcome
+    sendWelcomes lConvOrSubId qusr conn (cmIdentities newClients) welcome
+
+  -- send application message
+  for_ bundle.appMessage $ \msg -> do
+    -- reload conversation from db to make sure we have an up-to-date list of members
+    lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+    let convOrSub' = tUnqualified lConvOrSub'
+    propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage $
+      void convOrSub'.members
+
   pure events
 
 handleGroupInfoMismatch ::
@@ -510,8 +523,29 @@ postMLSMessageToLocalConv ::
   Sem r [LocalConversationUpdate]
 postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr msg.groupId ctype convOrSubId
-  let convOrSub = tUnqualified lConvOrSub
+  validateMessage qusr c lConvOrSub Nothing msg
 
+  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
+  pure []
+
+validateMessage ::
+  ( HasProposalEffects r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS MLSClientSenderUserMismatch) r,
+    Member (ErrorS MLSStaleMessage) r,
+    Member (ErrorS MLSUnsupportedMessage) r,
+    Member (Error MLSOutOfSyncError) r,
+    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Member (Input EnableOutOfSyncCheck) r
+  ) =>
+  Qualified UserId ->
+  ClientId ->
+  Local ConvOrSubConv ->
+  Maybe Epoch ->
+  IncomingMessage ->
+  Sem r ()
+validateMessage qusr c lConvOrSub mEpoch msg = do
+  let convOrSub = tUnqualified lConvOrSub
   for_ msg.sender $ \sender ->
     void $ getSenderIdentity qusr c sender lConvOrSub
 
@@ -537,21 +571,20 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
       -- reject application messages for epoch 0
       let epochInt :: Epoch -> Integer
           epochInt = fromIntegral . epochNumber
+
       when (epochInt msg.epoch == 0) . throw $
         mlsProtocolError "Application messages at epoch 0 are not supported"
 
       -- reject application messages older than 2 epochs
-      case convOrSub.mlsMeta.cnvmlsActiveData of
+      let mEpoch' = mEpoch <|> fmap (.epoch) convOrSub.mlsMeta.cnvmlsActiveData
+      case mEpoch' of
         Nothing -> throw $ mlsProtocolError "Application messages at epoch 0 are not supported"
-        Just activeData ->
+        Just epoch ->
           when
-            ( epochInt msg.epoch < epochInt activeData.epoch - 2
-                || epochInt msg.epoch > epochInt activeData.epoch
+            ( epochInt msg.epoch < epochInt epoch - 2
+                || epochInt msg.epoch > epochInt epoch
             )
             $ throwS @'MLSStaleMessage
-
-  propagateMessage qusr (Just c) lConvOrSub con msg.rawMessage (tUnqualified lConvOrSub).members
-  pure []
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,

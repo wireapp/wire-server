@@ -58,10 +58,10 @@ checkClients ::
 checkClients lConvOrSub ciphersuite newCM = do
   let convOrSub = tUnqualified lConvOrSub
       cm = convOrSub.members
-  fmap catMaybes . forM (Map.assocs newCM) $
+  fmap catMaybes . forM (Map.assocs (unClientMap newCM)) $
     \(qtarget, newclients) -> do
       mClientData <- getClientData lConvOrSub ciphersuite qtarget
-      unreachable <- case (mClientData, Map.lookup qtarget cm) of
+      unreachable <- case (mClientData, cmLookup qtarget cm) of
         -- user is already present, skip check in this case
         (_, Just existingClients) -> do
           -- make sure none of the new clients already exist in the group
@@ -79,7 +79,7 @@ checkClients lConvOrSub ciphersuite newCM = do
           let clients =
                 Map.keysSet
                   ( fmap fst newclients
-                      <> Map.findWithDefault mempty qtarget cm
+                      <> fold (cmLookup qtarget cm)
                   )
 
           -- We check the following condition:
