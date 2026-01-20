@@ -645,6 +645,20 @@ specCRUDIdentityProvider = do
         -- create a new idp with the first metadata (should succeed)
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
           `shouldRespondWith` ((== 201) . statusCode)
+      it "updated IdP should be delete-able or update should fail" $ do
+        env <- ask
+        (owner, _tid) <- callCreateUserWithTeam
+        ((^. idpId) -> idpid, (IdPMetadataValue _ idpmeta, _)) <- registerTestIdPWithMeta owner
+        (_, _, cert) <- liftIO $ mkSignCredsWithCert Nothing 96
+        let idpmeta' =
+              idpmeta
+                & edCertAuthnResponse .~ (NonEmpty.singleton cert)
+                -- When the line below is commented out, the test succeeds!
+                & edIssuer .~ (Issuer . either (error . show) id) (URI.parseURI URI.strictURIParserOptions "https://keycloak.example.com/something-else")
+        callIdpUpdate (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+          `shouldRespondWith` ((== 200) . statusCode)
+        callIdpDelete' (env ^. teSpar) (Just owner) idpid
+          `shouldRespondWith` ((== 204) . statusCode)
 
       context "invalid body" $ do
         it "rejects" $ do
