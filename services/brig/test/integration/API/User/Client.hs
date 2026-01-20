@@ -505,7 +505,7 @@ testClientsWithoutPrekeys brig cannon db opts = do
         )
         === responseJsonEither
   where
-    expectedClientMap :: Domain -> UserId -> [(ClientId, Maybe UncheckedPrekeyBundle)] -> QualifiedUserClientPrekeyMap
+    expectedClientMap :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> QualifiedUserClientPrekeyMap
     expectedClientMap domain u xs =
       mkQualifiedUserClientPrekeyMap $
         Map.singleton domain $
@@ -595,7 +595,7 @@ testClientsWithoutPrekeysV4 brig cannon db opts = do
         )
         === responseJsonEither
 
-expectedClientMapClientsWithoutPrekeys :: Domain -> UserId -> [(ClientId, Maybe UncheckedPrekeyBundle)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV4
+expectedClientMapClientsWithoutPrekeys :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> Maybe [Qualified UserId] -> QualifiedUserClientPrekeyMapV4
 expectedClientMapClientsWithoutPrekeys domain u xs failed =
   QualifiedUserClientPrekeyMapV4
     { qualifiedUserClientPrekeys =
@@ -1228,7 +1228,7 @@ testUpdateClient opts brig = do
                       === statusCode
                 )
 
-        checkClientPrekeys :: (HasCallStack) => UncheckedPrekeyBundle -> Http ()
+        checkClientPrekeys :: (HasCallStack) => Prekey -> Http ()
         checkClientPrekeys expectedPrekey = do
           flushClientPrekey >>= \case
             Nothing -> error "unexpected."

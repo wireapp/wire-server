@@ -189,7 +189,7 @@ testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
       (prekeys1, prekeys') = splitAt 5 prekeys
       prekeys2 = take 4 prekeys'
       mkClients = Set.fromList . map prekeyClient
-      mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe UncheckedPrekeyBundle)
+      mkClientMap :: [ClientPrekey] -> Map ClientId (Maybe Prekey)
       mkClientMap = Map.fromList . map (prekeyClient &&& Just . prekeyData)
       qmap :: (Ord a) => [(Qualified a, b)] -> Map Domain (Map a b)
       qmap = fmap Map.fromList . indexQualified . map (sequenceAOf _1)

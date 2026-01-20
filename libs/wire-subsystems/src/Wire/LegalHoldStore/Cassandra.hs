@@ -91,14 +91,14 @@ getSettings tid = fmap toLegalHoldService <$> retry x1 (query1 Q.selectLegalHold
 removeSettings :: (MonadClient m) => TeamId -> m ()
 removeSettings tid = retry x5 (write Q.removeLegalHoldSettings (params LocalQuorum (Identity tid)))
 
-insertPendingPrekeys :: (MonadClient m) => UserId -> [UncheckedPrekeyBundle] -> m ()
+insertPendingPrekeys :: (MonadClient m) => UserId -> [Prekey] -> m ()
 insertPendingPrekeys uid keys = retry x5 . batch $ do
-  forM_ keys $ \(UncheckedPrekeyBundle keyId key) -> addPrepQuery Q.insertPendingPrekeys (uid, keyId, key)
+  forM_ keys $ \(Prekey keyId key) -> addPrepQuery Q.insertPendingPrekeys (uid, keyId, key)
 
-selectPendingPrekeys :: (MonadClient m) => UserId -> m (Maybe ([UncheckedPrekeyBundle], LastPrekey))
+selectPendingPrekeys :: (MonadClient m) => UserId -> m (Maybe ([Prekey], LastPrekey))
 selectPendingPrekeys uid = pickLastKey . fmap fromTuple <$> retry x1 (query Q.selectPendingPrekeys (params LocalQuorum (Identity uid)))
   where
-    fromTuple (keyId, key) = UncheckedPrekeyBundle keyId key
+    fromTuple (keyId, key) = Prekey keyId key
     pickLastKey allPrekeys = case unsnoc allPrekeys of
       Nothing -> Nothing
       Just (keys, lst) -> pure (keys, lastPrekey . prekeyKey $ lst)

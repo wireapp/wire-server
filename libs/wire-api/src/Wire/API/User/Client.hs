@@ -254,12 +254,12 @@ userClientMapSchema sch =
     UserClientMap <$> userClientMap .= map_ (map_ sch)
 
 newtype UserClientPrekeyMap = UserClientPrekeyMap
-  {getUserClientPrekeyMap :: UserClientMap (Maybe UncheckedPrekeyBundle)}
+  {getUserClientPrekeyMap :: UserClientMap (Maybe Prekey)}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary, Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UserClientPrekeyMap
 
-mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe UncheckedPrekeyBundle)) -> UserClientPrekeyMap
+mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe Prekey)) -> UserClientPrekeyMap
 mkUserClientPrekeyMap = coerce
 
 instance ToSchema UserClientPrekeyMap where
@@ -275,7 +275,7 @@ instance ToSchema UserClientPrekeyMap where
                 (generateExample @UserId)
                 ( Map.singleton
                     (ClientId 4940483633899001999)
-                    (Just (UncheckedPrekeyBundle (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
+                    (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
                 )
             )
 
@@ -319,7 +319,7 @@ qualifiedUserClientMapSchema sch =
           )
 
 data QualifiedUserClientPrekeyMapV4 = QualifiedUserClientPrekeyMapV4
-  { qualifiedUserClientPrekeys :: QualifiedUserClientMap (Maybe UncheckedPrekeyBundle),
+  { qualifiedUserClientPrekeys :: QualifiedUserClientMap (Maybe Prekey),
     failedToList :: Maybe [Qualified UserId]
   }
   deriving stock (Eq, Show)
@@ -340,16 +340,16 @@ instance ToSchema QualifiedUserClientPrekeyMapV4 where
     where
       from' :: QualifiedUserClientPrekeyMapV4 -> Map Domain UserClientPrekeyMap
       from' = coerce . qualifiedUserClientPrekeys
-      to' :: Map Domain UserClientPrekeyMap -> QualifiedUserClientMap (Maybe UncheckedPrekeyBundle)
+      to' :: Map Domain UserClientPrekeyMap -> QualifiedUserClientMap (Maybe Prekey)
       to' = coerce
 
 newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
-  { getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe UncheckedPrekeyBundle)
+  { getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
-  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Alt Maybe UncheckedPrekeyBundle))
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Alt Maybe Prekey))
 
 instance ToSchema QualifiedUserClientPrekeyMap where
   schema =
@@ -709,7 +709,7 @@ instance C.Cql ClientClass where
 -- NewClient
 
 data NewClient = NewClient
-  { newClientPrekeys :: [UncheckedPrekeyBundle],
+  { newClientPrekeys :: [Prekey],
     newClientLastKey :: LastPrekey,
     newClientType :: ClientType,
     newClientLabel :: Maybe Text,
@@ -823,7 +823,7 @@ newClient t k =
 -- UpdateClient
 
 data UpdateClient = UpdateClient
-  { updateClientPrekeys :: [UncheckedPrekeyBundle],
+  { updateClientPrekeys :: [Prekey],
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text,
     -- | see haddocks for 'ClientCapability'

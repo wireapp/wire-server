@@ -20,7 +20,7 @@
 module Test.Wire.API.Golden.Generated.NewLegalHoldClient_team where
 
 import Wire.API.Team.LegalHold.External (NewLegalHoldClient (..))
-import Wire.API.User.Client.Prekey (PrekeyId (PrekeyId, keyId), UncheckedPrekeyBundle (UncheckedPrekeyBundle, prekeyId, prekeyKey), lastPrekey)
+import Wire.API.User.Client.Prekey (Prekey (Prekey, prekeyId, prekeyKey), PrekeyId (PrekeyId, keyId), lastPrekey)
 
 testObject_NewLegalHoldClient_team_1 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_1 =
@@ -30,8 +30,8 @@ testObject_NewLegalHoldClient_team_2 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_2 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 2}, prekeyKey = ",5!"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "0<\1030053"}
+        [ Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = ",5!"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "0<\1030053"}
         ],
       newLegalHoldClientLastKey = lastPrekey "\1104977\DLE\1065349\6667\&9,\1015715tft\FS"
     }
@@ -46,7 +46,7 @@ testObject_NewLegalHoldClient_team_3 =
 testObject_NewLegalHoldClient_team_4 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_4 =
   NewLegalHoldClient
-    { newLegalHoldClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 5}, prekeyKey = "tp"}],
+    { newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 5}, prekeyKey = "tp"}],
       newLegalHoldClientLastKey = lastPrekey "u%vZ\DC3\1088709D\173228\ENQ\"\188001"
     }
 
@@ -54,8 +54,8 @@ testObject_NewLegalHoldClient_team_5 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_5 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "Y"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "n"}
+        [ Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "Y"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "n"}
         ],
       newLegalHoldClientLastKey = lastPrekey "\\\1028142c\128341\&1\182736jO\CAN}T\58009D"
     }
@@ -68,17 +68,17 @@ testObject_NewLegalHoldClient_team_7 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_7 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey ""
     }
@@ -91,12 +91,12 @@ testObject_NewLegalHoldClient_team_9 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_9 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1027435"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "}"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1027435"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "}"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "y<Q\NULKE\DC1M\158699f"
     }
@@ -105,9 +105,9 @@ testObject_NewLegalHoldClient_team_10 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_10 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\73057`"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "&"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\73057`"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "&"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "I!6<\\\DLE\17074\158352V\DC3"
     }
@@ -120,14 +120,14 @@ testObject_NewLegalHoldClient_team_12 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_12 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "&G\DC4\1061504{\1086332wOPM\37946\DC3wx"
     }
@@ -136,13 +136,13 @@ testObject_NewLegalHoldClient_team_13 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_13 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\SO"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\SO"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "!"
     }
@@ -150,7 +150,7 @@ testObject_NewLegalHoldClient_team_13 =
 testObject_NewLegalHoldClient_team_14 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_14 =
   NewLegalHoldClient
-    { newLegalHoldClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "+4\"'G\69426S"}],
+    { newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "+4\"'G\69426S"}],
       newLegalHoldClientLastKey = lastPrekey "4\GS\1054356\DC3\DC1#^\NAK\r"
     }
 
@@ -158,14 +158,14 @@ testObject_NewLegalHoldClient_team_15 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_15 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "\1003553mQ\r`"
     }
@@ -174,8 +174,8 @@ testObject_NewLegalHoldClient_team_16 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_16 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "{-\99849"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "N"}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "{-\99849"},
+          Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "N"}
         ],
       newLegalHoldClientLastKey = lastPrekey "'|\US\DC3\SI/`-\DC4\EOT\fo\ap"
     }
@@ -184,10 +184,10 @@ testObject_NewLegalHoldClient_team_17 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_17 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\150965"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\150965"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "\164807p\24685\&4"
     }
@@ -196,17 +196,17 @@ testObject_NewLegalHoldClient_team_18 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_18 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "<\SUB\188332mp\1028288UI\t\DELq~\ESC"
     }
@@ -215,12 +215,12 @@ testObject_NewLegalHoldClient_team_19 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_19 =
   NewLegalHoldClient
     { newLegalHoldClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "f"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "w"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "H"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "_"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "f"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "w"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "H"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "_"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newLegalHoldClientLastKey = lastPrekey "\96658\1086778z\DC2\EOT"
     }
@@ -228,6 +228,6 @@ testObject_NewLegalHoldClient_team_19 =
 testObject_NewLegalHoldClient_team_20 :: NewLegalHoldClient
 testObject_NewLegalHoldClient_team_20 =
   NewLegalHoldClient
-    { newLegalHoldClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 6}, prekeyKey = "{\992138\1098288\SOH.f"}],
+    { newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 6}, prekeyKey = "{\992138\1098288\SOH.f"}],
       newLegalHoldClientLastKey = lastPrekey "\f\1075762_~b\SYNyh\\z-<"
     }

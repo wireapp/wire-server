@@ -444,7 +444,7 @@ requestDevice lzusr tid uid = do
       changeLegalholdStatusAndHandlePolicyConflicts tid luid userLHStatus UserLegalHoldPending
       notifyClientsAboutLegalHoldRequest zusr (tUnqualified luid) lastPrekey'
 
-    requestDeviceFromService :: Local UserId -> Sem r (LastPrekey, [UncheckedPrekeyBundle])
+    requestDeviceFromService :: Local UserId -> Sem r (LastPrekey, [Prekey])
     requestDeviceFromService luid = do
       LegalHoldData.dropPendingPrekeys (tUnqualified luid)
       lhDevice <- LHService.requestNewDevice tid luid

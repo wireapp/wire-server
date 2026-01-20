@@ -1624,8 +1624,8 @@ specReAuthSsoUserWithPassword =
       let actual = Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
       lift $ actual `shouldBe` Just expected
 
-    prekey :: UncheckedPrekeyBundle
-    prekey = UncheckedPrekeyBundle (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNqkkBQETCxyr7/ywE/2R5RWcUPM+GJACA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
+    prekey :: Prekey
+    prekey = Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNqkkBQETCxyr7/ywE/2R5RWcUPM+GJACA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
 
     lPrekey :: LastPrekey
     lPrekey = lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
@@ -1644,7 +1644,7 @@ specReAuthSsoUserWithPassword =
             )
       pure $ c.clientId
 
-    defNewClient :: ClientType -> [UncheckedPrekeyBundle] -> LastPrekey -> NewClient
+    defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
     defNewClient ty pks lpk =
       (newClient ty lpk)
         { newClientPassword = Just defPassword,

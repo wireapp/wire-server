@@ -24,7 +24,7 @@ import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Asset
 import Wire.API.Provider.External (NewBotResponse (..))
-import Wire.API.User.Client.Prekey (PrekeyId (PrekeyId, keyId), UncheckedPrekeyBundle (UncheckedPrekeyBundle, prekeyId, prekeyKey), lastPrekey)
+import Wire.API.User.Client.Prekey (Prekey (Prekey, prekeyId, prekeyKey), PrekeyId (PrekeyId, keyId), lastPrekey)
 import Wire.API.User.Profile
   ( Asset (ImageAsset),
     AssetSize (AssetComplete, AssetPreview),
@@ -36,8 +36,8 @@ testObject_NewBotResponse_provider_1 :: NewBotResponse
 testObject_NewBotResponse_provider_1 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1079194"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1079194"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "+\1035266\ENQ",
       rsNewBotName =
@@ -55,19 +55,19 @@ testObject_NewBotResponse_provider_2 :: NewBotResponse
 testObject_NewBotResponse_provider_2 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "\158260S\1013700\1033003\997116",
       rsNewBotName = Just (Name {fromName = "\185552}nqW\t\179361\&7f"}),
@@ -85,11 +85,11 @@ testObject_NewBotResponse_provider_3 :: NewBotResponse
 testObject_NewBotResponse_provider_3 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "I",
       rsNewBotName =
@@ -123,8 +123,8 @@ testObject_NewBotResponse_provider_5 :: NewBotResponse
 testObject_NewBotResponse_provider_5 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "U"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "U"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "\fC\NULL\\\EOT",
       rsNewBotName = Nothing,
@@ -136,9 +136,9 @@ testObject_NewBotResponse_provider_6 :: NewBotResponse
 testObject_NewBotResponse_provider_6 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\29859"}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\29859"}
         ],
       rsNewBotLastPrekey = lastPrekey "",
       rsNewBotName =
@@ -194,9 +194,9 @@ testObject_NewBotResponse_provider_9 :: NewBotResponse
 testObject_NewBotResponse_provider_9 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\NAK"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\NAK"},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "]4\68421\&8\\",
       rsNewBotName =
@@ -214,11 +214,11 @@ testObject_NewBotResponse_provider_10 :: NewBotResponse
 testObject_NewBotResponse_provider_10 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "R\165465",
       rsNewBotName = Nothing,
@@ -230,8 +230,8 @@ testObject_NewBotResponse_provider_11 :: NewBotResponse
 testObject_NewBotResponse_provider_11 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "8"}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "8"}
         ],
       rsNewBotLastPrekey = lastPrekey "U\STX\ETB\1112642x",
       rsNewBotName = Nothing,
@@ -252,7 +252,7 @@ testObject_NewBotResponse_provider_12 =
 testObject_NewBotResponse_provider_13 :: NewBotResponse
 testObject_NewBotResponse_provider_13 =
   NewBotResponse
-    { rsNewBotPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "h\131368I"}],
+    { rsNewBotPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "h\131368I"}],
       rsNewBotLastPrekey = lastPrekey "\1000435eP'X",
       rsNewBotName =
         Just
@@ -276,14 +276,14 @@ testObject_NewBotResponse_provider_14 :: NewBotResponse
 testObject_NewBotResponse_provider_14 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "Q\1012726\39031U",
       rsNewBotName =
@@ -301,15 +301,15 @@ testObject_NewBotResponse_provider_15 :: NewBotResponse
 testObject_NewBotResponse_provider_15 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "KuA\172666\1084633",
       rsNewBotName =
@@ -327,11 +327,11 @@ testObject_NewBotResponse_provider_16 :: NewBotResponse
 testObject_NewBotResponse_provider_16 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "e!D*j",
       rsNewBotName = Just (Name {fromName = "\174414\&4?rvqg%\DC2\167142\DC1t\CAN\62298\SI_\92287F"}),
@@ -343,8 +343,8 @@ testObject_NewBotResponse_provider_17 :: NewBotResponse
 testObject_NewBotResponse_provider_17 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "b"}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "b"}
         ],
       rsNewBotLastPrekey = lastPrekey "\1064414\f\1024452\12105",
       rsNewBotName = Just (Name {fromName = "g\49675B{\DC3Cq\CANmbD\DEL5Q\DC4>i\DC4\SI[\1022068|K\44297\57731|\175014"}),
@@ -371,12 +371,12 @@ testObject_NewBotResponse_provider_19 :: NewBotResponse
 testObject_NewBotResponse_provider_19 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "u=\NAK",
       rsNewBotName = Just (Name {fromName = "FvrT0g\\\169897"}),
@@ -395,9 +395,9 @@ testObject_NewBotResponse_provider_20 :: NewBotResponse
 testObject_NewBotResponse_provider_20 =
   NewBotResponse
     { rsNewBotPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "+"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\52025"},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "+"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\52025"},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       rsNewBotLastPrekey = lastPrekey "`|\144284^\US",
       rsNewBotName = Nothing,

@@ -34,7 +34,7 @@ import Wire.API.User.Client.Prekey
 testObject_NewClient_user_1 :: NewClient
 testObject_NewClient_user_1 =
   NewClient
-    { newClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\r"}],
+    { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\r"}],
       newClientLastKey = lastPrekey "\EM",
       newClientType = TemporaryClientType,
       newClientLabel = Just "",
@@ -95,8 +95,8 @@ testObject_NewClient_user_4 :: NewClient
 testObject_NewClient_user_4 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "i",
       newClientType = PermanentClientType,
@@ -117,7 +117,7 @@ testObject_NewClient_user_4 =
 testObject_NewClient_user_5 :: NewClient
 testObject_NewClient_user_5 =
   NewClient
-    { newClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1093219"}],
+    { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1093219"}],
       newClientLastKey = lastPrekey "?&#",
       newClientType = TemporaryClientType,
       newClientLabel = Just "A\170327)",
@@ -149,7 +149,7 @@ testObject_NewClient_user_6 =
 testObject_NewClient_user_7 :: NewClient
 testObject_NewClient_user_7 =
   NewClient
-    { newClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "a"}],
+    { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "a"}],
       newClientLastKey = lastPrekey "%V[",
       newClientType = TemporaryClientType,
       newClientLabel = Just "",
@@ -190,10 +190,10 @@ testObject_NewClient_user_9 :: NewClient
 testObject_NewClient_user_9 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "",
       newClientType = LegalHoldClientType,
@@ -210,7 +210,7 @@ testObject_NewClient_user_9 =
 testObject_NewClient_user_10 :: NewClient
 testObject_NewClient_user_10 =
   NewClient
-    { newClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}],
+    { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}],
       newClientLastKey = lastPrekey "\STX",
       newClientType = TemporaryClientType,
       newClientLabel = Just ";*",
@@ -231,9 +231,9 @@ testObject_NewClient_user_11 :: NewClient
 testObject_NewClient_user_11 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "",
       newClientType = LegalHoldClientType,
@@ -255,12 +255,12 @@ testObject_NewClient_user_12 :: NewClient
 testObject_NewClient_user_12 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "\ENQ",
       newClientType = PermanentClientType,
@@ -282,13 +282,13 @@ testObject_NewClient_user_13 :: NewClient
 testObject_NewClient_user_13 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "\DC1\DC3",
       newClientType = LegalHoldClientType,
@@ -326,11 +326,11 @@ testObject_NewClient_user_15 :: NewClient
 testObject_NewClient_user_15 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "\100417\113707",
       newClientType = TemporaryClientType,
@@ -368,10 +368,10 @@ testObject_NewClient_user_17 :: NewClient
 testObject_NewClient_user_17 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "\138278",
       newClientType = TemporaryClientType,
@@ -409,9 +409,9 @@ testObject_NewClient_user_19 :: NewClient
 testObject_NewClient_user_19 =
   NewClient
     { newClientPrekeys =
-        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
-          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+        [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
+          Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
       newClientLastKey = lastPrekey "",
       newClientType = PermanentClientType,
@@ -432,7 +432,7 @@ testObject_NewClient_user_19 =
 testObject_NewClient_user_20 :: NewClient
 testObject_NewClient_user_20 =
   NewClient
-    { newClientPrekeys = [UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}],
+    { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}],
       newClientLastKey = lastPrekey "<",
       newClientType = LegalHoldClientType,
       newClientLabel = Just "+\FS",

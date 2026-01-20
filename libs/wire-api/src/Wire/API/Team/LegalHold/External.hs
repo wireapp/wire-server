@@ -82,7 +82,7 @@ instance ToSchema RequestNewLegalHoldClient where
 
 -- | Response payload that the LH service returns upon calling @/initiate@
 data NewLegalHoldClient = NewLegalHoldClient
-  { newLegalHoldClientPrekeys :: [UncheckedPrekeyBundle],
+  { newLegalHoldClientPrekeys :: [Prekey],
     newLegalHoldClientLastKey :: LastPrekey
   }
   deriving stock (Eq, Show, Generic)

@@ -265,7 +265,7 @@ updateClientLastActive u c t =
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
-updatePrekeys :: (MonadClient m) => UserId -> ClientId -> [UncheckedPrekeyBundle] -> ExceptT ClientDataError m ()
+updatePrekeys :: (MonadClient m) => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
   unless (all check pks) $
     throwE MalformedPrekeys
@@ -273,7 +273,7 @@ updatePrekeys u c pks = do
     let args = (u, c, prekeyId k, prekeyKey k)
     retry x5 $ write insertClientKey (params LocalQuorum args)
   where
-    check pk = parsePrekeyBundlePrekeyId pk == Right (prekeyId pk)
+    check pk = parseEDHOCPrekeyId pk == Right (prekeyId pk)
 
 claimPrekey ::
   ( Log.MonadLogger m,
@@ -306,7 +306,7 @@ claimPrekey u c =
             field "user" (toByteString u)
               . field "client" (toByteString c)
               . msg (val "last resort prekey used")
-      pure $ Just (ClientPrekey c (UncheckedPrekeyBundle i k))
+      pure $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = pure Nothing
 
     pickRandomPrekey :: (MonadIO f) => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))

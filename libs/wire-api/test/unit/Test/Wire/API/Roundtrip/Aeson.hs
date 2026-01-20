@@ -318,7 +318,7 @@ tests =
       testRoundTrip @User.Client.RmClient,
       testRoundTrip @User.Client.Prekey.LastPrekey,
       testRoundTrip @User.Client.Prekey.PrekeyId,
-      testRoundTrip @User.Client.Prekey.UncheckedPrekeyBundle,
+      testRoundTrip @User.Client.Prekey.Prekey,
       testRoundTrip @User.Client.Prekey.ClientPrekey,
       testRoundTrip @User.Client.Prekey.PrekeyBundle,
       testRoundTrip @User.Handle.UserHandleInfo,

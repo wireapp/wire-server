@@ -448,7 +448,7 @@ addLegalHoldClientToUser ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   ConnId ->
-  [UncheckedPrekeyBundle] ->
+  [Prekey] ->
   LastPrekey ->
   Sem r (Either AuthenticationError ClientId)
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do

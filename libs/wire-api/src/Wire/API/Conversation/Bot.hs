@@ -33,7 +33,7 @@ import Data.Schema
 import Imports
 import Wire.API.Event.Conversation (Event)
 import Wire.API.Locale (Locale)
-import Wire.API.User.Client.Prekey (UncheckedPrekeyBundle)
+import Wire.API.User.Client.Prekey (Prekey)
 import Wire.API.User.Profile (Asset, ColourId, Name)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -103,7 +103,7 @@ instance ToSchema RemoveBotResponse where
 -- UpdateBotPrekeys
 
 newtype UpdateBotPrekeys = UpdateBotPrekeys
-  { updateBotPrekeyList :: [UncheckedPrekeyBundle]
+  { updateBotPrekeyList :: [Prekey]
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
