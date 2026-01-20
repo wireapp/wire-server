@@ -263,8 +263,13 @@ instance ToSchema TeamMembersPage where
 
 type TeamMembersPagingState = MultiTablePagingState TeamMembersPagingName TeamMembersTable
 
-teamMemberPagingState :: PageWithState TeamMember -> TeamMembersPagingState
-teamMemberPagingState p = MultiTablePagingState TeamMembersTable (LBS.toStrict . C.unPagingState <$> pwsState p)
+teamMemberPagingState :: PageWithState Void TeamMember -> TeamMembersPagingState
+teamMemberPagingState p =
+  MultiTablePagingState
+    TeamMembersTable
+    ( LBS.toStrict . C.unPagingState
+        <$> (C.paginationStateCassandra =<< p.pwsState)
+    )
 
 instance ToParamSchema TeamMembersPagingState where
   toParamSchema _ = toParamSchema (Proxy @Text)

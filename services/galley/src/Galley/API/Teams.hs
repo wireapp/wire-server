@@ -418,7 +418,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
   if member `hasPermission` SearchContacts
     then do
-      pws :: PageWithState TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
+      pws :: PageWithState Void TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
       -- FUTUREWORK: Remove this via-Brig filtering when user and
       -- team_member tables are migrated to Postgres. We currently
       -- can't filter in the database because Cassandra doesn't
@@ -448,7 +448,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
       let uids = uid : maybeToList invitee
       TeamSubsystem.internalSelectTeamMembers tid uids <&> toTeamSingleMembersPage member
   where
-    toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
+    toTeamMembersPage :: TeamMember -> C.PageWithState Void TeamMember -> TeamMembersPage
     toTeamMembersPage member p =
       let withPerms = (member `canSeePermsOf`)
        in TeamMembersPage $

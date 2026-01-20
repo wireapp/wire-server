@@ -1382,14 +1382,14 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
     Just (Public.ConnectionPagingState Public.PagingRemotes stateBS) -> remotesOnly self (mkState <$> stateBS) (fromRange gmtprSize)
     _ -> localsAndRemotes self (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
-    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Public.UserConnection -> Public.ConnectionsPage
+    pageToConnectionsPage :: Public.LocalOrRemoteTable -> Data.PageWithState Void Public.UserConnection -> Public.ConnectionsPage
     pageToConnectionsPage table page@Data.PageWithState {..} =
       Public.MultiTablePage
         { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
           -- FUTUREWORK confusingly, using 'ConversationPagingState' instead of 'ConnectionPagingState' doesn't fail any tests.
           -- Is this type actually useless? Or the tests not good enough?
-          mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+          mtpPagingState = Public.ConnectionPagingState table (LBS.toStrict . C.unPagingState <$> (Data.paginationStateCassandra =<< pwsState))
         }
 
     mkState :: ByteString -> C.PagingState

@@ -19,7 +19,7 @@
 
 module Wire.UserStore where
 
-import Cassandra (PageWithState (..), PagingState)
+import Cassandra (GeneralPaginationState, PageWithState (..))
 import Data.Default
 import Data.Handle
 import Data.Id
@@ -72,7 +72,7 @@ data UserStore m a where
   CreateUser :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> UserStore m ()
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
   DoesUserExist :: UserId -> UserStore m Bool
-  GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
+  GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState Void) -> UserStore m (PageWithState Void IndexUser)
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateEmail :: UserId -> EmailAddress -> UserStore m ()
@@ -112,8 +112,8 @@ data UserStore m a where
   UpdateFeatureConferenceCalling :: UserId -> Maybe FeatureStatus -> UserStore m ()
   LookupFeatureConferenceCalling :: UserId -> UserStore m (Maybe FeatureStatus)
   DeleteServiceUser :: ProviderId -> ServiceId -> BotId -> UserStore m ()
-  LookupServiceUsers :: ProviderId -> ServiceId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId, Maybe TeamId))
-  LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId))
+  LookupServiceUsers :: ProviderId -> ServiceId -> Maybe (GeneralPaginationState Void) -> UserStore m (PageWithState Void (BotId, ConvId, Maybe TeamId))
+  LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe (GeneralPaginationState Void) -> UserStore m (PageWithState Void (BotId, ConvId))
 
 makeSem ''UserStore
 

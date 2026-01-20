@@ -47,7 +47,7 @@ interpretUserStoreCassandra casClient =
       GetUsers uids -> getUsersImpl uids
       DoesUserExist uid -> doesUserExistImpl uid
       GetIndexUser uid -> getIndexUserImpl uid
-      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
+      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize (paginationStateCassandra =<< mPagingState)
       UpdateUser uid update -> updateUserImpl uid update
       UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
@@ -77,8 +77,8 @@ interpretUserStoreCassandra casClient =
       DeleteEmail uid -> deleteEmailImpl uid
       SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
       DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
-      LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid mPagingState
-      LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid mPagingState
+      LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStateCassandra =<< mPagingState)
+      LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStateCassandra =<< mPagingState)
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -122,7 +122,7 @@ getIndexUserImpl u = do
     cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
     cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
 
-getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
+getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState x IndexUser)
 getIndexUserPaginatedImpl pageSize mPagingState =
   indexUserFromTuple <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
   where
@@ -414,7 +414,7 @@ lookupServiceUsersImpl ::
   ProviderId ->
   ServiceId ->
   Maybe PagingState ->
-  Client (PageWithState (BotId, ConvId, Maybe TeamId))
+  Client (PageWithState Void (BotId, ConvId, Maybe TeamId))
 lookupServiceUsersImpl pid sid mPagingState =
   paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState) x1
   where
@@ -428,7 +428,7 @@ lookupServiceUsersForTeamImpl ::
   ServiceId ->
   TeamId ->
   Maybe PagingState ->
-  Client (PageWithState (BotId, ConvId))
+  Client (PageWithState Void (BotId, ConvId))
 lookupServiceUsersForTeamImpl pid sid tid mPagingState =
   paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState) x1
   where
