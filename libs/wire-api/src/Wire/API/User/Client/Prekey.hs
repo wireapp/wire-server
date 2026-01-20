@@ -38,6 +38,7 @@ where
 import Cassandra (ColumnType (IntColumn), Cql (ctype, fromCql, toCql), Tagged (..), Value (CqlInt))
 import Codec.CBOR.Decoding qualified as CBOR
 import Codec.CBOR.Read qualified as CBOR
+import Codec.CBOR.Term qualified as CBOR
 import Crypto.Hash (SHA256, hash)
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson qualified as A
@@ -83,9 +84,19 @@ instance FromJSON PrekeyBundlePublicKey where
 instance ToSchema PrekeyBundlePublicKey where
   schema = named "PrekeyBundlePublicKey" $ PrekeyBundlePublicKey <$> unPrekeyBundlePublicKey .= base64Schema
 
-newtype PrekeyBundleIdentityKey = PrekeyBundleIdentityKey {unPrekeyBundleIdentityKey :: PrekeyBundlePublicKey}
+newtype PrekeyBundleIdentityKey = PrekeyBundleIdentityKey {unPrekeyBundleIdentityKey :: ByteString}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, ToSchema)
+
+instance ToJSON PrekeyBundleIdentityKey where
+  toJSON = A.toJSON . B.fromByteString @Text . B64.encode . unPrekeyBundleIdentityKey
+
+instance FromJSON PrekeyBundleIdentityKey where
+  parseJSON = withText "PrekeyBundleIdentityKey" $ \t ->
+    either (const $ fail "Not base 64-encoded") (pure . PrekeyBundleIdentityKey) $
+      B64.decode (B.toByteString' t)
+
+instance ToSchema PrekeyBundleIdentityKey where
+  schema = named "PrekeyBundleIdentityKey" $ PrekeyBundleIdentityKey <$> unPrekeyBundleIdentityKey .= base64Schema
 
 newtype PrekeyBundleSignature = PrekeyBundleSignature {unPrekeyBundleSignature :: ByteString}
   deriving stock (Eq, Show, Generic)
@@ -105,19 +116,21 @@ instance ToSchema PrekeyBundleSignature where
 
 decodePrekeyBundlePublicKey :: CBOR.Decoder s PrekeyBundlePublicKey
 decodePrekeyBundlePublicKey = do
-  n <- CBOR.decodeMapLen
-  unless (n == 1) $ fail $ "Schema Mismatch: Expected Map of 1 element, found " <> show n
-  k <- CBOR.decodeInt
-  unless (k == 0) $ fail $ "Unknown Key: Expected 0, found " <> show k
+  decodeUnfoldSingletonMap
+  decodeUnfoldSingletonMap
   PrekeyBundlePublicKey <$> CBOR.decodeBytes
 
 decodePrekeyBundleIdentityKey :: CBOR.Decoder s PrekeyBundleIdentityKey
 decodePrekeyBundleIdentityKey = do
+  decodeUnfoldSingletonMap
+  PrekeyBundleIdentityKey <$> CBOR.decodeBytes
+
+decodeUnfoldSingletonMap :: CBOR.Decoder s ()
+decodeUnfoldSingletonMap = do
   n <- CBOR.decodeMapLen
   unless (n == 1) $ fail $ "Schema Mismatch: Expected Map of 1 element, found " <> show n
   k <- CBOR.decodeInt
   unless (k == 0) $ fail $ "Unknown Key: Expected 0, found " <> show k
-  PrekeyBundleIdentityKey <$> decodePrekeyBundlePublicKey
 
 --------------------------------------------------------------------------------
 -- UncheckedPrekeyBundle
@@ -216,8 +229,12 @@ decodePrekeyBundlePrekeyPayload = do
         3 -> do
           v <- decodePrekeyBundlePublicKey
           go (i - 1) (m0, m1, m2, Just v, m4)
-        4 ->
-          go (i - 1) (m0, m1, m2, m3, Nothing) -- If null, Nothing
+        4 -> do
+          term <- CBOR.decodeTerm
+          case term of
+            CBOR.TNull -> go (i - 1) (m0, m1, m2, m3, Nothing)
+            CBOR.TMap [(CBOR.TInt 0, CBOR.TBytes bs)] -> go (i - 1) (m0, m1, m2, m3, Just $ PrekeyBundleSignature bs)
+            _ -> fail "Invalid onetime prekey component parsing"
         other -> fail $ "Unknown Key: " <> show other
 
 --------------------------------------------------------------------------------
