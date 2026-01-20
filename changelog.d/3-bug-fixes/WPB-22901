@@ -1,0 +1,1 @@
+`background-worker`'s default settings for `postgresMigration` have been correctly set to `cassandra`.
