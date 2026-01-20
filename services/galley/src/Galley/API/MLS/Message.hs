@@ -365,8 +365,9 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
   for_ bundle.appMessage $ \msg -> do
     -- reload conversation from db to make sure we have an up-to-date list of members
     lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+    let convOrSub' = tUnqualified lConvOrSub'
     propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage $
-      void convOrSub.members <> void newClients
+      void convOrSub'.members
 
   pure events
 
