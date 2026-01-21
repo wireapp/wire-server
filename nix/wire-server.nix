@@ -196,7 +196,7 @@ let
   # so they don't depend on all the haskell dependencies. These exectuables
   # are "static" from the perspective of ghc, i.e. they don't dynamically
   # depend on other haskell packages but they still dynamically depend on C
-  # dependencies like openssl, cryptobox, libxml2, etc. Doing this makes the
+  # dependencies like openssl, libxml2, etc. Doing this makes the
   # final images that we generate much smaller as we don't have to carry
   # around so files for all haskell packages.
   staticExecs = localMods@{ enableOptimization, enableDocs, enableTests }:

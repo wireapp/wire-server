@@ -24,9 +24,9 @@ import Data.UUID qualified as UUID (fromString)
 import Imports (fromJust)
 import Wire.API.User.Client.Prekey
   ( ClientPrekey (ClientPrekey, prekeyClient, prekeyData),
-    Prekey (Prekey, prekeyId, prekeyKey),
     PrekeyBundle (..),
     PrekeyId (PrekeyId, keyId),
+    UncheckedPrekeyBundle (UncheckedPrekeyBundle, prekeyId, prekeyKey),
   )
 
 testObject_PrekeyBundle_user_1 :: PrekeyBundle
@@ -36,7 +36,7 @@ testObject_PrekeyBundle_user_1 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 8,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\rOx"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\rOx"}
             }
         ]
     }
@@ -48,23 +48,23 @@ testObject_PrekeyBundle_user_2 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             }
         ]
     }
@@ -76,11 +76,11 @@ testObject_PrekeyBundle_user_3 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\n"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\n"}
             }
         ]
     }
@@ -99,11 +99,11 @@ testObject_PrekeyBundle_user_5 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "i"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "i"}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "L"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "L"}
             }
         ]
     }
@@ -115,27 +115,27 @@ testObject_PrekeyBundle_user_6 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             }
         ]
     }
@@ -147,11 +147,11 @@ testObject_PrekeyBundle_user_7 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 4,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "$"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "$"}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             }
         ]
     }
@@ -163,19 +163,19 @@ testObject_PrekeyBundle_user_8 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             }
         ]
     }
@@ -201,11 +201,11 @@ testObject_PrekeyBundle_user_11 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 4,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ">"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ">"}
             }
         ]
     }
@@ -217,7 +217,7 @@ testObject_PrekeyBundle_user_12 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0xa,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1092897\990773-"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1092897\990773-"}
             }
         ]
     }
@@ -229,31 +229,31 @@ testObject_PrekeyBundle_user_13 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             }
         ]
     }
@@ -272,15 +272,15 @@ testObject_PrekeyBundle_user_15 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 2,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 2,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\RS"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\RS"}
             }
         ]
     }
@@ -292,7 +292,7 @@ testObject_PrekeyBundle_user_16 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 0xf,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1066568\149661?"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1066568\149661?"}
             }
         ]
     }
@@ -304,43 +304,43 @@ testObject_PrekeyBundle_user_17 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             }
         ]
     }
@@ -359,23 +359,23 @@ testObject_PrekeyBundle_user_19 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 0,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             }
         ]
     }
@@ -387,15 +387,15 @@ testObject_PrekeyBundle_user_20 =
       prekeyClients =
         [ ClientPrekey
             { prekeyClient = ClientId 1,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
             },
           ClientPrekey
             { prekeyClient = ClientId 2,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1014040"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1014040"}
             },
           ClientPrekey
             { prekeyClient = ClientId 2,
-              prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\SO"}
+              prekeyData = UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\SO"}
             }
         ]
     }

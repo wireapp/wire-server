@@ -12,10 +12,6 @@
       inputs.flake-utils.follows = "flake-utils";
     };
 
-    cryptobox-haskell = {
-      url = "github:wireapp/cryptobox-haskell?ref=master";
-      flake = false;
-    };
     bloodhound = {
       url = "github:wireapp/bloodhound?ref=wire-fork";
       flake = false;

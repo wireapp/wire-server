@@ -24,7 +24,6 @@
 , cql
 , cql-io
 , criterion
-, cryptobox-haskell
 , crypton
 , crypton-x509
 , cryptostore
@@ -132,7 +131,6 @@ mkDerivation {
     cql
     cql-io
     criterion
-    cryptobox-haskell
     crypton
     crypton-x509
     cryptostore

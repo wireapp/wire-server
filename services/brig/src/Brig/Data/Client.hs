@@ -63,7 +63,6 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
 import Control.Retry
-import Data.ByteString.Base64 qualified as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.ByteString.Lazy qualified as LBS
 import Data.HashMap.Strict qualified as HashMap
@@ -78,8 +77,6 @@ import Data.UUID qualified as UUID
 import Imports
 import Polysemy (Member)
 import Prometheus qualified as Prom
-import System.CryptoBox (Result (Success))
-import System.CryptoBox qualified as CryptoBox
 import System.Logger.Class (field, msg, val)
 import System.Logger.Class qualified as Log
 import UnliftIO (pooledMapConcurrentlyN)
@@ -268,21 +265,15 @@ updateClientLastActive u c t =
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
-updatePrekeys :: (MonadClient m) => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
+updatePrekeys :: (MonadClient m) => UserId -> ClientId -> [UncheckedPrekeyBundle] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
-  plain <- mapM (hoistEither . fmapL (const MalformedPrekeys) . B64.decode . toByteString' . prekeyKey) pks
-  binary <- liftIO $ zipWithM check pks plain
-  unless (and binary) $
+  unless (all check pks) $
     throwE MalformedPrekeys
   for_ pks $ \k -> do
     let args = (u, c, prekeyId k, prekeyKey k)
     retry x5 $ write insertClientKey (params LocalQuorum args)
   where
-    check a b = do
-      i <- CryptoBox.isPrekey b
-      case i of
-        Success n -> pure (CryptoBox.prekeyId n == keyId (prekeyId a))
-        _ -> pure False
+    check pk = parsePrekeyBundlePrekeyId pk == Right (prekeyId pk)
 
 claimPrekey ::
   ( Log.MonadLogger m,
@@ -315,7 +306,7 @@ claimPrekey u c =
             field "user" (toByteString u)
               . field "client" (toByteString c)
               . msg (val "last resort prekey used")
-      pure $ Just (ClientPrekey c (Prekey i k))
+      pure $ Just (ClientPrekey c (UncheckedPrekeyBundle i k))
     removeAndReturnPreKey Nothing = pure Nothing
 
     pickRandomPrekey :: (MonadIO f) => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))
