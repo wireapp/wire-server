@@ -454,6 +454,7 @@ brigAccessMock mbAccount = interpret $ \case
   SetStatus _userId _status -> undefined
   GetDefaultUserLocale -> undefined
   CheckAdminGetTeamId _userId -> undefined
+  SendSAMLIdPChangedEmail _notif -> pure ()
 
 ignoringState :: (Functor f) => (a -> f (c, b)) -> a -> f b
 ignoringState f = fmap snd . f
