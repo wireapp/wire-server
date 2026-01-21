@@ -59,13 +59,8 @@ interpretCodeStoreToPostgres = interpret $ \case
       Right map' -> mbHost >>= flip Map.lookup map'
 
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
-insertCode c mPw = do
-  let k = codeKey c
-  let v = codeValue c
-  let cnv = codeConversation c
-  let t = round (codeTTL c)
-  let s = codeScope c
-  runStatement (k, s, cnv, mPw, v, t) insert
+insertCode c password = do
+  runStatement (codeKey c, codeScope c, codeConversation c, password, codeValue c, round (codeTTL c)) insert
   where
     insert :: Hasql.Statement (Key, Scope, ConvId, Maybe Password, Value, Int32) ()
     insert =
