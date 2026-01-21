@@ -735,7 +735,7 @@ updateVsuUref team uid old new = do
   ScimExternalIdStore.insert team new.validScimIdExternal uid
   for_ (justThere new.validScimIdAuthInfo) (`SAMLUserStore.insert` uid)
 
-  BrigAccess.setSSOId uid $ veidToUserSSOId new
+  BrigAccess.setSSOId uid $ veidToUserSSOId new -- TODO: theory: this doesn't remove the old email update verification token.
 
 toScimStoredUser ::
   (HasCallStack) =>
@@ -1186,11 +1186,13 @@ scimFindUserByExternalId mIdpConfig stiTeam eid = do
         -- there are a few ways to find a user. this should all be redundant, especially the where
         -- we lookup a user from brig by email, throw it away and only keep the uid, and then use
         -- the uid to lookup the account again. but cassandra, and also reasons.
+        -- TODO: BUG! this is handled by `listActivatedAccountsH` in brig, but we also want *inactive* accounts here!
         mViaEmail :: Maybe UserId <- join <$> (for (justHere veid.validScimIdAuthInfo) ((userId <$$>) . BrigAccess.getByEmail))
         mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
         pure $ mViaEmail <|> mViaUref
     Just uid -> pure uid
   acc <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
+  -- TODO: how can userId acc /= uid here?  do we even need to call getAccount?
   getUserById mIdpConfig stiTeam (userId acc)
 
 logFilter :: Filter -> (Msg -> Msg)
