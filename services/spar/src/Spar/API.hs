@@ -245,7 +245,7 @@ apiIDP opts =
     :<|> Named @"idp-create@v7" (idpCreateV7 opts.saml)
     :<|> Named @"idp-create" (idpCreate opts.saml) -- post, created
     :<|> Named @"idp-update" (idpUpdate opts.saml) -- put, okay
-    :<|> Named @"idp-delete" idpDelete -- delete, no content
+    :<|> Named @"idp-delete" (idpDelete opts.saml) -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,
@@ -566,11 +566,12 @@ idpDelete ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
   Sem r NoContent
-idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
+idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- IdPConfigStore.getConfig idpid
   (zusr, teamId) <- authorizeIdP mbzusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -588,7 +589,9 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
-    BrigAccess.sendSAMLIdPChangedEmail $ IdPDeleted idp
+    when (SAML.isMultiIngressConfig samlConfig) $
+      BrigAccess.sendSAMLIdPChangedEmail $
+        IdPDeleted idp
   logIdPAction
     "IdP deleted"
     idp
@@ -675,7 +678,9 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
-  BrigAccess.sendSAMLIdPChangedEmail $ IdPCreated idp
+  when (SAML.isMultiIngressConfig samlConfig) $
+    BrigAccess.sendSAMLIdPChangedEmail $
+      IdPCreated idp
   logIdPAction
     "IdP created"
     idp
@@ -838,7 +843,7 @@ idpUpdate ::
   Sem r IdP
 idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
-   in idpUpdateXML zusr mbHost raw xml
+   in idpUpdateXML samlConfig zusr mbHost raw xml
 
 idpUpdateXML ::
   ( Member Random r,
@@ -849,6 +854,7 @@ idpUpdateXML ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   Maybe UserId ->
   Maybe ZHostValue ->
   Text ->
@@ -856,7 +862,7 @@ idpUpdateXML ::
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
+idpUpdateXML samlConfig zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp, previousIdP) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
   guardMultiIngressDuplicateDomain teamid mDomain idpid
@@ -875,7 +881,9 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
-  BrigAccess.sendSAMLIdPChangedEmail $ IdPUpdated previousIdP idp''
+  when (SAML.isMultiIngressConfig samlConfig) $
+    BrigAccess.sendSAMLIdPChangedEmail $
+      IdPUpdated previousIdP idp''
   logIdPUpdate idp'' previousIdP
   pure idp''
   where

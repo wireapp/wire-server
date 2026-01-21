@@ -213,7 +213,7 @@ spec =
 
               (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
                 idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-                idpDelete zUser (idp._idpId) Nothing
+                idpDelete singleIngressSamlConfig zUser (idp._idpId) Nothing
               logs `shouldContain` [expectedLogLine]
 
             it "should log IdP deletion with domain for multi-ingress" $ do
@@ -246,7 +246,7 @@ spec =
 
               (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
                 idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-                idpDelete zUser (idp._idpId) Nothing
+                idpDelete multiIngressSamlConfig zUser (idp._idpId) Nothing
               logs `shouldContain` [expectedLogLine]
 
           describe "idp-update" $ do
@@ -426,7 +426,7 @@ spec =
 
                 (_logs, notifs, idp) <- interpretWithLoggingMock (Just user) $ do
                   idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
-                  void $ idpDelete zUser (idp._idpId) Nothing
+                  void $ idpDelete multiIngressSamlConfig zUser (idp._idpId) Nothing
                   pure idp
                 notifs `shouldBe` [IdPDeleted idp, IdPCreated idp]
             describe "idp-update" $ do
@@ -439,6 +439,44 @@ spec =
                   updatedIdP <- idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo (idp._idpId) Nothing
                   pure (idp, updatedIdP)
                 notifs `shouldBe` [IdPUpdated oldIdP newIdP, IdPCreated oldIdP]
+
+          context "when multi-ingress is NOT configured (common case)" $ do
+            describe "idp-create" $ do
+              it "should send" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+
+                forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
+                  (_logs, notifs, _idp) <-
+                    interpretWithLoggingMock
+                      Nothing
+                      (idpCreate singleIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing (Just apiVersion) idpHandle)
+                  notifs `shouldBe` mempty
+
+                  -- >=V7 does not bother with multi-ingress domains for IdPs as it can
+                  -- only have one IdP per team anyways.
+                  (_logs, notifsV7, _idp) <-
+                    interpretWithLoggingMock
+                      Nothing
+                      (idpCreateV7 singleIngressSamlConfig tid zUser idPMetadataInfo Nothing (Just apiVersion) idpHandle)
+                  notifsV7 `shouldBe` mempty
+            describe "idp-delete" $ do
+              it "should send" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+                user :: User <- generate arbitrary
+
+                (_logs, notifs, _) <- interpretWithLoggingMock (Just user) $ do
+                  idp <- idpCreate singleIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
+                  idpDelete singleIngressSamlConfig zUser (idp._idpId) Nothing
+                notifs `shouldBe` mempty
+            describe "idp-update" $ do
+              it "should send" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+                user :: User <- generate arbitrary
+
+                (_logs, notifs, _) <- interpretWithLoggingMock (Just user) $ do
+                  idp <- idpCreate singleIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
+                  idpUpdate singleIngressSamlConfig zUser miHost1 idPMetadataInfo (idp._idpId) Nothing
+                notifs `shouldBe` mempty
 
 type LogLine = (Level, LByteString)
 
