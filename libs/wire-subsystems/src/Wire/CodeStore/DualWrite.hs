@@ -38,7 +38,7 @@ interpretCodeStoreToCassandraAndPostgres ::
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
--- Cassandra is the source of truth during migration; writes are mirrored to Postgres.
+-- |Cassandra is the source of truth during migration; writes are mirrored to Postgres.
 interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   GetCode k s -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.getCode k s
