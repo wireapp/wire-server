@@ -800,7 +800,7 @@ runReindexFromAnotherIndex logger opts newIndexName migrationIndexName =
    in runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
 runReindexFromDatabase ::
-  (ElasticSettings -> CassandraSettings -> Endpoint -> Command) ->
+  (ElasticSettings -> CassandraSettings -> PostgresSettings -> Endpoint -> Command) ->
   Log.Logger ->
   Opt.Opts ->
   ES.IndexName ->
@@ -819,14 +819,14 @@ runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName =
           & IndexOpts.esIndexShardCount .~ shards
           & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       cassandraSettings :: CassandraSettings =
-        ( localCassandraSettings
-            & IndexOpts.cHost .~ (Text.unpack opts.cassandra.endpoint.host)
-            & IndexOpts.cPort .~ (opts.cassandra.endpoint.port)
-            & IndexOpts.cKeyspace .~ (C.Keyspace opts.cassandra.keyspace)
-        )
-
+        localCassandraSettings
+          & IndexOpts.cHost .~ (Text.unpack opts.cassandra.endpoint.host)
+          & IndexOpts.cPort .~ (opts.cassandra.endpoint.port)
+          & IndexOpts.cKeyspace .~ (C.Keyspace opts.cassandra.keyspace)
+      postgresSettings :: PostgresSettings =
+        brigOptsToPostgresSettings opts
       endpoint :: Endpoint = opts.galley
-   in runCommand logger $ syncCommand elasticSettings cassandraSettings endpoint
+   in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings endpoint
 
 toESConnectionSettings :: ElasticSearchOpts -> ES.IndexName -> ESConnectionSettings
 toESConnectionSettings opts migrationIndexName = ESConnectionSettings {..}

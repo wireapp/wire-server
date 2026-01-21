@@ -20,6 +20,7 @@ module Wire.IndexedUserStore.Bulk.ElasticSearch where
 import Cassandra.Exec (paginateWithStateC)
 import Cassandra.Util (Writetime (Writetime))
 import Conduit (ConduitT, runConduit, (.|))
+import Data.Aeson (encode)
 import Data.Conduit.Combinators qualified as Conduit
 import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
@@ -35,6 +36,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.AppStore
 import Wire.GalleyAPIAccess
 import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
@@ -50,6 +52,7 @@ import Wire.UserStore.IndexUser
 interpretIndexedUserStoreBulk ::
   ( Member TinyLog r,
     Member UserStore r,
+    Member AppStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
@@ -65,6 +68,7 @@ interpretIndexedUserStoreBulk = interpret \case
 syncAllUsersImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -76,6 +80,7 @@ syncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGT
 forceSyncAllUsersImpl ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -87,6 +92,7 @@ forceSyncAllUsersImpl = syncAllUsersWithVersion ES.ExternalGTE
 syncAllUsersWithVersion ::
   forall r.
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
     Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
@@ -122,6 +128,7 @@ syncAllUsersWithVersion mkVersion =
         (t,) <$> teamSearchVisibilityInbound t
       userTypes :: Map UserId UserType <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 page $ \iu ->
         (iu.userId,) <$> getUserType iu
+      warnIfMissingUserTypes page userTypes
       roles :: Map UserId (WithWritetime Role) <- fmap (Map.fromList . concat) . unsafePooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) -> do
         tms <- (.members) <$> selectTeamMemberInfos t (fmap (.userId) us)
         pure $ mapMaybe mkRoleWithWriteTime tms
@@ -147,11 +154,29 @@ syncAllUsersWithVersion mkVersion =
       )
         <$> permissionsToRole tmi.permissions
 
+    -- `page` and `userTypes` *should* overlap perfectly, but we're
+    -- using `unsafePooledForConcurrentlyN` to make concurrent db
+    -- calls and that swallows any errors that might occur.
+    --
+    -- FUTUREWORK: we need to get rid of `Wire.Sem.Concurrency`, it's
+    -- unidiomatic and dangerous!
+    warnIfMissingUserTypes :: [IndexUser] -> Map UserId ignored -> Sem r ()
+    warnIfMissingUserTypes page userTypes = do
+      let missing = us \\ ts
+          us, ts :: [UserId]
+          us = (.userId) <$> page
+          ts = Map.keys userTypes
+      unless (null missing) do
+        warn $
+          Log.field "missing" (encode missing)
+            . Log.msg (Log.val "Reindex: could not lookup all user types!")
+
 migrateDataImpl ::
   ( Member IndexedUserStore r,
     Member (Error MigrationException) r,
     Member IndexedUserMigrationStore r,
     Member UserStore r,
+    Member AppStore r,
     Member (Concurrency Unsafe) r,
     Member GalleyAPIAccess r,
     Member TinyLog r
@@ -185,17 +210,13 @@ teamSearchVisibilityInbound tid =
 -- probably expose it as an action there.
 getUserType ::
   forall r.
+  (Member AppStore r) =>
   IndexUser ->
   Sem r UserType
 getUserType iu = case iu.serviceId of
   Just _ -> pure UserTypeBot
   Nothing -> do
-    {-
-    FUTUREWORK: *correct* type fields from search are coming in a separate PR:
-
     mmApp <- mapM (getApp iu.userId) (iu.teamId <&> (.value))
     case join mmApp of
       Just _ -> pure UserTypeApp
       Nothing -> pure UserTypeRegular
-    -}
-    pure UserTypeRegular

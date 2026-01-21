@@ -43,6 +43,7 @@ module Data.Misc
     Duration (..),
     diffTimeParser,
     parseDuration,
+    unsafeParseDuration,
     durationToMicros,
 
     -- * HttpsUrl
@@ -283,6 +284,13 @@ diffTimeParser = do
 
 parseDuration :: Text -> Either String Duration
 parseDuration = fmap Duration . Atto.parseOnly (diffTimeParser <* Atto.endOfInput)
+
+unsafeParseDuration :: Text -> Duration
+unsafeParseDuration txt =
+  either
+    (\err -> error $ "Malformed duration: " <> show txt <> " " <> err)
+    id
+    (parseDuration txt)
 
 -- | Useful for threadDelay, timeout, etc.
 durationToMicros :: Duration -> Int

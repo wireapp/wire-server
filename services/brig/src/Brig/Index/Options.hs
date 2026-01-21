@@ -34,7 +34,9 @@ module Brig.Index.Options
     cPort,
     cTlsCa,
     cKeyspace,
+    PostgresSettings (..),
     localElasticSettings,
+    brigOptsToPostgresSettings,
     localCassandraSettings,
     commandParser,
     mkCreateIndexSettings,
@@ -47,13 +49,23 @@ module Brig.Index.Options
 where
 
 import Brig.Index.Types (CreateIndexSettings (..))
+import Brig.Options qualified as Opts
 import Cassandra qualified as C
 import Control.Lens
+import Data.Aeson as Aeson
+import Data.Aeson.Key qualified as AKey
+import Data.Aeson.KeyMap qualified as AKM
+import Data.Aeson.Text qualified as Aeson
 import Data.ByteString.Lens
+import Data.Map qualified as Map
+import Data.Misc
 import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Lazy qualified as LText
 import Data.Text.Strict.Lens
-import Data.Time.Clock (NominalDiffTime)
+import Data.Time (NominalDiffTime)
 import Database.Bloodhound qualified as ES
+import Hasql.Pool.Extended
 import Imports
 import Options.Applicative
 import URI.ByteString
@@ -63,11 +75,11 @@ import Util.Options (CassandraOpts (..), Endpoint (..), FilePathSecrets)
 data Command
   = Create ElasticSettings Endpoint
   | Reset ElasticSettings Endpoint
-  | Reindex ElasticSettings CassandraSettings Endpoint
-  | ReindexSameOrNewer ElasticSettings CassandraSettings Endpoint
+  | Reindex ElasticSettings CassandraSettings PostgresSettings Endpoint
+  | ReindexSameOrNewer ElasticSettings CassandraSettings PostgresSettings Endpoint
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
     UpdateMapping ESConnectionSettings Endpoint
-  | Migrate ElasticSettings CassandraSettings Endpoint
+  | Migrate ElasticSettings CassandraSettings PostgresSettings Endpoint
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
@@ -87,6 +99,15 @@ data ElasticSettings = ElasticSettings
     _esIndexReplicas :: ES.ReplicaCount,
     _esIndexRefreshInterval :: NominalDiffTime,
     _esDeleteTemplate :: Maybe ES.TemplateName
+  }
+  deriving (Show)
+
+data PostgresSettings = PostgresSettings
+  { pool :: !PoolConfig,
+    passwordFile :: !(Maybe FilePathSecrets),
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    settings :: !(Map Text Text)
   }
   deriving (Show)
 
@@ -145,6 +166,14 @@ localElasticSettings =
       _esIndexReplicas = ES.ReplicaCount 1,
       _esIndexRefreshInterval = 1,
       _esDeleteTemplate = Nothing
+    }
+
+brigOptsToPostgresSettings :: Opts.Opts -> PostgresSettings
+brigOptsToPostgresSettings opts =
+  PostgresSettings
+    { pool = opts.postgresqlPool,
+      passwordFile = opts.postgresqlPassword,
+      settings = opts.postgresql
     }
 
 localCassandraSettings :: CassandraSettings
@@ -297,6 +326,70 @@ credentialsPathParser =
         )
     )
 
+postgresSettingsParser :: Parser PostgresSettings
+postgresSettingsParser =
+  PostgresSettings
+    <$> poolConfigParser
+    <*> optional
+      ( strOption
+          ( long "pg-password-file"
+              <> metavar "FILE"
+              <> help "File containing PostgreSQL password"
+          )
+      )
+    <*> option
+      (eitherReader parseJsonMap)
+      ( long "pg-settings"
+          <> metavar "JSON"
+          <> help "PostgreSQL connection parameters as JSON object"
+          <> value Map.empty
+      )
+
+poolConfigParser :: Parser PoolConfig
+poolConfigParser =
+  PoolConfig
+    <$> option
+      auto
+      ( long "pg-pool-size"
+          <> metavar "INT"
+          <> help "Connection pool size"
+          <> value 10
+      )
+    <*> option
+      (eitherReader (parseDuration . Text.pack))
+      ( long "pg-pool-acquisition-timeout"
+          <> metavar "Duration"
+          <> help "Pool acquisition timeout in seconds"
+          <> value (unsafeParseDuration "10s")
+      )
+    <*> option
+      (eitherReader (parseDuration . Text.pack))
+      ( long "pg-pool-aging-timeout"
+          <> metavar "Duration"
+          <> help "Pool aging timeout in seconds"
+          <> value (unsafeParseDuration "1d")
+      )
+    <*> option
+      (eitherReader (parseDuration . Text.pack))
+      ( long "pg-pool-idleness-timeout"
+          <> metavar "Duration"
+          <> help "Pool idleness timeout in seconds"
+          <> value (unsafeParseDuration "10m")
+      )
+
+parseJsonMap :: String -> Either String (Map Text Text)
+parseJsonMap s = do
+  Aeson.eitherDecodeStrict' (encodeUtf8 (Text.pack s)) >>= \case
+    Object hmap -> pure $ Map.fromList $ bimap AKey.toText valueToText <$> AKM.toList hmap
+    bad -> Left $ "invalid json object: " <> show bad
+  where
+    valueToText :: Value -> Text
+    valueToText (String t) = t
+    valueToText (Bool b) = (if b then "true" else "false")
+    valueToText (Number n) = (Text.pack (show n))
+    valueToText Null = "null"
+    valueToText v = LText.toStrict (Aeson.encodeToLazyText v)
+
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
   CassandraSettings
@@ -394,19 +487,19 @@ commandParser =
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
+              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
               (progDesc "Migrate data in elastic search")
           )
         <> command

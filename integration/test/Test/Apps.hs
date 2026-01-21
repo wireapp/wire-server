@@ -101,19 +101,25 @@ testCreateApp = do
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
-  let foundUserType exactMatchTerm aType =
-        searchContacts owner exactMatchTerm OwnDomain `bindResponse` \resp -> do
+  let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
+      foundUserType searcher exactMatchTerm aTypes =
+        searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
-          foundDoc <- resp.json %. "documents" >>= asList >>= assertOne
-          foundDoc %. "type" `shouldMatch` aType
+          foundDoc <- resp.json %. "documents" >>= asList
+          (%. "type") `mapM` foundDoc `shouldMatch` aTypes
 
   -- App's user is findable from /search/contacts
   BrigI.refreshIndex domain
-  foundUserType new.name "app"
+  foundUserType owner new.name ["app"]
+  foundUserType regularMember new.name ["app"]
+
+  -- App's user is *not* findable from other team.
+  BrigI.refreshIndex domain
+  foundUserType owner2 new.name []
 
   -- Regular members still have the type "regular"
   memberName <- regularMember %. "name" & asString
-  foundUserType memberName "regular"
+  foundUserType owner memberName ["regular"]
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
