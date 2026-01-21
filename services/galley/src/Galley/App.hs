@@ -113,6 +113,8 @@ import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
+import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
@@ -350,8 +352,9 @@ evalGalley e =
         . runInputConst (e ^. options)
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
-        . runInputSem getAllTeamFeaturesForServer
         . runInputConst (currentFanoutLimit (e ^. options))
+        . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
+        . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
@@ -385,6 +388,8 @@ evalGalley e =
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretSparAPIAccessToRpc (e ^. options . spar)
         . interpretTeamSubsystem teamSubsystemConfig
+        . runFeaturesConfigSubsystem
+        . runInputSem getAllTeamFeaturesForServer
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
   where

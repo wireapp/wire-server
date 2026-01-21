@@ -68,7 +68,6 @@ import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
@@ -88,6 +87,8 @@ import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
@@ -106,6 +107,7 @@ import Wire.ServiceStore
 import Wire.SparAPIAccess
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamFeatureStore
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -115,6 +117,8 @@ import Wire.UserGroupStore
 type GalleyEffects1 =
   '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
+     Input AllTeamFeatures,
+     FeaturesConfigSubsystem,
      TeamSubsystem,
      SparAPIAccess,
      NotificationSubsystem,
@@ -148,8 +152,9 @@ type GalleyEffects1 =
      TeamMemberStore CassandraPaging,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
+     Input ExposeInvitationURLsAllowlist,
+     Input FeatureFlags,
      Input FanoutLimit,
-     Input AllTeamFeatures,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,

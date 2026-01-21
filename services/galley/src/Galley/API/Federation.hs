@@ -97,6 +97,7 @@ import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -506,7 +507,8 @@ updateConversation ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamStore r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Domain ->
   ConversationUpdateRequest ->
@@ -636,7 +638,6 @@ sendMLSCommitBundle ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member Resource r,
     Member TeamStore r,
     Member TeamSubsystem r,
@@ -645,6 +646,7 @@ sendMLSCommitBundle ::
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FeaturesConfigSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->

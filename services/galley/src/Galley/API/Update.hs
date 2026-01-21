@@ -139,6 +139,7 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ExternalAccess qualified as E
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
@@ -531,7 +532,7 @@ addCodeUnqualifiedWithReqBody ::
     Member Now r,
     Member HashPassword r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member RateLimit r,
     Member TeamSubsystem r
   ) =>
@@ -557,7 +558,7 @@ addCodeUnqualified ::
     Member Now r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member RateLimit r,
     Member TeamSubsystem r
   ) =>
@@ -585,7 +586,7 @@ addCode ::
     Member NotificationSubsystem r,
     Member Now r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member RateLimit r,
     Member TeamSubsystem r
   ) =>
@@ -683,8 +684,7 @@ getCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   Maybe ZHostValue ->
   Local UserId ->
@@ -705,11 +705,10 @@ checkReusableCode ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
-    Member (Input Opts) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -749,6 +748,7 @@ updateConversationProtocolWithLocalUser ::
     Member Random r,
     Member ProposalStore r,
     Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
@@ -836,8 +836,7 @@ joinConversationByReusableCode ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ConversationSubsystem r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
     Member TeamSubsystem r,
@@ -1922,8 +1921,7 @@ updateCellsState ::
   ( Member ConversationStore r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   ConvId ->
   CellsState ->
@@ -1932,7 +1930,7 @@ updateCellsState cnv state = do
   when (state /= CellsDisabled) $ do
     conv <- E.getConversation cnv >>= noteS @ConvNotFound
     tid <- noteS @InvalidOperation conv.metadata.cnvmTeam
-    feat <- getFeatureForTeam @CellsConfig tid
+    (feat :: LockableFeature CellsConfig) <- getFeatureForTeam tid
     noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
   E.setConversationCellsState cnv state
 

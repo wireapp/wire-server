@@ -152,7 +152,6 @@ library
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
-    Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
     Galley.Env

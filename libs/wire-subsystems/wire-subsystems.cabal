@@ -116,6 +116,7 @@ common common-all
     , extra
     , file-embed
     , galley-types
+    , generics-sop
     , hashable
     , HaskellNet
     , HaskellNet-SSL
@@ -164,6 +165,7 @@ common common-all
     , servant-server
     , singletons
     , sodium-crypto-sign
+    , sop-core
     , ssl-util
     , statistics
     , stomp-queue
@@ -261,6 +263,10 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FeaturesConfigSubsystem
+    Wire.FeaturesConfigSubsystem.Interpreter
+    Wire.FeaturesConfigSubsystem.Types
+    Wire.FeaturesConfigSubsystem.Utils
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
@@ -282,6 +288,7 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
     Wire.LegalHoldStore.Cassandra.Queries
@@ -321,6 +328,7 @@ library
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem
     Wire.TeamCollaboratorsSubsystem.Interpreter
+    Wire.TeamFeatureStore
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
