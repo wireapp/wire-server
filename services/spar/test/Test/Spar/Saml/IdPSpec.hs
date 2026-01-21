@@ -399,33 +399,52 @@ spec =
                 idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
                 idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo'' (idp._idpId) Nothing
               logs `shouldContain` [expectedLogLine]
-        describe "SAML IdP change notifications" $ do
-          describe "idp-create" $ do
-            it "should sent when multi-ingress is configured" $ do
-              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-              let idPMetadataInfo' =
-                    idPMetadataInfo
-                      { _idpMetadataRecord =
-                          (idPMetadataInfo._idpMetadataRecord)
-                            { SAML._edIssuer = issuer,
-                              SAML._edRequestURI = idpEndpoint
-                            }
-                      }
+        describe "SAML IdP change notification emails" $ do
+          context "when multi-ingress is configured" $ do
+            describe "idp-create" $ do
+              it "should send" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+                let idPMetadataInfo' =
+                      idPMetadataInfo
+                        { _idpMetadataRecord =
+                            (idPMetadataInfo._idpMetadataRecord)
+                              { SAML._edIssuer = issuer,
+                                SAML._edRequestURI = idpEndpoint
+                              }
+                        }
 
-              forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-                (_logs, notifs, idp) <-
-                  interpretWithLoggingMock
-                    Nothing
-                    (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
-                notifs `shouldBe` [IdPCreated idp]
+                forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
+                  (_logs, notifs, idp) <-
+                    interpretWithLoggingMock
+                      Nothing
+                      (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                  notifs `shouldBe` [IdPCreated idp]
 
-                -- >=V7 does not bother with multi-ingress domains for IdPs as it can
-                -- only have one IdP per team anyways.
-                (_logs, notifsV7, idpV7) <-
-                  interpretWithLoggingMock
-                    Nothing
-                    (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
-                notifsV7 `shouldBe` [IdPCreated idpV7]
+                  -- >=V7 does not bother with multi-ingress domains for IdPs as it can
+                  -- only have one IdP per team anyways.
+                  (_logs, notifsV7, idpV7) <-
+                    interpretWithLoggingMock
+                      Nothing
+                      (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                  notifsV7 `shouldBe` [IdPCreated idpV7]
+            describe "idp-delete" $ do
+              it "should send" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+                user :: User <- generate arbitrary
+                let idPMetadataInfo' =
+                      idPMetadataInfo
+                        { _idpMetadataRecord =
+                            (idPMetadataInfo._idpMetadataRecord)
+                              { SAML._edIssuer = issuer,
+                                SAML._edRequestURI = idpEndpoint
+                              }
+                        }
+
+                (_logs, notifs, idp) <- interpretWithLoggingMock (Just user) $ do
+                  idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                  idpDelete zUser (idp._idpId) Nothing
+                  pure idp
+                notifs `shouldContain` [IdPDeleted idp]
 
 type LogLine = (Level, LByteString)
 
