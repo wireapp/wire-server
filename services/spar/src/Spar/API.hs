@@ -121,6 +121,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification (IdPCreated, IdPDeleted, IdPUpdated))
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZHostValue)
@@ -587,6 +588,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
+    BrigAccess.sendSAMLIdPChangedEmail $ IdPDeleted idp
   logIdPAction
     "IdP deleted"
     idp
@@ -673,6 +675,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+  BrigAccess.sendSAMLIdPChangedEmail $ IdPCreated idp
   logIdPAction
     "IdP created"
     idp
@@ -872,6 +875,7 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
+  BrigAccess.sendSAMLIdPChangedEmail $ IdPUpdated previousIdP idp''
   logIdPUpdate idp'' previousIdP
   pure idp''
   where

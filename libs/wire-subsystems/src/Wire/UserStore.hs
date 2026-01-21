@@ -114,6 +114,7 @@ data UserStore m a where
   DeleteServiceUser :: ProviderId -> ServiceId -> BotId -> UserStore m ()
   LookupServiceUsers :: ProviderId -> ServiceId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId, Maybe TeamId))
   LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId))
+  GetEmails :: [UserId] -> UserStore m [EmailAddress]
 
 makeSem ''UserStore
 

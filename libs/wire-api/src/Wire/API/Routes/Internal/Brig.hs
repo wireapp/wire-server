@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -43,10 +45,12 @@ module Wire.API.Routes.Internal.Brig
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
     EnterpriseLoginApi,
+    SAMLIdPAPI,
+    IdpChangedNotification (..),
   )
 where
 
-import Control.Lens ((.~), (?~))
+import Control.Lens (makePrisms, (.~), (?~), _1)
 import Data.Aeson (FromJSON, ToJSON, Value (Null))
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -96,6 +100,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Orphans ()
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -713,6 +719,18 @@ type API =
            :<|> FederationRemotesAPI
            :<|> ProviderAPI
            :<|> EnterpriseLoginApi
+           :<|> SAMLIdPAPI
+       )
+
+type SAMLIdPAPI =
+  "idp"
+    :> ( Named
+           "send-idp-changed-email"
+           ( Summary "Send an email about IdP creation, deletion or update to all team admins and owners"
+               :> "send-idp-changed-email"
+               :> ReqBody '[Servant.JSON] IdpChangedNotification
+               :> Post '[Servant.JSON] ()
+           )
        )
 
 type IStatusAPI =
@@ -984,6 +1002,54 @@ instance S.ToSchema GetRichInfoMultiResponse where
     pure $
       S.NamedSchema (Just $ "GetRichInfoMultiResponse") $
         mempty & S.description ?~ "List of pairs of UserId and RichInfo"
+
+data IdpChangedNotificationTag = IdPCreatedTag | IdPDeletedTag | IdPUpdatedTag
+  deriving (Eq, Enum, Bounded)
+
+data IdpChangedNotification = IdPCreated IdP | IdPDeleted IdP | IdPUpdated IdP IdP
+  deriving (Eq, Show, Generic)
+
+makePrisms ''IdpChangedNotification
+
+instance Data.Schema.ToSchema IdpChangedNotification where
+  schema =
+    object "IdpChangedNotification" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: IdpChangedNotification -> (IdpChangedNotificationTag, IdpChangedNotification)
+      toTagged d@(IdPCreated _) = (IdPCreatedTag, d)
+      toTagged d@(IdPDeleted _) = (IdPDeletedTag, d)
+      toTagged d@(IdPUpdated _ _) = (IdPUpdatedTag, d)
+
+      fromTagged :: (IdpChangedNotificationTag, IdpChangedNotification) -> IdpChangedNotification
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        IdPCreatedTag -> tag _IdPCreated (Data.Schema.unnamed schema)
+        IdPDeletedTag -> tag _IdPDeleted (Data.Schema.unnamed schema)
+        IdPUpdatedTag -> tag _IdPUpdated (Data.Schema.unnamed updatedSchema)
+
+      tagSchema :: ValueSchema NamedSwaggerDoc IdpChangedNotificationTag
+      tagSchema =
+        enum @Text "Detail Tag" $
+          mconcat [element "created" IdPCreatedTag, element "deleted" IdPDeletedTag, element "updated" IdPUpdatedTag]
+
+      updatedSchema :: ValueSchema NamedSwaggerDoc (IdP, IdP)
+      updatedSchema =
+        object "IdPUpdated" $
+          (,)
+            <$> fst .= field "old" schema
+            <*> snd .= field "new" schema
+
+deriving via (Schema IdpChangedNotification) instance FromJSON IdpChangedNotification
+
+deriving via (Schema IdpChangedNotification) instance ToJSON IdpChangedNotification
+
+deriving via (Schema IdpChangedNotification) instance S.ToSchema IdpChangedNotification
 
 swaggerDoc :: OpenApi
 swaggerDoc = brigSwaggerDoc

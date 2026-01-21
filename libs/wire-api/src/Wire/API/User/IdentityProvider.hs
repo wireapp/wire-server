@@ -50,6 +50,7 @@ import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id (TeamId)
 import Data.OpenApi
 import Data.Proxy (Proxy (Proxy))
+import Data.Schema qualified as Schema
 import Data.Text.Encoding
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as LT
@@ -58,10 +59,8 @@ import Network.HTTP.Media ((//))
 import SAML2.WebSSO (IdPConfig)
 import SAML2.WebSSO qualified as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
-import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
 import Wire.API.Routes.Public (ZHostValue)
-import Wire.API.User.Orphans (samlSchemaOptions)
 import Wire.API.Util.Aeson (defaultOptsDropChar)
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
@@ -70,7 +69,7 @@ type IdP = IdPConfig WireIdP
 
 -- | Unique human-readable IdP name.
 newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
+  deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Schema.ToSchema, Arbitrary, Generic)
 
 data WireIdP = WireIdP
   { _team :: TeamId,
@@ -89,6 +88,19 @@ data WireIdP = WireIdP
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform WireIdP)
 
+instance Schema.ToSchema WireIdP where
+  schema =
+    Schema.object
+      "WireIdP"
+      ( WireIdP
+          <$> _team Schema..= Schema.field "team" Schema.schema
+          <*> _apiVersion Schema..= Schema.maybe_ (Schema.optField "apiVersion" Schema.schema)
+          <*> _oldIssuers Schema..= Schema.field "oldIssuers" (Schema.array Schema.schema)
+          <*> _replacedBy Schema..= Schema.maybe_ (Schema.optField "replacedBy" Schema.schema)
+          <*> _handle Schema..= Schema.field "handle" Schema.schema
+          <*> _domain Schema..= Schema.maybe_ (Schema.optField "domain" Schema.schema)
+      )
+
 data WireIdPAPIVersion
   = -- | initial API
     WireIdPAPIV1
@@ -96,6 +108,15 @@ data WireIdPAPIVersion
     WireIdPAPIV2
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform WireIdPAPIVersion)
+  deriving (FromJSON, ToJSON, ToSchema) via (Schema.Schema WireIdPAPIVersion)
+
+instance Schema.ToSchema WireIdPAPIVersion where
+  schema =
+    Schema.enum @Text "WireIdPAPIVersion" $
+      mconcat
+        [ Schema.element "v1" WireIdPAPIV1,
+          Schema.element "v2" WireIdPAPIV2
+        ]
 
 -- | (Internal issue for making v2 the default:
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-781.  BEWARE: We probably shouldn't ever
@@ -105,8 +126,6 @@ defWireIdPAPIVersion :: WireIdPAPIVersion
 defWireIdPAPIVersion = WireIdPAPIV1
 
 makeLenses ''WireIdP
-
-deriveJSON deriveJSONOptions ''WireIdPAPIVersion
 
 -- Changing the encoder since we've dropped the field prefixes
 deriveJSON (defaultOptsDropChar '_') ''WireIdP
@@ -210,9 +229,6 @@ idPMetadataToInfo =
 -- Same as WireIdP, check there for why this has different handling
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema $ fromAesonOptions $ defaultOptsDropChar '_'
-
-instance ToSchema WireIdPAPIVersion where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema WireIdP where
   -- We don't want to use `samlSchemaOptions`, as it pulls from saml2-web-sso json options which

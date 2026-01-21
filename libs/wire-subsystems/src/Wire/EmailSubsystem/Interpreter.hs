@@ -37,6 +37,7 @@ import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client (Client (..))
+import Wire.API.User.IdentityProvider (IdP)
 import Wire.API.User.Password
 import Wire.EmailSending (EmailSending, sendMail)
 import Wire.EmailSubsystem
@@ -67,6 +68,19 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
   SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls branding email tid teamName loc
   SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls branding email tid teamName loc name
+  SendSAMLIdPCreated idp email -> sendSAMLIdPCreatedImpl idp email
+  SendSAMLIdPDeleted idp email -> sendSAMLIdPDeletedImpl idp email
+  SendSAMLIdPUpdated old new email -> sendSAMLIdPUpdatedImpl old new email
+
+-- TODO: Move these functions down in this file.
+sendSAMLIdPUpdatedImpl :: IdP -> IdP -> EmailAddress -> Sem r ()
+sendSAMLIdPUpdatedImpl = todo
+
+sendSAMLIdPCreatedImpl :: IdP -> EmailAddress -> Sem r ()
+sendSAMLIdPCreatedImpl = todo
+
+sendSAMLIdPDeletedImpl :: IdP -> EmailAddress -> Sem r ()
+sendSAMLIdPDeletedImpl = todo
 
 -------------------------------------------------------------------------------
 -- Verification Email for
