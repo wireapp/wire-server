@@ -12,6 +12,7 @@ import qualified Data.Text.Lazy.IO as TL
 import Imports
 import Polysemy
 import qualified Polysemy.Error
+import Polysemy.State
 import Polysemy.TinyLog
 import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
@@ -35,6 +36,7 @@ import Test.QuickCheck
 import qualified Text.XML.DSig as DSig
 import URI.ByteString (parseURI, strictURIParserOptions)
 import URI.ByteString.QQ (uri)
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.User (User (..))
 import Wire.API.User.IdentityProvider (IdPMetadataInfo (..), WireIdPAPIVersion (..))
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
@@ -123,13 +125,13 @@ spec =
                   )
 
             forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-              (logs, _res) <-
+              (logs, _notifs, _res) <-
                 interpretWithLoggingMock
                   Nothing
                   (idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
               logs `shouldContain` [expectedLogLine]
 
-              (logsV7, _res) <-
+              (logsV7, _notifs, _res) <-
                 interpretWithLoggingMock
                   Nothing
                   (idpCreateV7 singleIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
@@ -167,7 +169,7 @@ spec =
                 expectedLogLineWithoutDomain = expectedLogLine "None"
 
             forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-              (logs, _res) <-
+              (logs, _notifs, _res) <-
                 interpretWithLoggingMock
                   Nothing
                   (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
@@ -175,7 +177,7 @@ spec =
 
               -- >=V7 does not bother with multi-ingress domains for IdPs as it can
               -- only have one IdP per team anyways.
-              (logsV7, _res) <-
+              (logsV7, _notifs, _res) <-
                 interpretWithLoggingMock
                   Nothing
                   (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
@@ -208,7 +210,7 @@ spec =
                       <> "\n"
                   )
 
-            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpDelete zUser (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
@@ -241,7 +243,7 @@ spec =
                       <> "\n"
                   )
 
-            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpDelete zUser (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
@@ -273,7 +275,7 @@ spec =
                       <> "\n"
                   )
 
-            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
@@ -306,7 +308,7 @@ spec =
                       <> "\n"
                   )
 
-            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
@@ -341,7 +343,7 @@ spec =
                       <> "\n"
                   )
 
-            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpUpdate multiIngressSamlConfig zUser miHost2 idPMetadataInfo' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
@@ -392,7 +394,7 @@ spec =
                       <> "\n"
                   )
 
-            (logs, _res) <- interpretWithLoggingMock (Just user) $ do
+            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
               idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
               idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo'' (idp._idpId) Nothing
             logs `shouldContain` [expectedLogLine]
@@ -402,7 +404,7 @@ type LogLine = (Level, LByteString)
 interpretWithLoggingMock ::
   Maybe User ->
   Sem (Effs) a ->
-  IO ([LogLine], a)
+  IO ([LogLine], [IdpChangedNotification], a)
 interpretWithLoggingMock mbAccount action = do
   lr <- newLogRecorder
   a <-
@@ -419,7 +421,8 @@ interpretWithLoggingMock mbAccount action = do
       . randomToNull
       $ action
   logs <- readIORef lr.recordedLogs
-  pure (logs, either (error . show) id a)
+  let (notifs, res) = either (error . show) id a
+  pure (logs, notifs, res)
 
 galleyAccessMock :: Sem (GalleyAccess ': r) a -> Sem r a
 galleyAccessMock = interpret $ \case
@@ -430,31 +433,32 @@ galleyAccessMock = interpret $ \case
   IsEmailValidationEnabledTeam _teamId -> undefined
   UpdateTeamMember _userId _teamId _role -> undefined
 
-brigAccessMock :: Maybe User -> Sem (BrigAccess ': r) a -> Sem r a
-brigAccessMock mbAccount = interpret $ \case
-  CreateSAML _userRef _userId _teamId _name _managedBy _mHandle _mRichInfo _mLocale _role -> undefined
-  CreateNoSAML _txt _email _userId _teamId _name _mLocale _role -> undefined
-  UpdateEmail _userId _email _activation -> undefined
-  GetAccount _havePendingInvitations _userId -> pure mbAccount
-  GetByHandle _handle -> undefined
-  GetByEmail _email -> undefined
-  SetName _userId _name -> undefined
-  SetHandle _userId _handle -> undefined
-  SetManagedBy _userId _managedBy -> undefined
-  SetSSOId _userId _ssoId -> undefined
-  SetRichInfo _userId _richInfo -> undefined
-  SetLocale _userId _mLocale -> undefined
-  GetRichInfo _userId -> undefined
-  CheckHandleAvailable _handle -> undefined
-  DeleteUser _userId -> undefined
-  EnsureReAuthorised _mUserId _mPassword _mCode _mAction -> undefined
-  SsoLogin _userId -> undefined
-  GetStatus _userId -> undefined
-  GetStatusMaybe _userId -> undefined
-  SetStatus _userId _status -> undefined
-  GetDefaultUserLocale -> undefined
-  CheckAdminGetTeamId _userId -> undefined
-  SendSAMLIdPChangedEmail _notif -> pure ()
+brigAccessMock :: Maybe User -> Sem (BrigAccess ': r) a -> Sem r ([IdpChangedNotification], a)
+brigAccessMock mbAccount = (runState @([IdpChangedNotification]) mempty .) $
+  reinterpret $ \case
+    CreateSAML _userRef _userId _teamId _name _managedBy _mHandle _mRichInfo _mLocale _role -> undefined
+    CreateNoSAML _txt _email _userId _teamId _name _mLocale _role -> undefined
+    UpdateEmail _userId _email _activation -> undefined
+    GetAccount _havePendingInvitations _userId -> pure mbAccount
+    GetByHandle _handle -> undefined
+    GetByEmail _email -> undefined
+    SetName _userId _name -> undefined
+    SetHandle _userId _handle -> undefined
+    SetManagedBy _userId _managedBy -> undefined
+    SetSSOId _userId _ssoId -> undefined
+    SetRichInfo _userId _richInfo -> undefined
+    SetLocale _userId _mLocale -> undefined
+    GetRichInfo _userId -> undefined
+    CheckHandleAvailable _handle -> undefined
+    DeleteUser _userId -> undefined
+    EnsureReAuthorised _mUserId _mPassword _mCode _mAction -> undefined
+    SsoLogin _userId -> undefined
+    GetStatus _userId -> undefined
+    GetStatusMaybe _userId -> undefined
+    SetStatus _userId _status -> undefined
+    GetDefaultUserLocale -> undefined
+    CheckAdminGetTeamId _userId -> undefined
+    SendSAMLIdPChangedEmail notif -> modify (notif :)
 
 ignoringState :: (Functor f) => (a -> f (c, b)) -> a -> f b
 ignoringState f = fmap snd . f
