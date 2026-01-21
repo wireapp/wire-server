@@ -175,3 +175,11 @@ config:
 # If 'true' some resources aren't created because they're expected to already
 # exist. There must be one non-additional instantiation per deployment!
   isAdditionalIngress: false
+
+# Custom annotations to add to the main ingress resource.
+# Useful for adding server-snippet or other nginx-specific configurations.
+# Example:
+#   ingressAnnotations:
+#     nginx.ingress.kubernetes.io/server-snippet: |
+#       ssl_conf_command Curves X25519MLKEM768;
+ingressAnnotations: {}

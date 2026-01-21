@@ -2,8 +2,13 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "nginx-ingress-services.getIngressName" . | quote }}
-  {{- if .Values.config.renderCSPInIngress }}
+  {{- if or .Values.config.renderCSPInIngress .Values.ingressAnnotations }}
   annotations:
+    {{- /* Custom annotations (e.g., for server-snippet TLS configuration) */}}
+    {{- with .Values.ingressAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.config.renderCSPInIngress }}
     {{- if not (contains .Values.config.ingressClass "nginx") }}
         {{ fail "In ingress CSP header setting only works with a 'nginx' controller. (Rename it to 'nginx-*' if it is one.)" }}
     {{- end }}
@@ -38,6 +43,7 @@ metadata:
         set $CSP "${CSP} upgrade-insecure-requests";
         more_set_headers "content-security-policy: $CSP";
       }
+    {{- end }}
   {{- end }}
 spec:
   ingressClassName: "{{ .Values.config.ingressClass }}"
