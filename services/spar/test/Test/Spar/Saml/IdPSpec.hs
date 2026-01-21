@@ -36,7 +36,7 @@ import Test.QuickCheck
 import qualified Text.XML.DSig as DSig
 import URI.ByteString (parseURI, strictURIParserOptions)
 import URI.ByteString.QQ (uri)
-import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
 import Wire.API.User (User (..))
 import Wire.API.User.IdentityProvider (IdPMetadataInfo (..), WireIdPAPIVersion (..))
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
@@ -96,308 +96,336 @@ spec =
           . parseURI strictURIParserOptions
           . fromString
           $ idpEndpointString
-   in describe "SAML IdP change logging" $ do
-        describe "idp-create" $ do
-          it "should log IdP creation" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
+   in do
+        describe "SAML IdP change logging" $ do
+          describe "idp-create" $ do
+            it "should log IdP creation" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-                expectedLogLine =
-                  ( Info,
-                    "IdP created, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", domain=None, user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", replaces=None"
-                      <> "\n"
-                  )
+                  expectedLogLine =
+                    ( Info,
+                      "IdP created, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", domain=None, user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> ", replaces=None"
+                        <> "\n"
+                    )
 
-            forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-              (logs, _notifs, _res) <-
-                interpretWithLoggingMock
-                  Nothing
-                  (idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+              forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
+                (logs, _notifs, _res) <-
+                  interpretWithLoggingMock
+                    Nothing
+                    (idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                logs `shouldContain` [expectedLogLine]
+
+                (logsV7, _notifs, _res) <-
+                  interpretWithLoggingMock
+                    Nothing
+                    (idpCreateV7 singleIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                logsV7 `shouldContain` [expectedLogLine]
+
+            it "should log IdP creation with domain for multi-ingress" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
+
+                  expectedLogLine :: LByteString -> LogLine
+                  expectedLogLine domainPart =
+                    ( Info,
+                      "IdP created, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", domain="
+                        <> domainPart
+                        <> ", user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> ", replaces=None"
+                        <> "\n"
+                    )
+                  expectedLogLineWithDomain = expectedLogLine . TL.encodeUtf8 . TL.fromStrict $ miHost1AsText
+                  expectedLogLineWithoutDomain = expectedLogLine "None"
+
+              forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
+                (logs, _notifs, _res) <-
+                  interpretWithLoggingMock
+                    Nothing
+                    (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                logs `shouldContain` [expectedLogLineWithDomain]
+
+                -- >=V7 does not bother with multi-ingress domains for IdPs as it can
+                -- only have one IdP per team anyways.
+                (logsV7, _notifs, _res) <-
+                  interpretWithLoggingMock
+                    Nothing
+                    (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                logsV7 `shouldContain` [expectedLogLineWithoutDomain]
+
+          describe "idp-delete" $ do
+            it "should log IdP deletion" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              user :: User <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
+
+                  expectedLogLine =
+                    ( Info,
+                      "IdP deleted, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", domain=None, user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> "\n"
+                    )
+
+              (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
+                idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                idpDelete zUser (idp._idpId) Nothing
               logs `shouldContain` [expectedLogLine]
 
-              (logsV7, _notifs, _res) <-
-                interpretWithLoggingMock
-                  Nothing
-                  (idpCreateV7 singleIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
-              logsV7 `shouldContain` [expectedLogLine]
+            it "should log IdP deletion with domain for multi-ingress" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              user :: User <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-          it "should log IdP creation with domain for multi-ingress" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
+                  expectedLogLine =
+                    ( Info,
+                      "IdP deleted, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", domain="
+                        <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
+                        <> ", user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> "\n"
+                    )
 
-                expectedLogLine :: LByteString -> LogLine
-                expectedLogLine domainPart =
-                  ( Info,
-                    "IdP created, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", domain="
-                      <> domainPart
-                      <> ", user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", replaces=None"
-                      <> "\n"
-                  )
-                expectedLogLineWithDomain = expectedLogLine . TL.encodeUtf8 . TL.fromStrict $ miHost1AsText
-                expectedLogLineWithoutDomain = expectedLogLine "None"
+              (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
+                idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                idpDelete zUser (idp._idpId) Nothing
+              logs `shouldContain` [expectedLogLine]
 
-            forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
-              (logs, _notifs, _res) <-
-                interpretWithLoggingMock
-                  Nothing
-                  (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
-              logs `shouldContain` [expectedLogLineWithDomain]
+          describe "idp-update" $ do
+            it "should log IdP update" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              user :: User <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-              -- >=V7 does not bother with multi-ingress domains for IdPs as it can
-              -- only have one IdP per team anyways.
-              (logsV7, _notifs, _res) <-
-                interpretWithLoggingMock
-                  Nothing
-                  (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
-              logsV7 `shouldContain` [expectedLogLineWithoutDomain]
+                  expectedLogLine =
+                    ( Info,
+                      "IdP updated, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", domain=None, user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> "\n"
+                    )
 
-        describe "idp-delete" $ do
-          it "should log IdP deletion" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            user :: User <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
+              (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
+                idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp._idpId) Nothing
+              logs `shouldContain` [expectedLogLine]
 
-                expectedLogLine =
-                  ( Info,
-                    "IdP deleted, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", domain=None, user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> "\n"
-                  )
+            it "should log IdP update with domain for multi-ingress" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              user :: User <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpDelete zUser (idp._idpId) Nothing
-            logs `shouldContain` [expectedLogLine]
+                  expectedLogLine =
+                    ( Info,
+                      "IdP updated, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", domain="
+                        <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
+                        <> ", user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> "\n"
+                    )
 
-          it "should log IdP deletion with domain for multi-ingress" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            user :: User <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
+              (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
+                idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo' (idp._idpId) Nothing
+              logs `shouldContain` [expectedLogLine]
 
-                expectedLogLine =
-                  ( Info,
-                    "IdP deleted, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", domain="
-                      <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
-                      <> ", user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> "\n"
-                  )
+            it "should log IdP update with changed domain for multi-ingress" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              user :: User <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpDelete zUser (idp._idpId) Nothing
-            logs `shouldContain` [expectedLogLine]
+                  expectedLogLine =
+                    ( Info,
+                      "IdP updated, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
+                        <> fromString issuerString
+                        <> ", old-domain="
+                        <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
+                        <> ", new-domain="
+                        <> (TL.encodeUtf8 . TL.fromStrict) miHost2AsText
+                        <> ", user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> "\n"
+                    )
 
-        describe "idp-update" $ do
-          it "should log IdP update" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            user :: User <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
+              (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
+                idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                idpUpdate multiIngressSamlConfig zUser miHost2 idPMetadataInfo' (idp._idpId) Nothing
+              logs `shouldContain` [expectedLogLine]
 
-                expectedLogLine =
-                  ( Info,
-                    "IdP updated, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", domain=None, user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> "\n"
-                  )
+            it "should log IdP update (changed cert)" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              user :: User <- generate arbitrary
+              newKeyInfo <- readSampleIO "okta-keyinfo-1.xml"
+              let newIssuerString = "https://new.idp.example.com/auth"
+                  newIssuer = Issuer . (either (error . show) id) . parseURI strictURIParserOptions . fromString $ newIssuerString
+                  newIdpEndpointString = "https://new.idp.example.com/login"
+                  newRequestURI = either (error . show) id . parseURI strictURIParserOptions . fromString $ newIdpEndpointString
+                  idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo' (idp._idpId) Nothing
-            logs `shouldContain` [expectedLogLine]
+                  newCert = either (error . show) id $ DSig.parseKeyInfo False newKeyInfo
+                  newIdPMetadata :: IdPMetadata =
+                    IdPMetadata
+                      { _edIssuer = newIssuer,
+                        _edRequestURI = newRequestURI,
+                        _edCertAuthnResponse = NonEmptyL.singleton newCert
+                      }
+                  idPMetadataInfo'' = IdPMetadataValue ((TL.toStrict . encode) newIdPMetadata) newIdPMetadata
+                  expectedLogLine =
+                    ( Info,
+                      "IdP updated, team="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
+                        <> ", idpId=00000000-0000-0000-0000-000000000000"
+                        <> ", old-issuer="
+                        <> fromString issuerString
+                        <> ", new-issuer="
+                        <> fromString newIssuerString
+                        <> ", domain=None, user="
+                        <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
+                        <> ", old-idp-endpoint="
+                        <> fromString idpEndpointString
+                        <> ", new-idp-endpoint="
+                        <> fromString newIdpEndpointString
+                        <> ", certificates=Issuer: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; Subject: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; SHA1 Fingerprint: 5C:42:5B:27:B3:96:CC:9D:1B:1F:0E:4F:2B:8A:B8:E4:3C:9E:96:34"
+                        <> ", new-certificates=Issuer: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; Subject: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; SHA1 Fingerprint: 5C:42:5B:27:B3:96:CC:9D:1B:1F:0E:4F:2B:8A:B8:E4:3C:9E:96:34"
+                        <> ", removed-certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
+                        <> "\n"
+                    )
 
-          it "should log IdP update with domain for multi-ingress" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            user :: User <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
+              (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
+                idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
+                idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo'' (idp._idpId) Nothing
+              logs `shouldContain` [expectedLogLine]
+        describe "SAML IdP change notifications" $ do
+          describe "idp-create" $ do
+            it "should sent when multi-ingress is configured" $ do
+              idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+              let idPMetadataInfo' =
+                    idPMetadataInfo
+                      { _idpMetadataRecord =
+                          (idPMetadataInfo._idpMetadataRecord)
+                            { SAML._edIssuer = issuer,
+                              SAML._edRequestURI = idpEndpoint
+                            }
+                      }
 
-                expectedLogLine =
-                  ( Info,
-                    "IdP updated, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", domain="
-                      <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
-                      <> ", user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> "\n"
-                  )
+              forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
+                (_logs, notifs, idp) <-
+                  interpretWithLoggingMock
+                    Nothing
+                    (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                notifs `shouldBe` [IdPCreated idp]
 
-            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo' (idp._idpId) Nothing
-            logs `shouldContain` [expectedLogLine]
-
-          it "should log IdP update with changed domain for multi-ingress" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            user :: User <- generate arbitrary
-            let idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
-
-                expectedLogLine =
-                  ( Info,
-                    "IdP updated, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000, issuer="
-                      <> fromString issuerString
-                      <> ", old-domain="
-                      <> (TL.encodeUtf8 . TL.fromStrict) miHost1AsText
-                      <> ", new-domain="
-                      <> (TL.encodeUtf8 . TL.fromStrict) miHost2AsText
-                      <> ", user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> "\n"
-                  )
-
-            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate multiIngressSamlConfig zUser miHost2 idPMetadataInfo' (idp._idpId) Nothing
-            logs `shouldContain` [expectedLogLine]
-
-          it "should log IdP update (changed cert)" $ do
-            idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-            user :: User <- generate arbitrary
-            newKeyInfo <- readSampleIO "okta-keyinfo-1.xml"
-            let newIssuerString = "https://new.idp.example.com/auth"
-                newIssuer = Issuer . (either (error . show) id) . parseURI strictURIParserOptions . fromString $ newIssuerString
-                newIdpEndpointString = "https://new.idp.example.com/login"
-                newRequestURI = either (error . show) id . parseURI strictURIParserOptions . fromString $ newIdpEndpointString
-                idPMetadataInfo' =
-                  idPMetadataInfo
-                    { _idpMetadataRecord =
-                        (idPMetadataInfo._idpMetadataRecord)
-                          { SAML._edIssuer = issuer,
-                            SAML._edRequestURI = idpEndpoint
-                          }
-                    }
-
-                newCert = either (error . show) id $ DSig.parseKeyInfo False newKeyInfo
-                newIdPMetadata :: IdPMetadata =
-                  IdPMetadata
-                    { _edIssuer = newIssuer,
-                      _edRequestURI = newRequestURI,
-                      _edCertAuthnResponse = NonEmptyL.singleton newCert
-                    }
-                idPMetadataInfo'' = IdPMetadataValue ((TL.toStrict . encode) newIdPMetadata) newIdPMetadata
-                expectedLogLine =
-                  ( Info,
-                    "IdP updated, team="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText) tid
-                      <> ", idpId=00000000-0000-0000-0000-000000000000"
-                      <> ", old-issuer="
-                      <> fromString issuerString
-                      <> ", new-issuer="
-                      <> fromString newIssuerString
-                      <> ", domain=None, user="
-                      <> (TL.encodeUtf8 . TL.fromStrict . idToText . fromJust) zUser
-                      <> ", old-idp-endpoint="
-                      <> fromString idpEndpointString
-                      <> ", new-idp-endpoint="
-                      <> fromString newIdpEndpointString
-                      <> ", certificates=Issuer: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; Subject: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; SHA1 Fingerprint: 5C:42:5B:27:B3:96:CC:9D:1B:1F:0E:4F:2B:8A:B8:E4:3C:9E:96:34"
-                      <> ", new-certificates=Issuer: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; Subject: Country=US,O=Okta,OU=SSOProvider,CN=dev-500508,Email Address=info@okta.com; SHA1 Fingerprint: 5C:42:5B:27:B3:96:CC:9D:1B:1F:0E:4F:2B:8A:B8:E4:3C:9E:96:34"
-                      <> ", removed-certificates=Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-                      <> "\n"
-                  )
-
-            (logs, _notifs, _res) <- interpretWithLoggingMock (Just user) $ do
-              idp <- idpCreate singleIngressSamlConfig tid zUser host idPMetadataInfo' Nothing apiVersionV2 idpHandle
-              idpUpdate singleIngressSamlConfig zUser host idPMetadataInfo'' (idp._idpId) Nothing
-            logs `shouldContain` [expectedLogLine]
+                -- >=V7 does not bother with multi-ingress domains for IdPs as it can
+                -- only have one IdP per team anyways.
+                (_logs, notifsV7, idpV7) <-
+                  interpretWithLoggingMock
+                    Nothing
+                    (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                notifsV7 `shouldBe` [IdPCreated idpV7]
 
 type LogLine = (Level, LByteString)
 
