@@ -42,9 +42,6 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Statement
 import Imports
-import Wire.API.Password
-import Wire.API.Password.Argon2id
-import Wire.API.Password.Scrypt
 
 class PostgresMarshall db domain where
   postgresMarshall :: domain -> db
@@ -541,12 +538,6 @@ instance PostgresMarshall Text Code.Key where
 instance PostgresMarshall Text Code.Value where
   postgresMarshall = Text.decodeUtf8 . toByteString'
 
-instance PostgresMarshall ByteString Password where
-  postgresMarshall =
-    Text.encodeUtf8 . \case
-      Argon2Password p -> encodeArgon2HashedPassword p
-      ScryptPassword p -> encodeScryptPassword p
-
 ---
 
 class PostgresUnmarshall db domain where
@@ -877,10 +868,6 @@ instance PostgresUnmarshall Text Code.Key where
 
 instance PostgresUnmarshall Text Code.Value where
   postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
-
-instance PostgresUnmarshall ByteString Password where
-  postgresUnmarshall =
-    mapLeft Text.pack . parsePassword . Text.decodeUtf8
 
 ---
 
