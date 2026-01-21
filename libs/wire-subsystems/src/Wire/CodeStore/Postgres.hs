@@ -42,16 +42,16 @@ interpretCodeStoreToPostgres ::
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToPostgres = interpret $ \case
-  GetCode k s -> do
-    lookupCode k s
+  GetCode k -> do
+    lookupCode k
   CreateCode code mPw -> do
     insertCode code mPw
-  DeleteCode k s -> do
-    deleteCode k s
+  DeleteCode k -> do
+    deleteCode k
   MakeKey cid -> do
     Code.mkKey cid
-  GenerateCode cid s t -> do
-    Code.generate cid s t
+  GenerateCode cid t -> do
+    Code.generate cid t
   GetConversationCodeURI mbHost -> do
     convCodeURI <- input
     pure $ case convCodeURI of
@@ -60,28 +60,28 @@ interpretCodeStoreToPostgres = interpret $ \case
 
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password = do
-  runStatement (codeKey c, codeScope c, codeConversation c, password, codeValue c, round (codeTTL c)) insert
+  runStatement (codeKey c, codeConversation c, password, codeValue c, round (codeTTL c)) insert
   where
-    insert :: Hasql.Statement (Key, Scope, ConvId, Maybe Password, Value, Int32) ()
+    insert :: Hasql.Statement (Key, ConvId, Maybe Password, Value, Int32) ()
     insert =
       lmapPG
         [resultlessStatement|INSERT INTO conversation_codes
-                               (key, scope, conversation, password, value, expires_at)
+                               (key, conversation, password, value, expires_at)
                              VALUES
-                               ($1 :: text, $2 :: int, $3 :: uuid, $4 :: bytea?, $5 :: text, now() + make_interval(secs => $6 :: int))
-                             ON CONFLICT (key, scope) DO UPDATE
-                             SET conversation = ($3 :: uuid),
-                                 password = ($4 :: bytea?),
-                                 value = ($5 :: text),
-                                 expires_at = now() + make_interval(secs => $6 :: int)
+                               ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int))
+                             ON CONFLICT (key) DO UPDATE
+                             SET conversation = ($2 :: uuid),
+                                 password = ($3 :: bytea?),
+                                 value = ($4 :: text),
+                                 expires_at = now() + make_interval(secs => $5 :: int)
          |]
 
-lookupCode :: (PGConstraints r) => Key -> Scope -> Sem r (Maybe (Code, Maybe Password))
-lookupCode k s = do
-  mRow <- runStatement (k, s) selectCode
-  pure $ fmap (toCode k s) mRow
+lookupCode :: (PGConstraints r) => Key -> Sem r (Maybe (Code, Maybe Password))
+lookupCode k = do
+  mRow <- runStatement k selectCode
+  pure $ fmap (toCode k) mRow
   where
-    selectCode :: Hasql.Statement (Key, Scope) (Maybe (Value, Int32, ConvId, Maybe Password))
+    selectCode :: Hasql.Statement Key (Maybe (Value, Int32, ConvId, Maybe Password))
     selectCode =
       dimapPG
         -- on the extraction of the remaining seconds of the TTL
@@ -96,16 +96,16 @@ lookupCode k s = do
                           conversation :: uuid,
                           password :: bytea?
                         FROM conversation_codes
-                        WHERE key = ($1 :: text) AND scope = ($2 :: int) AND expires_at > now ()
+                        WHERE key = ($1 :: text) AND expires_at > now ()
                         |]
 
-deleteCode :: (PGConstraints r) => Key -> Scope -> Sem r ()
-deleteCode k s =
-  runStatement (k, s) delete
+deleteCode :: (PGConstraints r) => Key -> Sem r ()
+deleteCode k =
+  runStatement k delete
   where
-    delete :: Hasql.Statement (Key, Scope) ()
+    delete :: Hasql.Statement Key ()
     delete =
       lmapPG
         [resultlessStatement|DELETE FROM conversation_codes
-                             WHERE key = ($1 :: text) AND scope = ($2 :: int)
+                             WHERE key = ($1 :: text) 
                             |]

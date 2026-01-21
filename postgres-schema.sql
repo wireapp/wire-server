@@ -108,7 +108,6 @@ ALTER TABLE public.conversation OWNER TO "wire-server";
 
 CREATE TABLE public.conversation_codes (
     key text NOT NULL,
-    scope integer NOT NULL,
     conversation uuid NOT NULL,
     password bytea,
     value text NOT NULL,
@@ -303,7 +302,7 @@ ALTER TABLE ONLY public.collaborators
 --
 
 ALTER TABLE ONLY public.conversation_codes
-    ADD CONSTRAINT conversation_codes_pkey PRIMARY KEY (key, scope);
+    ADD CONSTRAINT conversation_codes_pkey PRIMARY KEY (key);
 
 
 --
@@ -424,10 +423,10 @@ CREATE INDEX conversation_codes_expires_at_idx ON public.conversation_codes USIN
 
 
 --
--- Name: conversation_codes_key_scope_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+-- Name: conversation_codes_key_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
 --
 
-CREATE INDEX conversation_codes_key_scope_expires_at_idx ON public.conversation_codes USING btree (key, scope, expires_at);
+CREATE INDEX conversation_codes_key_expires_at_idx ON public.conversation_codes USING btree (key, expires_at);
 
 
 --

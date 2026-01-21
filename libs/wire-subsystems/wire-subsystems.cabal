@@ -231,7 +231,6 @@ library
     Wire.CodeStore.DualWrite
     Wire.CodeStore.Migration
     Wire.CodeStore.Postgres
-    Wire.CodeStore.Scope
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
@@ -521,7 +520,6 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
-    Wire.Roundtrip.PostgresMarshallSpec
     Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec

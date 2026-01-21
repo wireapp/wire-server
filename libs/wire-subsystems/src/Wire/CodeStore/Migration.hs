@@ -107,10 +107,10 @@ handleErrors ::
   ( Member (State Int) r,
     Member TinyLog r
   ) =>
-  ((Key, Scope, Value, Int32, ConvId, Maybe Password) -> Sem (Error Hasql.UsageError : r) ()) ->
-  (Key, Scope, Value, Int32, ConvId, Maybe Password) ->
+  ((Key, Value, Int32, ConvId, Maybe Password) -> Sem (Error Hasql.UsageError : r) ()) ->
+  (Key, Value, Int32, ConvId, Maybe Password) ->
   Sem r ()
-handleErrors action row@(k, s, _, _, _, _) = do
+handleErrors action row@(k, _, _, _, _) = do
   eithErr <- runError (action row)
   case eithErr of
     Right _ -> pure ()
@@ -118,7 +118,6 @@ handleErrors action row@(k, s, _, _, _, _) = do
       warn $
         Log.msg (Log.val "error occurred during migration")
           . Log.field "key" (show k)
-          . Log.field "scope" (show s)
           . Log.field "error" (show e)
       modify (+ 1)
 
@@ -127,10 +126,10 @@ migrateCodeRow ::
     PGConstraints r
   ) =>
   Prometheus.Counter ->
-  (Key, Scope, Value, Int32, ConvId, Maybe Password) ->
+  (Key, Value, Int32, ConvId, Maybe Password) ->
   Sem r ()
-migrateCodeRow migCounter (k, s, v, ttl, cnv, mPw) =
+migrateCodeRow migCounter (k, v, ttl, cnv, mPw) =
   when (ttl > 0) $ do
-    let (code, _) = toCode k s (v, ttl, cnv, mPw)
+    let (code, _) = toCode k (v, ttl, cnv, mPw)
     Postgres.interpretCodeStoreToPostgres $ createCode code mPw
     liftIO $ Prometheus.incCounter migCounter

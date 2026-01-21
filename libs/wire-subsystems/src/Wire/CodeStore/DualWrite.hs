@@ -38,19 +38,20 @@ interpretCodeStoreToCassandraAndPostgres ::
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
--- |Cassandra is the source of truth during migration; writes are mirrored to Postgres.
+
+-- | Cassandra is the source of truth during migration; writes are mirrored to Postgres.
 interpretCodeStoreToCassandraAndPostgres = interpret $ \case
-  GetCode k s -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.getCode k s
+  GetCode k -> do
+    Cassandra.interpretCodeStoreToCassandra $ CodeStore.getCode k
   CreateCode code mPw -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.createCode code mPw
     Postgres.interpretCodeStoreToPostgres $ CodeStore.createCode code mPw
-  DeleteCode k s -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.deleteCode k s
-    Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteCode k s
+  DeleteCode k -> do
+    Cassandra.interpretCodeStoreToCassandra $ CodeStore.deleteCode k
+    Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteCode k
   MakeKey cid -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey cid
-  GenerateCode cid s t -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.generateCode cid s t
+  GenerateCode cid t -> do
+    Cassandra.interpretCodeStoreToCassandra $ CodeStore.generateCode cid t
   GetConversationCodeURI mbHost -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.getConversationCodeURI mbHost
