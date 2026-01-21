@@ -404,20 +404,12 @@ spec =
             describe "idp-create" $ do
               it "should send" $ do
                 idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
-                let idPMetadataInfo' =
-                      idPMetadataInfo
-                        { _idpMetadataRecord =
-                            (idPMetadataInfo._idpMetadataRecord)
-                              { SAML._edIssuer = issuer,
-                                SAML._edRequestURI = idpEndpoint
-                              }
-                        }
 
                 forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
                   (_logs, notifs, idp) <-
                     interpretWithLoggingMock
                       Nothing
-                      (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                      (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing (Just apiVersion) idpHandle)
                   notifs `shouldBe` [IdPCreated idp]
 
                   -- >=V7 does not bother with multi-ingress domains for IdPs as it can
@@ -425,26 +417,28 @@ spec =
                   (_logs, notifsV7, idpV7) <-
                     interpretWithLoggingMock
                       Nothing
-                      (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo' Nothing (Just apiVersion) idpHandle)
+                      (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo Nothing (Just apiVersion) idpHandle)
                   notifsV7 `shouldBe` [IdPCreated idpV7]
             describe "idp-delete" $ do
               it "should send" $ do
                 idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
                 user :: User <- generate arbitrary
-                let idPMetadataInfo' =
-                      idPMetadataInfo
-                        { _idpMetadataRecord =
-                            (idPMetadataInfo._idpMetadataRecord)
-                              { SAML._edIssuer = issuer,
-                                SAML._edRequestURI = idpEndpoint
-                              }
-                        }
 
                 (_logs, notifs, idp) <- interpretWithLoggingMock (Just user) $ do
-                  idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo' Nothing apiVersionV2 idpHandle
-                  idpDelete zUser (idp._idpId) Nothing
+                  idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
+                  void $ idpDelete zUser (idp._idpId) Nothing
                   pure idp
-                notifs `shouldContain` [IdPDeleted idp]
+                notifs `shouldBe` [IdPDeleted idp, IdPCreated idp]
+            describe "idp-update" $ do
+              it "should send" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+                user :: User <- generate arbitrary
+
+                (_logs, notifs, (oldIdP, newIdP)) <- interpretWithLoggingMock (Just user) $ do
+                  idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
+                  updatedIdP <- idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo (idp._idpId) Nothing
+                  pure (idp, updatedIdP)
+                notifs `shouldBe` [IdPUpdated oldIdP newIdP, IdPCreated oldIdP]
 
 type LogLine = (Level, LByteString)
 
