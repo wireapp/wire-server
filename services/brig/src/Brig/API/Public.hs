@@ -317,7 +317,8 @@ versionedSwaggerDocsAPI Nothing = tocPage
           [ "<h2>Internal (not versioned)</h2>",
             "<p>Openapi docs for internal endpoints are served per service. I.e. there's one for `brig`, one for `cannon`, \
             \etc..  This is because Openapi doesn't play well with multiple actions having the same combination of HTTP \
-            \method and URL path.</p>"
+            \method and URL path.</p>",
+            "<p><b>BACKDOORS FOR TESTING (staging only):</b> For testing some of the internal end-points can be used on our staging env through basic auth. If you want to know which ones support this, <a href=\"https://github.com/wireapp/wire-server/blob/3c17b49886ffd57570ed367bf41de265c3fa6317/charts/nginz/values.yaml#L386-L391\">here is one</a>.  You can search this file your path and check if that says `basic_auth: true`.</p>"
           ]
             <> mconcat
               [ [ s <> ":<br>",
