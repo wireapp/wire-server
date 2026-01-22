@@ -1,0 +1,36 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+ÄNDERUNG IN DER KONFIGURATION IHRES IDENTITY PROVIDERS
+Etwas hat sich in der IdP-Konfiguration für Ihr Team geändert.
+
+Team-ID:
+${teamid}
+
+Benutzer-ID:
+${userid}
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP Aussteller:
+${issuer}
+
+IdP-Endpunkt:
+${idpendpoint}
+
+IdP ID:
+${idpid}
+
+
+--------------------------------------------------------------------------------
+
+Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
+Wire Support. [${support}]
+
+Datenschutzerklärung und Nutzungsbedingungen [${legal}]· Missbrauch melden
+[${misuse}]
+${copyright}. Alle Rechte vorbehalten.
