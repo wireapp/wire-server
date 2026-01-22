@@ -61,7 +61,7 @@ run opts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversation-codes" $
-            Migrations.conversationCodes (MigrationOptions 10000 1)
+            Migrations.conversationCodes (MigrationOptions 1000 1)
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
