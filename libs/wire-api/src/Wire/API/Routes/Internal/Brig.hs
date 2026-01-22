@@ -1006,7 +1006,7 @@ instance S.ToSchema GetRichInfoMultiResponse where
 data IdpChangedNotificationTag = IdPCreatedTag | IdPDeletedTag | IdPUpdatedTag
   deriving (Eq, Enum, Bounded)
 
-data IdpChangedNotification = IdPCreated (Maybe UserId) IdP | IdPDeleted (Maybe UserId) IdP | IdPUpdated (Maybe UserId) IdP IdP
+data IdpChangedNotification = IdPCreated (Maybe UserId) IdP | IdPDeleted UserId IdP | IdPUpdated UserId IdP IdP
   deriving (Eq, Show, Generic)
 
 makePrisms ''IdpChangedNotification
@@ -1029,8 +1029,8 @@ instance Data.Schema.ToSchema IdpChangedNotification where
       fromTagged = snd
 
       untaggedSchema = dispatch $ \case
-        IdPCreatedTag -> tag _IdPCreated (Data.Schema.unnamed singleIdPSchema)
-        IdPDeletedTag -> tag _IdPDeleted (Data.Schema.unnamed singleIdPSchema)
+        IdPCreatedTag -> tag _IdPCreated (Data.Schema.unnamed createdSchema)
+        IdPDeletedTag -> tag _IdPDeleted (Data.Schema.unnamed deletedSchema)
         IdPUpdatedTag -> tag _IdPUpdated (Data.Schema.unnamed updatedSchema)
 
       tagSchema :: ValueSchema NamedSwaggerDoc IdpChangedNotificationTag
@@ -1038,24 +1038,31 @@ instance Data.Schema.ToSchema IdpChangedNotification where
         enum @Text "Detail Tag" $
           mconcat [element "created" IdPCreatedTag, element "deleted" IdPDeletedTag, element "updated" IdPUpdatedTag]
 
-      updatedSchema :: ValueSchema NamedSwaggerDoc (Maybe UserId, IdP, IdP)
+      createdSchema :: ValueSchema NamedSwaggerDoc (Maybe UserId, IdP)
+      createdSchema =
+        object "IdPCreated" $
+          (,)
+            <$> fst .= maybe_ (optField "user" schema)
+            <*> snd .= field "idp" schema
+
+      deletedSchema :: ValueSchema NamedSwaggerDoc (UserId, IdP)
+      deletedSchema =
+        object "IdPDeleted" $
+          (,)
+            <$> fst .= field "user" schema
+            <*> snd .= field "idp" schema
+
+      updatedSchema :: ValueSchema NamedSwaggerDoc (UserId, IdP, IdP)
       updatedSchema =
         object "IdPUpdated" $
           (,,)
-            <$> fst3 .= maybe_ (optField "user" schema)
+            <$> fst3 .= field "user" schema
             <*> snd3 .= field "old" schema
             <*> thd3 .= field "new" schema
 
       fst3 (a, _, _) = a
       snd3 (_, b, _) = b
       thd3 (_, _, c) = c
-
-      singleIdPSchema :: ValueSchema NamedSwaggerDoc (Maybe UserId, IdP)
-      singleIdPSchema =
-        object "IdPUpdated" $
-          (,)
-            <$> fst .= maybe_ (optField "user" schema)
-            <*> snd .= field "idp" schema
 
 deriving via (Schema IdpChangedNotification) instance FromJSON IdpChangedNotification
 

@@ -428,7 +428,7 @@ spec =
                   idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
                   void $ idpDelete multiIngressSamlConfig zUser (idp._idpId) Nothing
                   pure idp
-                notifs `shouldBe` [IdPDeleted zUser idp, IdPCreated zUser idp]
+                notifs `shouldBe` [IdPDeleted (fromJust zUser) idp, IdPCreated zUser idp]
             describe "idp-update" $ do
               it "should send" $ do
                 idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
@@ -438,7 +438,7 @@ spec =
                   idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
                   updatedIdP <- idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo (idp._idpId) Nothing
                   pure (idp, updatedIdP)
-                notifs `shouldBe` [IdPUpdated zUser oldIdP newIdP, IdPCreated zUser oldIdP]
+                notifs `shouldBe` [IdPUpdated (fromJust zUser) oldIdP newIdP, IdPCreated zUser oldIdP]
 
           context "when multi-ingress is NOT configured (common case)" $ do
             describe "idp-create" $ do

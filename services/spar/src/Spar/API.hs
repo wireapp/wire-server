@@ -591,7 +591,7 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     IdPRawMetadataStore.delete idpid
     when (SAML.isMultiIngressConfig samlConfig) $
       BrigAccess.sendSAMLIdPChangedEmail $
-        IdPDeleted mbzusr idp
+        IdPDeleted zusr idp
   logIdPAction
     "IdP deleted"
     idp
@@ -862,8 +862,8 @@ idpUpdateXML ::
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdateXML samlConfig zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
-  (teamid, idp, previousIdP) <- validateIdPUpdate zusr idpmeta idpid
+idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
+  (zUsr, teamid, idp, previousIdP) <- validateIdPUpdate mbZUsr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
@@ -883,8 +883,8 @@ idpUpdateXML samlConfig zusr mDomain raw idpmeta idpid mHandle = withDebugLog "i
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   when (SAML.isMultiIngressConfig samlConfig) $
     BrigAccess.sendSAMLIdPChangedEmail $
-      IdPUpdated zusr previousIdP idp''
-  logIdPUpdate idp'' previousIdP
+      IdPUpdated zUsr previousIdP idp''
+  logIdPUpdate zUsr idp'' previousIdP
   pure idp''
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -908,8 +908,8 @@ idpUpdateXML samlConfig zusr mDomain raw idpmeta idpid mHandle = withDebugLog "i
 
     -- We cannot simply call `logIdPAction` here, because we need diffs for
     -- some values (old vs. new)
-    logIdPUpdate :: (Member (Logger (Msg -> Msg)) r) => IdP -> IdP -> Sem r ()
-    logIdPUpdate idp previousIdP =
+    logIdPUpdate :: (Member (Logger (Msg -> Msg)) r) => UserId -> IdP -> IdP -> Sem r ()
+    logIdPUpdate zUsr idp previousIdP =
       let (removedCerts, newCerts) =
             compareNonEmpty
               (previousIdP ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
@@ -928,7 +928,7 @@ idpUpdateXML samlConfig zusr mDomain raw idpmeta idpid mHandle = withDebugLog "i
                 (fromMaybe "None")
                 (previousIdP ^. SAML.idpExtraInfo . domain)
                 (idp ^. SAML.idpExtraInfo . domain)
-              . Log.field "user" (maybe "None" idToText zusr)
+              . Log.field "user" (idToText zUsr)
               . logChangeableScalar
                 "idp-endpoint"
                 URI.serializeURIRef'
@@ -977,10 +977,10 @@ validateIdPUpdate ::
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
-  m (TeamId, IdP, IdP)
-validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
+  m (UserId, TeamId, IdP, IdP)
+validateIdPUpdate mbZUsr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_3 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
-  (_, teamId) <- authorizeIdP zusr previousIdP
+  (zusr, teamId) <- authorizeIdP mbZUsr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
     throw errUnknownIdP
   _idpExtraInfo <- do
@@ -1010,7 +1010,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
-  pure (teamId, SAML.IdPConfig {..}, previousIdP)
+  pure (zusr, teamId, SAML.IdPConfig {..}, previousIdP)
   where
     -- If the new issuer was previously used, it has to be removed from the list of old issuers,
     -- to prevent it from getting deleted in a later step
