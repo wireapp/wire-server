@@ -60,6 +60,19 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )
+    <*>
+    -- TODO: Template paths
+    ( IdPConfigChangeEmailTemplate
+        <$> readTemplate fp "idpConfigChangeEmailIdPDetailsAddedHtml"
+        <*> readTemplate fp "idpConfigChangeEmailIdPDetailsAddedText"
+        <*> readTemplate fp "idpConfigChangeEmailIdPDetailsRemovedHtml"
+        <*> readTemplate fp "idpConfigChangeEmailIdPDetailsRemovedText"
+        <*> readTemplate fp "idpConfigChangeEmailSubject"
+        <*> readTemplate fp "idpConfigChangeEmailBodyText"
+        <*> readTemplate fp "idpConfigChangeEmailBodyHtml"
+        <*> pure (emailSender gOptions)
+        <*> readText fp "email/sender.txt"
+    )
   where
     gOptions = o.emailSMS.general
     tOptions = o.emailSMS.team
