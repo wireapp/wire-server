@@ -42,6 +42,7 @@ library
     , exceptions
     , extended
     , extra
+    , galley-types
     , hasql-pool
     , HsOpenSSL
     , http-client

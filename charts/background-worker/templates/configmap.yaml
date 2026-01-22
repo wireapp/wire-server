@@ -25,6 +25,12 @@ data:
       host: brig
       port: 8080
 
+    {{- if .enableFederation }}
+    federator:
+      host: {{ .federator.host }}
+      port: {{ .federator.port }}
+    {{- end }}
+
     gundeck:
       host: gundeck
       port: 8080

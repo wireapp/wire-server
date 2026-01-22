@@ -69,7 +69,6 @@ import Galley.API.Action.Kick
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Action.Reset
-import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
@@ -78,6 +77,7 @@ import Galley.API.Util
 import Galley.Effects
 import Galley.Env (Env)
 import Galley.Options (Opts)
+import Galley.Types.Error
 import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy

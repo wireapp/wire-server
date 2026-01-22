@@ -92,7 +92,6 @@ import Data.Singletons
 import Data.Vector qualified as V
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
-import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Query qualified as Query
@@ -103,6 +102,7 @@ import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
 import Galley.Env
 import Galley.Options
+import Galley.Types.Error
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error

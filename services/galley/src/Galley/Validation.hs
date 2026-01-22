@@ -29,8 +29,8 @@ where
 import Control.Lens
 import Data.Range
 import GHC.TypeNats
-import Galley.API.Error
 import Galley.Options
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

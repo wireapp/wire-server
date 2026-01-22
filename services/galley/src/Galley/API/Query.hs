@@ -66,7 +66,6 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Tagged
-import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
@@ -77,6 +76,7 @@ import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.Effects
 import Galley.Env
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

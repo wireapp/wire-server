@@ -31,13 +31,13 @@ where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
-import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.Effects
 import Galley.Env
 import Galley.Options
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

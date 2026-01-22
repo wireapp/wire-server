@@ -1,3 +1,17 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -17,33 +31,58 @@
 
 module Wire.ConversationSubsystem.Interpreter where
 
+import Data.Bifunctor (second)
 import Data.Default
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.Json.Util
+import Data.List.Extra (nubOrd)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NE
 import Data.Qualified
-import Data.Singletons (Sing)
+import Data.Set qualified as Set
+import Data.Singletons (Sing, sing)
+import Data.Text qualified as T
+import Data.Text.Lazy qualified as LT
+import Data.Time (UTCTime)
+import Galley.Types.Error qualified as GalleyError
 import Galley.Types.Teams (FeatureDefaults)
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
-import Wire.API.Conversation hiding (Member)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as P
+import System.Logger.Message (msg, val, (+++))
+import Wire.API.Component (Component (Brig, Galley))
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.CellsState (CellsState (..))
-import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Protocol (Protocol (ProtocolProteus), ProtocolTag)
+import Wire.API.Conversation.Role
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
+import Wire.API.Federation.API (fedClient, makeConversationUpdateBundle, sendBundle)
+import Wire.API.Federation.API.Galley (ConversationCreated (..), ccRemoteOrigUserId)
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
-import Wire.API.Federation.Error (FederationError)
+import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
-import Wire.API.Team.Feature (LegalholdConfig)
-import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
+import Wire.API.Push.V2 qualified as PushV2
+import Wire.API.Team.Feature
+import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently, enqueueNotificationsConcurrentlyBuckets)
+import Wire.ConversationStore (ConversationStore)
+import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.View (ViewError, conversationViewWithCachedOthers)
 import Wire.ExternalAccess (ExternalAccess, deliverAsync)
+import Wire.FederationAPIAccess (FederationAPIAccess, runFederatedConcurrentlyEither)
+import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem as NS
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
-import Wire.StoredConversation
+import Wire.StoredConversation hiding (convTeam, id_, localOne2OneConvId)
+import Wire.StoredConversation as Data (LocalMember (..), NewConversation (..), RemoteMember (..), convType)
+import Wire.StoredConversation qualified as Data
 
 data ConversationSubsystemConfig = ConversationSubsystemConfig
   { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
@@ -54,16 +93,72 @@ data ConversationSubsystemConfig = ConversationSubsystemConfig
 
 interpretConversationSubsystem ::
   ( Member (Error FederationError) r,
+    Member (Error GalleyError.InternalError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
-    Member Now r
+    Member Now r,
+    Member (Embed IO) r,
+    Member ConversationStore r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r
   ) =>
   Sem (ConversationSubsystem : r) a ->
   Sem r a
 interpretConversationSubsystem = interpret $ \case
   NotifyConversationAction tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData ->
     notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
+  CreateConversation lconv lusr newConv -> do
+    res <- runError @UnreachableBackends $ runError @ViewError $ createConversationImpl lconv lusr newConv
+    case res of
+      Left (unreachable :: UnreachableBackends) -> throw $ FederationUnexpectedError (T.pack $ show unreachable)
+      Right (Left (viewErr :: ViewError)) -> throw $ GalleyError.InternalErrorWithDescription (LT.pack $ show viewErr)
+      Right (Right val') -> pure val'
+
+createConversationImpl ::
+  ( Member (Error FederationError) r,
+    Member (Error UnreachableBackends) r,
+    Member (Error ViewError) r,
+    Member BackendNotificationQueueAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member (Embed IO) r,
+    Member ConversationStore r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r
+  ) =>
+  Local ConvId ->
+  Local UserId ->
+  Data.NewConversation ->
+  Sem r StoredConversation
+createConversationImpl lconv lusr newConv = do
+  storedConv <- ConvStore.upsertConversation lconv newConv
+  notifyCreatedConversation lusr Nothing storedConv def
+  sendCellsNotification lusr Nothing storedConv
+  pure storedConv
+
+sendCellsNotification ::
+  ( Member NotificationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  StoredConversation ->
+  Sem r ()
+sendCellsNotification lusr conn conv = do
+  now <- Now.get
+  let lconv = qualifyAs lusr conv.id_
+      event = CellsEvent (tUntagged lconv) (tUntagged lusr) now CellsConvCreateNoData
+  when (conv.metadata.cnvmCellsState /= CellsDisabled) $ do
+    let push =
+          def
+            { origin = Just (tUnqualified lusr),
+              json = toJSONObject event,
+              isCellsEvent = True,
+              route = PushV2.RouteAny,
+              conn
+            }
+    NS.pushNotifications [push]
 
 notifyConversationActionImpl ::
   forall tag r.
@@ -82,7 +177,7 @@ notifyConversationActionImpl ::
   Set (Remote UserId) ->
   Set BotMember ->
   ConversationAction (tag :: ConversationActionTag) ->
-  ExtraConversationData ->
+  Public.ExtraConversationData ->
   Sem r LocalConversationUpdate
 notifyConversationActionImpl tag eventFrom notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData = do
   now <- Now.get
@@ -127,7 +222,7 @@ pushConversationEvent ::
   f BotMember ->
   Sem r ()
 pushConversationEvent conn st e lusers bots = do
-  pushNotifications [(newConversationEventPush (fmap toList lusers)) {conn}]
+  NS.pushNotifications [(newConversationEventPush (fmap toList lusers)) {conn}]
   deliverAsync (map (,e) (toList bots))
   where
     newConversationEventPush :: Local [UserId] -> Push
@@ -137,6 +232,231 @@ pushConversationEvent conn st e lusers bots = do
        in def
             { origin = musr,
               json = toJSONObject e,
-              recipients = map userRecipient (tUnqualified users),
+              recipients = map NS.userRecipient (tUnqualified users),
               isCellsEvent = shouldPushToCells st e
             }
+
+toConversationCreated ::
+  UTCTime ->
+  Local UserId ->
+  StoredConversation ->
+  ConversationCreated ConvId
+toConversationCreated now lusr StoredConversation {metadata = Public.ConversationMetadata {..}, ..} =
+  ConversationCreated
+    { time = now,
+      origUserId = tUnqualified lusr,
+      cnvId = id_,
+      cnvType = cnvmType,
+      cnvAccess = cnvmAccess,
+      cnvAccessRoles = cnvmAccessRoles,
+      cnvName = cnvmName,
+      nonCreatorMembers = Set.empty,
+      messageTimer = cnvmMessageTimer,
+      receiptMode = cnvmReceiptMode,
+      protocol = protocol,
+      groupConvType = cnvmGroupConvType,
+      channelAddPermission = cnvmChannelAddPermission
+    }
+
+fromConversationCreated ::
+  Local x ->
+  ConversationCreated (Remote ConvId) ->
+  [(Public.Member, Public.OwnConversation)]
+fromConversationCreated loc rc@ConversationCreated {..} =
+  let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
+      creatorOther =
+        Public.OtherMember
+          (tUntagged (ccRemoteOrigUserId rc))
+          Nothing
+          roleNameWireAdmin
+   in foldMap
+        ( \(me, others) ->
+            guard (inDomain me) $> let mem = toMember me in (mem, conv mem (creatorOther : others))
+        )
+        membersView
+  where
+    inDomain :: Public.OtherMember -> Bool
+    inDomain = (== tDomain loc) . qDomain . Public.omQualifiedId
+    setHoles :: (Ord a) => Set a -> [(a, Set a)]
+    setHoles s = foldMap (\x -> [(x, Set.delete x s)]) s
+    toMember :: Public.OtherMember -> Public.Member
+    toMember m =
+      Public.Member
+        { memId = Public.omQualifiedId m,
+          memService = Public.omService m,
+          memOtrMutedStatus = Nothing,
+          memOtrMutedRef = Nothing,
+          memOtrArchived = False,
+          memOtrArchivedRef = Nothing,
+          memHidden = False,
+          memHiddenRef = Nothing,
+          memConvRoleName = Public.omConvRoleName m
+        }
+    conv :: Public.Member -> [Public.OtherMember] -> Public.OwnConversation
+    conv this others =
+      Public.OwnConversation
+        (tUntagged cnvId)
+        Public.ConversationMetadata
+          { cnvmType = cnvType,
+            cnvmCreator = Just origUserId,
+            cnvmAccess = cnvAccess,
+            cnvmAccessRoles = cnvAccessRoles,
+            cnvmName = cnvName,
+            cnvmTeam = Nothing,
+            cnvmMessageTimer = messageTimer,
+            cnvmReceiptMode = receiptMode,
+            cnvmGroupConvType = groupConvType,
+            cnvmChannelAddPermission = channelAddPermission,
+            cnvmCellsState = def,
+            cnvmParent = Nothing
+          }
+        (Public.OwnConvMembers this others)
+        ProtocolProteus
+
+ensureNoUnreachableBackends ::
+  (Member (Error UnreachableBackends) r) =>
+  [Either (Remote e, b) a] ->
+  Sem r [a]
+ensureNoUnreachableBackends results = do
+  let (errors, values) = partitionEithers results
+  unless (null errors) $
+    throw (UnreachableBackends (map (tDomain . fst) errors))
+  pure values
+
+registerRemoteConversationMemberships ::
+  ( Member ConvStore.ConversationStore r,
+    Member (Error UnreachableBackends) r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r
+  ) =>
+  UTCTime ->
+  Local UserId ->
+  Local StoredConversation ->
+  JoinType ->
+  Sem r ()
+registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable $ do
+  let c = tUnqualified lc
+      rc = toConversationCreated now lusr c
+      allRemoteMembers = nubOrd c.remoteMembers
+      allRemoteMembersQualified = remoteMemberQualify <$> allRemoteMembers
+      allRemoteBuckets :: [Remote [RemoteMember]] = bucketRemote allRemoteMembersQualified
+
+  void . (ensureNoUnreachableBackends =<<) $
+    runFederatedConcurrentlyEither allRemoteMembersQualified $ \_ ->
+      void $ fedClient @'Brig @"api-version" ()
+
+  void . (ensureNoUnreachableBackends =<<) $
+    runFederatedConcurrentlyEither allRemoteMembersQualified $
+      \rrms ->
+        fedClient @'Galley @"on-conversation-created"
+          ( rc
+              { nonCreatorMembers =
+                  toMembers (tUnqualified rrms)
+              }
+          )
+
+  let joined :: [Remote [RemoteMember]] = allRemoteBuckets
+      joinedCoupled :: [Remote ([RemoteMember], NonEmpty (Remote UserId))]
+      joinedCoupled =
+        foldMap
+          ( \ruids ->
+              let nj =
+                    foldMap (fmap (.id_) . tUnqualified) $
+                      filter (\r -> tDomain r /= tDomain ruids) joined
+               in case NE.nonEmpty nj of
+                    Nothing -> []
+                    Just v -> [fmap (,v) ruids]
+          )
+          joined
+
+  void $ enqueueNotificationsConcurrentlyBuckets Q.Persistent joinedCoupled $ \z ->
+    makeConversationUpdateBundle (convUpdateJoin z) >>= sendBundle
+  where
+    creator :: Maybe UserId
+    creator = Public.cnvmCreator . (.metadata) . tUnqualified $ lc
+
+    localNonCreators :: [Public.OtherMember]
+    localNonCreators =
+      fmap (localMemberToOther . tDomain $ lc)
+        . filter (\lm -> lm.id_ `notElem` creator)
+        . (.localMembers)
+        . tUnqualified
+        $ lc
+
+    toMembers :: [RemoteMember] -> Set Public.OtherMember
+    toMembers rs = Set.fromList $ localNonCreators <> fmap remoteMemberToOther rs
+
+    convUpdateJoin :: Remote ([RemoteMember], NonEmpty (Remote UserId)) -> ConversationUpdate
+    convUpdateJoin (tUnqualified -> (toNotify, newMembers)) =
+      ConversationUpdate
+        { time = now,
+          origUserId = tUntagged lusr,
+          convId = (tUnqualified lc).id_,
+          alreadyPresentUsers = fmap (\m -> tUnqualified $ m.id_) toNotify,
+          action =
+            SomeConversationAction
+              (sing @'ConversationJoinTag)
+              (Public.ConversationJoin (tUntagged <$> newMembers) roleNameWireMember joinType),
+          extraConversationData = def
+        }
+
+    deleteOnUnreachable ::
+      ( Member ConvStore.ConversationStore r,
+        Member (Error UnreachableBackends) r,
+        Member TinyLog r
+      ) =>
+      Sem r a ->
+      Sem r a
+    deleteOnUnreachable m = catch @UnreachableBackends m $ \e -> do
+      P.err . msg $
+        val "Unreachable backend when notifying"
+          +++ val "error"
+          +++ (LT.pack . show $ e)
+      ConvStore.deleteConversation (tUnqualified lc).id_
+      throw e
+
+notifyCreatedConversation ::
+  ( Member ConvStore.ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error ViewError) r,
+    Member (Error UnreachableBackends) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member BackendNotificationQueueAccess r,
+    Member Now r,
+    Member TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  StoredConversation ->
+  JoinType ->
+  Sem r ()
+notifyCreatedConversation lusr conn c joinType = do
+  now <- Now.get
+  registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType
+  unless (null c.remoteMembers) $
+    unlessM E.isFederationConfigured $
+      throw FederationNotConfigured
+
+  NS.pushNotifications =<< mapM (toPush now) c.localMembers
+  where
+    route
+      | Data.convType c == Public.RegularConv = PushV2.RouteAny
+      | otherwise = PushV2.RouteDirect
+    toPush t m = do
+      let remoteOthers = remoteMemberToOther <$> c.remoteMembers
+          localOthers = map (localMemberToOther (tDomain lusr)) $ c.localMembers
+          lconv = qualifyAs lusr c.id_
+      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr m.id_)
+      let e = Event (tUntagged lconv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConversation c')
+      pure $
+        def
+          { origin = Just (tUnqualified lusr),
+            json = toJSONObject e,
+            recipients = [localMemberToRecipient m],
+            isCellsEvent = False,
+            route,
+            conn
+          }

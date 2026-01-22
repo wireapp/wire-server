@@ -16,6 +16,7 @@ library
     Galley.Types
     Galley.Types.Conversations.One2One
     Galley.Types.Conversations.Roles
+    Galley.Types.Error
     Galley.Types.Teams
 
   other-modules:      Paths_galley_types
@@ -76,6 +77,7 @@ library
     , crypton
     , data-default
     , errors
+    , http-types
     , imports
     , lens                   >=4.12
     , memory
@@ -84,6 +86,7 @@ library
     , types-common           >=0.16
     , utf8-string
     , uuid
+    , wai-utilities
     , wire-api
 
   default-language:   GHC2021

@@ -18,7 +18,7 @@
 -- | Most of the errors thrown by galley are defined as static errors in
 -- 'Wire.API.Error.Galley' and declared as part of the API. Errors defined here
 -- are dynamic, and mostly internal.
-module Galley.API.Error
+module Galley.Types.Error
   ( -- * Internal errors
     InvalidInput (..),
     InternalError (..),

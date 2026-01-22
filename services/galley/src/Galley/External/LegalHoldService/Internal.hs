@@ -29,9 +29,9 @@ import Control.Retry
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Misc
-import Galley.API.Error
 import Galley.Env
 import Galley.Monad
+import Galley.Types.Error
 import Imports
 import Network.HTTP.Client qualified as Http
 import OpenSSL.Session qualified as SSL

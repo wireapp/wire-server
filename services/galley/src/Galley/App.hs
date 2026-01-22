@@ -52,7 +52,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.API.Error
 import Galley.Cassandra.Client
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.SearchVisibility
@@ -72,6 +71,7 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
+import Galley.Types.Error
 import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql

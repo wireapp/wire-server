@@ -20,12 +20,12 @@ module Galley.API.MLS.Reset (resetMLSConversation) where
 import Data.Id
 import Data.Qualified
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Update
 import Galley.Effects
 import Galley.Env
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

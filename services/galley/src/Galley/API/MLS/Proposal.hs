@@ -38,12 +38,12 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
 import Galley.API.Util
 import Galley.Effects
 import Galley.Env
 import Galley.Options
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

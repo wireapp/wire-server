@@ -25,7 +25,6 @@ import Data.Id
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Galley.API.Error
 import Galley.API.MLS.Removal
 import Galley.API.Query qualified as Query
 import Galley.API.Util
@@ -33,6 +32,7 @@ import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
 import Galley.Env
 import Galley.Types.Clients (clientIds)
+import Galley.Types.Error
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy

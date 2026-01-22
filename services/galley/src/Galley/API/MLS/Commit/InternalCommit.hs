@@ -30,7 +30,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS.CheckClients
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
@@ -40,6 +39,7 @@ import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

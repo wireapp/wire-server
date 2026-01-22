@@ -16,6 +16,7 @@
 , extended
 , extra
 , federator
+, galley-types
 , gitignoreSource
 , hasql-pool
 , HsOpenSSL
@@ -68,6 +69,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    galley-types
     hasql-pool
     HsOpenSSL
     http-client

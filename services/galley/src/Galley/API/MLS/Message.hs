@@ -41,7 +41,6 @@ import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.LegalHold.Get (getUserStatus)
 import Galley.API.MLS.Commit.Core (getCommitData)
 import Galley.API.MLS.Commit.ExternalCommit
@@ -58,6 +57,7 @@ import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
 import Galley.API.Util
 import Galley.Effects
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

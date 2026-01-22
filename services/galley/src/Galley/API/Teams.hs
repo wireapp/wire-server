@@ -77,7 +77,6 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock (UTCTime)
 import Galley.API.Action
-import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
@@ -90,6 +89,7 @@ import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Env
 import Galley.Options
+import Galley.Types.Error as Galley
 import Galley.Types.Teams
 import Imports hiding (forkIO)
 import Polysemy

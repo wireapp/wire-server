@@ -84,7 +84,8 @@ data Env = Env
     federationDomain :: Domain,
     postgresMigration :: PostgresMigrationOpts,
     gundeckEndpoint :: Endpoint,
-    brigEndpoint :: Endpoint
+    brigEndpoint :: Endpoint,
+    federator :: Maybe Endpoint
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -133,6 +134,7 @@ mkEnv opts = do
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
       gundeckEndpoint = opts.gundeck
+      federator = opts.federator
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <-

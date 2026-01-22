@@ -43,14 +43,14 @@ import Data.Range
 import Data.Set qualified as Set
 import Data.UUID.Tagged qualified as U
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
-import Galley.Options (Opts)
+import Galley.Options
+import Galley.Types.Error
 import Galley.Types.Teams (notTeamMember)
 import Galley.Validation
 import Imports hiding ((\\))
@@ -82,9 +82,9 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.FeaturesConfigSubsystem
-import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -103,11 +103,10 @@ import Wire.UserList
 -- | The public-facing endpoint for creating group conversations in the client
 -- API up to and including version 3.
 createGroupConversationUpToV3 ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -120,7 +119,6 @@ createGroupConversationUpToV3 ::
     Member (ErrorS NotAnMlsConversation) r,
     Member (ErrorS HistoryNotSupported) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
     Member (Input Opts) r,
@@ -138,22 +136,17 @@ createGroupConversationUpToV3 ::
   Maybe ConnId ->
   NewConv ->
   Sem r (ConversationResponse Public.OwnConversation)
-createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $
-  do
-    conv <-
-      createGroupConversationGeneric
-        lusr
-        conn
-        newConv
-        def
-    conversationCreated lusr conv
+createGroupConversationUpToV3 lusr conn newConv =
+  mapError UnreachableBackendsLegacy $
+    createGroupConversationGeneric lusr conn newConv
+      >>= conversationCreated lusr
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in from version 4 to 8
 createGroupOwnConversation ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -200,9 +193,9 @@ createGroupOwnConversation lusr conn newConv = do
 -- | The public-facing endpoint for creating group conversations in the client
 -- API in version 9 and above.
 createGroupConversation ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -226,7 +219,6 @@ createGroupConversation ::
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r,
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
@@ -270,9 +262,9 @@ createGroupConvAndMkResponse ::
     Member (ErrorS HistoryNotSupported) r,
     Member P.TinyLog r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -291,16 +283,15 @@ createGroupConvAndMkResponse lusr conn newConv mkResponse = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
-  dbConv <- createGroupConversationGeneric lusr conn newConv def
+  dbConv <- createGroupConversationGeneric lusr conn newConv
   mkResponse dbConv
 
 createGroupConversationGeneric ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -321,7 +312,6 @@ createGroupConversationGeneric ::
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r,
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
@@ -330,9 +320,8 @@ createGroupConversationGeneric ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  JoinType ->
   Sem r StoredConversation
-createGroupConversationGeneric lusr conn newConv joinType = do
+createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
@@ -344,12 +333,11 @@ createGroupConversationGeneric lusr conn newConv joinType = do
     assertMLSEnabled
 
   lcnv <- traverse (const $ Id <$> Random.uuid) lusr
-  conv <- E.upsertConversation lcnv nc
+  conv <- ConversationSubsystem.createConversation lcnv lusr nc
   -- NOTE: We only send (conversation) events to members of the conversation
-  notifyCreatedConversation lusr conn conv joinType
   sendCellsNotification conv
-  E.getConversation (tUnqualified lcnv)
-    >>= note (BadConvState (tUnqualified lcnv))
+  E.getConversation conv.id_
+    >>= note (BadConvState conv.id_)
   where
     sendCellsNotification :: StoredConversation -> Sem r ()
     sendCellsNotification conv = do
@@ -476,6 +464,7 @@ getTeamMember uid Nothing = TeamStore.getUserTeams uid >>= maybe (pure Nothing) 
 createProteusSelfConversation ::
   forall r.
   ( Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
@@ -495,13 +484,13 @@ createProteusSelfConversation lusr = do
                 protocol = BaseProtocolProteusTag,
                 groupId = Nothing
               }
-      c <- E.upsertConversation lcnv nc
-      conversationCreated lusr c
+      ConversationSubsystem.createConversation lcnv lusr nc
+        >>= conversationCreated lusr
 
 createOne2OneConversation ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
@@ -513,9 +502,6 @@ createOne2OneConversation ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member Now r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
@@ -595,14 +581,10 @@ createOne2OneConversation lusr zcon j =
         else throwS @OperationDenied
 
 createLegacyOne2OneConversationUnchecked ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member Now r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -611,7 +593,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe TeamId ->
   Local UserId ->
   Sem r (ConversationResponse Public.OwnConversation)
-createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
+createLegacyOne2OneConversationUnchecked self _zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
         (defConversationMetadata (Just (tUnqualified self)))
@@ -630,23 +612,14 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   case mc of
     Just c -> conversationExisted self c
     Nothing -> do
-      c <- E.upsertConversation lcnv nc
-      runError @UnreachableBackends (notifyCreatedConversation self (Just zcon) c def)
-        >>= \case
-          Left _ -> do
-            throw . InternalErrorWithDescription $
-              "A one-to-one conversation on one backend cannot involve unreachable backends"
-          Right () -> conversationCreated self c
+      ConversationSubsystem.createConversation lcnv self nc
+        >>= conversationCreated self
 
 createOne2OneConversationUnchecked ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error UnreachableBackends) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member Now r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -664,14 +637,9 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId BaseProtocolProteusTag (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error InternalError) r,
-    Member (Error UnreachableBackends) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member Now r,
     Member P.TinyLog r
   ) =>
   Local ConvId ->
@@ -681,7 +649,7 @@ createOne2OneConversationLocally ::
   Maybe TeamId ->
   Qualified UserId ->
   Sem r (ConversationResponse Public.OwnConversation)
-createOne2OneConversationLocally lcnv self zcon name mtid other = do
+createOne2OneConversationLocally lcnv self _zcon name mtid other = do
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
     Just c -> conversationExisted self c
@@ -699,9 +667,8 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 protocol = BaseProtocolProteusTag,
                 groupId = Nothing
               }
-      c <- E.upsertConversation lcnv nc
-      notifyCreatedConversation self (Just zcon) c def
-      conversationCreated self c
+      ConversationSubsystem.createConversation lcnv self nc
+        >>= conversationCreated self
 
 createOne2OneConversationRemotely ::
   (Member (Error FederationError) r) =>
@@ -716,15 +683,13 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
 createConnectConversation ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (Error UnreachableBackends) r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r
@@ -755,20 +720,7 @@ createConnectConversation lusr conn j = do
     >>= maybe (create lcnv nc) (update n)
   where
     create lcnv nc = do
-      c <- E.upsertConversation lcnv nc
-      now <- Now.get
-      let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConnect j)
-      notifyCreatedConversation lusr conn c def
-      pushNotifications
-        [ def
-            { origin = Just (tUnqualified lusr),
-              json = toJSONObject e,
-              recipients = map localMemberToRecipient c.localMembers,
-              isCellsEvent = shouldPushToCells c.metadata e,
-              route = PushV2.RouteDirect,
-              conn
-            }
-        ]
+      c <- ConversationSubsystem.createConversation lcnv lusr nc
       conversationCreated lusr c
     update n conv = do
       let mems = conv.localMembers
@@ -795,24 +747,12 @@ createConnectConversation lusr conn j = do
                       else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-          let lcnv = qualifyAs lusr conv.id_
           n' <- case n of
             Just x -> do
               E.setConversationName conv.id_ x
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
-          t <- Now.get
-          let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
-          pushNotifications
-            [ def
-                { origin = Just (tUnqualified lusr),
-                  json = toJSONObject e,
-                  recipients = map localMemberToRecipient conv.localMembers,
-                  isCellsEvent = shouldPushToCells conv.metadata e,
-                  route = PushV2.RouteDirect,
-                  conn
-                }
-            ]
+          notifyConversationUpdated lusr conn j conv
           pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
@@ -887,58 +827,6 @@ conversationCreated ::
   StoredConversation ->
   Sem r (ConversationResponse Public.OwnConversation)
 conversationCreated lusr cnv = Created <$> conversationViewV9 lusr cnv
-
--- | The return set contains all the remote users that could not be contacted.
--- Consequently, the unreachable users are not added to the member list. This
--- behavior might be changed later on when a message/event queue per remote
--- backend is implemented.
-notifyCreatedConversation ::
-  ( Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (Error UnreachableBackends) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member BackendNotificationQueueAccess r,
-    Member Now r,
-    Member P.TinyLog r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  StoredConversation ->
-  JoinType ->
-  Sem r ()
-notifyCreatedConversation lusr conn c joinType = do
-  now <- Now.get
-  -- Ask remote servers to store conversation membership and notify remote users
-  -- of being added to a conversation
-  registerRemoteConversationMemberships now lusr (qualifyAs lusr c) joinType
-  unless (null c.remoteMembers) $
-    unlessM E.isFederationConfigured $
-      throw FederationNotConfigured
-
-  -- Notify local users
-  pushNotifications =<< mapM (toPush now) c.localMembers
-  where
-    route
-      | Data.convType c == RegularConv = PushV2.RouteAny
-      | otherwise = PushV2.RouteDirect
-    toPush t m = do
-      let remoteOthers = remoteMemberToOther <$> c.remoteMembers
-          localOthers = map (localMemberToOther (tDomain lusr)) $ c.localMembers
-          lconv = qualifyAs lusr c.id_
-      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr m.id_)
-      let e = Event (tUntagged lconv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConversation c')
-      pure $
-        def
-          { origin = Just (tUnqualified lusr),
-            json = toJSONObject e,
-            recipients = [localMemberToRecipient m],
-            -- on conversation creation we send the cells event separately to make sure it is sent exactly once
-            isCellsEvent = False,
-            route,
-            conn
-          }
 
 localOne2OneConvId ::
   (Member (Error InvalidInput) r) =>

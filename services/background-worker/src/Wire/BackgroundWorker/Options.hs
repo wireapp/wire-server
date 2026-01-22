@@ -37,6 +37,7 @@ data Opts = Opts
     federatorInternal :: !Endpoint,
     brig :: Endpoint,
     gundeck :: Endpoint,
+    federator :: Maybe Endpoint,
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,

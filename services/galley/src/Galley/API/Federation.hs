@@ -37,7 +37,6 @@ import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
@@ -56,6 +55,7 @@ import Galley.App
 import Galley.Effects
 import Galley.Options
 import Galley.Types.Conversations.One2One
+import Galley.Types.Error
 import Imports
 import Network.Wai.Utilities.Exception
 import Polysemy

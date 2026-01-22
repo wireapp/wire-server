@@ -41,7 +41,6 @@ import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
-import Galley.API.Error
 import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
@@ -51,6 +50,7 @@ import Galley.App
 import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
+import Galley.Types.Error
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types.Status (status200)

@@ -41,7 +41,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Qualified (Local)
-import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
@@ -51,6 +50,7 @@ import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Env (FanoutLimit)
 import Galley.Options
+import Galley.Types.Error (InternalError)
 import Galley.Types.Teams
 import Imports
 import Polysemy

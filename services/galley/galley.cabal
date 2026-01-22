@@ -81,7 +81,6 @@ library
     Galley.API.Clients
     Galley.API.Create
     Galley.API.CustomBackend
-    Galley.API.Error
     Galley.API.Federation
     Galley.API.Internal
     Galley.API.LegalHold
@@ -572,6 +571,7 @@ test-suite galley-tests
     , containers
     , extra                >=1.3
     , galley
+    , galley-types
     , imports
     , lens
     , polysemy

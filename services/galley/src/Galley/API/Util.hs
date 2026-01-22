@@ -40,13 +40,14 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import Galley.API.Error
 import Galley.API.Mapping
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Env
+import Galley.Options ()
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
+import Galley.Types.Error
 import Galley.Types.Teams
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
@@ -1189,3 +1190,29 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+----------------------------------------------------------------------------
+-- Notifications
+notifyConversationUpdated ::
+  ( Member NotificationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Connect ->
+  StoredConversation ->
+  Sem r ()
+notifyConversationUpdated lusr conn j conv = do
+  let lcnv = qualifyAs lusr conv.id_
+  t <- Now.get
+  let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified lusr),
+          json = toJSONObject e,
+          recipients = map localMemberToRecipient conv.localMembers,
+          isCellsEvent = shouldPushToCells conv.metadata e,
+          route = PushV2.RouteDirect,
+          conn
+        }
+    ]

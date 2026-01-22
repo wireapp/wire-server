@@ -39,7 +39,6 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
-import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
@@ -60,6 +59,7 @@ import Galley.Env (FanoutLimit)
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
+import Galley.Types.Error
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy

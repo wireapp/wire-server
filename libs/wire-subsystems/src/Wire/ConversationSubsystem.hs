@@ -43,5 +43,10 @@ data ConversationSubsystem m a where
     ConversationAction (tag :: ConversationActionTag) ->
     ExtraConversationData ->
     ConversationSubsystem r LocalConversationUpdate
+  CreateConversation ::
+    Local ConvId ->
+    Local UserId ->
+    NewConversation ->
+    ConversationSubsystem m StoredConversation
 
 makeSem ''ConversationSubsystem

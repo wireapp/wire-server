@@ -23,6 +23,8 @@ where
 import Data.Id
 import Data.Qualified
 import Data.Text qualified as T
+import Data.Text.Lazy qualified as TL
+import Galley.Types.Error (InternalError, internalErrorDescription)
 import Hasql.Pool (UsageError)
 import Imports
 import Polysemy
@@ -44,12 +46,15 @@ import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
 import Wire.ExternalAccess.External
+import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FireAndForget (interpretFireAndForget)
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException
 import Wire.PostgresMigrationOpts
 import Wire.Rpc
+import Wire.Sem.Concurrency (ConcurrencySafety (Unsafe))
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 import Wire.Sem.Delay (runDelay)
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
@@ -72,7 +77,15 @@ dispatchJob job = do
         MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres env.cassandraGalley
         PostgresqlStorage -> interpretConversationStoreToPostgres
     runInterpreters env extEnv = do
+      let federationAPIAccessConfig =
+            FederationAPIAccessConfig
+              { ownDomain = env.federationDomain,
+                federatorEndpoint = env.federator,
+                http2Manager = env.http2Manager,
+                requestId = job.requestId
+              }
       runFinal @IO
+        . unsafelyPerformConcurrency @_ @'Unsafe
         . embedToFinal @IO
         . asyncToIOFinal
         . interpretRace
@@ -82,6 +95,7 @@ dispatchJob job = do
         . mapError @UsageError (T.pack . show)
         . mapError @ParseException (T.pack . displayException)
         . mapError @MigrationError (T.pack . show)
+        . mapError @InternalError (TL.toStrict . internalErrorDescription)
         . interpretTinyLog env job.requestId job.jobId
         . runInputConst env.hasqlPool
         . runInputConst (toLocalUnsafe env.federationDomain ())
@@ -102,6 +116,7 @@ dispatchJob job = do
         . interpretBrigAccess env.brigEndpoint
         . interpretExternalAccess extEnv
         . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig job.requestId)
+        . interpretFederationAPIAccess federationAPIAccessConfig
         . interpretConversationSubsystem
         . interpretBackgroundJobsRunner
 

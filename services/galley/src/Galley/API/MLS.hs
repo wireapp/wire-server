@@ -27,10 +27,10 @@ module Galley.API.MLS
 where
 
 import Data.Default
-import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
 import Galley.Env
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error

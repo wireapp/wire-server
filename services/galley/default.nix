@@ -296,6 +296,7 @@ mkDerivation {
     base
     containers
     extra
+    galley-types
     imports
     lens
     polysemy

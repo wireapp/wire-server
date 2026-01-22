@@ -369,6 +369,7 @@ spec = do
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
+          federator = Nothing
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
@@ -408,6 +409,7 @@ spec = do
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
+          federator = Nothing
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

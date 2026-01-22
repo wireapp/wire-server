@@ -22,8 +22,8 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Qualified
-import Galley.API.Error
 import Galley.Effects
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
