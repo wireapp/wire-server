@@ -137,6 +137,7 @@ upsertConversationImpl lcnv nc = do
       meta = storedConv.metadata
       localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
       remoteUsers = map (\m -> (,m.convRoleName) <$> m.id_) storedConv.remoteMembers
+      hconfig = historyConfig meta.cnvmHistory
       convRow =
         ( storedConv.id_,
           meta.cnvmType,
@@ -152,7 +153,8 @@ upsertConversationImpl lcnv nc = do
           meta.cnvmGroupConvType,
           meta.cnvmChannelAddPermission,
           meta.cnvmCellsState,
-          meta.cnvmParent
+          meta.cnvmParent,
+          fmap (.depth) hconfig
         )
   runTransaction ReadCommitted Write $ do
     Transaction.statement convRow insertConvStatement
@@ -160,15 +162,17 @@ upsertConversationImpl lcnv nc = do
   pure storedConv
   where
     insertConvStatement =
-      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _) @_
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
-                              group_id, group_conv_type, channel_add_permission, cells_state, parent_conv)
+                              group_id, group_conv_type, channel_add_permission, cells_state,
+                              parent_conv, history_depth)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
-                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)
+                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, 
+                              $15 :: uuid?, $16 :: bigint?)
                              ON CONFLICT (id)
                              DO UPDATE
                                 SET type = ($2 :: integer),
@@ -184,7 +188,8 @@ upsertConversationImpl lcnv nc = do
                                     group_conv_type =  ($12 :: integer?),
                                     channel_add_permission =  ($13 :: integer?),
                                     cells_state =  ($14 :: integer),
-                                    parent_conv =  ($15 :: uuid?)
+                                    parent_conv =  ($15 :: uuid?),
+                                    history_depth = ($16 :: bigint?)
                             |]
 
 deleteConversationImpl :: (PGConstraints r) => ConvId -> Sem r ()

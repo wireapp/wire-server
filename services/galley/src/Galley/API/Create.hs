@@ -68,6 +68,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.History
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
@@ -117,6 +118,7 @@ createGroupConversationUpToV3 ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
@@ -166,6 +168,7 @@ createGroupOwnConversation ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -213,6 +216,7 @@ createGroupConversation ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member (Error UnreachableBackends) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
@@ -263,6 +267,7 @@ createGroupConvAndMkResponse ::
     Member (Error NonFederatingBackends) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member P.TinyLog r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -307,6 +312,7 @@ createGroupConversationGeneric ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member (Error UnreachableBackends) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input Env) r,
@@ -330,6 +336,8 @@ createGroupConversationGeneric lusr conn newConv joinType = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
+  when (newConv.newConvHistory /= HistoryPrivate && newConv.newConvGroupConvType /= Channel) $ do
+    throwS @HistoryNotSupported
 
   when (newConvProtocol newConv == BaseProtocolMLSTag) $ do
     -- Here we fail early in order to notify users of this misconfiguration
