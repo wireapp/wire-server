@@ -50,7 +50,6 @@ import Data.Code qualified as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Conduit (runConduit, (.|))
 import Data.Conduit.List qualified as C
-import Data.Default
 import Data.Hashable (hash)
 import Data.HavePendingInvitations
 import Data.Id
@@ -104,6 +103,7 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
+import Wire.API.Routes.Internal.Brig (getByNoFilters)
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
@@ -753,7 +753,8 @@ addBot ::
     Member Now r,
     Member CryptoSign r,
     Member UserStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   ConnId ->
@@ -762,8 +763,8 @@ addBot ::
   (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
   guardSecondFactorDisabled (Just zuid)
-  luid <- qualifyLocal zuid
-  zusr <- lift (liftSem $ User.getLocalAccountBy NoPendingInvitations luid) >>= maybeInvalidUser
+  getZusr <- lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [zuid], includePendingInvitations = NoPendingInvitations}
+  zusr <- lift (fmap listToMaybe . liftSem $ User.getAccountsBy getZusr) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
@@ -909,10 +910,10 @@ guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))
 
-botGetSelf :: (Member UserSubsystem r) => BotId -> Handler r Public.UserProfile
+botGetSelf :: (Member UserSubsystem r, Member (Input (Local ())) r) => BotId -> Handler r Public.UserProfile
 botGetSelf bot = do
-  lbuid <- qualifyLocal (botUserId bot)
-  p <- lift . liftSem $ User.getLocalAccountBy NoPendingInvitations lbuid
+  getBy <- lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [botUserId bot], includePendingInvitations = NoPendingInvitations}
+  p <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf UserTypeBot u UserLegalHoldNoConsent) p
 
 botGetClient :: (Member GalleyAPIAccess r) => BotId -> (Handler r) (Maybe Public.Client)
@@ -962,7 +963,7 @@ botListUserProfiles _ uids = do
     lift . liftSem $
       User.getAccountsBy $
         qualifyAs localUnit $
-          def
+          getByNoFilters
             { getByUserId = fromCommaSeparatedList uids,
               includePendingInvitations = NoPendingInvitations
             }
@@ -985,8 +986,8 @@ botDeleteSelf ::
   BotId -> ConvId -> Handler r ()
 botDeleteSelf bid cid = do
   guardSecondFactorDisabled (Just (botUserId bid))
-  lbuid <- qualifyLocal (botUserId bid)
-  bot <- lift . liftSem $ User.getLocalAccountBy NoPendingInvitations lbuid
+  getBy <- qualifyLocal (getByNoFilters {getByUserId = [botUserId bid], includePendingInvitations = NoPendingInvitations})
+  bot <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   _ <- maybe (throwStd (errorToWai @'E.InvalidBot)) pure $ (userService =<< bot)
   _ <- lift . liftSem $ deleteBot (botUserId bid) Nothing bid cid
   pure ()
@@ -1031,8 +1032,8 @@ deleteBot zusr zcon bid cid = do
   ev <- embed $ RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  lbuid <- qualifyLocal' buid
-  mbUser <- User.getLocalAccountBy NoPendingInvitations lbuid
+  getBy <- qualifyLocal' $ getByNoFilters {getByUserId = [buid], includePendingInvitations = NoPendingInvitations}
+  mbUser <- listToMaybe <$> User.getAccountsBy getBy
   embed $ User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider

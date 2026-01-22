@@ -23,7 +23,6 @@ module Brig.User.EJPD (ejpdRequest) where
 import Bilge.Request
 import Bilge.Response
 import Brig.API.Handler
-import Brig.API.User (lookupHandle)
 import Brig.App
 import Brig.Data.Connection qualified as Conn
 import Control.Error hiding (bool)
@@ -38,10 +37,11 @@ import Data.Text qualified as T
 import Imports hiding (head)
 import Network.HTTP.Types.Method
 import Polysemy
+import Polysemy.Input (Input)
 import Servant.OpenApi.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.Push.Token qualified as PushTok
-import Wire.API.Routes.Internal.Brig.EJPD
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
@@ -50,7 +50,6 @@ import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-import Wire.UserStore (UserStore)
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 
@@ -59,10 +58,10 @@ ejpdRequest ::
   forall r.
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
-    Member UserStore r,
     Member Rpc r,
     Member TeamSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Maybe Bool ->
   EJPDRequestBody ->
@@ -72,10 +71,17 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
   where
     -- find uid given handle
     responseItemForHandle :: Handle -> AppT r (Maybe EJPDResponseItemRoot)
-    responseItemForHandle hdl = do
-      mbUid <- traverse qualifyLocal =<< liftSem (lookupHandle hdl)
-      mbUsr <- maybe (pure Nothing) (liftSem . User.getLocalAccountBy NoPendingInvitations) mbUid
-      maybe (pure Nothing) (fmap Just . responseItemForExistingUser includeContacts) mbUsr
+    responseItemForHandle hdl = runMaybeT $ do
+      usr <-
+        MaybeT . liftSem . fmap listToMaybe $
+          User.getAccountsBy
+            =<< qualifyLocal'
+              ( getByNoFilters
+                  { includePendingInvitations = NoPendingInvitations,
+                    getByHandle = [hdl]
+                  }
+              )
+      lift $ responseItemForExistingUser includeContacts usr
 
     -- construct response item given uid
     responseItemForExistingUser :: Bool -> User -> (AppT r) EJPDResponseItemRoot
@@ -95,10 +101,17 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
 
             localContacts <-
               catMaybes <$> do
-                forM contacts $ \(uid', relationDropHistory -> rel) -> do
-                  luid' <- qualifyLocal uid'
-                  mbUsr <- liftSem $ User.getLocalAccountBy NoPendingInvitations luid' -- FUTUREWORK: use polysemy effect, not wrapClient
-                  maybe (pure Nothing) (fmap (Just . EJPDContactFound rel . toEJPDResponseItemLeaf) . responseItemForExistingUser False) mbUsr
+                forM contacts $ \(uid', relationDropHistory -> rel) -> runMaybeT $ do
+                  getBy <-
+                    lift . liftSem $
+                      qualifyLocal'
+                        ( getByNoFilters
+                            { getByUserId = [uid'],
+                              includePendingInvitations = NoPendingInvitations
+                            }
+                        )
+                  usr <- MaybeT . fmap listToMaybe . liftSem $ User.getAccountsBy getBy
+                  lift . fmap (EJPDContactFound rel . toEJPDResponseItemLeaf) . responseItemForExistingUser False $ usr
 
             pure . Just . Set.fromList $ localContacts
           else do
@@ -111,10 +124,10 @@ ejpdRequest (fromMaybe False -> includeContacts) (EJPDRequestBody handles) = do
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull <-
-              forM members $ \uid' -> do
-                luid' <- qualifyLocal uid'
-                mbUsr <- liftSem $ User.getLocalAccountBy NoPendingInvitations luid'
-                maybe (pure Nothing) (fmap Just . responseItemForExistingUser False) mbUsr
+              forM members $ \uid' -> runMaybeT $ do
+                getBy <- lift . liftSem $ qualifyLocal' (getByNoFilters {getByUserId = [uid'], includePendingInvitations = NoPendingInvitations})
+                usr <- MaybeT . fmap listToMaybe . liftSem $ User.getAccountsBy getBy
+                lift $ responseItemForExistingUser False usr
 
             let listType = Team.toNewListType (memberList ^. Team.teamMemberListType)
 

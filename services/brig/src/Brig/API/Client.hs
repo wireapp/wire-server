@@ -95,6 +95,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
@@ -581,7 +582,13 @@ createAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
   (tid, handle, displayName) <- do
-    mUser <- lift $ liftSem (User.getLocalAccountBy NoPendingInvitations luid)
+    mUser <-
+      fmap listToMaybe
+        . lift
+        . liftSem
+        . User.getAccountsBy
+        . qualifyAs luid
+        $ getByNoFilters {getByUserId = [tUnqualified luid], includePendingInvitations = NoPendingInvitations}
     except $
       (,,)
         <$> note NotATeamUser (userTeam =<< mUser)

@@ -27,6 +27,7 @@ where
 import Cassandra.Util (Writetime (Writetime))
 import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
+import Control.Monad.Extra (partitionM)
 import Control.Monad.Trans.Maybe
 import Data.CaseInsensitive qualified as CI
 import Data.Domain
@@ -142,8 +143,6 @@ runUserSubsystem authInterpreter = interpret $
       getAccountsByImpl getBy
     GetAccountsByEmailNoFilter emails ->
       getAccountsByEmailNoFilterImpl emails
-    GetAccountNoFilter luid ->
-      getAccountNoFilterImpl luid
     GetSelfProfile self ->
       getSelfProfileImpl self
     GetUserProfilesWithErrors self others ->
@@ -955,18 +954,6 @@ browseTeamImpl uid filters mMaxResults mPagingState = do
     let ugids = fromMaybe [] (Map.lookup userDoc.udId ugMap)
     pure $ userDocToTeamContact ugids userDoc
 
-getAccountNoFilterImpl ::
-  forall r.
-  ( Member UserStore r,
-    Member (Input UserSubsystemConfig) r
-  ) =>
-  Local UserId ->
-  Sem r (Maybe User)
-getAccountNoFilterImpl (tSplit -> (domain, uid)) = do
-  cfg <- input
-  muser <- getUser uid
-  pure $ (mkUserFromStored domain cfg.defaultLocale) <$> muser
-
 getAccountsByEmailNoFilterImpl ::
   forall r.
   ( Member UserStore r,
@@ -994,7 +981,7 @@ getAccountsByImpl ::
   ) =>
   Local GetBy ->
   Sem r [User]
-getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHandle, getByUserId})) = do
+getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
   storedToExtAcc <- do
     config <- input
     pure $ mkUserFromStored domain config.defaultLocale
@@ -1003,35 +990,28 @@ getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHan
     wither lookupHandle getByHandle
 
   accsByIds :: [User] <-
-    getUsers (nubOrd $ handleUserIds <> getByUserId) <&> map storedToExtAcc
+    ( getUsers (nubOrd $ handleUserIds <> getByUserId)
+        <&> map storedToExtAcc
+    )
 
-  filterM want (nubOrd $ accsByIds)
+  afterGC :: [User] <-
+    if includeUsersWithExpiredInvitations
+      then pure accsByIds
+      else garbageCollect accsByIds
+
+  pure $ filter (\u -> and [filterPendingInvitations u, filterNoIdentity u]) (nubOrd $ afterGC)
   where
-    -- not wanted:
-    -- . users without identity
-    -- . pending users without matching invitation (those are garbage-collected)
-    -- . TODO: deleted users?
-    want :: User -> Sem r Bool
-    want user =
-      case user.userIdentity of
-        Nothing -> pure False
-        Just ident -> case user.userStatus of
-          PendingInvitation ->
-            case includePendingInvitations of
-              WithPendingInvitations -> case emailIdentity ident of
-                -- TODO(fisx): emailIdentity does not return an unvalidated address in case a
-                -- validated one cannot be found.  that's probably wrong?  split up into
-                -- validEmailIdentity, anyEmailIdentity?
-                Just email -> do
-                  hasInvitation <- isJust . listToMaybe <$> lookupInvitationsByEmail email
-                  gcHack hasInvitation (User.userId user)
-                  pure hasInvitation
-                Nothing -> error "getExtendedAccountsByImpl: should never happen, user invited via scim always has an email"
-              NoPendingInvitations -> pure False
-          Active -> pure True
-          Suspended -> pure True
-          Deleted -> pure True -- TODO(mangoiv): previous comment said "We explicitly filter out deleted users now." Why?
-          Ephemeral -> pure True
+    filterPendingInvitations :: User -> Bool
+    filterPendingInvitations user =
+      case (includePendingInvitations, user.userStatus) of
+        (NoPendingInvitations, PendingInvitation) -> False
+        _ -> True
+
+    filterNoIdentity :: User -> Bool
+    filterNoIdentity user =
+      case (includeUsersWithoutIdentity, user.userIdentity) of
+        (False, Nothing) -> False
+        _ -> True
 
     -- user invited via scim expires together with its invitation. the UserSubsystem interface
     -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
@@ -1048,8 +1028,18 @@ getAccountsByImpl (tSplit -> (domain, GetBy {includePendingInvitations, getByHan
     --
     -- there are certainly other ways to improve this, but they probably involve a non-trivial
     -- database schema re-design.
-    gcHack :: Bool -> UserId -> Sem r ()
-    gcHack hasInvitation uid = unless hasInvitation (enqueueUserDeletion uid)
+    garbageCollect :: [User] -> Sem r [User]
+    garbageCollect users = do
+      (gcUsers, safeUser) <- partitionM toBeGarbageCollected users
+      mapM_ (enqueueUserDeletion . qUnqualified . userQualifiedId) gcUsers
+      pure safeUser
+
+    toBeGarbageCollected :: User -> Sem r Bool
+    toBeGarbageCollected user =
+      case (emailIdentity =<< user.userIdentity, user.userStatus) of
+        (Just email, PendingInvitation) ->
+          isNothing . listToMaybe <$> lookupInvitationsByEmail email
+        _ -> pure False
 
 acceptTeamInvitationImpl ::
   ( Member (Input UserSubsystemConfig) r,

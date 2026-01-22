@@ -785,7 +785,9 @@ sendActivationCode email loc = do
     Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
     Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
   where
+    notFound :: (HasCallStack) => UserId -> ExceptT SendActivationCodeError (AppT r) a
     notFound = throwM . UserDisplayNameNotFound
+
     mkPair ::
       EmailKey ->
       Maybe ActivationCode ->
@@ -798,6 +800,8 @@ sendActivationCode email loc = do
         Nothing -> lift . liftSem $ do
           dat <- newActivationCode k timeout u
           pure (activationKey dat, activationCode dat)
+
+    sendVerificationEmail :: EmailKey -> Maybe ActivationCode -> ExceptT SendActivationCodeError (AppT r) ()
     sendVerificationEmail ek uc = do
       (key, code) <- mkPair ek uc Nothing
       let em = emailKeyOrig ek
@@ -806,7 +810,7 @@ sendActivationCode email loc = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
       luid <- qualifyLocal uid
-      u <- maybe (notFound uid) pure =<< lift (liftSem $ User.getLocalAccountBy WithPendingInvitations luid)
+      u <- maybe (notFound uid) pure =<< lift (liftSem $ User.getAccountNoFilter luid)
       (aKey, aCode) <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u

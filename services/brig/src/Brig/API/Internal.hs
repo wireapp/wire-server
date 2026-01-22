@@ -205,10 +205,10 @@ istatusAPI = Named @"get-status" (pure NoContent)
 ejpdAPI ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
-    Member UserStore r,
     Member Rpc r,
     Member TeamSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
@@ -489,10 +489,10 @@ getMLSClient lusr cid suiteTag = do
         mlsSignatureKey = Map.lookup ss keys
       }
 
-getVerificationCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
+getVerificationCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r, Member (Input (Local ())) r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = runMaybeT do
-  luid <- qualifyLocal uid
-  user <- MaybeT . lift . liftSem $ User.getLocalAccountBy NoPendingInvitations luid
+  getBy <- lift . lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [uid], includePendingInvitations = NoPendingInvitations}
+  user <- MaybeT . fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   email <- MaybeT . pure $ userEmail user
   let key = mkKey email
   code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
@@ -975,7 +975,7 @@ updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    lift (liftSem $ User.getLocalAccountBy WithPendingInvitations luid) >>= \case
+    lift (liftSem $ User.getAccountNoFilter luid) >>= \case
       Just _ -> lift . liftSem $ updateUserProfile luid Nothing UpdateOriginScim (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
