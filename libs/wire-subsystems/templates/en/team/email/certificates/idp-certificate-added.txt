@@ -1,0 +1,17 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+Added:
+
+${algorithm} fingerprint:
+${fingerprint}
+
+Subject:
+${subject}
+
+Issuer:
+${issuer}
+
+
+--------------------------------------------------------------------------------

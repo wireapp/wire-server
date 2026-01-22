@@ -28,7 +28,7 @@ ${idpid}
 
 --------------------------------------------------------------------------------
 
-If you did not initiate this change, please reach out to the Wire support.
+${certificatesdetails}If you did not initiate this change, please reach out to the Wire support.
 [${support}]
 
 Privacy Policy and Terms of Use [${legal}]· Report misuse [${misuse}]

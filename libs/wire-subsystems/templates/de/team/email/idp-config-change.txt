@@ -28,7 +28,7 @@ ${idpid}
 
 --------------------------------------------------------------------------------
 
-Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
+${certificatesdetails}Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
 Wire Support. [${support}]
 
 Datenschutzerklärung und Nutzungsbedingungen [${legal}]· Missbrauch melden
