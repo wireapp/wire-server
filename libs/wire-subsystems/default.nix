@@ -23,6 +23,7 @@
 , case-insensitive
 , cassandra-util
 , conduit
+, constraints
 , containers
 , contravariant
 , cql
@@ -150,6 +151,7 @@ mkDerivation {
     case-insensitive
     cassandra-util
     conduit
+    constraints
     containers
     contravariant
     cql
@@ -265,6 +267,7 @@ mkDerivation {
     case-insensitive
     cassandra-util
     conduit
+    constraints
     containers
     contravariant
     cql
