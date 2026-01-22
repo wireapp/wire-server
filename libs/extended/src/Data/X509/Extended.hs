@@ -28,8 +28,9 @@ data CertDescription = CertDescription
     subject :: String,
     issuer :: String
   }
+  deriving (Eq, Show)
 
--- TODO: Needs a unit test
+-- | Extract structured certificate description information
 certDescription :: SignedCertificate -> CertDescription
 certDescription signedCert =
   let cert = getCertificate signedCert
