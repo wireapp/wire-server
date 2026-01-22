@@ -317,7 +317,6 @@ updateConversationHistory ::
     Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
-    Member Now r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r

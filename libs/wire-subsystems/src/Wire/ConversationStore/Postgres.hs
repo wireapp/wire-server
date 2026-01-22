@@ -50,6 +50,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -83,6 +84,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetConversationAccess cid value -> setConversationAccessImpl cid value
   SetConversationReceiptMode cid value -> setConversationReceiptModeImpl cid value
   SetConversationMessageTimer cid value -> setConversationMessageTimerImpl cid value
+  SetConversationHistory cid value -> setConversationHistoryImpl cid value
   SetConversationEpoch cid epoch -> setConversationEpochImpl cid epoch
   SetConversationCipherSuite cid cs -> setConversationCipherSuiteImpl cid cs
   SetConversationCellsState cid ps -> setConversationCellsStateImpl cid ps
@@ -471,6 +473,17 @@ setConversationMessageTimerImpl convId timer =
         [resultlessStatement|UPDATE conversation
                              SET message_timer = ($2 :: bigint?)
                              WHERE id = ($1 :: uuid)|]
+
+setConversationHistoryImpl :: (PGConstraints r) => ConvId -> History -> Sem r ()
+setConversationHistoryImpl convId history =
+  runStatement (convId, fmap (.depth) (historyConfig history)) update
+  where
+    update :: Hasql.Statement (ConvId, Maybe HistoryDuration) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                                       SET history_depth = ($2 :: bigint?)
+                                       WHERE id = ($1 :: uuid)|]
 
 setConversationEpochImpl :: (PGConstraints r) => ConvId -> Epoch -> Sem r ()
 setConversationEpochImpl convId epoch =

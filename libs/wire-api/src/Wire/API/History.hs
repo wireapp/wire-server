@@ -21,6 +21,8 @@ module Wire.API.History
   ( History (..),
     historyConfig,
     HistorySharingConfig (..),
+    historyDurationToSecs,
+    historyDurationFromSecs,
     HistoryDuration (..),
   )
 where
@@ -34,6 +36,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as T
 import Imports
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
 data History = HistoryPrivate | HistoryShared HistorySharingConfig
@@ -78,6 +81,17 @@ instance C.Cql HistoryDuration where
     | n > 0 = pure (HistoryDurationFinite n)
     | n < 0 = Left "duration: positive bigint expected"
   fromCql _ = Left "duration: bigint expected"
+
+historyDurationToSecs :: HistoryDuration -> Int64
+historyDurationToSecs HistoryDurationInfinite = 0
+historyDurationToSecs (HistoryDurationFinite secs) = secs
+
+historyDurationFromSecs :: Int64 -> HistoryDuration
+historyDurationFromSecs 0 = HistoryDurationInfinite
+historyDurationFromSecs n = HistoryDurationFinite n
+
+instance PostgresMarshall Int64 HistoryDuration where
+  postgresMarshall = historyDurationToSecs
 
 makePrisms ''History
 

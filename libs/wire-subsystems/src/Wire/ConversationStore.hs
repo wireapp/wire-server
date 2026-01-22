@@ -34,6 +34,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -92,6 +93,7 @@ data ConversationStore m a where
   SetConversationAccess :: ConvId -> ConversationAccessData -> ConversationStore m ()
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
+  SetConversationHistory :: ConvId -> History -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
@@ -101,7 +103,7 @@ data ConversationStore m a where
   UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
   UpdateToMLSProtocol :: ConvId -> ConversationStore m ()
   -- This function only exists to ensure that the cassandra row about team ->
-  -- conv relationshop is deleted from cassanrda. This action should be deleted
+  -- conv relationshop is deleted from Cassandra. This action should be deleted
   -- when we drop support for Cassandra.
   DeleteTeamConversation :: TeamId -> ConvId -> ConversationStore m ()
   GetTeamConversation :: TeamId -> ConvId -> ConversationStore m (Maybe ConvId)

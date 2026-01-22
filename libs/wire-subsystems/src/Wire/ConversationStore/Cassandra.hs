@@ -925,6 +925,10 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetConversationMessageTimer cid value -> do
     logEffect "ConversationStore.SetConversationMessageTimer"
     embedClient client $ updateConvMessageTimer cid value
+  SetConversationHistory _cid _value -> do
+    -- conversation history not supported in cassandra
+    logEffect "ConversationStore.SetConversationHistory"
+    pure ()
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     embedClient client $ updateConvEpoch cid epoch
@@ -1203,6 +1207,8 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ updateConvMessageTimer cid value
         True -> interpretConversationStoreToPostgres (ConvStore.setConversationMessageTimer cid value)
+  SetConversationHistory _cid _value -> do
+    logEffect "ConversationStore.SetConversationHistory"
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     withMigrationLockAndCleanup client LockShared (Left cid) $
