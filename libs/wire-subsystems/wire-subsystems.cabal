@@ -102,6 +102,7 @@ common common-all
     , case-insensitive
     , cassandra-util
     , conduit
+    , constraints
     , containers
     , contravariant
     , cql
@@ -329,6 +330,7 @@ library
     Wire.TeamCollaboratorsSubsystem
     Wire.TeamCollaboratorsSubsystem.Interpreter
     Wire.TeamFeatureStore
+    Wire.TeamFeatureStore.Cassandra
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter

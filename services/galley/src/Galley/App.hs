@@ -62,7 +62,6 @@ import Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
   )
-import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
@@ -113,6 +112,7 @@ import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
+import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
@@ -136,6 +136,7 @@ import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamFeatureStore.Cassandra
 import Wire.TeamJournal.Aws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter
@@ -147,6 +148,7 @@ type GalleyEffects0 =
      Input Hasql.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
+     Error TeamFeatureStoreError,
      Error MigrationError,
      Error InvalidInput,
      Error ParseException,
@@ -338,6 +340,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
+        . mapError mapTeamFeatureStoreError
         . runInputConst conversationSubsystemConfig
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
@@ -403,3 +406,6 @@ interpretTeamFeatureSpecialContext :: Env -> Sem (Input (FeatureDefaults Legalho
 interpretTeamFeatureSpecialContext e =
   runInputConst
     (e ^. options . settings . featureFlags . to npProject)
+
+mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
+mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg

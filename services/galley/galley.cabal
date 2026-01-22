@@ -143,7 +143,6 @@ library
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Store
     Galley.Cassandra.Team
-    Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
     Galley.Data.TeamNotifications
