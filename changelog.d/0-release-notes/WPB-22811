@@ -1,0 +1,5 @@
+Conversation codes can now be migrated to PostgreSQL. For existing installations:
+- Set `postgresMigration.conversationCodes: migration-to-postgresql` in both `galley` and `background-worker`.
+- Run the backfill with `migrateConversationCodes: true`.
+- Wait for `wire_conv_codes_migration_finished` to reach `1.0`.
+- Switch to `postgresMigration.conversationCodes: postgresql` and disable `migrateConversationCodes`.

@@ -115,7 +115,6 @@ import Wire.API.User as User
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
-import Wire.CodeStore.Scope (Scope (ReusableCode))
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
@@ -560,7 +559,7 @@ performAction tag origUser lconv action = do
         deleteGroup gidParent
 
       key <- E.makeKey (tUnqualified lcnv)
-      E.deleteCode key ReusableCode
+      E.deleteCode key
       case convTeam storedConv of
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
@@ -800,7 +799,7 @@ performConversationAccessData qusr lconv action = do
     )
     $ do
       key <- E.makeKey (tUnqualified lcnv)
-      E.deleteCode key ReusableCode
+      E.deleteCode key
 
   -- Determine bots and members to be removed
   let filterBotsAndMembers =

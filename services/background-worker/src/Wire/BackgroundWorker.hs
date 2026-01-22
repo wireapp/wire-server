@@ -34,7 +34,8 @@ import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
-import Wire.MigrateConversations qualified as MigrateConversations
+import Wire.Migration
+import Wire.PostgresMigrations qualified as Migrations
 
 run :: Opts -> IO ()
 run opts = do
@@ -53,7 +54,14 @@ run opts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversations" $
-            MigrateConversations.startWorker opts.migrateConversationsOptions
+            Migrations.conversations opts.migrateConversationsOptions
+      else pure $ pure ()
+  cleanUpConvCodesMigration <-
+    if opts.migrateConversationCodes
+      then
+        runAppT env $
+          withNamedLogger "migrate-conversation-codes" $
+            Migrations.conversationCodes (MigrationOptions 1000 1)
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
@@ -61,10 +69,11 @@ run opts = do
         Jobs.startWorker amqpEP
   let cleanup =
         void . runConcurrently $
-          (,,,)
+          (,,,,)
             <$> Concurrently cleanupDeadUserNotifWatcher
             <*> Concurrently cleanupBackendNotifPusher
             <*> Concurrently cleanupConvMigration
+            <*> Concurrently cleanUpConvCodesMigration
             <*> Concurrently cleanupJobs
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger

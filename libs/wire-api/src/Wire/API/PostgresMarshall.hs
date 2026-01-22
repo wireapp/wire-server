@@ -27,7 +27,9 @@ where
 import Data.Aeson
 import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
+import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion qualified as BSC
+import Data.Code qualified as Code
 import Data.Domain
 import Data.Id
 import Data.Misc
@@ -530,6 +532,12 @@ instance (PostgresMarshall b a) => PostgresMarshall (Vector b) (Set a) where
 instance (PostgresMarshall a b) => PostgresMarshall (Vector a) (Vector b) where
   postgresMarshall = V.map postgresMarshall
 
+instance PostgresMarshall Text Code.Key where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
+instance PostgresMarshall Text Code.Value where
+  postgresMarshall = Text.decodeUtf8 . toByteString'
+
 ---
 
 class PostgresUnmarshall db domain where
@@ -854,6 +862,12 @@ instance (PostgresUnmarshall a b, Ord b) => PostgresUnmarshall (Vector a) (Set b
 
 instance PostgresUnmarshall Int64 Milliseconds where
   postgresUnmarshall = Right . int64ToMs
+
+instance PostgresUnmarshall Text Code.Key where
+  postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
+
+instance PostgresUnmarshall Text Code.Value where
+  postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
 
 ---
 

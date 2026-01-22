@@ -29,10 +29,10 @@ import Wire.CodeStore.Code
 
 data CodeStore m a where
   CreateCode :: Code -> Maybe Password -> CodeStore m ()
-  GetCode :: Key -> Scope -> CodeStore m (Maybe (Code, Maybe Password))
-  DeleteCode :: Key -> Scope -> CodeStore m ()
+  GetCode :: Key -> CodeStore m (Maybe (Code, Maybe Password))
+  DeleteCode :: Key -> CodeStore m ()
   MakeKey :: ConvId -> CodeStore m Key
-  GenerateCode :: ConvId -> Scope -> Timeout -> CodeStore m Code
+  GenerateCode :: ConvId -> Timeout -> CodeStore m Code
   GetConversationCodeURI :: Maybe Text -> CodeStore m (Maybe HttpsUrl)
 
 makeSem ''CodeStore

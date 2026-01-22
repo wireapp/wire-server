@@ -228,7 +228,9 @@ library
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries
     Wire.CodeStore.Code
-    Wire.CodeStore.Scope
+    Wire.CodeStore.DualWrite
+    Wire.CodeStore.Migration
+    Wire.CodeStore.Postgres
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
@@ -294,6 +296,7 @@ library
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.Migration
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState

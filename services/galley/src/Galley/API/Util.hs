@@ -750,7 +750,7 @@ verifyReusableCode ::
   Sem r DataTypes.Code
 verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
   (c, mPw) <-
-    getCode (conversationKey convCode) DataTypes.ReusableCode
+    getCode (conversationKey convCode)
       >>= noteS @'CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound

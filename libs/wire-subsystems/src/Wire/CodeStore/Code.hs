@@ -19,7 +19,6 @@
 
 module Wire.CodeStore.Code
   ( Code (..),
-    Scope (..),
     toCode,
     generate,
     mkKey,
@@ -36,26 +35,23 @@ import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Wire.API.Password (Password)
-import Wire.CodeStore.Scope
 
 data Code = Code
   { codeKey :: !Key,
     codeValue :: !Value,
     codeTTL :: !Timeout,
     codeConversation :: !ConvId,
-    codeScope :: !Scope,
     codeHasPassword :: !Bool
   }
   deriving (Eq, Show, Generic)
 
-toCode :: Key -> Scope -> (Value, Int32, ConvId, Maybe Password) -> (Code, Maybe Password)
-toCode k s (val, ttl, cnv, mPw) =
+toCode :: Key -> (Value, Int32, ConvId, Maybe Password) -> (Code, Maybe Password)
+toCode k (val, ttl, cnv, mPw) =
   ( Code
       { codeKey = k,
         codeValue = val,
         codeTTL = Timeout (fromIntegral ttl),
         codeConversation = cnv,
-        codeScope = s,
         codeHasPassword = isJust mPw
       },
     mPw
@@ -68,8 +64,8 @@ toCode k s (val, ttl, cnv, mPw) =
 -- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
 -- The 'value' is a base64 encoded, 120-bit random value (changing on each generation)
 
-generate :: (MonadIO m) => ConvId -> Scope -> Timeout -> m Code
-generate cnv s t = do
+generate :: (MonadIO m) => ConvId -> Timeout -> m Code
+generate cnv t = do
   key <- mkKey cnv
   val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
   pure
@@ -78,7 +74,6 @@ generate cnv s t = do
         codeValue = val,
         codeConversation = cnv,
         codeTTL = t,
-        codeScope = s,
         codeHasPassword = False
       }
 

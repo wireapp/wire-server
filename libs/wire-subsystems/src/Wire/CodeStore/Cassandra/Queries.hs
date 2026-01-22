@@ -22,13 +22,15 @@ import Data.Id
 import Imports
 import Wire.API.Conversation.Code
 import Wire.API.Password (Password)
-import Wire.CodeStore.Scope
 
-insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Maybe Password, Int32) ()
-insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope, password) VALUES (?, ?, ?, ?, ?) USING TTL ?"
+insertCode :: PrepQuery W (Key, Value, ConvId, Maybe Password, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope, password) VALUES (?, ?, ?, 1, ?) USING TTL ?"
 
-lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId, Maybe Password)
-lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation_codes WHERE key = ? AND scope = ?"
+lookupCode :: PrepQuery R (Identity Key) (Value, Int32, ConvId, Maybe Password)
+lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation_codes WHERE key = ? AND scope = 1"
 
-deleteCode :: PrepQuery W (Key, Scope) ()
-deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
+deleteCode :: PrepQuery W (Identity Key) ()
+deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = 1"
+
+selectAllCodes :: PrepQuery R () (Key, Value, Int32, ConvId, Maybe Password)
+selectAllCodes = "SELECT key, value, ttl(value), conversation, password FROM conversation_codes"

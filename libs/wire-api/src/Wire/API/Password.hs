@@ -36,11 +36,13 @@ import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Schema
+import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Imports
 import OpenSSL.Random (randBytes)
 import Wire.API.Password.Argon2id
 import Wire.API.Password.Scrypt
+import Wire.API.PostgresMarshall
 
 -- | A derived, stretched password that can be safely stored.
 data Password
@@ -49,6 +51,22 @@ data Password
 
 instance Show Password where
   show _ = "<Password>"
+
+-------------------------------------------------------------------------------
+-- PSQL
+
+instance PostgresMarshall ByteString Password where
+  postgresMarshall =
+    Text.encodeUtf8 . \case
+      Argon2Password p -> encodeArgon2HashedPassword p
+      ScryptPassword p -> encodeScryptPassword p
+
+instance PostgresUnmarshall ByteString Password where
+  postgresUnmarshall =
+    mapLeft Text.pack . parsePassword . Text.decodeUtf8
+
+-------------------------------------------------------------------------------
+-- CQL
 
 instance Cql Password where
   ctype = Tagged BlobColumn
