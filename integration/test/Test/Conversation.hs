@@ -31,12 +31,60 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as T
 import GHC.Stack
+import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
+
+testConversationWithApp :: (HasCallStack) => App ()
+testConversationWithApp = do
+  domain <- make OwnDomain
+  (owner, tid, [mem1, mem2]) <- createTeam domain 3
+  let newApp :: NewApp
+      newApp =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          }
+  app <- bindResponse (createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- proteus
+  do
+    conv <- postConversation mem1 defProteus >>= getJSON 201
+    addMembers mem1 conv (def {users = [mem2]}) >>= assertSuccess
+    addMembers mem1 conv (def {users = [app]}) >>= assertLabel 403 "access-denied" -- apps don't support proteus.
+
+  -- mls
+  do
+    [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
+    traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, appc]
+
+    let runCheck :: (HasCallStack) => Value -> ClientIdentity -> Value -> App ()
+        runCheck from fromc to = do
+          conv <- postConversation from defMLS {team = Just tid} >>= getJSON 201
+          convId <- objConvId conv
+
+          createGroup def fromc convId
+          msg1 <- createAddCommit fromc convId [to]
+          void (sendAndConsumeCommitBundle msg1)
+
+          msg2 <- createApplicationMessage convId fromc "hi new guy!"
+          void (sendAndConsumeMessage msg2)
+
+    -- regular to app
+    runCheck mem1 mem1c app
+
+    -- app to regular
+    runCheck app appc mem2
+
+    -- regular to regular
+    runCheck mem1 mem1c mem2
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do

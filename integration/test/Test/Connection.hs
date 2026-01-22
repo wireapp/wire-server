@@ -17,6 +17,7 @@
 module Test.Connection where
 
 import API.Brig (getConnection, postConnection, putConnection)
+import qualified API.Brig as Brig
 import API.BrigInternal
 import API.Galley
 import Notifications
@@ -24,6 +25,29 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
 import UnliftIO.Async (forConcurrently_)
+
+-- TODO: move this to a better location?
+-- TODO: brig probably shouldn't be so loud in this test?  `[brig@example.com] E, IO Exception occurred, message=Error {code = Status {statusCode = 404, statusMessage = "Not Found"}, label = "not-found", message = "User not found", errorData = Nothing, innerError = Nothing} HasCallStack backtrace:   collectBacktraces, called at libraries/ghc-internal/src/GHC/Internal/Exception.hs:169:13 in ghc-internal:GHC.Internal.Exception   toExceptionWithBacktrace, called at libraries/ghc-internal/src/GHC/Internal/IO.hs:260:11 in ghc-internal:GHC.Internal.IO   throwIO, called at libraries/exceptions/src/Control/Monad/Catch.hs:308:12 in exceptions-0.10.9-46ff:Control.Monad.Catch   throwM, called at src/Brig/App.hs:502:21 in brig-2.0-inplace:Brig.App   throwM, called at libraries/exceptions/src/Control/Monad/Catch.hs:614:19 in exceptions-0.10.9-46ff:Control.Monad.Catch   throwM, called at src/Brig/API/Connection.hs:213:16 in brig-2.0-inplace:Brig.API.Connection  , request=ebae05b9-b856-459b-b64f-f12d5a107823`
+testAppConnection :: (HasCallStack) => App ()
+testAppConnection = do
+  domain <- make OwnDomain
+  (owner, tid, [mem1]) <- createTeam domain 2
+  let newApp :: Brig.NewApp
+      newApp =
+        def
+          { Brig.name = "chappie",
+            Brig.description = "some description of this app",
+            Brig.category = "ai"
+          }
+  (app, _cookie) <- bindResponse (Brig.createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    app <- resp.json %. "user"
+    cookie <- resp.json %. "cookie" & asString
+    pure (app, cookie)
+  appId <- app %. "qualified_id"
+
+  postConnection mem1 appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
 
 testConnectWithRemoteUser :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
 testConnectWithRemoteUser owningDomain = do
