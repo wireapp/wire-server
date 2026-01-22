@@ -419,6 +419,23 @@ spec =
                       Nothing
                       (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo Nothing (Just apiVersion) idpHandle)
                   notifsV7 `shouldBe` [IdPCreated zUser idpV7]
+              it "should send without zUser if none is given" $ do
+                idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
+
+                forM_ [(minBound :: WireIdPAPIVersion) .. maxBound] $ \apiVersion -> do
+                  (_logs, notifs, idp) <-
+                    interpretWithLoggingMock
+                      Nothing
+                      (idpCreate multiIngressSamlConfig tid Nothing miHost1 idPMetadataInfo Nothing (Just apiVersion) idpHandle)
+                  notifs `shouldBe` [IdPCreated Nothing idp]
+
+                  -- >=V7 does not bother with multi-ingress domains for IdPs as it can
+                  -- only have one IdP per team anyways.
+                  (_logs, notifsV7, idpV7) <-
+                    interpretWithLoggingMock
+                      Nothing
+                      (idpCreateV7 multiIngressSamlConfig tid Nothing idPMetadataInfo Nothing (Just apiVersion) idpHandle)
+                  notifsV7 `shouldBe` [IdPCreated Nothing idpV7]
             describe "idp-delete" $ do
               it "should send" $ do
                 idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
