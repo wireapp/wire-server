@@ -29,6 +29,7 @@ data CertDescription = CertDescription
     issuer :: String
   }
 
+-- TODO: Needs a unit test
 certDescription :: SignedCertificate -> CertDescription
 certDescription signedCert =
   let cert = getCertificate signedCert
