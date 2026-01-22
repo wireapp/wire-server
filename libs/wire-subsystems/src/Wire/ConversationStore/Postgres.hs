@@ -215,15 +215,16 @@ getConversationImpl cid =
         remoteMembers <- dedupMembers cid <$> Transaction.statement cid selectRemoteMembersStmt
         pure $ toConv cid localMembers remoteMembers (Just convRow)
 
-selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
+selectConvMetadata :: Hasql.Statement ConvId (Maybe ConvRow)
 selectConvMetadata =
   dimapPG @_ @_
-    @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+    @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _, _))
     @(Maybe ConvRow)
     [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
                            (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                            (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
-                           (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                           (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?),
+                           (parent_conv :: uuid?), (history_depth :: bigint?)
                     FROM conversation
                     WHERE id = ($1 :: uuid)
                    |]
@@ -254,7 +255,8 @@ getConversationsImpl cids = do
       -- is expected to be in same order as `cids` but the expressing that in
       -- the SQL query is tough.
       mConvs = flip map cids $ \convId -> do
-        convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent) <- Map.lookup convId convRowMap
+        convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent, _) <-
+          Map.lookup convId convRowMap
         let localMems = findMembers convId mParent localsWithConvId
             remoteMems = findMembers convId mParent remotesWithConvId
         toConv convId localMems remoteMems (Just convRow)
@@ -263,12 +265,13 @@ getConversationsImpl cids = do
     selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
     selectMetadata =
       dimapPG @(Vector _) @[_]
-        @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+        @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _, _))
         @[ConvRowWithId]
         [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
                                 (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                                 (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
-                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?),
+                                (history_depth :: bigint?)
                          FROM conversation
                          WHERE id = ANY($1 :: uuid[])
                         |]

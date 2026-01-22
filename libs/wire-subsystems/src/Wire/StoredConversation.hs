@@ -76,7 +76,8 @@ type ConvRowWithId =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe Int64
   )
 
 type ConvRow =
@@ -96,12 +97,13 @@ type ConvRow =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe Int64
   )
 
 splitIdFromRow :: ConvRowWithId -> (ConvId, ConvRow)
-splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
-  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent))
+splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth) =
+  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth))
 
 toProtocol ::
   Maybe ProtocolTag ->
@@ -133,7 +135,7 @@ toConv ::
   Maybe ConvRow ->
   Maybe StoredConversation
 toConv cid ms remoteMems mconv = do
-  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _) <- mconv
+  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _, _) <- mconv
   proto <- toProtocol ptag mgid mep mts mcs
   pure
     StoredConversation
@@ -145,7 +147,7 @@ toConv cid ms remoteMems mconv = do
       }
 
 toConvMeta :: ConvRow -> ConversationMetadata
-toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent) =
+toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent, mhdepth) =
   let accessRoles = maybeRole cty roleV2
    in ConversationMetadata
         { cnvmType = cty,
@@ -160,7 +162,9 @@ toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp
           cnvmCellsState = fromMaybe def mcells,
           cnvmChannelAddPermission = mAp,
           cnvmParent = mparent,
-          cnvmHistory = HistoryPrivate
+          cnvmHistory =
+            fromMaybe HistoryPrivate $
+              fmap (HistoryShared . HistorySharingConfig . historyDurationFromSecs) mhdepth
         }
 
 newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation
