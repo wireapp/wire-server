@@ -23,7 +23,6 @@
 , cereal
 , comonad
 , conduit
-, constraints
 , containers
 , cookie
 , crypton
@@ -144,7 +143,6 @@ mkDerivation {
     cassandra-util
     cassava
     comonad
-    constraints
     containers
     crypton
     crypton-x509
