@@ -224,13 +224,16 @@ instance FromJSON StorageLocation where
     x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql, migration-to-postgresql"
 
 data PostgresMigrationOpts = PostgresMigrationOpts
-  { conversation :: StorageLocation
+  { conversation :: StorageLocation,
+    conversationCodes :: StorageLocation
   }
   deriving (Show)
 
 instance FromJSON PostgresMigrationOpts where
   parseJSON = withObject "PostgresMigrationOpts" $ \o ->
-    PostgresMigrationOpts <$> o .: "conversation"
+    PostgresMigrationOpts
+      <$> o .: "conversation"
+      <*> o .: "conversationCodes"
 
 getConvOrSubGroupInfo ::
   (Member ConversationStore r) =>

@@ -62,7 +62,6 @@ import Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
   )
-import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
 import Galley.Env
@@ -108,11 +107,16 @@ import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
 import Wire.CodeStore.Cassandra
+import Wire.CodeStore.DualWrite
+import Wire.CodeStore.Postgres
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
+import Wire.FeaturesConfigSubsystem
+import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
@@ -134,6 +138,7 @@ import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
 import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamFeatureStore.Cassandra
 import Wire.TeamJournal.Aws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter
@@ -145,6 +150,7 @@ type GalleyEffects0 =
      Input Hasql.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
+     Error TeamFeatureStoreError,
      Error MigrationError,
      Error InvalidInput,
      Error ParseException,
@@ -287,6 +293,11 @@ evalGalley e =
           CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
           MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
           PostgresqlStorage -> interpretConversationStoreToPostgres
+      convCodesStoreInterpreter =
+        case (e ^. options . postgresMigration).conversationCodes of
+          CassandraStorage -> interpretCodeStoreToCassandra
+          MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretCodeStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -336,6 +347,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
+        . mapError mapTeamFeatureStoreError
         . runInputConst conversationSubsystemConfig
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
@@ -350,8 +362,9 @@ evalGalley e =
         . runInputConst (e ^. options)
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
-        . runInputSem getAllTeamFeaturesForServer
         . runInputConst (currentFanoutLimit (e ^. options))
+        . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
+        . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
@@ -372,7 +385,7 @@ evalGalley e =
         . runHashPassword e._options._settings._passwordHashingOptions
         . interpretRateLimit e._passwordHashingRateLimitEnv
         . interpretProposalStoreToCassandra
-        . interpretCodeStoreToCassandra
+        . convCodesStoreInterpreter
         . interpretClientStoreToCassandra
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
@@ -385,6 +398,8 @@ evalGalley e =
         . runNotificationSubsystemGundeck (notificationSubsystemConfig e)
         . interpretSparAPIAccessToRpc (e ^. options . spar)
         . interpretTeamSubsystem teamSubsystemConfig
+        . runFeaturesConfigSubsystem
+        . runInputSem getAllTeamFeaturesForServer
         . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
   where
@@ -398,3 +413,6 @@ interpretTeamFeatureSpecialContext :: Env -> Sem (Input (FeatureDefaults Legalho
 interpretTeamFeatureSpecialContext e =
   runInputConst
     (e ^. options . settings . featureFlags . to npProject)
+
+mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
+mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg

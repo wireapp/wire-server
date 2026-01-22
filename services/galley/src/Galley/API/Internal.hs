@@ -94,6 +94,7 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -339,17 +340,16 @@ rmUser ::
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input Env) r,
-    Member (Input Opts) r,
     Member Now r,
     Member (ListItems p2 TeamId) r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Input FanoutLimit) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -377,7 +377,7 @@ rmUser lusr conn = do
     leaveTeams page = for_ (pageItems page) $ \tid -> do
       toNotify <-
         handleImpossibleErrors $
-          getFeatureForTeam @LimitedEventFanoutConfig tid
+          getFeatureForTeam @_ @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
                     FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid

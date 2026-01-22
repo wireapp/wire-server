@@ -23,6 +23,7 @@
 , case-insensitive
 , cassandra-util
 , conduit
+, constraints
 , containers
 , contravariant
 , cql
@@ -37,6 +38,7 @@
 , extra
 , file-embed
 , galley-types
+, generics-sop
 , gitignoreSource
 , hashable
 , HaskellNet
@@ -93,6 +95,7 @@
 , servant-server
 , singletons
 , sodium-crypto-sign
+, sop-core
 , ssl-util
 , statistics
 , stomp-queue
@@ -148,6 +151,7 @@ mkDerivation {
     case-insensitive
     cassandra-util
     conduit
+    constraints
     containers
     contravariant
     cql
@@ -162,6 +166,7 @@ mkDerivation {
     extra
     file-embed
     galley-types
+    generics-sop
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -212,6 +217,7 @@ mkDerivation {
     servant-server
     singletons
     sodium-crypto-sign
+    sop-core
     ssl-util
     statistics
     stomp-queue
@@ -261,6 +267,7 @@ mkDerivation {
     case-insensitive
     cassandra-util
     conduit
+    constraints
     containers
     contravariant
     cql
@@ -275,6 +282,7 @@ mkDerivation {
     extra
     file-embed
     galley-types
+    generics-sop
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -326,6 +334,7 @@ mkDerivation {
     servant-server
     singletons
     sodium-crypto-sign
+    sop-core
     ssl-util
     statistics
     stomp-queue

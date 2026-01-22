@@ -29,6 +29,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
+import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForTeamMember)
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =
@@ -62,7 +63,7 @@ featureAPI =
     <@> hoistAPI id featureAPIGetPut
     <@> mkNamedAPI @'("get", LimitedEventFanoutConfig) getFeature
     <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllTeamFeaturesForUser
-    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllTeamFeaturesForTeam
+    <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllTeamFeaturesForTeamMember
     <@> deprecatedFeatureConfigAPI
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature

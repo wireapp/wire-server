@@ -69,6 +69,10 @@ config:
   migrateConversationsOptions:
     pageSize: 10000
     parallelism: 2
+  # This will start the migration of conversation codes.
+  # It's important to set `settings.postgresMigration.conversationCodes` to `migration-to-postgresql`
+  # before starting the migration.
+  migrateConversationCodes: false
 
   backendNotificationPusher:
     pushBackoffMinWait: 10000 # in microseconds, so 10ms
@@ -87,6 +91,7 @@ config:
   # Controls where conversation data is stored/accessed
   postgresMigration:
     conversation: cassandra
+    conversationCodes: cassandra
 
 secrets:
   {}

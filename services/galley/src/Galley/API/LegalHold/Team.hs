@@ -24,11 +24,9 @@ module Galley.API.LegalHold.Team
   )
 where
 
-import Data.Default
 import Data.Id
 import Data.Range
 import Galley.Effects
-import Galley.Effects.TeamFeatureStore
 import Galley.Env
 import Galley.Types.Teams as Team
 import Imports
@@ -39,7 +37,8 @@ import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
-import Wire.LegalHoldStore qualified as LegalHoldData
+import Wire.LegalHold
+import Wire.TeamFeatureStore
 
 assertLegalHoldEnabledForTeam ::
   forall r.
@@ -53,23 +52,6 @@ assertLegalHoldEnabledForTeam ::
 assertLegalHoldEnabledForTeam tid =
   unlessM (isLegalHoldEnabledForTeam tid) $
     throwS @'LegalHoldNotEnabled
-
-computeLegalHoldFeatureStatus ::
-  ( Member LegalHoldStore r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
-  ) =>
-  TeamId ->
-  DbFeature LegalholdConfig ->
-  Sem r FeatureStatus
-computeLegalHoldFeatureStatus tid dbFeature = do
-  featureLegalHold <- input @(FeatureDefaults LegalholdConfig)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledPermanently -> pure FeatureStatusDisabled
-    FeatureLegalHoldDisabledByDefault ->
-      pure (applyDbFeature dbFeature def).status
-    FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      wl <- LegalHoldData.isTeamLegalholdWhitelisted tid
-      pure $ if wl then FeatureStatusEnabled else FeatureStatusDisabled
 
 isLegalHoldEnabledForTeam ::
   forall r.

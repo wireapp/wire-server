@@ -41,16 +41,16 @@ interpretCodeStoreToCassandra ::
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
-  GetCode k s -> do
-    embedClientInput $ lookupCode k s
+  GetCode k -> do
+    embedClientInput $ lookupCode k
   CreateCode code mPw -> do
     embedClientInput $ insertCode code mPw
-  DeleteCode k s -> do
-    embedClientInput $ deleteCode k s
+  DeleteCode k -> do
+    embedClientInput $ deleteCode k
   MakeKey cid -> do
     Code.mkKey cid
-  GenerateCode cid s t -> do
-    Code.generate cid s t
+  GenerateCode cid t -> do
+    Code.generate cid t
   GetConversationCodeURI mbHost -> do
     convCodeURI <- input
     case convCodeURI of
@@ -67,14 +67,13 @@ insertCode c mPw = do
   let v = codeValue c
   let cnv = codeConversation c
   let t = round (codeTTL c)
-  let s = codeScope c
-  retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, s, mPw, t)))
+  retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, mPw, t)))
 
 -- | Lookup a conversation by code.
-lookupCode :: Key -> Scope -> Client (Maybe (Code, Maybe Password))
-lookupCode k s =
-  fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (k, s)))
+lookupCode :: Key -> Client (Maybe (Code, Maybe Password))
+lookupCode k =
+  fmap (toCode k) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (Identity k)))
 
 -- | Delete a code associated with the given conversation key
-deleteCode :: Key -> Scope -> Client ()
-deleteCode k s = retry x5 $ write Cql.deleteCode (params LocalQuorum (k, s))
+deleteCode :: Key -> Client ()
+deleteCode k = retry x5 $ write Cql.deleteCode (params LocalQuorum (Identity k))

@@ -361,7 +361,11 @@ spec = do
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
-          postgresMigration = PostgresMigrationOpts CassandraStorage
+          postgresMigration =
+            PostgresMigrationOpts
+              { conversation = CassandraStorage,
+                conversationCodes = CassandraStorage
+              }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
 
@@ -395,7 +399,11 @@ spec = do
           amqpJobsPublisherChannel = undefined
           amqpBackendNotificationsChannel = undefined
           federationDomain = Domain "local"
-          postgresMigration = PostgresMigrationOpts CassandraStorage
+          postgresMigration =
+            PostgresMigrationOpts
+              { conversation = CassandraStorage,
+                conversationCodes = CassandraStorage
+              }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
       backendNotificationMetrics <- mkBackendNotificationMetrics

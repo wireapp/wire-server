@@ -25,7 +25,6 @@ import Galley.API.Update
 import Galley.App
 import Galley.Effects
 import Galley.Effects qualified as E
-import Galley.Options
 import Polysemy
 import Polysemy.Input
 import Wire.API.Error
@@ -34,6 +33,7 @@ import Wire.API.Event.Team qualified as Public ()
 import Wire.API.Provider.Bot
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.TeamSubsystem (TeamSubsystem)
 
 botAPI :: API BotAPI GalleyEffects
@@ -45,12 +45,11 @@ getBotConversation ::
   forall r.
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member TeamStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   BotId ->
   ConvId ->

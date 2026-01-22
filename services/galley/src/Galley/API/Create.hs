@@ -47,7 +47,6 @@ import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.Mapping
 import Galley.API.One2One
-import Galley.API.Teams.Features.Get (getFeatureForTeam)
 import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
@@ -83,6 +82,7 @@ import Wire.API.User
 import Wire.BrigAPIAccess
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -126,7 +126,7 @@ createGroupConversationUpToV3 ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r,
@@ -175,7 +175,7 @@ createGroupOwnConversation ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r
@@ -223,7 +223,7 @@ createGroupConversation ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r
@@ -271,7 +271,7 @@ createGroupConvAndMkResponse ::
     Member NotificationSubsystem r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r,
@@ -316,7 +316,7 @@ createGroupConversationGeneric ::
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member Random r,
     Member TeamSubsystem r
@@ -383,8 +383,7 @@ checkCreateConvPermissions ::
     Member (ErrorS ChannelsNotEnabled) r,
     Member (ErrorS NotAnMlsConversation) r,
     Member TeamStore r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
@@ -440,8 +439,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     ensureCreateChannelPermissions ::
       forall r.
       ( Member (ErrorS OperationDenied) r,
-        Member (Input Opts) r,
-        Member TeamFeatureStore r,
+        Member FeaturesConfigSubsystem r,
         Member (ErrorS NotATeamMember) r,
         Member (ErrorS ChannelsNotEnabled) r,
         Member (ErrorS NotAnMlsConversation) r
@@ -450,7 +448,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       Maybe TeamMember ->
       Sem r ()
     ensureCreateChannelPermissions tid (Just tm) = do
-      channelsConf <- getFeatureForTeam @ChannelsConfig tid
+      channelsConf :: LockableFeature ChannelsConfig <- getFeatureForTeam tid
       when (channelsConf.status == FeatureStatusDisabled) $ throwS @ChannelsNotEnabled
       when (newConv.newConvProtocol /= BaseProtocolMLSTag) $ throwS @NotAnMlsConversation
       case channelsConf.config.allowedToCreateChannels of

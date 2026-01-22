@@ -143,7 +143,6 @@ library
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Store
     Galley.Cassandra.Team
-    Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
     Galley.Data.TeamNotifications
@@ -152,7 +151,6 @@ library
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
-    Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
     Galley.Env
@@ -268,7 +266,6 @@ library
     , cassandra-util                        >=0.16.2
     , cassava                               >=0.5.2
     , comonad
-    , constraints
     , containers                            >=0.5
     , crypton
     , crypton-x509

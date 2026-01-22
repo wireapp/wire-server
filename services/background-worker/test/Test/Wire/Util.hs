@@ -39,7 +39,11 @@ testEnv = do
   let cassandra = undefined
       cassandraGalley = undefined
       cassandraBrig = undefined
-      postgresMigration = PostgresMigrationOpts CassandraStorage
+      postgresMigration =
+        PostgresMigrationOpts
+          { conversation = CassandraStorage,
+            conversationCodes = CassandraStorage
+          }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics
   workerRunningGauge <- mkWorkerRunningGauge

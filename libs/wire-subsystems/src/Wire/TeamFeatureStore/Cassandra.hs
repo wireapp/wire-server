@@ -17,11 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.TeamFeatures
-  ( interpretTeamFeatureStoreToCassandra,
-    getAllTeamFeaturesForServer,
-  )
-where
+module Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra, TeamFeatureStoreError (..)) where
 
 import Cassandra
 import Data.Aeson.Types qualified as A
@@ -29,50 +25,42 @@ import Data.Constraint
 import Data.Id
 import Data.Map qualified as M
 import Data.Text.Lazy qualified as LT
-import Galley.API.Error
-import Galley.API.Teams.Features.Get
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Effects.TeamFeatureStore qualified as TFS
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature.TH
 import Wire.ConversationStore.Cassandra.Instances ()
+import Wire.TeamFeatureStore (TeamFeatureStore (..))
+import Wire.Util
+
+data TeamFeatureStoreError = TeamFeatureStoreErrorInternalError LText
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Error InternalError) r,
-    Member TinyLog r
+    Member (Error TeamFeatureStoreError) r
   ) =>
-  Sem (TFS.TeamFeatureStore ': r) a ->
+  Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
-  TFS.GetDbFeature sing tid -> do
-    logEffect "TeamFeatureStore.GetFeatureConfig"
+  GetDbFeature sing tid -> do
     getDbFeatureDyn sing tid
-  TFS.SetDbFeature sing tid feat -> do
-    logEffect "TeamFeatureStore.SetFeatureConfig"
+  SetDbFeature sing tid feat -> do
     setDbFeatureDyn sing tid feat
-  TFS.SetFeatureLockStatus sing tid lock -> do
-    logEffect "TeamFeatureStore.SetFeatureLockStatus"
+  SetFeatureLockStatus sing tid lock -> do
     setFeatureLockStatusDyn sing tid (Tagged lock)
-  TFS.GetAllDbFeatures tid -> do
-    logEffect "TeamFeatureStore.GetAllTeamFeatures"
+  GetAllDbFeatures tid -> do
     getAllDbFeaturesDyn tid
-  TFS.PatchDbFeature sing tid feat -> do
-    logEffect "TeamFeatureStore.PatchDbFeature"
+  PatchDbFeature sing tid feat -> do
     patchDbFeatureDyn sing tid feat
 
 getDbFeatureDyn ::
   forall cfg r.
   ( Member (Input ClientState) r,
     Member (Embed IO) r,
-    Member (Error InternalError) r
+    Member (Error TeamFeatureStoreError) r
   ) =>
   FeatureSingleton cfg ->
   TeamId ->
@@ -81,7 +69,7 @@ getDbFeatureDyn sing tid = case featureSingIsFeature sing of
   Dict -> do
     let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
         q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
-    embedClient (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))) >>= \case
+    (embedClientInput (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg)))) >>= \case
       Nothing -> pure mempty
       Just (status, lockStatus, config) ->
         runFeatureParser . parseDbFeature $
@@ -117,7 +105,7 @@ patchDbFeatureDyn ::
   LockableFeaturePatch cfg ->
   Sem r ()
 patchDbFeatureDyn sing tid patch = case featureSingIsFeature sing of
-  Dict -> embedClient $ do
+  Dict -> embedClientInput $ do
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
@@ -147,21 +135,21 @@ setFeatureLockStatusDyn sing tid (Tagged lockStatus) = case featureSingIsFeature
   Dict -> do
     let q :: PrepQuery W (LockStatus, TeamId, Text) ()
         q = "update team_features_dyn set  lock_status = ? where team = ? and feature = ?"
-    embedClient $
+    embedClientInput $
       retry x5 $
         write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
 
 getAllDbFeaturesDyn ::
   ( Member (Embed IO) r,
-    Member (Error InternalError) r,
-    Member (Input ClientState) r
+    Member (Input ClientState) r,
+    Member (Error TeamFeatureStoreError) r
   ) =>
   TeamId ->
   Sem r (AllFeatures DbFeature)
 getAllDbFeaturesDyn tid = do
   let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
       q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
-  rows <- embedClient $ retry x1 $ query q (params LocalQuorum (Identity tid))
+  rows <- embedClientInput $ retry x1 $ query q (params LocalQuorum (Identity tid))
   let m = M.fromList $ do
         (name, status, lockStatus, config) <- rows
         pure (name, LockableFeaturePatch {..})
@@ -169,10 +157,10 @@ getAllDbFeaturesDyn tid = do
 
 runFeatureParser ::
   forall r a.
-  (Member (Error InternalError) r) =>
+  (Member (Error TeamFeatureStoreError) r) =>
   A.Parser a ->
   Sem r a
 runFeatureParser p =
-  mapError (InternalErrorWithDescription . LT.pack)
+  mapError (TeamFeatureStoreErrorInternalError . LT.pack)
     . fromEither
     $ A.parseEither (const p) ()
