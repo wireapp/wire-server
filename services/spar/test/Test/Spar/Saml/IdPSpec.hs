@@ -410,7 +410,7 @@ spec =
                     interpretWithLoggingMock
                       Nothing
                       (idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing (Just apiVersion) idpHandle)
-                  notifs `shouldBe` [IdPCreated idp]
+                  notifs `shouldBe` [IdPCreated zUser idp]
 
                   -- >=V7 does not bother with multi-ingress domains for IdPs as it can
                   -- only have one IdP per team anyways.
@@ -418,7 +418,7 @@ spec =
                     interpretWithLoggingMock
                       Nothing
                       (idpCreateV7 multiIngressSamlConfig tid zUser idPMetadataInfo Nothing (Just apiVersion) idpHandle)
-                  notifsV7 `shouldBe` [IdPCreated idpV7]
+                  notifsV7 `shouldBe` [IdPCreated zUser idpV7]
             describe "idp-delete" $ do
               it "should send" $ do
                 idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
@@ -428,7 +428,7 @@ spec =
                   idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
                   void $ idpDelete multiIngressSamlConfig zUser (idp._idpId) Nothing
                   pure idp
-                notifs `shouldBe` [IdPDeleted idp, IdPCreated idp]
+                notifs `shouldBe` [IdPDeleted zUser idp, IdPCreated zUser idp]
             describe "idp-update" $ do
               it "should send" $ do
                 idPMetadataInfo :: IdPMetadataInfo <- generate arbitrary
@@ -438,7 +438,7 @@ spec =
                   idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idPMetadataInfo Nothing apiVersionV2 idpHandle
                   updatedIdP <- idpUpdate multiIngressSamlConfig zUser miHost1 idPMetadataInfo (idp._idpId) Nothing
                   pure (idp, updatedIdP)
-                notifs `shouldBe` [IdPUpdated oldIdP newIdP, IdPCreated oldIdP]
+                notifs `shouldBe` [IdPUpdated zUser oldIdP newIdP, IdPCreated zUser oldIdP]
 
           context "when multi-ingress is NOT configured (common case)" $ do
             describe "idp-create" $ do

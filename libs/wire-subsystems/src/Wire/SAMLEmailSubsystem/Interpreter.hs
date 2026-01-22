@@ -38,15 +38,15 @@ sendSAMLIdPChangedImpl notif = do
   where
     delegate :: (Member Email.EmailSubsystem r) => EmailAddress -> Sem r ()
     delegate email = case notif of
-      IdPCreated idp -> Email.sendSAMLIdPCreated idp email
-      IdPDeleted idp -> Email.sendSAMLIdPDeleted idp email
-      IdPUpdated old new -> Email.sendSAMLIdPUpdated old new email
+      IdPCreated _userId idp -> Email.sendSAMLIdPCreated idp email
+      IdPDeleted _userId idp -> Email.sendSAMLIdPDeleted idp email
+      IdPUpdated _userId old new -> Email.sendSAMLIdPUpdated old new email
 
     origIdP :: IdP
     origIdP = case notif of
-      IdPCreated idp -> idp
-      IdPDeleted idp -> idp
-      IdPUpdated old _new -> old
+      IdPCreated _userId idp -> idp
+      IdPDeleted _userId idp -> idp
+      IdPUpdated _userId old _new -> old
 
 getEmailAddresses ::
   ( Member TeamSubsystem r,

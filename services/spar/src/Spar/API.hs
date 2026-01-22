@@ -591,7 +591,7 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     IdPRawMetadataStore.delete idpid
     when (SAML.isMultiIngressConfig samlConfig) $
       BrigAccess.sendSAMLIdPChangedEmail $
-        IdPDeleted idp
+        IdPDeleted mbzusr idp
   logIdPAction
     "IdP deleted"
     idp
@@ -680,7 +680,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   when (SAML.isMultiIngressConfig samlConfig) $
     BrigAccess.sendSAMLIdPChangedEmail $
-      IdPCreated idp
+      IdPCreated zUser idp
   logIdPAction
     "IdP created"
     idp
@@ -883,7 +883,7 @@ idpUpdateXML samlConfig zusr mDomain raw idpmeta idpid mHandle = withDebugLog "i
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   when (SAML.isMultiIngressConfig samlConfig) $
     BrigAccess.sendSAMLIdPChangedEmail $
-      IdPUpdated previousIdP idp''
+      IdPUpdated zusr previousIdP idp''
   logIdPUpdate idp'' previousIdP
   pure idp''
   where
