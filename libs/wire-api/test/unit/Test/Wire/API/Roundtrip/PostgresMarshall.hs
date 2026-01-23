@@ -20,6 +20,7 @@ module Test.Wire.API.Roundtrip.PostgresMarshall (tests) where
 
 import Crypto.Error (CryptoFailable (..))
 import Crypto.KDF.Argon2 qualified as Argon2
+import Data.Aeson as A
 import Data.ByteString.Char8 qualified as BS8
 import Data.Code qualified as Code
 import Data.Misc (PlainTextPassword8, fromPlainTextPassword)
@@ -32,6 +33,7 @@ import Wire.API.Password as Password
 import Wire.API.Password.Argon2id (Argon2HashedPassword (..), encodeArgon2HashedPassword)
 import Wire.API.Password.Scrypt (encodeScryptPassword)
 import Wire.API.PostgresMarshall
+import Wire.API.Team.Feature
 import Wire.Arbitrary qualified as Arbitrary ()
 
 tests :: T.TestTree
@@ -39,7 +41,10 @@ tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "PostgresMarshall roundtrip tests" $
     [ testRoundTrip @Text @Code.Key,
       testRoundTrip @Text @Code.Value,
-      testRoundTrip @ByteString @Password.Password
+      testRoundTrip @ByteString @Password.Password,
+      testRoundTrip @Int32 @FeatureStatus,
+      testRoundTrip @Int32 @LockStatus,
+      testRoundTrip @A.Value @DbConfig
     ]
 
 testRoundTrip ::

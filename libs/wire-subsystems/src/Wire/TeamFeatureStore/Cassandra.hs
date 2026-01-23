@@ -22,10 +22,9 @@ module Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra) wh
 import Cassandra
 import Data.Constraint
 import Data.Id
-import Data.Map qualified as M
+import Data.Map qualified as Map
 import Data.Proxy
 import Data.SOP (K (..), hcpure)
-import Data.SOP.Constraint qualified as SOP
 import Imports
 import Polysemy
 import Polysemy.Input
@@ -65,10 +64,8 @@ getDbFeatureImpl sing tid = case featureSingIsFeature sing of
   Dict -> do
     let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
         q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
-    (embedClientInput (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg)))) >>= \case
-      Nothing -> pure Nothing
-      Just (status, lockStatus, config) ->
-        pure $ Just LockableFeaturePatch {..}
+    mRow <- (embedClientInput (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))))
+    pure $ (\(status, lockStatus, config) -> LockableFeaturePatch {..}) <$> mRow
 
 setDbFeatureImpl ::
   forall cfg r.
@@ -144,16 +141,13 @@ getAllDbFeaturesImpl tid = do
   let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
       q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
   rows <- embedClientInput $ retry x1 $ query q (params LocalQuorum (Identity tid))
-  let m = M.fromList $ do
+  let m = Map.fromList $ do
         (name, status, lockStatus, config) <- rows
         pure (name, LockableFeaturePatch {..})
   pure $ mkAllDbFeaturePatches m
-
-mkAllDbFeaturePatches ::
-  (SOP.All IsFeatureConfig Features) =>
-  M.Map Text DbFeaturePatch ->
-  AllDbFeaturePatches
-mkAllDbFeaturePatches m = hcpure (Proxy @IsFeatureConfig) get
   where
-    get :: forall cfg. (IsFeatureConfig cfg) => K (Maybe DbFeaturePatch) cfg
-    get = K (M.lookup (featureName @cfg) m)
+    mkAllDbFeaturePatches :: Map Text DbFeaturePatch -> AllDbFeaturePatches
+    mkAllDbFeaturePatches m = hcpure (Proxy @IsFeatureConfig) $ get m
+
+    get :: forall cfg. (IsFeatureConfig cfg) => Map Text DbFeaturePatch -> K (Maybe DbFeaturePatch) cfg
+    get m = K (Map.lookup (featureName @cfg) m)
