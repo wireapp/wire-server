@@ -20,8 +20,9 @@
 module Test.Search where
 
 import qualified API.Brig as BrigP
+import API.BrigInternal
 import qualified API.BrigInternal as BrigI
-import API.Common (defPassword)
+import API.Common
 import qualified API.Common as API
 import API.Galley
 import qualified API.Galley as Galley
@@ -95,6 +96,65 @@ testEphemeralUsersSearch = do
   BrigP.searchContacts userEphemeral (user2 %. "name") OwnDomain >>= \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
+
+testSearchBotsAndApps :: (HasCallStack) => App ()
+testSearchBotsAndApps = do
+  (owner, tid, [mem]) <- createTeam OwnDomain 2
+  [regHandle, appHandle, botHandle] <- replicateM 3 randomHandle
+
+  BrigP.putHandle mem regHandle >>= assertSuccess
+  void $ getAccountFromTeamMember owner mem
+
+  bot <- registerBot owner tid
+  BrigP.putHandle bot botHandle >>= assertSuccess
+
+  app <- registerApp owner tid
+  BrigP.putHandle app appHandle >>= assertSuccess
+
+  let runRequest :: Maybe Int -> String -> Bool -> App ()
+      runRequest mbVersion userHandle matches = do
+        BrigI.refreshIndex OwnDomain
+        bindResponse (BrigP.searchContactsWithVersion mbVersion owner userHandle "example.com") $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          docs <- resp.json %. "documents" >>= asList
+          if matches
+            then do
+              assertBool "unexpected number of matches" (length docs == 1)
+              forM_ docs $ \doc -> doc %. "handle" `shouldMatch` userHandle
+            else do
+              assertBool "unexpected number of matches" (length docs == 0)
+
+  refreshIndex OwnDomain
+
+  runRequest Nothing regHandle True
+  runRequest (Just 14) regHandle True
+
+  runRequest Nothing botHandle False
+  runRequest (Just 14) botHandle False
+
+  runRequest Nothing appHandle False
+  -- the next is the controversial one, but making this `False` indeed
+  -- looks better if bots already are excluded from search results.
+  runRequest (Just 14) appHandle True
+  where
+    getAccountFromTeamMember :: (MakesValue owner) => owner -> Value -> App String
+    getAccountFromTeamMember owner mem = do
+      u <- BrigP.getUser owner mem >>= getJSON 200
+      u %. "handle" >>= asString
+
+    registerBot :: (MakesValue owner) => owner -> String -> App String
+    registerBot owner tid = do
+      (_, rootPrivKey) <- mkKeyPair primesA
+      (ownerPubKey, privateKeyToString -> ownerPrivKey) <- mkKeyPair primesB
+      let rootSignedLeaf = signedCertToString $ intermediateCert "Kabel" ownerPubKey "Example-Root" rootPrivKey
+          settings = MkMockServerSettings rootSignedLeaf ownerPrivKey (publicKeyToString ownerPubKey)
+      withBotWithSettings settings \resp' -> withResponse resp' \resp -> do
+        resp.status `shouldMatchInt` 502
+        resp.json %. "label" `shouldMatch` "bad-gateway"
+        resp.json %. "message" `shouldMatch` "The upstream service returned an invalid response: PinInvalidCert"
+
+    registerApp :: (MakesValue owner) => owner -> String -> App String
+    registerApp = error "regapp"
 
 --------------------------------------------------------------------------------
 -- FEDERATION SEARCH
@@ -496,3 +556,5 @@ testUserSearchable = do
         resp.status `shouldMatchInt` 200
         docs <- resp.json %. "documents" >>= asList
         f docs
+
+-- TODO: Search.executeTeamUserSearchWithMaybeState brig tid uid Nothing Nothing Nothing Nothing Nothing Nothing
