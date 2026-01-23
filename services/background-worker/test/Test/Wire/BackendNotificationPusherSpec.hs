@@ -69,7 +69,7 @@ import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
-import Wire.ConversationStore
+import Wire.PostgresMigrationOpts
 
 spec :: Spec
 spec = do

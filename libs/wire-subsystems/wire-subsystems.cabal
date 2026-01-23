@@ -307,6 +307,7 @@ library
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.Postgres
+    Wire.PostgresMigrationOpts
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra

@@ -30,7 +30,7 @@ import Util.Options (Endpoint (..))
 import Wire.BackgroundWorker.Env hiding (federatorInternal)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
-import Wire.ConversationStore
+import Wire.PostgresMigrationOpts
 
 testEnv :: IO Env
 testEnv = do
