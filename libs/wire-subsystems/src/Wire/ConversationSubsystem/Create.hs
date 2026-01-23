@@ -22,7 +22,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Galley.API.Create
+module Wire.ConversationSubsystem.Create
   ( createGroupConversationUpToV3,
     createGroupOwnConversation,
     createProteusSelfConversation,
@@ -42,17 +42,9 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.UUID.Tagged qualified as U
-import Galley.API.Action
-import Galley.API.MLS
-import Galley.API.Mapping
-import Galley.API.One2One
-import Galley.API.Util
-import Galley.App (Env)
-import Galley.Effects
-import Galley.Options
+import GHC.TypeNats
 import Galley.Types.Error
 import Galley.Types.Teams (notTeamMember)
-import Galley.Validation
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
@@ -81,17 +73,26 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BrigAPIAccess
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Federation
+import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Types
+import Wire.ConversationSubsystem.Util
+import Wire.ConversationSubsystem.View
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationAPIAccess (FederationAPIAccess)
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -120,8 +121,6 @@ createGroupConversationUpToV3 ::
     Member (ErrorS HistoryNotSupported) r,
     Member (Error UnreachableBackendsLegacy) r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -164,8 +163,6 @@ createGroupOwnConversation ::
     Member (ErrorS HistoryNotSupported) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
     Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -213,8 +210,6 @@ createGroupConversation ::
     Member (Error UnreachableBackends) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
     Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -242,9 +237,7 @@ createGroupConversation lusr conn newConv = do
     )
 
 createGroupConvAndMkResponse ::
-  ( Member (Input Opts) r,
-    Member (Input Env) r,
-    Member Now r,
+  ( Member Now r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS NotATeamMember) r,
@@ -306,8 +299,6 @@ createGroupConversationGeneric ::
     Member (ErrorS HistoryNotSupported) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
     Member (Input ConversationSubsystemConfig) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -764,21 +755,21 @@ newRegularConversation ::
   ( Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS OperationDenied) r,
     Member (Error InvalidInput) r,
-    Member (Input Opts) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r
   ) =>
   Local UserId ->
   NewConv ->
   Sem r (NewConversation, ConvSizeChecked UserList UserId)
 newRegularConversation lusr newConv = do
-  o <- input
+  cfg <- input
   let uncheckedUsers = newConvMembers lusr newConv
   forM_ newConv.newConvParent $ \parent -> do
     mMembership <- E.getLocalMember parent (tUnqualified lusr)
     when (isNothing mMembership) $
       throwS @OperationDenied
   users <- case newConvProtocol newConv of
-    BaseProtocolProteusTag -> checkedConvSize o uncheckedUsers
+    BaseProtocolProteusTag -> checkedConvSize cfg uncheckedUsers
     BaseProtocolMLSTag -> do
       unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
@@ -868,3 +859,46 @@ newOne2OneConvMembers loc body =
 ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x
 ensureOne _ = throw (InvalidRange "One-to-one conversations can only have a single invited member")
+
+--------------------------------------------------------------------------------
+-- Validation and MLS Helpers
+
+assertMLSEnabled :: (Member (Input ConversationSubsystemConfig) r, Member (ErrorS 'MLSNotEnabled) r) => Sem r ()
+assertMLSEnabled = do
+  cfg <- input
+  when (null cfg.mlsKeys) $ throwS @'MLSNotEnabled
+
+-- Between 0 and (setMaxConvSize - 1)
+newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
+  deriving (Functor, Foldable, Traversable)
+
+deriving newtype instance (Semigroup (f a)) => Semigroup (ConvSizeChecked f a)
+
+deriving newtype instance (Monoid (f a)) => Monoid (ConvSizeChecked f a)
+
+checkedConvSize ::
+  (Member (Error InvalidInput) r, Foldable f) =>
+  ConversationSubsystemConfig ->
+  f a ->
+  Sem r (ConvSizeChecked f a)
+checkedConvSize cfg x = do
+  let minV :: Integer = 0
+      limit = cfg.maxConvSize - 1
+  if length x <= fromIntegral limit
+    then pure (ConvSizeChecked x)
+    else throwErr (errorMsg minV limit "")
+
+rangeChecked :: (KnownNat n, KnownNat m, Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
+rangeChecked = either throwErr pure . checkedEither
+{-# INLINE rangeChecked #-}
+
+rangeCheckedMaybe ::
+  (Member (Error InvalidInput) r, KnownNat n, KnownNat m, Within a n m) =>
+  Maybe a ->
+  Sem r (Maybe (Range n m a))
+rangeCheckedMaybe Nothing = pure Nothing
+rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
+{-# INLINE rangeCheckedMaybe #-}
+
+throwErr :: (Member (Error InvalidInput) r) => String -> Sem r a
+throwErr = throw . InvalidRange . fromString

@@ -51,12 +51,10 @@ import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
-import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ClientStore
-import Galley.Env
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
+import Galley.Types.Teams (FanoutLimit)
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy hiding (send)
@@ -82,6 +80,8 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Util
+import Wire.Effects.ClientStore
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)

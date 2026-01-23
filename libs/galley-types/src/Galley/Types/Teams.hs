@@ -23,6 +23,7 @@ module Galley.Types.Teams
   ( GetFeatureDefaults (..),
     FeatureDefaults (..),
     FeatureFlags,
+    FanoutLimit,
     featureDefaults,
     notTeamMember,
     findTeamMember,
@@ -40,12 +41,15 @@ import Data.ByteString (toStrict)
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id (UserId)
+import Data.Range (Range)
 import Data.SOP
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+
+type FanoutLimit = Range 1 HardTruncationLimit Int32
 
 -- | Used to extract the feature config type out of 'FeatureDefaults' or
 -- related types.

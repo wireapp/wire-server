@@ -45,7 +45,6 @@ import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
 import Galley.Effects.TeamMemberStore
@@ -80,6 +79,7 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData

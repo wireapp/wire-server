@@ -29,7 +29,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ConversationSubsystem.Interpreter where
+module Wire.ConversationSubsystem.Interpreter
+  ( module X,
+    interpretConversationSubsystem,
+    createConversationImpl,
+    sendCellsNotification,
+    notifyConversationActionImpl,
+    pushConversationEvent,
+    toConversationCreated,
+    fromConversationCreated,
+    registerRemoteConversationMemberships,
+    notifyCreatedConversation,
+  )
+where
 
 import Data.Bifunctor (second)
 import Data.Default
@@ -44,8 +56,8 @@ import Data.Singletons (Sing, sing)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
 import Data.Time (UTCTime)
+import Galley.Types.Error (InternalError)
 import Galley.Types.Error qualified as GalleyError
-import Galley.Types.Teams (FeatureDefaults)
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -57,7 +69,7 @@ import Wire.API.Component (Component (Brig, Galley))
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
-import Wire.API.Conversation.Protocol (Protocol (ProtocolProteus), ProtocolTag)
+import Wire.API.Conversation.Protocol (Protocol (ProtocolProteus))
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -66,14 +78,14 @@ import Wire.API.Federation.API.Galley (ConversationCreated (..), ccRemoteOrigUse
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
-import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Push.V2 qualified as PushV2
-import Wire.API.Team.Feature
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently, enqueueNotificationsConcurrentlyBuckets)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.View (ViewError, conversationViewWithCachedOthers)
+import Wire.ConversationSubsystem.Federation (ensureNoUnreachableBackends)
+import Wire.ConversationSubsystem.Types as X
+import Wire.ConversationSubsystem.View (conversationViewWithCachedOthers)
 import Wire.ExternalAccess (ExternalAccess, deliverAsync)
 import Wire.FederationAPIAccess (FederationAPIAccess, runFederatedConcurrentlyEither)
 import Wire.FederationAPIAccess qualified as E
@@ -83,13 +95,6 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation hiding (convTeam, id_, localOne2OneConvId)
 import Wire.StoredConversation as Data (LocalMember (..), NewConversation (..), RemoteMember (..), convType)
 import Wire.StoredConversation qualified as Data
-
-data ConversationSubsystemConfig = ConversationSubsystemConfig
-  { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
-    federationProtocols :: Maybe [ProtocolTag],
-    legalholdDefaults :: FeatureDefaults LegalholdConfig,
-    maxConvSize :: Word16
-  }
 
 interpretConversationSubsystem ::
   ( Member (Error FederationError) r,
@@ -109,16 +114,16 @@ interpretConversationSubsystem = interpret $ \case
   NotifyConversationAction tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData ->
     notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
   CreateConversation lconv lusr newConv -> do
-    res <- runError @UnreachableBackends $ runError @ViewError $ createConversationImpl lconv lusr newConv
+    res <- runError @UnreachableBackends $ runError @InternalError $ createConversationImpl lconv lusr newConv
     case res of
       Left (unreachable :: UnreachableBackends) -> throw $ FederationUnexpectedError (T.pack $ show unreachable)
-      Right (Left (viewErr :: ViewError)) -> throw $ GalleyError.InternalErrorWithDescription (LT.pack $ show viewErr)
+      Right (Left (err :: InternalError)) -> throw err
       Right (Right val') -> pure val'
 
 createConversationImpl ::
   ( Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member (Error ViewError) r,
+    Member (Error InternalError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -313,16 +318,6 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (Public.OwnConvMembers this others)
         ProtocolProteus
 
-ensureNoUnreachableBackends ::
-  (Member (Error UnreachableBackends) r) =>
-  [Either (Remote e, b) a] ->
-  Sem r [a]
-ensureNoUnreachableBackends results = do
-  let (errors, values) = partitionEithers results
-  unless (null errors) $
-    throw (UnreachableBackends (map (tDomain . fst) errors))
-  pure values
-
 registerRemoteConversationMemberships ::
   ( Member ConvStore.ConversationStore r,
     Member (Error UnreachableBackends) r,
@@ -420,7 +415,7 @@ registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable
 notifyCreatedConversation ::
   ( Member ConvStore.ConversationStore r,
     Member (Error FederationError) r,
-    Member (Error ViewError) r,
+    Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,

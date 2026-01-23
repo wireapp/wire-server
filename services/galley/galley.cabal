@@ -79,7 +79,6 @@ library
     Galley.API.Action.Notify
     Galley.API.Action.Reset
     Galley.API.Clients
-    Galley.API.Create
     Galley.API.CustomBackend
     Galley.API.Federation
     Galley.API.Internal
@@ -87,7 +86,6 @@ library
     Galley.API.LegalHold.Conflicts
     Galley.API.LegalHold.Get
     Galley.API.LegalHold.Team
-    Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
     Galley.API.MLS.CheckClients
@@ -112,7 +110,6 @@ library
     Galley.API.MLS.SubConversation
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
-    Galley.API.One2One
     Galley.API.Public.Bot
     Galley.API.Public.Conversation
     Galley.API.Public.CustomBackend
@@ -133,7 +130,6 @@ library
     Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
     Galley.API.Update
-    Galley.API.Util
     Galley.App
     Galley.Cassandra
     Galley.Cassandra.Client
@@ -146,7 +142,6 @@ library
     Galley.Cassandra.Util
     Galley.Data.TeamNotifications
     Galley.Effects
-    Galley.Effects.ClientStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
@@ -245,7 +240,6 @@ library
     Galley.Schema.V97_CellsConversation
     Galley.Schema.V98_ChannelAddPermission
     Galley.Schema.V99_ConversationAddParent
-    Galley.Types.Clients
     Galley.Validation
 
   ghc-options:     -fplugin=Polysemy.Plugin
@@ -313,7 +307,6 @@ library
     , text                                  >=0.11
     , time                                  >=1.4
     , tinylog                               >=0.10
-    , transformers
     , types-common                          >=0.16
     , types-common-aws
     , unliftio                              >=0.2

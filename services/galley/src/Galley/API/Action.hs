@@ -46,11 +46,9 @@ module Galley.API.Action
 where
 
 import Control.Arrow ((&&&))
-import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
-import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util
 import Data.Kind
@@ -73,7 +71,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
-import Galley.API.Util
 import Galley.Effects
 import Galley.Env (Env)
 import Galley.Options (Opts)
@@ -98,7 +95,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Client (FederatorClient)
@@ -117,7 +113,9 @@ import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Federation
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.FireAndForget qualified as E
@@ -378,62 +376,6 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
      ]
-
-enforceFederationProtocol ::
-  ( Member (Error FederationError) r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
-  ProtocolTag ->
-  [Remote ()] ->
-  Sem r ()
-enforceFederationProtocol proto domains = do
-  unless (null domains) $ do
-    mAllowedProtos <- federationProtocols <$> input
-    unless (maybe True (elem proto) mAllowedProtos) $
-      throw FederationDisabledForProtocol
-
-checkFederationStatus ::
-  ( Member (Error UnreachableBackends) r,
-    Member (Error NonFederatingBackends) r,
-    Member (FederationAPIAccess FederatorClient) r
-  ) =>
-  RemoteDomains ->
-  Sem r ()
-checkFederationStatus req = do
-  status <- getFederationStatus req
-  case status of
-    FullyConnected -> pure ()
-    NotConnectedDomains dom1 dom2 -> throw (NonFederatingBackends dom1 dom2)
-
-getFederationStatus ::
-  ( Member (Error UnreachableBackends) r,
-    Member (FederationAPIAccess FederatorClient) r
-  ) =>
-  RemoteDomains ->
-  Sem r FederationStatus
-getFederationStatus req = do
-  fmap firstConflictOrFullyConnected
-    . (ensureNoUnreachableBackends =<<)
-    $ E.runFederatedConcurrentlyEither
-      (Set.toList req.rdDomains)
-      ( \qds ->
-          fedClient @'Brig @"get-not-fully-connected-backends"
-            (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
-      )
-
--- | "conflict" here means two remote domains that we are connected to
--- but are not connected to each other.
-firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
-firstConflictOrFullyConnected =
-  maybe
-    FullyConnected
-    (uncurry NotConnectedDomains)
-    . headMay
-    . mapMaybe toMaybeConflict
-  where
-    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
-    toMaybeConflict r =
-      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
 
 noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges

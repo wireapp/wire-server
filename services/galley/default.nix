@@ -190,7 +190,6 @@ mkDerivation {
     text
     time
     tinylog
-    transformers
     types-common
     types-common-aws
     unliftio

@@ -16,6 +16,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time
+import Galley.Types.Error (InternalError)
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -36,6 +37,7 @@ import Wire.API.Federation.Error
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Federation (ensureNoUnreachableBackends)
 import Wire.ConversationSubsystem.View
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess qualified as E
@@ -120,16 +122,6 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           }
         (OwnConvMembers this others)
         ProtocolProteus
-
-ensureNoUnreachableBackends ::
-  (Member (Error UnreachableBackends) r) =>
-  [Either (Remote e, b) a] ->
-  Sem r [a]
-ensureNoUnreachableBackends results = do
-  let (errors, values) = partitionEithers results
-  unless (null errors) $
-    throw (UnreachableBackends (map (tDomain . fst) errors))
-  pure values
 
 registerRemoteConversationMemberships ::
   ( Member ConversationStore r,
@@ -222,7 +214,7 @@ registerRemoteConversationMemberships now lusr lc joinType = deleteOnUnreachable
 notifyCreatedConversation ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (Error ViewError) r,
+    Member (Error InternalError) r,
     Member (Error UnreachableBackends) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,

@@ -24,7 +24,6 @@ import Data.Id
 import Data.Qualified
 import Galley.API.Action.Kick
 import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.Effects
 import Imports
 import Polysemy
@@ -49,6 +48,7 @@ import Wire.API.VersionInfo
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

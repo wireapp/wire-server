@@ -25,7 +25,6 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.API.Mapping
 import Galley.Types.Error (InternalError)
 import Imports
 import Polysemy (Sem)
@@ -41,6 +40,7 @@ import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
     RemoteConversationV2 (..),
   )
+import Wire.ConversationSubsystem.View
 import Wire.Sem.Logger qualified as P
 import Wire.StoredConversation
 

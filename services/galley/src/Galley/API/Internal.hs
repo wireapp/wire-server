@@ -38,11 +38,9 @@ import Data.Singletons
 import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
-import Galley.API.Create qualified as Create
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
-import Galley.API.One2One
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
 import Galley.API.Teams
@@ -50,16 +48,14 @@ import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
-import Galley.Env (FanoutLimit)
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Error
+import Galley.Types.Teams (FanoutLimit)
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -93,7 +89,11 @@ import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Create qualified as Create
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Util
+import Wire.Effects.ClientStore
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem

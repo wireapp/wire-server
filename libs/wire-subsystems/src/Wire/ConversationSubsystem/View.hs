@@ -3,6 +3,7 @@ module Wire.ConversationSubsystem.View where
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
+import Galley.Types.Error (InternalError (BadMemberState))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -13,11 +14,8 @@ import Wire.API.Conversation qualified as Conversation
 import Wire.API.Federation.API.Galley
 import Wire.StoredConversation
 
-data ViewError = BadMemberState
-  deriving (Show, Eq)
-
 conversationViewV9 ::
-  ( Member (Error ViewError) r,
+  ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -47,7 +45,7 @@ conversationView l luid conv =
         }
 
 conversationViewWithCachedOthers ::
-  ( Member (Error ViewError) r,
+  ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
   [OtherMember] ->

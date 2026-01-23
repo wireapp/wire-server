@@ -44,11 +44,9 @@ import Data.Qualified (Local)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
-import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
-import Galley.Env (FanoutLimit)
 import Galley.Options
 import Galley.Types.Error (InternalError)
 import Galley.Types.Teams
@@ -71,7 +69,8 @@ import Wire.CodeStore
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigSubsystem
+import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.NotificationSubsystem

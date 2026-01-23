@@ -22,7 +22,6 @@ import Data.Json.Util
 import Data.Qualified
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.Effects
 import Galley.Env
 import Imports
@@ -38,6 +37,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess qualified as E
 
 type MLSGroupInfoStaticErrors =

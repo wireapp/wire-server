@@ -27,8 +27,7 @@ where
 import Data.Id
 import Data.Range
 import Galley.Effects
-import Galley.Env
-import Galley.Types.Teams as Team
+import Galley.Types.Teams as Team (FanoutLimit, FeatureDefaults (..))
 import Imports
 import Polysemy
 import Polysemy.Input (Input, input)

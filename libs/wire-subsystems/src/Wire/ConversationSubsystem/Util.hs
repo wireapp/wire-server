@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Util where
+module Wire.ConversationSubsystem.Util where
 
 import Control.Lens (view, (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -40,11 +40,6 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import Galley.API.Mapping
-import Galley.Effects
-import Galley.Effects.ClientStore
-import Galley.Env
-import Galley.Options ()
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Error
@@ -88,7 +83,10 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
+import Wire.ConversationSubsystem.Federation
+import Wire.ConversationSubsystem.Types
+import Wire.ConversationSubsystem.View
+import Wire.Effects.ClientStore
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.HashPassword (HashPassword)
@@ -904,16 +902,6 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           }
         (OwnConvMembers this others)
         ProtocolProteus
-
-ensureNoUnreachableBackends ::
-  (Member (Error UnreachableBackends) r) =>
-  [Either (Remote e, b) a] ->
-  Sem r [a]
-ensureNoUnreachableBackends results = do
-  let (errors, values) = partitionEithers results
-  unless (null errors) $
-    throw (UnreachableBackends (map (tDomain . fst) errors))
-  pure values
 
 -- | Notify remote users of being added to a new conversation.
 registerRemoteConversationMemberships ::

@@ -81,13 +81,11 @@ import Galley.API.LegalHold.Team
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore qualified as E
-import Galley.Env
 import Galley.Options
 import Galley.Types.Error as Galley
 import Galley.Types.Teams
@@ -132,6 +130,7 @@ import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem

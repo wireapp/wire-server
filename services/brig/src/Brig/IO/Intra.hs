@@ -439,7 +439,7 @@ toApsData _ = Nothing
 -------------------------------------------------------------------------------
 -- Conversation Management
 
--- | Calls 'Galley.API.Create.createConnectConversation'.
+-- | Calls 'Wire.ConversationSubsystem.Create.createConnectConversation'.
 createLocalConnectConv ::
   ( Member (Embed HttpClientIO) r,
     Member TinyLog r

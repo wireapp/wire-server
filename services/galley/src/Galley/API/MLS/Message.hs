@@ -55,7 +55,6 @@ import Galley.API.MLS.Propagate
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
-import Galley.API.Util
 import Galley.Effects
 import Galley.Types.Error
 import Imports
@@ -89,6 +88,7 @@ import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem

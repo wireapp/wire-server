@@ -64,7 +64,6 @@ import Data.Map (Map)
 import Data.Misc (HttpsUrl)
 import Data.Qualified
 import Data.Text (Text)
-import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
@@ -86,6 +85,7 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
+import Wire.Effects.ClientStore
 import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)

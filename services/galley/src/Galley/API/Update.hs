@@ -92,17 +92,14 @@ import Data.Singletons
 import Data.Vector qualified as V
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
-import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ClientStore qualified as E
-import Galley.Env
 import Galley.Options
 import Galley.Types.Error
+import Galley.Types.Teams (FanoutLimit)
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -139,6 +136,9 @@ import Wire.CodeStore.Code
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
+import Wire.ConversationSubsystem.View
+import Wire.Effects.ClientStore qualified as E
 import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E

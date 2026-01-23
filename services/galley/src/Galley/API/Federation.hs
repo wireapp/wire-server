@@ -46,11 +46,8 @@ import Galley.API.MLS.Removal
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
-import Galley.API.Mapping
-import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
 import Galley.API.Push
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
 import Galley.Options
@@ -97,6 +94,9 @@ import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
+import Wire.ConversationSubsystem.View
+import Wire.ConversationSubsystem.View qualified as Mapping
 import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem

@@ -1,8 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,35 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.ClientStore
-  ( -- * ClientStore Effect
-    ClientStore (..),
+module Wire.ConversationSubsystem.Types where
 
-    -- * Create client
-    createClient,
-
-    -- * Get client
-    getClients,
-
-    -- * Delete client
-    deleteClient,
-    deleteClients,
-
-    -- * Configuration
-    useIntraClientListing,
-  )
-where
-
-import Data.Id
-import Galley.Types.Clients
+import Galley.Types.Teams (FeatureDefaults)
 import Imports
-import Polysemy
+import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.API.Team.Feature (LegalholdConfig)
 
-data ClientStore m a where
-  GetClients :: [UserId] -> ClientStore m Clients
-  CreateClient :: UserId -> ClientId -> ClientStore m ()
-  DeleteClient :: UserId -> ClientId -> ClientStore m ()
-  DeleteClients :: UserId -> ClientStore m ()
-  UseIntraClientListing :: ClientStore m Bool
-
-makeSem ''ClientStore
+data ConversationSubsystemConfig = ConversationSubsystemConfig
+  { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
+    federationProtocols :: Maybe [ProtocolTag],
+    legalholdDefaults :: FeatureDefaults LegalholdConfig,
+    maxConvSize :: Word16
+  }

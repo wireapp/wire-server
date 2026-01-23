@@ -69,11 +69,7 @@ import Data.Tagged
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
-import Galley.API.Mapping
-import Galley.API.Mapping qualified as Mapping
-import Galley.API.One2One
 import Galley.API.Teams.Features.Get
-import Galley.API.Util
 import Galley.Effects
 import Galley.Env
 import Galley.Types.Error
@@ -110,6 +106,10 @@ import Wire.CodeStore.Code (Code (codeConversation))
 import Wire.CodeStore.Code qualified as Data
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Util
+import Wire.ConversationSubsystem.View
+import Wire.ConversationSubsystem.View qualified as Mapping
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
@@ -788,6 +788,7 @@ getMLSOne2OneConversationV5 lself qother = do
     else throwS @MLSFederatedOne2OneNotSupported
 
 getMLSOne2OneConversationInternal ::
+  forall r.
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
@@ -808,6 +809,7 @@ getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
 getMLSOne2OneConversationV6 ::
+  forall r.
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
