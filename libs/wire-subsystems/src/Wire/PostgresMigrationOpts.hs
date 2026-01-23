@@ -44,7 +44,8 @@ instance FromJSON StorageLocation where
 
 data PostgresMigrationOpts = PostgresMigrationOpts
   { conversation :: StorageLocation,
-    conversationCodes :: StorageLocation
+    conversationCodes :: StorageLocation,
+    teamFeatures :: StorageLocation
   }
   deriving (Show)
 
@@ -53,3 +54,4 @@ instance FromJSON PostgresMigrationOpts where
     PostgresMigrationOpts
       <$> o .: "conversation"
       <*> o .: "conversationCodes"
+      <*> o .: "teamFeatures"

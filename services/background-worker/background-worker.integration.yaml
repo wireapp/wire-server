@@ -79,3 +79,4 @@ backgroundJobs:
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
+  teamFeatures: postgresql

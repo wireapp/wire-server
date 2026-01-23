@@ -139,6 +139,7 @@ import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamFeatureStore.Cassandra
+import Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres)
 import Wire.TeamJournal.Aws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter
@@ -298,6 +299,11 @@ evalGalley e =
           CassandraStorage -> interpretCodeStoreToCassandra
           MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCodeStoreToPostgres
+      teamFeatureStoreInterpreter =
+        case (e ^. options . postgresMigration).teamFeatures of
+          CassandraStorage -> interpretTeamFeatureStoreToCassandra
+          MigrationToPostgresql -> interpretTeamFeatureStoreToPostgres
+          PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -369,7 +375,7 @@ evalGalley e =
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
-        . interpretTeamFeatureStoreToCassandra
+        . teamFeatureStoreInterpreter
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra

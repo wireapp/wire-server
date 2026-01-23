@@ -92,6 +92,7 @@ config:
   postgresMigration:
     conversation: cassandra
     conversationCodes: cassandra
+    teamFeatures: cassandra
 
 secrets:
   {}
