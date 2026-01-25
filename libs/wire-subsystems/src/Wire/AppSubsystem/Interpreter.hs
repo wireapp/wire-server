@@ -19,6 +19,7 @@ module Wire.AppSubsystem.Interpreter where
 
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
@@ -35,6 +36,7 @@ import System.Logger.Message qualified as Log
 import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
+import Wire.API.Team.Role qualified as R
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.AppStore (AppStore, StoredApp (..))
@@ -116,6 +118,8 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
   -- create app and user entries
   Store.createApp app
   Store.createUser u Nothing
+  now <- toUTCTimeMillis <$> get
+  void $ addTeamMember u.id tid (Just (tUnqualified lusr, now)) R.RoleMember
   internalUpdateSearchIndex u.id
 
   -- generate a team event
