@@ -41,6 +41,7 @@ import Galley.API.Clients qualified as Clients
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
+import Galley.API.Public.Conversation qualified as Public
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
 import Galley.API.Teams
@@ -89,7 +90,6 @@ import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Create qualified as Create
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
@@ -115,7 +115,7 @@ internalAPI =
   hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" rmUser
-      <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> mkNamedAPI @"connect" Public.createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI

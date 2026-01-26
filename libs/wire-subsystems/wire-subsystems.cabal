@@ -242,14 +242,11 @@ library
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
-    Wire.ConversationSubsystem.Create
     Wire.ConversationSubsystem.Federation
     Wire.ConversationSubsystem.Interpreter
-    Wire.ConversationSubsystem.Notification
     Wire.ConversationSubsystem.One2One
     Wire.ConversationSubsystem.Types
     Wire.ConversationSubsystem.Util
-    Wire.ConversationSubsystem.View
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore

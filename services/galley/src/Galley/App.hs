@@ -100,6 +100,7 @@ import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
+import Wire.API.Error.Galley (NonFederatingBackends, UnreachableBackends)
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
@@ -160,9 +161,9 @@ type GalleyEffects0 =
      Error InvalidInput,
      Error ParseException,
      Error InternalError,
-     -- federation errors can be thrown by almost every endpoint, so we avoid
-     -- having to declare it every single time, and simply handle it here
      Error FederationError,
+     Error UnreachableBackends,
+     Error NonFederatingBackends,
      Error TeamCollaboratorsError,
      Error Hasql.UsageError,
      Error HttpError,
@@ -356,6 +357,8 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
         . mapError mapTeamFeatureStoreError
         . mapError toResponse
@@ -363,6 +366,18 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
         . mapError toResponse
         . mapError toResponse
         . mapError rateLimitExceededToHttpError
@@ -411,8 +426,8 @@ evalGalley e =
         . interpretTeamSubsystem teamSubsystemConfig
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
-        . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
+        . interpretConversationSubsystem
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =

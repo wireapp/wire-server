@@ -152,6 +152,7 @@ library
     Galley.External.LegalHoldService.Internal
     Galley.Intra.Util
     Galley.Keys
+    Galley.Mapping
     Galley.Monad
     Galley.Options
     Galley.Queue

@@ -1,4 +1,4 @@
-module Wire.ConversationSubsystem.View where
+module Galley.Mapping where
 
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)

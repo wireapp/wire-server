@@ -115,8 +115,8 @@ import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ TeamCollaboratorsSubsystem,
-     ConversationSubsystem,
+  '[ ConversationSubsystem,
+     TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
      FeaturesConfigSubsystem,
      TeamSubsystem,
@@ -164,5 +164,17 @@ type GalleyEffects1 =
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
-     ErrorS 'NotATeamMember
+     ErrorS 'NotATeamMember,
+     ErrorS 'ConvAccessDenied,
+     ErrorS 'NotConnected,
+     ErrorS 'MLSNotEnabled,
+     ErrorS 'MLSNonEmptyMemberList,
+     ErrorS 'MissingLegalholdConsent,
+     ErrorS 'NonBindingTeam,
+     ErrorS 'NoBindingTeamMembers,
+     ErrorS 'TeamNotFound,
+     ErrorS 'InvalidOperation,
+     ErrorS 'ConvNotFound,
+     ErrorS 'ChannelsNotEnabled,
+     ErrorS 'NotAnMlsConversation
    ]

@@ -97,6 +97,7 @@ import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.App
 import Galley.Effects
+import Galley.Mapping
 import Galley.Options
 import Galley.Types.Error
 import Galley.Types.Teams (FanoutLimit)
@@ -137,7 +138,6 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
-import Wire.ConversationSubsystem.View
 import Wire.Effects.ClientStore qualified as E
 import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem

@@ -49,7 +49,6 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
@@ -67,7 +66,6 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
-import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
@@ -85,7 +83,6 @@ import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Federation
 import Wire.ConversationSubsystem.Types
-import Wire.ConversationSubsystem.View
 import Wire.Effects.ClientStore
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
@@ -1128,15 +1125,6 @@ ensureMemberLimit _ old new = do
   let maxSize = fromIntegral (cfg.maxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
-
-conversationExisted ::
-  ( Member (Error InternalError) r,
-    Member P.TinyLog r
-  ) =>
-  Local UserId ->
-  StoredConversation ->
-  Sem r (ConversationResponse OwnConversation)
-conversationExisted lusr cnv = Existed <$> conversationViewV9 lusr cnv
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList

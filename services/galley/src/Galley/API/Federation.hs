@@ -50,6 +50,8 @@ import Galley.API.Message
 import Galley.API.Push
 import Galley.App
 import Galley.Effects
+import Galley.Mapping
+import Galley.Mapping qualified as Mapping
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Galley.Types.Error
@@ -95,8 +97,6 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
-import Wire.ConversationSubsystem.View
-import Wire.ConversationSubsystem.View qualified as Mapping
 import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem

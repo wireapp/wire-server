@@ -16,6 +16,7 @@
 , extended
 , extra
 , federator
+, galley
 , galley-types
 , gitignoreSource
 , hasql-pool
@@ -39,6 +40,7 @@
 , servant-client
 , servant-client-core
 , servant-server
+, tagged
 , text
 , tinylog
 , transformers
@@ -69,6 +71,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    galley
     galley-types
     hasql-pool
     HsOpenSSL
@@ -84,6 +87,7 @@ mkDerivation {
     retry
     servant-client
     servant-server
+    tagged
     text
     tinylog
     transformers

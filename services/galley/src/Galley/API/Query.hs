@@ -72,6 +72,8 @@ import Galley.API.MLS.One2One
 import Galley.API.Teams.Features.Get
 import Galley.Effects
 import Galley.Env
+import Galley.Mapping
+import Galley.Mapping qualified as Mapping
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -108,8 +110,6 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
-import Wire.ConversationSubsystem.View
-import Wire.ConversationSubsystem.View qualified as Mapping
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
