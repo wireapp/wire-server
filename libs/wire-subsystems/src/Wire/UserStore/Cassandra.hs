@@ -124,7 +124,7 @@ getIndexUserImpl u = do
 
 getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
 getIndexUserPaginatedImpl pageSize mPagingState =
-  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState)
+  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
   where
     cql :: PrepQuery R () (TupleType IndexUser)
     cql = prepared $ QueryString getIndexUserBaseQuery
@@ -416,7 +416,7 @@ lookupServiceUsersImpl ::
   Maybe PagingState ->
   Client (PageWithState (BotId, ConvId, Maybe TeamId))
 lookupServiceUsersImpl pid sid mPagingState =
-  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState)
+  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState) x1
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
     cql =
@@ -430,7 +430,7 @@ lookupServiceUsersForTeamImpl ::
   Maybe PagingState ->
   Client (PageWithState (BotId, ConvId))
 lookupServiceUsersForTeamImpl pid sid tid mPagingState =
-  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState)
+  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState) x1
   where
     cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
     cql =
