@@ -27,7 +27,6 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler (Handler)
 import Brig.API.User qualified as API
 import Brig.App
-import Brig.Data.User qualified as Data
 import Brig.Federation.Client qualified as Federation
 import Brig.Options (searchSameTeamOnly)
 import Data.Handle (Handle, fromHandle)
@@ -42,6 +41,7 @@ import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
 import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 
 getHandleInfo ::
@@ -83,12 +83,12 @@ getLocalHandleInfo self handle = do
       pure $ listToMaybe owner
 
 -- | Checks search permissions and filters accordingly
-filterHandleResults :: Local UserId -> [Public.UserProfile] -> (Handler r) [Public.UserProfile]
+filterHandleResults :: (Member UserStore r) => Local UserId -> [Public.UserProfile] -> Handler r [Public.UserProfile]
 filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> asks (.settings.searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
-      fromTeam <- lift . wrapClient $ Data.lookupUserTeam (tUnqualified searchingUser)
+      fromTeam <- lift . liftSem $ UserStore.getUserTeam (tUnqualified searchingUser)
       pure $ case fromTeam of
         Just team -> filter (\x -> Public.profileTeam x == Just team) us
         Nothing -> us

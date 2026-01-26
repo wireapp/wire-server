@@ -17,6 +17,10 @@
 
 module Wire.MockInterpreters.TinyLog where
 
+import Data.ByteString.Lazy qualified as LBS
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
+import Debug.Trace qualified as Debug
 import Imports
 import Polysemy
 import Polysemy.TinyLog
@@ -27,3 +31,8 @@ noopLogger ::
   Sem r a
 noopLogger = interpret $ \case
   Log _lvl _msg -> pure ()
+
+debugLogger :: InterpreterFor TinyLog r
+debugLogger = interpret $ \case
+  Log lvl msg ->
+    Debug.traceM $ Text.unpack $ Text.decodeUtf8 $ LBS.toStrict $ Log.render (Log.renderDefault ",") (Log.field "level" (show lvl) . msg)

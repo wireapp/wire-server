@@ -39,6 +39,7 @@ import Wire.AuthenticationSubsystem
 import Wire.Events (Events)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
+import Wire.Sem.Concurrency
 import Wire.Sem.Delay
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
@@ -61,7 +62,8 @@ onEvent ::
     Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member (Concurrency Unsafe) r
   ) =>
   InternalNotification ->
   Sem r ()
@@ -85,7 +87,7 @@ onEvent n = handleTimeout $ case n of
       msg (val "Processing service delete event")
         ~~ field "provider" (toByteString pid)
         ~~ field "service" (toByteString sid)
-    embed $ API.finishDeleteService pid sid
+    API.finishDeleteService pid sid
   where
     handleTimeout act =
       timeout (pure ()) (Seconds 60) act >>= \case

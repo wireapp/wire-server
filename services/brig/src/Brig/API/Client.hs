@@ -54,7 +54,6 @@ import Brig.API.Util
 import Brig.App
 import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
-import Brig.Data.User qualified as Data
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -96,6 +95,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
@@ -571,7 +571,7 @@ removeLegalHoldClient uid = do
   liftSem $ Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
-  (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>
+  (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>
   Local UserId ->
   ClientId ->
   StdMethod ->
@@ -582,7 +582,13 @@ createAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
   (tid, handle, displayName) <- do
-    mUser <- lift $ wrapClient (Data.lookupUser NoPendingInvitations uid)
+    mUser <-
+      fmap listToMaybe
+        . lift
+        . liftSem
+        . User.getAccountsBy
+        . qualifyAs luid
+        $ getByNoFilters {getByUserId = [tUnqualified luid], includePendingInvitations = NoPendingInvitations}
     except $
       (,,)
         <$> note NotATeamUser (userTeam =<< mUser)

@@ -43,7 +43,6 @@ import Brig.App
 import Brig.Calling.API qualified as Calling
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Nonce as Nonce
-import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -886,7 +885,8 @@ createAccessToken ::
     Member PublicKeyBundle r,
     IsElem endpoint api,
     HasLink endpoint,
-    MkLink endpoint Link ~ (ClientId -> Link)
+    MkLink endpoint Link ~ (ClientId -> Link),
+    Member UserSubsystem r
   ) =>
   StdMethod ->
   Local UserId ->
@@ -1269,7 +1269,8 @@ sendActivationCode ::
     Member UserKeyStore r,
     Member ActivationCodeStore r,
     Member (Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member UserSubsystem r
   ) =>
   Public.SendActivationCode ->
   Handler r ()
@@ -1328,7 +1329,8 @@ updateLocalConnection ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   UserId ->
   ConnId ->
@@ -1346,7 +1348,8 @@ updateConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserStore r
   ) =>
   UserId ->
   ConnId ->
@@ -1477,9 +1480,9 @@ updateUserEmail ::
   Public.EmailUpdate ->
   (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
-  maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
+  maybeZuserTeamId <- lift . liftSem $ UserStore.getUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
-  maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
+  maybeEmailOwnerTeamId <- lift . liftSem $ UserStore.getUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   lEmailOwnerId <- qualifyLocal emailOwnerId
   void . lift . liftSem $
@@ -1505,7 +1508,8 @@ activate ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member UserStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1520,7 +1524,8 @@ activateKey ::
     Member TinyLog r,
     Member Events r,
     Member UserSubsystem r,
-    Member PasswordResetCodeStore r
+    Member PasswordResetCodeStore r,
+    Member UserStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

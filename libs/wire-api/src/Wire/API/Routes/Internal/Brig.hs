@@ -36,6 +36,7 @@ module Wire.API.Routes.Internal.Brig
     DeleteAccountConferenceCallingConfig,
     GetRichInfoMultiResponse (..),
     GetBy (..),
+    getByNoFilters,
     CreateGroupInternalRequest (..),
     UpdateGroupInternalRequest (..),
     swaggerDoc,
@@ -103,6 +104,8 @@ import Wire.Arbitrary
 -- | Parameters for getting user accounts by various criteria
 data GetBy = GetBy
   { includePendingInvitations :: HavePendingInvitations,
+    includeUsersWithExpiredInvitations :: Bool,
+    includeUsersWithoutIdentity :: Bool,
     getByUserId :: [UserId],
     getByHandle :: [Handle]
   }
@@ -114,6 +117,8 @@ instance Default GetBy where
   def =
     GetBy
       { includePendingInvitations = NoPendingInvitations,
+        includeUsersWithExpiredInvitations = False,
+        includeUsersWithoutIdentity = False,
         getByUserId = [],
         getByHandle = []
       }
@@ -123,6 +128,8 @@ instance ToSchema GetBy where
     object "GetBy" $
       GetBy
         <$> (.includePendingInvitations) .= field "include_pending_invitations" schema
+        <*> (.includeUsersWithExpiredInvitations) .= field "include_users_with_expired_invitations" schema
+        <*> (.includeUsersWithoutIdentity) .= field "include_users_without_identity" schema
         <*> (.getByUserId) .= field "ids" (array schema)
         <*> (.getByHandle) .= field "handles" (array schema)
 
@@ -134,6 +141,16 @@ deriving via (Schema (Qualified GetBy)) instance FromJSON (Qualified GetBy)
 deriving via (Schema (Qualified GetBy)) instance ToJSON (Qualified GetBy)
 
 deriving via (Schema (Qualified GetBy)) instance S.ToSchema (Qualified GetBy)
+
+getByNoFilters :: GetBy
+getByNoFilters =
+  GetBy
+    { includePendingInvitations = WithPendingInvitations,
+      includeUsersWithoutIdentity = True,
+      includeUsersWithExpiredInvitations = True,
+      getByUserId = [],
+      getByHandle = []
+    }
 
 -- | Request type for creating user groups with full control
 data CreateGroupInternalRequest = CreateGroupInternalRequest

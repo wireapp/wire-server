@@ -40,7 +40,6 @@ import Brig.API.User (getLegalHoldStatus)
 import Brig.App
 import Brig.Data.Connection qualified as Data
 import Brig.Data.Types (resultHasMore, resultList)
-import Brig.Data.User qualified as Data
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
 import Brig.Options
@@ -72,6 +71,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserStore
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 
 ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
@@ -141,7 +141,7 @@ createConnectionToLocalUser self conn target = do
       s2o' <- wrapClient $ Data.insertConnection self (tUntagged target) SentWithHistory qcnv
       o2s' <- wrapClient $ Data.insertConnection target (tUntagged self) PendingWithHistory qcnv
       e2o <-
-        ConnectionUpdated o2s' <$> wrapClient (Data.lookupName (tUnqualified self))
+        ConnectionUpdated o2s' <$> liftSem (UserStore.lookupName (tUnqualified self))
       let e2s = ConnectionUpdated s2o' Nothing
       liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure s2o'
@@ -176,8 +176,8 @@ createConnectionToLocalUser self conn target = do
             then Data.updateConnection o2s BlockedWithHistory
             else Data.updateConnection o2s AcceptedWithHistory
       e2o <-
-        lift . wrapClient $
-          ConnectionUpdated o2s' <$> Data.lookupName (tUnqualified self)
+        lift . liftSem $
+          ConnectionUpdated o2s' <$> UserStore.lookupName (tUnqualified self)
       let e2s = ConnectionUpdated s2o' Nothing
       lift $ liftSem $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure $ Existed s2o'
@@ -232,7 +232,8 @@ updateConnection ::
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member UserStore r
   ) =>
   Local UserId ->
   Qualified UserId ->
@@ -257,7 +258,8 @@ updateConnectionToLocalUser ::
   ( Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member UserStore r
   ) =>
   -- | From
   Local UserId ->
@@ -337,7 +339,7 @@ updateConnectionToLocalUser self other newStatus conn = do
               else Data.updateConnection o2s BlockedWithHistory
         e2o <-
           ConnectionUpdated o2s'
-            <$> wrapClient (Data.lookupName (tUnqualified self))
+            <$> liftSem (UserStore.lookupName (tUnqualified self))
         liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o AcceptedWithHistory
 
@@ -376,9 +378,9 @@ updateConnectionToLocalUser self other newStatus conn = do
               then Data.updateConnection o2s AcceptedWithHistory
               else Data.updateConnection o2s BlockedWithHistory
         e2o :: ConnectionEvent <-
-          wrapClient $
+          liftSem $
             ConnectionUpdated o2s'
-              <$> Data.lookupName (tUnqualified self)
+              <$> UserStore.lookupName (tUnqualified self)
         -- TODO: is this correct? shouldnt o2s be sent to other?
         liftSem $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
@@ -431,7 +433,8 @@ updateConnectionInternal ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
@@ -499,7 +502,7 @@ updateConnectionInternal = \case
           void . lift . liftSem . for (ucConvId uconn) $ unblockConversation lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
-          connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)
+          connName <- lift . liftSem $ UserStore.lookupName (tUnqualified lfrom)
           let connEvent =
                 ConnectionUpdated
                   { ucConn = uconnRev',

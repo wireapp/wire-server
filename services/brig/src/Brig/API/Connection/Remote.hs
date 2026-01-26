@@ -27,7 +27,6 @@ import Brig.API.Connection.Util
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Data.User qualified as Data
 import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
@@ -53,6 +52,7 @@ import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.UserStore
+import Wire.UserStore qualified as UserStore
 
 data LocalConnectionAction
   = LocalConnect
@@ -224,7 +224,7 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member GalleyAPIAccess r, Member NotificationSubsystem r) =>
+  (Member GalleyAPIAccess r, Member NotificationSubsystem r, Member UserStore r) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -236,7 +236,7 @@ performLocalAction self mzcon other mconnection action = do
   checkLimitForLocalAction self rel0 action
   mrel2 <- for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- fmap join . for (remoteAction action) $ \ra -> do
-      mSelfTeam <- lift . wrapClient . Data.lookupUserTeam . tUnqualified $ self
+      mSelfTeam <- lift . liftSem . UserStore.getUserTeam . tUnqualified $ self
       response <-
         sendConnectionAction
           self
@@ -316,7 +316,8 @@ createConnectionToRemoteUser self zcon other = do
 updateConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
-    Member FederationConfigStore r
+    Member FederationConfigStore r,
+    Member UserStore r
   ) =>
   Local UserId ->
   Remote UserId ->

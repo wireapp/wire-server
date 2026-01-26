@@ -27,26 +27,22 @@ module Brig.Provider.API
   )
 where
 
-import Bilge.IO (MonadHttp)
-import Bilge.RPC (HasRequestId)
 import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
 import Brig.App
 import Brig.Data.Client qualified as User
-import Brig.Data.User qualified as User
 import Brig.Options (Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.DB qualified as DB
 import Brig.Provider.Email
 import Brig.Provider.RPC qualified as RPC
-import Cassandra (MonadClient)
+import Cassandra.Exec (paginateWithStateC)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens ((^.))
-import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
@@ -89,8 +85,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Servant (ServerT, (:<|>) (..))
 import Ssl.Util qualified as SSL
-import System.Logger.Class (MonadLogger)
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Bot qualified as Public
@@ -109,6 +103,7 @@ import Wire.API.Provider.External qualified as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service qualified as Public
 import Wire.API.Provider.Service.Tag qualified as Public
+import Wire.API.Routes.Internal.Brig (getByNoFilters)
 import Wire.API.Routes.Internal.Brig qualified as BrigIRoutes
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig.Bot (BotAPI)
@@ -134,7 +129,7 @@ import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.RateLimit
-import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe), unsafePooledMapConcurrentlyN_)
 import Wire.Sem.Now (Now)
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -142,6 +137,7 @@ import Wire.UserKeyStore (mkEmailKey)
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.VerificationCode as VerificationCode
 import Wire.VerificationCodeGen
@@ -155,7 +151,10 @@ botAPI ::
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
-    Member UserStore r
+    Member UserStore r,
+    Member (Embed HttpClientIO) r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -179,7 +178,12 @@ servicesAPI ::
     Member AuthenticationSubsystem r,
     Member DeleteQueue r,
     Member (Error UserSubsystemError) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Concurrency Unsafe) r,
+    Member (Embed HttpClientIO) r,
+    Member UserStore r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
@@ -576,27 +580,25 @@ deleteService pid sid del = do
   lift . liftSem $ enqueueServiceDeletion pid sid
 
 finishDeleteService ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m,
-    MonadUnliftIO m
+  ( Member UserStore r,
+    Member (Embed HttpClientIO) r,
+    Member (Concurrency Unsafe) r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   ProviderId ->
   ServiceId ->
-  m ()
+  Sem r ()
 finishDeleteService pid sid = do
-  mbSvc <- DB.lookupService pid sid
+  mbSvc <- embed $ DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     runConduit $
-      User.lookupServiceUsers pid sid
-        .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
-    RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
+      paginateWithStateC (UserStore.lookupServiceUsers pid sid)
+        .| C.mapM_ (unsafePooledMapConcurrentlyN_ 16 kick)
+    embed $ RPC.removeServiceConn pid sid
+    embed $ DB.deleteService pid sid name tags
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
@@ -662,19 +664,20 @@ searchServiceProfiles _ Nothing Nothing _ = do
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
 searchTeamServiceProfiles ::
+  (Member UserStore r) =>
   UserId ->
   TeamId ->
   Maybe (Range 1 128 Text) ->
   Maybe Bool ->
   Maybe (Range 10 100 Int32) ->
-  (Handler r) Public.ServiceProfilePage
+  Handler r Public.ServiceProfilePage
 searchTeamServiceProfiles uid tid prefix mFilterDisabled mSize = do
   -- Check that the user actually belong to the team they claim they
   -- belong to. (Note: the 'tid' team might not even exist but we'll throw
   -- 'insufficientTeamPermissions' anyway)
   let filterDisabled = fromMaybe True mFilterDisabled
   let size = fromMaybe (unsafeRange 20) mSize
-  teamId <- lift $ wrapClient $ User.lookupUserTeam uid
+  teamId <- lift $ liftSem $ UserStore.getUserTeam uid
   unless (Just tid == teamId) $
     throwStd insufficientTeamPermissions
   -- Get search results
@@ -690,7 +693,12 @@ getServiceTagList _ = do
 updateServiceWhitelist ::
   ( Member GalleyAPIAccess r,
     Member TeamSubsystem r,
-    Member (Error UserSubsystemError) r
+    Member (Error UserSubsystemError) r,
+    Member (Concurrency Unsafe) r,
+    Member (Embed HttpClientIO) r,
+    Member UserStore r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -717,13 +725,10 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      lift
-        $ fmap
-          wrapHttpClient
-          runConduit
-        $ User.lookupServiceUsersForTeam pid sid tid
+      lift . liftSem . runConduit $
+        paginateWithStateC (UserStore.lookupServiceUsersForTeam pid sid tid)
           .| C.mapM_
-            ( pooledMapConcurrentlyN_
+            ( unsafePooledMapConcurrentlyN_
                 16
                 (uncurry (deleteBot uid (Just con)))
             )
@@ -747,7 +752,9 @@ addBot ::
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   ConnId ->
@@ -756,7 +763,8 @@ addBot ::
   (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
   guardSecondFactorDisabled (Just zuid)
-  zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
+  getZusr <- lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [zuid], includePendingInvitations = NoPendingInvitations}
+  zusr <- lift (fmap listToMaybe . liftSem $ User.getAccountsBy getZusr) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
@@ -867,7 +875,14 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBot :: (Member GalleyAPIAccess r) => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
+removeBot ::
+  ( Member GalleyAPIAccess r,
+    Member (Embed HttpClientIO) r,
+    Member UserStore r,
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
+  ) =>
+  UserId -> ConnId -> ConvId -> BotId -> Handler r (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   guardSecondFactorDisabled (Just zusr)
   -- Get the conversation and check preconditions
@@ -888,16 +903,17 @@ removeBot zusr zcon cid bid = do
   case bot >>= omService of
     Nothing -> pure Nothing
     Just _ -> do
-      lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
+      lift . liftSem $ Public.RemoveBotResponse <$$> deleteBot zusr (Just zcon) bid cid
 
 guardConvAdmin :: OwnConversation -> ExceptT HttpError (AppT r) ()
 guardConvAdmin conv = do
   let selfMember = cmSelf . cnvMembers $ conv
   unless (memConvRoleName selfMember == roleNameWireAdmin) $ (throwStd (errorToWai @'E.AccessDenied))
 
-botGetSelf :: BotId -> (Handler r) Public.UserProfile
+botGetSelf :: (Member UserSubsystem r, Member (Input (Local ())) r) => BotId -> Handler r Public.UserProfile
 botGetSelf bot = do
-  p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
+  getBy <- lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [botUserId bot], includePendingInvitations = NoPendingInvitations}
+  p <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf UserTypeBot u UserLegalHoldNoConsent) p
 
 botGetClient :: (Member GalleyAPIAccess r) => BotId -> (Handler r) (Maybe Public.Client)
@@ -939,10 +955,18 @@ botClaimUsersPrekeys _ body = do
     throwStd (errorToWai @'E.TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
-botListUserProfiles :: (Member GalleyAPIAccess r) => BotId -> (CommaSeparatedList UserId) -> (Handler r) [Public.BotUserView]
+botListUserProfiles :: (Member GalleyAPIAccess r, Member UserSubsystem r) => BotId -> (CommaSeparatedList UserId) -> Handler r [Public.BotUserView]
 botListUserProfiles _ uids = do
   guardSecondFactorDisabled Nothing -- should we check all user ids?
-  us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromCommaSeparatedList uids)
+  localUnit <- qualifyLocal ()
+  us <-
+    lift . liftSem $
+      User.getAccountsBy $
+        qualifyAs localUnit $
+          getByNoFilters
+            { getByUserId = fromCommaSeparatedList uids,
+              includePendingInvitations = NoPendingInvitations
+            }
   pure (map mkBotUserView us)
 
 botGetUserClients :: (Member GalleyAPIAccess r) => BotId -> UserId -> (Handler r) [Public.PubClient]
@@ -952,12 +976,20 @@ botGetUserClients _ uid = do
   where
     pubClient c = Public.PubClient c.clientId c.clientClass
 
-botDeleteSelf :: (Member GalleyAPIAccess r) => BotId -> ConvId -> (Handler r) ()
+botDeleteSelf ::
+  ( Member GalleyAPIAccess r,
+    Member (Embed HttpClientIO) r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  BotId -> ConvId -> Handler r ()
 botDeleteSelf bid cid = do
   guardSecondFactorDisabled (Just (botUserId bid))
-  bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
+  getBy <- qualifyLocal (getByNoFilters {getByUserId = [botUserId bid], includePendingInvitations = NoPendingInvitations})
+  bot <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   _ <- maybe (throwStd (errorToWai @'E.InvalidBot)) pure $ (userService =<< bot)
-  _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
+  _ <- lift . liftSem $ deleteBot (botUserId bid) Nothing bid cid
   pure ()
 
 --------------------------------------------------------------------------------
@@ -989,33 +1021,27 @@ activate pid old new = do
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot ::
-  ( MonadHttp m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadUnliftIO m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m
-  ) =>
+  (Member (Embed HttpClientIO) r, Member UserStore r, Member (Input (Local ())) r, Member UserSubsystem r) =>
   UserId ->
   Maybe ConnId ->
   BotId ->
   ConvId ->
-  m (Maybe Public.Event)
+  Sem r (Maybe Public.Event)
 deleteBot zusr zcon bid cid = do
   -- Remove the bot from the conversation
-  ev <- RPC.removeBotMember zusr zcon cid bid
+  ev <- embed $ RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  mbUser <- User.lookupUser NoPendingInvitations buid
-  User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
+  getBy <- qualifyLocal' $ getByNoFilters {getByUserId = [buid], includePendingInvitations = NoPendingInvitations}
+  mbUser <- listToMaybe <$> User.getAccountsBy getBy
+  embed $ User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
-    User.deleteServiceUser pid sid bid
+    UserStore.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  void $ runExceptT $ User.updateStatus buid Deleted
+  UserStore.updateAccountStatus buid Deleted
   pure ev
 
 validateServiceKey :: (MonadIO m) => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))

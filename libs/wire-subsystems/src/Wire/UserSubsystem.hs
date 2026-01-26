@@ -43,7 +43,7 @@ import SAML2.WebSSO qualified as SAML
 import Text.Email.Parser
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.Error
-import Wire.API.Routes.Internal.Brig (GetBy (..))
+import Wire.API.Routes.Internal.Brig (GetBy (..), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus)
 import Wire.API.Team.Export (TeamExportUser)
 import Wire.API.Team.Feature
@@ -134,9 +134,6 @@ data UserSubsystem m a where
   -- | Get user accounts matching the `[EmailAddress]` argument (accounts with missing
   -- identity and accounts with status /= active included).
   GetAccountsByEmailNoFilter :: Local [EmailAddress] -> UserSubsystem m [User]
-  -- | Get user account by local user id (accounts with missing identity and accounts with
-  -- status /= active included).
-  GetAccountNoFilter :: Local UserId -> UserSubsystem m (Maybe User)
   -- | Get `SelfProfile` (it contains things not present in `UserProfile`).
   GetSelfProfile :: Local UserId -> UserSubsystem m (Maybe SelfProfile)
   -- | Simple updates (as opposed to, eg., handle, where we need to manage locks).  Empty fields are ignored (not deleted).
@@ -215,6 +212,14 @@ getLocalAccountBy includePendingInvitations uid =
               includePendingInvitations
             }
       )
+
+-- | Get user account by local user id (accounts with missing identity and accounts with
+-- status /= active included).
+getAccountNoFilter :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe User)
+getAccountNoFilter uid =
+  listToMaybe
+    <$> getAccountsBy
+      (qualifyAs uid $ getByNoFilters {getByUserId = [tUnqualified uid]})
 
 getUserEmail :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe EmailAddress)
 getUserEmail lusr =
