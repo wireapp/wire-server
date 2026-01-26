@@ -44,7 +44,7 @@ class MigrationLockable a where
   lockKey :: a -> Int64
 
 data LockType
-  = -- | Used for migrating a single row, will block any other locks
+  = -- | Used for migrating a set of data, will block any other locks
     LockExclusive
   | -- | Used for reading and writing to Cassandra, will block exclusive locks
     LockShared
