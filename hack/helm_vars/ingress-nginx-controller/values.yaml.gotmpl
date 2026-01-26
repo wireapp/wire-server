@@ -1,6 +1,9 @@
 ingress-nginx:
   fullnameOverride: "{{ .Release.Namespace }}-nginx-ingress"
   controller:
+    # Must match the controllerValue on the IngressClass or the controller
+    # will ignore the ingress resources.
+    class: "k8s.io/{{ .Release.Namespace }}-nginx-ingress"
     ingressClassResource:
         name: "nginx-{{ .Release.Namespace }}"
         # -- Is this ingressClass enabled or not
