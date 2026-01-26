@@ -336,6 +336,7 @@ library
     , openapi3
     , pem                        >=0.2
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , profunctors
     , proto-lens
@@ -384,6 +385,7 @@ library
     , zauth
 
   default-language: GHC2021
+  ghc-options:      -fplugin=Polysemy.Plugin
 
 test-suite wire-api-golden-tests
   import:           common-all
