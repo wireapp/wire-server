@@ -178,7 +178,7 @@ lookupLocalConnectionsPage ::
   Range 1 1000 Int32 ->
   m (PageWithState UserConnection)
 lookupLocalConnectionsPage self pagingState (fromRange -> size) =
-  fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState LocalQuorum (Identity (tUnqualified self)) size pagingState)
+  fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState LocalQuorum (Identity (tUnqualified self)) size pagingState) x1
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to remote users.
 lookupRemoteConnectionsPage ::
@@ -192,6 +192,7 @@ lookupRemoteConnectionsPage self pagingState size =
     <$> paginateWithState
       remoteConnectionSelect
       (paramsPagingState LocalQuorum (Identity (tUnqualified self)) size pagingState)
+      x1
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: (MonadClient m) => [UserId] -> [UserId] -> m [ConnectionStatus]

@@ -365,15 +365,15 @@ getInvitationByEmail email = do
   maybe (throwStd (notFound "Invitation not found")) (pure . Store.invitationFromStored Nothing) inv
 
 suspendTeam ::
-  ( Member (Embed HttpClientIO) r,
-    Member (Concurrency 'Unsafe) r,
+  ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
     Member TeamSubsystem r,
     Member Events r,
     Member TinyLog r,
     Member InvitationStore r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -388,13 +388,13 @@ suspendTeam tid = do
   pure NoContent
 
 unsuspendTeam ::
-  ( Member (Embed HttpClientIO) r,
-    Member (Concurrency 'Unsafe) r,
+  ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member UserSubsystem r,
     Member TeamSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   TeamId ->
   (Handler r) NoContent
@@ -407,13 +407,13 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  ( Member (Embed HttpClientIO) r,
-    Member (Concurrency 'Unsafe) r,
+  ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member TeamSubsystem r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   TeamId ->
   AccountStatus ->

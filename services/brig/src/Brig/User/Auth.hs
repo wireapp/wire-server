@@ -233,7 +233,8 @@ renewAccess ::
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   NE.NonEmpty (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -277,7 +278,8 @@ catchSuspendInactiveUser ::
     Member UserSubsystem r,
     Member Events r,
     Member (Concurrency 'Unsafe) r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   e ->
@@ -311,7 +313,8 @@ newAccess ::
     Member Now r,
     Member AuthenticationSubsystem r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -435,7 +438,8 @@ ssoLogin ::
     Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -473,7 +477,8 @@ legalHoldLogin ::
     Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   LegalHoldLogin ->
   CookieType ->

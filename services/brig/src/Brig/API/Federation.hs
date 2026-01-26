@@ -30,7 +30,6 @@ import Brig.API.MLS.Util
 import Brig.API.User qualified as API
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Data.User qualified as Data
 import Brig.IO.Intra (notify)
 import Brig.Options
 import Brig.User.API.Handle
@@ -76,6 +75,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.UserStore
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as UserSubsystem
 
@@ -267,7 +267,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
           case maybeOwnerId of
             Nothing -> pure []
             Just foundUser -> do
-              mFoundUserTeamId <- lift $ wrapClient $ Data.lookupUserTeam foundUser
+              mFoundUserTeamId <- lift $ liftSem $ UserStore.getUserTeam foundUser
               localFoundUser <- qualifyLocal foundUser
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
                 then lift $ liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser

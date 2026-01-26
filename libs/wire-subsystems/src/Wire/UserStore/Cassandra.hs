@@ -30,6 +30,7 @@ import Polysemy.Embed
 import Polysemy.Error
 import Wire.API.Password (Password)
 import Wire.API.Provider.Service
+import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SetSearchable (SetSearchable))
@@ -44,12 +45,24 @@ interpretUserStoreCassandra casClient =
     runEmbedded (runClient casClient) . embed . \case
       CreateUser new mbConv -> createUserImpl new mbConv
       GetUsers uids -> getUsersImpl uids
+      DoesUserExist uid -> doesUserExistImpl uid
       GetIndexUser uid -> getIndexUserImpl uid
       GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
       UpdateUser uid update -> updateUserImpl uid update
+      UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
+      DeleteEmailUnvalidated uid -> deleteEmailUnvalidatedImpl uid
       UpdateUserHandleEither uid update -> updateUserHandleEitherImpl uid update
+      UpdateSSOId uid ssoId -> updateSSOIdImpl uid ssoId
+      UpdateManagedBy uid managedBy -> updateManagedByImpl uid managedBy
+      UpdateAccountStatus uid accountStatus -> updateAccountStatusImpl uid accountStatus
+      ActivateUser uid identity -> activateUserImpl uid identity
+      DeactivateUser uid -> deactivateUserImpl uid
+      UpdateRichInfo uid richInfo -> updateRichInfoImpl uid richInfo
+      UpdateFeatureConferenceCalling uid feat -> updateFeatureConferenceCallingImpl uid feat
+      LookupFeatureConferenceCalling uid -> lookupFeatureConferenceCallingImpl uid
       DeleteUser user -> deleteUserImpl user
+      LookupName uid -> lookupNameImpl uid
       LookupHandle hdl -> lookupHandleImpl LocalQuorum hdl
       GlimpseHandle hdl -> lookupHandleImpl One hdl
       LookupStatus uid -> lookupStatusImpl uid
@@ -59,9 +72,13 @@ interpretUserStoreCassandra casClient =
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
+      LookupRichInfos uids -> lookupRichInfosImpl uids
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
       SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
+      DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
+      LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid mPagingState
+      LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid mPagingState
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -90,6 +107,13 @@ getUsersImpl usrs =
   map asRecord
     <$> retry x1 (query selectUsers (params LocalQuorum (Identity usrs)))
 
+doesUserExistImpl :: UserId -> Client Bool
+doesUserExistImpl uid =
+  isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
+  where
+    idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
+    idSelect = "SELECT id FROM user WHERE id = ?"
+
 getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
 getIndexUserImpl u = do
   mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
@@ -100,7 +124,7 @@ getIndexUserImpl u = do
 
 getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
 getIndexUserPaginatedImpl pageSize mPagingState =
-  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState)
+  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
   where
     cql :: PrepQuery R () (TupleType IndexUser)
     cql = prepared $ QueryString getIndexUserBaseQuery
@@ -143,6 +167,12 @@ updateUserImpl uid update =
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
     for_ update.supportedProtocols \a -> addPrepQuery userSupportedProtocolsUpdate (a, uid)
 
+updateEmailImpl :: UserId -> EmailAddress -> Client ()
+updateEmailImpl u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
+  where
+    userEmailUpdate :: PrepQuery W (EmailAddress, UserId) ()
+    userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
+
 updateEmailUnvalidatedImpl :: UserId -> EmailAddress -> Client ()
 updateEmailUnvalidatedImpl u e =
   retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
@@ -150,11 +180,98 @@ updateEmailUnvalidatedImpl u e =
     userEmailUnvalidatedUpdate :: PrepQuery W (EmailAddress, UserId) ()
     userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
 
+deleteEmailUnvalidatedImpl :: UserId -> Client ()
+deleteEmailUnvalidatedImpl u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
+  where
+    userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
+    userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
+
 updateUserHandleEitherImpl :: UserId -> StoredUserHandleUpdate -> Client (Either StoredUserUpdateError ())
 updateUserHandleEitherImpl uid update =
   runM $ runError do
     claimed <- embed $ claimHandleImpl uid update.old update.new
     unless claimed $ throw StoredUserUpdateHandleExists
+
+updateSSOIdImpl :: UserId -> Maybe UserSSOId -> Client Bool
+updateSSOIdImpl u ssoid = do
+  mteamid <- getUserTeamImpl u
+  case mteamid of
+    Just _ -> do
+      retry x5 $ write userSSOIdUpdate (params LocalQuorum (ssoid, u))
+      pure True
+    Nothing -> pure False
+  where
+    userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
+    userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+
+updateManagedByImpl :: UserId -> ManagedBy -> Client ()
+updateManagedByImpl u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
+  where
+    userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
+    userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
+
+updateAccountStatusImpl :: UserId -> AccountStatus -> Client ()
+updateAccountStatusImpl u s =
+  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
+  where
+    userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
+    userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+
+activateUserImpl :: (MonadClient m) => UserId -> UserIdentity -> m ()
+activateUserImpl u ident = do
+  let email = emailIdentity ident
+  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, u))
+  where
+    userActivatedUpdate :: PrepQuery W (Maybe EmailAddress, UserId) ()
+    userActivatedUpdate = "UPDATE user SET activated = true, email = ? WHERE id = ?"
+
+deactivateUserImpl :: (MonadClient m) => UserId -> m ()
+deactivateUserImpl u =
+  retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
+  where
+    userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
+    userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
+
+lookupNameImpl :: (MonadClient m) => UserId -> m (Maybe Name)
+lookupNameImpl u =
+  fmap runIdentity
+    <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
+  where
+    nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
+    nameSelect = "SELECT name FROM user WHERE id = ?"
+
+-- | Returned rich infos are in the same order as users
+lookupRichInfosImpl :: (MonadClient m) => [UserId] -> m [(UserId, RichInfo)]
+lookupRichInfosImpl users = do
+  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
+    <$> retry x1 (query richInfoSelectMulti (params LocalQuorum (Identity users)))
+  where
+    richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
+    richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
+
+lookupFeatureConferenceCallingImpl :: (MonadClient m) => UserId -> m (Maybe FeatureStatus)
+lookupFeatureConferenceCallingImpl uid = do
+  let q = query1 select (params LocalQuorum (Identity uid))
+  (>>= runIdentity) <$> retry x1 q
+  where
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe FeatureStatus))
+    select = fromString "select feature_conference_calling from user where id = ?"
+
+-------------------------------------------------------------------------------
+-- Queries
+
+updateRichInfoImpl :: (MonadClient m) => UserId -> RichInfoAssocList -> m ()
+updateRichInfoImpl u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
+  where
+    userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
+    userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
+
+updateFeatureConferenceCallingImpl :: (MonadClient m) => UserId -> Maybe FeatureStatus -> m ()
+updateFeatureConferenceCallingImpl uid mStatus =
+  retry x5 $ write update (params LocalQuorum (mStatus, uid))
+  where
+    update :: PrepQuery W (Maybe FeatureStatus, UserId) ()
+    update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 -- | Claim a new handle for an existing 'User': validate it, and in case of success, assign it
 -- to user and mark it as taken.
@@ -259,6 +376,66 @@ setUserSearchableImpl uid (SetSearchable searchable) = retry x5 $ write q (param
   where
     q :: PrepQuery W (Bool, UserId) ()
     q = "UPDATE user SET searchable = ? WHERE id = ?"
+
+deleteServiceUserImpl :: ProviderId -> ServiceId -> BotId -> Client ()
+deleteServiceUserImpl pid sid bid = do
+  lookupServiceUser pid sid bid >>= \case
+    Nothing -> pure ()
+    Just (_, mbTid) -> retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency LocalQuorum
+      addPrepQuery cql (pid, sid, bid)
+      for_ mbTid $ \tid ->
+        addPrepQuery cqlTeam (pid, sid, tid, bid)
+  where
+    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
+    cql =
+      "DELETE FROM service_user \
+      \WHERE provider = ? AND service = ? AND user = ?"
+    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
+    cqlTeam =
+      "DELETE FROM service_team \
+      \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
+
+lookupServiceUser ::
+  ProviderId ->
+  ServiceId ->
+  BotId ->
+  Client (Maybe (ConvId, Maybe TeamId))
+lookupServiceUser pid sid bid =
+  retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
+    cql =
+      "SELECT conv, team FROM service_user \
+      \WHERE provider = ? AND service = ? AND user = ?"
+
+lookupServiceUsersImpl ::
+  ProviderId ->
+  ServiceId ->
+  Maybe PagingState ->
+  Client (PageWithState (BotId, ConvId, Maybe TeamId))
+lookupServiceUsersImpl pid sid mPagingState =
+  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState) x1
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
+    cql =
+      "SELECT user, conv, team FROM service_user \
+      \WHERE provider = ? AND service = ?"
+
+lookupServiceUsersForTeamImpl ::
+  ProviderId ->
+  ServiceId ->
+  TeamId ->
+  Maybe PagingState ->
+  Client (PageWithState (BotId, ConvId))
+lookupServiceUsersForTeamImpl pid sid tid mPagingState =
+  paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState) x1
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
+    cql =
+      "SELECT user, conv FROM service_team \
+      \WHERE provider = ? AND service = ? AND team = ?"
 
 --------------------------------------------------------------------------------
 -- Queries
