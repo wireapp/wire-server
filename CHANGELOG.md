@@ -3,7 +3,7 @@
 ## Release notes
 
 
-* Elasticsearch re-indexing requires postgres access now.  If you run `brig-index` directly anywhere, make sure to add the relevant settings.  The Elasticsearch index must be refilled from Cassandra in order for the changes to the search results to take effect.  See https://docs.wire.com/latest/developer/reference/elastic-search.html?h=index#refill-es-documents-from-cassandra
+* User search provides information about user type (regular, app, legacy bot) now.  Also, Elasticsearch re-indexing requires postgres access now.  If you run `brig-index` directly anywhere, make sure to add the relevant settings.  The Elasticsearch index must be refilled from Cassandra in order for the changes to the search results to take effect.  See https://docs.wire.com/latest/developer/reference/elastic-search.html?h=index#refill-es-documents-from-cassandra (#4913, #4957)
 
 * Conversation codes can now be migrated to PostgreSQL. For existing installations:
   - Set `postgresMigration.conversationCodes: migration-to-postgresql` in both `galley` and `background-worker`.
@@ -12,10 +12,6 @@
   - Switch to `postgresMigration.conversationCodes: postgresql` and disable `migrateConversationCodes`. (#4961)
 
 * The background-worker defaults for the postgres migration now match galley and point to cassandra (previously postgres). This currenlty only affects the background job, which is not expected to run before postgres is in use. However, if you relied on the defaults after migrating to postgres, please update your config to keep using postgres. (#4965)
-
-* Since the index mapping has been updated, the elastic search index
-  needs to be refilled from Cassandra, see
-  https://docs.wire.com/latest/developer/reference/elastic-search.html?h=index#refill-es-documents-from-cassandra
 
 * Drop support for kubernetes versions below 1.27 (#4969)
 
