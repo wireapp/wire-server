@@ -6,10 +6,10 @@ CHANGE IN YOUR IDENTITY PROVIDER CONFIGURATION
 Something has changed in the IdP configuration for your team.
 
 Team ID:
-${teamid}
+${team_id}
 
 User ID:
-${userid}
+${user_id}
 
 
 --------------------------------------------------------------------------------
@@ -17,18 +17,18 @@ ${userid}
 Details:
 
 IdP Issuer:
-${idpissuer}
+${idp_issuer}
 
 IdP Endpoint:
-${idpendpoint}
+${idp_endpoint}
 
 IdP ID:
-${idpid}
+${idp_id}
 
 
 --------------------------------------------------------------------------------
 
-${certificatesdetails}If you did not initiate this change, please reach out to the Wire support.
+${certificates_details}If you did not initiate this change, please reach out to the Wire support.
 [${support}]
 
 Privacy Policy and Terms of Use [${legal}]· Report misuse [${misuse}]

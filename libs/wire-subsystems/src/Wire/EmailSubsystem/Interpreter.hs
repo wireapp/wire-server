@@ -94,7 +94,7 @@ sendSAMLIdPChangedImpl ::
 sendSAMLIdPChangedImpl teamTemplates branding to tid mbUid addedCerts removedCerts idPId issuer endpoint mLocale = do
   let tpl = idpConfigChangeEmail . snd $ forLocale mLocale teamTemplates
   mail <-
-    logEmailRenderErrors "team deletion verification email" $
+    logEmailRenderErrors "idp config change email" $
       renderIdPConfigChangeEmail to tpl branding addedCerts removedCerts tid mbUid idPId issuer endpoint
   sendMail mail
 
@@ -127,17 +127,17 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
 
   let replace =
         branding
-          & Map.insert "teamId" ((toText . toUUID) tid)
-          & Map.insert "userId" (maybe "None" (toText . toUUID) uid)
-          & Map.insert "idpIssuer" ((T.decodeUtf8 . serializeURIRef' . _fromIssuer) issuer)
-          & Map.insert "idpEndpoint" ((T.decodeUtf8 . serializeURIRef') endpoint)
-          & Map.insert "idpId" ((toText . fromIdPId) idPId)
+          & Map.insert "team_id" ((toText . toUUID) tid)
+          & Map.insert "user_id" (maybe "None" (toText . toUUID) uid)
+          & Map.insert "idp_issuer" ((T.decodeUtf8 . serializeURIRef' . _fromIssuer) issuer)
+          & Map.insert "idp_endpoint" ((T.decodeUtf8 . serializeURIRef') endpoint)
+          & Map.insert "idp_id" ((toText . fromIdPId) idPId)
       replaceHtml =
         replace
-          & Map.insert "idpDetails" (T.unlines [idpDetailsAddedHtml, idpDetailsRemovedHtml])
+          & Map.insert "certificates_details" (T.unlines [idpDetailsAddedHtml, idpDetailsRemovedHtml])
       replaceText =
         replace
-          & Map.insert "idpDetails" (T.unlines [idpDetailsAddedText, idpDetailsRemovedText])
+          & Map.insert "certificates_details" (T.unlines [idpDetailsAddedText, idpDetailsRemovedText])
 
   txt <- renderTextWithBrandingSem idpConfigChangeEmailBodyText replaceText
   html <- renderHtmlWithBrandingSem idpConfigChangeEmailBodyHtml replaceHtml
