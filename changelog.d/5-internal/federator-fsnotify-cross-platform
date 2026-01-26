@@ -1,3 +1,0 @@
-Federator: Replace Linux-only hinotify with cross-platform fsnotify library
-for certificate file monitoring. This enables native file system watching
-on both Linux and macOS, removing the need for platform-specific stubs.
