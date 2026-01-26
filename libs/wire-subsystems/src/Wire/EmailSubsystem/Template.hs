@@ -19,16 +19,20 @@
 
 module Wire.EmailSubsystem.Template where
 
+import Control.Exception
+import Data.ByteString qualified as BS
 import Data.Map qualified as Map
+import Data.Text (pack, unpack)
 import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as Lazy
 import Data.Text.Template
 import HTMLEntities.Text qualified as HTML
-import Imports
+import Imports hiding (readFile)
 import Polysemy
 import Polysemy.Output
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
+import System.IO.Error (isDoesNotExistError)
 import System.Logger (field, msg, val)
 import Wire.API.Locale
 
@@ -97,3 +101,87 @@ logEmailRenderErrors tplName =
               . field "template_name" (val (T.encodeUtf8 tplName))
               . field "unreplaced_variable" (val (T.encodeUtf8 warn))
     )
+
+readLocalesDir ::
+  -- | Default locale.
+  Locale ->
+  -- | Base directory.
+  FilePath ->
+  -- | Template directory (user, provider, team)
+  FilePath ->
+  -- | Handler to load the templates for a locale.
+  (FilePath -> IO a) ->
+  IO (Localised a)
+readLocalesDir defLocale base typ load = do
+  def <- load (basePath defLocaleDir)
+  Localised (defLocale, def) <$> do
+    -- Ignore locales if no such directory exist for the locale
+    ls <-
+      filterM (doesDirectoryExist . basePath)
+        . filter (/= defLocaleDir)
+        =<< listDirectory base
+    Map.fromList . zip (map readLocale ls) <$> mapM (load . basePath) ls
+  where
+    basePath :: FilePath -> FilePath
+    basePath loc = base <> "/" <> loc <> "/" <> typ
+    defLocaleDir :: FilePath
+    defLocaleDir = unpack (locToText defLocale)
+    readLocale :: FilePath -> Locale
+    readLocale l =
+      fromMaybe (error ("Invalid locale: " ++ show l)) $
+        parseLocale (pack l)
+
+readTemplateWithDefault ::
+  FilePath ->
+  Locale ->
+  FilePath ->
+  String ->
+  FilePath ->
+  IO Template
+readTemplateWithDefault = readWithDefault readTemplate
+
+readTemplate :: FilePath -> IO Template
+readTemplate f = template <$> readText f
+
+readFile :: FilePath -> IO Text
+readFile f = T.decodeUtf8 <$> BS.readFile f
+
+readTextWithDefault ::
+  FilePath ->
+  Locale ->
+  FilePath ->
+  String ->
+  FilePath ->
+  IO Text
+readTextWithDefault = readWithDefault readText
+
+readText :: FilePath -> IO Text
+readText f =
+  catchJust
+    (\e -> if isDoesNotExistError e then Just () else Nothing)
+    (readFile f)
+    (\_ -> error $ "Missing file: '" ++ f)
+
+readWithDefault ::
+  (String -> IO a) ->
+  FilePath ->
+  Locale ->
+  FilePath ->
+  String ->
+  FilePath ->
+  IO a
+readWithDefault readFn baseDir defLoc typ prefix name = do
+  exists <- doesFileExist fileToLoad
+  if exists
+    then readFn fileToLoad
+    else readFn fallback
+  where
+    fileToLoad = prefix <> "/" <> name
+    fallback =
+      baseDir
+        <> "/"
+        <> unpack (locToText defLoc)
+        <> "/"
+        <> typ
+        <> "/"
+        <> name
