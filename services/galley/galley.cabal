@@ -240,7 +240,6 @@ library
     Galley.Schema.V97_CellsConversation
     Galley.Schema.V98_ChannelAddPermission
     Galley.Schema.V99_ConversationAddParent
-    Galley.Validation
 
   ghc-options:     -fplugin=Polysemy.Plugin
   other-modules:   Paths_galley

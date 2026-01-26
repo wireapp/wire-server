@@ -138,7 +138,8 @@ createConversationImpl ::
   Sem r StoredConversation
 createConversationImpl lconv lusr newConv = do
   storedConv <- ConvStore.upsertConversation lconv newConv
-  notifyCreatedConversation lusr Nothing storedConv def
+  unless (Data.convType storedConv == Public.SelfConv) $ do
+    notifyCreatedConversation lusr Nothing storedConv def
   sendCellsNotification lusr Nothing storedConv
   pure storedConv
 

@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 -- This program is distributed in the hope that it will be useful, but WITHOUT
 -- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 -- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
@@ -22,6 +21,8 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE DataKinds #-}
+
 module Wire.ConversationSubsystem.Create
   ( createGroupConversationUpToV3,
     createGroupOwnConversation,
@@ -35,8 +36,7 @@ where
 import Control.Error (headMay)
 import Control.Lens hiding ((??))
 import Data.Default
-import Data.Id
-import Data.Json.Util
+import Data.Id (ConnId, ConvId, Id (toUUID), TeamId, UserId)
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
@@ -86,7 +86,6 @@ import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
-import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, localOne2OneConvId)
@@ -96,7 +95,7 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-import Wire.UserList
+import Wire.UserList (UserList (UserList), toUserList, ulAddLocal, ulAll, ulFromLocals, ulLocals, ulRemotes)
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -120,8 +119,6 @@ createGroupConversationUpToV3 ::
     Member (ErrorS NotAnMlsConversation) r,
     Member (ErrorS HistoryNotSupported) r,
     Member (Error UnreachableBackendsLegacy) r,
-    Member NotificationSubsystem r,
-    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -162,9 +159,7 @@ createGroupOwnConversation ::
     Member (Error UnreachableBackends) r,
     Member (ErrorS HistoryNotSupported) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -209,9 +204,7 @@ createGroupConversation ::
     Member (ErrorS HistoryNotSupported) r,
     Member (Error UnreachableBackends) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
@@ -237,8 +230,7 @@ createGroupConversation lusr conn newConv = do
     )
 
 createGroupConvAndMkResponse ::
-  ( Member Now r,
-    Member (ErrorS OperationDenied) r,
+  ( Member (ErrorS OperationDenied) r,
     Member (ErrorS ConvAccessDenied) r,
     Member (ErrorS NotATeamMember) r,
     Member (ErrorS NotConnected) r,
@@ -258,7 +250,6 @@ createGroupConvAndMkResponse ::
     Member BrigAPIAccess r,
     Member ConversationStore r,
     Member ConversationSubsystem.ConversationSubsystem r,
-    Member NotificationSubsystem r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
@@ -300,7 +291,6 @@ createGroupConversationGeneric ::
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
@@ -312,7 +302,7 @@ createGroupConversationGeneric ::
   Maybe ConnId ->
   NewConv ->
   Sem r StoredConversation
-createGroupConversationGeneric lusr conn newConv = do
+createGroupConversationGeneric lusr _conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
@@ -323,28 +313,10 @@ createGroupConversationGeneric lusr conn newConv = do
     -- Here we fail early in order to notify users of this misconfiguration
     assertMLSEnabled
 
-  lcnv <- traverse (const $ Id <$> Random.uuid) lusr
+  lcnv <- traverse (const Random.newId) lusr
   conv <- ConversationSubsystem.createConversation lcnv lusr nc
-  -- NOTE: We only send (conversation) events to members of the conversation
-  sendCellsNotification conv
   E.getConversation conv.id_
     >>= note (BadConvState conv.id_)
-  where
-    sendCellsNotification :: StoredConversation -> Sem r ()
-    sendCellsNotification conv = do
-      now <- Now.get
-      let lconv = qualifyAs lusr conv.id_
-          event = CellsEvent (tUntagged lconv) (tUntagged lusr) now CellsConvCreateNoData
-      when (conv.metadata.cnvmCellsState /= CellsDisabled) $ do
-        let push =
-              def
-                { origin = Just (tUnqualified lusr),
-                  json = toJSONObject event,
-                  isCellsEvent = True,
-                  route = PushV2.RouteAny,
-                  conn
-                }
-        pushNotifications [push]
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -670,7 +642,7 @@ createOne2OneConversationRemotely ::
   Maybe TeamId ->
   Qualified UserId ->
   Sem r (ConversationResponse Public.OwnConversation)
-createOne2OneConversationRemotely _ _ _ _ _ _ =
+createOne2OneConversationRemotely _ _ _ _name _mtid _ =
   throw FederationNotImplemented
 
 createConnectConversation ::
