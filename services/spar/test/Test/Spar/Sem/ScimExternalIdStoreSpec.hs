@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
 --
