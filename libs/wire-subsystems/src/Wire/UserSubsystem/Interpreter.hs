@@ -999,7 +999,7 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
       then pure accsByIds
       else garbageCollect accsByIds
 
-  pure $ filter (\u -> and [filterPendingInvitations u, filterNoIdentity u]) (nubOrd $ afterGC)
+  pure $ filter (\u -> filterPendingInvitations u && filterNoIdentity u) (nubOrd $ afterGC)
   where
     filterPendingInvitations :: User -> Bool
     filterPendingInvitations user =
