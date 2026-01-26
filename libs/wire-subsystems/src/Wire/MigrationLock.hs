@@ -14,10 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Wire.MigrationLock where
 
-import Data.Proxy
 import Data.Vector (Vector)
 import Hasql.Pool qualified as Hasql
 import Hasql.Session qualified as Session
@@ -38,7 +39,7 @@ import Wire.Postgres
 
 class MigrationLockable a where
   -- | namespace (e.g. "conv", "user", etc.), used for logging only
-  lockScope :: proxy a -> ByteString
+  lockScope :: ByteString
 
   -- | globally unique key
   lockKey :: a -> Int64
@@ -89,7 +90,7 @@ withMigrationLocks lockType maxWait lockables action = do
   let logFirstLock =
         case lockables of
           [] -> id
-          (x : _) -> Log.field ("first_" <> lockScope (Proxy @x)) (lockKey x)
+          (x : _) -> Log.field ("first_" <> lockScope @x) (lockKey x)
       logError errorStr =
         TinyLog.warn $
           Log.msg (Log.val "Failed to cleanly unlock the migration locks")

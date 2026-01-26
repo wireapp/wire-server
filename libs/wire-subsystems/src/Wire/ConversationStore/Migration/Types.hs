@@ -49,11 +49,11 @@ data AllConvData = AllConvData
 
 instance MigrationLockable ConvId where
   lockKey = hashUUID
-  lockScope _ = "conv"
+  lockScope = "conv"
 
 instance MigrationLockable UserId where
   lockKey = hashUUID
-  lockScope _ = "user"
+  lockScope = "user"
 
 hashUUID :: Id a -> Int64
 hashUUID (toUUID -> uuid) =
