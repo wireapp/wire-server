@@ -990,9 +990,8 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
     wither lookupHandle getByHandle
 
   accsByIds :: [User] <-
-    ( getUsers (nubOrd $ handleUserIds <> getByUserId)
-        <&> map storedToExtAcc
-    )
+    getUsers (nubOrd $ handleUserIds <> getByUserId)
+      <&> map storedToExtAcc
 
   afterGC :: [User] <-
     if includeUsersWithExpiredInvitations
