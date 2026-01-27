@@ -47,7 +47,7 @@ import Wire.UserStore
 -- - Update, Delete
 spec :: Spec
 spec = do
-  let testLocals :: [Locale] = fromMaybe (error "Unknown locale") . parseLocale <$> ["en", "en_EN", "en_GB", "es", "es_ES"]
+  let testLocals :: [Locale] = fromMaybe (error "Unknown locale") . parseLocale <$> ["en", "en-EN", "en-GB", "es", "es-ES"]
       teamOpts =
         TeamOpts
           { tInvitationUrl = "https://example.com/join/?team-code=${code}",
