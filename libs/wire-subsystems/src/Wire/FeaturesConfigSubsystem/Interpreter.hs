@@ -100,7 +100,7 @@ getAllTeamFeaturesImpl tid = do
   where
     compute :: forall p. (GetFeatureConfig p) => LockableFeature p -> K (Maybe DbFeaturePatch) p -> (Sem r :.: LockableFeature) p
     compute defFeature (K mPatch) = Comp $ do
-      dbFeature <- maybe mempty id <$> traverse parseDbFeatureOrThrow mPatch
+      dbFeature <- fromMaybe mempty <$> traverse parseDbFeatureOrThrow mPatch
       computeFeature tid defFeature dbFeature
 
 getAllTeamFeaturesForServerImpl :: forall r. (Member (Input FeatureFlags) r) => Sem r AllTeamFeatures
@@ -117,7 +117,7 @@ getDbFeatureRawInternalImpl ::
   ) =>
   TeamId -> Sem r (DbFeature cfg)
 getDbFeatureRawInternalImpl tid =
-  maybe mempty id <$> (getDbFeature @cfg tid >>= traverse parseDbFeatureOrThrow)
+  fromMaybe mempty <$> (getDbFeature @cfg tid >>= traverse parseDbFeatureOrThrow)
 
 parseDbFeatureOrThrow ::
   forall cfg r.
