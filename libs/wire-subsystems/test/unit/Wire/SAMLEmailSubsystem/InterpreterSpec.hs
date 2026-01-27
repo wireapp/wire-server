@@ -43,8 +43,8 @@ import Wire.UserStore
 
 -- TODO tests:
 -- - Other local (found)
--- - Other local (not found)
--- - Update, Delete
+-- - Update
+-- No admin user
 spec :: Spec
 spec = do
   let testLocals :: [Locale] = fromMaybe (error "Unknown locale") . parseLocale <$> ["en", "en-EN", "en-GB", "es", "es-ES"]
@@ -110,6 +110,24 @@ spec = do
         let mail = head mails
         assertCommonMailAttributes mail
         assertMailTextPartWithFile mail "deleted_en.txt"
+
+      it "should send an email on IdPUpdated" $ do
+        idp :: IdP <- liftIO $ generate arbitrary
+        idp2 :: IdP <- liftIO $ generate arbitrary
+        storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+        let idp' = patchIdP idp teamId
+            idp2' = patchIdP idp teamId
+            storedUser' = patchStoredUser storedUser teamId userLocale uid
+            notif = IdPUpdated uid idp' idp2'
+        teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
+        (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          sendSAMLIdPChanged notif
+        length mails `shouldBe` 1
+        -- Templating issues are logged on level `Warn`
+        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+        let mail = head mails
+        assertCommonMailAttributes mail
+        assertMailTextPartWithFile mail "updated_en.txt"
 
 patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
 patchIdP idp teamId =

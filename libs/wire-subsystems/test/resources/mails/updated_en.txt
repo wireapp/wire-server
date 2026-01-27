@@ -1,0 +1,37 @@
+[https://wire.example.com/p/img/email/logo-email-black.png]
+
+wire.example.com [https://wire.example.com]
+
+CHANGE IN YOUR IDENTITY PROVIDER CONFIGURATION
+Something has changed in the IdP configuration for your team.
+
+Team ID:
+99f552d8-9dad-60c1-4be9-c88fb532893a
+
+User ID:
+4a1ce4ea-5c99-d01e-018f-4dc9d08f787a
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP Issuer:
+https://issuer.example.com/realm
+
+IdP Endpoint:
+https://saml-endpoint.example.com/auth
+
+IdP ID:
+574ddfb0-4e50-2bff-e924-33ee2b9f7064
+
+
+--------------------------------------------------------------------------------
+
+
+
+If you did not initiate this change, please reach out to the Wire support.
+[https://support.wire.com/]
+
+Privacy Policy and Terms of Use [https://wire.example.com/legal/]· Report misuse [misuse@wire.example.com]
+© WIRE SWISS GmbH. All rights reserved.
