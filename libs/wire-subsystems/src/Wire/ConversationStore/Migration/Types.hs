@@ -1,5 +1,4 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,14 +19,10 @@
 
 module Wire.ConversationStore.Migration.Types where
 
-import Data.Bits
-import Data.Id
-import Data.UUID qualified as UUID
 import Imports
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
 import Wire.ConversationStore.MLS.Types
-import Wire.MigrationLock
 import Wire.StoredConversation
 
 data ConvMLSDetails = ConvMLSDetails
@@ -46,17 +41,3 @@ data AllConvData = AllConvData
     mlsDetails :: Maybe ConvMLSDetails,
     subConvs :: [AllSubConvData]
   }
-
-instance MigrationLockable ConvId where
-  lockKey = hashUUID
-  lockScope = "conv"
-
-instance MigrationLockable UserId where
-  lockKey = hashUUID
-  lockScope = "user"
-
-hashUUID :: Id a -> Int64
-hashUUID (toUUID -> uuid) =
-  let (w1, w2) = UUID.toWords64 uuid
-      mixed = w1 `xor` (w2 `shiftR` 32) `xor` (w2 `shiftL` 32)
-   in fromIntegral mixed

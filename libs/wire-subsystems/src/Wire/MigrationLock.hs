@@ -16,9 +16,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Wire.MigrationLock where
 
+import Data.Bits
+import Data.Id
+import Data.UUID qualified as UUID
 import Data.Vector (Vector)
 import Hasql.Pool qualified as Hasql
 import Hasql.Session qualified as Session
@@ -41,7 +45,7 @@ class MigrationLockable a where
   -- | namespace (e.g. "conv", "user", etc.), used for logging only
   lockScope :: ByteString
 
-  -- | globally unique key
+  -- | key used for advisory locks; should be collision-resistant (unique with high probability)
   lockKey :: a -> Int64
 
 data LockType
@@ -130,3 +134,20 @@ withMigrationLocks lockType maxWait lockables action = do
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_unlock_shared(lockId)
                                        FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+
+--------------------------------------------------------------------------------
+-- INSTANCES
+
+instance MigrationLockable ConvId where
+  lockKey = hashUUID
+  lockScope = "conv"
+
+instance MigrationLockable UserId where
+  lockKey = hashUUID
+  lockScope = "user"
+
+hashUUID :: Id a -> Int64
+hashUUID (toUUID -> uuid) =
+  let (w1, w2) = UUID.toWords64 uuid
+      mixed = w1 `xor` (w2 `shiftR` 32) `xor` (w2 `shiftL` 32)
+   in fromIntegral mixed
