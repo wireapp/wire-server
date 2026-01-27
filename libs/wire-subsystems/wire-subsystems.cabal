@@ -87,6 +87,7 @@ common common-all
     , aeson-pretty
     , amazonka
     , amazonka-core
+    , amazonka-dynamodb
     , amazonka-ses
     , amazonka-sqs
     , amqp
@@ -162,6 +163,7 @@ common common-all
     , saml2-web-sso
     , schema-profunctor
     , servant
+    , MonadRandom
     , servant-client-core
     , servant-server
     , singletons
@@ -225,6 +227,9 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.ClientStore
+    Wire.ClientStore.Cassandra
+    Wire.ClientStore.DynamoDB
     Wire.CodeStore
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries

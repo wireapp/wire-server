@@ -55,6 +55,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Error (zauthError)
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
+import Wire.ClientStore (ClientStore)
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Error (HttpError (..))
@@ -87,7 +88,8 @@ accessH ::
     Member Now r,
     Member AuthenticationSubsystem r,
     Member Random r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -115,7 +117,8 @@ access ::
     Member Now r,
     Member AuthenticationSubsystem r,
     Member Random r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->

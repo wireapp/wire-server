@@ -38,7 +38,6 @@ import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
-import Brig.Data.Client
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
@@ -75,6 +74,8 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -234,7 +235,8 @@ renewAccess ::
     Member Now r,
     Member AuthenticationSubsystem r,
     Member Random r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   NE.NonEmpty (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -242,7 +244,7 @@ renewAccess ::
   ExceptT ZAuth.Failure (AppT r) (Access u)
 renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
-  wrapClientE $ traverse_ (checkClientId uid) mcid
+  traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
   mapExceptT liftSem $ do
@@ -510,6 +512,6 @@ assertLegalHoldEnabled tid = do
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
 
-checkClientId :: (MonadClient m) => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
+checkClientId :: (Member ClientStore r) => UserId -> ClientId -> ExceptT ZAuth.Failure (AppT r) ()
 checkClientId uid cid =
-  lookupClient uid cid >>= maybe (throwE ZAuth.Invalid) (const (pure ()))
+  lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ZAuth.Invalid) (const (pure ()))

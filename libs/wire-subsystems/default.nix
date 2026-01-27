@@ -7,6 +7,7 @@
 , aeson-pretty
 , amazonka
 , amazonka-core
+, amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
 , amqp
@@ -71,6 +72,7 @@
 , memory
 , mime
 , mime-mail
+, MonadRandom
 , mtl
 , network
 , network-conduit-tls
@@ -139,6 +141,7 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
     amqp
@@ -198,6 +201,7 @@ mkDerivation {
     memory
     mime
     mime-mail
+    MonadRandom
     mtl
     network
     network-conduit-tls
@@ -258,6 +262,7 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
     amqp
@@ -317,6 +322,7 @@ mkDerivation {
     memory
     mime
     mime-mail
+    MonadRandom
     network
     network-conduit-tls
     network-uri

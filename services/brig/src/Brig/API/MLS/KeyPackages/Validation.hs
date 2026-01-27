@@ -26,7 +26,6 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
-import Brig.Data.Client qualified as Data
 import Brig.Options
 import Control.Applicative
 import Data.ByteString qualified as LBS
@@ -34,6 +33,7 @@ import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
+import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
@@ -44,8 +44,11 @@ import Wire.API.MLS.Lifetime
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 
 validateUploadedKeyPackage ::
+  (Member ClientStore r) =>
   ClientIdentity ->
   RawMLS KeyPackage ->
   Handler r (KeyPackageRef, CipherSuiteTag, KeyPackageData)
@@ -61,8 +64,8 @@ validateUploadedKeyPackage identity kp = do
     loc
     ( \_ -> do
         mkey :: Maybe LByteString <-
-          lift . wrapClient $
-            Data.lookupMLSPublicKey
+          lift . liftSem $
+            ClientStore.lookupMLSPublicKey
               (ciUser identity)
               (ciClient identity)
               (csSignatureScheme cs)
