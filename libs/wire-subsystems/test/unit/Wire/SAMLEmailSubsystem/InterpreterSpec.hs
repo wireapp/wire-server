@@ -14,6 +14,7 @@ import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..))
 import Polysemy
 import Polysemy.State
 import SAML2.WebSSO
+import System.FilePath
 import System.Logger qualified as Logger
 import Test.Hspec
 import Test.QuickCheck (Arbitrary (arbitrary), generate, suchThat)
@@ -128,7 +129,7 @@ spec = do
       let textPart =
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
-      englishCreateMailContent <- TL.stripEnd <$> TL.readFile "test/resources/mails/created_en.txt"
+      englishCreateMailContent <- readTextPartFile "created_en.txt"
       case textPart.partContent of
         PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
         NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
@@ -213,10 +214,13 @@ spec = do
       let textPart =
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
-      englishCreateMailContent <- TL.stripEnd <$> TL.readFile "test/resources/mails/deleted_en.txt"
+      englishCreateMailContent <- readTextPartFile "deleted_en.txt"
       case textPart.partContent of
         PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
         NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
+
+readTextPartFile :: FilePath -> IO TL.Text
+readTextPartFile file = TL.stripEnd <$> TL.readFile ("test" </> "resources" </> "mails" </> file)
 
 -- | Records logs and mails
 runInterpreters ::
