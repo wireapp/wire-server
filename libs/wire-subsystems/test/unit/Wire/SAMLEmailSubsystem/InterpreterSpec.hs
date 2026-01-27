@@ -77,6 +77,11 @@ spec = do
             ("forgot", "https://wire.example.com/forgot/"),
             ("support", "https://support.wire.com/")
           ]
+
+  -- Run duplicated IO tasks here to save some time
+  teamTemplates :: Localised TeamTemplates <- runIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
+  newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
+
   describe "SendSAMLIdPChanged" $ forM_ testLocals $ \(userLocale :: Locale) -> do
     context (show userLocale) do
       it "should send an email on IdPCreated" $ do
@@ -85,8 +90,6 @@ spec = do
         let idp' = patchIdP idp teamId
             storedUser' = patchStoredUser storedUser teamId userLocale uid
             notif = IdPCreated (Just uid) idp'
-
-        teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
 
         (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
           sendSAMLIdPChanged notif
@@ -103,7 +106,6 @@ spec = do
         let idp' = patchIdP idp teamId
             storedUser' = patchStoredUser storedUser teamId userLocale uid
             notif = IdPDeleted uid idp'
-        teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
         (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
           sendSAMLIdPChanged notif
         length mails `shouldBe` 1
@@ -116,7 +118,6 @@ spec = do
       it "should send an email on IdPUpdated" $ do
         idp :: IdP <- liftIO $ generate arbitrary
         idp2 :: IdP <- liftIO $ generate arbitrary
-        newCerts <- X509.readCertificates "test/resources/saml/certs.store"
         storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
         let idp' = patchIdP idp teamId
             idp2' =
@@ -128,7 +129,6 @@ spec = do
                 }
             storedUser' = patchStoredUser storedUser teamId userLocale uid
             notif = IdPUpdated uid idp' idp2'
-        teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
         (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
           sendSAMLIdPChanged notif
         length mails `shouldBe` 1
