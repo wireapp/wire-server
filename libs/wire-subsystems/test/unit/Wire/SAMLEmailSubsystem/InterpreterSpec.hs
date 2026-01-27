@@ -39,6 +39,10 @@ import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI (interpretTeamSubsystemToGalleyAPI)
 import Wire.UserStore
 
+-- TODO tests:
+-- - Other local (found)
+-- - Other local (not found)
+-- - Update, Delete
 spec :: Spec
 spec = do
   describe "SendSAMLIdPChanged" $ do
@@ -124,9 +128,12 @@ spec = do
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
       case textPart.partContent of
-        PartContent content ->
-          (decodeUtf8 content)
-            `shouldBe` [r|[https://wire.example.com/p/img/email/logo-email-black.png]
+        PartContent content -> (decodeUtf8 content) `shouldBe` createTextEnglish
+        NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
+
+createTextEnglish :: LText
+createTextEnglish =
+  [r|[https://wire.example.com/p/img/email/logo-email-black.png]
 
 wire.example.com [https://wire.example.com]
 
@@ -176,7 +183,6 @@ If you did not initiate this change, please reach out to the Wire support.
 
 Privacy Policy and Terms of Use [https://wire.example.com/legal/]· Report misuse [misuse@wire.example.com]
 © WIRE SWISS GmbH. All rights reserved.|]
-        NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
 -- | Records logs and mails
 runInterpreters ::
