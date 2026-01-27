@@ -25,7 +25,6 @@ import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
-import Galley.API.Teams.Features.Get (getAllTeamFeaturesForServer)
 import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription)
 import Galley.Types.Teams (FeatureDefaults (FeatureLegalHoldDisabledPermanently), FeatureFlags)
 import Hasql.Pool (UsageError)
@@ -51,6 +50,7 @@ import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
 import Wire.ExternalAccess.External
+import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
 import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
@@ -165,6 +165,9 @@ dispatchJob job = do
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess (Just $ backendQueueEnv env)
         . runRpcWithHttp env.httpManager job.requestId
         . runGundeckAPIAccess env.gundeckEndpoint
+        -- FUTUREWORK: Currently the brig access effect is needed for the interpreter of ExternalAccess.
+        -- At the time of implementation the only function used from ExternalAccess is deliverAsync, which will not call brig access.
+        -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
         . interpretBrigAccess env.brigEndpoint
         . interpretExternalAccess extEnv
         . interpretSparAPIAccessToRpc (error "Spar endpoint")

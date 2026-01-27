@@ -46,12 +46,12 @@ import Galley.API.MLS.Removal
 import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome
+import Galley.API.Mapping
+import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
 import Galley.API.Push
 import Galley.App
 import Galley.Effects
-import Galley.Mapping
-import Galley.Mapping qualified as Mapping
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Galley.Types.Error

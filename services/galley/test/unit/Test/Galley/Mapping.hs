@@ -25,7 +25,7 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.Mapping
+import Galley.API.Mapping
 import Galley.Types.Error (InternalError)
 import Imports
 import Polysemy (Sem)

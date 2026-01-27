@@ -92,12 +92,12 @@ import Data.Singletons
 import Data.Vector qualified as V
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
+import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.App
 import Galley.Effects
-import Galley.Mapping
 import Galley.Options
 import Galley.Types.Error
 import Galley.Types.Teams (FanoutLimit)

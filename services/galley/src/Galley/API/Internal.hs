@@ -38,10 +38,10 @@ import Data.Singletons
 import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
+import Galley.API.Create qualified as Create
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
-import Galley.API.Public.Conversation qualified as Public
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
 import Galley.API.Teams
@@ -115,7 +115,7 @@ internalAPI =
   hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" rmUser
-      <@> mkNamedAPI @"connect" Public.createConnectConversation
+      <@> mkNamedAPI @"connect" Create.createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI

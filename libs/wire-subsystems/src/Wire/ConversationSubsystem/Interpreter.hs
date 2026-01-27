@@ -6,7 +6,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
@@ -351,9 +350,8 @@ createConversationImpl ::
   Local UserId ->
   Data.NewConversation ->
   Sem r StoredConversation
-createConversationImpl lconv _lusr nc = do
-  storedConv <- ConvStore.upsertConversation lconv nc
-  pure storedConv
+createConversationImpl lconv _lusr =
+  ConvStore.upsertConversation lconv
 
 createConnectConversationLogic ::
   ( Member ConversationStore r,

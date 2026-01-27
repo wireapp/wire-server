@@ -1,4 +1,29 @@
-module Galley.Mapping where
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module Galley.API.Mapping
+  ( conversationViewV9,
+    conversationView,
+    conversationViewWithCachedOthers,
+    remoteConversationView,
+    conversationToRemote,
+    localMemberToSelf,
+  )
+where
 
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
@@ -14,6 +39,9 @@ import Wire.API.Conversation qualified as Conversation
 import Wire.API.Federation.API.Galley
 import Wire.StoredConversation
 
+-- | View for a given user of a stored conversation.
+--
+-- Throws @BadMemberState@ when the user is not part of the conversation.
 conversationViewV9 ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
@@ -44,6 +72,9 @@ conversationView l luid conv =
           protocol = conv.protocol
         }
 
+-- | Like 'conversationView' but optimized for situations which could benefit
+-- from pre-computing the list of @OtherMember@s in the conversation. For
+-- instance, creating @ConversationView@ for more than 1 member of the same conversation.
 conversationViewWithCachedOthers ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
@@ -65,6 +96,9 @@ conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
           +++ idToText conv.id_
       throw BadMemberState
 
+-- | View for a given user of a stored conversation.
+--
+-- Returns 'Nothing' if the user is not part of the conversation.
 conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe OwnConversation
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
@@ -77,6 +111,7 @@ conversationViewMaybe luid remoteOthers localOthers conv = do
       (OwnConvMembers self others)
       conv.protocol
 
+-- | View for a local user of a remote conversation.
 remoteConversationView ::
   Local UserId ->
   MemberStatus ->
@@ -100,6 +135,10 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
         (OwnConvMembers self others)
         rconv.protocol
 
+-- | Convert a local conversation to a structure to be returned to a remote
+-- backend.
+--
+-- This returns 'Nothing' if the given remote user is not part of the conversation.
 conversationToRemote ::
   Domain ->
   Remote UserId ->
@@ -124,6 +163,8 @@ conversationToRemote localDomain ruid conv = do
         protocol = conv.protocol
       }
 
+-- | Convert a local conversation member (as stored in the DB) to a publicly
+-- facing 'Member' structure.
 localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
 localMemberToSelf loc lm =
   Conversation.Member

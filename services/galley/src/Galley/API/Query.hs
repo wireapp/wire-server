@@ -69,11 +69,11 @@ import Data.Tagged
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
+import Galley.API.Mapping
+import Galley.API.Mapping qualified as Mapping
 import Galley.API.Teams.Features.Get
 import Galley.Effects
 import Galley.Env
-import Galley.Mapping
-import Galley.Mapping qualified as Mapping
 import Galley.Types.Error
 import Imports
 import Polysemy
