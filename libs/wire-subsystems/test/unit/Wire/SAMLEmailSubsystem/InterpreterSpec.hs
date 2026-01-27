@@ -92,7 +92,6 @@ spec = do
       length mails `shouldBe` 1
       -- Templating issues are logged on level `Warn`
       filter (\(level, _) -> level > Info) logs `shouldBe` mempty
-      print mails
       let mail = head mails
       mail.mailFrom
         `shouldBe` Address
@@ -112,7 +111,9 @@ spec = do
           [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
             ("X-Zeta-Purpose", "IdPConfigChange")
           ]
-      let Just textPart :: Maybe Part = find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
+      let textPart =
+            fromMaybe (error "No text part found") $
+              find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
       case textPart.partContent of
         PartContent content ->
           (decodeUtf8 content)
@@ -166,6 +167,7 @@ If you did not initiate this change, please reach out to the Wire support.
 
 Privacy Policy and Terms of Use [https://wire.example.com/legal/]· Report misuse [misuse@wire.example.com]
 © WIRE SWISS GmbH. All rights reserved.|]
+        NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
 runInterpreters ::
   [StoredUser] ->
