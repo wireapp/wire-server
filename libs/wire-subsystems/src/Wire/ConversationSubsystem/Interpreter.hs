@@ -333,7 +333,6 @@ createProteusSelfConversationLogic lusr = do
                 groupId = Nothing
               }
       conv <- createConversationImpl lcnv lusr nc
-      notifyConversationCreated lusr Nothing conv def
       pure (conv, True)
 
 createConversationImpl ::
