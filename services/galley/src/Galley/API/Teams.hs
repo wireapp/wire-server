@@ -570,7 +570,6 @@ uncheckedAddTeamMember ::
     Member Now r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member (Input FanoutLimit) r,
