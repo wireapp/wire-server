@@ -109,13 +109,7 @@ spec = do
       filter (\(level, _) -> level > Info) logs `shouldBe` mempty
       let mail = head mails
       assertCommonMailAttributes mail
-      let textPart =
-            fromMaybe (error "No text part found") $
-              find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
-      englishCreateMailContent <- readTextPartFile "created_en.txt"
-      case textPart.partContent of
-        PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
-        NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
+      assertMailTextPartWithFile mail "created_en.txt"
 
     it "should send an email on IdPDeleted" $ forM_ testLocals $ \(userLocale :: Locale) -> do
       idp :: IdP <- generate arbitrary
@@ -177,13 +171,7 @@ spec = do
       filter (\(level, _) -> level > Info) logs `shouldBe` mempty
       let mail = head mails
       assertCommonMailAttributes mail
-      let textPart =
-            fromMaybe (error "No text part found") $
-              find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
-      englishCreateMailContent <- readTextPartFile "deleted_en.txt"
-      case textPart.partContent of
-        PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
-        NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
+      assertMailTextPartWithFile mail "deleted_en.txt"
 
 readTextPartFile :: FilePath -> IO TL.Text
 readTextPartFile file = TL.stripEnd <$> TL.readFile ("test" </> "resources" </> "mails" </> file)
@@ -208,6 +196,16 @@ assertCommonMailAttributes mail = do
       [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
         ("X-Zeta-Purpose", "IdPConfigChange")
       ]
+
+assertMailTextPartWithFile :: Mail -> FilePath -> IO ()
+assertMailTextPartWithFile mail renderedTextFile = do
+  let textPart =
+        fromMaybe (error "No text part found") $
+          find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
+  englishCreateMailContent <- readTextPartFile renderedTextFile
+  case textPart.partContent of
+    PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
+    NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
 -- | Records logs and mails
 runInterpreters ::
