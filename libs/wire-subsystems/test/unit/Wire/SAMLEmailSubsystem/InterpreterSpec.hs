@@ -108,24 +108,7 @@ spec = do
       -- Templating issues are logged on level `Warn`
       filter (\(level, _) -> level > Info) logs `shouldBe` mempty
       let mail = head mails
-      mail.mailFrom
-        `shouldBe` Address
-          { addressName = Just "Wire",
-            addressEmail = "wire@example.com"
-          }
-      mail.mailTo
-        `shouldBe` [ Address
-                       { addressName = Nothing,
-                         addressEmail = "some-user@example.com"
-                       }
-                   ]
-      mail.mailCc `shouldBe` []
-      mail.mailBcc `shouldBe` []
-      Set.fromList mail.mailHeaders
-        `shouldBe` Set.fromList
-          [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
-            ("X-Zeta-Purpose", "IdPConfigChange")
-          ]
+      assertCommonMailAttributes mail
       let textPart =
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
@@ -193,24 +176,7 @@ spec = do
       -- Templating issues are logged on level `Warn`
       filter (\(level, _) -> level > Info) logs `shouldBe` mempty
       let mail = head mails
-      mail.mailFrom
-        `shouldBe` Address
-          { addressName = Just "Wire",
-            addressEmail = "wire@example.com"
-          }
-      mail.mailTo
-        `shouldBe` [ Address
-                       { addressName = Nothing,
-                         addressEmail = "some-user@example.com"
-                       }
-                   ]
-      mail.mailCc `shouldBe` []
-      mail.mailBcc `shouldBe` []
-      Set.fromList mail.mailHeaders
-        `shouldBe` Set.fromList
-          [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
-            ("X-Zeta-Purpose", "IdPConfigChange")
-          ]
+      assertCommonMailAttributes mail
       let textPart =
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
@@ -221,6 +187,27 @@ spec = do
 
 readTextPartFile :: FilePath -> IO TL.Text
 readTextPartFile file = TL.stripEnd <$> TL.readFile ("test" </> "resources" </> "mails" </> file)
+
+assertCommonMailAttributes :: Mail -> IO ()
+assertCommonMailAttributes mail = do
+  mail.mailFrom
+    `shouldBe` Address
+      { addressName = Just "Wire",
+        addressEmail = "wire@example.com"
+      }
+  mail.mailTo
+    `shouldBe` [ Address
+                   { addressName = Nothing,
+                     addressEmail = "some-user@example.com"
+                   }
+               ]
+  mail.mailCc `shouldBe` []
+  mail.mailBcc `shouldBe` []
+  Set.fromList mail.mailHeaders
+    `shouldBe` Set.fromList
+      [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
+        ("X-Zeta-Purpose", "IdPConfigChange")
+      ]
 
 -- | Records logs and mails
 runInterpreters ::
