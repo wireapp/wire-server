@@ -48,20 +48,20 @@ import Wire.UserStore
 spec :: Spec
 spec = do
   let testLocals :: [Locale] = fromMaybe (error "Unknown locale") . parseLocale <$> ["en", "en_EN", "en_GB", "es", "es_ES"]
+      teamOpts =
+        TeamOpts
+          { tInvitationUrl = "https://example.com/join/?team-code=${code}",
+            tExistingUserInvitationUrl = "https://example.com/accept-invitation/?team-code=${code}",
+            tActivationUrl = "https://example.com/verify/?key=${key}&code=${code}",
+            tCreatorWelcomeUrl = "https://example.com/creator-welcome-website",
+            tMemberWelcomeUrl = "https://example.com/member-welcome-website"
+          }
+      defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
+      emailSender = unsafeEmailAddress "wire" "example.com"
   describe "SendSAMLIdPChanged" $ do
     it "should send an email on IdPCreated" $ forM_ testLocals $ \(userLocale :: Locale) -> do
       idp :: IdP <- generate arbitrary
       storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
-      let teamOpts =
-            TeamOpts
-              { tInvitationUrl = "https://example.com/join/?team-code=${code}",
-                tExistingUserInvitationUrl = "https://example.com/accept-invitation/?team-code=${code}",
-                tActivationUrl = "https://example.com/verify/?key=${key}&code=${code}",
-                tCreatorWelcomeUrl = "https://example.com/creator-welcome-website",
-                tMemberWelcomeUrl = "https://example.com/member-welcome-website"
-              }
-          defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
-          emailSender = unsafeEmailAddress "wire" "example.com"
       teamTemplates <- loadTeamTemplates teamOpts "templates" defLocale emailSender
       let notif = IdPCreated (Just uid) idp'
           uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
@@ -114,16 +114,6 @@ spec = do
     it "should send an email on IdPDeleted" $ forM_ testLocals $ \(userLocale :: Locale) -> do
       idp :: IdP <- generate arbitrary
       storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
-      let teamOpts =
-            TeamOpts
-              { tInvitationUrl = "https://example.com/join/?team-code=${code}",
-                tExistingUserInvitationUrl = "https://example.com/accept-invitation/?team-code=${code}",
-                tActivationUrl = "https://example.com/verify/?key=${key}&code=${code}",
-                tCreatorWelcomeUrl = "https://example.com/creator-welcome-website",
-                tMemberWelcomeUrl = "https://example.com/member-welcome-website"
-              }
-          defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
-          emailSender = unsafeEmailAddress "wire" "example.com"
       teamTemplates <- loadTeamTemplates teamOpts "templates" defLocale emailSender
       let notif = IdPDeleted uid idp'
           uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
