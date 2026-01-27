@@ -115,7 +115,7 @@ import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..),
 import Wire.Error
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem
-import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Interpreter
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget

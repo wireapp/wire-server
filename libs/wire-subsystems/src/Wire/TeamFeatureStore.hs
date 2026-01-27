@@ -14,19 +14,27 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Wire.TeamFeatureStore where
 
 import Data.Id
+import Data.SOP (K (..))
+import Imports
 import Polysemy
 import Wire.API.Team.Feature
+
+type DbFeaturePatch = LockableFeaturePatch DbConfig
+
+type AllDbFeaturePatches = AllFeatures (K (Maybe DbFeaturePatch))
 
 data TeamFeatureStore m a where
   -- | Returns all stored feature values excluding lock status.
   GetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
-    TeamFeatureStore m (DbFeature cfg)
+    TeamFeatureStore m (Maybe DbFeaturePatch)
   SetDbFeature ::
     FeatureSingleton cfg ->
     TeamId ->
@@ -44,27 +52,30 @@ data TeamFeatureStore m a where
     TeamFeatureStore m ()
   GetAllDbFeatures ::
     TeamId ->
-    TeamFeatureStore m (AllFeatures DbFeature)
+    TeamFeatureStore m AllDbFeaturePatches
 
 getDbFeature ::
+  forall cfg r.
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
-  Sem r (DbFeature cfg)
-getDbFeature tid = send (GetDbFeature featureSingleton tid)
+  Sem r (Maybe DbFeaturePatch)
+getDbFeature tid = send (GetDbFeature (featureSingleton @cfg) tid)
 
 setDbFeature ::
+  forall cfg r.
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
   LockableFeature cfg ->
   Sem r ()
-setDbFeature tid feat = send (SetDbFeature featureSingleton tid feat)
+setDbFeature tid feat = send (SetDbFeature (featureSingleton @cfg) tid feat)
 
 patchDbFeature ::
+  forall cfg r.
   (Member TeamFeatureStore r, IsFeatureConfig cfg) =>
   TeamId ->
   (LockableFeaturePatch cfg) ->
   Sem r ()
-patchDbFeature tid featPatch = send (PatchDbFeature featureSingleton tid featPatch)
+patchDbFeature tid featPatch = send (PatchDbFeature (featureSingleton @cfg) tid featPatch)
 
 setFeatureLockStatus ::
   forall cfg r.
@@ -75,5 +86,5 @@ setFeatureLockStatus ::
 setFeatureLockStatus tid lockStatus =
   send (SetFeatureLockStatus (featureSingleton @cfg) tid lockStatus)
 
-getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r (AllFeatures DbFeature)
+getAllDbFeatures :: (Member TeamFeatureStore r) => TeamId -> Sem r AllDbFeaturePatches
 getAllDbFeatures tid = send (GetAllDbFeatures tid)

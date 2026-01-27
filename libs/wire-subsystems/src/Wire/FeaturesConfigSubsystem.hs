@@ -23,26 +23,15 @@ import Data.Id (TeamId, UserId)
 import Data.Qualified (Local)
 import Imports
 import Polysemy
-import Wire.API.Team.Feature (AllTeamFeatures, LockableFeature)
+import Wire.API.Team.Feature (AllTeamFeatures, DbFeature, LockableFeature)
 import Wire.FeaturesConfigSubsystem.Types
 
 data FeaturesConfigSubsystem m a where
-  GetFeature ::
-    forall cfg m.
-    (GetFeatureConfig cfg) =>
-    UserId -> TeamId -> FeaturesConfigSubsystem m (LockableFeature cfg)
-  GetFeatureForTeam ::
-    forall cfg m.
-    (GetFeatureConfig cfg) =>
-    TeamId -> FeaturesConfigSubsystem m (LockableFeature cfg)
-  GetFeatureForServer ::
-    forall cfg m.
-    (GetFeatureConfig cfg) =>
-    FeaturesConfigSubsystem m (LockableFeature cfg)
-  GetFeatureForTeamUser ::
-    forall cfg m.
-    (GetFeatureConfig cfg) =>
-    UserId -> Maybe TeamId -> FeaturesConfigSubsystem m (LockableFeature cfg)
+  GetDbFeatureRawInternal :: forall cfg m. (GetFeatureConfig cfg) => TeamId -> FeaturesConfigSubsystem m (DbFeature cfg)
+  GetFeature :: forall cfg m. (GetFeatureConfig cfg) => UserId -> TeamId -> FeaturesConfigSubsystem m (LockableFeature cfg)
+  GetFeatureForTeam :: forall cfg m. (GetFeatureConfig cfg) => TeamId -> FeaturesConfigSubsystem m (LockableFeature cfg)
+  GetFeatureForServer :: forall cfg m. (GetFeatureConfig cfg) => FeaturesConfigSubsystem m (LockableFeature cfg)
+  GetFeatureForTeamUser :: forall cfg m. (GetFeatureConfig cfg) => UserId -> Maybe TeamId -> FeaturesConfigSubsystem m (LockableFeature cfg)
   GetAllTeamFeaturesForTeamMember :: Local UserId -> TeamId -> FeaturesConfigSubsystem m AllTeamFeatures
   GetAllTeamFeaturesForTeam :: TeamId -> FeaturesConfigSubsystem m AllTeamFeatures
   GetAllTeamFeaturesForServer :: FeaturesConfigSubsystem m AllTeamFeatures

@@ -17,65 +17,60 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra, TeamFeatureStoreError (..)) where
+module Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra) where
 
 import Cassandra
-import Data.Aeson.Types qualified as A
 import Data.Constraint
 import Data.Id
 import Data.Map qualified as M
-import Data.Text.Lazy qualified as LT
+import Data.Proxy
+import Data.SOP (K (..), hcpure)
+import Data.SOP.Constraint qualified as SOP
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature.TH
 import Wire.ConversationStore.Cassandra.Instances ()
-import Wire.TeamFeatureStore (TeamFeatureStore (..))
+import Wire.TeamFeatureStore (AllDbFeaturePatches, DbFeaturePatch, TeamFeatureStore (..))
 import Wire.Util
-
-data TeamFeatureStoreError = TeamFeatureStoreErrorInternalError LText
 
 interpretTeamFeatureStoreToCassandra ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member (Error TeamFeatureStoreError) r
+    Member (Input ClientState) r
   ) =>
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   GetDbFeature sing tid -> do
-    getDbFeatureDyn sing tid
+    getDbFeatureImpl sing tid
   SetDbFeature sing tid feat -> do
-    setDbFeatureDyn sing tid feat
+    setDbFeatureImpl sing tid feat
   SetFeatureLockStatus sing tid lock -> do
-    setFeatureLockStatusDyn sing tid (Tagged lock)
+    setFeatureLockStatusImpl sing tid (Tagged lock)
   GetAllDbFeatures tid -> do
-    getAllDbFeaturesDyn tid
+    getAllDbFeaturesImpl tid
   PatchDbFeature sing tid feat -> do
-    patchDbFeatureDyn sing tid feat
+    patchDbFeatureImpl sing tid feat
 
-getDbFeatureDyn ::
+getDbFeatureImpl ::
   forall cfg r.
   ( Member (Input ClientState) r,
-    Member (Embed IO) r,
-    Member (Error TeamFeatureStoreError) r
+    Member (Embed IO) r
   ) =>
   FeatureSingleton cfg ->
   TeamId ->
-  Sem r (DbFeature cfg)
-getDbFeatureDyn sing tid = case featureSingIsFeature sing of
+  Sem r (Maybe DbFeaturePatch)
+getDbFeatureImpl sing tid = case featureSingIsFeature sing of
   Dict -> do
     let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
         q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
     (embedClientInput (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg)))) >>= \case
-      Nothing -> pure mempty
+      Nothing -> pure Nothing
       Just (status, lockStatus, config) ->
-        runFeatureParser . parseDbFeature $
-          LockableFeaturePatch {..}
+        pure $ Just LockableFeaturePatch {..}
 
-setDbFeatureDyn ::
+setDbFeatureImpl ::
   forall cfg r.
   ( Member (Input ClientState) r,
     Member (Embed IO) r
@@ -84,8 +79,8 @@ setDbFeatureDyn ::
   TeamId ->
   LockableFeature cfg ->
   Sem r ()
-setDbFeatureDyn sing tid feat =
-  patchDbFeatureDyn
+setDbFeatureImpl sing tid feat =
+  patchDbFeatureImpl
     sing
     tid
     ( LockableFeaturePatch
@@ -95,7 +90,7 @@ setDbFeatureDyn sing tid feat =
         }
     )
 
-patchDbFeatureDyn ::
+patchDbFeatureImpl ::
   forall cfg r.
   ( Member (Input ClientState) r,
     Member (Embed IO) r
@@ -104,7 +99,7 @@ patchDbFeatureDyn ::
   TeamId ->
   LockableFeaturePatch cfg ->
   Sem r ()
-patchDbFeatureDyn sing tid patch = case featureSingIsFeature sing of
+patchDbFeatureImpl sing tid patch = case featureSingIsFeature sing of
   Dict -> embedClientInput $ do
     retry x5 . batch $ do
       setType BatchLogged
@@ -122,7 +117,7 @@ patchDbFeatureDyn sing tid patch = case featureSingIsFeature sing of
     writeConfig :: PrepQuery W (DbConfig, TeamId, Text) ()
     writeConfig = "update team_features_dyn set config = ? where team = ? and feature = ?"
 
-setFeatureLockStatusDyn ::
+setFeatureLockStatusImpl ::
   forall cfg r.
   ( Member (Input ClientState) r,
     Member (Embed IO) r
@@ -131,7 +126,7 @@ setFeatureLockStatusDyn ::
   TeamId ->
   Tagged cfg LockStatus ->
   Sem r ()
-setFeatureLockStatusDyn sing tid (Tagged lockStatus) = case featureSingIsFeature sing of
+setFeatureLockStatusImpl sing tid (Tagged lockStatus) = case featureSingIsFeature sing of
   Dict -> do
     let q :: PrepQuery W (LockStatus, TeamId, Text) ()
         q = "update team_features_dyn set  lock_status = ? where team = ? and feature = ?"
@@ -139,28 +134,26 @@ setFeatureLockStatusDyn sing tid (Tagged lockStatus) = case featureSingIsFeature
       retry x5 $
         write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
 
-getAllDbFeaturesDyn ::
+getAllDbFeaturesImpl ::
   ( Member (Embed IO) r,
-    Member (Input ClientState) r,
-    Member (Error TeamFeatureStoreError) r
+    Member (Input ClientState) r
   ) =>
   TeamId ->
-  Sem r (AllFeatures DbFeature)
-getAllDbFeaturesDyn tid = do
+  Sem r AllDbFeaturePatches
+getAllDbFeaturesImpl tid = do
   let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
       q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
   rows <- embedClientInput $ retry x1 $ query q (params LocalQuorum (Identity tid))
   let m = M.fromList $ do
         (name, status, lockStatus, config) <- rows
         pure (name, LockableFeaturePatch {..})
-  runFeatureParser $ mkAllFeatures m
+  pure $ mkAllDbFeaturePatches m
 
-runFeatureParser ::
-  forall r a.
-  (Member (Error TeamFeatureStoreError) r) =>
-  A.Parser a ->
-  Sem r a
-runFeatureParser p =
-  mapError (TeamFeatureStoreErrorInternalError . LT.pack)
-    . fromEither
-    $ A.parseEither (const p) ()
+mkAllDbFeaturePatches ::
+  (SOP.All IsFeatureConfig Features) =>
+  M.Map Text DbFeaturePatch ->
+  AllDbFeaturePatches
+mkAllDbFeaturePatches m = hcpure (Proxy @IsFeatureConfig) get
+  where
+    get :: forall cfg. (IsFeatureConfig cfg) => K (Maybe DbFeaturePatch) cfg
+    get = K (M.lookup (featureName @cfg) m)
