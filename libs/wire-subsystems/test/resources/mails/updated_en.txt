@@ -28,7 +28,46 @@ IdP ID:
 
 --------------------------------------------------------------------------------
 
+Added:
 
+SHA1 fingerprint:
+54:51:B1:89:6A:A5:1A:A6:21:9B:33:17:49:05:6E:2A:86:62:22:33
+
+Subject:
+Country=US,O=ExampleOrg,OU=Dev1CN=CertOne,Email Address=one@example.com
+
+Issuer:
+Country=US,O=ExampleOrg,OU=Dev1CN=CertOne,Email Address=one@example.com
+
+
+--------------------------------------------------------------------------------
+Added:
+
+SHA1 fingerprint:
+A8:0F:35:E2:94:8D:29:20:87:B2:59:3E:E2:4B:98:55:2B:65:B6:49
+
+Subject:
+Country=DE,O=ExampleOrg,OU=Dev2,CN=CertTwo,Email Address=two@example.com
+
+Issuer:
+Country=DE,O=ExampleOrg,OU=Dev2,CN=CertTwo,Email Address=two@example.com
+
+
+--------------------------------------------------------------------------------
+
+Removed:
+
+SHA1 fingerprint:
+15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37
+
+Subject:
+CN=accounts.accesscontrol.windows.net
+
+Issuer:
+CN=accounts.accesscontrol.windows.net
+
+
+--------------------------------------------------------------------------------
 
 If you did not initiate this change, please reach out to the Wire support.
 [https://support.wire.com/]

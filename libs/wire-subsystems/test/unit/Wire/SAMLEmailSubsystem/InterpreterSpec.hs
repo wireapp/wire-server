@@ -3,12 +3,14 @@ module Wire.SAMLEmailSubsystem.InterpreterSpec (spec) where
 import Data.Default
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Text.Lazy.IO qualified as TL
 import Data.UUID qualified as UUID
+import Data.X509.CertificateStore qualified as X509
 import Imports
 import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..))
 import Polysemy
@@ -114,9 +116,16 @@ spec = do
       it "should send an email on IdPUpdated" $ do
         idp :: IdP <- liftIO $ generate arbitrary
         idp2 :: IdP <- liftIO $ generate arbitrary
+        newCerts <- X509.readCertificates "test/resources/saml/certs.store"
         storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
         let idp' = patchIdP idp teamId
-            idp2' = patchIdP idp teamId
+            idp2' =
+              (patchIdP idp2 teamId)
+                { _idpMetadata =
+                    idp2._idpMetadata
+                      { _edCertAuthnResponse = NE.fromList newCerts
+                      }
+                }
             storedUser' = patchStoredUser storedUser teamId userLocale uid
             notif = IdPUpdated uid idp' idp2'
         teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender

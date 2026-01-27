@@ -540,6 +540,8 @@ test-suite wire-subsystems-tests
     build-tool-depends: hspec-discover:hspec-discover
 
   build-depends:
+    , crypton-x509
+    , crypton-x509-store
     , filepath
     , hspec
     , QuickCheck
