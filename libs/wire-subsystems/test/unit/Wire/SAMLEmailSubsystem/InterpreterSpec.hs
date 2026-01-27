@@ -82,10 +82,10 @@ spec = do
         storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
         let idp' = patchIdP idp teamId
             storedUser' = patchStoredUser storedUser teamId userLocale uid
+            notif = IdPCreated (Just uid) idp'
 
         teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
 
-        let notif = IdPCreated (Just uid) idp'
         (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
           sendSAMLIdPChanged notif
         length mails `shouldBe` 1
@@ -100,8 +100,7 @@ spec = do
         storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
         let idp' = patchIdP idp teamId
             storedUser' = patchStoredUser storedUser teamId userLocale uid
-
-        let notif = IdPDeleted uid idp'
+            notif = IdPDeleted uid idp'
         teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
         (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
           sendSAMLIdPChanged notif
