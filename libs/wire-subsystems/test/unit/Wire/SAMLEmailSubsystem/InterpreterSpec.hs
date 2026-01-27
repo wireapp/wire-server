@@ -1,4 +1,4 @@
-module Wire.SAMLEmailSubsystem.InterpreterSpec where
+module Wire.SAMLEmailSubsystem.InterpreterSpec (spec) where
 
 import Data.Default
 import Data.Id
@@ -18,7 +18,7 @@ import Test.QuickCheck (Arbitrary (arbitrary), generate, suchThat)
 import Text.Email.Parser (unsafeEmailAddress)
 import Text.RawString.QQ (r)
 import URI.ByteString
-import Wire.API.Locale (Locale (..), parseLanguage)
+import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (fullPermissions)
@@ -45,8 +45,9 @@ import Wire.UserStore
 -- - Update, Delete
 spec :: Spec
 spec = do
+  let testLocals :: [Locale] = fromMaybe (error "Unknown locale") . parseLocale <$> ["en", "en_EN", "en_GB", "es", "es_ES"]
   describe "SendSAMLIdPChanged" $ do
-    it "should send an email" $ do
+    it "should send an email on IdPCreated" $ forM_ testLocals $ \(userLocale :: Locale) -> do
       idp :: IdP <- generate arbitrary
       storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
       let teamOpts =
@@ -63,7 +64,6 @@ spec = do
       let notif = IdPCreated (Just uid) idp'
           uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
           teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
-          lang = parseLanguage "en"
           idp' =
             idp
               { _idpId = IdPId . fromJust . UUID.fromString $ "574ddfb0-4e50-2bff-e924-33ee2b9f7064",
@@ -81,8 +81,8 @@ spec = do
             (storedUser :: StoredUser)
               { id = uid,
                 teamId = Just teamId,
-                language = lang,
-                country = Nothing,
+                language = Just userLocale.lLanguage,
+                country = userLocale.lCountry,
                 email = Just $ unsafeEmailAddress "some-user" "example.com"
               }
           teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
@@ -128,11 +128,11 @@ spec = do
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
       case textPart.partContent of
-        PartContent content -> (decodeUtf8 content) `shouldBe` createTextEnglish
+        PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
         NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
-createTextEnglish :: LText
-createTextEnglish =
+englishCreateMailContent :: LText
+englishCreateMailContent =
   [r|[https://wire.example.com/p/img/email/logo-email-black.png]
 
 wire.example.com [https://wire.example.com]
