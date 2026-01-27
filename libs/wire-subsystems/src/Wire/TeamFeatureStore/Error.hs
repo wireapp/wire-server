@@ -15,11 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Wire.TeamFeatureStore.Error where
+
+import Data.Aeson.Types qualified as A
+import Data.Text.Lazy qualified as LT
 import Imports
 import Polysemy
 import Polysemy.Error
-import Data.Text.Lazy qualified as LT
-import qualified Data.Aeson.Types as A
 
 data TeamFeatureStoreError = TeamFeatureStoreErrorInternalError LText
 

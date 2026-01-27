@@ -20,6 +20,7 @@
 module Wire.MigrationLock where
 
 import Data.Bits
+import Data.Hashable (hash)
 import Data.Id
 import Data.UUID qualified as UUID
 import Data.Vector (Vector)
@@ -28,6 +29,9 @@ import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
+import Network.HTTP.Types.Status (status500)
+import Network.Wai.Utilities.Error qualified as WaiError
+import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc.Effect.Race
@@ -37,6 +41,7 @@ import Polysemy.Time.Data.TimeUnit
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Message qualified as Log
+import Wire.API.Error
 import Wire.API.PostgresMarshall
 import Wire.Postgres
 
@@ -55,6 +60,9 @@ data LockType
 
 data MigrationLockError = TimedOutAcquiringLock
   deriving (Show)
+
+instance APIError MigrationLockError where
+  toResponse _ = waiErrorToJSONResponse $ WaiError.mkError status500 "internal-server-error" "Internal Server Error"
 
 withMigrationLocks ::
   forall x a u r.
@@ -136,6 +144,13 @@ withMigrationLocks lockType maxWait lockables action = do
 
 --------------------------------------------------------------------------------
 -- INSTANCES
+
+instance MigrationLockable (TeamId, Text) where
+  lockKey (team, featureName) =
+    let teamHash = hashUUID team
+        featureHash = fromIntegral (hash featureName)
+     in teamHash `xor` rotateL featureHash 1
+  lockScope = "team_feature"
 
 instance MigrationLockable ConvId where
   lockKey = hashUUID

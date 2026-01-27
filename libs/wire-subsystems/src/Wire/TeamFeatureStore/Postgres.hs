@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamFeatureStore.Postgres where
+module Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres) where
 
 import Data.Constraint
 import Data.Id

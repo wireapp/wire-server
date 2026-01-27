@@ -336,6 +336,7 @@ library
     Wire.TeamFeatureStore
     Wire.TeamFeatureStore.Cassandra
     Wire.TeamFeatureStore.Error
+    Wire.TeamFeatureStore.Migrating
     Wire.TeamFeatureStore.Postgres
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
