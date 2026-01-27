@@ -16,7 +16,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Wire.MigrationLock where
 
