@@ -4,6 +4,9 @@ ingress-nginx:
     # Must match the controllerValue on the IngressClass or the controller
     # will ignore the ingress resources.
     class: "k8s.io/{{ .Release.Namespace }}-nginx-ingress"
+    # Accept IngressClass names even if the IngressClass object is not found yet
+    # (controller still filters by the class string).
+    ingressClassByName: true
     ingressClassResource:
         name: "nginx-{{ .Release.Namespace }}"
         # -- Is this ingressClass enabled or not
