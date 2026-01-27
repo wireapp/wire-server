@@ -255,6 +255,7 @@ createGroupConversationGeneric lusr conn newConv = do
   lcnv <- traverse (const Random.newId) lusr
   storedConv <- createConversationImpl lcnv lusr nc
   sendCellsNotification lusr conn storedConv
+  notifyConversationCreated lusr conn storedConv def
   pure storedConv
 
 createOne2OneConversationLogic ::
@@ -332,6 +333,7 @@ createProteusSelfConversationLogic lusr = do
                 groupId = Nothing
               }
       conv <- createConversationImpl lcnv lusr nc
+      notifyConversationCreated lusr Nothing conv def
       pure (conv, True)
 
 createConversationImpl ::
@@ -394,7 +396,9 @@ createConnectConversationLogic lusr conn j = do
     >>= maybe (create lcnv nc) (update n)
   where
     create lcnv nc = do
-      createConversationImpl lcnv lusr nc
+      conv <- createConversationImpl lcnv lusr nc
+      notifyConversationCreated lusr conn conv def
+      pure conv
     update n conv = do
       let mems = conv.localMembers
       if tUnqualified lusr `isMember` mems
@@ -534,7 +538,7 @@ createLegacyOne2OneConversationUnchecked ::
   Maybe TeamId ->
   Local UserId ->
   Sem r (StoredConversation, Bool)
-createLegacyOne2OneConversationUnchecked self _zcon name mtid other = do
+createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
   let meta =
         (defConversationMetadata (Just (tUnqualified self)))
@@ -554,6 +558,7 @@ createLegacyOne2OneConversationUnchecked self _zcon name mtid other = do
     Just c -> pure (c, False)
     Nothing -> do
       conv <- createConversationImpl lcnv self nc
+      notifyConversationCreated self (Just zcon) conv def
       pure (conv, True)
 
 createOne2OneConversationUnchecked ::
@@ -601,7 +606,7 @@ createOne2OneConversationLocally ::
   Maybe TeamId ->
   Qualified UserId ->
   Sem r (StoredConversation, Bool)
-createOne2OneConversationLocally lcnv self _zcon name mtid other = do
+createOne2OneConversationLocally lcnv self zcon name mtid other = do
   mc <- ConvStore.getConversation (tUnqualified lcnv)
   case mc of
     Just c -> pure (c, False)
@@ -620,6 +625,7 @@ createOne2OneConversationLocally lcnv self _zcon name mtid other = do
                 groupId = Nothing
               }
       conv <- createConversationImpl lcnv self nc
+      notifyConversationCreated self (Just zcon) conv def
       pure (conv, True)
 
 createOne2OneConversationRemotely ::

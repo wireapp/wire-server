@@ -1192,3 +1192,79 @@ notifyConversationUpdated lusr conn j conv = do
           conn
         }
     ]
+
+-- | Convert a local conversation member (as stored in the DB) to a publicly
+-- facing 'Member' structure.
+localMemberToSelf :: Local x -> LocalMember -> Public.Member
+localMemberToSelf loc lm =
+  Public.Member
+    { memId = tUntagged . qualifyAs loc $ lm.id_,
+      memService = lm.service,
+      memOtrMutedStatus = msOtrMutedStatus st,
+      memOtrMutedRef = msOtrMutedRef st,
+      memOtrArchived = msOtrArchived st,
+      memOtrArchivedRef = msOtrArchivedRef st,
+      memHidden = msHidden st,
+      memHiddenRef = msHiddenRef st,
+      memConvRoleName = lm.convRoleName
+    }
+  where
+    st = lm.status
+
+-- | View for a given user of a stored conversation.
+--
+-- Returns 'Nothing' if the user is not part of the conversation.
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe Public.OwnConversation
+conversationViewMaybe luid remoteOthers localOthers conv = do
+  let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
+  self <- localMemberToSelf luid <$> listToMaybe selfs
+  let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
+  pure $
+    Public.OwnConversation
+      (tUntagged . qualifyAs luid $ conv.id_)
+      conv.metadata
+      (OwnConvMembers self others)
+      conv.protocol
+
+notifyConversationCreated ::
+  ( Member NotificationSubsystem r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error UnreachableBackends) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member BackendNotificationQueueAccess r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  StoredConversation ->
+  JoinType ->
+  Sem r ()
+notifyConversationCreated lusr conn conv joinType = do
+  now <- Now.get
+  registerRemoteConversationMemberships now lusr (qualifyAs lusr conv) joinType
+  unless (null conv.remoteMembers) $
+    unlessM isFederationConfigured $
+      throw FederationNotConfigured
+
+  let remoteOthers = map remoteMemberToOther $ conv.remoteMembers
+      localOthers = map (localMemberToOther (tDomain lusr)) $ conv.localMembers
+      lusers = conv.localMembers
+      route
+        | Data.convType conv == Public.RegularConv = PushV2.RouteAny
+        | otherwise = PushV2.RouteDirect
+
+  forM_ lusers $ \lm -> do
+    let luid = toLocalUnsafe (tDomain lusr) lm.id_
+    forM_ (conversationViewMaybe luid remoteOthers localOthers conv) $ \ownConv -> do
+      let e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConversation ownConv)
+      pushNotifications
+        [ def
+            { origin = Just (tUnqualified lusr),
+              json = toJSONObject e,
+              recipients = [userRecipient lm.id_],
+              isCellsEvent = shouldPushToCells conv.metadata e,
+              route = route,
+              conn = if lm.id_ == tUnqualified lusr then conn else Nothing
+            }
+        ]
