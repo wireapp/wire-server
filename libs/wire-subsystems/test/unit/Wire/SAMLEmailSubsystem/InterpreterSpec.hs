@@ -58,110 +58,84 @@ spec = do
           }
       defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
       emailSender = unsafeEmailAddress "wire" "example.com"
-  describe "SendSAMLIdPChanged" $ do
-    it "should send an email on IdPCreated" $ forM_ testLocals $ \(userLocale :: Locale) -> do
-      idp :: IdP <- generate arbitrary
-      storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
-      teamTemplates <- loadTeamTemplates teamOpts "templates" defLocale emailSender
-      let notif = IdPCreated (Just uid) idp'
-          uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
-          teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
-          idp' =
-            idp
-              { _idpId = IdPId . fromJust . UUID.fromString $ "574ddfb0-4e50-2bff-e924-33ee2b9f7064",
-                _idpMetadata =
-                  idp._idpMetadata
-                    { _edIssuer = Issuer . either (error . show) Imports.id $ parseURI strictURIParserOptions "https://issuer.example.com/realm",
-                      _edRequestURI = either (error . show) Imports.id $ parseURI strictURIParserOptions "https://saml-endpoint.example.com/auth"
-                    },
-                _idpExtraInfo =
-                  idp._idpExtraInfo
-                    { _team = teamId
-                    }
-              }
-          storedUser' =
-            (storedUser :: StoredUser)
-              { id = uid,
-                teamId = Just teamId,
-                language = Just userLocale.lLanguage,
-                country = userLocale.lCountry,
-                email = Just $ unsafeEmailAddress "some-user" "example.com"
-              }
-          teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
-          teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
-          branding =
-            Map.fromList
-              [ ("brand", "Wire Test"),
-                ("brand_url", "https://wire.example.com"),
-                ("brand_label_url", "wire.example.com"),
-                ("brand_logo", "https://wire.example.com/p/img/email/logo-email-black.png"),
-                ("brand_service", "Wire Service Provider"),
-                ("copyright", "© WIRE SWISS GmbH"),
-                ("misuse", "misuse@wire.example.com"),
-                ("legal", "https://wire.example.com/legal/"),
-                ("forgot", "https://wire.example.com/forgot/"),
-                ("support", "https://support.wire.com/")
-              ]
-      (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
-        sendSAMLIdPChanged notif
-      length mails `shouldBe` 1
-      -- Templating issues are logged on level `Warn`
-      filter (\(level, _) -> level > Info) logs `shouldBe` mempty
-      let mail = head mails
-      assertCommonMailAttributes mail
-      assertMailTextPartWithFile mail "created_en.txt"
+      uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
+      teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
+      teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
+      teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
+      branding =
+        Map.fromList
+          [ ("brand", "Wire Test"),
+            ("brand_url", "https://wire.example.com"),
+            ("brand_label_url", "wire.example.com"),
+            ("brand_logo", "https://wire.example.com/p/img/email/logo-email-black.png"),
+            ("brand_service", "Wire Service Provider"),
+            ("copyright", "© WIRE SWISS GmbH"),
+            ("misuse", "misuse@wire.example.com"),
+            ("legal", "https://wire.example.com/legal/"),
+            ("forgot", "https://wire.example.com/forgot/"),
+            ("support", "https://support.wire.com/")
+          ]
+  describe "SendSAMLIdPChanged" $ forM_ testLocals $ \(userLocale :: Locale) -> do
+    context (show userLocale) do
+      it "should send an email on IdPCreated" $ do
+        idp :: IdP <- liftIO $ generate arbitrary
+        storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+        let idp' = patchIdP idp teamId
+            storedUser' = patchStoredUser storedUser teamId userLocale uid
 
-    it "should send an email on IdPDeleted" $ forM_ testLocals $ \(userLocale :: Locale) -> do
-      idp :: IdP <- generate arbitrary
-      storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
-      teamTemplates <- loadTeamTemplates teamOpts "templates" defLocale emailSender
-      let notif = IdPDeleted uid idp'
-          uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
-          teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
-          idp' =
-            idp
-              { _idpId = IdPId . fromJust . UUID.fromString $ "574ddfb0-4e50-2bff-e924-33ee2b9f7064",
-                _idpMetadata =
-                  idp._idpMetadata
-                    { _edIssuer = Issuer . either (error . show) Imports.id $ parseURI strictURIParserOptions "https://issuer.example.com/realm",
-                      _edRequestURI = either (error . show) Imports.id $ parseURI strictURIParserOptions "https://saml-endpoint.example.com/auth"
-                    },
-                _idpExtraInfo =
-                  idp._idpExtraInfo
-                    { _team = teamId
-                    }
-              }
-          storedUser' =
-            (storedUser :: StoredUser)
-              { id = uid,
-                teamId = Just teamId,
-                language = Just userLocale.lLanguage,
-                country = userLocale.lCountry,
-                email = Just $ unsafeEmailAddress "some-user" "example.com"
-              }
-          teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
-          teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
-          branding =
-            Map.fromList
-              [ ("brand", "Wire Test"),
-                ("brand_url", "https://wire.example.com"),
-                ("brand_label_url", "wire.example.com"),
-                ("brand_logo", "https://wire.example.com/p/img/email/logo-email-black.png"),
-                ("brand_service", "Wire Service Provider"),
-                ("copyright", "© WIRE SWISS GmbH"),
-                ("misuse", "misuse@wire.example.com"),
-                ("legal", "https://wire.example.com/legal/"),
-                ("forgot", "https://wire.example.com/forgot/"),
-                ("support", "https://support.wire.com/")
-              ]
-      (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
-        sendSAMLIdPChanged notif
-      length mails `shouldBe` 1
-      -- Templating issues are logged on level `Warn`
-      filter (\(level, _) -> level > Info) logs `shouldBe` mempty
-      let mail = head mails
-      assertCommonMailAttributes mail
-      assertMailTextPartWithFile mail "deleted_en.txt"
+        teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
+
+        let notif = IdPCreated (Just uid) idp'
+        (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          sendSAMLIdPChanged notif
+        length mails `shouldBe` 1
+        -- Templating issues are logged on level `Warn`
+        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+        let mail = head mails
+        assertCommonMailAttributes mail
+        assertMailTextPartWithFile mail "created_en.txt"
+
+      it "should send an email on IdPDeleted" $ do
+        idp :: IdP <- liftIO $ generate arbitrary
+        storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+        let idp' = patchIdP idp teamId
+            storedUser' = patchStoredUser storedUser teamId userLocale uid
+
+        let notif = IdPDeleted uid idp'
+        teamTemplates :: Localised TeamTemplates <- liftIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
+        (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+          sendSAMLIdPChanged notif
+        length mails `shouldBe` 1
+        -- Templating issues are logged on level `Warn`
+        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+        let mail = head mails
+        assertCommonMailAttributes mail
+        assertMailTextPartWithFile mail "deleted_en.txt"
+
+patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
+patchIdP idp teamId =
+  idp
+    { _idpId = IdPId . fromJust . UUID.fromString $ "574ddfb0-4e50-2bff-e924-33ee2b9f7064",
+      _idpMetadata =
+        idp._idpMetadata
+          { _edIssuer = Issuer . either (error . show) Imports.id $ parseURI strictURIParserOptions "https://issuer.example.com/realm",
+            _edRequestURI = either (error . show) Imports.id $ parseURI strictURIParserOptions "https://saml-endpoint.example.com/auth"
+          },
+      _idpExtraInfo =
+        idp._idpExtraInfo
+          { _team = teamId
+          }
+    }
+
+patchStoredUser :: StoredUser -> TeamId -> Locale -> UserId -> StoredUser
+patchStoredUser storedUser teamId userLocale uid =
+  (storedUser :: StoredUser)
+    { id = uid,
+      teamId = Just teamId,
+      language = Just userLocale.lLanguage,
+      country = userLocale.lCountry,
+      email = Just $ unsafeEmailAddress "some-user" "example.com"
+    }
 
 readTextPartFile :: FilePath -> IO TL.Text
 readTextPartFile file = TL.stripEnd <$> TL.readFile ("test" </> "resources" </> "mails" </> file)
