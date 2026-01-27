@@ -150,7 +150,7 @@ IdP ID:
 Added:
 
 SHA1 fingerprint:
-SHA1
+15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37
 
 Subject:
 CN=accounts.accesscontrol.windows.net

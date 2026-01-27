@@ -88,7 +88,7 @@ sendSAMLIdPChangedImpl notif = do
       let desc = certDescription cert
        in IdPDescription
             { idpDescriptionFingerprintAlgorithm = T.pack desc.fingerprintAlgorithm,
-              idpDescriptionFingerprint = T.pack desc.fingerprintAlgorithm,
+              idpDescriptionFingerprint = T.pack desc.fingerprint,
               idpDescriptionSubject = T.pack desc.subject
             }
 
