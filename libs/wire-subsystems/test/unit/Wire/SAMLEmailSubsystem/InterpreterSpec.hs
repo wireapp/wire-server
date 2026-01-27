@@ -5,7 +5,9 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.Text.Lazy.IO qualified as TL
 import Data.UUID qualified as UUID
 import Imports
 import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..))
@@ -16,7 +18,6 @@ import System.Logger qualified as Logger
 import Test.Hspec
 import Test.QuickCheck (Arbitrary (arbitrary), generate, suchThat)
 import Text.Email.Parser (unsafeEmailAddress)
-import Text.RawString.QQ (r)
 import URI.ByteString
 import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
@@ -127,62 +128,95 @@ spec = do
       let textPart =
             fromMaybe (error "No text part found") $
               find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
+      englishCreateMailContent <- TL.stripEnd <$> TL.readFile "test/resources/mails/created_en.txt"
       case textPart.partContent of
         PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
         NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
-englishCreateMailContent :: LText
-englishCreateMailContent =
-  [r|[https://wire.example.com/p/img/email/logo-email-black.png]
-
-wire.example.com [https://wire.example.com]
-
-CHANGE IN YOUR IDENTITY PROVIDER CONFIGURATION
-Something has changed in the IdP configuration for your team.
-
-Team ID:
-99f552d8-9dad-60c1-4be9-c88fb532893a
-
-User ID:
-4a1ce4ea-5c99-d01e-018f-4dc9d08f787a
-
-
---------------------------------------------------------------------------------
-
-Details:
-
-IdP Issuer:
-https://issuer.example.com/realm
-
-IdP Endpoint:
-https://saml-endpoint.example.com/auth
-
-IdP ID:
-574ddfb0-4e50-2bff-e924-33ee2b9f7064
-
-
---------------------------------------------------------------------------------
-
-Added:
-
-SHA1 fingerprint:
-15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37
-
-Subject:
-CN=accounts.accesscontrol.windows.net
-
-Issuer:
-CN=accounts.accesscontrol.windows.net
-
-
---------------------------------------------------------------------------------
-
-
-If you did not initiate this change, please reach out to the Wire support.
-[https://support.wire.com/]
-
-Privacy Policy and Terms of Use [https://wire.example.com/legal/]· Report misuse [misuse@wire.example.com]
-© WIRE SWISS GmbH. All rights reserved.|]
+    it "should send an email on IdPDeleted" $ forM_ testLocals $ \(userLocale :: Locale) -> do
+      idp :: IdP <- generate arbitrary
+      storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
+      let teamOpts =
+            TeamOpts
+              { tInvitationUrl = "https://example.com/join/?team-code=${code}",
+                tExistingUserInvitationUrl = "https://example.com/accept-invitation/?team-code=${code}",
+                tActivationUrl = "https://example.com/verify/?key=${key}&code=${code}",
+                tCreatorWelcomeUrl = "https://example.com/creator-welcome-website",
+                tMemberWelcomeUrl = "https://example.com/member-welcome-website"
+              }
+          defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
+          emailSender = unsafeEmailAddress "wire" "example.com"
+      teamTemplates <- loadTeamTemplates teamOpts "templates" defLocale emailSender
+      let notif = IdPDeleted uid idp'
+          uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
+          teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
+          idp' =
+            idp
+              { _idpId = IdPId . fromJust . UUID.fromString $ "574ddfb0-4e50-2bff-e924-33ee2b9f7064",
+                _idpMetadata =
+                  idp._idpMetadata
+                    { _edIssuer = Issuer . either (error . show) Imports.id $ parseURI strictURIParserOptions "https://issuer.example.com/realm",
+                      _edRequestURI = either (error . show) Imports.id $ parseURI strictURIParserOptions "https://saml-endpoint.example.com/auth"
+                    },
+                _idpExtraInfo =
+                  idp._idpExtraInfo
+                    { _team = teamId
+                    }
+              }
+          storedUser' =
+            (storedUser :: StoredUser)
+              { id = uid,
+                teamId = Just teamId,
+                language = Just userLocale.lLanguage,
+                country = userLocale.lCountry,
+                email = Just $ unsafeEmailAddress "some-user" "example.com"
+              }
+          teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
+          teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
+          branding =
+            Map.fromList
+              [ ("brand", "Wire Test"),
+                ("brand_url", "https://wire.example.com"),
+                ("brand_label_url", "wire.example.com"),
+                ("brand_logo", "https://wire.example.com/p/img/email/logo-email-black.png"),
+                ("brand_service", "Wire Service Provider"),
+                ("copyright", "© WIRE SWISS GmbH"),
+                ("misuse", "misuse@wire.example.com"),
+                ("legal", "https://wire.example.com/legal/"),
+                ("forgot", "https://wire.example.com/forgot/"),
+                ("support", "https://support.wire.com/")
+              ]
+      (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+        sendSAMLIdPChanged notif
+      length mails `shouldBe` 1
+      -- Templating issues are logged on level `Warn`
+      filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+      let mail = head mails
+      mail.mailFrom
+        `shouldBe` Address
+          { addressName = Just "Wire",
+            addressEmail = "wire@example.com"
+          }
+      mail.mailTo
+        `shouldBe` [ Address
+                       { addressName = Nothing,
+                         addressEmail = "some-user@example.com"
+                       }
+                   ]
+      mail.mailCc `shouldBe` []
+      mail.mailBcc `shouldBe` []
+      Set.fromList mail.mailHeaders
+        `shouldBe` Set.fromList
+          [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
+            ("X-Zeta-Purpose", "IdPConfigChange")
+          ]
+      let textPart =
+            fromMaybe (error "No text part found") $
+              find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
+      englishCreateMailContent <- TL.stripEnd <$> TL.readFile "test/resources/mails/deleted_en.txt"
+      case textPart.partContent of
+        PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
+        NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
 -- | Records logs and mails
 runInterpreters ::
