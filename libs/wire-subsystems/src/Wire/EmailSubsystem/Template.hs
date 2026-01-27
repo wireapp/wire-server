@@ -20,6 +20,7 @@
 module Wire.EmailSubsystem.Template where
 
 import Control.Exception
+import Data.Aeson (FromJSON)
 import Data.ByteString qualified as BS
 import Data.Map qualified as Map
 import Data.Text (pack, unpack)
@@ -35,6 +36,8 @@ import Polysemy.TinyLog qualified as Log
 import System.IO.Error (isDoesNotExistError)
 import System.Logger (field, msg, val)
 import Wire.API.Locale
+import Wire.API.User.EmailAddress (EmailAddress)
+import Wire.EmailSubsystem.Templates.Team
 
 -- | Lookup a localised item from a 'Localised' structure.
 forLocale ::
@@ -185,3 +188,67 @@ readWithDefault readFn baseDir defLoc typ prefix name = do
         <> typ
         <> "/"
         <> name
+
+data TeamOpts = TeamOpts
+  { -- | Team Invitation URL template
+    tInvitationUrl :: !Text,
+    -- | Existing User Invitation URL template
+    tExistingUserInvitationUrl :: !Text,
+    -- | Team Activation URL template
+    tActivationUrl :: !Text,
+    -- | Team Creator Welcome URL
+    tCreatorWelcomeUrl :: !Text,
+    -- | Team Member Welcome URL
+    tMemberWelcomeUrl :: !Text
+  }
+  deriving (Show, Generic)
+
+instance FromJSON TeamOpts
+
+loadTeamTemplates :: TeamOpts -> FilePath -> Locale -> EmailAddress -> IO (Localised TeamTemplates)
+loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLocale templatesDir "team" $ \fp ->
+  TeamTemplates
+    <$> ( InvitationEmailTemplate tUrl
+            <$> readTemplate fp "email/invitation-subject.txt"
+            <*> readTemplate fp "email/invitation.txt"
+            <*> readTemplate fp "email/invitation.html"
+            <*> pure sender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( InvitationEmailTemplate tExistingUrl
+            <$> readTemplate fp "email/migration-subject.txt"
+            <*> readTemplate fp "email/migration.txt"
+            <*> readTemplate fp "email/migration.html"
+            <*> pure sender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
+            <$> readTemplate fp "email/new-member-welcome-subject.txt"
+            <*> readTemplate fp "email/new-member-welcome.txt"
+            <*> readTemplate fp "email/new-member-welcome.html"
+            <*> pure sender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( NewTeamOwnerWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
+            <$> readTemplate fp "email/new-team-owner-welcome-subject.txt"
+            <*> readTemplate fp "email/new-team-owner-welcome.txt"
+            <*> readTemplate fp "email/new-team-owner-welcome.html"
+            <*> pure sender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( IdPConfigChangeEmailTemplate
+            <$> readTemplate fp "../partials/idp-certificate-added.html"
+            <*> readTemplate fp "../partials/idp-certificate-added.txt"
+            <*> readTemplate fp "../partials/idp-certificate-removed.html"
+            <*> readTemplate fp "../partials/idp-certificate-removed.txt"
+            <*> readTemplate fp "email/idp-config-change-subject.txt"
+            <*> readTemplate fp "email/idp-config-change.txt"
+            <*> readTemplate fp "email/idp-config-change.html"
+            <*> pure sender
+            <*> readText fp "email/sender.txt"
+        )
+  where
+    tUrl = template tOptions.tInvitationUrl
+    tExistingUrl = template tOptions.tExistingUserInvitationUrl
+    readTemplate = readTemplateWithDefault templatesDir defLocale "team"
+    readText = readTextWithDefault templatesDir defLocale "team"

@@ -239,7 +239,7 @@ newEnv opts = do
   ext <- initExtGetManager
   utp <- loadUserTemplates opts
   ptp <- loadProviderTemplates opts
-  ttp <- loadTeamTemplates opts
+  ttp <- loadTeamTemplatesWithBrigOpts opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
       brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)

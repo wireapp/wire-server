@@ -6,10 +6,9 @@ import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text.Lazy.Encoding (decodeUtf8)
-import Data.Text.Template
 import Data.UUID qualified as UUID
 import Imports
-import Network.Mail.Mime (Address (..), Disposition (..), Encoding (..), Mail (..), Part (..), PartContent (..))
+import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..))
 import Polysemy
 import Polysemy.State
 import SAML2.WebSSO
@@ -46,7 +45,17 @@ spec = do
     it "should send an email" $ do
       idp :: IdP <- generate arbitrary
       storedUser :: StoredUser <- generate $ arbitrary `suchThat` (isJust . (.email))
-      teamTemplates <- loadTeamTemplates
+      let teamOpts =
+            TeamOpts
+              { tInvitationUrl = "https://example.com/join/?team-code=${code}",
+                tExistingUserInvitationUrl = "https://example.com/accept-invitation/?team-code=${code}",
+                tActivationUrl = "https://example.com/verify/?key=${key}&code=${code}",
+                tCreatorWelcomeUrl = "https://example.com/creator-welcome-website",
+                tMemberWelcomeUrl = "https://example.com/member-welcome-website"
+              }
+          defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
+          emailSender = unsafeEmailAddress "wire" "example.com"
+      teamTemplates <- loadTeamTemplates teamOpts "templates" defLocale emailSender
       let notif = IdPCreated (Just uid) idp'
           uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
           teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
@@ -169,6 +178,7 @@ Privacy Policy and Terms of Use [https://wire.example.com/legal/]· Report misus
 © WIRE SWISS GmbH. All rights reserved.|]
         NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
+-- | Records logs and mails
 runInterpreters ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
@@ -204,58 +214,3 @@ runInterpreters users teamMap teamTemplates branding action = do
       $ action
   logs <- readIORef lr.recordedLogs
   pure (mails, logs, res)
-
-loadTeamTemplates :: IO (Localised TeamTemplates)
-loadTeamTemplates = readLocalesDir defLocale templateDir "team" $ \fp ->
-  TeamTemplates
-    <$> ( InvitationEmailTemplate tUrl
-            <$> readTemplate fp "email/invitation-subject.txt"
-            <*> readTemplate fp "email/invitation.txt"
-            <*> readTemplate fp "email/invitation.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( InvitationEmailTemplate tExistingUrl
-            <$> readTemplate fp "email/migration-subject.txt"
-            <*> readTemplate fp "email/migration.txt"
-            <*> readTemplate fp "email/migration.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( MemberWelcomeEmailTemplate memberWelcomeUrl
-            <$> readTemplate fp "email/new-member-welcome-subject.txt"
-            <*> readTemplate fp "email/new-member-welcome.txt"
-            <*> readTemplate fp "email/new-member-welcome.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( NewTeamOwnerWelcomeEmailTemplate creatorWelcomeUrl
-            <$> readTemplate fp "email/new-team-owner-welcome-subject.txt"
-            <*> readTemplate fp "email/new-team-owner-welcome.txt"
-            <*> readTemplate fp "email/new-team-owner-welcome.html"
-            <*> pure emailSender
-            <*> readText fp "email/sender.txt"
-        )
-    <*>
-    -- TODO: Template paths
-    ( IdPConfigChangeEmailTemplate
-        <$> readTemplate fp "../partials/idp-certificate-added.html"
-        <*> readTemplate fp "../partials/idp-certificate-added.txt"
-        <*> readTemplate fp "../partials/idp-certificate-removed.html"
-        <*> readTemplate fp "../partials/idp-certificate-removed.txt"
-        <*> readTemplate fp "email/idp-config-change-subject.txt"
-        <*> readTemplate fp "email/idp-config-change.txt"
-        <*> readTemplate fp "email/idp-config-change.html"
-        <*> pure emailSender
-        <*> readText fp "email/sender.txt"
-    )
-  where
-    memberWelcomeUrl = "https://example.com/member-welcome-website"
-    creatorWelcomeUrl = "https://example.com/creator-welcome-website"
-    emailSender = unsafeEmailAddress "wire" "example.com"
-    tUrl = template "https://example.com/join/?team-code=${code}"
-    tExistingUrl = template "https://example.com/accept-invitation/?team-code=${code}"
-    defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
-    readTemplate = readTemplateWithDefault templateDir defLocale "team"
-    readText = readTextWithDefault templateDir defLocale "team"
-    templateDir = "templates"

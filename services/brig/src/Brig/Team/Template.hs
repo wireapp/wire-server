@@ -19,63 +19,22 @@ module Brig.Team.Template
   ( TeamTemplates (..),
     InvitationEmailTemplate (..),
     MemberWelcomeEmailTemplate (..),
-    loadTeamTemplates,
+    loadTeamTemplatesWithBrigOpts,
   )
 where
 
 import Brig.Options
 import Brig.Template
-import Data.Text.Template
 import Imports
+import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.Templates.Team
 
-loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
-loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
-  TeamTemplates
-    <$> ( InvitationEmailTemplate tUrl
-            <$> readTemplate fp "email/invitation-subject.txt"
-            <*> readTemplate fp "email/invitation.txt"
-            <*> readTemplate fp "email/invitation.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( InvitationEmailTemplate tExistingUrl
-            <$> readTemplate fp "email/migration-subject.txt"
-            <*> readTemplate fp "email/migration.txt"
-            <*> readTemplate fp "email/migration.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
-            <$> readTemplate fp "email/new-member-welcome-subject.txt"
-            <*> readTemplate fp "email/new-member-welcome.txt"
-            <*> readTemplate fp "email/new-member-welcome.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( NewTeamOwnerWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
-            <$> readTemplate fp "email/new-team-owner-welcome-subject.txt"
-            <*> readTemplate fp "email/new-team-owner-welcome.txt"
-            <*> readTemplate fp "email/new-team-owner-welcome.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( IdPConfigChangeEmailTemplate
-            <$> readTemplate fp "../partials/idp-certificate-added.html"
-            <*> readTemplate fp "../partials/idp-certificate-added.txt"
-            <*> readTemplate fp "../partials/idp-certificate-removed.html"
-            <*> readTemplate fp "../partials/idp-certificate-removed.txt"
-            <*> readTemplate fp "email/idp-config-change-subject.txt"
-            <*> readTemplate fp "email/idp-config-change.txt"
-            <*> readTemplate fp "email/idp-config-change.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-  where
-    gOptions = o.emailSMS.general
-    tOptions = o.emailSMS.team
-    tUrl = template tOptions.tInvitationUrl
-    tExistingUrl = template tOptions.tExistingUserInvitationUrl
-    defLocale = defaultTemplateLocale o.settings
-    readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
-    readText = readTextWithDefault (templateDir gOptions) defLocale "team"
+-- FUTUREWORK: This can be inlined once the `API.Template` have been migrated
+-- to wire-subsystem unit tests.
+loadTeamTemplatesWithBrigOpts :: Opts -> IO (Localised TeamTemplates)
+loadTeamTemplatesWithBrigOpts o =
+  loadTeamTemplates
+    o.emailSMS.team
+    o.emailSMS.general.templateDir
+    (defaultTemplateLocale o.settings)
+    (emailSender o.emailSMS.general)
