@@ -22,18 +22,28 @@ module Galley.API.Create where
 
 import Data.Id
 import Data.Qualified
+import Data.Set qualified as Set
 import Galley.API.Mapping
 import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input)
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation (CreateGroupConversation (..), CreateGroupOwnConversation (..), NewConv, NewOne2OneConv)
 import Wire.API.Conversation qualified as Public
+import Wire.API.Error.Galley (NonFederatingBackends, UnreachableBackends)
 import Wire.API.Event.Conversation (Connect)
+import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error (FederationError)
+import Wire.API.FederationStatus (RemoteDomains (..))
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
+import Wire.API.User (baseProtocolToProtocol)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
+import Wire.ConversationSubsystem.Federation (checkFederationStatus, enforceFederationProtocol)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
+import Wire.FederationAPIAccess (FederationAPIAccess)
 
 ----------------------------------------------------------------------------
 -- API Handlers
@@ -54,6 +64,11 @@ createGroupConversationUpToV3 lusr conn newConv = do
 createGroupOwnConversation ::
   ( Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error InternalError) r,
+    Member (Error FederationError) r,
+    Member (Error UnreachableBackends) r,
+    Member (Error NonFederatingBackends) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Input ConversationSubsystemConfig) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -61,17 +76,28 @@ createGroupOwnConversation ::
   NewConv ->
   Sem r CreateGroupConversationResponseV9
 createGroupOwnConversation lusr conn newConv = do
+  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
+  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- ConversationSubsystem.createGroupConversation lusr conn newConv
-  conv <- conversationViewV9 lusr dbConv
-  pure . GroupConversationCreatedV9 $ CreateGroupOwnConversation conv mempty
+  GroupConversationCreatedV9 <$> (CreateGroupOwnConversation <$> conversationViewV9 lusr dbConv <*> pure mempty)
 
 createGroupConversation ::
-  (Member ConversationSubsystem.ConversationSubsystem r) =>
+  ( Member ConversationSubsystem.ConversationSubsystem r,
+    Member (Error FederationError) r,
+    Member (Error UnreachableBackends) r,
+    Member (Error NonFederatingBackends) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member (Input ConversationSubsystemConfig) r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
   Sem r CreateGroupConversation
 createGroupConversation lusr conn newConv = do
+  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
+  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
+  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- ConversationSubsystem.createGroupConversation lusr conn newConv
   pure $
     CreateGroupConversation

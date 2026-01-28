@@ -70,7 +70,6 @@ import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
-import Wire.API.FederationStatus
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission
@@ -86,7 +85,6 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
-import Wire.ConversationSubsystem.Federation
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Types as X
 import Wire.ConversationSubsystem.Util
@@ -152,58 +150,13 @@ interpretConversationSubsystem = interpret $ \case
   NotifyConversationAction tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData ->
     notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
   ConversationSubsystem.CreateGroupConversation lusr conn newConv ->
-    createGroupConv lusr conn newConv
+    createGroupConversationGeneric lusr conn newConv
   ConversationSubsystem.CreateOne2OneConversation lusr conn newOne2One ->
     createOne2OneConversationLogic lusr conn newOne2One
   ConversationSubsystem.CreateProteusSelfConversation lusr ->
     createProteusSelfConversationLogic lusr
   ConversationSubsystem.CreateConnectConversation lusr conn j ->
     createConnectConversationLogic lusr conn j
-
-createGroupConv ::
-  ( Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NoBindingTeamMembers) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
-    Member (Error FederationError) r,
-    Member (Error UnreachableBackends) r,
-    Member (Error NonFederatingBackends) r,
-    Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member LegalHoldStore r,
-    Member TeamStore r,
-    Member FeaturesConfigSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member Random r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
-    Member Now r,
-    Member NotificationSubsystem r,
-    Member (Embed IO) r,
-    Member TinyLog r,
-    Member BackendNotificationQueueAccess r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  Public.NewConv ->
-  Sem r StoredConversation
-createGroupConv lusr conn newConv = do
-  let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
-  enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
-  checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
-  createGroupConversationGeneric lusr conn newConv
 
 createGroupConversationGeneric ::
   forall r.
@@ -254,8 +207,8 @@ createGroupConversationGeneric lusr conn newConv = do
 
   lcnv <- traverse (const Random.newId) lusr
   storedConv <- createConversationImpl lcnv lusr nc
-  sendCellsNotification lusr conn storedConv
   notifyConversationCreated lusr conn storedConv def
+  sendCellsNotification lusr conn storedConv
   pure storedConv
 
 createOne2OneConversationLogic ::
@@ -397,6 +350,7 @@ createConnectConversationLogic lusr conn j = do
     create lcnv nc = do
       conv <- createConversationImpl lcnv lusr nc
       notifyConversationCreated lusr conn conv def
+      notifyConversationUpdated lusr conn j conv
       pure conv
     update n conv = do
       let mems = conv.localMembers

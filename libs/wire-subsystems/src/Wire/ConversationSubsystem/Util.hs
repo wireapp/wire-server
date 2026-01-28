@@ -1263,7 +1263,7 @@ notifyConversationCreated lusr conn conv joinType = do
             { origin = Just (tUnqualified lusr),
               json = toJSONObject e,
               recipients = [userRecipient lm.id_],
-              isCellsEvent = shouldPushToCells conv.metadata e,
+              isCellsEvent = False,
               route = route,
               conn = if lm.id_ == tUnqualified lusr then conn else Nothing
             }
