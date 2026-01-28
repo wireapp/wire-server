@@ -1,3 +1,68 @@
+# [2026-01-26] (Chart Release 5.26.0)
+
+## Release notes
+
+
+* User search provides information about user type (regular, app, legacy bot) now.  Also, Elasticsearch re-indexing requires postgres access now.  If you run `brig-index` directly anywhere, make sure to add the relevant settings.  The Elasticsearch index must be refilled from Cassandra in order for the changes to the search results to take effect.  See https://docs.wire.com/latest/developer/reference/elastic-search.html?h=index#refill-es-documents-from-cassandra (#4913, #4957)
+
+* Conversation codes can now be migrated to PostgreSQL. For existing installations:
+  - Set `postgresMigration.conversationCodes: migration-to-postgresql` in both `galley` and `background-worker`.
+  - Run the backfill with `migrateConversationCodes: true`.
+  - Wait for `wire_conv_codes_migration_finished` to reach `1.0`.
+  - Switch to `postgresMigration.conversationCodes: postgresql` and disable `migrateConversationCodes`. (#4961)
+
+* The background-worker defaults for the postgres migration now match galley and point to cassandra (previously postgres). This currenlty only affects the background job, which is not expected to run before postgres is in use. However, if you relied on the defaults after migrating to postgres, please update your config to keep using postgres. (#4965)
+
+* Drop support for kubernetes versions below 1.27 (#4969)
+
+
+## API changes
+
+
+* New end-point `GET /teams/:tid/apps` listing all team apps. (#4960)
+
+* Add `type` field to search results received from `GET /search/contacts` (#4913)
+
+
+## Features
+
+
+* nginx-ingress-services: Add `federator.tls.issuer` option to use a separate ClusterIssuer for federation mTLS certificates. (#4964)
+
+* Log changes to IdP configurations made via the IdP REST API to syslog. (#4935)
+
+* Allow commit bundles to contain one application message. The message must be for the epoch *after* the commit, and it gets sent after the commit has been accepted. (#4929)
+
+
+## Bug fixes and other updates
+
+
+* `background-worker`'s default settings for `postgresMigration` have been correctly set to `cassandra`. (#4965)
+
+
+## Internal changes
+
+
+* Circumvent potential performance issue with `TVar (Map ...)` (#4948)
+
+* Migration of conversation codes from cassandra to postgres (#4959, #4961)
+
+* - Test for team and user email templates added
+  - Refactoring to make email rendering testable
+  - Removed SMS and call templates (#4699)
+
+* Drop `cryptobox`, handle prekey in pure Haskell. (#4719)
+
+* Move Feature Flags read to `wire-subsystems`. (#4918, #4974)
+
+* Federator: Replace Linux-only hinotify with cross-platform fsnotify library
+  for certificate file monitoring. This enables native file system watching
+  on both Linux and macOS, removing the need for platform-specific stubs. (#4955)
+
+* Simplify and modernize the Nix setup of `rusty-jwt-tools`. This includes
+  updating to version `0.14.0`. (#4952)
+
+
 # [2026-01-13] (Chart Release 5.25.0)
 
 ## Release notes

@@ -1,1 +1,0 @@
-Allow commit bundles to contain one application message. The message must be for the epoch *after* the commit, and it gets sent after the commit has been accepted.
