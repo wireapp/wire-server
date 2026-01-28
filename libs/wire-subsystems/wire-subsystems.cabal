@@ -335,8 +335,10 @@ library
     Wire.TeamCollaboratorsSubsystem.Interpreter
     Wire.TeamFeatureStore
     Wire.TeamFeatureStore.Cassandra
+    Wire.TeamFeatureStore.Cassandra.Queries
     Wire.TeamFeatureStore.Error
     Wire.TeamFeatureStore.Migrating
+    Wire.TeamFeatureStore.Migration
     Wire.TeamFeatureStore.Postgres
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error

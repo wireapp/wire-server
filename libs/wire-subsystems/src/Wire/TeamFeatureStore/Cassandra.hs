@@ -30,8 +30,8 @@ import Polysemy
 import Polysemy.Input
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature.TH
-import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.TeamFeatureStore (AllDbFeaturePatches, DbFeaturePatch, TeamFeatureStore (..))
+import Wire.TeamFeatureStore.Cassandra.Queries
 import Wire.Util
 
 interpretTeamFeatureStoreToCassandra ::
@@ -62,9 +62,7 @@ getDbFeatureImpl ::
   Sem r (Maybe DbFeaturePatch)
 getDbFeatureImpl sing tid = case featureSingIsFeature sing of
   Dict -> do
-    let q :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
-        q = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
-    mRow <- (embedClientInput (retry x1 $ query1 q (params LocalQuorum (tid, featureName @cfg))))
+    mRow <- (embedClientInput (retry x1 $ query1 select (params LocalQuorum (tid, featureName @cfg))))
     pure $ (\(status, lockStatus, config) -> LockableFeaturePatch {..}) <$> mRow
 
 setDbFeatureImpl ::
@@ -104,15 +102,6 @@ patchDbFeatureImpl sing tid patch = case featureSingIsFeature sing of
       for_ patch.status $ \featureStatus -> addPrepQuery writeStatus (featureStatus, tid, featureName @cfg)
       for_ patch.lockStatus $ \lockStatus -> addPrepQuery writeLockStatus (lockStatus, tid, featureName @cfg)
       for_ patch.config $ \config -> addPrepQuery writeConfig (serialiseDbConfig config, tid, featureName @cfg)
-  where
-    writeStatus :: PrepQuery W (FeatureStatus, TeamId, Text) ()
-    writeStatus = "update team_features_dyn set status = ? where team = ? and feature = ?"
-
-    writeLockStatus :: PrepQuery W (LockStatus, TeamId, Text) ()
-    writeLockStatus = "update team_features_dyn set lock_status = ? where team = ? and feature = ?"
-
-    writeConfig :: PrepQuery W (DbConfig, TeamId, Text) ()
-    writeConfig = "update team_features_dyn set config = ? where team = ? and feature = ?"
 
 setFeatureLockStatusImpl ::
   forall cfg r.
@@ -125,11 +114,9 @@ setFeatureLockStatusImpl ::
   Sem r ()
 setFeatureLockStatusImpl sing tid (Tagged lockStatus) = case featureSingIsFeature sing of
   Dict -> do
-    let q :: PrepQuery W (LockStatus, TeamId, Text) ()
-        q = "update team_features_dyn set  lock_status = ? where team = ? and feature = ?"
     embedClientInput $
       retry x5 $
-        write q (params LocalQuorum (lockStatus, tid, featureName @cfg))
+        write writeLockStatus (params LocalQuorum (lockStatus, tid, featureName @cfg))
 
 getAllDbFeaturesImpl ::
   ( Member (Embed IO) r,
@@ -138,9 +125,7 @@ getAllDbFeaturesImpl ::
   TeamId ->
   Sem r AllDbFeaturePatches
 getAllDbFeaturesImpl tid = do
-  let q :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
-      q = "select feature, status, lock_status, config from team_features_dyn where team = ?"
-  rows <- embedClientInput $ retry x1 $ query q (params LocalQuorum (Identity tid))
+  rows <- embedClientInput $ retry x1 $ query selectAllByTeam (params LocalQuorum (Identity tid))
   let m = Map.fromList $ do
         (name, status, lockStatus, config) <- rows
         pure (name, LockableFeaturePatch {..})
