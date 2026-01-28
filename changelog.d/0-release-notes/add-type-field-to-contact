@@ -1,3 +1,0 @@
-Since the index mapping has been updated, the elastic search index
-needs to be refilled from Cassandra, see
-https://docs.wire.com/latest/developer/reference/elastic-search.html?h=index#refill-es-documents-from-cassandra

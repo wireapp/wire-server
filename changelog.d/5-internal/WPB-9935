@@ -1,3 +1,0 @@
-- Test for team and user email templates added
-- Refactoring to make email rendering testable
-- Removed SMS and call templates
