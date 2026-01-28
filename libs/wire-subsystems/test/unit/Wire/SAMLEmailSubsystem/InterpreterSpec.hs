@@ -20,8 +20,7 @@ import System.FilePath
 import System.Logger qualified as Logger
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Arbitrary (arbitrary), generate, suchThat)
-import Test.QuickCheck.Gen
+import Test.QuickCheck
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString
 import Wire.API.Locale
@@ -65,7 +64,10 @@ spec = do
 
   enTextParts <- runIO $ createTextParts "en"
   deTextParts <- runIO $ createTextParts "de"
-  let testLocals :: [(Locale, RenderedTextParts)] =
+  let -- We don't test all locals such that we do not have to adjust this test
+      -- for every new translation. So far, there are translations for Germand
+      -- and English. There's none for Spanish (falls back to English).
+      testLocals :: [(Locale, RenderedTextParts)] =
         flip zip ((replicate 5 enTextParts) ++ (replicate 2 deTextParts)) $
           parseLocalUnsafe <$> ["en", "en-EN", "en-GB", "es", "es-ES", "de", "de_DE"]
       parseLocalUnsafe = fromMaybe (error "Unknown locale") . parseLocale
@@ -79,10 +81,6 @@ spec = do
           }
       defLocale = Locale ((fromJust . parseLanguage) "en") Nothing
       emailSender = unsafeEmailAddress "wire" "example.com"
-      uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
-      teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
-      teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
-      teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
       branding =
         Map.fromList
           [ ("brand", "Wire Test"),
@@ -103,6 +101,10 @@ spec = do
 
   describe "SendSAMLIdPChanged" $ do
     describe "localized emails" $ forM_ testLocals $ \(userLocale :: Locale, textParts) -> do
+      let uid :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
+          teamId :: TeamId = either error Imports.id $ parseIdFromText "99f552d8-9dad-60c1-4be9-c88fb532893a"
+          teamMember :: TeamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
+          teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
       context ("locale: " ++ show userLocale) do
         it "should send an email on IdPCreated" $ do
           idp :: IdP <- liftIO $ generate arbitrary
@@ -163,7 +165,7 @@ spec = do
 
     describe "logic" $ do
       prop "should not send to non-management roles" $
-        \idp (StoredUserWithEmail storedUser) (OtherTeamRole role) -> do
+        \idp (StoredUserWithEmail storedUser) (OtherTeamRole role) uid teamId -> do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
               notif = IdPCreated (Just uid) idp'
@@ -178,7 +180,7 @@ spec = do
           length mails `shouldBe` 0
 
       prop "should send to team managers" $
-        \idp (StoredUserWithEmail storedUser) (TeamManagementRole role) -> do
+        \idp (StoredUserWithEmail storedUser) (TeamManagementRole role) uid teamId -> do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
               notif = IdPCreated (Just uid) idp'
@@ -193,7 +195,7 @@ spec = do
           length mails `shouldBe` 1
 
       prop ("can send to multiple receivers") $
-        \idp (TestTeam tid users) -> do
+        \idp (TestTeam tid users) uid -> do
           let idp' = patchIdP idp tid
               notif = IdPCreated (Just uid) idp'
               teamMap :: Map TeamId [TeamMember] = Map.singleton tid (snd <$> users)
