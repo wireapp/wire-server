@@ -52,7 +52,7 @@ import Data.Tuple.Extra
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.User.EmailAddress
-import Wire.API.User.Phone
+import Wire.API.User.Identity (Phone)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------

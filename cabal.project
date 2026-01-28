@@ -41,7 +41,7 @@ packages:
   , services/galley/
   , services/gundeck/
   , services/proxy/
-  , services/wire-server-enterprise
+  -- , services/wire-server-enterprise
   , services/spar/
   , tools/db/assets/
   , tools/db/auto-whitelist/
@@ -90,8 +90,8 @@ package extended
   flags: +nix-dev-env
 package metrics-wai
   flags: +nix-dev-env
-package wire-server-enterprise
-  flags: +nix-dev-env
+-- package wire-server-enterprise
+--   flags: +nix-dev-env
 package spar
   flags: +nix-dev-env
 package wire-message-proto-lens
