@@ -164,7 +164,6 @@ spec = do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
               notif = IdPCreated (Just uid) idp'
-              -- TODO: Test external
               teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
               teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
