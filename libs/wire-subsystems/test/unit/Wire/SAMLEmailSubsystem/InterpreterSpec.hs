@@ -43,13 +43,31 @@ import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI (interpretTeamSubsystemToGalleyAPI)
 import Wire.UserStore
 
+data RenderedTextParts = RenderedTextParts
+  { created :: LText,
+    deleted :: LText,
+    updated :: LText,
+    subject :: LText
+  }
+
 -- TODO tests:
 -- - Other local (found)
--- - Update
 -- No admin user
 spec :: Spec
 spec = do
-  let testLocals :: [Locale] = fromMaybe (error "Unknown locale") . parseLocale <$> ["en", "en-EN", "en-GB", "es", "es-ES"]
+  let createTextParts lang =
+        RenderedTextParts
+          <$> readTextPartFile ("created_" <> lang <> ".txt")
+          <*> readTextPartFile ("deleted_" <> lang <> ".txt")
+          <*> readTextPartFile ("updated_" <> lang <> ".txt")
+          <*> readTextPartFile ("subject_" <> lang <> ".txt")
+
+  enTextParts <- runIO $ createTextParts "en"
+  deTextParts <- runIO $ createTextParts "de"
+  let testLocals :: [(Locale, RenderedTextParts)] =
+        flip zip ((replicate 5 enTextParts) ++ (replicate 2 deTextParts)) $
+          parseLocalUnsafe <$> ["en", "en-EN", "en-GB", "es", "es-ES", "de", "de_DE"]
+      parseLocalUnsafe = fromMaybe (error "Unknown locale") . parseLocale
       teamOpts =
         TeamOpts
           { tInvitationUrl = "https://example.com/join/?team-code=${code}",
@@ -82,8 +100,8 @@ spec = do
   teamTemplates :: Localised TeamTemplates <- runIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
   newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
 
-  describe "SendSAMLIdPChanged" $ forM_ testLocals $ \(userLocale :: Locale) -> do
-    context (show userLocale) do
+  describe "SendSAMLIdPChanged" $ forM_ testLocals $ \(userLocale :: Locale, textParts) -> do
+    context ("locale: " ++ show userLocale) do
       it "should send an email on IdPCreated" $ do
         idp :: IdP <- liftIO $ generate arbitrary
         storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
@@ -97,8 +115,8 @@ spec = do
         -- Templating issues are logged on level `Warn`
         filter (\(level, _) -> level > Info) logs `shouldBe` mempty
         let mail = head mails
-        assertCommonMailAttributes mail
-        assertMailTextPartWithFile mail "created_en.txt"
+        assertCommonMailAttributes mail textParts.subject
+        assertMailTextPartWithFile mail textParts.created
 
       it "should send an email on IdPDeleted" $ do
         idp :: IdP <- liftIO $ generate arbitrary
@@ -112,8 +130,8 @@ spec = do
         -- Templating issues are logged on level `Warn`
         filter (\(level, _) -> level > Info) logs `shouldBe` mempty
         let mail = head mails
-        assertCommonMailAttributes mail
-        assertMailTextPartWithFile mail "deleted_en.txt"
+        assertCommonMailAttributes mail textParts.subject
+        assertMailTextPartWithFile mail textParts.deleted
 
       it "should send an email on IdPUpdated" $ do
         idp :: IdP <- liftIO $ generate arbitrary
@@ -135,8 +153,8 @@ spec = do
         -- Templating issues are logged on level `Warn`
         filter (\(level, _) -> level > Info) logs `shouldBe` mempty
         let mail = head mails
-        assertCommonMailAttributes mail
-        assertMailTextPartWithFile mail "updated_en.txt"
+        assertCommonMailAttributes mail textParts.subject
+        assertMailTextPartWithFile mail textParts.updated
 
 patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
 patchIdP idp teamId =
@@ -166,8 +184,8 @@ patchStoredUser storedUser teamId userLocale uid =
 readTextPartFile :: FilePath -> IO TL.Text
 readTextPartFile file = TL.stripEnd <$> TL.readFile ("test" </> "resources" </> "mails" </> file)
 
-assertCommonMailAttributes :: Mail -> IO ()
-assertCommonMailAttributes mail = do
+assertCommonMailAttributes :: Mail -> LText -> IO ()
+assertCommonMailAttributes mail expectedSubject = do
   mail.mailFrom
     `shouldBe` Address
       { addressName = Just "Wire",
@@ -183,18 +201,17 @@ assertCommonMailAttributes mail = do
   mail.mailBcc `shouldBe` []
   Set.fromList mail.mailHeaders
     `shouldBe` Set.fromList
-      [ ("Subject", "Your team&#x27;s identity provider configuration has changed"),
+      [ ("Subject", TL.toStrict expectedSubject),
         ("X-Zeta-Purpose", "IdPConfigChange")
       ]
 
-assertMailTextPartWithFile :: Mail -> FilePath -> IO ()
-assertMailTextPartWithFile mail renderedTextFile = do
+assertMailTextPartWithFile :: Mail -> LText -> IO ()
+assertMailTextPartWithFile mail expectedTextPart = do
   let textPart =
         fromMaybe (error "No text part found") $
           find (\p -> p.partType == "text/plain; charset=utf-8") (head mail.mailParts)
-  englishCreateMailContent <- readTextPartFile renderedTextFile
   case textPart.partContent of
-    PartContent content -> (decodeUtf8 content) `shouldBe` englishCreateMailContent
+    PartContent content -> (decodeUtf8 content) `shouldBe` expectedTextPart
     NestedParts ns -> error $ "Enexpected NestedParts: " ++ show ns
 
 -- | Records logs and mails
