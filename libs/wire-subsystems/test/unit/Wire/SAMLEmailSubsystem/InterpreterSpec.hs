@@ -54,8 +54,6 @@ data RenderedTextParts = RenderedTextParts
     subject :: LText
   }
 
--- TODO tests:
--- No admin user
 spec :: Spec
 spec = do
   let createTextParts lang =
@@ -138,19 +136,19 @@ spec = do
           assertMailTextPartWithFile mail textParts.deleted
 
         it "should send an email on IdPUpdated" $ do
-          idp :: IdP <- liftIO $ generate arbitrary
-          idp2 :: IdP <- liftIO $ generate arbitrary
+          idpOld :: IdP <- liftIO $ generate arbitrary
+          idpNew :: IdP <- liftIO $ generate arbitrary
           storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
-          let idp' = patchIdP idp teamId
-              idp2' =
-                (patchIdP idp2 teamId)
+          let idpOld' = patchIdP idpOld teamId
+              idpNew' =
+                (patchIdP idpNew teamId)
                   { _idpMetadata =
-                      idp2._idpMetadata
+                      idpNew._idpMetadata
                         { _edCertAuthnResponse = NE.fromList newCerts
                         }
                   }
               storedUser' = patchStoredUser storedUser teamId userLocale uid
-              notif = IdPUpdated uid idp' idp2'
+              notif = IdPUpdated uid idpOld' idpNew'
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
           length mails `shouldBe` 1
@@ -160,10 +158,8 @@ spec = do
           assertCommonMailAttributes mail textParts.subject
           assertMailTextPartWithFile mail textParts.updated
     describe "logic" $ do
-      forM_ ([minBound .. maxBound] \\ [RoleAdmin, RoleOwner]) $ \role ->
-        it ("should not send to role " ++ show role) $ do
-          idp :: IdP <- liftIO $ generate arbitrary
-          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+      prop "should not send to non-management roles" $
+        \idp (StoredUserWithEmail storedUser) (OtherTeamRole role) -> do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
               notif = IdPCreated (Just uid) idp'
@@ -176,10 +172,8 @@ spec = do
           -- Expect no issues to be logged
           filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
-      forM_ [RoleAdmin, RoleOwner] $ \role ->
-        it ("should send to role " ++ show role) $ do
-          idp :: IdP <- liftIO $ generate arbitrary
-          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+      prop "should send to team managers" $
+        \idp (StoredUserWithEmail storedUser) (TeamManagementRole role) -> do
           let idp' = patchIdP idp teamId
               storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
               notif = IdPCreated (Just uid) idp'
@@ -193,14 +187,14 @@ spec = do
           filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
       prop ("can send to multiple receivers") $
-        \idp (TestTeam teamId users) -> do
-          let idp' = patchIdP idp teamId
+        \idp (TestTeam tid users) -> do
+          let idp' = patchIdP idp tid
               notif = IdPCreated (Just uid) idp'
-              teamMap :: Map TeamId [TeamMember] = Map.singleton teamId (snd <$> users)
+              teamMap :: Map TeamId [TeamMember] = Map.singleton tid (snd <$> users)
               adminsAndOwners :: [(StoredUser, TeamMember)] =
                 filter
                   ( \(_u, tm) ->
-                      permissionsRole (Wire.API.Team.Member.getPermissions tm) `elem` [Just RoleAdmin, Just RoleOwner]
+                      permissionsRole (Wire.API.Team.Member.getPermissions tm) `elem` (Just <$> teamManagementRoles)
                   )
                   users
 
@@ -213,6 +207,21 @@ spec = do
           Set.fromList receiverAddresses `shouldBe` Set.fromList expectedAddresses
           -- Expect no issues to be logged
           filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+
+newtype OtherTeamRole = OtherTeamRole Role
+  deriving (Show)
+
+instance Arbitrary OtherTeamRole where
+  arbitrary = OtherTeamRole <$> elements ([minBound .. maxBound] \\ [RoleAdmin, RoleOwner])
+
+newtype TeamManagementRole = TeamManagementRole Role
+  deriving (Show)
+
+instance Arbitrary TeamManagementRole where
+  arbitrary = TeamManagementRole <$> elements teamManagementRoles
+
+teamManagementRoles :: [Role]
+teamManagementRoles = [RoleAdmin, RoleOwner]
 
 data TestTeam = TestTeam TeamId [(StoredUser, TeamMember)]
   deriving (Show)
