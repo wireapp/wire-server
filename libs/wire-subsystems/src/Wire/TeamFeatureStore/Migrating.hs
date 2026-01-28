@@ -109,11 +109,7 @@ setDbFeatureImpl ::
   LockableFeature cfg ->
   Sem r ()
 setDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
-  Dict ->
-    withWritePathUnderLock sing tid psql cass
-    where
-      psql = interpretTeamFeatureStoreToPostgres $ send (SetDbFeature sing tid feat)
-      cass = interpretTeamFeatureStoreToCassandra $ send (SetDbFeature sing tid feat)
+  Dict -> withWritePathUnderLock sing tid $ send (SetDbFeature sing tid feat)
 
 setFeatureLockStatusImpl ::
   forall cfg r.
@@ -129,11 +125,7 @@ setFeatureLockStatusImpl ::
   LockStatus ->
   Sem r ()
 setFeatureLockStatusImpl sing tid lock = case featureSingIsFeature sing of
-  Dict ->
-    withWritePathUnderLock sing tid psql cass
-    where
-      psql = interpretTeamFeatureStoreToPostgres $ send (SetFeatureLockStatus sing tid lock)
-      cass = interpretTeamFeatureStoreToCassandra $ send (SetFeatureLockStatus sing tid lock)
+  Dict -> withWritePathUnderLock sing tid $ send (SetFeatureLockStatus sing tid lock)
 
 patchDbFeatureImpl ::
   forall cfg r.
@@ -149,11 +141,7 @@ patchDbFeatureImpl ::
   LockableFeaturePatch cfg ->
   Sem r ()
 patchDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
-  Dict ->
-    withWritePathUnderLock sing tid psql cass
-    where
-      psql = interpretTeamFeatureStoreToPostgres $ send (PatchDbFeature sing tid feat)
-      cass = interpretTeamFeatureStoreToCassandra $ send (PatchDbFeature sing tid feat)
+  Dict -> withWritePathUnderLock sing tid $ send (PatchDbFeature sing tid feat)
 
 -- Write path under lock:
 -- 1. Check Postgres for row.
@@ -173,17 +161,18 @@ withWritePathUnderLock ::
   ) =>
   FeatureSingleton cfg ->
   TeamId ->
-  Sem r a ->
-  Sem r a ->
+  Sem (TeamFeatureStore ': r) a ->
   Sem r a
-withWritePathUnderLock sing tid psql cass =
+withWritePathUnderLock sing tid action =
   withSharedLock (tid, featureName @cfg) $ do
     mFeaturePsql <- interpretTeamFeatureStoreToPostgres $ send (GetDbFeature sing tid)
     if isJust mFeaturePsql
-      then psql
+      then interpretTeamFeatureStoreToPostgres action
       else do
         mFeatureCql <- interpretTeamFeatureStoreToCassandra $ send (GetDbFeature sing tid)
-        if isJust mFeatureCql then cass else psql
+        if isJust mFeatureCql
+          then interpretTeamFeatureStoreToCassandra action
+          else interpretTeamFeatureStoreToPostgres action
 
 withSharedLock ::
   ( PGConstraints r,
