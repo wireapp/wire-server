@@ -157,20 +157,38 @@ spec = do
           assertCommonMailAttributes mail textParts.subject
           assertMailTextPartWithFile mail textParts.updated
     describe "logic" $ do
-      it "should not send emails to usual members (not admin or owner)" $ do
-        idp :: IdP <- liftIO $ generate arbitrary
-        storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
-        let idp' = patchIdP idp teamId
-            storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
-            notif = IdPCreated (Just uid) idp'
-            teamMember :: TeamMember = mkTeamMember uid (rolePermissions RoleMember) Nothing UserLegalHoldDisabled
-            teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
+      forM_ ([minBound .. maxBound] \\ [RoleAdmin, RoleOwner]) $ \role ->
+        it ("should not send to role " ++ show role) $ do
+          idp :: IdP <- liftIO $ generate arbitrary
+          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+          let idp' = patchIdP idp teamId
+              storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
+              notif = IdPCreated (Just uid) idp'
+              -- TODO: Test external
+              teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
+              teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
-        (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
-          sendSAMLIdPChanged notif
-        length mails `shouldBe` 0
-        -- Expect no issues to be logged
-        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+            sendSAMLIdPChanged notif
+          length mails `shouldBe` 0
+          -- Expect no issues to be logged
+          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+
+      forM_ [RoleAdmin, RoleOwner] $ \role ->
+        it ("should send to role " ++ show role) $ do
+          idp :: IdP <- liftIO $ generate arbitrary
+          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+          let idp' = patchIdP idp teamId
+              storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
+              notif = IdPCreated (Just uid) idp'
+              teamMember :: TeamMember = mkTeamMember uid (rolePermissions role) Nothing UserLegalHoldDisabled
+              teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
+
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+            sendSAMLIdPChanged notif
+          length mails `shouldBe` 1
+          -- Expect no issues to be logged
+          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
 patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
 patchIdP idp teamId =
