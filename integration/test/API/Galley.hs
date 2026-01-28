@@ -51,7 +51,8 @@ data CreateConv = CreateConv
     cells :: Bool,
     addPermission :: Maybe String,
     skipCreator :: Maybe Bool,
-    parent :: Maybe String
+    parent :: Maybe String,
+    history :: Maybe Value
   }
 
 defProteus :: CreateConv
@@ -70,7 +71,8 @@ defProteus =
       cells = False,
       addPermission = Nothing,
       skipCreator = Nothing,
-      parent = Nothing
+      parent = Nothing,
+      history = Nothing
     }
 
 defMLS :: CreateConv
@@ -107,7 +109,8 @@ instance MakesValue CreateConv where
                 "group_conv_type" .=? cc.groupConvType,
                 "add_permission" .=? cc.addPermission,
                 "skip_creator" .=? cc.skipCreator,
-                "parent" .=? cc.parent
+                "parent" .=? cc.parent,
+                "history" .=? cc.history
               ]
         )
 
@@ -645,6 +648,21 @@ updateMessageTimer user qcnv update = do
   let path = joinHttpPath ["conversations", cnvDomain, cnvId, "message-timer"]
   req <- baseRequest user Galley Versioned path
   submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)
+
+updateHistory ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  Value ->
+  App Response
+updateHistory user qcnv history = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "history"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (addJSONObject ["history" .= history] req)
 
 getTeam :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
 getTeam user tid = do

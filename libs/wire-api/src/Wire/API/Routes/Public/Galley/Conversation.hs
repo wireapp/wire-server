@@ -1351,6 +1351,7 @@ type ConversationAPI =
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow ('ActionDenied 'ModifyConversationHistory)
+               :> CanThrow 'HistoryNotSupported
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "history"

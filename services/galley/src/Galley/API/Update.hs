@@ -313,6 +313,7 @@ updateConversationHistory ::
     Member (ErrorS (ActionDenied ModifyConversationHistory)) r,
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member BackendNotificationQueueAccess r,
     Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r,

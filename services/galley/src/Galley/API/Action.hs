@@ -235,7 +235,9 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Random r
     )
   HasConversationActionEffects 'ConversationHistoryUpdateTag r =
-    (Member ConversationStore r)
+    ( Member ConversationStore r,
+      Member (ErrorS HistoryNotSupported) r
+    )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
       Member (Error NoChanges) r
@@ -371,6 +373,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
   HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
     '[ ErrorS (ActionDenied ModifyConversationHistory),
        ErrorS GroupIdVersionNotSupported,
+       ErrorS HistoryNotSupported,
        ErrorS MLSStaleMessage,
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
@@ -632,6 +635,8 @@ performAction tag origUser lconv action = do
             extraConversationData = ExtraConversationData (Just newGroupId)
           }
     SConversationHistoryUpdateTag -> do
+      when (storedConv.metadata.cnvmGroupConvType /= Just Channel) $ do
+        throwS @HistoryNotSupported
       E.setConversationHistory (tUnqualified lcnv) action
       pure $ mkPerformActionResult action
 
