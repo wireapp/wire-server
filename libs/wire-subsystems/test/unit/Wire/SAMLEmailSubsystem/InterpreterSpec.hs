@@ -27,6 +27,7 @@ import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (fullPermissions)
 import Wire.API.Team.Role (Role (..))
+import Wire.API.User.EmailAddress (fromEmail)
 import Wire.API.User.IdentityProvider
 import Wire.EmailSending
 import Wire.EmailSubsystem qualified as Email
@@ -188,6 +189,30 @@ spec = do
           length mails `shouldBe` 1
           -- Expect no issues to be logged
           filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+
+      it ("can send to multiple receivers") $ do
+        idp :: IdP <- liftIO $ generate arbitrary
+        storedUser1 :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+        storedUser2 :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+        let idp' = patchIdP idp teamId
+            storedUser1' = patchStoredUser storedUser1 teamId (parseLocalUnsafe "en") uid
+            storedUser2' = patchStoredUser storedUser2 teamId (parseLocalUnsafe "en") uid
+            notif = IdPCreated (Just uid) idp'
+            uid1 :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
+            uid2 :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
+            teamMember1 :: TeamMember = mkTeamMember uid1 (rolePermissions RoleAdmin) Nothing UserLegalHoldDisabled
+            teamMember2 :: TeamMember = mkTeamMember uid2 (rolePermissions RoleAdmin) Nothing UserLegalHoldDisabled
+            teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember1, teamMember2]
+
+        (mails, logs, _res) <- runInterpreters [storedUser1', storedUser2'] teamMap teamTemplates branding $ do
+          sendSAMLIdPChanged notif
+        length mails `shouldBe` 2
+        let receiverAddresses :: [Text] = addressEmail <$> concatMap (.mailTo) mails
+            expectedAddresses :: [Text] = fromEmail . fromJust <$> [storedUser1'.email, storedUser2'.email]
+        length receiverAddresses `shouldBe` 2
+        receiverAddresses `shouldContain` expectedAddresses
+        -- Expect no issues to be logged
+        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
 patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
 patchIdP idp teamId =
