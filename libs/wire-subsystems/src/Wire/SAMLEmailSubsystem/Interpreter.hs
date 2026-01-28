@@ -17,7 +17,7 @@ import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member
 import Wire.API.User.IdentityProvider
-import Wire.EmailSubsystem (IdPDescription (..))
+import Wire.EmailSubsystem (IdPDetails (..))
 import Wire.EmailSubsystem qualified as Email
 import Wire.SAMLEmailSubsystem
 import Wire.StoredUser
@@ -83,10 +83,10 @@ sendSAMLIdPChangedImpl notif = do
           onlyR = r \\ l
        in (onlyL, onlyR)
 
-    toDesc :: X509.SignedCertificate -> IdPDescription
+    toDesc :: X509.SignedCertificate -> IdPDetails
     toDesc cert =
       let desc = certDescription cert
-       in IdPDescription
+       in IdPDetails
             { idpDescriptionFingerprintAlgorithm = T.pack desc.fingerprintAlgorithm,
               idpDescriptionFingerprint = T.pack desc.fingerprint,
               idpDescriptionSubject = T.pack desc.subject

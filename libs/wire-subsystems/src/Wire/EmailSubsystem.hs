@@ -47,13 +47,12 @@ data EmailSubsystem m a where
   SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
   SendMemberWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> EmailSubsystem m ()
   SendNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> EmailSubsystem m ()
-  SendSAMLIdPChanged :: EmailAddress -> TeamId -> Maybe UserId -> [IdPDescription] -> [IdPDescription] -> IdPId -> Issuer -> URI -> Maybe Locale -> EmailSubsystem m ()
+  SendSAMLIdPChanged :: EmailAddress -> TeamId -> Maybe UserId -> [IdPDetails] -> [IdPDetails] -> IdPId -> Issuer -> URI -> Maybe Locale -> EmailSubsystem m ()
 
 data IdPStatus = Added | Removed
   deriving (Eq, Ord, Show)
 
--- TODO: Or `IdPDetails`?
-data IdPDescription = IdPDescription
+data IdPDetails = IdPDetails
   { idpDescriptionFingerprintAlgorithm :: Text,
     idpDescriptionFingerprint :: Text,
     idpDescriptionSubject :: Text

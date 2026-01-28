@@ -84,8 +84,8 @@ sendSAMLIdPChangedImpl ::
   EmailAddress ->
   TeamId ->
   Maybe UserId ->
-  [IdPDescription] ->
-  [IdPDescription] ->
+  [IdPDetails] ->
+  [IdPDetails] ->
   IdPId ->
   Issuer ->
   URI ->
@@ -103,8 +103,8 @@ renderIdPConfigChangeEmail ::
   EmailAddress ->
   IdPConfigChangeEmailTemplate ->
   Map Text Text ->
-  [IdPDescription] ->
-  [IdPDescription] ->
+  [IdPDetails] ->
+  [IdPDetails] ->
   TeamId ->
   Maybe UserId ->
   IdPId ->
@@ -155,7 +155,7 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
     from = Address (Just idpConfigChangeEmailSenderName) (fromEmail idpConfigChangeEmailSender)
     to = Address Nothing (fromEmail email)
 
-    idpDetailsToMap :: IdPDescription -> Map Text Text
+    idpDetailsToMap :: IdPDetails -> Map Text Text
     idpDetailsToMap d =
       empty @Text @Text
         & Map.insert "algorithm" d.idpDescriptionFingerprintAlgorithm
