@@ -35,6 +35,7 @@ module Wire.API.User
     -- User (should not be here)
     User (..),
     UserType (..),
+    userTypeToText,
     isSamlUser,
     userId,
     userDeleted,
@@ -158,6 +159,7 @@ import Control.Error.Safe (rightMay)
 import Control.Lens (makePrisms, over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
 import Data.Aeson.Types qualified as A
+import Data.Attoparsec.ByteString qualified as AP
 import Data.Attoparsec.ByteString qualified as Parser
 import Data.Bifunctor qualified as Bifunctor
 import Data.Bits
@@ -472,10 +474,16 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 data UserType = UserTypeRegular | UserTypeApp | UserTypeBot
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserType)
-  deriving (A.FromJSON, A.ToJSON) via (Schema UserType)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema UserType)
 
 instance Default UserType where
   def = UserTypeRegular
+
+userTypeToText :: UserType -> Text
+userTypeToText = \case
+  UserTypeRegular -> "regular"
+  UserTypeApp -> "app"
+  UserTypeBot -> "bot"
 
 instance ToSchema UserType where
   schema =
@@ -485,6 +493,20 @@ instance ToSchema UserType where
           Schema.element "app" UserTypeApp,
           Schema.element "bot" UserTypeBot
         ]
+
+instance FromByteString UserType where
+  parser =
+    AP.takeByteString
+      >>= \case
+        "regular" -> pure UserTypeRegular
+        "app" -> pure UserTypeApp
+        "bot" -> pure UserTypeBot
+        x -> fail $ "Invalid UserType value: " <> show x
+
+instance ToByteString UserType where
+  builder UserTypeRegular = "regular"
+  builder UserTypeApp = "app"
+  builder UserTypeBot = "bot"
 
 --------------------------------------------------------------------------------
 -- UserProfile

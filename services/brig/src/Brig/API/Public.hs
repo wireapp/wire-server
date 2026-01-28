@@ -140,7 +140,7 @@ import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
-import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
+import Wire.API.User (RegisterError (RegisterErrorAllowlistError), UserType (..))
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Auth qualified as Public
@@ -1285,9 +1285,10 @@ searchUsersHandler ::
   Text ->
   Maybe Domain ->
   Maybe (Range 1 500 Int32) ->
+  Maybe (CommaSeparatedList UserType) ->
   Handler r (Public.SearchResult Public.Contact)
-searchUsersHandler luid term mDomain mMaxResults =
-  lift . liftSem $ User.searchUsers luid term mDomain mMaxResults
+searchUsersHandler luid term mDomain mMaxResults mTypes =
+  lift . liftSem $ User.searchUsers luid term mDomain mMaxResults (fromCommaSeparatedList <$> mTypes)
 
 createConnectionUnqualified ::
   ( Member GalleyAPIAccess r,

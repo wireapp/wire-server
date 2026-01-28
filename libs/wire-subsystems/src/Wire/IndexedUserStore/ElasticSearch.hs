@@ -38,6 +38,7 @@ import Network.HTTP.Types
 import Polysemy
 import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
+import Wire.API.User (UserType (..), userTypeToText)
 import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.Sem.Metrics (Metrics)
@@ -69,8 +70,8 @@ interpretIndexedUserStoreES cfg =
       updateTeamSearchVisibilityInboundImpl cfg tid vis
     BulkUpsert docs -> bulkUpsertImpl cfg docs
     DoesIndexExist -> doesIndexExistImpl cfg
-    SearchUsers searcherId mSearcherTeam teamSearchInfo term maxResults ->
-      searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults
+    SearchUsers searcherId mSearcherTeam teamSearchInfo term maxResults mTypes ->
+      searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTypes
     PaginateTeamMembers filters maxResults mPagingState ->
       paginateTeamMembersImpl cfg filters maxResults mPagingState
     GetTeamSize tid -> getTeamSizeImpl cfg tid
@@ -202,10 +203,11 @@ searchUsersImpl ::
   TeamSearchInfo ->
   Text ->
   Int ->
+  Maybe [UserType] ->
   Sem r (SearchResult UserDoc)
-searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults =
+searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTypes =
   queryIndex cfg maxResults $
-    defaultUserQuery searcherId mSearcherTeam teamSearchInfo term
+    defaultUserQuery searcherId mSearcherTeam teamSearchInfo mTypes term
 
 -- | The default or canonical 'IndexQuery'.
 --
@@ -213,8 +215,8 @@ searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults =
 -- it allows to experiment with different queries (perhaps in an A/B context).
 --
 -- FUTUREWORK: Drop legacyPrefixMatch
-defaultUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> IndexQuery Contact
-defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
+defaultUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Maybe [UserType] -> Text -> IndexQuery Contact
+defaultUserQuery searcher mSearcherTeamId teamSearchInfo mTypes (normalized -> term') =
   let matchPhraseOrPrefix =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
@@ -250,7 +252,7 @@ defaultUserQuery searcher mSearcherTeamId teamSearchInfo (normalized -> term') =
               ES.negativeQuery = maybe ES.QueryMatchNoneQuery matchUsersNotInTeam mSearcherTeamId,
               ES.negativeBoost = ES.Boost 0.1
             }
-   in mkUserQuery searcher mSearcherTeamId teamSearchInfo queryWithBoost
+   in mkUserQuery searcher mSearcherTeamId teamSearchInfo mTypes queryWithBoost
 
 paginateTeamMembersImpl ::
   (Member (Embed IO) r) =>
@@ -435,8 +437,8 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
         Nothing
         Nothing
 
-mkUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
-mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
+mkUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Maybe [UserType] -> ES.Query -> IndexQuery Contact
+mkUserQuery searcher mSearcherTeamId teamSearchInfo mTypes q =
   IndexQuery
     q
     ( ES.Filter
@@ -452,7 +454,8 @@ mkUserQuery searcher mSearcherTeamId teamSearchInfo q =
                 -- Elastic Search.
                 [ES.TermQuery (ES.Term "searchable" "false") Nothing],
             ES.boolQueryMustMatch =
-              [ restrictSearchSpace mSearcherTeamId teamSearchInfo,
+              [ restrictSearchSpaceByTeam mSearcherTeamId teamSearchInfo,
+                restrictSearchSpaceByUserType mTypes,
                 ES.QueryBoolQuery
                   boolQuery
                     { ES.boolQueryShouldMatch =
@@ -487,7 +490,11 @@ matchSelf :: UserId -> Maybe ES.Query
 matchSelf searcher = Just (termQ "_id" (idToText searcher))
 
 -- | See 'TeamSearchInfo'
-restrictSearchSpace :: Maybe TeamId -> TeamSearchInfo -> ES.Query
+restrictSearchSpaceByTeam :: Maybe TeamId -> TeamSearchInfo -> ES.Query
+--
+-- FUTUREWORK(fisx): can this commented-out code be removed?  if not,
+-- there should be a comment explaining why.
+--
 -- restrictSearchSpace (FederatedSearch Nothing) =
 --   ES.QueryBoolQuery
 --     boolQuery
@@ -515,7 +522,7 @@ restrictSearchSpace :: Maybe TeamId -> TeamSearchInfo -> ES.Query
 --       }
 --   where
 --     onlyInTeams = ES.QueryBoolQuery boolQuery {ES.boolQueryShouldMatch = map matchTeamMembersOf teams}
-restrictSearchSpace mteam searchInfo =
+restrictSearchSpaceByTeam mteam searchInfo =
   case (mteam, searchInfo) of
     (Nothing, _) -> matchNonTeamMemberUsers
     (Just _, NoTeam) -> matchNonTeamMemberUsers
@@ -532,6 +539,12 @@ restrictSearchSpace mteam searchInfo =
                 matchTeamMembersOf searcherTeam
               ]
           }
+
+restrictSearchSpaceByUserType :: Maybe [UserType] -> ES.Query
+restrictSearchSpaceByUserType = \case
+  Nothing -> ES.MatchAllQuery Nothing
+  Just [] -> ES.MatchAllQuery Nothing
+  Just (utsH : utsT) -> ES.TermsQuery "type" (userTypeToText <$> (utsH :| utsT))
 
 matchTeamMembersOf :: TeamId -> ES.Query
 matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing

@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Polysemy.State
 import Wire.API.Team.Size
+import Wire.API.User (UserType (..))
 import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.UserSearch.Types
@@ -78,8 +79,8 @@ inMemoryIndexedUserStoreInterpreter =
           }
     BulkUpsert upserts -> mapM_ (uncurry3 upsertImpl) upserts
     DoesIndexExist -> pure True
-    SearchUsers searcher mTeam teamSearchInfo query maxResults ->
-      searchImpl searcher mTeam teamSearchInfo query maxResults
+    SearchUsers searcher mTeam teamSearchInfo query maxResults mTypes ->
+      searchImpl searcher mTeam teamSearchInfo query maxResults mTypes
     PaginateTeamMembers {} ->
       error "IndexedUserStore: unimplemented in memory interpreter"
     GetTeamSize tid ->
@@ -126,8 +127,10 @@ matchScore = \case
   NameMatch -> 3
   HandleMatch -> 4
 
-searchImpl :: (Member (State UserIndex) r) => UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> Int -> Sem r (SearchResult UserDoc)
-searchImpl searcher mTeam teamSearchInfo query maxResults = do
+searchImpl :: (Member (State UserIndex) r) => UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> Int -> Maybe [UserType] -> Sem r (SearchResult UserDoc)
+searchImpl _searcher _mTeam _teamSearchInfo _query _maxResults (Just _) =
+  error "filtering contacts search for user types is not supposed by this mock interpreter."
+searchImpl searcher mTeam teamSearchInfo query maxResults Nothing = do
   let teamFilter (doc :: UserDoc) = case (mTeam, teamSearchInfo) of
         (Nothing, _) -> maybe NonTeamMember (const Reject) doc.udTeam
         (Just _, NoTeam) -> maybe NonTeamMember (const Reject) doc.udTeam
