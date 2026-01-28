@@ -49,9 +49,6 @@ data EmailSubsystem m a where
   SendNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> EmailSubsystem m ()
   SendSAMLIdPChanged :: EmailAddress -> TeamId -> Maybe UserId -> [IdPDetails] -> [IdPDetails] -> IdPId -> Issuer -> URI -> Maybe Locale -> EmailSubsystem m ()
 
-data IdPStatus = Added | Removed
-  deriving (Eq, Ord, Show)
-
 data IdPDetails = IdPDetails
   { idpDescriptionFingerprintAlgorithm :: Text,
     idpDescriptionFingerprint :: Text,
