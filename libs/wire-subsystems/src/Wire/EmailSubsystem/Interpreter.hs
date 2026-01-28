@@ -656,10 +656,10 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
           & Map.insert "idp_id" ((toText . fromIdPId) idPId)
       replaceHtml =
         replace
-          & Map.insert "certificates_details" (T.unlines [idpDetailsAddedHtml, idpDetailsRemovedHtml])
+          & Map.insert "certificates_details" ((T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedHtml, idpDetailsRemovedHtml])
       replaceText =
         replace
-          & Map.insert "certificates_details" (T.unlines [idpDetailsAddedText, idpDetailsRemovedText])
+          & Map.insert "certificates_details" ((T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedText, idpDetailsRemovedText])
 
   txt <- renderTextWithBrandingSem idpConfigChangeEmailBodyText replaceText
   html <- renderHtmlWithBrandingSem idpConfigChangeEmailBodyHtml replaceHtml

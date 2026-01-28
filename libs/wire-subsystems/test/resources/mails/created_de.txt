@@ -42,7 +42,6 @@ CN=accounts.accesscontrol.windows.net
 
 --------------------------------------------------------------------------------
 
-
 Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
 Wire Support. [https://support.wire.com/]
 
