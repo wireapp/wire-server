@@ -114,7 +114,7 @@ import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
-import Brig.Template (InvitationUrlTemplates (..), Localised, genTemplateBranding, genTemplateBrandingMap)
+import Brig.Template (InvitationUrlTemplates (..), genTemplateBranding, genTemplateBrandingMap)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Cassandra (runClient)
@@ -165,7 +165,7 @@ import Wire.API.User.Identity
 import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
-import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
 import Wire.RateLimit.Interpreter

@@ -24,7 +24,6 @@ module Brig.Team.Template
 where
 
 import Brig.Options
-import Brig.Template
 import Imports
 import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.Templates.Team

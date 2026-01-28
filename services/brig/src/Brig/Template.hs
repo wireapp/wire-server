@@ -20,10 +20,6 @@
 -- | Common templating utilities.
 module Brig.Template
   ( InvitationUrlTemplates (..),
-    Localised,
-    readLocalesDir,
-    readTemplateWithDefault,
-    readTextWithDefault,
     genTemplateBranding,
     genTemplateBrandingMap,
   )
@@ -32,9 +28,7 @@ where
 import Brig.Options
 import Data.Map.Strict qualified as Map
 import Data.Text.Template (Template)
-import Imports hiding (readFile)
--- TODO: Eliminate re-exports
-import Wire.EmailSubsystem.Template (Localised, readLocalesDir, readTemplateWithDefault, readTextWithDefault)
+import Imports
 
 data InvitationUrlTemplates = InvitationUrlTemplates
   { personalUser :: Template,
