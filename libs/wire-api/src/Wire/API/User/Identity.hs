@@ -54,6 +54,7 @@ import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.ByteString (fromStrict, toStrict)
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Id
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
@@ -84,6 +85,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 data UserIdentity
   = EmailIdentity EmailAddress
   | SSOIdentity UserSSOId (Maybe EmailAddress)
+  | AppIdentity UserId
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
@@ -117,6 +119,7 @@ maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
 maybeUserIdentityToComponents Nothing = (Nothing, Nothing)
 maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing)
 maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email)) = (m_email, Just ssoid)
+maybeUserIdentityToComponents (Just (AppIdentity uid)) = (Nothing, Nothing)
 
 newIdentity :: Maybe EmailAddress -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email (Just sso) = Just $! SSOIdentity sso email
@@ -127,6 +130,7 @@ emailIdentity :: UserIdentity -> Maybe EmailAddress
 emailIdentity (EmailIdentity email) = Just email
 emailIdentity (SSOIdentity _ (Just email)) = Just email
 emailIdentity (SSOIdentity _ _) = Nothing
+emailIdentity (AppIdentity _) = Nothing
 
 ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _) = Just ssoid

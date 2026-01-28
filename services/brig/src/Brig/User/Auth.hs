@@ -387,6 +387,7 @@ isPendingActivation ident = case ident of
        in statusAdmitsPending && case i of
             Just (EmailIdentity e) -> mkEmailKey e /= k
             Just SSOIdentity {} -> False -- sso-created users are activated immediately.
+            Just AppIdentity {} -> False -- apps are activated immediately.
             Nothing -> True
 
 -- | Validate a list of (User/LH) tokens potentially with an associated access token.
