@@ -146,5 +146,7 @@ createConnectConversation ::
   Connect ->
   Sem r (ConversationResponse Public.OwnConversation)
 createConnectConversation lusr conn j = do
-  c <- ConversationSubsystem.createConnectConversation lusr conn j
-  Existed <$> conversationViewV9 lusr c
+  (c, created) <- ConversationSubsystem.createConnectConversation lusr conn j
+  if created
+    then Created <$> conversationViewV9 lusr c
+    else Existed <$> conversationViewV9 lusr c

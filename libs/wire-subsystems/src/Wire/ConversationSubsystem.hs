@@ -60,6 +60,6 @@ data ConversationSubsystem m a where
     Local UserId ->
     Maybe ConnId ->
     Connect ->
-    ConversationSubsystem m StoredConversation
+    ConversationSubsystem m (StoredConversation, Bool)
 
 makeSem ''ConversationSubsystem

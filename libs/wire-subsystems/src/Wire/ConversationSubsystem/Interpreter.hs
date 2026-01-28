@@ -325,7 +325,7 @@ createConnectConversationLogic ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r StoredConversation
+  Sem r (StoredConversation, Bool)
 createConnectConversationLogic lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
   n <- rangeCheckedMaybe (cName j)
@@ -344,8 +344,14 @@ createConnectConversationLogic lusr conn j = do
             metadata = meta,
             groupId = Nothing
           }
-  ConvStore.getConversation (tUnqualified lcnv)
-    >>= maybe (create lcnv nc) (update n)
+  mconv <- ConvStore.getConversation (tUnqualified lcnv)
+  case mconv of
+    Nothing -> do
+      conv <- create lcnv nc
+      pure (conv, True)
+    Just conv -> do
+      conv' <- update n conv
+      pure (conv', False)
   where
     create lcnv nc = do
       conv <- createConversationImpl lcnv lusr nc
