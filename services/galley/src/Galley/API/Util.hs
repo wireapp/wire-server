@@ -54,6 +54,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import System.IO.Unsafe
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
@@ -121,11 +122,27 @@ ensureAccessRole roles users = do
     when (any (isNothing . snd) users) $
       throwS @'NotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
-    activated <- lookupActivatedUsers (fst <$> users)
+    activated <- lookupActivatedUsers (fst <$> users) -- this doesn't find the app
     let guestsExist = length activated /= length users
+    unsafePerformIO
+      ( do
+          appendFile "/tmp/x" "\n>>>>>>>>>>>>>>> ensureAccessRole [3] REACHED\n"
+          appendFile "/tmp/x" $ show (guestsExist, activated, users)
+      )
+      `seq` pure ()
     unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
+    unsafePerformIO
+      ( do
+          appendFile "/tmp/x" "\n>>>>>>>>>>>>>>> ensureAccessRole [4] NOT REACHED\n"
+      )
+      `seq` pure ()
     let botsExist = any (isJust . userService) activated
     unless (not botsExist || ServiceAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
+    unsafePerformIO
+      ( do
+          appendFile "/tmp/x" "\n>>>>>>>>>>>>>>> ensureAccessRole [5]\n"
+      )
+      `seq` pure ()
 
 -- | Check that the given user is either part of the same team as the other
 -- users OR that there is a connection.

@@ -86,6 +86,7 @@ import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as P
+import System.IO.Unsafe (unsafePerformIO)
 import System.Logger qualified as Log
 import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -691,11 +692,33 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
       [UserId] ->
       Sem r ()
     checkLocals lusr (Just tid) newUsers = do
+      unsafePerformIO
+        ( do
+            appendFile "/tmp/x" "\n>>>>>>>>>>>>>>> checkLocals [in]\n"
+        )
+        `seq` pure ()
+
       tms <-
         Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
           <$> TeamSubsystem.internalSelectTeamMembers tid newUsers
       let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
+      unsafePerformIO
+        ( do
+            appendFile "/tmp/x" "\n>>>>>>>>>>>>>>> checkLocals [1]\n"
+            appendFile "/tmp/x" $ show userMembershipMap <> "\n\n"
+            -- conv has [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
+            -- what do apps have?
+            -- do we need to add AppAccessRole, or should we reuse ServiceAccessRole?
+        )
+        `seq` pure ()
+
       ensureAccessRole (convAccessRoles conv) userMembershipMap
+      unsafePerformIO
+        ( do
+            appendFile "/tmp/x" "\n>>>>>>>>>>>>>>> checkLocals [2]\n"
+        )
+        `seq` pure ()
+
       ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
       ensureAccessRole (convAccessRoles conv) (map (,Nothing) newUsers)
