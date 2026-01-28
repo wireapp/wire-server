@@ -99,8 +99,7 @@ getReceivers ::
   IdP ->
   Sem r [Receiver]
 getReceivers idp = do
-  -- TODO: Replace lens
-  admins <- internalGetTeamAdmins (idp ^. idpExtraInfo . team)
+  admins <- internalGetTeamAdmins idp._idpExtraInfo._team
   let adminUids = admins ^.. teamMembers . traverse . userId
   catMaybes <$> (toReceiver <$$> getUsers adminUids)
   where
