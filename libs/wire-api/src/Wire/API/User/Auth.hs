@@ -24,7 +24,6 @@ module Wire.API.User.Auth
     LoginCode (..),
     LoginId (..),
     PendingLoginCode (..),
-    SendLoginCode (..),
     LoginCodeTimeout (..),
 
     -- * Cookies
@@ -86,7 +85,7 @@ import Imports
 import Servant
 import Web.Cookie
 import Wire.API.Routes.MultiVerb
-import Wire.API.User.Identity (EmailAddress, Phone)
+import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -153,40 +152,6 @@ instance ToSchema PendingLoginCode where
       PendingLoginCode
         <$> pendingLoginCode .= field "code" schema
         <*> pendingLoginTimeout .= field "expires_in" schema
-
---------------------------------------------------------------------------------
--- SendLoginCode
-
--- | A request for sending a 'LoginCode'
-data SendLoginCode = SendLoginCode
-  { lcPhone :: Phone,
-    lcCall :: Bool,
-    lcForce :: Bool
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SendLoginCode)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SendLoginCode
-
-instance ToSchema SendLoginCode where
-  schema =
-    objectWithDocModifier
-      "SendLoginCode"
-      (description ?~ "Payload for requesting a login code to be sent")
-      $ SendLoginCode
-        <$> lcPhone
-          .= fieldWithDocModifier
-            "phone"
-            (description ?~ "E.164 phone number to send the code to")
-            (unnamed schema)
-        <*> lcCall
-          .= fmap
-            (fromMaybe False)
-            ( optFieldWithDocModifier
-                "voice_call"
-                (description ?~ "Request the code with a call instead (default is SMS)")
-                schema
-            )
-        <*> lcForce .= fmap (fromMaybe True) (optField "force" schema)
 
 --------------------------------------------------------------------------------
 -- LoginCodeTimeout

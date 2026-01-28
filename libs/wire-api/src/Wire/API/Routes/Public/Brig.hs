@@ -492,32 +492,6 @@ type SelfAPI =
           :> ReqBody '[JSON] UserUpdate
           :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "User updated")
       )
-    :<|> Named
-           "change-phone"
-           ( Summary "Change your phone number."
-               :> Until 'V6
-               :> ZUser
-               :> ZConn
-               :> "self"
-               :> "phone"
-               :> ReqBody '[JSON] PhoneUpdate
-               :> MultiVerb 'PUT '[JSON] ChangePhoneResponses (Maybe ChangePhoneError)
-           )
-    :<|>
-    -- This endpoint can lead to the following events being sent:
-    -- - UserIdentityRemoved event to self
-    Named
-      "remove-phone"
-      ( Summary "Remove your phone number."
-          :> Until 'V6
-          :> Description
-               "Your phone number can only be removed if you also have an \
-               \email address and a password."
-          :> ZUser
-          :> "self"
-          :> "phone"
-          :> MultiVerb 'DELETE '[JSON] RemoveIdentityResponses (Maybe RemoveIdentityError)
-      )
     :<|>
     -- This endpoint can lead to the following events being sent:
     -- - UserIdentityRemoved event to self
@@ -1767,26 +1741,6 @@ type AuthAPI =
         :> CanThrow 'BadCredentials
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
-    :<|> Named
-           "send-login-code"
-           ( "login"
-               :> "send"
-               :> Until 'V6
-               :> Summary "Send a login code to a verified phone number"
-               :> Description
-                    "This operation generates and sends a login code via sms for phone login.\
-                    \ A login code can be used only once and times out after\
-                    \ 10 minutes. Only one login code may be pending at a time.\
-                    \ For 2nd factor authentication login with email and password, use the\
-                    \ `/verification-code/send` endpoint."
-               :> ReqBody '[JSON] SendLoginCode
-               :> CanThrow 'InvalidPhone
-               :> CanThrow 'PasswordExists
-               :> MultiVerb1
-                    'POST
-                    '[JSON]
-                    (Respond 200 "OK" LoginCodeTimeout)
-           )
     :<|> Named
            "login"
            ( "login"

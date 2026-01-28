@@ -125,11 +125,6 @@ access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess t mt mcid !>> (StdError . zauthError)
 
-sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
-sendLoginCode _ =
-  -- Login by phone is unsupported
-  throwStd (errorToWai @'E.InvalidPhone)
-
 login ::
   ( Member GalleyAPIAccess r,
     Member TinyLog r,

@@ -87,9 +87,6 @@ module Wire.API.User
     ChangePasswordResponses,
     LocaleUpdate (..),
     EmailUpdate (..),
-    PhoneUpdate (..),
-    ChangePhoneError (..),
-    ChangePhoneResponses,
     RemoveIdentityError (..),
     RemoveIdentityResponses,
     HandleUpdate (..),
@@ -1556,38 +1553,6 @@ instance FromByteString EmailActivation where
 instance ToByteString EmailActivation where
   builder SendActivationEmail = "send_activation_email"
   builder AutoActivate = "auto_activate"
-
-newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PhoneUpdate
-
-instance ToSchema PhoneUpdate where
-  schema =
-    object "PhoneUpdate" $
-      PhoneUpdate
-        <$> puPhone
-          .= field "phone" schema
-
-data ChangePhoneError
-  = PhoneExists
-  | InvalidNewPhone
-  deriving (Generic)
-  deriving (AsUnion ChangePhoneErrorResponses) via GenericAsUnion ChangePhoneErrorResponses ChangePhoneError
-
-instance GSOP.Generic ChangePhoneError
-
-type ChangePhoneErrorResponses =
-  [ ErrorResponse 'UserKeyExists,
-    ErrorResponse 'InvalidPhone
-  ]
-
-type ChangePhoneResponses =
-  ChangePhoneErrorResponses .++ '[RespondEmpty 202 "Phone updated"]
-
-instance (res ~ ChangePhoneResponses) => AsUnion res (Maybe ChangePhoneError) where
-  toUnion = maybeToUnion (toUnion @ChangePhoneErrorResponses)
-  fromUnion = maybeFromUnion (fromUnion @ChangePhoneErrorResponses)
 
 data RemoveIdentityError
   = LastIdentity
