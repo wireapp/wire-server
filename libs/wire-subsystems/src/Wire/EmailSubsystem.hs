@@ -21,6 +21,7 @@ module Wire.EmailSubsystem where
 
 import Data.Code qualified as Code
 import Data.Id
+import Data.X509.Extended (CertDescription)
 import Imports
 import Polysemy
 import SAML2.WebSSO
@@ -47,12 +48,6 @@ data EmailSubsystem m a where
   SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
   SendMemberWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> EmailSubsystem m ()
   SendNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> EmailSubsystem m ()
-  SendSAMLIdPChanged :: EmailAddress -> TeamId -> Maybe UserId -> [IdPDetails] -> [IdPDetails] -> IdPId -> Issuer -> URI -> Maybe Locale -> EmailSubsystem m ()
-
-data IdPDetails = IdPDetails
-  { idpDescriptionFingerprintAlgorithm :: Text,
-    idpDescriptionFingerprint :: Text,
-    idpDescriptionSubject :: Text
-  }
+  SendSAMLIdPChanged :: EmailAddress -> TeamId -> Maybe UserId -> [CertDescription] -> [CertDescription] -> IdPId -> Issuer -> URI -> Maybe Locale -> EmailSubsystem m ()
 
 makeSem ''EmailSubsystem

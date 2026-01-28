@@ -32,6 +32,7 @@ import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy qualified as TL
 import Data.Text.Template
 import Data.UUID (toText)
+import Data.X509.Extended
 import Imports
 import Network.Mail.Mime
 import Polysemy
@@ -605,8 +606,8 @@ sendSAMLIdPChangedImpl ::
   EmailAddress ->
   TeamId ->
   Maybe UserId ->
-  [IdPDetails] ->
-  [IdPDetails] ->
+  [CertDescription] ->
+  [CertDescription] ->
   IdPId ->
   Issuer ->
   URI ->
@@ -624,8 +625,8 @@ renderIdPConfigChangeEmail ::
   EmailAddress ->
   IdPConfigChangeEmailTemplate ->
   Map Text Text ->
-  [IdPDetails] ->
-  [IdPDetails] ->
+  [CertDescription] ->
+  [CertDescription] ->
   TeamId ->
   Maybe UserId ->
   IdPId ->
@@ -676,13 +677,13 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
     from = Address (Just idpConfigChangeEmailSenderName) (fromEmail idpConfigChangeEmailSender)
     to = Address Nothing (fromEmail email)
 
-    idpDetailsToMap :: IdPDetails -> Map Text Text
+    idpDetailsToMap :: CertDescription -> Map Text Text
     idpDetailsToMap d =
       empty @Text @Text
-        & Map.insert "algorithm" d.idpDescriptionFingerprintAlgorithm
-        & Map.insert "fingerprint" d.idpDescriptionFingerprint
-        & Map.insert "subject" d.idpDescriptionSubject
-        & Map.insert "issuer" d.idpDescriptionSubject
+        & Map.insert "algorithm" (T.pack d.fingerprintAlgorithm)
+        & Map.insert "fingerprint" (T.pack d.fingerprint)
+        & Map.insert "subject" (T.pack d.subject)
+        & Map.insert "issuer" (T.pack d.issuer)
 
 -------------------------------------------------------------------------------
 -- MIME Conversions

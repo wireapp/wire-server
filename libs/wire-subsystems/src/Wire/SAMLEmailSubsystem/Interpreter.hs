@@ -6,9 +6,8 @@ where
 import Control.Lens ((^.), (^..))
 import Data.Id (UserId)
 import Data.List.NonEmpty qualified as NE
-import Data.Text qualified as T
 import Data.X509 qualified as X509
-import Data.X509.Extended (CertDescription (..), certDescription)
+import Data.X509.Extended (certDescription)
 import Imports
 import Polysemy
 import SAML2.WebSSO.Types
@@ -17,7 +16,6 @@ import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Member
 import Wire.API.User.IdentityProvider
-import Wire.EmailSubsystem (IdPDetails (..))
 import Wire.EmailSubsystem qualified as Email
 import Wire.SAMLEmailSubsystem
 import Wire.StoredUser
@@ -52,7 +50,7 @@ sendSAMLIdPChangedImpl notif = do
           iss = origIdP._idpMetadata._edIssuer
           idPId = origIdP._idpId
           tid = origIdP ^. idpExtraInfo . team
-          (addedCerts, removedCerts) = bimap (toDesc <$>) (toDesc <$>) certsChanges
+          (addedCerts, removedCerts) = bimap (certDescription <$>) (certDescription <$>) certsChanges
       Email.sendSAMLIdPChanged email tid mbUserId addedCerts removedCerts idPId iss endpoint loc
 
     origIdP :: IdP
@@ -82,15 +80,6 @@ sendSAMLIdPChangedImpl notif = do
           onlyL = l \\ r
           onlyR = r \\ l
        in (onlyL, onlyR)
-
-    toDesc :: X509.SignedCertificate -> IdPDetails
-    toDesc cert =
-      let desc = certDescription cert
-       in IdPDetails
-            { idpDescriptionFingerprintAlgorithm = T.pack desc.fingerprintAlgorithm,
-              idpDescriptionFingerprint = T.pack desc.fingerprint,
-              idpDescriptionSubject = T.pack desc.subject
-            }
 
 getReceivers ::
   ( Member TeamSubsystem r,
