@@ -19,7 +19,9 @@ import SAML2.WebSSO
 import System.FilePath
 import System.Logger qualified as Logger
 import Test.Hspec
+import Test.Hspec.QuickCheck
 import Test.QuickCheck (Arbitrary (arbitrary), generate, suchThat)
+import Test.QuickCheck.Gen
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString
 import Wire.API.Locale
@@ -40,7 +42,7 @@ import Wire.SAMLEmailSubsystem
 import Wire.SAMLEmailSubsystem.Interpreter (samlEmailSubsystemInterpreter)
 import Wire.Sem.Logger
 import Wire.Sem.Logger.TinyLog
-import Wire.StoredUser
+import Wire.StoredUser (StoredUser (..))
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI (interpretTeamSubsystemToGalleyAPI)
 import Wire.UserStore
@@ -190,29 +192,53 @@ spec = do
           -- Expect no issues to be logged
           filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
-      it ("can send to multiple receivers") $ do
-        idp :: IdP <- liftIO $ generate arbitrary
-        storedUser1 :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
-        storedUser2 :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
-        let idp' = patchIdP idp teamId
-            storedUser1' = patchStoredUser storedUser1 teamId (parseLocalUnsafe "en") uid
-            storedUser2' = patchStoredUser storedUser2 teamId (parseLocalUnsafe "en") uid
-            notif = IdPCreated (Just uid) idp'
-            uid1 :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
-            uid2 :: UserId = either error Imports.id $ parseIdFromText "4a1ce4ea-5c99-d01e-018f-4dc9d08f787a"
-            teamMember1 :: TeamMember = mkTeamMember uid1 (rolePermissions RoleAdmin) Nothing UserLegalHoldDisabled
-            teamMember2 :: TeamMember = mkTeamMember uid2 (rolePermissions RoleAdmin) Nothing UserLegalHoldDisabled
-            teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember1, teamMember2]
+      prop ("can send to multiple receivers") $
+        \idp (TestTeam teamId users) -> do
+          let idp' = patchIdP idp teamId
+              notif = IdPCreated (Just uid) idp'
+              teamMap :: Map TeamId [TeamMember] = Map.singleton teamId (snd <$> users)
+              adminsAndOwners :: [(StoredUser, TeamMember)] =
+                filter
+                  ( \(_u, tm) ->
+                      permissionsRole (Wire.API.Team.Member.getPermissions tm) `elem` [Just RoleAdmin, Just RoleOwner]
+                  )
+                  users
 
-        (mails, logs, _res) <- runInterpreters [storedUser1', storedUser2'] teamMap teamTemplates branding $ do
-          sendSAMLIdPChanged notif
-        length mails `shouldBe` 2
-        let receiverAddresses :: [Text] = addressEmail <$> concatMap (.mailTo) mails
-            expectedAddresses :: [Text] = fromEmail . fromJust <$> [storedUser1'.email, storedUser2'.email]
-        length receiverAddresses `shouldBe` 2
-        receiverAddresses `shouldContain` expectedAddresses
-        -- Expect no issues to be logged
-        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+          (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap teamTemplates branding $ do
+            sendSAMLIdPChanged notif
+          length mails `shouldBe` length adminsAndOwners
+          let receiverAddresses :: [Text] = addressEmail <$> concatMap (.mailTo) mails
+              expectedAddresses :: [Text] = fromEmail . fromJust . email . fst <$> adminsAndOwners
+          length receiverAddresses `shouldBe` length adminsAndOwners
+          Set.fromList receiverAddresses `shouldBe` Set.fromList expectedAddresses
+          -- Expect no issues to be logged
+          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+
+data TestTeam = TestTeam TeamId [(StoredUser, TeamMember)]
+  deriving (Show)
+
+instance Arbitrary TestTeam where
+  arbitrary = do
+    teamId :: TeamId <- arbitrary
+    users :: [StoredUserWithEmail] <-
+      (\(StoredUserWithEmail r) -> StoredUserWithEmail r {teamId = Just teamId})
+        <$$> arbitrary
+    teamMbrs <- mapM (\(StoredUserWithEmail u) -> makeTeamMember u) users
+    pure $ TestTeam teamId (zip (getStoredUser <$> users) teamMbrs)
+    where
+      makeTeamMember :: StoredUser -> Gen TeamMember
+      makeTeamMember user = do
+        userRole :: Role <- arbitrary
+        mkTeamMember user.id (rolePermissions userRole) <$> arbitrary <*> arbitrary
+
+newtype StoredUserWithEmail = StoredUserWithEmail {getStoredUser :: StoredUser}
+  deriving (Show)
+
+instance Arbitrary StoredUserWithEmail where
+  arbitrary =
+    StoredUserWithEmail
+      <$> arbitrary
+        `suchThat` (isJust . (.email))
 
 patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
 patchIdP idp teamId =
