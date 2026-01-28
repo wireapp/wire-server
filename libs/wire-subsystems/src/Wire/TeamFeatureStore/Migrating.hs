@@ -37,25 +37,6 @@ import Wire.TeamFeatureStore
 import Wire.TeamFeatureStore.Cassandra
 import Wire.TeamFeatureStore.Postgres
 
-{-
-  Write path under lock:
-
-  1. Check Postgres for row.
-  2. If exists → write Postgres.
-  3. Else check Cassandra.
-  4. If exists → write Cassandra.
-  5. Else → write Postgres (new canonical row).
-
-  Read path under lock:
-
-  - Prefer Postgres; fallback to Cassandra; if neither exists → Nothing.
-
-  Read all feature, no lock:
-
-  - Read all features from Postgres.
-  - Read all features from Cassandra.
-  - Merge per‑feature with precedence: Postgres wins, fallback to Cassandra, otherwise Nothing.
--}
 interpretTeamFeatureStoreToCassandraAndPostgres ::
   ( PGConstraints r,
     Member (Input ClientState) r,
@@ -73,6 +54,8 @@ interpretTeamFeatureStoreToCassandraAndPostgres = interpret $ \case
   SetFeatureLockStatus sing tid lock -> setFeatureLockStatusImpl sing tid lock
   PatchDbFeature sing tid feat -> patchDbFeatureImpl sing tid feat
 
+-- Read path under lock:
+-- - Prefer Postgres; fallback to Cassandra; if neither exists → Nothing.
 getDbFeatureImpl ::
   forall cfg r.
   ( PGConstraints r,
@@ -94,6 +77,10 @@ getDbFeatureImpl sing tid = case featureSingIsFeature sing of
         (pure . Just)
         mFeature
 
+-- Read all feature, no lock:
+-- - Read all features from Postgres.
+-- - Read all features from Cassandra.
+-- - Merge per‑feature with precedence: Postgres wins, fallback to Cassandra, otherwise Nothing.
 getAllDbFeaturesImpl ::
   forall r.
   ( PGConstraints r,
@@ -123,34 +110,11 @@ setDbFeatureImpl ::
   Sem r ()
 setDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
   Dict ->
-    withSharedLock (tid, featureName @cfg) $ determineStore sing tid psql cass
+    withWritePathUnderLock sing tid psql cass
     where
       psql = interpretTeamFeatureStoreToPostgres $ send (SetDbFeature sing tid feat)
       cass = interpretTeamFeatureStoreToCassandra $ send (SetDbFeature sing tid feat)
 
-determineStore ::
-  forall cfg r a.
-  ( PGConstraints r,
-    Member TinyLog r,
-    Member Async r,
-    Member Race r,
-    Member (Input ClientState) r,
-    Member (Error MigrationLockError) r,
-    IsFeatureConfig cfg
-  ) =>
-  FeatureSingleton cfg ->
-  TeamId ->
-  Sem r a ->
-  Sem r a ->
-  Sem r a
-determineStore sing tid psql cass =
-  withSharedLock (tid, featureName @cfg) $ do
-    mFeaturePsql <- interpretTeamFeatureStoreToPostgres $ send (GetDbFeature sing tid)
-    if isJust mFeaturePsql
-      then psql
-      else do
-        mFeatureCql <- interpretTeamFeatureStoreToCassandra $ send (GetDbFeature sing tid)
-        if isJust mFeatureCql then cass else psql
 
 setFeatureLockStatusImpl ::
   forall cfg r.
@@ -167,7 +131,7 @@ setFeatureLockStatusImpl ::
   Sem r ()
 setFeatureLockStatusImpl sing tid lock = case featureSingIsFeature sing of
   Dict ->
-    withSharedLock (tid, featureName @cfg) $ determineStore sing tid psql cass
+    withWritePathUnderLock sing tid psql cass
     where
       psql = interpretTeamFeatureStoreToPostgres $ send (SetFeatureLockStatus sing tid lock)
       cass = interpretTeamFeatureStoreToCassandra $ send (SetFeatureLockStatus sing tid lock)
@@ -187,10 +151,40 @@ patchDbFeatureImpl ::
   Sem r ()
 patchDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
   Dict ->
-    withSharedLock (tid, featureName @cfg) $ determineStore sing tid psql cass
+    withWritePathUnderLock sing tid psql cass
     where
       psql = interpretTeamFeatureStoreToPostgres $ send (PatchDbFeature sing tid feat)
       cass = interpretTeamFeatureStoreToCassandra $ send (PatchDbFeature sing tid feat)
+
+-- Write path under lock:
+-- 1. Check Postgres for row.
+-- 2. If exists -> write Postgres.
+-- 3. Else check Cassandra.
+-- 4. If exists -> write Cassandra.
+-- 5. Else → write Postgres (new canonical row).
+withWritePathUnderLock  ::
+  forall cfg r a.
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member (Input ClientState) r,
+    Member (Error MigrationLockError) r,
+    IsFeatureConfig cfg
+  ) =>
+  FeatureSingleton cfg ->
+  TeamId ->
+  Sem r a ->
+  Sem r a ->
+  Sem r a
+withWritePathUnderLock sing tid psql cass =
+  withSharedLock (tid, featureName @cfg) $ do
+    mFeaturePsql <- interpretTeamFeatureStoreToPostgres $ send (GetDbFeature sing tid)
+    if isJust mFeaturePsql
+      then psql
+      else do
+        mFeatureCql <- interpretTeamFeatureStoreToCassandra $ send (GetDbFeature sing tid)
+        if isJust mFeatureCql then cass else psql
 
 withSharedLock ::
   ( PGConstraints r,
