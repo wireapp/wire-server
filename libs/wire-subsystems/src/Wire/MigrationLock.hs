@@ -14,8 +14,10 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
-module Wire.ConversationStore.MigrationLock where
+module Wire.MigrationLock where
 
 import Data.Bits
 import Data.Id
@@ -38,8 +40,15 @@ import System.Logger.Message qualified as Log
 import Wire.API.PostgresMarshall
 import Wire.Postgres
 
+class MigrationLockable a where
+  -- | namespace (e.g. "conv", "user", etc.), used for logging only
+  lockScope :: ByteString
+
+  -- | key used for advisory locks; should be collision-resistant (unique with high probability)
+  lockKey :: a -> Int64
+
 data LockType
-  = -- | Used for migrating a conversation, will block any other locks
+  = -- | Used for migrating a set of data, will block any other locks
     LockExclusive
   | -- | Used for reading and writing to Cassandra, will block exclusive locks
     LockShared
@@ -48,25 +57,27 @@ data MigrationLockError = TimedOutAcquiringLock
   deriving (Show)
 
 withMigrationLocks ::
+  forall x a u r.
   ( PGConstraints r,
     Member Async r,
     Member TinyLog r,
     Member Race r,
     Member (Error MigrationLockError) r,
-    TimeUnit u
+    TimeUnit u,
+    MigrationLockable x
   ) =>
   LockType ->
   u ->
-  [Either ConvId UserId] ->
+  [x] ->
   Sem r a ->
   Sem r a
-withMigrationLocks lockType maxWait convOrUsers action = do
+withMigrationLocks lockType maxWait lockables action = do
   lockAcquired <- embed newEmptyMVar
   actionCompleted <- embed newEmptyMVar
 
   pool <- input
   lockThread <- async . embed . Hasql.use pool $ do
-    let lockIds = map mkLockId convOrUsers
+    let lockIds = fmap lockKey lockables
     Session.statement lockIds acquireLocks
 
     liftIO $ putMVar lockAcquired ()
@@ -80,14 +91,14 @@ withMigrationLocks lockType maxWait convOrUsers action = do
 
   mEithErr <- timeout (cancel lockThread) (Seconds 1) $ await lockThread
   let logFirstLock =
-        case convOrUsers of
+        case lockables of
           [] -> id
-          (convOrUser : _) -> Log.field (either (const "first_conv") (const "first_user") convOrUser) (either idToText idToText convOrUser)
+          (x : _) -> Log.field ("first_" <> lockScope @x) (lockKey x)
       logError errorStr =
         TinyLog.warn $
           Log.msg (Log.val "Failed to cleanly unlock the migration locks")
             . logFirstLock
-            . Log.field "numberOfLocks" (length convOrUsers)
+            . Log.field "numberOfLocks" (length lockables)
             . Log.field "error" errorStr
   case mEithErr of
     Left () -> logError "timed out waiting for unlock"
@@ -97,17 +108,6 @@ withMigrationLocks lockType maxWait convOrUsers action = do
 
   pure res
   where
-    mkLockId :: Either ConvId UserId -> Int64
-    mkLockId convOrUser = fromIntegral $ case convOrUser of
-      Left convId -> hashUUID convId
-      Right userId -> hashUUID userId
-
-    hashUUID :: Id a -> Int64
-    hashUUID (toUUID -> uuid) =
-      let (w1, w2) = UUID.toWords64 uuid
-          mixed = w1 `xor` (w2 `shiftR` 32) `xor` (w2 `shiftL` 32)
-       in fromIntegral mixed
-
     acquireLocks :: Hasql.Statement [Int64] ()
     acquireLocks =
       lmapPG @(Vector _)
@@ -133,3 +133,20 @@ withMigrationLocks lockType maxWait convOrUsers action = do
             [resultlessStatement|SELECT (1 :: int)
                                  FROM (SELECT pg_advisory_unlock_shared(lockId)
                                        FROM (SELECT UNNEST($1 :: bigint[]) as lockId))|]
+
+--------------------------------------------------------------------------------
+-- INSTANCES
+
+instance MigrationLockable ConvId where
+  lockKey = hashUUID
+  lockScope = "conv"
+
+instance MigrationLockable UserId where
+  lockKey = hashUUID
+  lockScope = "user"
+
+hashUUID :: Id a -> Int64
+hashUUID (toUUID -> uuid) =
+  let (w1, w2) = UUID.toWords64 uuid
+      mixed = w1 `xor` (w2 `shiftR` 32) `xor` (w2 `shiftL` 32)
+   in fromIntegral mixed
