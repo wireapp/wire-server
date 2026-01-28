@@ -65,7 +65,7 @@ spec = do
   enTextParts <- runIO $ createTextParts "en"
   deTextParts <- runIO $ createTextParts "de"
   let -- We don't test all locals such that we do not have to adjust this test
-      -- for every new translation. So far, there are translations for Germand
+      -- for every new translation. So far, there are translations for German
       -- and English. There's none for Spanish (falls back to English).
       testLocals :: [(Locale, RenderedTextParts)] =
         flip zip ((replicate 5 enTextParts) ++ (replicate 2 deTextParts)) $
