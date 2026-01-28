@@ -109,7 +109,16 @@ imAssocs = IntMap.assocs . unIndexMap
 -- Note that clients that are in the process of being removed from a group
 -- (i.e. there is a pending remove proposals for them) are __not__ included in
 -- this mapping.
-type ClientMap a = Map (Qualified UserId) (Map ClientId a)
+newtype ClientMap a = ClientMap
+  { unClientMap :: Map (Qualified UserId) (Map ClientId a)
+  }
+  deriving (Show, Eq, Functor)
+
+instance Semigroup (ClientMap a) where
+  ClientMap cm1 <> ClientMap cm2 = ClientMap $ Map.unionWith Map.union cm1 cm2
+
+instance Monoid (ClientMap a) where
+  mempty = ClientMap mempty
 
 mkClientMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> ClientMap LeafIndex
 mkClientMap = foldr addEntry mempty
@@ -117,30 +126,40 @@ mkClientMap = foldr addEntry mempty
     addEntry :: (Domain, UserId, ClientId, Int32, Bool) -> ClientMap LeafIndex -> ClientMap LeafIndex
     addEntry (dom, usr, c, leafidx, pending_removal)
       | pending_removal = id -- treat as removed, don't add to ClientMap
-      | otherwise = Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral leafidx))
+      | otherwise = ClientMap . Map.insertWith (<>) (Qualified usr dom) (Map.singleton c (fromIntegral leafidx)) . unClientMap
+
+cmNull :: ClientMap a -> Bool
+cmNull (ClientMap cm) = Map.null cm
 
 cmToMap :: (Ord a) => ClientMap a -> Map a ClientIdentity
 cmToMap = Map.fromList . map swap . cmAssocs
 
-cmLookupIndex :: ClientIdentity -> ClientMap LeafIndex -> Maybe LeafIndex
-cmLookupIndex cid cm = do
+cmLookupIndex :: ClientIdentity -> ClientMap a -> Maybe a
+cmLookupIndex cid (ClientMap cm) = do
   clients <- Map.lookup (cidQualifiedUser cid) cm
   Map.lookup (ciClient cid) clients
 
-cmRemoveClient :: ClientIdentity -> ClientMap LeafIndex -> ClientMap LeafIndex
-cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
-  Nothing -> cm
-  Just clients ->
-    let clients' = Map.delete (ciClient cid) clients
-     in if Map.null clients'
-          then Map.delete (cidQualifiedUser cid) cm
-          else Map.insert (cidQualifiedUser cid) clients' cm
+cmLookup :: Qualified UserId -> ClientMap a -> Maybe (Map ClientId a)
+cmLookup quid (ClientMap cm) = Map.lookup quid cm
+
+cmLookupClients :: Qualified UserId -> ClientMap a -> [ClientId]
+cmLookupClients quid (ClientMap cm) = foldMap Map.keys (Map.lookup quid cm)
+
+cmRemoveClient :: ClientIdentity -> ClientMap a -> ClientMap a
+cmRemoveClient cid (ClientMap cm) = ClientMap $
+  case Map.lookup (cidQualifiedUser cid) cm of
+    Nothing -> cm
+    Just clients ->
+      let clients' = Map.delete (ciClient cid) clients
+       in if Map.null clients'
+            then Map.delete (cidQualifiedUser cid) cm
+            else Map.insert (cidQualifiedUser cid) clients' cm
 
 isClientMember :: ClientIdentity -> ClientMap LeafIndex -> Bool
 isClientMember ci = isJust . cmLookupIndex ci
 
 cmAssocs :: ClientMap a -> [(ClientIdentity, a)]
-cmAssocs cm = do
+cmAssocs (ClientMap cm) = do
   (quid, clients) <- Map.assocs cm
   (clientId, idx) <- Map.assocs clients
   pure (mkClientIdentity quid clientId, idx)
@@ -150,9 +169,10 @@ cmIdentities = map fst . cmAssocs
 
 cmSingleton :: ClientIdentity -> a -> ClientMap a
 cmSingleton cid idx =
-  Map.singleton
-    (cidQualifiedUser cid)
-    (Map.singleton (ciClient cid) idx)
+  ClientMap $
+    Map.singleton
+      (cidQualifiedUser cid)
+      (Map.singleton (ciClient cid) idx)
 
 -- | Inform a handler for 'POST /conversations/list-ids' if the MLS global team
 -- conversation and the MLS self-conversation should be included in the

@@ -16,13 +16,14 @@
 , crypton-x509
 , crypton-x509-validation
 , data-default
+, directory
 , dns
 , dns-util
 , exceptions
 , extended
 , filepath
+, fsnotify
 , gitignoreSource
-, hinotify
 , HsOpenSSL
 , hspec
 , hspec-junit-formatter
@@ -91,12 +92,13 @@ mkDerivation {
     crypton-x509
     crypton-x509-validation
     data-default
+    directory
     dns
     dns-util
     exceptions
     extended
     filepath
-    hinotify
+    fsnotify
     HsOpenSSL
     http-client
     http-media
@@ -174,6 +176,7 @@ mkDerivation {
     containers
     crypton-x509-validation
     data-default
+    directory
     dns-util
     filepath
     HsOpenSSL

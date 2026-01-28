@@ -63,8 +63,9 @@ inMemoryUserStoreInterpreter = interpret $ \case
         if u.id == uid
           then u {emailUnvalidated = Just email} :: StoredUser
           else u
-  GetIndexUser uid ->
-    gets $ fmap storedUserToIndexUser . find (\user -> user.id == uid)
+  GetIndexUser uid -> do
+    mUser <- gets @[StoredUser] $ find (\user -> user.id == uid)
+    pure $ storedUserToIndexUser <$> mUser
   GetIndexUsersPaginated _pageSize _pagingState ->
     error "GetIndexUsersPaginated not implemented in inMemoryUserStoreInterpreter"
   UpdateUserHandleEither uid hUpdate -> runError $ modifyLocalUsers (traverse doUpdate)
@@ -72,7 +73,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
       doUpdate :: StoredUser -> Sem (Error StoredUserUpdateError : r) StoredUser
       doUpdate u
         | u.id == uid = do
-            handles <- gets $ mapMaybe (.handle)
+            handles <- gets @[StoredUser] $ mapMaybe (.handle)
             when
               ( hUpdate.old
                   /= Just hUpdate.new
@@ -87,7 +88,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
         us <- get
         us' <- f us
         put us'
-  DeleteUser user -> modify $ filter (\u -> u.id /= User.userId user)
+  DeleteUser user -> modify @[StoredUser] $ filter (\u -> u.id /= User.userId user)
   LookupHandle h -> lookupHandleImpl h
   GlimpseHandle h -> lookupHandleImpl h
   LookupStatus uid -> lookupStatusImpl uid
@@ -105,7 +106,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
       doUpdate :: StoredUser -> StoredUser
       doUpdate u = if u.id == uid then u {email = Nothing} else u
   GetUserTeam uid -> do
-    gets $ \users -> do
+    gets @[StoredUser] $ \users -> do
       user <- find (\user -> user.id == uid) users
       user.teamId
   SetUserSearchable uid (SetSearchable searchable) -> modify $ map f

@@ -90,6 +90,7 @@ data:
     {{- end }}
 
     migrateConversations: {{ .migrateConversations }}
+    migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateConversationsOptions:
 {{toYaml .migrateConversationsOptions | indent 6 }}
 

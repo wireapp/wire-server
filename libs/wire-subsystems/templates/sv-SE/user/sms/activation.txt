@@ -1,3 +1,0 @@
-Din kod för Wire är ${code}.
-
-Öppna ${url} för att verifiera ditt nummer eller skriv in koden manuellt i Wire.

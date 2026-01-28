@@ -54,6 +54,19 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
 
+  -- getApp, getApps
+  bindResponse (getApp owner tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  bindResponse (getApps owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    void $ resp.json >>= asList >>= assertOne
+  bindResponse (createApp owner tid (new {name = "fmappie"})) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  bindResponse (getApps owner tid) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json >>= asList
+    (sort <$> ((%. "name") `mapM` apps)) `shouldMatch` ["chappie", "fmappie"]
+
   -- Creator should have type "regular"
   bindResponse (getUser owner owner) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -73,7 +86,7 @@ testCreateApp = do
     (resp.json %. "category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser OwnDomain def
+  outsideUser <- randomUser domain def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
@@ -88,13 +101,25 @@ testCreateApp = do
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 400
 
+  let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
+      foundUserType searcher exactMatchTerm aTypes =
+        searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          foundDoc <- resp.json %. "documents" >>= asList
+          (%. "type") `mapM` foundDoc `shouldMatch` aTypes
+
   -- App's user is findable from /search/contacts
-  BrigI.refreshIndex OwnDomain
-  searchContacts owner new.name OwnDomain `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    docs <- resp.json %. "documents" >>= asList
-    foundUids <- for docs objId
-    foundUids `shouldMatch` [appId]
+  BrigI.refreshIndex domain
+  foundUserType owner new.name ["app"]
+  foundUserType regularMember new.name ["app"]
+
+  -- App's user is *not* findable from other team.
+  BrigI.refreshIndex domain
+  foundUserType owner2 new.name []
+
+  -- Regular members still have the type "regular"
+  memberName <- regularMember %. "name" & asString
+  foundUserType owner memberName ["regular"]
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do

@@ -32,7 +32,7 @@ import Wire.Arbitrary
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
   deriving (Eq, Show, Generic, Ord)
-  deriving newtype (PostgresUnmarshall ByteString)
+  deriving newtype (PostgresUnmarshall ByteString, PostgresMarshall ByteString)
   deriving (Arbitrary) via (GenericUniform GroupId)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
@@ -59,9 +59,6 @@ instance C.Cql GroupId where
 
   fromCql (C.CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
-
-instance PostgresMarshall GroupId ByteString where
-  postgresMarshall = unGroupId
 
 newtype GroupIdGen = GroupIdGen {unGroupIdGen :: Word32}
   deriving (Eq, Show, Generic, Ord)

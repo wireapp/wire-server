@@ -16,7 +16,6 @@ export FEDERATION_DOMAIN_BASE_1="."
 export FEDERATION_DOMAIN_BASE_2="."
 export FEDERATION_CA_CERTIFICATE="."
 export ENTERPRISE_IMAGE_PULL_SECRET="."
-export INGRESS_CHART="ingress-nginx-controller"
 
 # shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"

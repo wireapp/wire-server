@@ -68,23 +68,6 @@
         "type": "github"
       }
     },
-    "cryptobox-haskell": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1728557781,
-        "narHash": "sha256-LROqEzzvKiJ7YoF8SdKUkEgGXKBRW6Wdtd4EBY3LYOk=",
-        "owner": "wireapp",
-        "repo": "cryptobox-haskell",
-        "rev": "05560b2cfae13aac54414952638dadd62204f361",
-        "type": "github"
-      },
-      "original": {
-        "owner": "wireapp",
-        "ref": "master",
-        "repo": "cryptobox-haskell",
-        "type": "github"
-      }
-    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -226,7 +209,6 @@
         "bloodhound": "bloodhound",
         "cql": "cql",
         "cql-io": "cql-io",
-        "cryptobox-haskell": "cryptobox-haskell",
         "flake-utils": "flake-utils",
         "hedis": "hedis",
         "hsaml2": "hsaml2",
@@ -354,14 +336,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1767870783,
-        "narHash": "sha256-0QStp+uH05bnGltPnOJM2FdeTJdgVIWkVM5wSFYVceM=",
-        "path": "/home/axeman/workspace/tom-bombadil",
-        "type": "path"
+        "lastModified": 1739181719,
+        "narHash": "sha256-W4g0e9u5CagGY8qqsHIZbP28iVkvvmz+hCkNz3b5GkE=",
+        "owner": "wireapp",
+        "repo": "tom-bombadil",
+        "rev": "53842ffb11e8d357b7d7bdf21b800c71a414ed06",
+        "type": "github"
       },
       "original": {
-        "path": "/home/axeman/workspace/tom-bombadil",
-        "type": "path"
+        "owner": "wireapp",
+        "repo": "tom-bombadil",
+        "type": "github"
       }
     },
     "wai-predicates": {

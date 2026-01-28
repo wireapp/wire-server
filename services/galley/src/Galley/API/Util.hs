@@ -42,10 +42,8 @@ import Data.Text qualified as T
 import Data.Time
 import Galley.API.Error
 import Galley.API.Mapping
-import Galley.Data.Types qualified as DataTypes
 import Galley.Effects
 import Galley.Effects.ClientStore
-import Galley.Effects.CodeStore
 import Galley.Env
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
@@ -86,6 +84,8 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.CodeStore
+import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
 import Wire.ExternalAccess
@@ -750,7 +750,7 @@ verifyReusableCode ::
   Sem r DataTypes.Code
 verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
   (c, mPw) <-
-    getCode (conversationKey convCode) DataTypes.ReusableCode
+    getCode (conversationKey convCode)
       >>= noteS @'CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound

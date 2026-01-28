@@ -103,6 +103,21 @@ CREATE TABLE public.conversation (
 ALTER TABLE public.conversation OWNER TO "wire-server";
 
 --
+-- Name: conversation_codes; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.conversation_codes (
+    key text NOT NULL,
+    conversation uuid NOT NULL,
+    password bytea,
+    value text NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.conversation_codes OWNER TO "wire-server";
+
+--
 -- Name: conversation_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -283,6 +298,14 @@ ALTER TABLE ONLY public.collaborators
 
 
 --
+-- Name: conversation_codes conversation_codes_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.conversation_codes
+    ADD CONSTRAINT conversation_codes_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: conversation_member conversation_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -390,6 +413,20 @@ CREATE INDEX collaborators_team_id_idx ON public.collaborators USING btree (team
 --
 
 CREATE INDEX collaborators_user_id_idx ON public.collaborators USING btree (user_id);
+
+
+--
+-- Name: conversation_codes_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_codes_expires_at_idx ON public.conversation_codes USING btree (expires_at);
+
+
+--
+-- Name: conversation_codes_key_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_codes_key_expires_at_idx ON public.conversation_codes USING btree (key, expires_at);
 
 
 --

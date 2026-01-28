@@ -1,3 +1,0 @@
-Ihr ${brand}-Code ist ${code}.
-
-Öffnen Sie ${url}, um Ihre Nummer zu bestätigen.

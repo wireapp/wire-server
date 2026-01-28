@@ -89,7 +89,7 @@ withTempMockFederator opts resp action =
               }
       withSettingsOverrides opts' action
 
-generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
+generateClientPrekeys :: Brig -> [(UncheckedPrekeyBundle, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
 generateClientPrekeys brig prekeys = do
   quser <- userQualifiedId <$> randomUser brig
   let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk

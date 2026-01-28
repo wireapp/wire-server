@@ -41,7 +41,7 @@ data StoredApp = StoredApp
 -- The `PostgresMarshall` instances are here in this module -- as
 -- having them elsewhere would make them orphan instances of
 -- `StoredApp`.
-instance PostgresMarshall StoredApp (UUID, UUID, Value, Text, Text, UUID) where
+instance PostgresMarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp where
   postgresMarshall app =
     ( postgresMarshall app.id,
       postgresMarshall app.teamId,
@@ -64,5 +64,6 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp wher
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
   GetApp :: UserId -> TeamId -> AppStore m (Maybe StoredApp)
+  GetApps :: TeamId -> AppStore m [StoredApp]
 
 makeSem ''AppStore

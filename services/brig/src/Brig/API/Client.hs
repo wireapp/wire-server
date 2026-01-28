@@ -469,7 +469,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     . Message.userClients
     $ userClients
   where
-    getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe UncheckedPrekeyBundle)))
     getChunk m = do
       e <- ask
       AppT $
@@ -482,13 +482,13 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     getUserKeys ::
       UserId ->
       Set ClientId ->
-      (AppT r) (Map ClientId (Maybe Prekey))
+      (AppT r) (Map ClientId (Maybe UncheckedPrekeyBundle))
     getUserKeys u =
       sequenceA . Map.fromSet (getClientKeys u)
     getClientKeys ::
       UserId ->
       ClientId ->
-      (AppT r) (Maybe Prekey)
+      (AppT r) (Maybe UncheckedPrekeyBundle)
     getClientKeys u c = do
       key <- fmap prekeyData <$> wrapHttpClient (Data.claimPrekey u c)
       when (isNothing key) $ noPrekeys u c
@@ -622,6 +622,5 @@ createAccessToken luid cid method link proof = do
           method
           maxSkewSeconds
           expiresAt
-          now
           pubKeyBundle
   pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)

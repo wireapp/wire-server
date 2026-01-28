@@ -116,12 +116,13 @@ library
     , crypton-x509
     , crypton-x509-validation
     , data-default
+    , directory
     , dns
     , dns-util
     , exceptions
     , extended
     , filepath
-    , hinotify
+    , fsnotify
     , HsOpenSSL
     , http-client
     , http-media
@@ -386,6 +387,7 @@ test-suite federator-tests
     , containers
     , crypton-x509-validation
     , data-default
+    , directory
     , dns-util
     , federator
     , filepath

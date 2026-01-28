@@ -48,6 +48,7 @@ import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.HTTP2.Client.Internal as HTTP2
 import qualified Network.Socket as NS
 import qualified OpenSSL.Session as SSL
+import qualified StmContainers.Map as StmMap
 import System.IO.Error
 import qualified System.TimeManager
 import System.Timeout
@@ -95,7 +96,7 @@ data Request = Request
 -- HTTP1. I think HTTP1 vs HTTP2 can not be negotated without TLS, so perhaps
 -- this manager will default to HTTP2.
 data Http2Manager = Http2Manager
-  { connections :: TVar (Map Target HTTP2Conn),
+  { connections :: StmMap.Map Target HTTP2Conn,
     cacheLimit :: Int,
     -- | In microseconds, defaults to 30s
     tcpConnectionTimeout :: Int,
@@ -118,7 +119,7 @@ defaultHttp2Manager = do
 
 http2ManagerWithSSLCtx :: SSL.SSLContext -> IO Http2Manager
 http2ManagerWithSSLCtx sslContext = do
-  connections <- newTVarIO mempty
+  connections <- StmMap.newIO
   let cacheLimit = 20
       tcpConnectionTimeout = 30_000_000
       sslRemoveTrailingDot = False
@@ -234,10 +235,11 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
     -- leak.
     insertNewConn :: HTTP2Conn -> STM (Bool, HTTP2Conn)
     insertNewConn newConn = do
-      stateTVar connections $ \conns ->
-        case Map.lookup target conns of
-          Nothing -> ((True, newConn), Map.insert target newConn conns)
-          Just alreadyEstablishedConn -> ((False, alreadyEstablishedConn), conns)
+      StmMap.lookup target connections >>= \case
+        Just existing -> pure (False, existing)
+        Nothing -> do
+          StmMap.insert newConn target connections
+          pure (True, newConn)
 
     connect :: IO HTTP2Conn
     connect = do
@@ -256,8 +258,7 @@ getOrMakeConnection mgr@Http2Manager {..} target = do
 -- | Removes connection from map if it is not alive anymore
 getConnection :: Http2Manager -> Target -> STM (Maybe HTTP2Conn)
 getConnection mgr target = do
-  conns <- readTVar (connections mgr)
-  case Map.lookup target conns of
+  StmMap.lookup target (connections mgr) >>= \case
     Nothing -> pure Nothing
     Just conn ->
       -- If there is a connection for the target, ensure that it is alive
@@ -269,7 +270,7 @@ getConnection mgr target = do
           -- recieve here. But logging in STM will be tricky, and the threads
           -- running requests on the connection which got an exception would've
           -- anyway recieved the exception, so maybe it is not as valueable.
-          writeTVar (connections mgr) $ Map.delete target conns
+          StmMap.delete target (connections mgr)
           pure Nothing
 
 -- | Disconnects HTTP2 connection if there exists one. Will hang around until
@@ -284,7 +285,7 @@ disconnectTarget mgr target = do
     Just conn -> do
       disconnect conn
       wait (backgroundThread conn)
-        `finally` (atomically . modifyTVar' (connections mgr) $ Map.delete target)
+        `finally` atomically (StmMap.delete target (connections mgr))
 
 -- | Disconnects HTTP2 connection if there exists one. If the background thread
 -- running the connection does not finish within 1 second, it is canceled.
@@ -313,7 +314,7 @@ disconnectTargetWithTimeout mgr target microSeconds = do
             void $ waitAnyCatchCancel [waitOneSec, backgroundThread conn]
 
       waitWithTimeout
-        `finally` (atomically . modifyTVar' (connections mgr) $ Map.delete target)
+        `finally` atomically (StmMap.delete target (connections mgr))
 
 startPersistentHTTP2Connection ::
   SSL.SSLContext ->

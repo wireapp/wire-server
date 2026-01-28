@@ -131,7 +131,7 @@ instance HasField "signer" GroupInfo Word32 where
 
 newtype GroupInfoData = GroupInfoData {unGroupInfoData :: ByteString}
   deriving stock (Eq, Ord, Show)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, PostgresMarshall ByteString, PostgresUnmarshall ByteString)
 
 instance ParseMLS GroupInfoData where
   parseMLS = GroupInfoData . LBS.toStrict <$> getRemainingLazyByteString
@@ -148,9 +148,3 @@ instance C.Cql GroupInfoData where
   toCql = C.CqlBlob . LBS.fromStrict . unGroupInfoData
   fromCql (C.CqlBlob b) = Right $ GroupInfoData (LBS.toStrict b)
   fromCql _ = Left "GroupInfoData: blob expected"
-
-instance PostgresMarshall GroupInfoData ByteString where
-  postgresMarshall = unGroupInfoData
-
-instance PostgresUnmarshall ByteString GroupInfoData where
-  postgresUnmarshall = Right . GroupInfoData

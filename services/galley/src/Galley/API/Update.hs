@@ -98,10 +98,8 @@ import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.API.Util
 import Galley.App
-import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.ClientStore qualified as E
-import Galley.Effects.CodeStore qualified as E
 import Galley.Env
 import Galley.Options
 import Imports hiding (forkIO)
@@ -134,10 +132,14 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore qualified as E
+import Wire.CodeStore.Code
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ExternalAccess qualified as E
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
@@ -530,7 +532,7 @@ addCodeUnqualifiedWithReqBody ::
     Member Now r,
     Member HashPassword r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member RateLimit r,
     Member TeamSubsystem r
   ) =>
@@ -556,7 +558,7 @@ addCodeUnqualified ::
     Member Now r,
     Member (Input Opts) r,
     Member HashPassword r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member RateLimit r,
     Member TeamSubsystem r
   ) =>
@@ -584,7 +586,7 @@ addCode ::
     Member NotificationSubsystem r,
     Member Now r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member RateLimit r,
     Member TeamSubsystem r
   ) =>
@@ -603,10 +605,10 @@ addCode lusr mbZHost mZcon lcnv mReq = do
   ensureGuestsOrNonTeamMembersAllowed conv
   convUri <- getConversationCodeURI mbZHost
   key <- E.makeKey (tUnqualified lcnv)
-  E.getCode key ReusableCode >>= \case
+  E.getCode key >>= \case
     Nothing -> do
       ttl <- realToFrac . unGuestLinkTTLSeconds . fromMaybe defGuestLinkTTLSeconds . view (settings . guestLinkTTLSeconds) <$> input
-      code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout ttl)
+      code <- E.generateCode (tUnqualified lcnv) (Timeout ttl)
       mPw <- for (mReq >>= (.password)) $ HashPassword.hashPassword8 (RateLimitUser (tUnqualified lusr))
       E.createCode code mPw
       now <- Now.get
@@ -668,7 +670,7 @@ rmCode lusr zcon lcnv = do
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ conv.localMembers
   key <- E.makeKey (tUnqualified lcnv)
-  E.deleteCode key ReusableCode
+  E.deleteCode key
   now <- Now.get
   let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing EdConvCodeDelete
   pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map (.id_) users)) bots
@@ -682,8 +684,7 @@ getCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   Maybe ZHostValue ->
   Local UserId ->
@@ -696,7 +697,7 @@ getCode mbZHost lusr cnv = do
   ensureAccess conv CodeAccess
   ensureConvMember (conv.localMembers) (tUnqualified lusr)
   key <- E.makeKey cnv
-  (c, mPw) <- E.getCode key ReusableCode >>= noteS @'CodeNotFound
+  (c, mPw) <- E.getCode key >>= noteS @'CodeNotFound
   convUri <- getConversationCodeURI mbZHost
   pure $ mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) convUri
 
@@ -704,11 +705,10 @@ checkReusableCode ::
   forall r.
   ( Member CodeStore r,
     Member ConversationStore r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
-    Member (Input Opts) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -748,6 +748,7 @@ updateConversationProtocolWithLocalUser ::
     Member Random r,
     Member ProposalStore r,
     Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
@@ -835,8 +836,7 @@ joinConversationByReusableCode ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TooManyMembers) r,
     Member ConversationSubsystem r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
     Member TeamSubsystem r,
@@ -1921,8 +1921,7 @@ updateCellsState ::
   ( Member ConversationStore r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS InvalidOperation) r,
-    Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member FeaturesConfigSubsystem r
   ) =>
   ConvId ->
   CellsState ->
@@ -1931,7 +1930,7 @@ updateCellsState cnv state = do
   when (state /= CellsDisabled) $ do
     conv <- E.getConversation cnv >>= noteS @ConvNotFound
     tid <- noteS @InvalidOperation conv.metadata.cnvmTeam
-    feat <- getFeatureForTeam @CellsConfig tid
+    (feat :: LockableFeature CellsConfig) <- getFeatureForTeam tid
     noteS @InvalidOperation $ guard (feat.status == FeatureStatusEnabled)
   E.setConversationCellsState cnv state
 

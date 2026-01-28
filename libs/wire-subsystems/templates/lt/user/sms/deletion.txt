@@ -1,2 +1,0 @@
-Bakstelėkite, norėdami ištrinti savo ${brand} paskyrą.
-${url}

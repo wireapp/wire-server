@@ -29,6 +29,7 @@ import Data.ByteString.Lazy
 import Data.Handle
 import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Data.Text.Encoding
 import Database.Bloodhound.Types
 import Imports
@@ -61,6 +62,7 @@ mkIndexVersion writetimes =
 -- consequently removed from the index.
 data UserDoc = UserDoc
   { udId :: UserId,
+    udType :: Maybe UserType,
     udTeam :: Maybe TeamId,
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
@@ -85,6 +87,7 @@ instance ToJSON UserDoc where
   toJSON ud =
     object
       [ "id" .= udId ud,
+        "type" .= udType ud,
         "team" .= udTeam ud,
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
@@ -107,6 +110,7 @@ instance FromJSON UserDoc where
   parseJSON = withObject "UserDoc" $ \o ->
     UserDoc
       <$> o .: "id"
+      <*> o .:? "type"
       <*> o .:? "team"
       <*> o .:? "name"
       <*> o .:? "normalized"
@@ -126,6 +130,27 @@ instance FromJSON UserDoc where
 
 searchVisibilityInboundFieldName :: Key
 searchVisibilityInboundFieldName = "search_visibility_inbound"
+
+-- Qualified UserId is not included in `UserDoc`, so it needs to be
+-- provided here.  Monad will most likely be Identity (I promise we'll
+-- always make up some name if missing) or Maybe (if no name, then no
+-- contact).
+userDocToContact :: (Monad m) => Qualified UserId -> (Maybe Name -> m Text) -> UserDoc -> m Contact
+userDocToContact contactQualifiedId getName userDoc =
+  getName userDoc.udName <&> \name ->
+    Contact
+      { contactQualifiedId,
+        contactName = name,
+        contactColorId = fromIntegral . fromColourId <$> userDoc.udColourId,
+        contactHandle = fromHandle <$> userDoc.udHandle,
+        contactTeam = userDoc.udTeam,
+        contactType =
+          -- NB: after wire release upgrade and before ES reindexing,
+          -- apps may identify as regular users in the search result.
+          -- this is an accepted limitation and will be fixed in
+          -- https://github.com/wireapp/wire-server/pull/4947
+          fromMaybe UserTypeRegular userDoc.udType
+      }
 
 userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
 userDocToTeamContact userGroups UserDoc {..} =

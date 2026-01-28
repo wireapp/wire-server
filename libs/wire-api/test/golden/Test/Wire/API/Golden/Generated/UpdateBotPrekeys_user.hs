@@ -20,14 +20,14 @@
 module Test.Wire.API.Golden.Generated.UpdateBotPrekeys_user where
 
 import Wire.API.Conversation.Bot (UpdateBotPrekeys (..))
-import Wire.API.User.Client.Prekey (Prekey (Prekey, prekeyId, prekeyKey), PrekeyId (PrekeyId, keyId))
+import Wire.API.User.Client.Prekey (PrekeyId (PrekeyId, keyId), UncheckedPrekeyBundle (UncheckedPrekeyBundle, prekeyId, prekeyKey))
 
 testObject_UpdateBotPrekeys_user_1 :: UpdateBotPrekeys
 testObject_UpdateBotPrekeys_user_1 =
   UpdateBotPrekeys
     { updateBotPrekeyList =
-        [ Prekey {prekeyId = PrekeyId {keyId = 81}, prekeyKey = "Ox\DLE*\120423\&8m\DC4%J\34541\"/r"},
-          Prekey {prekeyId = PrekeyId {keyId = 29}, prekeyKey = "r\GS"}
+        [ UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 81}, prekeyKey = "Ox\DLE*\120423\&8m\DC4%J\34541\"/r"},
+          UncheckedPrekeyBundle {prekeyId = PrekeyId {keyId = 29}, prekeyKey = "r\GS"}
         ]
     }
 

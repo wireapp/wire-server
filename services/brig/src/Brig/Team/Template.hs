@@ -18,19 +18,16 @@
 module Brig.Team.Template
   ( TeamTemplates (..),
     InvitationEmailTemplate (..),
-    CreatorWelcomeEmailTemplate (..),
     MemberWelcomeEmailTemplate (..),
     loadTeamTemplates,
-
-    -- * Re-exports
-    Template,
   )
 where
 
 import Brig.Options
 import Brig.Template
+import Data.Text.Template
 import Imports
-import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.Team
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
@@ -46,13 +43,6 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
             <$> readTemplate fp "email/migration-subject.txt"
             <*> readTemplate fp "email/migration.txt"
             <*> readTemplate fp "email/migration.html"
-            <*> pure (emailSender gOptions)
-            <*> readText fp "email/sender.txt"
-        )
-    <*> ( CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
-            <$> readTemplate fp "email/new-creator-welcome-subject.txt"
-            <*> readTemplate fp "email/new-creator-welcome.txt"
-            <*> readTemplate fp "email/new-creator-welcome.html"
             <*> pure (emailSender gOptions)
             <*> readText fp "email/sender.txt"
         )

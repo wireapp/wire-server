@@ -126,7 +126,6 @@ library
     Test.Client
     Test.Connection
     Test.Conversation
-    Test.Conversation.Migration
     Test.Demo
     Test.DNSMock
     Test.DomainVerification
@@ -174,8 +173,12 @@ library
     Test.LegalHold
     Test.Login
     Test.MessageTimer
+    Test.Migration.Conversation
+    Test.Migration.ConversationCodes
+    Test.Migration.Util
     Test.MLS
     Test.MLS.Clients
+    Test.MLS.History
     Test.MLS.KeyPackage
     Test.MLS.Keys
     Test.MLS.Message
@@ -255,7 +258,6 @@ library
     , cql
     , cql-io
     , criterion
-    , cryptobox-haskell
     , crypton
     , crypton-x509
     , cryptostore

@@ -22,6 +22,7 @@
 , case-insensitive
 , cassandra-util
 , cassava
+, cborg
 , cereal
 , comonad
 , conduit
@@ -144,6 +145,7 @@ mkDerivation {
     case-insensitive
     cassandra-util
     cassava
+    cborg
     cereal
     comonad
     conduit

@@ -102,6 +102,7 @@ common common-all
     , case-insensitive
     , cassandra-util
     , conduit
+    , constraints
     , containers
     , contravariant
     , cql
@@ -116,6 +117,7 @@ common common-all
     , extra
     , file-embed
     , galley-types
+    , generics-sop
     , hashable
     , HaskellNet
     , HaskellNet-SSL
@@ -164,6 +166,7 @@ common common-all
     , servant-server
     , singletons
     , sodium-crypto-sign
+    , sop-core
     , ssl-util
     , statistics
     , stomp-queue
@@ -222,6 +225,13 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.CodeStore
+    Wire.CodeStore.Cassandra
+    Wire.CodeStore.Cassandra.Queries
+    Wire.CodeStore.Code
+    Wire.CodeStore.DualWrite
+    Wire.CodeStore.Migration
+    Wire.CodeStore.Postgres
     Wire.ConversationStore
     Wire.ConversationStore.Cassandra
     Wire.ConversationStore.Cassandra.Instances
@@ -246,6 +256,8 @@ library
     Wire.EmailSubsystem
     Wire.EmailSubsystem.Interpreter
     Wire.EmailSubsystem.Template
+    Wire.EmailSubsystem.Templates.Team
+    Wire.EmailSubsystem.Templates.User
     Wire.EnterpriseLoginSubsystem
     Wire.EnterpriseLoginSubsystem.Error
     Wire.EnterpriseLoginSubsystem.Interpreter
@@ -254,6 +266,10 @@ library
     Wire.Events
     Wire.ExternalAccess
     Wire.ExternalAccess.External
+    Wire.FeaturesConfigSubsystem
+    Wire.FeaturesConfigSubsystem.Interpreter
+    Wire.FeaturesConfigSubsystem.Types
+    Wire.FeaturesConfigSubsystem.Utils
     Wire.FederationAPIAccess
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
@@ -275,11 +291,13 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.Migration
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState
@@ -314,6 +332,8 @@ library
     Wire.TeamCollaboratorsStore.Postgres
     Wire.TeamCollaboratorsSubsystem
     Wire.TeamCollaboratorsSubsystem.Interpreter
+    Wire.TeamFeatureStore
+    Wire.TeamFeatureStore.Cassandra
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter

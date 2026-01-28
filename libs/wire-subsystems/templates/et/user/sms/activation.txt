@@ -1,3 +1,0 @@
-Your ${brand} code is ${code}.
-
-Toksa ${url} et number kinnitada.

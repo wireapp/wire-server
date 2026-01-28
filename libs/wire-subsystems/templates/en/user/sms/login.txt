@@ -1,3 +1,0 @@
-Your ${brand} login code is ${code}.
-
-Open ${url} to log in.

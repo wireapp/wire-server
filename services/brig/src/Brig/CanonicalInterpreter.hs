@@ -30,7 +30,7 @@ import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationS
 import Brig.IO.Intra (runEvents)
 import Brig.Options (federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
-import Brig.Team.Template (TeamTemplates)
+import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas
 import Control.Exception (ErrorCall)
@@ -210,7 +210,7 @@ type BrigLowerLevelEffects =
      Input VerificationCodeThrottleTTL,
      Input (Local ()),
      Input (AuthenticationSubsystemConfig),
-     Input TeamTemplates,
+     Input InvitationUrlTemplates,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -345,7 +345,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
-              . runInputConst (teamTemplatesNoLocale e)
+              . runInputConst (invitationUrlTemplates e)
               . runInputConst authenticationSubsystemConfig
               . runInputConst localUnit
               . runInputConst (fromIntegral $ Opt.twoFACodeGenerationDelaySecs e.settings)
@@ -389,7 +389,7 @@ runBrigToIO e (AppT ma) = do
               . runDeleteQueue e.internalEvents
               . interpretPropertySubsystem propertySubsystemConfig
               . interpretVerificationCodeSubsystem
-              . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBranding
+              . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBrandingAsMap
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI

@@ -32,7 +32,6 @@ module Galley.Effects
 
     -- * Store effects
     ClientStore,
-    CodeStore,
     ConversationStore,
     CustomBackendStore,
     LegalHoldStore,
@@ -61,18 +60,20 @@ module Galley.Effects
 where
 
 import Data.Id
+import Data.Map (Map)
+import Data.Misc (HttpsUrl)
 import Data.Qualified
+import Data.Text (Text)
 import Galley.Effects.ClientStore
-import Galley.Effects.CodeStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.Options
 import Galley.Types.Teams
+import Imports (Either)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -82,9 +83,12 @@ import Wire.API.Federation.Client
 import Wire.API.Team.Feature
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ExternalAccess
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
@@ -103,6 +107,7 @@ import Wire.ServiceStore
 import Wire.SparAPIAccess
 import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
+import Wire.TeamFeatureStore
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -112,6 +117,8 @@ import Wire.UserGroupStore
 type GalleyEffects1 =
   '[ TeamCollaboratorsSubsystem,
      ConversationSubsystem,
+     Input AllTeamFeatures,
+     FeaturesConfigSubsystem,
      TeamSubsystem,
      SparAPIAccess,
      NotificationSubsystem,
@@ -145,11 +152,13 @@ type GalleyEffects1 =
      TeamMemberStore CassandraPaging,
      ListItems LegacyPaging TeamId,
      ListItems InternalPaging TeamId,
+     Input ExposeInvitationURLsAllowlist,
+     Input FeatureFlags,
      Input FanoutLimit,
-     Input AllTeamFeatures,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
      Input Opts,
+     Input (Either HttpsUrl (Map Text HttpsUrl)),
      Now,
      Queue DeleteItem,
      Error DynError,

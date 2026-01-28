@@ -32,7 +32,7 @@ module Brig.App
     closeEnv,
     providerTemplatesWithLocale,
     teamTemplatesWithLocale,
-    teamTemplatesNoLocale,
+    invitationUrlTemplates,
     cargoholdLens,
     galleyLens,
     galleyEndpointLens,
@@ -53,6 +53,7 @@ module Brig.App
     providerTemplatesLens,
     teamTemplatesLens,
     templateBrandingLens,
+    templateBrandingAsMapLens,
     httpManagerLens,
     http2ManagerLens,
     extGetManagerLens,
@@ -113,7 +114,7 @@ import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
-import Brig.Template (Localised, genTemplateBranding)
+import Brig.Template (InvitationUrlTemplates (..), Localised, genTemplateBranding, genTemplateBrandingMap)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Cassandra (runClient)
@@ -165,6 +166,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthEnv)
 import Wire.AuthenticationSubsystem.Config qualified as AuthenticationSubsystem
 import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (TemplateBranding, forLocale)
+import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
@@ -201,6 +203,7 @@ data Env = Env
     providerTemplates :: Localised ProviderTemplates,
     teamTemplates :: Localised TeamTemplates,
     templateBranding :: TemplateBranding,
+    templateBrandingAsMap :: Map Text Text,
     httpManager :: Manager,
     http2Manager :: Http2Manager,
     extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ()),
@@ -238,6 +241,7 @@ newEnv opts = do
   ptp <- loadProviderTemplates opts
   ttp <- loadTeamTemplates opts
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
+      brandingAsMap = genTemplateBrandingMap . Opt.templateBranding . Opt.general . Opt.emailSMS $ opts
   (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS opts)
   aws <- AWS.mkEnv lgr (Opt.aws opts) emailAWSOpts mgr
   zau <- initZAuth opts
@@ -296,6 +300,7 @@ newEnv opts = do
         providerTemplates = ptp,
         teamTemplates = ttp,
         templateBranding = branding,
+        templateBrandingAsMap = brandingAsMap,
         httpManager = mgr,
         http2Manager = h2Mgr,
         extGetManager = ext,
@@ -444,10 +449,16 @@ teamTemplatesWithLocale l = forLocale l <$> asks (.teamTemplates)
 providerTemplatesWithLocale :: (MonadReader Env m) => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplatesWithLocale l = forLocale l <$> asks (.providerTemplates)
 
--- this works because team templates is not affected by `forLocale`; it is useful where we
--- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
-teamTemplatesNoLocale :: (MonadReader Env m) => m TeamTemplates
-teamTemplatesNoLocale = snd <$> teamTemplatesWithLocale Nothing
+invitationUrlTemplates :: (MonadReader Env m) => m InvitationUrlTemplates
+invitationUrlTemplates = do
+  -- this works because team templates is not affected by `forLocale`; it is useful where we
+  -- use the `TeamTemplates` only for finding invitation url templates (those are not localized).
+  teamTemplates <- snd <$> teamTemplatesWithLocale Nothing
+  pure $
+    InvitationUrlTemplates
+      { personalUser = teamTemplates.existingUserInvitationEmail.invitationEmailUrl,
+        newUser = teamTemplates.invitationEmail.invitationEmailUrl
+      }
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

@@ -15,44 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.User.Template
-  ( UserTemplates (..),
-    ActivationSmsTemplate (..),
-    VerificationEmailTemplate (..),
-    ActivationEmailTemplate (..),
-    TeamActivationEmailTemplate (..),
-    ActivationCallTemplate (..),
-    PasswordResetSmsTemplate (..),
-    PasswordResetEmailTemplate (..),
-    LoginSmsTemplate (..),
-    LoginCallTemplate (..),
-    DeletionSmsTemplate (..),
-    DeletionEmailTemplate (..),
-    NewClientEmailTemplate (..),
-    SecondFactorVerificationEmailTemplate (..),
-    loadUserTemplates,
-
-    -- * Re-exports
-    Template,
-  )
-where
+module Brig.User.Template (loadUserTemplates) where
 
 import Brig.Options qualified as Opt
 import Brig.Template
+import Data.Text.Template
 import Imports
-import Wire.EmailSubsystem.Template
+import Wire.EmailSubsystem.Templates.User
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
 loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
   UserTemplates
-    <$> ( ActivationSmsTemplate smsActivationUrl
-            <$> readTemplate fp "sms/activation.txt"
-            <*> pure smsSender
-        )
-    <*> ( ActivationCallTemplate
-            <$> readTemplate fp "call/activation.txt"
-        )
-    <*> ( VerificationEmailTemplate activationUrl
+    <$> ( VerificationEmailTemplate activationUrl
             <$> readTemplate fp "email/verification-subject.txt"
             <*> readTemplate fp "email/verification.txt"
             <*> readTemplate fp "email/verification.html"
@@ -80,27 +54,12 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
         )
-    <*> ( PasswordResetSmsTemplate
-            <$> readTemplate fp "sms/password-reset.txt"
-            <*> pure smsSender
-        )
     <*> ( PasswordResetEmailTemplate passwordResetUrl
             <$> readTemplate fp "email/password-reset-subject.txt"
             <*> readTemplate fp "email/password-reset.txt"
             <*> readTemplate fp "email/password-reset.html"
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
-        )
-    <*> ( LoginSmsTemplate smsActivationUrl
-            <$> readTemplate fp "sms/login.txt"
-            <*> pure smsSender
-        )
-    <*> ( LoginCallTemplate
-            <$> readTemplate fp "call/login.txt"
-        )
-    <*> ( DeletionSmsTemplate deletionUserUrl
-            <$> readTemplate fp "sms/deletion.txt"
-            <*> pure smsSender
         )
     <*> ( DeletionEmailTemplate deletionUserUrl
             <$> readTemplate fp "email/deletion-subject.txt"
@@ -142,8 +101,6 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     uOptions = o.emailSMS.user
     tOptions = o.emailSMS.team
     emailSender = gOptions.emailSender
-    smsSender = gOptions.smsSender
-    smsActivationUrl = template uOptions.smsActivationUrl
     activationUrl = template uOptions.activationUrl
     teamActivationUrl = template tOptions.tActivationUrl
     passwordResetUrl = template uOptions.passwordResetUrl

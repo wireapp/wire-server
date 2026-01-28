@@ -145,7 +145,7 @@ data BrigAPIAccess m a where
   AddLegalHoldClientToUserEither ::
     UserId ->
     ConnId ->
-    [Prekey] ->
+    [UncheckedPrekeyBundle] ->
     LastPrekey ->
     BrigAPIAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAPIAccess m ()
@@ -174,7 +174,7 @@ addLegalHoldClientToUser ::
   (Member BrigAPIAccess r, Member (Error AuthenticationError) r) =>
   UserId ->
   ConnId ->
-  [Prekey] ->
+  [UncheckedPrekeyBundle] ->
   LastPrekey ->
   Sem r ClientId
 addLegalHoldClientToUser uid con pks lpk =

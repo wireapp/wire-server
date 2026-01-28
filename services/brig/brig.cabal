@@ -191,7 +191,6 @@ library
     Brig.Schema.V90_DomainRegistrationTeamIndex
     Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
     Brig.Team.API
-    Brig.Team.Email
     Brig.Team.Template
     Brig.Template
     Brig.User.API.Handle
@@ -232,7 +231,6 @@ library
     , conduit                               >=1.2.8
     , containers                            >=0.5
     , cookie                                >=0.4
-    , cryptobox-haskell                     >=0.1.1
     , crypton
     , currency-codes                        >=2.0
     , data-default
@@ -366,6 +364,7 @@ executable brig-integration
     API.Team
     API.Team.Util
     API.TeamUserSearch
+    API.Template
     API.User
     API.User.Account
     API.User.Auth

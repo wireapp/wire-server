@@ -22,6 +22,7 @@ import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import Data.UUID qualified as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
+import Wire.API.User
 import Wire.API.User.Search (Contact (..))
 
 testObject_Contact_user_1 :: Contact
@@ -35,7 +36,8 @@ testObject_Contact_user_1 =
       contactName = "",
       contactColorId = Just 6,
       contactHandle = Just "\1089530\NUL|\SO",
-      contactTeam = Nothing
+      contactTeam = Nothing,
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_2 :: Contact
@@ -49,7 +51,8 @@ testObject_Contact_user_2 =
       contactName = "\SYND",
       contactColorId = Just (-5),
       contactHandle = Just "",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000400000002")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000400000002"))),
+      contactType = UserTypeApp
     }
 
 testObject_Contact_user_3 :: Contact
@@ -63,7 +66,8 @@ testObject_Contact_user_3 =
       contactName = "S\1037187D\GS",
       contactColorId = Just (-4),
       contactHandle = Just "\175177~\35955c",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000700000008")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000700000008"))),
+      contactType = UserTypeBot
     }
 
 testObject_Contact_user_4 :: Contact
@@ -77,7 +81,8 @@ testObject_Contact_user_4 =
       contactName = "@=\ETX",
       contactColorId = Nothing,
       contactHandle = Just "6",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000500000004")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000500000004"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_5 :: Contact
@@ -91,7 +96,8 @@ testObject_Contact_user_5 =
       contactName = "5m~\DC4`",
       contactColorId = Nothing,
       contactHandle = Nothing,
-      contactTeam = Nothing
+      contactTeam = Nothing,
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_6 :: Contact
@@ -105,7 +111,8 @@ testObject_Contact_user_6 =
       contactName = "Cst\995547U",
       contactColorId = Nothing,
       contactHandle = Just "qI",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0004-0000-000600000000")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0004-0000-000600000000"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_7 :: Contact
@@ -119,7 +126,8 @@ testObject_Contact_user_7 =
       contactName = "\b74\ENQ",
       contactColorId = Just 5,
       contactHandle = Just "",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000008-0000-0001-0000-000400000008")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000008-0000-0001-0000-000400000008"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_8 :: Contact
@@ -133,7 +141,8 @@ testObject_Contact_user_8 =
       contactName = "w\1050194\993461#\\",
       contactColorId = Just (-2),
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0007-0000-000500000002")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0007-0000-000500000002"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_9 :: Contact
@@ -147,7 +156,8 @@ testObject_Contact_user_9 =
       contactName = ",\1041199 \v\1077257",
       contactColorId = Just 5,
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0002-0000-000500000000")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0002-0000-000500000000"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_10 :: Contact
@@ -161,7 +171,8 @@ testObject_Contact_user_10 =
       contactName = "(\1103086\1105553H/",
       contactColorId = Just 0,
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0006-0000-000700000000")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0006-0000-000700000000"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_11 :: Contact
@@ -175,7 +186,8 @@ testObject_Contact_user_11 =
       contactName = "+\DC4\1063683<",
       contactColorId = Just 6,
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000007-0000-0008-0000-000600000004")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000007-0000-0008-0000-000600000004"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_12 :: Contact
@@ -189,7 +201,8 @@ testObject_Contact_user_12 =
       contactName = "l\DC1\ETB`\ETX",
       contactColorId = Just (-4),
       contactHandle = Just "",
-      contactTeam = Nothing
+      contactTeam = Nothing,
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_13 :: Contact
@@ -203,7 +216,8 @@ testObject_Contact_user_13 =
       contactName = "\SYN\1030541\v8z",
       contactColorId = Just (-3),
       contactHandle = Just "E\EM\US[58",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000000000005")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000000000005"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_14 :: Contact
@@ -217,7 +231,8 @@ testObject_Contact_user_14 =
       contactName = "7",
       contactColorId = Just (-2),
       contactHandle = Just "h\CAN",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0008-0000-000700000008")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0008-0000-000700000008"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_15 :: Contact
@@ -231,7 +246,8 @@ testObject_Contact_user_15 =
       contactName = "U6\ESC*\SO",
       contactColorId = Nothing,
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0006-0000-000800000006")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0006-0000-000800000006"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_16 :: Contact
@@ -245,7 +261,8 @@ testObject_Contact_user_16 =
       contactName = "l",
       contactColorId = Nothing,
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000200000007")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000200000007"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_17 :: Contact
@@ -259,7 +276,8 @@ testObject_Contact_user_17 =
       contactName = "fI\8868\&3z",
       contactColorId = Nothing,
       contactHandle = Just "3",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000004-0000-0007-0000-000000000001")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000004-0000-0007-0000-000000000001"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_18 :: Contact
@@ -273,7 +291,8 @@ testObject_Contact_user_18 =
       contactName = "\"jC\74801\144577\DC2",
       contactColorId = Nothing,
       contactHandle = Nothing,
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000007")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000007"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_19 :: Contact
@@ -287,7 +306,8 @@ testObject_Contact_user_19 =
       contactName = "I",
       contactColorId = Just (-1),
       contactHandle = Just "\"7\ACK!",
-      contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0004-0000-000000000003")))
+      contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0004-0000-000000000003"))),
+      contactType = UserTypeRegular
     }
 
 testObject_Contact_user_20 :: Contact
@@ -301,5 +321,6 @@ testObject_Contact_user_20 =
       contactName = "|K\n\n\t",
       contactColorId = Nothing,
       contactHandle = Nothing,
-      contactTeam = Nothing
+      contactTeam = Nothing,
+      contactType = UserTypeRegular
     }

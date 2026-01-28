@@ -157,7 +157,7 @@ instance C.Cql CipherSuiteTag where
   fromCql (CqlInt index) = first Text.unpack $ cipherSuiteTagFromInt32 index
   fromCql _ = Left "CipherSuiteTag: int expected"
 
-instance PostgresMarshall CipherSuiteTag Int32 where
+instance PostgresMarshall Int32 CipherSuiteTag where
   postgresMarshall = cipherSuitTagToInt32
 
 instance PostgresUnmarshall Int32 CipherSuiteTag where

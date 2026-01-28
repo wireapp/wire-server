@@ -29,7 +29,6 @@
 , conduit
 , containers
 , cookie
-, cryptobox-haskell
 , crypton
 , currency-codes
 , data-default
@@ -184,7 +183,6 @@ mkDerivation {
     conduit
     containers
     cookie
-    cryptobox-haskell
     crypton
     currency-codes
     data-default

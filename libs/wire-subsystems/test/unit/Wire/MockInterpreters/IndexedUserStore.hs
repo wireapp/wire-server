@@ -30,10 +30,7 @@ import Polysemy.State
 import Wire.API.Team.Size
 import Wire.API.User.Search
 import Wire.IndexedUserStore
-import Wire.MockInterpreters.UserStore (storedUserToIndexUser)
-import Wire.StoredUser
 import Wire.UserSearch.Types
-import Wire.UserStore.IndexUser
 
 newtype OrdDocId = OrdDocId Text
   deriving (Show, Eq, Ord)
@@ -53,17 +50,6 @@ emptyIndex =
     { nextVersion = (ES.DocVersion 0),
       docs = mempty
     }
-
-storedUserToDoc :: StoredUser -> UserDoc
-storedUserToDoc user =
-  let indexUser = storedUserToIndexUser user
-   in indexUserToDoc defaultSearchVisibilityInbound Nothing indexUser
-
-indexFromStoredUsers :: [StoredUser] -> UserIndex
-indexFromStoredUsers storedUsers = do
-  run . execState emptyIndex . inMemoryIndexedUserStoreInterpreter $ do
-    for_ storedUsers $ \storedUser ->
-      upsert (userIdToDocId storedUser.id) (storedUserToDoc storedUser) ES.NoVersionControl
 
 runInMemoryIndexedUserStoreIntepreter :: InterpreterFor IndexedUserStore r
 runInMemoryIndexedUserStoreIntepreter =

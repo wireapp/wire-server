@@ -1,18 +1,12 @@
-{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
-{{- $ingressFieldNotAnnotation := eq (include "ingress.FieldNotAnnotation" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
-apiVersion: {{ include "ingress.apiVersion" . }}
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "nginx-ingress-services.getIngressName" . | quote }}
+  {{- if .Values.config.renderCSPInIngress }}
   annotations:
-    {{- if not $ingressFieldNotAnnotation }}
-    kubernetes.io/ingress.class: "{{ .Values.config.ingressClass }}"
-    {{- end }}
-    {{ if .Values.config.renderCSPInIngress }}
-    {{ if not (contains .Values.config.ingressClass "nginx") }}
+    {{- if not (contains .Values.config.ingressClass "nginx") }}
         {{ fail "In ingress CSP header setting only works with a 'nginx' controller. (Rename it to 'nginx-*' if it is one.)" }}
-    {{ end }}
+    {{- end }}
     {{/* We need to add CSP headers here for webapp, team-settings and
     account-pages requests, because they cannot do it on their own in the
     multi-ingress case.
@@ -44,11 +38,9 @@ metadata:
         set $CSP "${CSP} upgrade-insecure-requests";
         more_set_headers "content-security-policy: $CSP";
       }
-    {{ end }}
-spec:
-  {{- if $ingressFieldNotAnnotation }}
-  ingressClassName: "{{ .Values.config.ingressClass }}"
   {{- end }}
+spec:
+  ingressClassName: "{{ .Values.config.ingressClass }}"
   # This assumes you have created the given cert (see secret.yaml)
   # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
   tls:
@@ -72,92 +64,57 @@ spec:
       http:
         paths:
           - path: /
-            {{- if $ingressSupportsPathType }}
             pathType: Prefix
-            {{- end }}
             backend:
-              {{- if $apiIsStable }}
               service:
                 name: nginz
                 port:
                   name: http
-              {{- else }}
-              serviceName: nginz
-              servicePort: http
-              {{- end }}
 {{- if .Values.websockets.enabled }}
     - host: {{ .Values.config.dns.ssl }}
       http:
         paths:
           - path: /
-            {{- if $ingressSupportsPathType }}
             pathType: Prefix
-            {{- end }}
             backend:
-              {{- if $apiIsStable }}
               service:
                 name: nginz
                 port:
                   name: ws
-              {{- else }}
-              serviceName: nginz
-              servicePort: ws
-              {{- end }}
 {{- end }}
 {{- if .Values.webapp.enabled }}
     - host: {{ .Values.config.dns.webapp }}
       http:
         paths:
           - path: /
-            {{- if $ingressSupportsPathType }}
             pathType: Prefix
-            {{- end }}
             backend:
-              {{- if $apiIsStable }}
               service:
                 name: webapp-http
                 port:
                   number: {{ .Values.service.webapp.externalPort }}
-              {{- else }}
-              serviceName: webapp-http
-              servicePort: {{ .Values.service.webapp.externalPort }}
-              {{- end }}
 {{- end }}
 {{- if .Values.teamSettings.enabled }}
     - host: {{ .Values.config.dns.teamSettings }}
       http:
         paths:
           - path: /
-            {{- if $ingressSupportsPathType }}
             pathType: Prefix
-            {{- end }}
             backend:
-              {{- if $apiIsStable }}
               service:
                 name: team-settings-http
                 port:
                   number: {{ .Values.service.teamSettings.externalPort }}
-              {{- else }}
-              serviceName: team-settings-http
-              servicePort: {{ .Values.service.teamSettings.externalPort }}
-              {{- end }}
 {{- end }}
 {{- if .Values.accountPages.enabled }}
     - host: {{ .Values.config.dns.accountPages }}
       http:
         paths:
           - path: /
-            {{- if $ingressSupportsPathType }}
             pathType: Prefix
-            {{- end }}
             backend:
-              {{- if $apiIsStable }}
               service:
                 name: account-pages-http
                 port:
                   number: {{ .Values.service.accountPages.externalPort }}
-              {{- else }}
-              serviceName: account-pages-http
-              servicePort: {{ .Values.service.accountPages.externalPort }}
-              {{- end }}
 {{- end }}

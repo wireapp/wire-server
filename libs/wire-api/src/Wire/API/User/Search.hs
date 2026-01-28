@@ -42,8 +42,7 @@ import Data.Aeson hiding (object, (.=))
 import Data.Aeson qualified as Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as C8
-import Data.ByteString.Conversion
-import Data.ByteString.Conversion qualified as BS
+import Data.ByteString.Conversion as BS
 import Data.Id (TeamId, UserGroupId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.OpenApi (ToParamSchema (..))
@@ -59,7 +58,7 @@ import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
-import Wire.API.User (ManagedBy)
+import Wire.API.User (ManagedBy, UserType)
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -138,14 +137,15 @@ deriving via (Schema (SearchResult TeamContact)) instance S.ToSchema (SearchResu
 --------------------------------------------------------------------------------
 -- Contact
 
--- | Returned by 'searchIndex' under @/contacts/search@.
+-- | Returned by 'searchIndex' under @/search/contacts@.
 -- This is a subset of 'User' and json instances should reflect that.
 data Contact = Contact
   { contactQualifiedId :: Qualified UserId,
     contactName :: Text,
     contactColorId :: Maybe Int,
     contactHandle :: Maybe Text,
-    contactTeam :: Maybe TeamId
+    contactTeam :: Maybe TeamId,
+    contactType :: UserType
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
@@ -161,6 +161,7 @@ instance ToSchema Contact where
         <*> contactColorId .= optField "accent_id" (maybeWithDefault Aeson.Null schema)
         <*> contactHandle .= optField "handle" (maybeWithDefault Aeson.Null schema)
         <*> contactTeam .= optField "team" (maybeWithDefault Aeson.Null schema)
+        <*> contactType .= field "type" schema
 
 --------------------------------------------------------------------------------
 -- TeamContact

@@ -97,5 +97,5 @@ getOutOfSyncUsers newMembers lconv =
         Set.fromList $
           map (tUntagged . qualifyAs lconv . (.id_)) conv.mcLocalMembers
             <> map (tUntagged . (.id_)) conv.mcRemoteMembers
-      groupMembers = Map.keysSet conv.mcMembers <> newMembers
+      groupMembers = Map.keysSet (unClientMap conv.mcMembers) <> newMembers
    in Set.difference convMembers groupMembers
