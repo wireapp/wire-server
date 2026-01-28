@@ -1,0 +1,3 @@
+Send an email to team admins and owners when an IdP is changed via API (create,
+update, delete). This behaviour is for now only enabled for multi-ingress
+setups.
