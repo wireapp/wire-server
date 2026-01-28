@@ -113,9 +113,10 @@ spec = do
 
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
+
+          assertNoWarnLogs logs
+
           length mails `shouldBe` 1
-          -- Templating issues are logged on level `Warn`
-          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
           let mail = head mails
           assertCommonMailAttributes mail textParts.subject
           assertMailTextPartWithFile mail textParts.created
@@ -128,9 +129,10 @@ spec = do
               notif = IdPDeleted uid idp'
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
+
+          assertNoWarnLogs logs
+
           length mails `shouldBe` 1
-          -- Templating issues are logged on level `Warn`
-          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
           let mail = head mails
           assertCommonMailAttributes mail textParts.subject
           assertMailTextPartWithFile mail textParts.deleted
@@ -151,12 +153,14 @@ spec = do
               notif = IdPUpdated uid idpOld' idpNew'
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
+
+          assertNoWarnLogs logs
+
           length mails `shouldBe` 1
-          -- Templating issues are logged on level `Warn`
-          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
           let mail = head mails
           assertCommonMailAttributes mail textParts.subject
           assertMailTextPartWithFile mail textParts.updated
+
     describe "logic" $ do
       prop "should not send to non-management roles" $
         \idp (StoredUserWithEmail storedUser) (OtherTeamRole role) -> do
@@ -168,9 +172,10 @@ spec = do
 
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
+
+          assertNoWarnLogs logs
+
           length mails `shouldBe` 0
-          -- Expect no issues to be logged
-          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
       prop "should send to team managers" $
         \idp (StoredUserWithEmail storedUser) (TeamManagementRole role) -> do
@@ -182,9 +187,10 @@ spec = do
 
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
+
+          assertNoWarnLogs logs
+
           length mails `shouldBe` 1
-          -- Expect no issues to be logged
-          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
       prop ("can send to multiple receivers") $
         \idp (TestTeam tid users) -> do
@@ -200,13 +206,18 @@ spec = do
 
           (mails, logs, _res) <- runInterpreters (fst <$> users) teamMap teamTemplates branding $ do
             sendSAMLIdPChanged notif
+
+          assertNoWarnLogs logs
+
           length mails `shouldBe` length adminsAndOwners
           let receiverAddresses :: [Text] = addressEmail <$> concatMap (.mailTo) mails
               expectedAddresses :: [Text] = fromEmail . fromJust . email . fst <$> adminsAndOwners
           length receiverAddresses `shouldBe` length adminsAndOwners
           Set.fromList receiverAddresses `shouldBe` Set.fromList expectedAddresses
-          -- Expect no issues to be logged
-          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+
+-- Templating issues are logged on level `Warn`
+assertNoWarnLogs :: (Show b, Eq b) => [(Level, b)] -> Expectation
+assertNoWarnLogs logs = filter (\(level, _) -> level > Info) logs `shouldBe` mempty
 
 newtype OtherTeamRole = OtherTeamRole Role
   deriving (Show)
