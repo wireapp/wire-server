@@ -26,6 +26,7 @@ import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (fullPermissions)
+import Wire.API.Team.Role (Role (..))
 import Wire.API.User.IdentityProvider
 import Wire.EmailSending
 import Wire.EmailSubsystem qualified as Email
@@ -51,7 +52,6 @@ data RenderedTextParts = RenderedTextParts
   }
 
 -- TODO tests:
--- - Other local (found)
 -- No admin user
 spec :: Spec
 spec = do
@@ -100,61 +100,77 @@ spec = do
   teamTemplates :: Localised TeamTemplates <- runIO $ loadTeamTemplates teamOpts "templates" defLocale emailSender
   newCerts <- runIO $ X509.readCertificates "test/resources/saml/certs.store"
 
-  describe "SendSAMLIdPChanged" $ forM_ testLocals $ \(userLocale :: Locale, textParts) -> do
-    context ("locale: " ++ show userLocale) do
-      it "should send an email on IdPCreated" $ do
+  describe "SendSAMLIdPChanged" $ do
+    describe "localized emails" $ forM_ testLocals $ \(userLocale :: Locale, textParts) -> do
+      context ("locale: " ++ show userLocale) do
+        it "should send an email on IdPCreated" $ do
+          idp :: IdP <- liftIO $ generate arbitrary
+          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+          let idp' = patchIdP idp teamId
+              storedUser' = patchStoredUser storedUser teamId userLocale uid
+              notif = IdPCreated (Just uid) idp'
+
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+            sendSAMLIdPChanged notif
+          length mails `shouldBe` 1
+          -- Templating issues are logged on level `Warn`
+          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+          let mail = head mails
+          assertCommonMailAttributes mail textParts.subject
+          assertMailTextPartWithFile mail textParts.created
+
+        it "should send an email on IdPDeleted" $ do
+          idp :: IdP <- liftIO $ generate arbitrary
+          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+          let idp' = patchIdP idp teamId
+              storedUser' = patchStoredUser storedUser teamId userLocale uid
+              notif = IdPDeleted uid idp'
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+            sendSAMLIdPChanged notif
+          length mails `shouldBe` 1
+          -- Templating issues are logged on level `Warn`
+          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+          let mail = head mails
+          assertCommonMailAttributes mail textParts.subject
+          assertMailTextPartWithFile mail textParts.deleted
+
+        it "should send an email on IdPUpdated" $ do
+          idp :: IdP <- liftIO $ generate arbitrary
+          idp2 :: IdP <- liftIO $ generate arbitrary
+          storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
+          let idp' = patchIdP idp teamId
+              idp2' =
+                (patchIdP idp2 teamId)
+                  { _idpMetadata =
+                      idp2._idpMetadata
+                        { _edCertAuthnResponse = NE.fromList newCerts
+                        }
+                  }
+              storedUser' = patchStoredUser storedUser teamId userLocale uid
+              notif = IdPUpdated uid idp' idp2'
+          (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
+            sendSAMLIdPChanged notif
+          length mails `shouldBe` 1
+          -- Templating issues are logged on level `Warn`
+          filter (\(level, _) -> level > Info) logs `shouldBe` mempty
+          let mail = head mails
+          assertCommonMailAttributes mail textParts.subject
+          assertMailTextPartWithFile mail textParts.updated
+    describe "logic" $ do
+      it "should not send emails to usual members (not admin or owner)" $ do
         idp :: IdP <- liftIO $ generate arbitrary
         storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
         let idp' = patchIdP idp teamId
-            storedUser' = patchStoredUser storedUser teamId userLocale uid
+            storedUser' = patchStoredUser storedUser teamId (parseLocalUnsafe "en") uid
             notif = IdPCreated (Just uid) idp'
+            teamMember :: TeamMember = mkTeamMember uid (rolePermissions RoleMember) Nothing UserLegalHoldDisabled
+            teamMap :: Map TeamId [TeamMember] = Map.singleton teamId [teamMember]
 
         (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
           sendSAMLIdPChanged notif
-        length mails `shouldBe` 1
-        -- Templating issues are logged on level `Warn`
+        length mails `shouldBe` 0
+        -- Expect no issues to be logged
         filter (\(level, _) -> level > Info) logs `shouldBe` mempty
-        let mail = head mails
-        assertCommonMailAttributes mail textParts.subject
-        assertMailTextPartWithFile mail textParts.created
-
-      it "should send an email on IdPDeleted" $ do
-        idp :: IdP <- liftIO $ generate arbitrary
-        storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
-        let idp' = patchIdP idp teamId
-            storedUser' = patchStoredUser storedUser teamId userLocale uid
-            notif = IdPDeleted uid idp'
-        (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
-          sendSAMLIdPChanged notif
-        length mails `shouldBe` 1
-        -- Templating issues are logged on level `Warn`
-        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
-        let mail = head mails
-        assertCommonMailAttributes mail textParts.subject
-        assertMailTextPartWithFile mail textParts.deleted
-
-      it "should send an email on IdPUpdated" $ do
-        idp :: IdP <- liftIO $ generate arbitrary
-        idp2 :: IdP <- liftIO $ generate arbitrary
-        storedUser :: StoredUser <- liftIO . generate $ arbitrary `suchThat` (isJust . (.email))
-        let idp' = patchIdP idp teamId
-            idp2' =
-              (patchIdP idp2 teamId)
-                { _idpMetadata =
-                    idp2._idpMetadata
-                      { _edCertAuthnResponse = NE.fromList newCerts
-                      }
-                }
-            storedUser' = patchStoredUser storedUser teamId userLocale uid
-            notif = IdPUpdated uid idp' idp2'
-        (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
-          sendSAMLIdPChanged notif
-        length mails `shouldBe` 1
-        -- Templating issues are logged on level `Warn`
-        filter (\(level, _) -> level > Info) logs `shouldBe` mempty
-        let mail = head mails
-        assertCommonMailAttributes mail textParts.subject
-        assertMailTextPartWithFile mail textParts.updated
 
 patchIdP :: IdPConfig WireIdP -> TeamId -> IdPConfig WireIdP
 patchIdP idp teamId =
