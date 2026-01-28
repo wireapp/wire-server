@@ -79,15 +79,6 @@ interpretUserStoreCassandra casClient =
       DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
       LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid mPagingState
       LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid mPagingState
-      GetEmails uids -> getEmailsImpl uids
-
-getEmailsImpl :: [UserId] -> Client [EmailAddress]
-getEmailsImpl uids =
-  map runIdentity
-    <$> retry x1 (query selectEmailAddresses (params LocalQuorum (Identity uids)))
-  where
-    selectEmailAddresses :: PrepQuery R (Identity [UserId]) (Identity EmailAddress)
-    selectEmailAddresses = "SELECT email FROM user WHERE id IN ?"
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
