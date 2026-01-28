@@ -89,9 +89,9 @@ getAllDbFeaturesImpl ::
   TeamId ->
   Sem r AllDbFeaturePatches
 getAllDbFeaturesImpl tid = do
-  featuresPsql <- interpretTeamFeatureStoreToPostgres $ send (GetAllDbFeatures tid)
-  featuresCql <- interpretTeamFeatureStoreToCassandra $ send (GetAllDbFeatures tid)
-  pure $ mergeDbFeaturePatches featuresPsql featuresCql
+  mergeDbFeaturePatches
+    <$> interpretTeamFeatureStoreToPostgres (send (GetAllDbFeatures tid))
+    <*> interpretTeamFeatureStoreToCassandra (send (GetAllDbFeatures tid))
   where
     mergeDbFeaturePatches = hzipWith $ \(K psqlPatch) (K cassPatch) -> K (psqlPatch <|> cassPatch)
 
@@ -114,7 +114,6 @@ setDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
     where
       psql = interpretTeamFeatureStoreToPostgres $ send (SetDbFeature sing tid feat)
       cass = interpretTeamFeatureStoreToCassandra $ send (SetDbFeature sing tid feat)
-
 
 setFeatureLockStatusImpl ::
   forall cfg r.
@@ -162,7 +161,7 @@ patchDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
 -- 3. Else check Cassandra.
 -- 4. If exists -> write Cassandra.
 -- 5. Else → write Postgres (new canonical row).
-withWritePathUnderLock  ::
+withWritePathUnderLock ::
   forall cfg r a.
   ( PGConstraints r,
     Member TinyLog r,
