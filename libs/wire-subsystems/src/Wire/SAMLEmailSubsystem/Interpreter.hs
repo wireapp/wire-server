@@ -61,9 +61,9 @@ sendSAMLIdPChangedImpl notif = do
 
     mbUserId :: Maybe UserId
     mbUserId = case notif of
-      IdPCreated nofifUid _idp -> nofifUid
-      IdPDeleted nofifUid _idp -> Just nofifUid
-      IdPUpdated nofifUid _old _new -> Just nofifUid
+      IdPCreated notifUid _idp -> notifUid
+      IdPDeleted notifUid _idp -> Just notifUid
+      IdPUpdated notifUid _old _new -> Just notifUid
 
     certsChanges :: ([X509.SignedCertificate], [X509.SignedCertificate])
     certsChanges = case notif of
