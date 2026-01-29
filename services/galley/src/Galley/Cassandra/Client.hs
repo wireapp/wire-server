@@ -39,7 +39,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import UnliftIO qualified
-import Wire.Effects.ClientStore (ClientStore (..))
+import Wire.ClientStore (ClientStore (..))
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do

@@ -114,7 +114,7 @@ import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Federation
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E

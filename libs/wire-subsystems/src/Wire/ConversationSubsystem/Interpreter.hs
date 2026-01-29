@@ -13,7 +13,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -29,12 +29,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationSubsystem.Interpreter
-  ( module X,
-    interpretConversationSubsystem,
-    createConversationImpl,
-    sendCellsNotification,
-    notifyConversationActionImpl,
-    registerRemoteConversationMemberships,
+  ( interpretConversationSubsystem,
   )
 where
 
@@ -86,7 +81,7 @@ import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
-import Wire.ConversationSubsystem.Types as X
+import Wire.ConversationSubsystem.Types
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem

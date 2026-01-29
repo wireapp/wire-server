@@ -20,22 +20,34 @@ module Wire.BackgroundWorker.Jobs.Registry
   )
 where
 
+import Bilge qualified
+import Bilge.Retry
+import Control.Monad.Catch
+import Control.Retry
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
-import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription)
-import Galley.Types.Teams (FeatureDefaults (FeatureLegalHoldDisabledPermanently), FeatureFlags)
+import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription, legalHoldServiceUnavailable)
+import Galley.Types.Teams (FeatureDefaults (FeatureLegalHoldDisabledPermanently))
 import Hasql.Pool (UsageError)
 import Imports
+import Network.HTTP.Client qualified as Http
+import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Async (asyncToIOFinal)
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
+import Ssl.Util
 import System.Logger as Logger
+import System.Logger.Class qualified as Log
+import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
@@ -48,7 +60,8 @@ import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
 import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
@@ -80,6 +93,51 @@ import Wire.TeamSubsystem.Interpreter (TeamSubsystemConfig (..), interpretTeamSu
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
+-- Helper functions for LegalHoldEnv
+-- Adapted from Galley.External.LegalHoldService.Internal
+makeVerifiedRequestWithManagerIO :: Logger -> Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> IO (Http.Response LC8.ByteString)
+makeVerifiedRequestWithManagerIO logger mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
+  let verified = verifyFingerprints [fpr]
+  extHandleAll (errHandler logger) $ do
+    recovering legalHoldRetryPolicy httpHandlers $
+      const $
+        withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
+          \req ->
+            Http.httpLbs req mgr
+  where
+    reqBuilderMods =
+      maybe id Bilge.host (Bilge.extHost url)
+        . Bilge.port (fromMaybe 443 (Bilge.extPort url))
+        . Bilge.secure
+        . prependPath (uriPath url)
+    errHandler logger' e = do
+      Logger.info logger' $ Log.msg ("error making request to legalhold service: " <> displayException e)
+      throwM (legalHoldServiceUnavailable e)
+    prependPath :: BS.ByteString -> Http.Request -> Http.Request
+    prependPath pth req = req {Http.path = pth `BS.append` Http.path req} -- Modified to use BS.append
+    -- (</>) from System.FilePath, but here we just need to append.
+    -- Assuming a simple append is sufficient for URI path segments for this context.
+    legalHoldRetryPolicy :: RetryPolicy
+    legalHoldRetryPolicy = limitRetries 3 <> exponentialBackoff 100000
+    extHandleAll :: (MonadCatch m) => (SomeException -> m a) -> m a -> m a
+    extHandleAll f ma =
+      catches
+        ma
+        [ Handler $ \(ex :: SomeAsyncException) -> throwM ex,
+          Handler $ \(ex :: SomeException) -> f ex
+        ]
+
+makeVerifiedRequestIO :: Logger -> ExtEnv -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> IO (Http.Response LC8.ByteString)
+makeVerifiedRequestIO logger extEnv fpr url reqBuilder = do
+  let (mgr, verifyFingerprints) = extGetManager extEnv
+  makeVerifiedRequestWithManagerIO logger mgr verifyFingerprints fpr url reqBuilder
+
+makeVerifiedRequestFreshManagerIO :: Logger -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> IO (Http.Response LC8.ByteString)
+makeVerifiedRequestFreshManagerIO logger fpr url reqBuilder = do
+  let disableTlsV1 = True
+  ExtEnv (mgr, verifyFingerprints) <- initExtEnv disableTlsV1
+  makeVerifiedRequestWithManagerIO logger mgr verifyFingerprints fpr url reqBuilder
+
 dispatchJob :: Job -> AppT IO (Either Text ())
 dispatchJob job = do
   env <- ask @Env
@@ -108,7 +166,10 @@ dispatchJob job = do
                 maxConvSize = 1000
               }
           teamSubsystemConfig = TeamSubsystemConfig {concurrentDeletionEvents = 1}
-          legalHoldEnv = LegalHoldEnv (\_ _ _ -> pure (error "LegalHoldEnv")) (\_ _ _ -> pure (error "LegalHoldEnv"))
+          legalHoldEnv =
+            let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
+                makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
+             in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
       runFinal @IO
         . unsafelyPerformConcurrency @_ @'Unsafe
         . embedToFinal @IO
@@ -144,7 +205,7 @@ dispatchJob job = do
         . runInputConst env.hasqlPool
         . runInputConst (toLocalUnsafe env.federationDomain ())
         . runInputConst conversationSubsystemConfig
-        . runInputConst (error "FeatureFlags" :: FeatureFlags)
+        . runInputConst env.featureFlags
         . runInputConst (FeatureLegalHoldDisabledPermanently)
         . runInputConst env.cassandraGalley
         . runInputConst legalHoldEnv
@@ -170,7 +231,7 @@ dispatchJob job = do
         -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
         . interpretBrigAccess env.brigEndpoint
         . interpretExternalAccess extEnv
-        . interpretSparAPIAccessToRpc (error "Spar endpoint")
+        . interpretSparAPIAccessToRpc env.sparEndpoint
         . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig job.requestId)
         . interpretFederationAPIAccess federationAPIAccessConfig
         . interpretTeamSubsystem teamSubsystemConfig

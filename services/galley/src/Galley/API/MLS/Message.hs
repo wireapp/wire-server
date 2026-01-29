@@ -87,7 +87,7 @@ import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess

@@ -129,7 +129,7 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.ListItems qualified as E

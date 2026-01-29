@@ -86,14 +86,14 @@ import Wire.API.Team.Feature
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
+import Wire.ClientStore
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
-import Wire.Effects.ClientStore
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem

@@ -44,10 +44,10 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
+import Wire.ClientStore qualified as E
 import Wire.ConversationStore (getConversation)
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
-import Wire.Effects.ClientStore qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 

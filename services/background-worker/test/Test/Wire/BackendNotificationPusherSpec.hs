@@ -369,6 +369,8 @@ spec = do
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
+          sparEndpoint = undefined
+          featureFlags = undefined
           federator = Nothing
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
@@ -409,6 +411,8 @@ spec = do
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
+          sparEndpoint = undefined
+          featureFlags = undefined
           federator = Nothing
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge

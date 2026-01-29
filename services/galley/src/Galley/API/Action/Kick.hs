@@ -34,7 +34,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

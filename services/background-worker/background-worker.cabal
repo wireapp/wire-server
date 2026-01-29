@@ -34,6 +34,7 @@ library
       aeson
     , amqp
     , base
+    , bilge
     , bytestring
     , bytestring-conversion
     , cassandra-util
@@ -57,6 +58,7 @@ library
     , retry
     , servant-client
     , servant-server
+    , ssl-util
     , tagged
     , text
     , tinylog
@@ -64,6 +66,7 @@ library
     , transformers-base
     , types-common
     , unliftio
+    , uri-bytestring
     , wai-utilities
     , wire-api
     , wire-api-federation

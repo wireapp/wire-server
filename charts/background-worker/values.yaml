@@ -22,6 +22,9 @@ config:
   federator:
     host: federator
     port: 8080
+  spar:
+    host: spar
+    port: 8080
   rabbitmq:
     host: rabbitmq
     port: 5672
@@ -94,6 +97,7 @@ config:
     jobTimeout: 60s
     # Total attempts, including the first try
     maxAttempts: 3
+  featureFlags: {}
 
   # Controls where conversation data is stored/accessed
   postgresMigration:

@@ -78,12 +78,12 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ClientStore
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Federation
 import Wire.ConversationSubsystem.Types
-import Wire.Effects.ClientStore
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.HashPassword (HashPassword)

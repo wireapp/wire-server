@@ -34,6 +34,10 @@ data:
     gundeck:
       host: gundeck
       port: 8080
+    spar:
+      host: {{ .spar.host }}
+      port: {{ .spar.port }}
+
 
     cassandra:
       endpoint:
@@ -78,6 +82,9 @@ data:
     {{- end }}
 
     federationDomain: {{ .federationDomain }}
+    featureFlags:
+{{ toYaml .featureFlags | indent 6 }}
+
 
     {{- with .rabbitmq }}
     rabbitmq:

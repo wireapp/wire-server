@@ -41,7 +41,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem

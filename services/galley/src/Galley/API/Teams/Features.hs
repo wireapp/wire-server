@@ -68,7 +68,7 @@ import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)

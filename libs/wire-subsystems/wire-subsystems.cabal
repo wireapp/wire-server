@@ -253,7 +253,7 @@ library
     Wire.DomainRegistrationStore.Cassandra
     Wire.DomainVerificationChallengeStore
     Wire.DomainVerificationChallengeStore.Cassandra
-    Wire.Effects.ClientStore
+    Wire.ClientStore
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP

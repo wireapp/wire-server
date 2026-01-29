@@ -82,10 +82,10 @@ import Wire.API.Federation.Client
 import Wire.API.Team.Feature
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ClientStore
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
-import Wire.Effects.ClientStore
 import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)

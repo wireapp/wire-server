@@ -131,14 +131,14 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
+import Wire.ClientStore qualified as E
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
-import Wire.Effects.ClientStore qualified as E
 import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E

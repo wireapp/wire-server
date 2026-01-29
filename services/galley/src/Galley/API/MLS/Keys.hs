@@ -25,7 +25,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Keys
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 
 data SomeKeyPair where
   SomeKeyPair :: forall ss. (IsSignatureScheme ss) => Proxy ss -> KeyPair ss -> SomeKeyPair

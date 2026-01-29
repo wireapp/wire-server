@@ -95,7 +95,7 @@ import Wire.API.User (BaseProtocolTag (..))
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget qualified as E

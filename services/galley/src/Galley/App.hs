@@ -112,7 +112,8 @@ import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.Error
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem

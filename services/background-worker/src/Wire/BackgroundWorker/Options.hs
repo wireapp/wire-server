@@ -22,6 +22,7 @@ import Data.Domain (Domain)
 import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
+import Galley.Types.Teams (FeatureFlags)
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
@@ -37,6 +38,7 @@ data Opts = Opts
     federatorInternal :: !Endpoint,
     brig :: Endpoint,
     gundeck :: Endpoint,
+    spar :: Endpoint,
     federator :: Maybe Endpoint,
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
@@ -56,7 +58,8 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     backgroundJobs :: BackgroundJobsConfig,
-    federationDomain :: Domain
+    federationDomain :: Domain,
+    featureFlags :: FeatureFlags
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts

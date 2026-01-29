@@ -53,7 +53,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Now (Now)

@@ -64,7 +64,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore qualified as Eff
 import Wire.ConversationStore.MLS.Types as Eff
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem

@@ -79,9 +79,9 @@ import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ClientStore
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Util
-import Wire.Effects.ClientStore
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)
