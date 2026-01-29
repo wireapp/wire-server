@@ -151,7 +151,7 @@ patchDbFeatureImpl sing tid feat = case featureSingIsFeature sing of
 -- 2. If exists -> write Postgres.
 -- 3. Else check Cassandra.
 -- 4. If exists -> write Cassandra.
--- 5. Else → write Postgres (new canonical row).
+-- 5. Else -> write Postgres (new canonical row).
 withWritePathUnderLock ::
   forall cfg r a.
   ( PGConstraints r,
@@ -172,14 +172,12 @@ withWritePathUnderLock _ tid action =
     if isMigrated
       then interpretTeamFeatureStoreToPostgres action
       else do
-        existsInCassandra <- runExistsInCassandra
+        existsInCassandra <- isJust <$> runSelectCql
         if existsInCassandra
           then interpretTeamFeatureStoreToCassandra action
           else interpretTeamFeatureStoreToPostgres action
   where
-    runExistsInCassandra =
-      fromMaybe False . fmap runIdentity
-        <$> embedClientInput (retry x1 $ query1 Cql.exists (params LocalQuorum (tid, featureName @cfg)))
+    runSelectCql = embedClientInput (retry x1 $ query1 Cql.select (params LocalQuorum (tid, featureName @cfg)))
 
 withSharedLock ::
   ( PGConstraints r,

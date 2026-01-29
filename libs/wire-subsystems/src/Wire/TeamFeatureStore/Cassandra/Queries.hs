@@ -27,9 +27,6 @@ import Wire.API.Team.Feature
 select :: PrepQuery R (TeamId, Text) (Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
 select = "select status, lock_status, config from team_features_dyn where team = ? and feature = ?"
 
-exists :: PrepQuery R (TeamId, Text) (Identity Bool)
-exists = "select true from team_features_dyn where team = ? and feature = ?"
-
 writeStatus :: PrepQuery W (FeatureStatus, TeamId, Text) ()
 writeStatus = "update team_features_dyn set status = ? where team = ? and feature = ?"
 
@@ -43,4 +40,4 @@ selectAllByTeam :: PrepQuery R (Identity TeamId) (Text, Maybe FeatureStatus, May
 selectAllByTeam = "select feature, status, lock_status, config from team_features_dyn where team = ?"
 
 selectAll :: PrepQuery R () (TeamId, Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig)
-selectAll = "select team feature, status, lock_status, config from team_features_dyn"
+selectAll = "select team, feature, status, lock_status, config from team_features_dyn"
