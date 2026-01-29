@@ -53,6 +53,7 @@ data Opts = Opts
     migrateConversations :: !Bool,
     migrateConversationsOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
+    migrateTeamFeatures :: !Bool,
     backgroundJobs :: BackgroundJobsConfig,
     federationDomain :: Domain
   }

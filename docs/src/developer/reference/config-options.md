@@ -1852,12 +1852,13 @@ pattern below applies per store. Use it for `conversation` and
          teamFeatures: migration-to-postgresql
    background-worker:
      config:
-       postgresMigration:
-         conversation: migration-to-postgresql
-         conversationCodes: migration-to-postgresql
-         teamFeatures: migration-to-postgresql
-       migrateConversations: false
-       migrateConversationCodes: false
+      postgresMigration:
+        conversation: migration-to-postgresql
+        conversationCodes: migration-to-postgresql
+        teamFeatures: migration-to-postgresql
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
    ```
 
    This change should restart all the galley pods, and new writes will follow
@@ -1867,9 +1868,10 @@ pattern below applies per store. Use it for `conversation` and
 
    ```yaml
    background-worker:
-     config:
-       migrateConversations: true
-       migrateConversationCodes: true
+    config:
+      migrateConversations: true
+      migrateConversationCodes: true
+      migrateTeamFeatures: true
    ```
 
    Wait for the store-specific migration metrics to reach `1.0`. For
@@ -1889,12 +1891,13 @@ pattern below applies per store. Use it for `conversation` and
          teamFeatures: postgresql
    background-worker:
      config:
-       postgresMigration:
-         conversation: postgresql
-         conversationCodes: postgresql
-         teamFeatures: postgresql
-       migrateConversations: false
-       migrateConversationCodes: false
+      postgresMigration:
+        conversation: postgresql
+        conversationCodes: postgresql
+        teamFeatures: postgresql
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
    ```
 
 **How to run migrations independently or in batches**

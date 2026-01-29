@@ -37,9 +37,11 @@ import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import Wire.API.Team.Feature
-import Wire.Migration
+import Wire.Migration hiding (handleErrors)
 import Wire.MigrationLock
 import Wire.Postgres
+import Wire.Sem.Logger (mapLogger)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.TeamFeatureStore.Cassandra.Queries qualified as Cql
 import Wire.TeamFeatureStore.Postgres.Queries qualified as Psql
 
@@ -50,7 +52,6 @@ migrateAllTeamFeatures ::
     Member TinyLog r,
     Member (State Int) r,
     Member Async r,
-    Member (Error MigrationLockError) r,
     Member Race r
   ) =>
   MigrationOptions ->
@@ -61,6 +62,48 @@ migrateAllTeamFeatures migOpts migCounter = do
   withCount (paginateSem Cql.selectAll (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_ (traverse_ (\row@(tid, feat, _, _, _) -> handleErrors (toByteString' (idToText tid <> " - " <> feat)) (migrateTeamFeature migCounter row)))
+
+type EffectStack =
+  [ State Int,
+    Input ClientState,
+    Input Hasql.Pool,
+    Async,
+    Race,
+    TinyLog,
+    Embed IO,
+    Final IO
+  ]
+
+migrateTeamFeaturesLoop ::
+  MigrationOptions ->
+  ClientState ->
+  Hasql.Pool ->
+  Log.Logger ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  Prometheus.Counter ->
+  IO ()
+migrateTeamFeaturesLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+  migrationLoop
+    logger
+    "team features"
+    migFinished
+    migFailed
+    (interpreter cassClient pgPool logger "team features")
+    (migrateAllTeamFeatures migOpts migCounter)
+
+interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
+interpreter cassClient pgPool logger name =
+  runFinal
+    . embedToFinal
+    . loggerToTinyLog logger
+    . mapLogger (Log.field "migration" name .)
+    . raiseUnder
+    . interpretRace
+    . asyncToIOFinal
+    . runInputConst pgPool
+    . runInputConst cassClient
+    . runState 0
 
 migrateTeamFeature ::
   ( PGConstraints r,
@@ -78,3 +121,27 @@ migrateTeamFeature migCounter (tid, name, status, lockStatus, dbConfig) = do
     unless isMigrated $ do
       runStatement (tid, name, status, lockStatus, dbConfig) Psql.upsertPatch
       liftIO $ Prometheus.incCounter migCounter
+
+handleErrors ::
+  ( Member (State Int) r,
+    Member TinyLog r
+  ) =>
+  ByteString ->
+  (Sem (Error MigrationLockError : Error Hasql.UsageError : r) ()) ->
+  Sem r ()
+handleErrors key action = do
+  eithErr <- runError (runError action)
+  case eithErr of
+    Right (Right _) -> pure ()
+    Right (Left e) -> do
+      warn $
+        Log.msg (Log.val "error occurred during migration")
+          . Log.field "key" (show key)
+          . Log.field "error" (show e)
+      modify (+ 1)
+    Left e -> do
+      warn $
+        Log.msg (Log.val "error occurred during migration")
+          . Log.field "key" (show key)
+          . Log.field "error" (show e)
+      modify (+ 1)

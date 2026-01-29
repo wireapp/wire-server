@@ -73,6 +73,10 @@ config:
   # It's important to set `settings.postgresMigration.conversationCodes` to `migration-to-postgresql`
   # before starting the migration.
   migrateConversationCodes: false
+  # This will start the migration of team features.
+  # It's important to set `settings.postgresMigration.teamFeatures` to `migration-to-postgresql`
+  # before starting the migration.
+  migrateTeamFeatures: false
 
   backendNotificationPusher:
     pushBackoffMinWait: 10000 # in microseconds, so 10ms
