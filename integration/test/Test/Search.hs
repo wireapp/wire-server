@@ -114,8 +114,8 @@ data FedUserSearchTestCase = FedUserSearchTestCase
   }
   deriving (Eq, Ord, Show)
 
-testFederatedUserSearch :: (HasCallStack) => App ()
-testFederatedUserSearch = do
+testFederatedUserSearch1 :: (HasCallStack) => App ()
+testFederatedUserSearch1 = do
   let tcs =
         [ -- no search
           FedUserSearchTestCase "no_search" AllowAll AllowAll False False,
@@ -140,7 +140,52 @@ testFederatedUserSearch = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
     void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
     void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
+    asString OwnDomain >>= \d0 -> do
+      federatedUserSearchWithType d0 d0 -- target OwnDomain locally
+    federatedUserSearchWithType d1 d1 -- target dynamic domain locally
+    federatedUserSearchWithType d1 d2 -- target one dynamic domain from another
     forM_ tcs (federatedUserSearch d1 d2)
+
+federatedUserSearchWithType :: (HasCallStack) => String -> String -> App ()
+federatedUserSearchWithType d1 d2 = do
+  unless (d1 == d2) do
+    -- allow all search between instances (this is not necessary in
+    -- the local case).
+    --
+    -- TODO: make sure this is ever needed at all.
+    void $ BrigI.updateFedConn d2 d1 (BrigI.FedConn d1 "full_search" Nothing)
+    void $ BrigI.updateFedConn d1 d2 (BrigI.FedConn d2 "full_search" Nothing)
+
+  (remoteSearcher, _, []) <- createTeam d1 1
+  (owner, tid, [mem]) <- createTeam d2 2
+
+  -- create app with name "chappie" on d2
+  let newApp :: BrigP.NewApp
+      newApp = def {BrigP.name = "chappie"}
+   in BrigP.createApp owner tid newApp >>= assertSuccess
+
+  -- set name of d2 member to "chappie-also", so we can search for both with one prefix.
+  let nameUpd :: BrigP.PutSelf
+      nameUpd = def {BrigP.name = Just "chappie-also"}
+   in BrigP.putSelf mem nameUpd >>= assertSuccess
+
+  let filterByType :: (HasCallStack) => Value -> String -> Maybe [String] -> [String] -> App ()
+      filterByType user searchTerm types names = do
+        domain <- asString d2
+        BrigP.searchContactsWith BrigP.SearchContactsCfg {..}
+          `bindResponse` \resp -> do
+            resp.status `shouldMatchInt` 200
+            foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+            foundNames :: [String] <- ((%. "name") >=> asString) `mapM` foundDocs
+            foundNames `shouldMatchSet` names
+
+  BrigI.refreshIndex d2
+  forM_ [owner, remoteSearcher] $ \searcher -> do
+    filterByType searcher "chappie" Nothing ["chappie", "chappie-also"]
+    filterByType searcher "chappie" (Just []) ["chappie", "chappie-also"]
+    filterByType searcher "chappie" (Just ["regular"]) ["chappie-also"]
+    filterByType searcher "chappie" (Just ["app"]) ["chappie"]
+    filterByType searcher "chappie" (Just ["regular", "app"]) ["chappie", "chappie-also"]
 
 federatedUserSearch :: (HasCallStack) => String -> String -> FedUserSearchTestCase -> App ()
 federatedUserSearch d1 d2 test = do
