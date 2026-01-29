@@ -14,6 +14,9 @@ resources:
 metrics:
   serviceMonitor:
     enabled: false
+livenessProbe:
+  # Maximum allowed network connections before forcing restart (mitigates connection/memory leaks)
+  maxConnections: 500
 # This is not supported for production use, only here for testing:
 # preStop:
 #  exec:
