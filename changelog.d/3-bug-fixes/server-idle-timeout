@@ -1,1 +1,1 @@
-Set idle timeout on HTTP connections to 30s
+Set idle timeout on HTTP connections to 30s (#4992, ##)

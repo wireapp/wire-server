@@ -53,7 +53,7 @@ pingFreq f (State c p) = (\x -> State c x) `fmap` f p
 -- the frequency at which the server pings the client and can be
 -- modified by the client.
 maxPingInterval :: Word64
-maxPingInterval = 3600
+maxPingInterval = 25
 
 -- | Maximum lifetime of a websocket in seconds.
 -- The effective maximum lifetime is @maxLifetime + maxPingInterval@.
@@ -76,7 +76,7 @@ continue ws clock k = do
   runInIO <- askRunInIO
   liftIO $ do
     ttl <- TTL . (+ maxLifetime) <$> getTime clock
-    state <- newIORef $ State 1 (20 # Minute)
+    state <- newIORef $ State 1 (30 # Second)
     rloop <- async (readLoop ws state)
     wloop <- async (writeLoop ws clock ttl state)
     result <- waitEitherCatchCancel rloop wloop
