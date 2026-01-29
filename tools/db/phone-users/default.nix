@@ -3,43 +3,46 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation
-, attoparsec
+, aeson
+, aeson-pretty
 , base
-, bytestring-conversion
+, bytestring
 , cassandra-util
 , conduit
+, cql
 , gitignoreSource
 , imports
 , lens
 , lib
 , optparse-applicative
-, text
+, time
 , tinylog
 , types-common
 , wire-api
 }:
 mkDerivation {
-  pname = "assets";
+  pname = "phone-users";
   version = "1.0.0";
   src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    attoparsec
-    base
-    bytestring-conversion
+    aeson
+    aeson-pretty
+    bytestring
     cassandra-util
     conduit
+    cql
     imports
     lens
     optparse-applicative
-    text
+    time
     tinylog
     types-common
     wire-api
   ];
   executableHaskellDepends = [ base ];
-  description = "Scan the brig user table, search for malformatted asset keys and print them";
+  description = "Check users that are only able to login via phone";
   license = lib.licenses.agpl3Only;
-  mainProgram = "assets";
+  mainProgram = "phone-users";
 }
