@@ -118,15 +118,6 @@ instance O.ToSchema Void where
 instance (HasOpenApi route) => HasOpenApi (SM.MultipartForm SM.Mem resp :> route) where
   toOpenApi _proxy = toOpenApi (Proxy @route)
 
-instance O.ToSchema SAML.IdPId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-
-instance (O.ToSchema a) => O.ToSchema (SAML.IdPConfig a) where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance O.ToSchema SAML.Issuer where
-  declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
 instance O.ToSchema URI where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
@@ -135,9 +126,6 @@ instance O.ToParamSchema URI where
 
 instance O.ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance O.ToSchema SAML.IdPMetadata where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance S.ToSchema Currency.Alpha where
   schema = S.enum @Text "Currency.Alpha" cases & S.doc' . O.schema %~ swaggerTweaks
