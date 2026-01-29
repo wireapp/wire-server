@@ -1,1 +1,3 @@
-Generalized the migration lock for better reuse
+- Generalized the migration lock for better reuse
+- Move logic from `TeamFeatureStore` interpreter to `FeatureConfigSubsystem` 
+(#4982, #4983)

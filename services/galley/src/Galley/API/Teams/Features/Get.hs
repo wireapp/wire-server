@@ -50,11 +50,11 @@ import Wire.API.Team.Feature
 import Wire.ConversationStore as ConversationStore
 import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Types
-import Wire.TeamFeatureStore
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
+-- FUTUREWORK: everything in this module should be moved to the FeatureConfigSubsystem
 data DoAuth = DoAuth UserId | DontDoAuth
 
 getFeatureInternal ::
@@ -90,29 +90,15 @@ getTeamAndCheckMembership uid = do
 
 getAllTeamFeatures ::
   forall r.
-  ( Member TeamFeatureStore r,
-    Member FeaturesConfigSubsystem r,
-    GetFeatureConfigEffects r
-  ) =>
+  (Member FeaturesConfigSubsystem r) =>
   TeamId ->
   Sem r AllTeamFeatures
-getAllTeamFeatures tid = do
-  features <- getAllDbFeatures tid
-  defFeatures <- getAllTeamFeaturesForServer
-  hsequence' $ hcliftA2 (Proxy @(GetAllFeaturesForServerConstraints r)) compute defFeatures features
-  where
-    compute ::
-      (GetFeatureConfig p) =>
-      LockableFeature p ->
-      DbFeature p ->
-      (Sem r :.: LockableFeature) p
-    compute defFeature feat = Comp $ computeFeature tid defFeature feat
+getAllTeamFeatures tid = getAllTeamFeaturesForTeam tid
 
 getAllTeamFeaturesForUser ::
   forall r.
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamFeatureStore r,
     Member TeamStore r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,

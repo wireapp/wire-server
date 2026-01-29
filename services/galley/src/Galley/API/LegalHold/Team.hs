@@ -37,15 +37,15 @@ import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.LegalHold
-import Wire.TeamFeatureStore
 
 assertLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member (ErrorS 'LegalHoldNotEnabled) r
+    Member (ErrorS 'LegalHoldNotEnabled) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   Sem r ()
@@ -56,13 +56,13 @@ assertLegalHoldEnabledForTeam tid =
 isLegalHoldEnabledForTeam ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
     Member (Input (FeatureDefaults LegalholdConfig)) r
   ) =>
   TeamId ->
   Sem r Bool
 isLegalHoldEnabledForTeam tid = do
-  dbFeature <- getDbFeature tid
+  dbFeature <- getDbFeatureRawInternal tid
   status <- computeLegalHoldFeatureStatus tid dbFeature
   pure $ status == FeatureStatusEnabled
 
