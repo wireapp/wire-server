@@ -553,7 +553,6 @@ test-suite galley-tests
   other-modules:
     Paths_galley
     Run
-    Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
     Test.Galley.Mapping

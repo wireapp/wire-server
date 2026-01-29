@@ -82,10 +82,10 @@ import Wire.ClientStore
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
-import Wire.ConversationSubsystem.Federation
 import Wire.ConversationSubsystem.Types
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem (ensureNoUnreachableBackends)
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.LegalHoldStore

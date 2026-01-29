@@ -225,6 +225,7 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.ClientStore
     Wire.CodeStore
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries
@@ -242,7 +243,6 @@ library
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
-    Wire.ConversationSubsystem.Federation
     Wire.ConversationSubsystem.Interpreter
     Wire.ConversationSubsystem.One2One
     Wire.ConversationSubsystem.Types
@@ -253,7 +253,6 @@ library
     Wire.DomainRegistrationStore.Cassandra
     Wire.DomainVerificationChallengeStore
     Wire.DomainVerificationChallengeStore.Cassandra
-    Wire.ClientStore
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP
@@ -278,6 +277,8 @@ library
     Wire.FederationAPIAccess.Interpreter
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
+    Wire.FederationSubsystem
+    Wire.FederationSubsystem.Interpreter
     Wire.FireAndForget
     Wire.GalleyAPIAccess
     Wire.GalleyAPIAccess.Rpc

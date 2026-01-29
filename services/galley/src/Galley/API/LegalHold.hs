@@ -81,6 +81,7 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
@@ -184,6 +185,7 @@ removeSettingsInternalPaging ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -230,6 +232,7 @@ removeSettings ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -290,6 +293,7 @@ removeSettings' ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -341,6 +345,7 @@ grantConsent ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -394,6 +399,7 @@ requestDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -491,6 +497,7 @@ approveDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -571,6 +578,7 @@ disableForUser ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -637,6 +645,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -756,6 +765,7 @@ handleGroupConvPolicyConflicts ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

@@ -91,6 +91,7 @@ import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -185,6 +186,7 @@ postMLSCommitBundle ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -216,6 +218,7 @@ postMLSCommitBundleFromLocalUser ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -251,6 +254,7 @@ postMLSCommitBundleToLocalConv ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r

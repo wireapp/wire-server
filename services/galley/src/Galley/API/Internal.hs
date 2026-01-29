@@ -95,6 +95,7 @@ import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

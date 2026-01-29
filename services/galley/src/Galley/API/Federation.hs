@@ -98,6 +98,7 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -282,6 +283,7 @@ leaveConversation ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
@@ -502,6 +504,7 @@ updateConversation ::
     Member Resource r,
     Member ConversationStore r,
     Member Random r,
+    Member FederationSubsystem r,
     Member TeamFeatureStore r,
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r,
@@ -645,6 +648,7 @@ sendMLSCommitBundle ::
     Member LegalHoldStore r,
     Member Resource r,
     Member TeamStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member P.TinyLog r,
     Member Random r,

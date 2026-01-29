@@ -37,10 +37,6 @@ module Galley.API.Action
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
     ConversationUpdate,
-    getFederationStatus,
-    enforceFederationProtocol,
-    checkFederationStatus,
-    firstConflictOrFullyConnected,
     ensureAllowed,
   )
 where
@@ -113,11 +109,11 @@ import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Federation
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
+import Wire.FederationSubsystem
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.ProposalStore qualified as E
@@ -465,6 +461,7 @@ performAction ::
     Member ConversationSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
+    Member FederationSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Sing tag ->
@@ -588,6 +585,7 @@ performConversationJoin ::
     Member BackendNotificationQueueAccess r,
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -832,6 +830,7 @@ updateLocalConversation ::
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     SingI tag,
+    Member FederationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
@@ -869,6 +868,7 @@ updateLocalConversationUnchecked ::
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     Member TeamCollaboratorsSubsystem r,
+    Member FederationSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r

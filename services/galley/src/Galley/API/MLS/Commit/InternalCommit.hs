@@ -63,6 +63,7 @@ import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
+import Wire.FederationSubsystem
 import Wire.ProposalStore
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -82,6 +83,7 @@ processInternalCommit ::
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -258,6 +260,7 @@ addMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -286,6 +289,7 @@ removeMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->

@@ -120,6 +120,7 @@ import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Interpreter
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
+import Wire.FederationSubsystem.Interpreter (runFederationSubsystem)
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -428,6 +429,7 @@ evalGalley e =
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
+        . runFederationSubsystem conversationSubsystemConfig.federationProtocols
         . interpretConversationSubsystem
   where
     lh = view (options . settings . featureFlags . to npProject) e

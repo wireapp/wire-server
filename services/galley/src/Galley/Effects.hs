@@ -90,6 +90,7 @@ import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
@@ -116,6 +117,7 @@ import Wire.UserGroupStore
 -- All the possible high-level effects.
 type GalleyEffects1 =
   '[ ConversationSubsystem,
+     FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
      FeaturesConfigSubsystem,

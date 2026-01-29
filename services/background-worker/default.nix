@@ -6,6 +6,7 @@
 , aeson
 , amqp
 , base
+, bilge
 , bytestring
 , bytestring-conversion
 , cassandra-util
@@ -39,6 +40,7 @@
 , servant-client
 , servant-client-core
 , servant-server
+, ssl-util
 , tagged
 , text
 , tinylog
@@ -46,6 +48,7 @@
 , transformers-base
 , types-common
 , unliftio
+, uri-bytestring
 , wai
 , wai-utilities
 , wire-api
@@ -62,6 +65,7 @@ mkDerivation {
     aeson
     amqp
     base
+    bilge
     bytestring
     bytestring-conversion
     cassandra-util
@@ -85,6 +89,7 @@ mkDerivation {
     retry
     servant-client
     servant-server
+    ssl-util
     tagged
     text
     tinylog
@@ -92,6 +97,7 @@ mkDerivation {
     transformers-base
     types-common
     unliftio
+    uri-bytestring
     wai-utilities
     wire-api
     wire-api-federation

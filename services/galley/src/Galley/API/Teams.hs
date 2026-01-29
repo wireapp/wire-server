@@ -132,6 +132,7 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationSubsystem
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -975,6 +976,7 @@ deleteTeamConversation ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

@@ -73,6 +73,7 @@ import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanou
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
+import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -356,6 +357,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamCollaboratorsSubsystem r,
         Member MLSCommitLockStore r,
         Member (Input FanoutLimit) r,
+        Member FederationSubsystem r,
         Member TeamSubsystem r,
         Member (Input ConversationSubsystemConfig) r
       )
