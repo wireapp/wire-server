@@ -537,6 +537,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.SAMLEmailSubsystem.InterpreterSpec
     Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
@@ -551,6 +552,9 @@ test-suite wire-subsystems-tests
     build-tool-depends: hspec-discover:hspec-discover
 
   build-depends:
+    , crypton-x509
+    , crypton-x509-store
+    , filepath
     , hspec
     , QuickCheck
     , quickcheck-instances

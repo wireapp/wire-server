@@ -1,0 +1,76 @@
+[https://wire.example.com/p/img/email/logo-email-black.png]
+
+wire.example.com [https://wire.example.com]
+
+CHANGE IN YOUR IDENTITY PROVIDER CONFIGURATION
+Something has changed in the IdP configuration for your team.
+
+Team ID:
+99f552d8-9dad-60c1-4be9-c88fb532893a
+
+User ID:
+4a1ce4ea-5c99-d01e-018f-4dc9d08f787a
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP Issuer:
+https://issuer.example.com/realm
+
+IdP Endpoint:
+https://saml-endpoint.example.com/auth
+
+IdP ID:
+574ddfb0-4e50-2bff-e924-33ee2b9f7064
+
+
+--------------------------------------------------------------------------------
+
+Added:
+
+SHA1 fingerprint:
+11:DE:AC:24:34:30:3D:05:81:02:77:26:41:3D:FC:09:01:92:E4:40
+
+Subject:
+Country=US,O=ExampleOrg,OU=Dev1,CN=CertOne,Email Address=one@example.com
+
+Issuer:
+Country=US,O=ExampleOrg,OU=Dev1,CN=CertOne,Email Address=one@example.com
+
+
+--------------------------------------------------------------------------------
+Added:
+
+SHA1 fingerprint:
+DF:CB:99:7D:C7:1A:4A:AC:D3:F6:94:22:97:07:6D:59:7B:BF:7B:57
+
+Subject:
+Country=DE,O=ExampleOrg,OU=Dev2,CN=CertTwo,Email Address=two@example.com
+
+Issuer:
+Country=DE,O=ExampleOrg,OU=Dev2,CN=CertTwo,Email Address=two@example.com
+
+
+--------------------------------------------------------------------------------
+
+Removed:
+
+SHA1 fingerprint:
+15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37
+
+Subject:
+CN=accounts.accesscontrol.windows.net
+
+Issuer:
+CN=accounts.accesscontrol.windows.net
+
+
+--------------------------------------------------------------------------------
+
+If you did not initiate this change, please reach out to the Wire support.
+[https://support.wire.com/]
+
+Privacy Policy and Terms of Use [https://wire.example.com/legal/]· Report misuse [misuse@wire.example.com]
+© WIRE SWISS GmbH. All rights reserved.
