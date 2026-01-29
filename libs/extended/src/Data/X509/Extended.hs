@@ -1,4 +1,6 @@
-module Data.X509.Extended (certToString) where
+{-# LANGUAGE RecordWildCards #-}
+
+module Data.X509.Extended (certToString, certDescription, CertDescription (..)) where
 
 import Crypto.Hash
 import Data.ASN1.OID
@@ -12,21 +14,36 @@ import Imports
 
 certToString :: SignedCertificate -> String
 certToString signedCert =
+  let desc = certDescription signedCert
+   in -- Split into pairs and join with ':'
+      mconcat . intersperse "; " $
+        [ "Issuer: " <> desc.issuer,
+          "Subject: " <> desc.subject,
+          desc.fingerprintAlgorithm <> " Fingerprint: " <> desc.fingerprint
+        ]
+
+data CertDescription = CertDescription
+  { fingerprintAlgorithm :: String,
+    fingerprint :: String,
+    subject :: String,
+    issuer :: String
+  }
+  deriving (Eq, Show)
+
+-- | Extract structured certificate description information
+certDescription :: SignedCertificate -> CertDescription
+certDescription signedCert =
   let cert = getCertificate signedCert
       issuer = dnToString $ certIssuerDN cert
       subject = dnToString $ certSubjectDN cert
       der = encodeSignedObject signedCert
-      fingerprint :: ByteString = BAE.convertToBase BAE.Base16 (hash der :: Digest SHA1)
-      -- Split into pairs and join with ':'
-      fingerprintStr =
-        let hex = (T.decodeUtf8 fingerprint)
+      fingerprintBS :: ByteString = BAE.convertToBase BAE.Base16 (hash der :: Digest SHA1)
+      fingerprint =
+        let hex = (T.decodeUtf8 fingerprintBS)
             pairs = T.unpack <$> T.chunksOf 2 hex
          in map toUpper (intercalate ":" pairs)
-   in mconcat . intersperse "; " $
-        [ "Issuer: " <> issuer,
-          "Subject: " <> subject,
-          "SHA1 Fingerprint: " <> fingerprintStr
-        ]
+      fingerprintAlgorithm = "SHA1"
+   in CertDescription {..}
 
 dnToString :: DistinguishedName -> String
 dnToString (getDistinguishedElements -> es) =

@@ -24,15 +24,22 @@ import Data.Id
 import Data.Json.Util
 import Data.Map as Map
 import Data.Range (fromRange)
+import Data.Text qualified as T
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
+import Data.Text.Encoding qualified as T
 import Data.Text.Lazy (toStrict)
+import Data.Text.Lazy qualified as TL
 import Data.Text.Template
+import Data.UUID (toText)
+import Data.X509.Extended
 import Imports
 import Network.Mail.Mime
 import Polysemy
 import Polysemy.Output (Output)
 import Polysemy.TinyLog (TinyLog)
+import SAML2.WebSSO
+import URI.ByteString (URI, serializeURIRef')
 import Wire.API.Locale
 import Wire.API.User
 import Wire.API.User.Activation
@@ -67,6 +74,8 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
   SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls branding email tid teamName loc
   SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls branding email tid teamName loc name
+  SendSAMLIdPChanged email tid mbUid addedCerts removedCerts idPId iss requestUri mLocale ->
+    sendSAMLIdPChangedImpl teamTpls branding email tid mbUid addedCerts removedCerts idPId iss requestUri mLocale
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -586,6 +595,102 @@ renderNewTeamOwnerWelcomeEmail emailTo tid teamName profileName NewTeamOwnerWelc
   where
     from = Address (Just newTeamOwnerWelcomeEmailSenderName) (fromEmail newTeamOwnerWelcomeEmailSender)
     to = Address Nothing (fromEmail emailTo)
+
+-------------------------------------------------------------------------------
+-- IdP change email for team admins and owners
+
+sendSAMLIdPChangedImpl ::
+  (Member EmailSending r, Member TinyLog r) =>
+  Localised TeamTemplates ->
+  Map Text Text ->
+  EmailAddress ->
+  TeamId ->
+  Maybe UserId ->
+  [CertDescription] ->
+  [CertDescription] ->
+  IdPId ->
+  Issuer ->
+  URI ->
+  Maybe Locale ->
+  Sem r ()
+sendSAMLIdPChangedImpl teamTemplates branding to tid mbUid addedCerts removedCerts idPId issuer endpoint mLocale = do
+  let tpl = idpConfigChangeEmail . snd $ forLocale mLocale teamTemplates
+  mail <-
+    logEmailRenderErrors "idp config change email" $
+      renderIdPConfigChangeEmail to tpl branding addedCerts removedCerts tid mbUid idPId issuer endpoint
+  sendMail mail
+
+renderIdPConfigChangeEmail ::
+  (Member (Output Text) r) =>
+  EmailAddress ->
+  IdPConfigChangeEmailTemplate ->
+  Map Text Text ->
+  [CertDescription] ->
+  [CertDescription] ->
+  TeamId ->
+  Maybe UserId ->
+  IdPId ->
+  Issuer ->
+  URI ->
+  Sem r Mail
+renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding addedCerts removedCerts tid uid idPId issuer endpoint = do
+  idpDetailsAddedText :: Text <-
+    (TL.toStrict . TL.unlines)
+      <$> mapM (renderTextWithBrandingSem idpConfigChangeEmailIdPDetailsAddedText . idpDetailsToMap) addedCerts
+  idpDetailsAddedHtml :: Text <-
+    (TL.toStrict . TL.unlines)
+      <$> mapM (renderHtmlWithBrandingSem idpConfigChangeEmailIdPDetailsAddedHtml . idpDetailsToMap) addedCerts
+  idpDetailsRemovedText :: Text <-
+    (TL.toStrict . TL.unlines)
+      <$> mapM (renderTextWithBrandingSem idpConfigChangeEmailIdPDetailsRemovedText . idpDetailsToMap) removedCerts
+  idpDetailsRemovedHtml :: Text <-
+    (TL.toStrict . TL.unlines)
+      <$> mapM (renderHtmlWithBrandingSem idpConfigChangeEmailIdPDetailsRemovedHtml . idpDetailsToMap) removedCerts
+
+  let replace =
+        branding
+          & Map.insert "team_id" ((toText . toUUID) tid)
+          & Map.insert "user_id" (maybe "None" (toText . toUUID) uid)
+          & Map.insert "idp_issuer" ((T.decodeUtf8 . serializeURIRef' . _fromIssuer) issuer)
+          & Map.insert "idp_endpoint" ((T.decodeUtf8 . serializeURIRef') endpoint)
+          & Map.insert "idp_id" ((toText . fromIdPId) idPId)
+      certificateDetailsHtml =
+        (T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedHtml, idpDetailsRemovedHtml]
+      replaceHtml =
+        replace
+          & Map.insert "certificates_details" "CERTIFICATE_DETAILS"
+      replaceText =
+        replace
+          & Map.insert "certificates_details" ((T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedText, idpDetailsRemovedText])
+
+  txt <- renderTextWithBrandingSem idpConfigChangeEmailBodyText replaceText
+  -- For HTML mails ${certificates_details} needs to be replaced in two steps:
+  -- First we want to get rid of the variable. Second, we want to insert the
+  -- certificates' HTML snippets directly to avoid quoting.
+  html <-
+    renderHtmlWithBrandingSem idpConfigChangeEmailBodyHtml replaceHtml
+      <&> TL.replace "CERTIFICATE_DETAILS" (TL.fromStrict certificateDetailsHtml)
+  subj <- renderTextWithBrandingSem idpConfigChangeEmailSubject replace
+  pure
+    (emptyMail from)
+      { mailTo = [to],
+        mailHeaders =
+          [ ("Subject", toStrict subj),
+            ("X-Zeta-Purpose", "IdPConfigChange")
+          ],
+        mailParts = [[plainPart txt, htmlPart html]]
+      }
+  where
+    from = Address (Just idpConfigChangeEmailSenderName) (fromEmail idpConfigChangeEmailSender)
+    to = Address Nothing (fromEmail email)
+
+    idpDetailsToMap :: CertDescription -> Map Text Text
+    idpDetailsToMap d =
+      empty @Text @Text
+        & Map.insert "algorithm" (T.pack d.fingerprintAlgorithm)
+        & Map.insert "fingerprint" (T.pack d.fingerprint)
+        & Map.insert "subject" (T.pack d.subject)
+        & Map.insert "issuer" (T.pack d.issuer)
 
 -------------------------------------------------------------------------------
 -- MIME Conversions
