@@ -31,6 +31,7 @@ import Polysemy.Error
 import Polysemy.TinyLog qualified as P
 import Wire.API.Conversation (CreateGroupConversation (..), CreateGroupOwnConversation (..), NewConv, NewOne2OneConv)
 import Wire.API.Conversation qualified as Public
+import Wire.API.Error.Galley (UnreachableBackendsLegacy (..))
 import Wire.API.Event.Conversation (Connect)
 import Wire.API.FederationStatus (RemoteDomains (..))
 import Wire.API.Routes.Public.Galley.Conversation
@@ -44,6 +45,7 @@ import Wire.FederationSubsystem (FederationSubsystem, checkFederationStatus, enf
 
 createGroupConversationUpToV3 ::
   ( Member ConversationSubsystem.ConversationSubsystem r,
+    Member (Error UnreachableBackendsLegacy) r,
     Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
@@ -51,7 +53,7 @@ createGroupConversationUpToV3 ::
   Maybe ConnId ->
   NewConv ->
   Sem r (ConversationResponse Public.OwnConversation)
-createGroupConversationUpToV3 lusr conn newConv = do
+createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $ do
   dbConv <- ConversationSubsystem.createGroupConversation lusr conn newConv
   Created <$> conversationViewV9 lusr dbConv
 
