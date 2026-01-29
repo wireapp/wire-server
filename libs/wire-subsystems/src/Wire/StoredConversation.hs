@@ -163,8 +163,10 @@ toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp
           cnvmChannelAddPermission = mAp,
           cnvmParent = mparent,
           cnvmHistory =
-            fromMaybe HistoryPrivate $
-              fmap (HistoryShared . HistorySharingConfig . historyDurationFromSecs) mhdepth
+            maybe
+              HistoryPrivate
+              (HistoryShared . HistorySharingConfig . historyDurationFromSecs)
+              mhdepth
         }
 
 newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation
