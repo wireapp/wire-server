@@ -24,6 +24,7 @@ import Control.Lens hiding (Level, element, enum, (.=))
 import Control.Monad (when)
 import Data.Aeson qualified as A
 import Data.Domain
+import Data.Either
 import Data.Map
 import Data.Map qualified as Map
 import Data.Schema
@@ -67,6 +68,9 @@ data MultiIngressDomainConfig = MultiIngressDomainConfig
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema MultiIngressDomainConfig
+
+isMultiIngressConfig :: Config -> Bool
+isMultiIngressConfig = isRight . _cfgDomainConfigs
 
 ----------------------------------------------------------------------
 -- schema-profunctor
