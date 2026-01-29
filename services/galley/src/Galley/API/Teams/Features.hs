@@ -70,7 +70,7 @@ import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationSubsystem (FederationSubsystem)
