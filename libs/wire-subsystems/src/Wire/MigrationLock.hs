@@ -145,6 +145,8 @@ withMigrationLocks lockType maxWait lockables action = do
 --------------------------------------------------------------------------------
 -- INSTANCES
 
+-- Combines team id and feature name into one lock key to keep per-feature locks distinct within a team
+-- without introducing a separate lock table; rotate+xor mixes the two hashes to reduce collisions.
 instance MigrationLockable (TeamId, Text) where
   lockKey (team, featureName) =
     let teamHash = hashUUID team
