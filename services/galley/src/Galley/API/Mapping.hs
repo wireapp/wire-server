@@ -21,7 +21,6 @@ module Galley.API.Mapping
     conversationViewWithCachedOthers,
     remoteConversationView,
     conversationToRemote,
-    localMemberToSelf,
   )
 where
 
@@ -35,8 +34,8 @@ import Polysemy.Error
 import Polysemy.TinyLog qualified as P
 import System.Logger.Message (msg, val, (+++))
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation qualified as Conversation
 import Wire.API.Federation.API.Galley
+import Wire.ConversationSubsystem.Util (localMemberToSelf)
 import Wire.StoredConversation
 
 -- | View for a given user of a stored conversation.
@@ -162,21 +161,3 @@ conversationToRemote localDomain ruid conv = do
             },
         protocol = conv.protocol
       }
-
--- | Convert a local conversation member (as stored in the DB) to a publicly
--- facing 'Member' structure.
-localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
-localMemberToSelf loc lm =
-  Conversation.Member
-    { memId = tUntagged . qualifyAs loc $ lm.id_,
-      memService = lm.service,
-      memOtrMutedStatus = msOtrMutedStatus st,
-      memOtrMutedRef = msOtrMutedRef st,
-      memOtrArchived = msOtrArchived st,
-      memOtrArchivedRef = msOtrArchivedRef st,
-      memHidden = msHidden st,
-      memHiddenRef = msHiddenRef st,
-      memConvRoleName = lm.convRoleName
-    }
-  where
-    st = lm.status

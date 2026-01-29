@@ -615,7 +615,7 @@ getLocalSelf lusr cnv = do
   do
     alive <- E.isConversationAlive cnv
     if alive
-      then Mapping.localMemberToSelf lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
+      then localMemberToSelf lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
       else Nothing <$ E.deleteConversation cnv
 
 getConversationMeta ::
