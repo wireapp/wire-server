@@ -34,6 +34,39 @@ cassandraBrig:
     port: 9042
   keyspace: brig_test
 
+featureFlags:  # see #RefConfigOptions in `/docs/reference`
+  sso: disabled-by-default
+  legalhold: whitelist-teams-and-implicit-consent
+  teamSearchVisibility: disabled-by-default
+  appLock:
+    defaults:
+      status: enabled
+      config:
+        enforceAppLock: false
+        inactivityTimeoutSecs: 60
+  classifiedDomains:
+    status: enabled
+    config:
+      domains: ["example.com"]
+  fileSharing:
+    defaults:
+      status: enabled
+      lockStatus: unlocked
+  conferenceCalling:
+    defaults:
+      status: enabled
+  outlookCalIntegration:
+    defaults:
+      status: disabled
+      lockStatus: locked
+  mlsE2EId:
+    defaults:
+      status: disabled
+      config:
+        verificationExpiration: 86400
+        acmeDiscoveryUrl: null
+      lockStatus: unlocked
+
 postgresql:
   host: 127.0.0.1
   port: "5432"
