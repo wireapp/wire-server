@@ -166,10 +166,25 @@ spec:
             failureThreshold: 6
             periodSeconds: 5
           livenessProbe:
-            httpGet:
-              scheme: HTTP
-              path: /i/status
-              port: {{ .Values.service.internalPort }}
+            exec:
+              command:
+              - bash
+              - -c
+              - |
+                set -e
+                curl -f http://localhost:{{ .Values.service.internalPort }}/i/status 2>/dev/null
+                
+                metrics=$(curl -f http://localhost:{{ .Values.service.internalPort }}/i/metrics 2>/dev/null)
+                net_connections=$(echo "$metrics" | grep -o "net_connections [0-9]*" | grep -o "[0-9]*")
+                
+                if [ "$net_connections" -gt "{{ .Values.livenessProbe.maxConnections }}" ]; then
+                    echo "ERROR: net_connections ($net_connections) exceeds MAX_CONNECTIONS ({{ .Values.livenessProbe.maxConnections }})"
+                    exit 1
+                fi
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
           readinessProbe:
             httpGet:
               scheme: HTTP
