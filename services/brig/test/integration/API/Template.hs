@@ -2,7 +2,7 @@ module API.Template (tests) where
 
 import Bilge
 import Brig.Options
-import Brig.Team.Template (loadTeamTemplates)
+import Brig.Team.Template (loadTeamTemplatesWithBrigOpts)
 import Brig.Template
 import Brig.User.Template (loadUserTemplates)
 import Data.Code
@@ -33,9 +33,12 @@ import Wire.EmailSubsystem.Template
 import Wire.EmailSubsystem.Templates.Team
 import Wire.EmailSubsystem.Templates.User
 
+-- FUTUREWORK: This does not have to be an integration test. It could be
+-- covered by unit tests in wire-subsystems. Then, the helper functions can be
+-- privatized.
 tests :: Opts -> Manager -> IO TestTree
 tests opts m = do
-  team <- liftIO $ loadTeamTemplates opts
+  team <- liftIO $ loadTeamTemplatesWithBrigOpts opts
   user <- liftIO $ loadUserTemplates opts
   let teamTemplates = Map.assocs $ uncurry Map.insert team.locDefault team.locOther
       userTemplates = Map.assocs $ uncurry Map.insert user.locDefault user.locOther
