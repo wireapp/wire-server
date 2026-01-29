@@ -1868,11 +1868,16 @@ pattern below applies per store. Use it for `conversation` and
 
    ```yaml
    background-worker:
-    config:
-      migrateConversations: true
-      migrateConversationCodes: true
-      migrateTeamFeatures: true
+     config:
+       migrateConversations: true
+       migrateConversationCodes: true
+       migrateTeamFeatures: true
    ```
+
+   During migration, Cassandra rows are not deleted. Writes and migration share
+   per-row locks to avoid races, so there is no need to delete early. Deletion is
+   deferred to keep rollback options and to remove Cassandra only after a full
+   cutover to PostgreSQL-only.
 
    Wait for the store-specific migration metrics to reach `1.0`. For
    conversations: `wire_local_convs_migration_finished` and

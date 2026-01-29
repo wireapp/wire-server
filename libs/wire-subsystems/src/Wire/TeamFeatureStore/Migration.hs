@@ -116,6 +116,10 @@ migrateTeamFeature ::
   (TeamId, Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) ->
   Sem r ()
 migrateTeamFeature migCounter (tid, name, status, lockStatus, dbConfig) = do
+  -- We do not delete Cassandra rows during migration. Writes and migration use
+  -- the same per-row lock, so we avoid races without deleting early. Deletion is
+  -- deferred to keep rollback options and to remove the Cassandra table only after
+  -- a full cutover to Postgres-only.
   void . withMigrationLocks LockExclusive (Seconds 10) [(tid, name)] $ do
     isMigrated <- runStatement (tid, name) Psql.exists
     unless isMigrated $ do
