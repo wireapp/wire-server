@@ -52,10 +52,12 @@ Remote agents will probably want to use this way.
 - Align Cabal and Nix dependencies: `make regen-local-nix-derivations`
 - Run formatter: `make format`
 - Run linter: `make lint-all`
-- Compile all Haskell packages (type check and see warnings): `make c`
+- Compile all Haskell packages (type check and see warnings):
+  `make c | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
 - Compile a specific Haskell package (type check and see warnings):
-  `make c package=<PACKAGE>`
-- Compile all Haskell packages and run all unit tests: `make c test=1`
+  `make c package=<PACKAGE> | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
+- Compile all Haskell packages and run all unit tests:
+  `make c test=1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
 - Load all Haskell packages in GHCI for faster feedback:
   `cabal repl all --enable-tests --enable-multi-repl`
   - Reload inside GHCI (faster than starting a new session): `:reload`
@@ -63,16 +65,17 @@ Remote agents will probably want to use this way.
   `cabal repl <PACKAGE> --enable-tests`
   - Reload inside GHCI (faster than starting a new session): `:reload`
 - Run tests for a single package (alternatives):
-  - `make c package=<PACKAGE> test=1`
-  - `cabal test <TESTSUITE>`
+  - `make c package=<PACKAGE> test=1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
+  - `cabal test <TESTSUITE> | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
 
 ## Examples
 
 Build and run tests for `wire-subsystems` (as exemplary Haskell package):
-`make c package=wire-subsystems test=1`
+`make c package=wire-subsystems test=1 | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
 
 Build and run tests for `wire-subsystems` (as exemplary Haskell package)
-directly with Cabal: `cabal test wire-subsystems`
+directly with Cabal:
+`cabal test wire-subsystems | grep -vE 'Compiling|Linking|Preprocessing|Configuring|Building'`
 
 # Quality expectations
 
@@ -97,3 +100,8 @@ Do not run integration tests (e.g. `make ci` or Cabal testsuite names ending in
 
 Prefer record dot syntax over lenses, but not at all cost (i.e. only for the
 simple cases).
+
+Build commands (e.g. `make c`, `cabal build` or `cabal test`) should always end
+with this command line filter: `| grep -vE
+'Compiling|Linking|Preprocessing|Configuring|Building'`. The filter ensures
+that only relevant output is displayed.
