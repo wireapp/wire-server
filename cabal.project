@@ -41,7 +41,7 @@ packages:
   , services/galley/
   , services/gundeck/
   , services/proxy/
-  -- , services/wire-server-enterprise
+  , services/wire-server-enterprise
   , services/spar/
   , tools/db/assets/
   , tools/db/auto-whitelist/
@@ -51,7 +51,6 @@ packages:
   , tools/db/migrate-features/
   , tools/db/mls-users/
   , tools/db/move-team/
-  , tools/db/phone-users/
   , tools/db/repair-handles/
   , tools/db/team-info/
   , tools/db/repair-brig-clients-table/
@@ -90,8 +89,8 @@ package extended
   flags: +nix-dev-env
 package metrics-wai
   flags: +nix-dev-env
--- package wire-server-enterprise
---   flags: +nix-dev-env
+package wire-server-enterprise
+  flags: +nix-dev-env
 package spar
   flags: +nix-dev-env
 package wire-message-proto-lens
