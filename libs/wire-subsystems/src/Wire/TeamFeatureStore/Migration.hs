@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -18,30 +20,28 @@
 module Wire.TeamFeatureStore.Migration where
 
 import Cassandra hiding (Value)
+import Data.ByteString.Conversion
 import Data.Conduit
 import Data.Conduit.List qualified as C
+import Data.Id
 import Hasql.Pool qualified as Hasql
 import Imports
-import Wire.API.Team.Feature
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
+import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
-import Wire.TeamFeatureStore.Cassandra.Queries qualified as Cql
-import Data.Id
-import Polysemy.Conc
+import Wire.API.Team.Feature
 import Wire.Migration
-import Wire.Postgres
-import Data.ByteString.Conversion
 import Wire.MigrationLock
-import Polysemy.Time
-import Polysemy.Async
-
-
-type TeamFeatureRow =  (TeamId, Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) 
+import Wire.Postgres
+import Wire.TeamFeatureStore.Cassandra.Queries qualified as Cql
+import Wire.TeamFeatureStore.Postgres.Queries qualified as Psql
 
 migrateAllTeamFeatures ::
   ( Member (Input Hasql.Pool) r,
@@ -56,11 +56,11 @@ migrateAllTeamFeatures ::
   MigrationOptions ->
   Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
-migrateAllTeamFeatures  migOpts migCounter = do
+migrateAllTeamFeatures migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllTeamFeatures  ")
   withCount (paginateSem Cql.selectAll (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(tid, feat, _, _, _) -> handleErrors (migrateTeamFeature migCounter) (toByteString' (idToText tid <> " - " <> feat)) row))
+    .| C.mapM_ (traverse_ (\row@(tid, feat, _, _, _) -> handleErrors (toByteString' (idToText tid <> " - " <> feat)) (migrateTeamFeature migCounter row)))
 
 migrateTeamFeature ::
   ( PGConstraints r,
@@ -70,9 +70,11 @@ migrateTeamFeature ::
     Member Race r
   ) =>
   Prometheus.Counter ->
-  TeamFeatureRow ->
+  (TeamId, Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) ->
   Sem r ()
-migrateTeamFeature migCounter (tid, feature, _,_,_) = do
-  void . withMigrationLocks LockExclusive (Seconds 10) [(tid, feature)] $ do
-    -- migrate and delete
-    liftIO $ Prometheus.incCounter migCounter
+migrateTeamFeature migCounter (tid, name, status, lockStatus, dbConfig) = do
+  void . withMigrationLocks LockExclusive (Seconds 10) [(tid, name)] $ do
+    isMigrated <- runStatement (tid, name) Psql.exists
+    unless isMigrated $ do
+      runStatement (tid, name, status, lockStatus, dbConfig) Psql.upsertPatch
+      liftIO $ Prometheus.incCounter migCounter

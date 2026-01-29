@@ -25,6 +25,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
+import Wire.Migration (MigrationOptions)
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
 conversations migOpts = do

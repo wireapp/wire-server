@@ -27,7 +27,6 @@ import Data.Misc (HttpsUrl)
 import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
 import Polysemy.TinyLog
@@ -98,7 +97,7 @@ migrateAllCodes migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllCodes")
   withCount (paginateSem Cql.selectAllCodes (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(key, _, _, _, _) -> handleErrors (migrateCodeRow migCounter) (toByteString' key) row))
+    .| C.mapM_ (traverse_ (\row@(key, _, _, _, _) -> handleErrors (toByteString' key) (migrateCodeRow migCounter row)))
 
 migrateCodeRow ::
   ( Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,

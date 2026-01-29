@@ -132,16 +132,15 @@ paginateSem q p r = do
       embedClient client $ retry r (nextPage page)
 
 handleErrors ::
-  forall r a.
+  forall r.
   ( Member (State Int) r,
     Member TinyLog r
   ) =>
-  (a -> Sem (Error Hasql.UsageError : r) ()) ->
   ByteString ->
-  a ->
+  (Sem (Error Hasql.UsageError : r) ()) ->
   Sem r ()
-handleErrors action key row = do
-  eithErr <- runError (action row)
+handleErrors key action = do
+  eithErr <- runError action
   case eithErr of
     Right _ -> pure ()
     Left e -> do

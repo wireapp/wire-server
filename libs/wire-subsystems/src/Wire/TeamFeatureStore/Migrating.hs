@@ -17,7 +17,7 @@
 
 module Wire.TeamFeatureStore.Migrating where
 
-import Cassandra (ClientState)
+import Cassandra
 import Data.Constraint
 import Data.Id
 import Data.SOP (K (..), hzipWith)
@@ -35,7 +35,10 @@ import Wire.MigrationLock
 import Wire.Postgres
 import Wire.TeamFeatureStore
 import Wire.TeamFeatureStore.Cassandra
+import Wire.TeamFeatureStore.Cassandra.Queries as Cql
 import Wire.TeamFeatureStore.Postgres
+import Wire.TeamFeatureStore.Postgres.Queries as Psql
+import Wire.Util
 
 interpretTeamFeatureStoreToCassandraAndPostgres ::
   ( PGConstraints r,
@@ -163,16 +166,20 @@ withWritePathUnderLock ::
   TeamId ->
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
-withWritePathUnderLock sing tid action =
+withWritePathUnderLock _ tid action =
   withSharedLock (tid, featureName @cfg) $ do
-    mFeaturePsql <- interpretTeamFeatureStoreToPostgres $ send (GetDbFeature sing tid)
-    if isJust mFeaturePsql
+    isMigrated <- runStatement (tid, featureName @cfg) Psql.exists
+    if isMigrated
       then interpretTeamFeatureStoreToPostgres action
       else do
-        mFeatureCql <- interpretTeamFeatureStoreToCassandra $ send (GetDbFeature sing tid)
-        if isJust mFeatureCql
+        existsInCassandra <- runExistsInCassandra
+        if existsInCassandra
           then interpretTeamFeatureStoreToCassandra action
           else interpretTeamFeatureStoreToPostgres action
+  where
+    runExistsInCassandra =
+      fromMaybe False . fmap runIdentity
+        <$> embedClientInput (retry x1 $ query1 Cql.exists (params LocalQuorum (tid, featureName @cfg)))
 
 withSharedLock ::
   ( PGConstraints r,

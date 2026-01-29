@@ -340,6 +340,7 @@ library
     Wire.TeamFeatureStore.Migrating
     Wire.TeamFeatureStore.Migration
     Wire.TeamFeatureStore.Postgres
+    Wire.TeamFeatureStore.Postgres.Queries
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
