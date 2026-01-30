@@ -31,7 +31,7 @@ import Wire.CodeStore.Cassandra qualified as Cassandra
 import Wire.CodeStore.Postgres qualified as Postgres
 import Wire.Postgres (PGConstraints)
 
--- | Cassandra is the sourceof truth during migration; writes are mirrored to Postgres.
+-- | Cassandra is the source of truth during migration; writes are mirrored to Postgres.
 interpretCodeStoreToCassandraAndPostgres ::
   ( Member (Input ClientState) r,
     Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
