@@ -24,7 +24,7 @@ import sys
 
 IGNORE_DIRS = ['billing', 'marketing']
 TEAM_SUPPORT = ['en', 'de']
-IGNORE_TEAM_DIRS = ['team', 'provider']
+IGNORE_TEAM_DIRS = ['team', 'provider', 'partials']
 
 root = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 emails = os.path.join(root, 'wire-emails')
