@@ -140,6 +140,7 @@ import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamFeatureStore.Cassandra
+import Wire.TeamFeatureStore.Error (TeamFeatureStoreError (..))
 import Wire.TeamFeatureStore.Migrating
 import Wire.TeamFeatureStore.Postgres
 import Wire.TeamJournal.Aws
