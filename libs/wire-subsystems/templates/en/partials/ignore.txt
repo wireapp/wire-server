@@ -1,0 +1,3 @@
+If you didn’t register for a ${brand} service provider account using this e-mail
+address, you can safely ignore this message. If you want to report abuse of your
+e-mail address, please contact us. [${support}]

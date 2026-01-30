@@ -1,0 +1,2 @@
+Privacy Policy and Terms of Use [${legal}]· Report misuse [${misuse}]
+${copyright}. All rights reserved.

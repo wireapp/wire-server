@@ -1,0 +1,199 @@
+WIRE EMAIL TEMPLATES PREVIEW
+Click the links below to display the content of each message:
+
+PROVIDER
+ 1.  [en/provider/email/activation.html] [de/provider/email/activation.html] 
+    [et/provider/email/activation.html] [fr/provider/email/activation.html] 
+    [lt/provider/email/activation.html] [ru/provider/email/activation.html] 
+    [it/provider/email/activation.html] [ja/provider/email/activation.html] 
+    [pl/provider/email/activation.html] [pt/provider/email/activation.html] 
+    [si/provider/email/activation.html] [tr/provider/email/activation.html] 
+    [vi/provider/email/activation.html] Activation
+    [en/provider/email/activation.html] — txt [en/provider/email/activation.txt]
+ 2.  [en/provider/email/approval-confirm.html] 
+    [de/provider/email/approval-confirm.html] 
+    [et/provider/email/approval-confirm.html] 
+    [fr/provider/email/approval-confirm.html] 
+    [lt/provider/email/approval-confirm.html] 
+    [ru/provider/email/approval-confirm.html] 
+    [it/provider/email/approval-confirm.html] 
+    [ja/provider/email/approval-confirm.html] 
+    [pl/provider/email/approval-confirm.html] 
+    [pt/provider/email/approval-confirm.html] 
+    [si/provider/email/approval-confirm.html] 
+    [tr/provider/email/approval-confirm.html] 
+    [vi/provider/email/approval-confirm.html] Approval confirm
+    [en/provider/email/approval-confirm.html] — txt
+    [en/provider/email/approval-confirm.txt]
+ 3.  [en/provider/email/approval-request.html] 
+    [de/provider/email/approval-request.html] 
+    [et/provider/email/approval-request.html] 
+    [fr/provider/email/approval-request.html] 
+    [lt/provider/email/approval-request.html] 
+    [ru/provider/email/approval-request.html] 
+    [it/provider/email/approval-request.html] 
+    [ja/provider/email/approval-request.html] 
+    [pl/provider/email/approval-request.html] 
+    [pt/provider/email/approval-request.html] 
+    [si/provider/email/approval-request.html] 
+    [tr/provider/email/approval-request.html] 
+    [vi/provider/email/approval-request.html] Approval request
+    [en/provider/email/approval-request.html] — txt
+    [en/provider/email/approval-request.txt]
+
+TEAM
+ 1.  [en/team/email/invitation.html] [de/team/email/invitation.html] 
+    [et/team/email/invitation.html] [fr/team/email/invitation.html] 
+    [lt/team/email/invitation.html] [ru/team/email/invitation.html] 
+    [it/team/email/invitation.html] [ja/team/email/invitation.html] 
+    [pl/team/email/invitation.html] [pt/team/email/invitation.html] 
+    [si/team/email/invitation.html] [tr/team/email/invitation.html] 
+    [vi/team/email/invitation.html] Invitation [en/team/email/invitation.html] — 
+    txt [en/team/email/invitation.txt]
+ 2.  [en/team/email/new-member-welcome.html] 
+    [de/team/email/new-member-welcome.html] 
+    [et/team/email/new-member-welcome.html] 
+    [fr/team/email/new-member-welcome.html] 
+    [lt/team/email/new-member-welcome.html] 
+    [ru/team/email/new-member-welcome.html] 
+    [it/team/email/new-member-welcome.html] 
+    [ja/team/email/new-member-welcome.html] 
+    [pl/team/email/new-member-welcome.html] 
+    [pt/team/email/new-member-welcome.html] 
+    [si/team/email/new-member-welcome.html] 
+    [tr/team/email/new-member-welcome.html] 
+    [vi/team/email/new-member-welcome.html] New member welcome
+    [en/team/email/new-member-welcome.html] — txt
+    [en/team/email/new-member-welcome.txt]
+ 3.  [en/team/email/new-team-owner-welcome.html] New team owner welcome
+    [en/team/email/new-team-owner-welcome.html] — txt
+    [en/team/email/new-team-owner-welcome.txt]
+ 4.  [en/team/email/idp-config-change.html] Identity Provider configuration
+    change [en/team/email/idp-config-change.html]
+ 5.  [en/team/email/migration.html] [de/team/email/migration.html] 
+    [et/team/email/migration.html] [fr/team/email/migration.html] 
+    [lt/team/email/migration.html] [ru/team/email/migration.html] 
+    [it/team/email/migration.html] [ja/team/email/migration.html] 
+    [pl/team/email/migration.html] [pt/team/email/migration.html] 
+    [si/team/email/migration.html] [tr/team/email/migration.html] 
+    [vi/team/email/migration.html] Migration from private to team user
+    [en/team/email/migration.html] — txt [en/team/email/migration.html]
+
+USER
+ 1.   [en/user/email/activation.html] [de/user/email/activation.html] 
+     [et/user/email/activation.html] [fr/user/email/activation.html] 
+     [lt/user/email/activation.html] [ru/user/email/activation.html] 
+     [it//user/email/activation.html] [ja//user/email/activation.html] 
+     [pl//user/email/activation.html] [pt//user/email/activation.html] 
+     [si//user/email/activation.html] [tr//user/email/activation.html] 
+     [vi//user/email/activation.html] Activation [en/user/email/activation.html] 
+     — txt [en/user/email/activation.txt]
+ 2.   [en/user/email/deletion.html] [de/user/email/deletion.html] 
+     [et/user/email/deletion.html] [fr/user/email/deletion.html] 
+     [lt/user/email/deletion.html] [ru/user/email/deletion.html] 
+     [it//user/email/deletion.html] [ja//user/email/deletion.html] 
+     [pl//user/email/deletion.html] [pt//user/email/deletion.html] 
+     [si//user/email/deletion.html] [tr//user/email/deletion.html] 
+     [vi//user/email/deletion.html] Deletion [en/user/email/deletion.html] — txt
+     [en/user/email/deletion.txt]
+ 3.   [en/user/email/new-client.html] [de/user/email/new-client.html] 
+     [et/user/email/new-client.html] [fr/user/email/new-client.html] 
+     [lt/user/email/new-client.html] [ru/user/email/new-client.html] 
+     [it/user/email/new-client.html] [ja/user/email/new-client.html] 
+     [pl/user/email/new-client.html] [pt/user/email/new-client.html] 
+     [si/user/email/new-client.html] [tr/user/email/new-client.html] 
+     [vi/user/email/new-client.html] New client [en/user/email/new-client.html] 
+     — txt [en/user/email/new-client.txt]
+ 4.   [en/user/email/password-reset.html] [de/user/email/password-reset.html] 
+     [et/user/email/password-reset.html] [fr/user/email/password-reset.html] 
+     [lt/user/email/password-reset.html] [ru/user/email/password-reset.html] 
+     [it/user/email/password-reset.html] [ja/user/email/password-reset.html] 
+     [pl/user/email/password-reset.html] [pt/user/email/password-reset.html] 
+     [si/user/email/password-reset.html] [tr/user/email/password-reset.html] 
+     [vi/user/email/password-reset.html] Password reset
+     [en/user/email/password-reset.html] — txt
+     [en/user/email/password-reset.txt]
+ 5.   [en/user/email/update.html] [de/user/email/update.html] 
+     [et/user/email/update.html] [fr/user/email/update.html] 
+     [lt/user/email/update.html] [ru/user/email/update.html] 
+     [it/user/email/update.html] [ja/user/email/update.html] 
+     [pl/user/email/update.html] [pt/user/email/update.html] 
+     [si/user/email/update.html] [tr/user/email/update.html] 
+     [vi/user/email/update.html] Update [en/user/email/update.html] — txt
+     [en/user/email/update.txt]
+ 6.   [en/user/email/verification.html] [de/user/email/verification.html] 
+     [et/user/email/verification.html] [fr/user/email/verification.html] 
+     [lt/user/email/verification.html] [ru/user/email/verification.html] 
+     [it/user/email/verification.html] [ja/user/email/verification.html] 
+     [pl/user/email/verification.html] [pt/user/email/verification.html] 
+     [si/user/email/verification.html] [tr/user/email/verification.html] 
+     [vi/user/email/verification.html] Verification
+     [en/user/email/verification.html] — txt [en/user/email/verification.txt]
+ 7.   [en/user/email/team-activation.html] [de/user/email/team-activation.html] 
+     [et/user/email/team-activation.html] [fr/user/email/team-activation.html] 
+     [lt/user/email/team-activation.html] [ru/user/email/team-activation.html] 
+     [it/user/email/team-activation.html] [ja/user/email/team-activation.html] 
+     [pl/user/email/team-activation.html] [pt/user/email/team-activation.html] 
+     [si/user/email/team-activation.html] [tr/user/email/team-activation.html] 
+     [vi/user/email/team-activation.html] Team activation
+     [en/user/email/team-activation.html] — txt
+     [en/user/email/team-activation.txt]
+ 8.   [en/user/email/verification-login.html] 
+     [de/user/email/verification-login.html] 
+     [et/user/email/verification-login.html] 
+     [fr/user/email/verification-login.html] 
+     [lt/user/email/verification-login.html] 
+     [ru/user/email/verification-login.html] 
+     [it/user/email/verification-login.html] 
+     [ja/user/email/verification-login.html] 
+     [pl/user/email/verification-login.html] 
+     [pt/user/email/verification-login.html] 
+     [si/user/email/verification-login.html] 
+     [tr/user/email/verification-login.html] 
+     [vi/user/email/verification-login.html] Second factor verification for
+     login [en/user/email/verification-login.html] — txt
+     [en/user/email/verification-login.txt]
+ 9.   [en/user/email/verification-scim-token.html] 
+     [de/user/email/verification-scim-token.html] 
+     [et/user/email/verification-scim-token.html] 
+     [fr/user/email/verification-scim-token.html] 
+     [lt/user/email/verification-scim-token.html] 
+     [ru/user/email/verification-scim-token.html] 
+     [it/user/email/verification-scim-token.html] 
+     [ja/user/email/verification-scim-token.html] 
+     [pl/user/email/verification-scim-token.html] 
+     [pt/user/email/verification-scim-token.html] 
+     [si/user/email/verification-scim-token.html] 
+     [tr/user/email/verification-scim-token.html] 
+     [vi/user/email/verification-scim-token.html] Second factor verification
+     create SCIM token [en/user/email/verification-scim-token.html] — txt
+     [en/user/email/verification-scim-token.txt]
+ 10.  [en/user/email/verification-delete-team.html] 
+     [de/user/email/verification-delete-team.html] 
+     [et/user/email/verification-delete-team.html] 
+     [fr/user/email/verification-delete-team.html] 
+     [lt/user/email/verification-delete-team.html] 
+     [ru/user/email/verification-delete-team.html] 
+     [it/user/email/verification-delete-team.html] 
+     [ja/user/email/verification-delete-team.html] 
+     [pl/user/email/verification-delete-team.html] 
+     [pt/user/email/verification-delete-team.html] 
+     [si/user/email/verification-delete-team.html] 
+     [tr/user/email/verification-delete-team.html] 
+     [vi/user/email/verification-delete-team.html] Second factor verification
+     delete team [en/user/email/verification-delete-team.html] — txt
+     [en/user/email/verification-delete-team.txt]
+
+BILLING
+ 1.  [en/billing/email/suspension.html] [de/billing/email/suspension.html] 
+    [et/billing/email/suspension.html] [fr/billing/email/suspension.html] 
+    [lt/billing/email/suspension.html] [ru/billing/email/suspension.html] 
+    [it/billing/email/suspension.html] [ja/billing/email/suspension.html] 
+    [pl/billing/email/suspension.html] [pt/billing/email/suspension.html] 
+    [si/billing/email/suspension.html] [tr/billing/email/suspension.html] 
+    [vi/billing/email/suspension.html] Suspension
+    [en/billing/email/suspension.html] — txt [en/billing/email/suspension.txt]
+
+For source and instructions, see github.com/wireapp/wire-emails
+[https://github.com/wireapp/wire-emails] or visit the Crowdin project
+[https://crowdin.com/project/wire-launch] to help with translations.
