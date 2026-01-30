@@ -36,6 +36,7 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
+import System.IO.Unsafe
 import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User (UserType (..), userTypeToText)
@@ -205,7 +206,14 @@ searchUsersImpl ::
   Int ->
   Maybe [UserType] ->
   Sem r (SearchResult UserDoc)
-searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTypes =
+searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTypes = do
+  unsafePerformIO
+    ( do
+        appendFile "/tmp/x" $ "******************************************\n"
+        appendFile "/tmp/x" $ show (searcherId, term, mTypes) <> "\n"
+    )
+    `seq` pure
+      ()
   queryIndex cfg maxResults $
     defaultUserQuery searcherId mSearcherTeam teamSearchInfo mTypes term
 
@@ -542,7 +550,7 @@ restrictSearchSpaceByTeam mteam searchInfo =
 
 restrictSearchSpaceByUserType :: Maybe [UserType] -> ES.Query
 restrictSearchSpaceByUserType = \case
-  Nothing -> ES.MatchAllQuery Nothing
+  Nothing -> ES.MatchAllQuery Nothing -- ?
   Just [] -> ES.MatchAllQuery Nothing
   Just (utsH : utsT) -> ES.TermsQuery "type" (userTypeToText <$> (utsH :| utsT))
 
