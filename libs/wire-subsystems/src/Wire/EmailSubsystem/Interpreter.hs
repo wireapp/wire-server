@@ -74,8 +74,8 @@ emailSubsystemInterpreter userTpls teamTpls branding = interpret \case
   SendTeamInvitationMailPersonalUser email tid from code loc -> sendTeamInvitationMailPersonalUserImpl teamTpls branding email tid from code loc
   SendMemberWelcomeEmail email tid teamName loc -> sendMemberWelcomeEmailImpl teamTpls branding email tid teamName loc
   SendNewTeamOwnerWelcomeEmail email tid teamName loc name -> sendNewTeamOwnerWelcomeEmailImpl teamTpls branding email tid teamName loc name
-  SendSAMLIdPChanged email tid mbUid addedCerts removedCerts idPId iss requestUri mLocale ->
-    sendSAMLIdPChangedImpl teamTpls branding email tid mbUid addedCerts removedCerts idPId iss requestUri mLocale
+  SendSAMLIdPChanged email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale ->
+    sendSAMLIdPChangedImpl teamTpls branding email tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale
 
 -------------------------------------------------------------------------------
 -- Verification Email for
@@ -609,15 +609,17 @@ sendSAMLIdPChangedImpl ::
   [CertDescription] ->
   [CertDescription] ->
   IdPId ->
-  Issuer ->
-  URI ->
+  Maybe Issuer ->
+  Maybe URI ->
+  Maybe Issuer ->
+  Maybe URI ->
   Maybe Locale ->
   Sem r ()
-sendSAMLIdPChangedImpl teamTemplates branding to tid mbUid addedCerts removedCerts idPId issuer endpoint mLocale = do
+sendSAMLIdPChangedImpl teamTemplates branding to tid mbUid addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint mLocale = do
   let tpl = idpConfigChangeEmail . snd $ forLocale mLocale teamTemplates
   mail <-
     logEmailRenderErrors "idp config change email" $
-      renderIdPConfigChangeEmail to tpl branding addedCerts removedCerts tid mbUid idPId issuer endpoint
+      renderIdPConfigChangeEmail to tpl branding addedCerts removedCerts tid mbUid idPId oldIssuer oldEndpoint newIssuer newEndpoint
   sendMail mail
 
 renderIdPConfigChangeEmail ::
@@ -630,10 +632,12 @@ renderIdPConfigChangeEmail ::
   TeamId ->
   Maybe UserId ->
   IdPId ->
-  Issuer ->
-  URI ->
+  Maybe Issuer ->
+  Maybe URI ->
+  Maybe Issuer ->
+  Maybe URI ->
   Sem r Mail
-renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding addedCerts removedCerts tid uid idPId issuer endpoint = do
+renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding addedCerts removedCerts tid uid idPId oldIssuer oldEndpoint newIssuer newEndpoint = do
   idpDetailsAddedText :: Text <-
     (TL.toStrict . TL.unlines)
       <$> mapM (renderTextWithBrandingSem idpConfigChangeEmailIdPDetailsAddedText . idpDetailsToMap) addedCerts
@@ -651,8 +655,10 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
         branding
           & Map.insert "team_id" ((toText . toUUID) tid)
           & Map.insert "user_id" (maybe "None" (toText . toUUID) uid)
-          & Map.insert "idp_issuer" ((T.decodeUtf8 . serializeURIRef' . _fromIssuer) issuer)
-          & Map.insert "idp_endpoint" ((T.decodeUtf8 . serializeURIRef') endpoint)
+          & Map.insert "old_idp_issuer" (maybe "None" (T.decodeUtf8 . serializeURIRef' . _fromIssuer) oldIssuer)
+          & Map.insert "old_idp_endpoint" (maybe "None" (T.decodeUtf8 . serializeURIRef') oldEndpoint)
+          & Map.insert "new_idp_issuer" (maybe "None" (T.decodeUtf8 . serializeURIRef' . _fromIssuer) newIssuer)
+          & Map.insert "new_idp_endpoint" (maybe "None" (T.decodeUtf8 . serializeURIRef') newEndpoint)
           & Map.insert "idp_id" ((toText . fromIdPId) idPId)
       certificateDetailsHtml =
         (T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedHtml, idpDetailsRemovedHtml]

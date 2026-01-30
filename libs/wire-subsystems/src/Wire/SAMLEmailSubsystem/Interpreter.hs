@@ -44,18 +44,26 @@ sendSAMLIdPChangedImpl notif = mapM_ delegate =<< getReceivers origIdP
   where
     delegate :: (Member Email.EmailSubsystem r) => Receiver -> Sem r ()
     delegate (email, loc) = do
-      let endpoint = origIdP._idpMetadata._edRequestURI
-          iss = origIdP._idpMetadata._edIssuer
+      let oldIssuer = (_edIssuer . _idpMetadata) <$> fst idPs
+          oldEndpoint = (_edRequestURI . _idpMetadata) <$> fst idPs
+          newIssuer = (_edIssuer . _idpMetadata) <$> snd idPs
+          newEndpoint = (_edRequestURI . _idpMetadata) <$> snd idPs
           idPId = origIdP._idpId
           tid = origIdP._idpExtraInfo._team
           (addedCerts, removedCerts) = bimap (certDescription <$>) (certDescription <$>) certsChanges
-      Email.sendSAMLIdPChanged email tid mbUserId addedCerts removedCerts idPId iss endpoint loc
+      Email.sendSAMLIdPChanged email tid mbUserId addedCerts removedCerts idPId oldIssuer oldEndpoint newIssuer newEndpoint loc
 
     origIdP :: IdP
     origIdP = case notif of
       IdPCreated _userId idp -> idp
       IdPDeleted _userId idp -> idp
       IdPUpdated _userId old _new -> old
+
+    idPs :: (Maybe IdP, Maybe IdP)
+    idPs = case notif of
+      IdPCreated _userId idp -> (Nothing, Just idp)
+      IdPDeleted _userId idp -> (Just idp, Nothing)
+      IdPUpdated _userId old _new -> (Just old, Just _new)
 
     mbUserId :: Maybe UserId
     mbUserId = case notif of

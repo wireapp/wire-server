@@ -48,6 +48,18 @@ data EmailSubsystem m a where
   SendTeamInvitationMailPersonalUser :: EmailAddress -> TeamId -> EmailAddress -> InvitationCode -> Maybe Locale -> EmailSubsystem m Text
   SendMemberWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> EmailSubsystem m ()
   SendNewTeamOwnerWelcomeEmail :: EmailAddress -> TeamId -> Text -> Maybe Locale -> Name -> EmailSubsystem m ()
-  SendSAMLIdPChanged :: EmailAddress -> TeamId -> Maybe UserId -> [CertDescription] -> [CertDescription] -> IdPId -> Issuer -> URI -> Maybe Locale -> EmailSubsystem m ()
+  SendSAMLIdPChanged ::
+    EmailAddress ->
+    TeamId ->
+    Maybe UserId ->
+    [CertDescription] ->
+    [CertDescription] ->
+    IdPId ->
+    Maybe Issuer ->
+    Maybe URI ->
+    Maybe Issuer ->
+    Maybe URI ->
+    Maybe Locale ->
+    EmailSubsystem m ()
 
 makeSem ''EmailSubsystem

@@ -16,14 +16,20 @@ Benutzer-ID:
 
 Details:
 
-IdP-Aussteller:
-https://issuer.example.com/realm
-
-IdP-Endpunkt:
-https://saml-endpoint.example.com/auth
-
 IdP-ID:
 574ddfb0-4e50-2bff-e924-33ee2b9f7064
+
+Neuer IdP-Aussteller:
+https://new-issuer.example.com/realm
+
+Neuer IdP-Endpunkt:
+https://new-saml-endpoint.example.com/auth
+
+Alter IdP-Aussteller:
+https://issuer.example.com/realm
+
+Alter IdP-Endpunkt:
+https://saml-endpoint.example.com/auth
 
 
 --------------------------------------------------------------------------------

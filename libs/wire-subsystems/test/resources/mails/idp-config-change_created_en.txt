@@ -16,14 +16,20 @@ User ID:
 
 Details:
 
-IdP Issuer:
-https://issuer.example.com/realm
-
-IdP Endpoint:
-https://saml-endpoint.example.com/auth
-
 IdP ID:
 574ddfb0-4e50-2bff-e924-33ee2b9f7064
+
+New IdP Issuer:
+https://issuer.example.com/realm
+
+New IdP Endpoint:
+https://saml-endpoint.example.com/auth
+
+Old IdP Issuer:
+None
+
+Old IdP Endpoint:
+None
 
 
 --------------------------------------------------------------------------------

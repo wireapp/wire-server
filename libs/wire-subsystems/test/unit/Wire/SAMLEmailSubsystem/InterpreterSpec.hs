@@ -146,11 +146,20 @@ spec = do
           let idpOld' = patchIdP idpOld teamId
               idpNew' =
                 (patchIdP idpNew teamId)
-                  { _idpMetadata =
-                      idpNew._idpMetadata
-                        { _edCertAuthnResponse = NE.fromList newCerts
-                        }
-                  }
+                  & ( \idp ->
+                        idp
+                          { _idpMetadata =
+                              idp._idpMetadata
+                                { _edCertAuthnResponse = NE.fromList newCerts,
+                                  _edIssuer =
+                                    Issuer . either (error . show) Imports.id $
+                                      parseURI strictURIParserOptions "https://new-issuer.example.com/realm",
+                                  _edRequestURI =
+                                    either (error . show) Imports.id $
+                                      parseURI strictURIParserOptions "https://new-saml-endpoint.example.com/auth"
+                                }
+                          }
+                    )
               storedUser' = patchStoredUser storedUser teamId userLocale uid
               notif = IdPUpdated uid idpOld' idpNew'
           (mails, logs, _res) <- runInterpreters [storedUser'] teamMap teamTemplates branding $ do
