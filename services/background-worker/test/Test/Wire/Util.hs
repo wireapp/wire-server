@@ -67,7 +67,7 @@ testEnv = do
       gundeckEndpoint = undefined
       brigEndpoint = undefined
       sparEndpoint = Endpoint "localhost" 0
-      featureFlags = undefined
+      galleyEndpoint = undefined
       federator = Nothing
   pure Env {..}
 

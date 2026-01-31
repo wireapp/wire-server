@@ -94,3 +94,8 @@ testNonMemberAccess (Feature featureName) = do
   nonMember <- randomUser OwnDomain def
   Public.getTeamFeature nonMember tid featureName
     >>= assertForbidden
+
+testInternalGetConfiguredFeatureFlags :: (HasCallStack) => App ()
+testInternalGetConfiguredFeatureFlags = do
+  response <- Internal.getConfiguredFeatureFlags
+  response.status `shouldMatchInt` 200

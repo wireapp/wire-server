@@ -27,7 +27,6 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Domain (Domain)
 import Data.Map.Strict qualified as Map
-import Galley.Types.Teams (FeatureFlags)
 import HTTP2.Client.Manager
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
@@ -86,7 +85,7 @@ data Env = Env
     postgresMigration :: PostgresMigrationOpts,
     gundeckEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
-    featureFlags :: FeatureFlags,
+    galleyEndpoint :: Endpoint,
     brigEndpoint :: Endpoint,
     federator :: Maybe Endpoint
   }
@@ -136,9 +135,9 @@ mkEnv opts = do
       federationDomain = opts.federationDomain
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
+      galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
-      featureFlags = opts.featureFlags
       federator = opts.federator
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword

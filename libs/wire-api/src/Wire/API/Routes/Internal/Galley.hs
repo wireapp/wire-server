@@ -113,6 +113,13 @@ type IFeatureAPI =
                     UserId
                :> Get '[JSON] AllTeamFeatures
            )
+    :<|> Named
+           "get-configured-feature-flags"
+           ( Summary "Get the server-wide feature flag defaults (from galley config)"
+               :> "features"
+               :> "configured"
+               :> Get '[JSON] ConfiguredFeatureFlags
+           )
 
 type InternalAPI = "i" :> InternalAPIBase
 

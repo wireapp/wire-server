@@ -27,6 +27,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
+import Galley.Types.Teams (FeatureFlags)
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -92,6 +93,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           FinalizeDeleteTeam lusr mconn tid -> finalizeDeleteTeam lusr mconn tid
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
+          GetConfiguredFeatureFlags -> getConfiguredFeatureFlags
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
@@ -575,6 +577,21 @@ getAllTeamFeaturesForUser mbUserId =
       ( method GET
           . paths ["i", "feature-configs"]
           . maybe id (queryItem "user_id" . toByteString') mbUserId
+      )
+
+getConfiguredFeatureFlags ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Sem r FeatureFlags
+getConfiguredFeatureFlags = do
+  debug $ remote "galley" . msg (val "Getting configured feature flags")
+  responseJsonUnsafe
+    <$> galleyRequest
+      ( method GET
+          . paths ["i", "features", "configured"]
+          . expect2xx
       )
 
 -- | Calls 'Galley.API.updateTeamStatusH'.

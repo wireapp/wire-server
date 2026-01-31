@@ -18,10 +18,13 @@
 module Wire.MockInterpreters.GalleyAPIAccess where
 
 import Control.Lens (to, (^.))
+import Data.Default (def)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
+import Data.SOP.NP (NP (..))
+import Galley.Types.Teams
 import Imports
 import Polysemy
 import Wire.API.Team.Feature
@@ -60,6 +63,42 @@ miniGalleyAPIAccess teams configs = interpret $ \case
     pure $ memberIsTeamOwnerImpl teams tid uid
   GetAllTeamFeaturesForUser _ -> pure configs
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
+  GetConfiguredFeatureFlags ->
+    pure $
+      FeatureLegalHoldDisabledByDefault
+        :* FeatureSSOEnabledByDefault
+        :* FeatureTeamSearchVisibilityAvailableByDefault
+        :* def
+        :* def
+        :* DigitalSignaturesDefaults
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* ExposeInvitationURLsToTeamAdminDefaults
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* def
+        :* Nil
   GetVerificationCodeEnabled _ -> error "GetVerificationCodeEnabled not implemented in miniGalleyAPIAccess"
   GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"

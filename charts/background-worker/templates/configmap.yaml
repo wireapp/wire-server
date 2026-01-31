@@ -24,6 +24,9 @@ data:
     brig:
       host: brig
       port: 8080
+    galley:
+      host: galley
+      port: 8080
 
     {{- if .enableFederation }}
     federator:
@@ -82,9 +85,6 @@ data:
     {{- end }}
 
     federationDomain: {{ .federationDomain }}
-    featureFlags:
-{{ toYaml .featureFlags | indent 6 }}
-
 
     {{- with .rabbitmq }}
     rabbitmq:

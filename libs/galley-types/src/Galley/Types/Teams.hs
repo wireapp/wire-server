@@ -96,6 +96,13 @@ instance FromJSON (FeatureDefaults LegalholdConfig) where
   parseJSON (String "whitelist-teams-and-implicit-consent") = pure FeatureLegalHoldWhitelistTeamsAndImplicitConsent
   parseJSON bad = fail $ "FeatureLegalHold: " <> (UTF8.toString . toStrict . encode $ bad)
 
+instance ToJSON (FeatureDefaults LegalholdConfig) where
+  toJSON =
+    \case
+      FeatureLegalHoldDisabledPermanently -> String "disabled-permanently"
+      FeatureLegalHoldDisabledByDefault -> String "disabled-by-default"
+      FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> String "whitelist-teams-and-implicit-consent"
+
 data instance FeatureDefaults SSOConfig
   = FeatureSSOEnabledByDefault
   | FeatureSSODisabledByDefault
@@ -106,6 +113,12 @@ instance FromJSON (FeatureDefaults SSOConfig) where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
   parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
   parseJSON bad = fail $ "FeatureSSO: " <> (UTF8.toString . toStrict . encode $ bad)
+
+instance ToJSON (FeatureDefaults SSOConfig) where
+  toJSON =
+    \case
+      FeatureSSOEnabledByDefault -> String "enabled-by-default"
+      FeatureSSODisabledByDefault -> String "disabled-by-default"
 
 instance GetFeatureDefaults (FeatureDefaults SSOConfig) where
   featureDefaults1 flag =
@@ -129,6 +142,12 @@ instance FromJSON (FeatureDefaults SearchVisibilityAvailableConfig) where
   parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityUnavailableByDefault
   parseJSON bad = fail $ "FeatureSearchVisibility: " <> (UTF8.toString . toStrict . encode $ bad)
 
+instance ToJSON (FeatureDefaults SearchVisibilityAvailableConfig) where
+  toJSON =
+    \case
+      FeatureTeamSearchVisibilityAvailableByDefault -> String "enabled-by-default"
+      FeatureTeamSearchVisibilityUnavailableByDefault -> String "disabled-by-default"
+
 instance GetFeatureDefaults (FeatureDefaults SearchVisibilityAvailableConfig) where
   featureDefaults1 flag =
     def
@@ -141,14 +160,14 @@ newtype instance FeatureDefaults SearchVisibilityInboundConfig
   = SearchVisibilityInboundDefaults (Feature SearchVisibilityInboundConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (Feature SearchVisibilityInboundConfig)
+  deriving (FromJSON, ToJSON) via Defaults (Feature SearchVisibilityInboundConfig)
   deriving (ParseFeatureDefaults) via OptionalField SearchVisibilityInboundConfig
 
 newtype instance FeatureDefaults ValidateSAMLEmailsConfig
   = ValidateSAMLEmailsDefaults (Feature ValidateSAMLEmailsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (Feature ValidateSAMLEmailsConfig)
+  deriving (FromJSON, ToJSON) via Defaults (Feature ValidateSAMLEmailsConfig)
   deriving (ParseFeatureDefaults) via OptionalField ValidateSAMLEmailsConfig
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
@@ -158,24 +177,29 @@ data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefault
 instance ParseFeatureDefaults (FeatureDefaults DigitalSignaturesConfig) where
   parseFeatureDefaults _ = pure DigitalSignaturesDefaults
 
+instance ToJSON (FeatureDefaults DigitalSignaturesConfig) where
+  toJSON =
+    \case
+      DigitalSignaturesDefaults -> String "digital-signatures-defaults"
+
 newtype instance FeatureDefaults AppLockConfig
   = AppLockDefaults (Feature AppLockConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (Feature AppLockConfig)
+  deriving (FromJSON, ToJSON) via Defaults (Feature AppLockConfig)
   deriving (ParseFeatureDefaults) via OptionalField AppLockConfig
 
 newtype instance FeatureDefaults FileSharingConfig
   = FileSharingDefaults (LockableFeature FileSharingConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature FileSharingConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature FileSharingConfig)
   deriving (ParseFeatureDefaults) via OptionalField FileSharingConfig
 
 newtype instance FeatureDefaults ClassifiedDomainsConfig
   = ClassifiedDomainsDefaults (Feature ClassifiedDomainsConfig)
   deriving stock (Eq, Show)
-  deriving newtype (Default, FromJSON)
+  deriving newtype (Default, FromJSON, ToJSON)
   deriving (ParseFeatureDefaults) via OptionalField ClassifiedDomainsConfig
   deriving (GetFeatureDefaults) via Feature ClassifiedDomainsConfig
 
@@ -183,49 +207,49 @@ newtype instance FeatureDefaults ConferenceCallingConfig
   = ConferenceCallingDefaults (LockableFeature ConferenceCallingConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature ConferenceCallingConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature ConferenceCallingConfig)
   deriving (ParseFeatureDefaults) via OptionalField ConferenceCallingConfig
 
 newtype instance FeatureDefaults SelfDeletingMessagesConfig
   = SelfDeletingMessagesDefaults (LockableFeature SelfDeletingMessagesConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature SelfDeletingMessagesConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature SelfDeletingMessagesConfig)
   deriving (ParseFeatureDefaults) via OptionalField SelfDeletingMessagesConfig
 
 newtype instance FeatureDefaults GuestLinksConfig
   = GuestLinksDefaults (LockableFeature GuestLinksConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature GuestLinksConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature GuestLinksConfig)
   deriving (ParseFeatureDefaults) via OptionalField GuestLinksConfig
 
 newtype instance FeatureDefaults SndFactorPasswordChallengeConfig
   = SndFactorPasswordChallengeDefaults (LockableFeature SndFactorPasswordChallengeConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature SndFactorPasswordChallengeConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature SndFactorPasswordChallengeConfig)
   deriving (ParseFeatureDefaults) via OptionalField SndFactorPasswordChallengeConfig
 
 newtype instance FeatureDefaults MLSConfig
   = MLSDefaults (LockableFeature MLSConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature MLSConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature MLSConfig)
   deriving (ParseFeatureDefaults) via OptionalField MLSConfig
 
 newtype instance FeatureDefaults ChannelsConfig
   = ChannelsDefaults (LockableFeature ChannelsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature ChannelsConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature ChannelsConfig)
   deriving (ParseFeatureDefaults) via OptionalField ChannelsConfig
 
 newtype instance FeatureDefaults CellsInternalConfig
   = CellsInternalDefaults (LockableFeature CellsInternalConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature CellsInternalConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature CellsInternalConfig)
   deriving (ParseFeatureDefaults) via OptionalField CellsInternalConfig
 
 data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
@@ -236,66 +260,71 @@ data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
 instance ParseFeatureDefaults (FeatureDefaults ExposeInvitationURLsToTeamAdminConfig) where
   parseFeatureDefaults _ = pure ExposeInvitationURLsToTeamAdminDefaults
 
+instance ToJSON (FeatureDefaults ExposeInvitationURLsToTeamAdminConfig) where
+  toJSON =
+    \case
+      ExposeInvitationURLsToTeamAdminDefaults -> String "expose-invitation-ur-ls-to-team-admin-defaults"
+
 newtype instance FeatureDefaults OutlookCalIntegrationConfig
   = OutlookCalIntegrationDefaults (LockableFeature OutlookCalIntegrationConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature OutlookCalIntegrationConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature OutlookCalIntegrationConfig)
   deriving (ParseFeatureDefaults) via OptionalField OutlookCalIntegrationConfig
 
 newtype instance FeatureDefaults MlsE2EIdConfig
   = MlsE2EIdDefaults (LockableFeature MlsE2EIdConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature MlsE2EIdConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature MlsE2EIdConfig)
   deriving (ParseFeatureDefaults) via OptionalField MlsE2EIdConfig
 
 newtype instance FeatureDefaults MlsMigrationConfig
   = MlsMigrationDefaults (LockableFeature MlsMigrationConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature MlsMigrationConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature MlsMigrationConfig)
   deriving (ParseFeatureDefaults) via OptionalField MlsMigrationConfig
 
 newtype instance FeatureDefaults EnforceFileDownloadLocationConfig
   = EnforceFileDownloadLocationDefaults (LockableFeature EnforceFileDownloadLocationConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature EnforceFileDownloadLocationConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature EnforceFileDownloadLocationConfig)
   deriving (ParseFeatureDefaults) via OptionalField EnforceFileDownloadLocationConfig
 
 newtype instance FeatureDefaults LimitedEventFanoutConfig
   = LimitedEventFanoutDefaults (Feature LimitedEventFanoutConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (Feature LimitedEventFanoutConfig)
+  deriving (FromJSON, ToJSON) via Defaults (Feature LimitedEventFanoutConfig)
   deriving (ParseFeatureDefaults) via OptionalField LimitedEventFanoutConfig
 
 newtype instance FeatureDefaults DomainRegistrationConfig
   = DomainRegistrationConfigDefaults (LockableFeature DomainRegistrationConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature DomainRegistrationConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature DomainRegistrationConfig)
   deriving (ParseFeatureDefaults) via OptionalField DomainRegistrationConfig
 
 newtype instance FeatureDefaults CellsConfig
   = CellsConfigDefaults (LockableFeature CellsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature CellsConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature CellsConfig)
   deriving (ParseFeatureDefaults) via OptionalField CellsConfig
 
 newtype instance FeatureDefaults AllowedGlobalOperationsConfig
   = AllowedGlobalOperationsConfigDefaults (Feature AllowedGlobalOperationsConfig)
   deriving stock (Eq, Show)
-  deriving newtype (Default, FromJSON)
+  deriving newtype (Default, FromJSON, ToJSON)
   deriving (ParseFeatureDefaults) via OptionalField AllowedGlobalOperationsConfig
   deriving (GetFeatureDefaults) via Feature AllowedGlobalOperationsConfig
 
 newtype instance FeatureDefaults AssetAuditLogConfig
   = AssetAuditLogDefaults (Feature AssetAuditLogConfig)
   deriving stock (Eq, Show)
-  deriving newtype (Default, FromJSON)
+  deriving newtype (Default, FromJSON, ToJSON)
   deriving (ParseFeatureDefaults) via OptionalField AssetAuditLogConfig
   deriving (GetFeatureDefaults) via Feature AssetAuditLogConfig
 
@@ -303,49 +332,49 @@ newtype instance FeatureDefaults ConsumableNotificationsConfig
   = ConsumableNotificationsDefaults (LockableFeature ConsumableNotificationsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature ConsumableNotificationsConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature ConsumableNotificationsConfig)
   deriving (ParseFeatureDefaults) via OptionalField ConsumableNotificationsConfig
 
 newtype instance FeatureDefaults ChatBubblesConfig
   = ChatBubblesDefaults (LockableFeature ChatBubblesConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature ChatBubblesConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature ChatBubblesConfig)
   deriving (ParseFeatureDefaults) via OptionalField ChatBubblesConfig
 
 newtype instance FeatureDefaults AppsConfig
   = AppsDefaults (LockableFeature AppsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature AppsConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature AppsConfig)
   deriving (ParseFeatureDefaults) via OptionalField AppsConfig
 
 newtype instance FeatureDefaults SimplifiedUserConnectionRequestQRCodeConfig
   = SimplifiedUserConnectionRequestQRCodeDefaults (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig)
   deriving (ParseFeatureDefaults) via OptionalField SimplifiedUserConnectionRequestQRCodeConfig
 
 newtype instance FeatureDefaults StealthUsersConfig
   = StealthUsersDefaults (LockableFeature StealthUsersConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature StealthUsersConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature StealthUsersConfig)
   deriving (ParseFeatureDefaults) via OptionalField StealthUsersConfig
 
 newtype instance FeatureDefaults MeetingsConfig
   = MeetingDefaults (LockableFeature MeetingsConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature MeetingsConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature MeetingsConfig)
   deriving (ParseFeatureDefaults) via OptionalField MeetingsConfig
 
 newtype instance FeatureDefaults MeetingsPremiumConfig
   = MeetingPremiumDefaults (LockableFeature MeetingsPremiumConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON) via Defaults (LockableFeature MeetingsPremiumConfig)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature MeetingsPremiumConfig)
   deriving (ParseFeatureDefaults) via OptionalField MeetingsPremiumConfig
 
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
@@ -407,11 +436,32 @@ instance
   where
   parseJSON = withObject "FeatureFlags" featureFlagsFromObject
 
+class FeatureFlagsToPair f cfgs where
+  featureFlagsToPair :: NP f cfgs -> [A.Pair]
+
+instance FeatureFlagsToPair f '[] where
+  featureFlagsToPair _ = []
+
+instance
+  ( ToJSON (f cfg),
+    IsFeatureConfig cfg,
+    FeatureFlagsToPair f cfgs
+  ) =>
+  FeatureFlagsToPair f (cfg : cfgs)
+  where
+  featureFlagsToPair (x :* xs) = (featureKey @cfg, toJSON x) : featureFlagsToPair xs
+
+instance ToJSON FeatureFlags where
+  toJSON = A.object . featureFlagsToPair
+
 newtype Defaults a = Defaults {_unDefaults :: a}
 
 instance (FromJSON a) => FromJSON (Defaults a) where
   parseJSON = withObject "default object" $ \ob ->
     Defaults <$> (ob .: "defaults")
+
+instance (ToJSON a) => ToJSON (Defaults a) where
+  toJSON (Defaults x) = A.object [("defaults", toJSON x)]
 
 notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
 notTeamMember uids tmms =

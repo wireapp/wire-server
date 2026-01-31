@@ -68,6 +68,8 @@ import Wire.FeaturesConfigSubsystem.Interpreter (TeamFeatureStoreError, runFeatu
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
 import Wire.FireAndForget (interpretFireAndForget)
+import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
@@ -205,7 +207,6 @@ dispatchJob job = do
         . runInputConst env.hasqlPool
         . runInputConst (toLocalUnsafe env.federationDomain ())
         . runInputConst conversationSubsystemConfig
-        . runInputConst env.featureFlags
         . runInputConst (FeatureLegalHoldDisabledPermanently)
         . runInputConst env.cassandraGalley
         . runInputConst legalHoldEnv
@@ -230,6 +231,8 @@ dispatchJob job = do
         -- At the time of implementation the only function used from ExternalAccess is deliverAsync, which will not call brig access.
         -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
         . interpretBrigAccess env.brigEndpoint
+        . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
+        . runInputSem getConfiguredFeatureFlags
         . interpretExternalAccess extEnv
         . interpretSparAPIAccessToRpc env.sparEndpoint
         . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig job.requestId)

@@ -27,6 +27,7 @@ where
 
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
+import Data.Aeson qualified as A
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id as Id
@@ -324,9 +325,20 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MeetingsPremiumConfig) (updateLockStatus @MeetingsPremiumConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
+    <@> mkNamedAPI @"get-configured-feature-flags" getConfiguredFeatureFlags
 
 cellsAPI :: API ICellsAPI GalleyEffects
 cellsAPI = mkNamedAPI @"set-cells-state" Update.updateCellsState
+
+getConfiguredFeatureFlags ::
+  forall r.
+  (Member (Input Env) r) =>
+  Sem r ConfiguredFeatureFlags
+getConfiguredFeatureFlags = do
+  env <- input @Env
+  -- let flags = env._options._settings._featureFlags
+  let flags = (env ^. Galley.App.options . Galley.Options.settings . Galley.Options.featureFlags)
+  pure $ ConfiguredFeatureFlags $ A.toJSON flags
 
 rmUser ::
   forall p2 r.

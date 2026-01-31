@@ -128,6 +128,7 @@ module Wire.API.Team.Feature
     mkAllFeatures,
     TeamFeatureMigrationState (..),
     isCellsFeatureConfigEvent,
+    ConfiguredFeatureFlags (..),
   )
 where
 
@@ -142,6 +143,7 @@ import Data.Attoparsec.ByteString qualified as Parser
 import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion
 import Data.ByteString.UTF8 qualified as UTF8
+import Data.Coerce (coerce)
 import Data.Default
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
@@ -2450,3 +2452,14 @@ instance Cass.Cql TeamFeatureMigrationState where
   toCql MigrationNotStarted = Cass.CqlInt 0
   toCql MigrationInProgress = Cass.CqlInt 1
   toCql MigrationCompleted = Cass.CqlInt 2
+
+--------------------------------------------------------------------------------
+-- ConfiguredFeatureFlags
+
+newtype ConfiguredFeatureFlags = ConfiguredFeatureFlags {unConfiguredFeatureFlags :: A.Value}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConfiguredFeatureFlags)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConfiguredFeatureFlags)
+
+instance ToSchema ConfiguredFeatureFlags where
+  schema = named "ConfiguredFeatureFlags" $ coerce jsonValue

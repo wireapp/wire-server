@@ -24,6 +24,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
+import Galley.Types.Teams (FeatureFlags)
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
@@ -153,6 +154,8 @@ data GalleyAPIAccess m a where
   GetEJPDConvInfo ::
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
+  GetConfiguredFeatureFlags ::
+    GalleyAPIAccess m FeatureFlags
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
   InternalGetConversation :: ConvId -> GalleyAPIAccess m (Maybe Conversation)
   GetTeamContacts ::
