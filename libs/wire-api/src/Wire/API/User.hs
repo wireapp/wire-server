@@ -480,10 +480,7 @@ instance Default UserType where
   def = UserTypeRegular
 
 userTypeToText :: UserType -> Text
-userTypeToText = \case
-  UserTypeRegular -> "regular"
-  UserTypeApp -> "app"
-  UserTypeBot -> "bot"
+userTypeToText = T.decodeUtf8 . toByteString'
 
 instance ToSchema UserType where
   schema =
