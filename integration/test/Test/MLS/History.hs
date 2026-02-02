@@ -60,6 +60,8 @@ testExtraAppMessage = do
 
 testConvCreateWithHistory :: App ()
 testConvCreateWithHistory = do
+  mig <- readServiceConfig Galley %. "postgresMigration.conversation" & asString
+
   (alice, tid, _) <- createTeam OwnDomain 1
 
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
@@ -79,20 +81,30 @@ testConvCreateWithHistory = do
       resp.status `shouldMatchInt` 400
       resp.json %. "label" `shouldMatch` "history-not-supported"
 
-  convId <-
-    postConversation
-      alice
-      ( defMLS
-          { team = Just tid,
-            history = Just history,
-            groupConvType = Just "channel"
-          }
-      )
-      >>= getJSON 201
-      >>= objConvId
-
-  conv <- getConversation alice convId >>= getJSON 200
-  conv %. "history" `shouldMatch` history
+  mConvId <- bindResponse
+    ( postConversation
+        alice
+        ( defMLS
+            { team = Just tid,
+              history = Just history,
+              groupConvType = Just "channel"
+            }
+        )
+    )
+    $ \resp -> do
+      if mig == "postgresql"
+        then do
+          resp.status `shouldMatchInt` 201
+          Just <$> objConvId resp.json
+        else do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "history-not-supported"
+          pure Nothing
+  for_
+    mConvId
+    $ \convId -> do
+      conv <- getConversation alice convId >>= getJSON 200
+      conv %. "history" `shouldMatch` history
 
 testRegularConvCannotSetHistory :: App ()
 testRegularConvCannotSetHistory = do
