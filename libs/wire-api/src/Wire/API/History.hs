@@ -36,6 +36,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as T
 import Imports
+import Test.QuickCheck
 import Wire.API.PostgresMarshall
 import Wire.Arbitrary
 
@@ -60,7 +61,13 @@ data HistoryDuration
   = HistoryDurationInfinite
   | HistoryDurationFinite Int64
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform HistoryDuration
+
+instance Arbitrary HistoryDuration where
+  arbitrary =
+    frequency
+      [ (1, pure HistoryDurationInfinite),
+        (1, HistoryDurationFinite . getPositive <$> arbitrary)
+      ]
 
 historyDurationToText :: HistoryDuration -> Text
 historyDurationToText HistoryDurationInfinite = "infinite"

@@ -217,7 +217,8 @@ instance ToSchema EventType where
           element "conversation.mls-message-add" MLSMessageAdd,
           element "conversation.mls-welcome" MLSWelcome,
           element "conversation.protocol-update" ProtocolUpdate,
-          element "conversation.add-permission-update" AddPermissionUpdate
+          element "conversation.add-permission-update" AddPermissionUpdate,
+          element "conversation.history-update" ConvHistoryUpdate
         ]
 
 data EventData
