@@ -1012,6 +1012,7 @@ type UserClientAPI =
            ( Summary "Update a registered client"
                :> From 'V8
                :> CanThrow 'MalformedPrekeys
+               :> CanThrow 'MLSDuplicatePublicKey
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
