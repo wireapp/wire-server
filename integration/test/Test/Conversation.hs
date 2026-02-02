@@ -39,10 +39,14 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
 
-testConversationWithApp :: (HasCallStack) => App ()
-testConversationWithApp = do
+testConversationWithAppOwnTeam :: (HasCallStack) => App ()
+testConversationWithAppOwnTeam = do
   domain <- make OwnDomain
   (owner, tid, [mem1, mem2]) <- createTeam domain 3
+
+  getMLSOne2OneConversation mem1 mem2 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
   let newApp :: NewApp
       newApp =
         def
@@ -53,6 +57,9 @@ testConversationWithApp = do
   app <- bindResponse (createApp owner tid newApp) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
+
+  getMLSOne2OneConversation mem1 app `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
 
   -- proteus
   do
@@ -67,8 +74,8 @@ testConversationWithApp = do
 
     let runCheck :: (HasCallStack) => Value -> ClientIdentity -> Value -> App ()
         runCheck from fromc to = do
-          conv <- postConversation from defMLS {team = Just tid} >>= getJSON 201
-          convId <- objConvId conv
+          conv <- getMLSOne2OneConversation from to >>= getJSON 200
+          convId <- objConvId $ conv %. "conversation"
 
           createGroup def fromc convId
           msg1 <- createAddCommit fromc convId [to]
@@ -77,14 +84,15 @@ testConversationWithApp = do
           msg2 <- createApplicationMessage convId fromc "hi new guy!"
           void (sendAndConsumeMessage msg2)
 
+    -- regular to regular
+    runCheck mem1 mem1c mem2
+
     -- regular to app
     runCheck mem1 mem1c app
 
     -- app to regular
+    -- TODO(leif): check why this fails
     runCheck app appc mem2
-
-    -- regular to regular
-    runCheck mem1 mem1c mem2
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do

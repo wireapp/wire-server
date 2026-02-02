@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Galley
 import SetupHelpers
 import Testlib.Prelude
 
@@ -120,6 +121,14 @@ testCreateApp = do
   -- Regular members still have the type "regular"
   memberName <- regularMember %. "name" & asString
   foundUserType owner memberName ["regular"]
+
+  -- GET /one2one-conversations/{usr_domain}/{usr}
+  getMLSOne2OneConversation regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- POST /mls/key-packages/claim/{user_domain}/{user}
+  claimKeyPackages def regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
