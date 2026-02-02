@@ -273,8 +273,9 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypes) = d
                 then lift $ liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
                 else pure []
           let filterTypes = case mbUserTypes of
-                Just uts -> filter ((`elem` uts) . (.contactType))
                 Nothing -> id
+                Just [] -> id
+                Just uts -> filter ((`elem` uts) . (.contactType))
           pure $ filterTypes matches
       | otherwise = pure []
 
