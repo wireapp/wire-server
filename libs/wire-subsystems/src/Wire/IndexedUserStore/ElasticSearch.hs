@@ -36,7 +36,6 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
 import Polysemy
-import System.IO.Unsafe
 import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
 import Wire.API.User (UserType (..), userTypeToText)
@@ -207,13 +206,6 @@ searchUsersImpl ::
   Maybe [UserType] ->
   Sem r (SearchResult UserDoc)
 searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTypes = do
-  unsafePerformIO
-    ( do
-        appendFile "/tmp/x" $ "******************************************\n"
-        appendFile "/tmp/x" $ show (searcherId, term, mTypes) <> "\n"
-    )
-    `seq` pure
-      ()
   queryIndex cfg maxResults $
     defaultUserQuery searcherId mSearcherTeam teamSearchInfo mTypes term
 
