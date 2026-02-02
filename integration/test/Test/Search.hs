@@ -158,6 +158,7 @@ federatedUserSearchWithType d1 d2 = do
 
   (remoteSearcher, _, []) <- createTeam d1 1
   (owner, tid, [mem]) <- createTeam d2 2
+  assertSuccess =<< GalleyI.setTeamFeatureStatus d2 tid "searchVisibilityInbound" "enabled"
 
   -- create app with name "chappie" on d2
   let newApp :: BrigP.NewApp
