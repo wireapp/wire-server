@@ -378,7 +378,13 @@ instance (Arbitrary a) => Arbitrary (ConversationCreated a) where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> arbitrary
+      <*> (canonicaliseHistory <$> arbitrary)
+    where
+      -- make sure we use a canonical representation of the history field so
+      -- that roundtrip tests make sense
+      canonicaliseHistory :: History -> Maybe History
+      canonicaliseHistory HistoryPrivate = Nothing
+      canonicaliseHistory h = Just h
 
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs cc.cnvId cc.origUserId

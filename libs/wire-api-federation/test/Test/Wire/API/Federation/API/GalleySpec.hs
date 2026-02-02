@@ -31,7 +31,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Federation.API.Galley
 
 spec :: Spec
-spec = describe "Wire.API.Federation.API.Brig" $ do
+spec = describe "Wire.API.Federation.API.Galley" $ do
   describe "RoundTripTests" $ do
     jsonRoundTrip @(ConversationCreated ConvId)
 
@@ -40,7 +40,7 @@ spec = describe "Wire.API.Federation.API.Brig" $ do
 
 specConversationCreated :: Spec
 specConversationCreated = describe "ConversationCreated" $ do
-  it "can parse ConversationCreated from JSON - omitted field group_conv_type is null" $ do
+  it "can parse ConversationCreated from JSON - omitted field group_conv_type and history are null" $ do
     let jsonStr =
           [r|{ "time": "2020-01-01T00:00:00Z",
       "orig_user_id": "00000000-0000-0000-0000-000000000000",
@@ -68,7 +68,8 @@ specConversationCreated = describe "ConversationCreated" $ do
               receiptMode = Nothing,
               protocol = ProtocolProteus,
               groupConvType = Nothing,
-              channelAddPermission = Nothing
+              channelAddPermission = Nothing,
+              history = Nothing
             }
 
     eitherDecode jsonStr `shouldBe` Right expected
