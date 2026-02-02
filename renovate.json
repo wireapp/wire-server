@@ -9,6 +9,12 @@
   "minimumReleaseAge": "3 days",
   "packageRules": [
     {
+      "enabled": false,
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
       "enabled": true,
       "matchUpdateTypes": [
         "minor",
