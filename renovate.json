@@ -29,6 +29,12 @@
       "prPriority": 100,
       "prConcurrentLimit": 0,
       "prHourlyLimit": 0
+    },
+    {
+      "enabled": false,
+      "matchManagers": [
+        "haskell-cabal"
+      ]
     }
   ],
   "vulnerabilityAlerts": {
