@@ -114,8 +114,8 @@ data FedUserSearchTestCase = FedUserSearchTestCase
   }
   deriving (Eq, Ord, Show)
 
-testFederatedUserSearch1 :: (HasCallStack) => App ()
-testFederatedUserSearch1 = do
+testFederatedUserSearch :: (HasCallStack) => App ()
+testFederatedUserSearch = do
   let tcs =
         [ -- no search
           FedUserSearchTestCase "no_search" AllowAll AllowAll False False,
@@ -140,22 +140,23 @@ testFederatedUserSearch1 = do
   startDynamicBackends [def, def] $ \[d1, d2] -> do
     void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
     void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
-    asString OwnDomain >>= \d0 -> do
-      federatedUserSearchWithType d0 d0 -- target OwnDomain locally
+    forM_ tcs (federatedUserSearch d1 d2)
+
+testFederatedUserSearchWithTypeOwnDomain :: (HasCallStack) => App ()
+testFederatedUserSearchWithTypeOwnDomain = do
+  d0 <- asString OwnDomain
+  federatedUserSearchWithType d0 d0 -- target OwnDomain locally
+
+testFederatedUserSearchWithType :: (HasCallStack) => App ()
+testFederatedUserSearchWithType =
+  startDynamicBackends [def, def] $ \[d1, d2] -> do
+    void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
+    void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
     federatedUserSearchWithType d1 d1 -- target dynamic domain locally
     federatedUserSearchWithType d1 d2 -- target one dynamic domain from another
-    forM_ tcs (federatedUserSearch d1 d2)
 
 federatedUserSearchWithType :: (HasCallStack) => String -> String -> App ()
 federatedUserSearchWithType d1 d2 = do
-  unless (d1 == d2) do
-    -- allow all search between instances (this is not necessary in
-    -- the local case).
-    --
-    -- TODO: make sure this is ever needed at all.
-    void $ BrigI.updateFedConn d2 d1 (BrigI.FedConn d1 "full_search" Nothing)
-    void $ BrigI.updateFedConn d1 d2 (BrigI.FedConn d2 "full_search" Nothing)
-
   (remoteSearcher, _, []) <- createTeam d1 1
   (owner, tid, [mem]) <- createTeam d2 2
   assertSuccess =<< GalleyI.setTeamFeatureStatus d2 tid "searchVisibilityInbound" "enabled"
