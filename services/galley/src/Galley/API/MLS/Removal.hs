@@ -111,9 +111,11 @@ createAndSendRemoveProposals lConvOrSubConv indices qusr cm = Codensity $ \k -> 
             storeProposal
               (cnvmlsGroupId meta)
               (cnvmlsEpoch meta)
-              (publicMessageRef cs pmsg)
-              ProposalOriginBackend
-              proposal
+              StoredProposal
+                { ref = publicMessageRef cs pmsg,
+                  origin = Just ProposalOriginBackend,
+                  proposal
+                }
             pure msg
           x <- k ()
           for_ msgs $ flip (propagateMessage qusr Nothing lConvOrSubConv Nothing) cm

@@ -26,13 +26,23 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
+data StoredProposal = StoredProposal
+  { ref :: ProposalRef,
+    origin :: Maybe ProposalOrigin,
+    proposal :: RawMLS Proposal
+  }
+
+instance Eq StoredProposal where
+  p1 == p2 = p1.ref == p2.ref
+
+instance Ord StoredProposal where
+  compare p1 p2 = compare p1.ref p2.ref
+
 data ProposalStore m a where
   StoreProposal ::
     GroupId ->
     Epoch ->
-    ProposalRef ->
-    ProposalOrigin ->
-    RawMLS Proposal ->
+    StoredProposal ->
     ProposalStore m ()
   GetProposal ::
     GroupId ->
@@ -46,7 +56,7 @@ data ProposalStore m a where
   GetAllPendingProposals ::
     GroupId ->
     Epoch ->
-    ProposalStore m [(Maybe ProposalOrigin, RawMLS Proposal)]
+    ProposalStore m [StoredProposal]
   DeleteAllProposals ::
     GroupId ->
     ProposalStore m ()

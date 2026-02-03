@@ -330,7 +330,11 @@ checkReferences ::
   ConvOrSubConv -> Epoch -> Commit -> Sem r ()
 checkReferences convOrSub epoch commit = do
   allPendingProposals <-
-    getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
+    Set.fromList <$> getAllPendingProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
-  unless (all (`Set.member` referencedProposals) allPendingProposals) $
+  let missingProposals =
+        Set.filter
+          (\prop -> not (Set.member prop.ref referencedProposals))
+          allPendingProposals
+  for_ missingProposals $ \ref -> do
     throwS @'MLSCommitMissingReferences
