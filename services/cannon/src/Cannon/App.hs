@@ -31,13 +31,13 @@ import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
+import UnliftIO (timeout)
 
 -- | The lifetime of a websocket.
 newtype TTL = TTL Word64
 
 -- | Maximum lifetime of a websocket in seconds.
--- The effective maximum lifetime is @maxLifetime + maxPingInterval@.
-maxLifetime :: Word64
+maxLifetime :: Int
 maxLifetime = 3 * 24 * 3600
 
 wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
@@ -51,7 +51,10 @@ wsapp k c e pc = runWS e (go `catches` ioErrors k)
         debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
         registerLocal k ws
         registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
-        continue ws k `finally` terminate k ws
+        timeout (maxLifetime * 1_000_000) (continue ws k) `finally` terminate k ws >>= \case
+          Nothing ->
+            Logger.info $ msg (val "websocket reached max lifetime") . client (key2bytes k)
+          Just () -> pure ()
 
 continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Key -> m ()
 continue ws k = do
