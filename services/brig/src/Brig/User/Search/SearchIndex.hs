@@ -50,7 +50,7 @@ data SearchSetting
         _searcherPartial :: UserId,
         -- | Team of user that is performing the search
         _teamPartial :: Maybe TeamId,
-        -- | Types of users that should be returned (regular, app, bot)
+        -- | Types of users that should be returned (regular, app)
         types :: Maybe [UserTypeFilter],
         -- | Outgoing search restrictions
         _infoPartial :: TeamSearchInfo

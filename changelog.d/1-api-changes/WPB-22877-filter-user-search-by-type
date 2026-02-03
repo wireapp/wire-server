@@ -1,1 +1,1 @@
-Filter user search by type: `GET /search/contacts?q=...&type=regular,app'`
+Filter user search by type: `GET /search/contacts?q=...&type=regular,app`

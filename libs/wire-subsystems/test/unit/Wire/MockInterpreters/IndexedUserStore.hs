@@ -127,47 +127,50 @@ matchScore = \case
   HandleMatch -> 4
 
 searchImpl :: (Member (State UserIndex) r) => UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> Int -> Maybe [UserTypeFilter] -> Sem r (SearchResult UserDoc)
-searchImpl _searcher _mTeam _teamSearchInfo _query _maxResults (Just _) =
-  error "filtering contacts search for user types is not supposed by this mock interpreter."
-searchImpl searcher mTeam teamSearchInfo query maxResults Nothing = do
-  let teamFilter (doc :: UserDoc) = case (mTeam, teamSearchInfo) of
-        (Nothing, _) -> maybe NonTeamMember (const Reject) doc.udTeam
-        (Just _, NoTeam) -> maybe NonTeamMember (const Reject) doc.udTeam
-        (Just searcherTeam, AllUsers) ->
-          if Just searcherTeam == doc.udTeam then TeamMate else NonTeamMember
-        (Just searcherTeam, TeamOnly team) ->
-          if (searcherTeam == team && Just searcherTeam == doc.udTeam)
-            then TeamMate
-            else Reject
-      searcherFilter (doc :: UserDoc) = listToMaybe [Reject | doc.udId == searcher]
-      tokens = Text.splitOn " " query
-      nameFilter (doc :: UserDoc) =
-        case doc.udNormalized of
-          Nothing -> Reject
-          Just normalizedName ->
-            let isMatch = flip all tokens $ \token -> any (token `Text.isPrefixOf`) $ Text.splitOn " " normalizedName
-             in if isMatch then NameMatch else Reject
-      handleFilter (doc :: UserDoc) =
-        case doc.udHandle of
-          Nothing -> Reject
-          Just handle ->
-            if (query `Text.isPrefixOf` fromHandle handle)
-              then HandleMatch
-              else Reject
-      totalScore (doc :: UserDoc) =
-        matchScore (teamFilter doc)
-          * maybe 1 matchScore (searcherFilter doc)
-          * ( matchScore (nameFilter doc)
-                + matchScore (handleFilter doc)
-            )
-  allDocs <- map fst . Map.elems <$> gets (.docs)
-  pure
-    . mkResult maxResults
-    . map fst
-    . sortOn snd
-    . filter (\(_, score) -> score /= 0)
-    . map (\doc -> (doc, totalScore doc))
-    $ filter (\u -> fromMaybe True u.udSearchable) allDocs
+searchImpl searcher mTeam teamSearchInfo query maxResults = \case
+  Nothing -> runSearch
+  Just [] -> runSearch
+  Just _ -> error "filtering contacts search for user types is not supposed by this mock interpreter."
+  where
+    runSearch = do
+      let teamFilter (doc :: UserDoc) = case (mTeam, teamSearchInfo) of
+            (Nothing, _) -> maybe NonTeamMember (const Reject) doc.udTeam
+            (Just _, NoTeam) -> maybe NonTeamMember (const Reject) doc.udTeam
+            (Just searcherTeam, AllUsers) ->
+              if Just searcherTeam == doc.udTeam then TeamMate else NonTeamMember
+            (Just searcherTeam, TeamOnly team) ->
+              if (searcherTeam == team && Just searcherTeam == doc.udTeam)
+                then TeamMate
+                else Reject
+          searcherFilter (doc :: UserDoc) = listToMaybe [Reject | doc.udId == searcher]
+          tokens = Text.splitOn " " query
+          nameFilter (doc :: UserDoc) =
+            case doc.udNormalized of
+              Nothing -> Reject
+              Just normalizedName ->
+                let isMatch = flip all tokens $ \token -> any (token `Text.isPrefixOf`) $ Text.splitOn " " normalizedName
+                 in if isMatch then NameMatch else Reject
+          handleFilter (doc :: UserDoc) =
+            case doc.udHandle of
+              Nothing -> Reject
+              Just handle ->
+                if (query `Text.isPrefixOf` fromHandle handle)
+                  then HandleMatch
+                  else Reject
+          totalScore (doc :: UserDoc) =
+            matchScore (teamFilter doc)
+              * maybe 1 matchScore (searcherFilter doc)
+              * ( matchScore (nameFilter doc)
+                    + matchScore (handleFilter doc)
+                )
+      allDocs <- map fst . Map.elems <$> gets (.docs)
+      pure
+        . mkResult maxResults
+        . map fst
+        . sortOn snd
+        . filter (\(_, score) -> score /= 0)
+        . map (\doc -> (doc, totalScore doc))
+        $ filter (\u -> fromMaybe True u.udSearchable) allDocs
 
 mkResult :: Int -> [a] -> SearchResult a
 mkResult maxResults results =

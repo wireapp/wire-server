@@ -342,7 +342,7 @@ instance FromByteString UserTypeFilter where
       >>= \case
         "regular" -> pure UserTypeFilterRegular
         "app" -> pure UserTypeFilterApp
-        x -> fail $ "Invalid UserType value: " <> show x
+        x -> fail $ "Invalid UserTypeFilter value: " <> show x
 
 instance ToByteString UserTypeFilter where
   builder UserTypeFilterRegular = "regular"
