@@ -266,8 +266,20 @@ searchContacts ::
   searchTerm ->
   domain ->
   App Response
-searchContacts user searchTerm domain = do
-  req <- baseRequest user Brig Versioned "/search/contacts"
+searchContacts = searchContactsWithVersion Nothing
+
+searchContactsWithVersion ::
+  ( MakesValue user,
+    MakesValue searchTerm,
+    MakesValue domain
+  ) =>
+  Maybe Int ->
+  user ->
+  searchTerm ->
+  domain ->
+  App Response
+searchContactsWithVersion mbVers user searchTerm domain = do
+  req <- baseRequest user Brig (maybe Versioned ExplicitVersion mbVers) "/search/contacts"
   q <- asString searchTerm
   d <- objDomain domain
   submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
