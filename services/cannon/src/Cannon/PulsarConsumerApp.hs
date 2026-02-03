@@ -129,9 +129,12 @@ createPulsarChannel uid mCid env = do
       UnliftIO.async . forever $ do
         PulsarMsgId msgId <- UnliftIO.readChan chan
         consumer :: Pulsar.Consumer <- ask
+        unackedMsgsCount <- liftIO $ peekCounter unackedMsgsCounter
         Log.debug env.logg $
           Log.msg @String "acknowledgeMsgs"
             . Log.field "topic" (show topic)
+            . Log.field "msgId" (show msgId)
+            . Log.field "unackedMsgsCount" (show unackedMsgsCount)
         result <- liftIO $ Pulsar.withDeserializedMessageId consumer msgId Pulsar.acknowledgeMessageId
         liftIO $ logPulsarResult "createPulsarChannel - acknowledge message result: " env.logg result
         liftIO $ decCounter unackedMsgsCounter
@@ -152,6 +155,9 @@ createPulsarChannel uid mCid env = do
 
     decCounter :: TVar Int -> IO ()
     decCounter tv = atomically $ modifyTVar' tv (subtract 1)
+
+    peekCounter :: TVar Int -> IO Int
+    peekCounter = readTVarIO
 
     waitUntilCounterBelow :: TVar Int -> Int -> IO ()
     waitUntilCounterBelow tv threshold = atomically $ do
@@ -316,18 +322,14 @@ pulsarWebSocketApp uid mcid mSyncMarkerId e pendingConn =
 
     sendNotifications :: PulsarChannel -> WSConnection -> IO ()
     sendNotifications chan wsConn = do
-      Log.debug e.logg $
-        Log.msg (Log.val "sendNotifications called ")
       let consumeRabbitMq = forever $ do
-            Log.debug e.logg $
-              Log.msg (Log.val "sendNotifications consumeRabbitMq called ")
             eventData <- getEventData chan
             let msg = case eventData of
                   Left event -> EventMessage event
                   Right sync -> EventSyncMessage sync
             Log.debug e.logg $
               Log.msg @String "sendNotifications sending"
-                . Log.field "messahe" (show msg)
+                . Log.field "message" (show msg)
             catch (WS.sendBinaryData wsConn.inner (encode msg)) $
               \(err :: SomeException) -> do
                 logSendFailure err

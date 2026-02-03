@@ -72,7 +72,7 @@ settings:
       ecdsa_secp521r1_sha512: test/resources/backendA/ecdsa_secp521r1_sha512.pem
   guestLinkTTLSeconds: 604800
   passwordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
-    algorithm: argon2id
+    algorithm: scrypt
     iterations: 1
     memory: 128
     parallelism: 1

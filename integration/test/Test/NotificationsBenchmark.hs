@@ -128,17 +128,20 @@ sendAndReceive userNo userMap = do
     traceM $ "XXX using clientId=" <> show cid
     runCodensity (TestEvents.createEventsWebSocket alice (Just cid)) $ \ws -> do
       -- TODO: Tweak this value to the least acceptable event delivery duration
-      local (setTimeoutTo messageDeliveryTimeout) $ TestEvents.assertFindsEvent ws $ \e -> do
-        receivedAt <- liftIO getCurrentTime
-        p <- e %. "data.event.payload.0"
-        sentAt <-
-          (p %. "sent_at" >>= asString)
-            <&> ( \sentAtStr ->
-                    fromMaybe (error ("Cannot parse timestamp: " <> sentAtStr)) $ parseUTC sentAtStr
-                )
-        print $ "Message sent/receive delta: " ++ show (diffUTCTime receivedAt sentAt)
+      local (setTimeoutTo messageDeliveryTimeout)
+        . addFailureContext ("userNo=" <> show userNo <> " , clientId=" <> show cid <> "\npayload=" <> show payload)
+        $ TestEvents.assertFindsEvent ws
+        $ \e -> do
+          receivedAt <- liftIO getCurrentTime
+          p <- e %. "data.event.payload.0"
+          sentAt <-
+            (p %. "sent_at" >>= asString)
+              <&> ( \sentAtStr ->
+                      fromMaybe (error ("Cannot parse timestamp: " <> sentAtStr)) $ parseUTC sentAtStr
+                  )
+          print $ "Message sent/receive delta: " ++ show (diffUTCTime receivedAt sentAt)
 
-        p %. "foo" `shouldMatch` payload
+          p %. "foo" `shouldMatch` payload
       traceM $ "XXX Succeeded for clientId=" <> show cid
   where
     -- \| Generate a random string with random length up to 2048 bytes
@@ -166,7 +169,7 @@ generateTestRecipient = do
           user
           def
             { acapabilities = Just ["consumable-notifications"],
-              prekeys = Nothing,
+              prekeys = Just $ somePrekeysRendered,
               lastPrekey = Just $ (someLastPrekeysRendered !! i),
               clabel = "Test Client No. " <> show i,
               model = "Test Model No. " <> show i

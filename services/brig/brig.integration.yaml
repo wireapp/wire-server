@@ -204,7 +204,7 @@ optSettings:
   #   i.e., if you are a team user the search endpoints will
   #   return only users part of the same team. For name search,
   #   this is slightly more inefficient as it requires 2 extra DB lookups
-  # setUserMaxPermClients: 7
+  setUserMaxPermClients: 9
   # ^ You can limit the max number of permanent clients that a user is allowed
   #   to register, per account. The default value is '7' if the option is unset.
 
@@ -246,17 +246,17 @@ optSettings:
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
   setOAuthMaxActiveRefreshTokens: 10
   setPasswordHashingOptions: # in testing, we want these settings to be faster, not secure against attacks.
-    algorithm: argon2id
+    algorithm: scrypt
     iterations: 1
     memory: 128
     parallelism: 1
   setPasswordHashingRateLimit:
     ipAddrLimit:
       burst: 5
-      inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+      inverseRate: 0 # 5 mins, makes it 12 reqs/hour
     userLimit:
       burst: 5
-      inverseRate: 60000000 # 1 min, makes it 60 req/hour
+      inverseRate: 0 # 1 min, makes it 60 req/hour
     internalLimit:
       burst: 10
       inverseRate: 0 # No rate limiting for internal use
