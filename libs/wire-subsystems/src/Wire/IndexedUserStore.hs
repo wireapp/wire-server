@@ -25,7 +25,6 @@ import Database.Bloodhound.Types hiding (SearchResult)
 import Imports
 import Polysemy
 import Wire.API.Team.Size
-import Wire.API.User (UserType (..))
 import Wire.API.User.Search
 import Wire.UserSearch.Types
 
@@ -52,7 +51,7 @@ data IndexedUserStore m a where
     TeamSearchInfo ->
     Text ->
     Int ->
-    Maybe [UserType] ->
+    Maybe [UserTypeFilter] ->
     IndexedUserStore m (SearchResult UserDoc)
   PaginateTeamMembers ::
     BrowseTeamFilters ->

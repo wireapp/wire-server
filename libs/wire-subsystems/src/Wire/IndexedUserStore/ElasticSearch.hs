@@ -38,7 +38,6 @@ import Network.HTTP.Types
 import Polysemy
 import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
-import Wire.API.User (UserType (..), userTypeToText)
 import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.Sem.Metrics (Metrics)
@@ -203,7 +202,7 @@ searchUsersImpl ::
   TeamSearchInfo ->
   Text ->
   Int ->
-  Maybe [UserType] ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult UserDoc)
 searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTypes = do
   queryIndex cfg maxResults $
@@ -215,7 +214,7 @@ searchUsersImpl cfg searcherId mSearcherTeam teamSearchInfo term maxResults mTyp
 -- it allows to experiment with different queries (perhaps in an A/B context).
 --
 -- FUTUREWORK: Drop legacyPrefixMatch
-defaultUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Maybe [UserType] -> Text -> IndexQuery Contact
+defaultUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Maybe [UserTypeFilter] -> Text -> IndexQuery Contact
 defaultUserQuery searcher mSearcherTeamId teamSearchInfo mTypes (normalized -> term') =
   let matchPhraseOrPrefix =
         ES.QueryMultiMatchQuery $
@@ -437,7 +436,7 @@ teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder mEmailFilter
         Nothing
         Nothing
 
-mkUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Maybe [UserType] -> ES.Query -> IndexQuery Contact
+mkUserQuery :: UserId -> Maybe TeamId -> TeamSearchInfo -> Maybe [UserTypeFilter] -> ES.Query -> IndexQuery Contact
 mkUserQuery searcher mSearcherTeamId teamSearchInfo mTypes q =
   IndexQuery
     q
@@ -540,14 +539,14 @@ restrictSearchSpaceByTeam mteam searchInfo =
               ]
           }
 
-restrictSearchSpaceByUserType :: Maybe [UserType] -> ES.Query
+restrictSearchSpaceByUserType :: Maybe [UserTypeFilter] -> ES.Query
 restrictSearchSpaceByUserType = \case
   -- Nothing (param omitted) and Just [] (param present but empty) both mean
   -- "no filter" to avoid surprising empty-result regressions when clients send
   -- `type=` without values.
   Nothing -> ES.MatchAllQuery Nothing
   Just [] -> ES.MatchAllQuery Nothing
-  Just (utsH : utsT) -> ES.TermsQuery "type" (userTypeToText <$> (utsH :| utsT))
+  Just (utsH : utsT) -> ES.TermsQuery "type" (userTypeFilterToText <$> (utsH :| utsT))
 
 matchTeamMembersOf :: TeamId -> ES.Query
 matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing

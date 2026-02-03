@@ -778,7 +778,7 @@ searchUsersImpl ::
   Text ->
   Maybe Domain ->
   Maybe (Range 1 500 Int32) ->
-  Maybe [UserType] ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult Contact)
 searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults mTypes = do
   let searcher = tUnqualified searcherId
@@ -806,7 +806,7 @@ searchLocally ::
   Local (UserId, Maybe TeamId) ->
   Text ->
   Maybe (Range 1 500 Int32) ->
-  Maybe [UserType] ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult Contact)
 searchLocally searcher searchTerm maybeMaxResults mTypes = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
@@ -901,7 +901,7 @@ searchRemotely ::
   Remote x ->
   Maybe TeamId ->
   Text ->
-  Maybe [UserType] ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult Contact)
 searchRemotely rDom mTid searchTerm mTypes = do
   let domain = tDomain rDom

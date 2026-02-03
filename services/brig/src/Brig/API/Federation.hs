@@ -235,7 +235,7 @@ searchUsers ::
 searchUsers domain (SearchRequest _ mTeam (Just []) _) = do
   searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
   pure $ SearchResponse [] searchPolicy
-searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypes) = do
+searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter) = do
   searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
 
   let searches = case searchPolicy of
@@ -256,7 +256,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypes) = d
 
     fullSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
     fullSearch n
-      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams mbUserTypes) searchTerm n
+      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams mbUserTypeFilter) searchTerm n
       | otherwise = pure []
 
     exactHandleSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
@@ -272,10 +272,10 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypes) = d
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
                 then lift $ liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
                 else pure []
-          let filterTypes = case mbUserTypes of
-                Nothing -> id
+          let filterTypes = case mbUserTypeFilter of
                 Just [] -> id
-                Just uts -> filter ((`elem` uts) . (.contactType))
+                Just uts -> filter ((`elem` (userTypeFilterToUserType <$> uts)) . (.contactType))
+                Nothing -> id
           pure $ filterTypes matches
       | otherwise = pure []
 

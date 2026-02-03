@@ -28,7 +28,6 @@ import Imports
 import Polysemy
 import Polysemy.State
 import Wire.API.Team.Size
-import Wire.API.User (UserType (..))
 import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.UserSearch.Types
@@ -127,7 +126,7 @@ matchScore = \case
   NameMatch -> 3
   HandleMatch -> 4
 
-searchImpl :: (Member (State UserIndex) r) => UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> Int -> Maybe [UserType] -> Sem r (SearchResult UserDoc)
+searchImpl :: (Member (State UserIndex) r) => UserId -> Maybe TeamId -> TeamSearchInfo -> Text -> Int -> Maybe [UserTypeFilter] -> Sem r (SearchResult UserDoc)
 searchImpl _searcher _mTeam _teamSearchInfo _query _maxResults (Just _) =
   error "filtering contacts search for user types is not supposed by this mock interpreter."
 searchImpl searcher mTeam teamSearchInfo query maxResults Nothing = do

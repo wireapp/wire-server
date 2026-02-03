@@ -33,7 +33,7 @@ import Data.Id
 import Data.Qualified (Qualified (Qualified))
 import Database.Bloodhound qualified as ES
 import Imports hiding (log, searchable)
-import Wire.API.User (Name (fromName), UserType (..))
+import Wire.API.User (Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
 import Wire.IndexedUserStore.ElasticSearch (mappingName, restrictSearchSpaceByUserType)
@@ -43,7 +43,7 @@ import Wire.UserStore.IndexUser (normalized)
 data SearchSetting
   = FederatedSearch
       { _teamsPartial :: Maybe [TeamId],
-        types :: Maybe [UserType]
+        types :: Maybe [UserTypeFilter]
       }
   | LocalSearch
       { -- | User that is performing the search
@@ -51,7 +51,7 @@ data SearchSetting
         -- | Team of user that is performing the search
         _teamPartial :: Maybe TeamId,
         -- | Types of users that should be returned (regular, app, bot)
-        types :: Maybe [UserType],
+        types :: Maybe [UserTypeFilter],
         -- | Outgoing search restrictions
         _infoPartial :: TeamSearchInfo
       }

@@ -52,7 +52,7 @@ data SearchRequest = SearchRequest
     from :: Maybe TeamId,
     -- | The remote teams that the calling backend is allowed to federate with.
     onlyInTeams :: Maybe [TeamId],
-    types :: Maybe [UserType]
+    types :: Maybe [UserTypeFilter]
   }
   deriving (Show, Eq, Generic, Typeable)
   deriving (Arbitrary) via (GenericUniform SearchRequest)

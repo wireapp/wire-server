@@ -1454,7 +1454,7 @@ type ConnectionAPI =
                :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
                :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
                :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
-               :> QueryParam' '[Optional, Strict, Description "Only user types. Omitted or empty (type=) means no filtering."] "type" (CommaSeparatedList UserType)
+               :> QueryParam' '[Optional, Strict, Description "Only user types. Omitted or empty (type=) means no filtering."] "type" (CommaSeparatedList UserTypeFilter)
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
