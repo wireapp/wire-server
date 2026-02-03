@@ -85,7 +85,13 @@ type APISSO =
     :<|> APIAuthRespLegacy
     :<|> APIAuthResp
     :<|> "settings" :> SsoSettingsGet
-    :<|> Named "sso-get-by-email" ("get-by-email" :> ReqBody '[JSON] GetByEmailReq :> Post '[JSON] GetByEmailResp)
+    :<|> Named
+           "sso-get-by-email"
+           ( "get-by-email"
+               :> ZHostOpt
+               :> ReqBody '[JSON] GetByEmailReq
+               :> Post '[JSON] GetByEmailResp
+           )
 
 newtype GetByEmailReq = GetByEmailReq {email :: EmailAddress}
   deriving stock (Eq, Show, Generic)
