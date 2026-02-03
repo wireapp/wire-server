@@ -25,16 +25,12 @@ import Data.ByteString.Lazy (toStrict)
 import Data.Id
 import Data.Text.Lazy qualified as Text
 import Imports hiding (threadDelay)
-import Lens.Family hiding (reset, set)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
 import UnliftIO (timeout)
-
--- | The lifetime of a websocket.
-newtype TTL = TTL Word64
 
 -- | Maximum lifetime of a websocket in seconds.
 maxLifetime :: Int
@@ -112,15 +108,3 @@ ioErrors k =
    in [ Handler $ \(x :: HandshakeException) -> f (displayException x),
         Handler $ \(x :: IOException) -> f (displayException x)
       ]
-
-ping :: Message
-ping = ControlMessage (Ping "ping")
-
-pong :: LByteString -> Message
-pong = ControlMessage . Pong
-
-set :: ASetter' a b -> IORef a -> (b -> b) -> IO ()
-set l v g = atomicModifyIORef' v $ \s -> (over l g s, ())
-
-reset :: ASetter' a b -> IORef a -> b -> IO ()
-reset f v a = set f v (const a)
