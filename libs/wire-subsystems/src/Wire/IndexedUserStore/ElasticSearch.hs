@@ -542,7 +542,10 @@ restrictSearchSpaceByTeam mteam searchInfo =
 
 restrictSearchSpaceByUserType :: Maybe [UserType] -> ES.Query
 restrictSearchSpaceByUserType = \case
-  Nothing -> ES.MatchAllQuery Nothing -- ?
+  -- Nothing (param omitted) and Just [] (param present but empty) both mean
+  -- "no filter" to avoid surprising empty-result regressions when clients send
+  -- `type=` without values.
+  Nothing -> ES.MatchAllQuery Nothing
   Just [] -> ES.MatchAllQuery Nothing
   Just (utsH : utsT) -> ES.TermsQuery "type" (userTypeToText <$> (utsH :| utsT))
 
