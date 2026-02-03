@@ -30,7 +30,7 @@ import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
-import UnliftIO (timeout)
+import UnliftIO (throwIO, timeout)
 
 -- | Maximum lifetime of a websocket in seconds.
 maxLifetime :: Int
@@ -75,10 +75,13 @@ readLoop :: Websocket -> IO ()
 readLoop ws = loop
   where
     loop = do
-      m <- receive (connection ws)
-      case m of
-        ControlMessage (Close _ _) -> pure ()
-        perhapsPingMsg -> do
+      dataEither <-
+        (Right <$> receiveDataMessage (connection ws))
+          `catch` \(e :: ConnectionException) -> pure (Left e)
+      case dataEither of
+        Left CloseRequest {} -> pure ()
+        Left e -> throwIO e
+        Right perhapsPingMsg -> do
           when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
           loop
     -- control messages are internal to the browser that manages the websockets
@@ -87,8 +90,8 @@ readLoop ws = loop
     -- 'DataMessage' pings as well, and we respond with a 'DataMessage' pong to allow them to
     -- reliably decide whether the connection is still alive.
     isAppLevelPing = \case
-      (DataMessage _ _ _ (Text "ping" _)) -> True
-      (DataMessage _ _ _ (Binary "ping")) -> True
+      (Text "ping" _) -> True
+      (Binary "ping") -> True
       _ -> False
     sendAppLevelPong = sendMsgIO @ByteString "pong" ws
 
