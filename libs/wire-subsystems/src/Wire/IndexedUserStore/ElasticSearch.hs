@@ -546,7 +546,22 @@ restrictSearchSpaceByUserType = \case
   -- `type=` without values.
   Nothing -> ES.MatchAllQuery Nothing
   Just [] -> ES.MatchAllQuery Nothing
-  Just (utsH : utsT) -> ES.TermsQuery "type" (userTypeFilterToText <$> (utsH :| utsT))
+  Just uts@(utsH : utsT) ->
+    if UserTypeFilterRegular `elem` uts
+      then
+        ES.QueryBoolQuery
+          boolQuery
+            { ES.boolQueryShouldMatch =
+                [ ES.TermsQuery "type" (userTypeFilterToText <$> (utsH :| utsT)),
+                  -- Older index entries may lack the "type" field; treat those as regular.
+                  ES.QueryBoolQuery
+                    boolQuery
+                      { ES.boolQueryMustNotMatch =
+                          [ES.QueryExistsQuery (ES.FieldName "type")]
+                      }
+                ]
+            }
+      else ES.TermsQuery "type" (userTypeFilterToText <$> (utsH :| utsT))
 
 matchTeamMembersOf :: TeamId -> ES.Query
 matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
