@@ -34,7 +34,7 @@ module Wire.API.User.Search
     SetSearchable (..),
     UserTypeFilter (..),
     userTypeFilterToText,
-    userTypeFilterToUserType 
+    userTypeFilterToUserType,
   )
 where
 
@@ -63,7 +63,7 @@ import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
-import Wire.API.User (ManagedBy, UserType(..))
+import Wire.API.User (ManagedBy, UserType (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
