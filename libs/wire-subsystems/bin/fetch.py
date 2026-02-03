@@ -25,6 +25,8 @@ import sys
 IGNORE_DIRS = ['billing', 'marketing']
 TEAM_SUPPORT = ['en', 'de']
 IGNORE_TEAM_DIRS = ['team', 'provider', 'partials']
+# These filepaths are relative to the `templates` folder
+IGNORE_FILES = ['index.html', 'index.txt', 'index-subject.txt']
 
 root = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 emails = os.path.join(root, 'wire-emails')
@@ -93,6 +95,12 @@ if new_version != current_version:
   for root_, subdirs, files in os.walk(templates):
     if root_.split(os.sep)[-2] not in TEAM_SUPPORT and root_.split(os.sep)[-1] in IGNORE_TEAM_DIRS:
       shutil.rmtree(root_)
+
+  # Delete unwanted files (relative to the `templates` directory)
+  for file in os.listdir(templates):
+    file_path = os.path.join(templates, file)
+    if os.path.isfile(file_path) and file in IGNORE_FILES:
+        os.remove(file_path)
 
   # Copy the version number
   shutil.copy(template_version_file, current_version_file)
