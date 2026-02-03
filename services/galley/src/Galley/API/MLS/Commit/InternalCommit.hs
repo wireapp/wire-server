@@ -99,14 +99,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       cm = convOrSub.members
       newUserClients = Map.assocs (unClientMap (paAdd action))
 
-  -- check that all pending proposals are referenced in the commit
-  allPendingProposals <-
-    lift $
-      getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
-  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
-  unless (all (`Set.member` referencedProposals) allPendingProposals) $
-    lift $
-      throwS @'MLSCommitMissingReferences
+  lift $ checkReferences convOrSub epoch commit
 
   -- check update path
   lift $ traverse_ (checkUpdatePath lConvOrSub senderIdentity ciphersuite) commit.path
@@ -329,3 +322,15 @@ existingRemoteMembers lconv =
 
 existingMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
+
+checkReferences ::
+  ( Member ProposalStore r,
+    Member (ErrorS MLSCommitMissingReferences) r
+  ) =>
+  ConvOrSubConv -> Epoch -> Commit -> Sem r ()
+checkReferences convOrSub epoch commit = do
+  allPendingProposals <-
+    getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
+  unless (all (`Set.member` referencedProposals) allPendingProposals) $
+    throwS @'MLSCommitMissingReferences
