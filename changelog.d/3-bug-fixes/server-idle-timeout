@@ -1,1 +1,3 @@
-Set idle timeout on HTTP connections to 30s (#4992, ##)
+Set idle timeout on HTTP connections to 30s. Set ping interval to 15s in cannon,
+missing two pings will cause the connection to close. This also removes ability
+for the client to control the ping interval. (#4992, ##)
