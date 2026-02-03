@@ -188,13 +188,13 @@ catchErrorsWithRequestId getRequestId l app req k =
 
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
-      er <- runHandlers ex errorHandlers
+      er <- runHandlers ex (errorHandlers l mReqId)
       onError l mReqId req k er
 
 -- | Standard handlers for turning exceptions into appropriate
 -- 'Error' responses.
-errorHandlers :: [Handler IO (Either Wai.Error JSONResponse)]
-errorHandlers =
+errorHandlers :: Logger -> Maybe ByteString -> [Handler IO (Either Wai.Error JSONResponse)]
+errorHandlers l mReqId =
   -- a Wai.Error can be converted to a JSONResponse, but doing so here would
   -- prevent us from logging the error cleanly later
   [ Handler $ \(x :: JSONResponse) -> pure (Right x),
@@ -207,26 +207,32 @@ errorHandlers =
     Handler $ \(x :: AsyncException) ->
       case x of
         ThreadKilled -> throwIO x
-        _ ->
+        _ -> do
+          errLog $ msg (val "request failed due to async exception") . field "error" (show x)
           pure . Left $
             Wai.mkError status500 "server-error" "Server Error",
     Handler $ \(_ :: InvalidRequest) ->
       pure . Left $
         Wai.mkError status400 "client-error" "Invalid Request",
-    Handler $ \(_ :: TimeoutThread) ->
+    Handler $ \(_ :: TimeoutThread) -> do
       pure . Left $
         Wai.mkError status408 "client-error" "Request Timeout",
     Handler $ \case
       ZlibException (-3) ->
         pure . Left $
           Wai.mkError status400 "client-error" "Invalid request body compression"
-      ZlibException _ ->
+      e@(ZlibException _) -> do
+        errLog $ msg (val "request failed due to ZlibException") . field "error" (show e)
         pure . Left $
           Wai.mkError status500 "server-error" "Server Error",
-    Handler $ \(_ :: SomeException) ->
+    Handler $ \(e :: SomeException) -> do
+      errLog $ msg (val "request failed due to unexpected exception") . field "error" (show e)
       pure . Left $
         Wai.mkError status500 "server-error" "Server Error"
   ]
+  where
+    errLog :: (Msg -> Msg) -> IO ()
+    errLog m = Log.err l $ m . field "request" (fromMaybe defRequestId mReqId)
 {-# INLINE errorHandlers #-}
 
 -- | If the log level is less sensitive than 'Debug' just call the underlying app unchanged.
