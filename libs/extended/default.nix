@@ -21,6 +21,7 @@
 , gitignoreSource
 , hasql
 , hasql-pool
+, hourglass
 , hspec
 , hspec-discover
 , http-client
@@ -97,10 +98,13 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
+    asn1-types
     base
     bytestring
+    crypton
     crypton-pem
     crypton-x509
+    hourglass
     hspec
     imports
     string-conversions

@@ -191,11 +191,14 @@ test-suite extended-tests
 
   build-depends:
       aeson
+    , asn1-types
     , base
     , bytestring
+    , crypton
     , crypton-pem
     , crypton-x509
     , extended
+    , hourglass
     , hspec
     , imports
     , string-conversions
