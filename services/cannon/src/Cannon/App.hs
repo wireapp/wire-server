@@ -19,14 +19,11 @@ module Cannon.App where
 
 import Cannon.WS
 import Control.Concurrent.Async
-import Control.Concurrent.Timeout
 import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
-import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Id
 import Data.Text.Lazy qualified as Text
-import Data.Timeout
 import Imports hiding (threadDelay)
 import Lens.Family hiding (reset, set)
 import Network.HTTP.Types.Status
@@ -35,25 +32,8 @@ import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
 
--- | Connection state, updated by {read, write}Loop.
-data State = State !Int !Timeout
-
 -- | The lifetime of a websocket.
 newtype TTL = TTL Word64
-
-counter :: (Functor f) => LensLike' f State Int
-counter f (State c p) = (\x -> State x p) `fmap` f c
-{-# INLINE counter #-}
-
-pingFreq :: (Functor f) => LensLike' f State Timeout
-pingFreq f (State c p) = (\x -> State c x) `fmap` f p
-{-# INLINE pingFreq #-}
-
--- | Maximum ping interval in seconds. The ping interval controls
--- the frequency at which the server pings the client and can be
--- modified by the client.
-maxPingInterval :: Word64
-maxPingInterval = 25
 
 -- | Maximum lifetime of a websocket in seconds.
 -- The effective maximum lifetime is @maxLifetime + maxPingInterval@.
@@ -64,29 +44,25 @@ wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
 wsapp k c e pc = runWS e (go `catches` ioErrors k)
   where
     go = do
-      ws <- mkWebSocket =<< liftIO (acceptRequest pc `catch` rejectOnError pc)
-      debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
-      registerLocal k ws
-      registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
-      clock <- getClock
-      continue ws clock k `finally` terminate k ws
+      runInIO <- askRunInIO
+      conn0 <- liftIO (acceptRequest pc `catch` rejectOnError pc)
+      liftIO . withPingPong defaultPingPongOptions conn0 $ \conn -> runInIO $ do
+        ws <- mkWebSocket conn
+        debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws
+        registerLocal k ws
+        registerRemote k c `onException` (unregisterLocal k ws >> close k ws)
+        continue ws k `finally` terminate k ws
 
-continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Clock -> Key -> m ()
-continue ws clock k = do
+continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Key -> m ()
+continue ws k = do
   runInIO <- askRunInIO
   liftIO $ do
-    ttl <- TTL . (+ maxLifetime) <$> getTime clock
-    state <- newIORef $ State 1 (30 # Second)
-    rloop <- async (readLoop ws state)
-    wloop <- async (writeLoop ws clock ttl state)
-    result <- waitEitherCatchCancel rloop wloop
+    rloop <- async (readLoop ws)
+    result <- waitCatch rloop
     case result of
-      (Left (Left x)) ->
-        let text = client (key2bytes k) . msg (val "read: " +++ show x)
-         in runInIO $ Logger.debug text
-      (Right (Left x)) ->
-        let text = client (key2bytes k) . msg (val "write: " +++ show x)
-         in runInIO $ Logger.debug text
+      (Left x) ->
+        let text = client (key2bytes k) . msg (val "error in read loop") . field "error" (show x)
+         in runInIO $ Logger.warn text
       _ -> pure ()
 
 terminate :: Key -> Websocket -> WS ()
@@ -96,45 +72,16 @@ terminate k ws = do
   when success $
     close k ws `catchAll` const (pure ())
 
-writeLoop :: Websocket -> Clock -> TTL -> IORef State -> IO ()
-writeLoop ws clock (TTL ttl) st = loop
-  where
-    loop = do
-      s <- readIORef st
-      if
-        | s ^. counter == 0 -> do
-            set counter st succ
-            threadDelay $ s ^. pingFreq
-            keepAlive
-        | s ^. counter < 3 -> do
-            set counter st succ
-            send (connection ws) ping
-            threadDelay $ (10 # Second) `min` (s ^. pingFreq)
-            keepAlive
-        | otherwise -> pure ()
-    keepAlive = do
-      time <- getTime clock
-      unless (time > ttl) loop
-
-readLoop :: Websocket -> IORef State -> IO ()
-readLoop ws s = loop
+readLoop :: Websocket -> IO ()
+readLoop ws = loop
   where
     loop = do
       m <- receive (connection ws)
       case m of
-        ControlMessage (Ping p) -> do
-          adjustPingFreq p
-          reset counter s 0
-          send (connection ws) (pong p)
-          loop
         ControlMessage (Close _ _) -> pure ()
         perhapsPingMsg -> do
-          reset counter s 0
           when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
           loop
-    adjustPingFreq p = case fromByteString (toStrict p) of
-      Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
-      _ -> pure ()
     -- control messages are internal to the browser that manages the websockets
     -- <https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers#Pings_and_Pongs_The_Heartbeat_of_WebSockets>.
     -- since the browser may silently lose a websocket connection, wire clients are allowed send
