@@ -222,6 +222,7 @@ apiSSO opts =
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
     :<|> Named @"auth-resp" (authresp . Just)
     :<|> Named @"sso-settings" ssoSettings
+    :<|> Named @"sso-get-by-email" undefined
 
 apiIDP ::
   ( Member Random r,

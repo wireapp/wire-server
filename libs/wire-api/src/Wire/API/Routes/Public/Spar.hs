@@ -20,12 +20,16 @@
 module Wire.API.Routes.Public.Spar where
 
 import Control.Lens ((^.))
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain
 import Data.Id
 import Data.Kind (Type)
+import Data.OpenApi qualified as Swagger
 import Data.Proxy
 import Data.Range
+import Data.Schema
 import Imports
+import SAML2.WebSSO (IdPId (..))
 import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
@@ -46,6 +50,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SwaggerServant
+import Wire.API.User (EmailAddress)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
@@ -80,6 +85,26 @@ type APISSO =
     :<|> APIAuthRespLegacy
     :<|> APIAuthResp
     :<|> "settings" :> SsoSettingsGet
+    :<|> Named "sso-get-by-email" ("get-by-email" :> ReqBody '[JSON] GetByEmailReq :> Post '[JSON] GetByEmailResp)
+
+newtype GetByEmailReq = GetByEmailReq {email :: EmailAddress}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema GetByEmailReq
+
+instance ToSchema GetByEmailReq where
+  schema =
+    object "GetByEmailReq" $
+      GetByEmailReq <$> email .= field "email" schema
+
+newtype GetByEmailResp = GetByEmailResp {ssoCode :: SAML.IdPId}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema GetByEmailResp
+
+instance ToSchema GetByEmailResp where
+  schema =
+    object "GetByEmailResp" $
+      GetByEmailResp
+        <$> (fromIdPId . ssoCode) .= field "ssoCode" (IdPId <$> uuidSchema)
 
 type CheckOK = Verb 'HEAD 200
 
