@@ -55,7 +55,8 @@ import Wire.API.Event.LeaveReason
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Proposal qualified as Proposal
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.ConversationStore
@@ -331,10 +332,21 @@ checkReferences ::
 checkReferences convOrSub epoch commit = do
   allPendingProposals <-
     Set.fromList <$> getAllPendingProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
-  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
-  let missingProposals =
-        Set.filter
-          (\prop -> not (Set.member prop.ref referencedProposals))
+  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview _Ref x) commit.proposals
+  let (includedProposals, missingProposals) =
+        Set.partition
+          (\prop -> Set.member prop.ref referencedProposals)
           allPendingProposals
-  for_ missingProposals $ \ref -> do
-    throwS @'MLSCommitMissingReferences
+  -- If there are missing proposals, check if they refer to clients that are
+  -- deleted by other proposals. This ensures that even in the edge case where
+  -- the backend has issued duplicated remove proposals, commits are not
+  -- rejected unnecessarily.
+  unless (Set.null missingProposals) $ do
+    let getDeletedIndex prop = case (prop.origin, prop.proposal.value) of
+          (Just ProposalOriginBackend, RemoveProposal i) -> Just i
+          _ -> Nothing
+    let deletedIndices = Set.fromList $ foldMap (toList . getDeletedIndex) includedProposals
+    for_ missingProposals $ \prop -> do
+      case getDeletedIndex prop of
+        Just i | Set.member i deletedIndices -> pure ()
+        _ -> throwS @'MLSCommitMissingReferences
