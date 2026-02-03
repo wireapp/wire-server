@@ -145,18 +145,18 @@ testFederatedUserSearch = do
 testFederatedUserSearchWithTypeOwnDomain :: (HasCallStack) => App ()
 testFederatedUserSearchWithTypeOwnDomain = do
   d0 <- asString OwnDomain
-  federatedUserSearchWithType d0 d0 -- target OwnDomain locally
+  checkUserSearch d0 d0 -- target OwnDomain locally
 
 testFederatedUserSearchWithType :: (HasCallStack) => App ()
 testFederatedUserSearchWithType =
   startDynamicBackends [def, def] $ \[d1, d2] -> do
     void $ BrigI.createFedConn d2 (BrigI.FedConn d1 "full_search" Nothing)
     void $ BrigI.createFedConn d1 (BrigI.FedConn d2 "full_search" Nothing)
-    federatedUserSearchWithType d1 d1 -- target dynamic domain locally
-    federatedUserSearchWithType d1 d2 -- target one dynamic domain from another
+    checkUserSearch d1 d1 -- target dynamic domain locally
+    checkUserSearch d1 d2 -- target one dynamic domain from another
 
-federatedUserSearchWithType :: (HasCallStack) => String -> String -> App ()
-federatedUserSearchWithType d1 d2 = do
+checkUserSearch :: (HasCallStack) => String -> String -> App ()
+checkUserSearch d1 d2 = do
   (remoteSearcher, _, []) <- createTeam d1 1
   (owner, tid, [mem]) <- createTeam d2 2
   assertSuccess =<< GalleyI.setTeamFeatureStatus d2 tid "searchVisibilityInbound" "enabled"
