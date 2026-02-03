@@ -48,7 +48,6 @@ testAppConnection = do
     resp.json %. "label" `shouldMatch` "same-binding-team-users"
 
   -- the same goes for apps from the same team
-  -- TODO(leif): this is still failing with 404
   postConnection mem1 app `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "same-binding-team-users"

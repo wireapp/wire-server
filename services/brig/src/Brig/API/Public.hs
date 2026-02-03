@@ -157,6 +157,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AppStore (AppStore)
 import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
@@ -379,6 +380,7 @@ servantSitemap ::
     Member FederationConfigStore r,
     Member GalleyAPIAccess r,
     Member InvitationStore r,
+    Member AppStore r,
     Member Jwk r,
     Member JwtTools r,
     Member NotificationSubsystem r,
@@ -1297,7 +1299,8 @@ createConnectionUnqualified ::
     Member UserStore r,
     Member UserSubsystem r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppStore r
   ) =>
   UserId ->
   ConnId ->
@@ -1316,7 +1319,8 @@ createConnection ::
     Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppStore r
   ) =>
   UserId ->
   ConnId ->

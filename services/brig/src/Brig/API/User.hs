@@ -122,6 +122,8 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
+import Wire.AppStore (AppStore)
+import Wire.AppStore qualified as AppStore
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BlockListStore as BlockListStore
 import Wire.DeleteQueue
@@ -1149,15 +1151,27 @@ enqueueMultiDeleteCallsCounter =
         }
 
 getLegalHoldStatus ::
-  ( Member TeamSubsystem r,
+  ( Member AppStore r,
+    Member TeamSubsystem r,
     Member UserSubsystem r
   ) =>
   Local UserId ->
   AppT r (Maybe UserLegalHoldStatus)
 getLegalHoldStatus uid =
-  liftSem $
-    traverse getLegalHoldStatus'
-      =<< User.getLocalAccountBy NoPendingInvitations uid
+  liftSem $ do
+    mUser <- User.getAccountNoFilter uid
+    let mUserNoPending = mUser >>= \u -> if userStatus u == PendingInvitation then Nothing else Just u
+    mUserWithIdentity <- case mUserNoPending of
+      Nothing -> pure Nothing
+      Just u ->
+        case userIdentity u of
+          Just _ -> pure (Just u)
+          Nothing -> case userTeam u of
+            Nothing -> pure Nothing
+            Just tid -> do
+              mApp <- AppStore.getApp (userId u) tid
+              pure $ if isJust mApp then Just u else Nothing
+    traverse getLegalHoldStatus' mUserWithIdentity
 
 getLegalHoldStatus' ::
   (Member TeamSubsystem r) =>

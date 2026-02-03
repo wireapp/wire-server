@@ -44,9 +44,6 @@ testConversationWithAppOwnTeam = do
   domain <- make OwnDomain
   (owner, tid, [mem1, mem2]) <- createTeam domain 3
 
-  getMLSOne2OneConversation mem1 mem2 `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-
   let newApp :: NewApp
       newApp =
         def
@@ -58,19 +55,17 @@ testConversationWithAppOwnTeam = do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
-  getMLSOne2OneConversation mem1 app `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-
   -- proteus
   do
     conv <- postConversation mem1 defProteus >>= getJSON 201
     addMembers mem1 conv (def {users = [mem2]}) >>= assertSuccess
     addMembers mem1 conv (def {users = [app]}) >>= assertLabel 403 "access-denied" -- apps don't support proteus.
+  [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
 
-  -- mls
+  -- mls 1:1
   do
-    [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
-    traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, appc]
+    -- mem2c needs 2 key packages
+    traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, mem2c, appc]
 
     let runCheck :: (HasCallStack) => Value -> ClientIdentity -> Value -> App ()
         runCheck from fromc to = do
@@ -91,7 +86,6 @@ testConversationWithAppOwnTeam = do
     runCheck mem1 mem1c app
 
     -- app to regular
-    -- TODO(leif): check why this fails
     runCheck app appc mem2
 
 testFederatedConversation :: (HasCallStack) => App ()

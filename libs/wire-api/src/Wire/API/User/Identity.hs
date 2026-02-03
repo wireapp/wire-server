@@ -119,7 +119,7 @@ maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
 maybeUserIdentityToComponents Nothing = (Nothing, Nothing)
 maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing)
 maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email)) = (m_email, Just ssoid)
-maybeUserIdentityToComponents (Just (AppIdentity uid)) = (Nothing, Nothing)
+maybeUserIdentityToComponents (Just (AppIdentity _)) = (Nothing, Nothing)
 
 newIdentity :: Maybe EmailAddress -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email (Just sso) = Just $! SSOIdentity sso email
