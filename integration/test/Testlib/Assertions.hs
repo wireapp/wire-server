@@ -245,9 +245,9 @@ shouldMatchSet ::
   b ->
   App ()
 shouldMatchSet a b = do
-  la <- fmap sort (asList a)
-  lb <- fmap sort (asList b)
-  nub la `shouldMatch` nub lb
+  la <- fmap sort (asSet a)
+  lb <- fmap sort (asSet b)
+  la `shouldMatch` lb
 
 shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
 shouldBeEmpty a = a `shouldMatch` (mempty :: [Value])
