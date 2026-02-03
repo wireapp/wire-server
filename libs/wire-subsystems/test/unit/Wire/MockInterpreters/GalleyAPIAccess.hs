@@ -18,6 +18,7 @@
 module Wire.MockInterpreters.GalleyAPIAccess where
 
 import Control.Lens (to, (^.))
+import Data.Aeson (toJSON)
 import Data.Default (def)
 import Data.Id
 import Data.Map qualified as Map
@@ -27,10 +28,12 @@ import Data.SOP.NP (NP (..))
 import Galley.Types.Teams
 import Imports
 import Polysemy
+import Wire.API.Conversation.Config (ConfiguredConversationSubsystem (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
 import Wire.API.Team.SearchVisibility
+import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.GalleyAPIAccess
 
 -- | interprets galley by statically returning the values passed
@@ -109,6 +112,14 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
   GetTeamContacts _ -> pure Nothing
   SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
+  GetConversationConfig ->
+    pure . ConfiguredConversationSubsystem . toJSON $
+      ConversationSubsystemConfig
+        { mlsKeys = Nothing,
+          federationProtocols = Nothing,
+          legalholdDefaults = FeatureLegalHoldDisabledPermanently,
+          maxConvSize = 500
+        }
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

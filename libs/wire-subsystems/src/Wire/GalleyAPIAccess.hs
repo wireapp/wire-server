@@ -29,6 +29,7 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.Conversation
+import Wire.API.Conversation.Config (ConfiguredConversationSubsystem)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
@@ -161,5 +162,7 @@ data GalleyAPIAccess m a where
   GetTeamContacts ::
     UserId ->
     GalleyAPIAccess m (Maybe Team.TeamMemberList)
+  GetConversationConfig ::
+    GalleyAPIAccess m ConfiguredConversationSubsystem
 
 makeSem ''GalleyAPIAccess

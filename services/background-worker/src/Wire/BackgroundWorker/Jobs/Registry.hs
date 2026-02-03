@@ -24,6 +24,8 @@ import Bilge qualified
 import Bilge.Retry
 import Control.Monad.Catch
 import Control.Retry
+import Data.Aeson (fromJSON)
+import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
@@ -31,6 +33,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as TL
 import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription, legalHoldServiceUnavailable)
 import Galley.Types.Teams (FeatureDefaults (FeatureLegalHoldDisabledPermanently))
@@ -49,6 +52,7 @@ import System.Logger as Logger
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
+import Wire.API.Conversation.Config (ConfiguredConversationSubsystem (..))
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
@@ -160,13 +164,6 @@ dispatchJob job = do
                 http2Manager = env.http2Manager,
                 requestId = job.requestId
               }
-          conversationSubsystemConfig =
-            ConversationSubsystemConfig
-              { mlsKeys = Nothing,
-                federationProtocols = Nothing,
-                legalholdDefaults = FeatureLegalHoldDisabledPermanently,
-                maxConvSize = 1000
-              }
           teamSubsystemConfig = TeamSubsystemConfig {concurrentDeletionEvents = 1}
           legalHoldEnv =
             let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
@@ -206,7 +203,6 @@ dispatchJob job = do
         . interpretTinyLog env job.requestId job.jobId
         . runInputConst env.hasqlPool
         . runInputConst (toLocalUnsafe env.federationDomain ())
-        . runInputConst conversationSubsystemConfig
         . runInputConst (FeatureLegalHoldDisabledPermanently)
         . runInputConst env.cassandraGalley
         . runInputConst legalHoldEnv
@@ -232,6 +228,7 @@ dispatchJob job = do
         -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
         . interpretBrigAccess env.brigEndpoint
         . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
+        . runInputSem getConversationSubsystemConfig
         . runInputSem getConfiguredFeatureFlags
         . interpretExternalAccess extEnv
         . interpretSparAPIAccessToRpc env.sparEndpoint
@@ -243,6 +240,19 @@ dispatchJob job = do
         . interpretTeamCollaboratorsSubsystem
         . interpretConversationSubsystem
         . interpretBackgroundJobsRunner
+
+    getConversationSubsystemConfig ::
+      ( Member GalleyAPIAccess r,
+        Member P.TinyLog r
+      ) =>
+      Sem r ConversationSubsystemConfig
+    getConversationSubsystemConfig = do
+      ConfiguredConversationSubsystem v <- getConversationConfig
+      case fromJSON v of
+        Aeson.Error e -> do
+          P.err $ Log.msg (val "Failed to decode conversation config: " <> val (encodeUtf8 $ T.pack $ show e))
+          error "Failed to decode conversation config"
+        Aeson.Success c -> pure c
 
     backendQueueEnv env =
       BackendNotificationQueueAccess.Env

@@ -69,6 +69,7 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConfiguredConversationSubsystem (..))
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -129,6 +130,12 @@ internalAPI =
       <@> conversationAPI
       <@> iEJPDAPI
       <@> cellsAPI
+      <@> mkNamedAPI @"get-conversation-config" getConversationConfigH
+
+getConversationConfigH ::
+  (Member (Input ConversationSubsystemConfig) r) =>
+  Sem r ConfiguredConversationSubsystem
+getConversationConfigH = ConfiguredConversationSubsystem . A.toJSON <$> input
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo

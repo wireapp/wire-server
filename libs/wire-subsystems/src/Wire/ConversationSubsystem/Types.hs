@@ -17,6 +17,7 @@
 
 module Wire.ConversationSubsystem.Types where
 
+import Data.Aeson (FromJSON (..), ToJSON (..), Value, object, withObject, (.:), (.:?), (.=))
 import Galley.Types.Teams (FeatureDefaults)
 import Imports
 import Wire.API.Conversation.Protocol (ProtocolTag)
@@ -29,3 +30,25 @@ data ConversationSubsystemConfig = ConversationSubsystemConfig
     legalholdDefaults :: FeatureDefaults LegalholdConfig,
     maxConvSize :: Word16
   }
+
+instance ToJSON ConversationSubsystemConfig where
+  toJSON c =
+    object
+      [ "mls_keys" .= (Nothing :: Maybe Value),
+        "federation_protocols" .= c.federationProtocols,
+        "legalhold_defaults" .= c.legalholdDefaults,
+        "max_conv_size" .= c.maxConvSize
+      ]
+
+instance FromJSON ConversationSubsystemConfig where
+  parseJSON = withObject "ConversationSubsystemConfig" $ \o -> do
+    federationProtocols <- o .:? "federation_protocols"
+    legalholdDefaults <- o .: "legalhold_defaults"
+    maxConvSize <- o .: "max_conv_size"
+    pure
+      ConversationSubsystemConfig
+        { mlsKeys = Nothing,
+          federationProtocols,
+          legalholdDefaults,
+          maxConvSize
+        }

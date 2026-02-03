@@ -30,6 +30,7 @@ import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Config (ConfiguredConversationSubsystem)
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -192,6 +193,9 @@ type InternalAPIBase =
     :<|> IConversationAPI
     :<|> IEJPDAPI
     :<|> ICellsAPI
+    :<|> Named
+           "get-conversation-config"
+           ("conversations" :> "config" :> Get '[JSON] ConfiguredConversationSubsystem)
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"

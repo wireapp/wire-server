@@ -42,6 +42,7 @@ import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConfiguredConversationSubsystem)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
@@ -102,6 +103,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamAdmins tid -> getTeamAdmins tid
           InternalGetConversation id' -> internalGetConversation id'
           GetTeamContacts uid -> getTeamContacts uid
+          GetConversationConfig -> getConversationConfig
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -782,5 +784,18 @@ getTeamContacts uid = do
   where
     req =
       method GET
-        . paths ["i", "users", toByteString' uid, "team", "members"]
-        . expect [status200, status404]
+
+getConversationConfig ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Sem r ConfiguredConversationSubsystem
+getConversationConfig = do
+  debug $ remote "galley" . msg (val "Getting conversation config")
+  responseJsonUnsafe
+    <$> galleyRequest
+      ( method GET
+          . paths ["i", "conversations", "config"]
+          . expect2xx
+      )
