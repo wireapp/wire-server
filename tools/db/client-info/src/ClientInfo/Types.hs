@@ -25,6 +25,7 @@ import Data.Id (UserId)
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
+import Util.Timeout (UTCTime)
 
 newtype InputFile = InputFile {unInputFile :: FilePath}
 
@@ -35,7 +36,8 @@ data ClientRow = ClientRow
   { userId :: UserId,
     clientId :: ClientId,
     clientModel :: Maybe Text,
-    clientLabel :: Maybe Text
+    clientLabel :: Maybe Text,
+    lastActive :: Maybe UTCTime
   }
   deriving (Show, Generic)
 

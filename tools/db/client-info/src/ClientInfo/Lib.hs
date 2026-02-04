@@ -26,12 +26,15 @@ import Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as ConduitL
 import Data.Id (UserId, idToText, parseIdFromText)
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Imports
 import Options.Applicative
 import System.IO (hPutStrLn)
 import qualified System.Logger as Log
+import Util.Timeout (UTCTime)
 
 main :: IO ()
 main = do
@@ -89,8 +92,11 @@ renderClientRow row =
     [ csvEscape (idToText row.userId),
       csvEscape row.clientId.unClientId,
       csvEscape (fromMaybe "" row.clientModel),
-      csvEscape (fromMaybe "" row.clientLabel)
+      csvEscape (fromMaybe "" row.clientLabel),
+      csvEscape (fromMaybe "" (tsToDateText <$> row.lastActive))
     ]
+  where
+    tsToDateText = T.pack . formatTime defaultTimeLocale "%d-%m-%Y"
 
 csvEscape :: Text -> Text
 csvEscape v
@@ -126,16 +132,13 @@ readClients client uid =
     transPipe
       (runClient client)
       ( paginateC selectClients (paramsP One (Identity uid) clientPageSize) x5
-          .| Conduit.map (map (uncurry3 (ClientRow uid . ClientId)))
+          .| Conduit.map (map (\(cid, model, label, lastActive) -> ClientRow uid (ClientId cid) model label lastActive))
       )
       .| Conduit.concat
       .| ConduitL.consume
   where
-    selectClients :: PrepQuery R (Identity UserId) (Text, Maybe Text, Maybe Text)
-    selectClients = "SELECT client, model, label from clients where user = ?"
+    selectClients :: PrepQuery R (Identity UserId) (Text, Maybe Text, Maybe Text, Maybe UTCTime)
+    selectClients = "SELECT client, model, label, last_active from clients where user = ?"
 
 clientPageSize :: Int32
 clientPageSize = 1000
-
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f (a, b, c) = f a b c

@@ -29,6 +29,7 @@ library
     , lens
     , optparse-applicative
     , text
+    , time
     , tinylog
     , types-common
 
