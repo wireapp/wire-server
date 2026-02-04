@@ -1,16 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
@@ -52,7 +39,6 @@ import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog (TinyLog)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
@@ -105,7 +91,6 @@ import Wire.UserList (UserList (UserList), toUserList, ulAddLocal, ulAll, ulFrom
 interpretConversationSubsystem ::
   ( Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member (Error NonFederatingBackends) r,
     Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -126,10 +111,8 @@ interpretConversationSubsystem ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member Now r,
-    Member (Embed IO) r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member TinyLog r,
     Member BrigAPIAccess r,
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
@@ -158,7 +141,6 @@ createGroupConversationGeneric ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
@@ -166,10 +148,6 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NoBindingTeamMembers) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ChannelsNotEnabled) r,
     Member (ErrorS 'NotAnMlsConversation) r,
     Member (Input ConversationSubsystemConfig) r,
@@ -181,10 +159,8 @@ createGroupConversationGeneric ::
     Member TeamSubsystem r,
     Member Now r,
     Member NotificationSubsystem r,
-    Member (Embed IO) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member TinyLog r,
     Member BackendNotificationQueueAccess r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
@@ -211,7 +187,6 @@ createOne2OneConversationLogic ::
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
@@ -221,13 +196,11 @@ createOne2OneConversationLogic ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
-    Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member Now r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
-    Member (Embed IO) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
@@ -254,17 +227,7 @@ createOne2OneConversationLogic lusr zcon j = do
     other
 
 createProteusSelfConversationLogic ::
-  ( Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
-    Member TinyLog r,
-    Member Now r,
-    Member NotificationSubsystem r,
-    Member BackendNotificationQueueAccess r,
-    Member (Embed IO) r,
-    Member (FederationAPIAccess FederatorClient) r
-  ) =>
+  (Member ConversationStore r) =>
   Local UserId ->
   Sem r (StoredConversation, Bool)
 createProteusSelfConversationLogic lusr = do
@@ -284,17 +247,7 @@ createProteusSelfConversationLogic lusr = do
       pure (conv, True)
 
 createConversationImpl ::
-  ( Member (Error FederationError) r,
-    Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
-    Member BackendNotificationQueueAccess r,
-    Member NotificationSubsystem r,
-    Member Now r,
-    Member (Embed IO) r,
-    Member ConversationStore r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member TinyLog r
-  ) =>
+  (Member ConversationStore r) =>
   Local ConvId ->
   Local UserId ->
   Data.NewConversation ->
@@ -313,8 +266,6 @@ createConnectConversationLogic ::
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
     Member Now r,
-    Member TinyLog r,
-    Member (Embed IO) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
@@ -477,13 +428,10 @@ createLegacyOne2OneConversationUnchecked ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
     Member (Error InvalidInput) r,
-    Member TinyLog r,
     Member Now r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
-    Member (Embed IO) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
@@ -519,12 +467,9 @@ createOne2OneConversationUnchecked ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
-    Member TinyLog r,
     Member Now r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
-    Member (Embed IO) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local UserId ->
@@ -545,12 +490,9 @@ createOne2OneConversationLocally ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
-    Member TinyLog r,
     Member Now r,
     Member NotificationSubsystem r,
     Member BackendNotificationQueueAccess r,
-    Member (Embed IO) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
   Local ConvId ->

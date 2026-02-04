@@ -183,7 +183,6 @@ dispatchJob job = do
         . mapError @MigrationError (T.pack . show)
         . mapError @InternalError (TL.toStrict . internalErrorDescription)
         . mapError @UnreachableBackends (T.pack . show)
-        . mapError @NonFederatingBackends (T.pack . show)
         . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
         . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
         . mapError @(Tagged OperationDenied ()) (const ("Operation denied" :: Text))
