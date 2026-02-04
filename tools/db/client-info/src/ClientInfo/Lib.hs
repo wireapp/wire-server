@@ -23,9 +23,9 @@ import Cassandra as C
 import Cassandra.Settings as C
 import ClientInfo.Types
 import Conduit
-import Data.Id (UserId, idToText, parseIdFromText)
 import qualified Data.Conduit.Combinators as Conduit
 import qualified Data.Conduit.List as ConduitL
+import Data.Id (UserId, idToText, parseIdFromText)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Imports
@@ -62,10 +62,10 @@ main = do
 process :: ClientState -> Maybe [Text] -> [UserId] -> IO ()
 process brigClient terms userIds = do
   rows <-
-    runConduit
-      $ ConduitL.sourceList userIds
-      .| Conduit.concatMapM (readClients brigClient)
-      .| ConduitL.consume
+    runConduit $
+      ConduitL.sourceList userIds
+        .| Conduit.concatMapM (readClients brigClient)
+        .| ConduitL.consume
   for_ rows $ \row -> when (matchesTerms terms row) $ Text.putStrLn (renderClientRow row)
 
 readUserIds :: InputFile -> IO [UserId]
@@ -104,17 +104,17 @@ normalizeSearchTerms = \case
   Just raw ->
     let trimmed = Text.strip raw
         terms =
-          filter (not . Text.null)
-            $ map (Text.toCaseFold . Text.strip)
-            $ Text.splitOn "," trimmed
+          filter (not . Text.null) $
+            map (Text.toCaseFold . Text.strip) $
+              Text.splitOn "," trimmed
      in if Text.null trimmed || null terms then Nothing else Just terms
 
 matchesTerms :: Maybe [Text] -> ClientRow -> Bool
 matchesTerms Nothing _ = True
 matchesTerms (Just terms) row =
   let haystacks =
-        map Text.toCaseFold
-          $ catMaybes
+        map Text.toCaseFold $
+          catMaybes
             [ row.clientModel,
               row.clientLabel
             ]
@@ -122,14 +122,14 @@ matchesTerms (Just terms) row =
 
 readClients :: ClientState -> UserId -> IO [ClientRow]
 readClients client uid =
-  runConduit
-    $ transPipe
+  runConduit $
+    transPipe
       (runClient client)
       ( paginateC selectClients (paramsP One (Identity uid) clientPageSize) x5
           .| Conduit.map (map (uncurry3 (ClientRow uid . ClientId)))
       )
-    .| Conduit.concat
-    .| ConduitL.consume
+      .| Conduit.concat
+      .| ConduitL.consume
   where
     selectClients :: PrepQuery R (Identity UserId) (Text, Maybe Text, Maybe Text)
     selectClients = "SELECT client, model, label from clients where user = ?"
