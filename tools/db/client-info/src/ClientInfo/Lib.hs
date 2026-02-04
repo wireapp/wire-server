@@ -93,7 +93,7 @@ renderClientRow row =
       csvEscape row.clientId.unClientId,
       csvEscape (fromMaybe "" row.clientModel),
       csvEscape (fromMaybe "" row.clientLabel),
-      csvEscape (fromMaybe "" (tsToDateText <$> row.lastActive))
+      csvEscape (maybe "" tsToDateText row.lastActive)
     ]
   where
     tsToDateText = T.pack . formatTime defaultTimeLocale "%d-%m-%Y"
