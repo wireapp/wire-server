@@ -22,10 +22,9 @@ import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Types
 import Wire.FeaturesConfigSubsystem.Utils
 import Wire.TeamFeatureStore
+import Wire.TeamFeatureStore.Error (TeamFeatureStoreError (..))
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-
-data TeamFeatureStoreError = TeamFeatureStoreErrorInternalError LText
 
 runFeaturesConfigSubsystem ::
   forall r a.

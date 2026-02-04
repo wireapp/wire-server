@@ -1,3 +1,1 @@
-- Generalized the migration lock for better reuse
-- Move logic from `TeamFeatureStore` interpreter to `FeatureConfigSubsystem` 
-(#4982, #4983)
+Migration from Cassandra to Postgres of Team Features (#4982, #4983, #4979)

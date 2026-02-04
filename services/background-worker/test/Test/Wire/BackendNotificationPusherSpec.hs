@@ -69,7 +69,7 @@ import Wire.BackendNotificationPusher
 import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
-import Wire.ConversationStore
+import Wire.PostgresMigrationOpts
 
 spec :: Spec
 spec = do
@@ -364,7 +364,8 @@ spec = do
           postgresMigration =
             PostgresMigrationOpts
               { conversation = CassandraStorage,
-                conversationCodes = CassandraStorage
+                conversationCodes = CassandraStorage,
+                teamFeatures = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -402,7 +403,8 @@ spec = do
           postgresMigration =
             PostgresMigrationOpts
               { conversation = CassandraStorage,
-                conversationCodes = CassandraStorage
+                conversationCodes = CassandraStorage,
+                teamFeatures = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

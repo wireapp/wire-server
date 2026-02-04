@@ -63,18 +63,27 @@ run opts = do
           withNamedLogger "migrate-conversation-codes" $
             Migrations.conversationCodes (MigrationOptions 1000 1)
       else pure $ pure ()
+  cleanupTeamFeaturesMigration <-
+    if opts.migrateTeamFeatures
+      then
+        runAppT env $
+          withNamedLogger "migrate-team-features" $
+            Migrations.teamFeatures (MigrationOptions 1000 1)
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
         Jobs.startWorker amqpEP
   let cleanup =
-        void . runConcurrently $
-          (,,,,)
-            <$> Concurrently cleanupDeadUserNotifWatcher
-            <*> Concurrently cleanupBackendNotifPusher
-            <*> Concurrently cleanupConvMigration
-            <*> Concurrently cleanUpConvCodesMigration
-            <*> Concurrently cleanupJobs
+        void $
+          runConcurrently $
+            (,,,,,)
+              <$> Concurrently cleanupDeadUserNotifWatcher
+              <*> Concurrently cleanupBackendNotifPusher
+              <*> Concurrently cleanupConvMigration
+              <*> Concurrently cleanUpConvCodesMigration
+              <*> Concurrently cleanupTeamFeaturesMigration
+              <*> Concurrently cleanupJobs
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server

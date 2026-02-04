@@ -69,6 +69,7 @@ migrateConversationsOptions:
   pageSize: 10000
   parallelism: 2
 migrateConversationCodes: false
+migrateTeamFeatures: false
 
 # Background jobs consumer configuration for integration
 backgroundJobs:
@@ -79,3 +80,4 @@ backgroundJobs:
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
+  teamFeatures: postgresql

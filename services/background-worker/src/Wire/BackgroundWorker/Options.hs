@@ -27,8 +27,8 @@ import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
 import Util.Options
-import Wire.ConversationStore (PostgresMigrationOpts)
-import Wire.Migration (MigrationOptions)
+import Wire.Migration
+import Wire.PostgresMigrationOpts
 
 data Opts = Opts
   { logLevel :: !Level,
@@ -53,6 +53,7 @@ data Opts = Opts
     migrateConversations :: !Bool,
     migrateConversationsOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
+    migrateTeamFeatures :: !Bool,
     backgroundJobs :: BackgroundJobsConfig,
     federationDomain :: Domain
   }

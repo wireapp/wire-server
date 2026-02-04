@@ -67,7 +67,7 @@ import Wire.ConversationStore.Cassandra (interpretConversationStoreToCassandra)
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Migration.Types
-import Wire.Migration
+import Wire.Migration hiding (handleErrors)
 import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (..), unsafePooledMapConcurrentlyN_)

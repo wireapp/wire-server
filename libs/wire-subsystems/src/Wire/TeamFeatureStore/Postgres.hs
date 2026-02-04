@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -17,36 +17,33 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra) where
+module Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres) where
 
-import Cassandra
 import Data.Constraint
 import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.SOP (K (..), hcpure)
+import Data.Vector qualified as Vector
 import Imports
 import Polysemy
-import Polysemy.Input
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature.TH
-import Wire.TeamFeatureStore (AllDbFeaturePatches, DbFeaturePatch, TeamFeatureStore (..))
-import Wire.TeamFeatureStore.Cassandra.Queries
-import Wire.Util
+import Wire.Postgres
+import Wire.TeamFeatureStore
+import Wire.TeamFeatureStore.Postgres.Queries
 
-interpretTeamFeatureStoreToCassandra ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r
-  ) =>
+interpretTeamFeatureStoreToPostgres ::
+  (PGConstraints r) =>
   Sem (TeamFeatureStore ': r) a ->
   Sem r a
-interpretTeamFeatureStoreToCassandra = interpret $ \case
+interpretTeamFeatureStoreToPostgres = interpret $ \case
   GetDbFeature sing tid -> do
     getDbFeatureImpl sing tid
   SetDbFeature sing tid feat -> do
     setDbFeatureImpl sing tid feat
   SetFeatureLockStatus sing tid lock -> do
-    setFeatureLockStatusImpl sing tid (Tagged lock)
+    setFeatureLockStatusImpl sing tid lock
   GetAllDbFeatures tid -> do
     getAllDbFeaturesImpl tid
   PatchDbFeature sing tid feat -> do
@@ -54,22 +51,18 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
 
 getDbFeatureImpl ::
   forall cfg r.
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
+  (PGConstraints r) =>
   FeatureSingleton cfg ->
   TeamId ->
   Sem r (Maybe DbFeaturePatch)
 getDbFeatureImpl sing tid = case featureSingIsFeature sing of
   Dict -> do
-    mRow <- (embedClientInput (retry x1 $ query1 select (params LocalQuorum (tid, featureName @cfg))))
+    mRow <- runStatement (tid, featureName @cfg) select
     pure $ (\(status, lockStatus, config) -> LockableFeaturePatch {..}) <$> mRow
 
 setDbFeatureImpl ::
   forall cfg r.
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
+  (PGConstraints r) =>
   FeatureSingleton cfg ->
   TeamId ->
   LockableFeature cfg ->
@@ -87,47 +80,41 @@ setDbFeatureImpl sing tid feat =
 
 patchDbFeatureImpl ::
   forall cfg r.
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
+  (PGConstraints r) =>
   FeatureSingleton cfg ->
   TeamId ->
   LockableFeaturePatch cfg ->
   Sem r ()
 patchDbFeatureImpl sing tid patch = case featureSingIsFeature sing of
-  Dict -> embedClientInput $ do
-    retry x5 . batch $ do
-      setType BatchLogged
-      setConsistency LocalQuorum
-      for_ patch.status $ \featureStatus -> addPrepQuery writeStatus (featureStatus, tid, featureName @cfg)
-      for_ patch.lockStatus $ \lockStatus -> addPrepQuery writeLockStatus (lockStatus, tid, featureName @cfg)
-      for_ patch.config $ \config -> addPrepQuery writeConfig (serialiseDbConfig config, tid, featureName @cfg)
+  Dict -> do
+    runStatement
+      ( tid,
+        featureName @cfg,
+        patch.status,
+        patch.lockStatus,
+        serialiseDbConfig <$> patch.config
+      )
+      upsertPatch
 
 setFeatureLockStatusImpl ::
   forall cfg r.
-  ( Member (Input ClientState) r,
-    Member (Embed IO) r
-  ) =>
+  (PGConstraints r) =>
   FeatureSingleton cfg ->
   TeamId ->
-  Tagged cfg LockStatus ->
+  LockStatus ->
   Sem r ()
-setFeatureLockStatusImpl sing tid (Tagged lockStatus) = case featureSingIsFeature sing of
+setFeatureLockStatusImpl sing tid lockStatus = case featureSingIsFeature sing of
   Dict -> do
-    embedClientInput $
-      retry x5 $
-        write writeLockStatus (params LocalQuorum (lockStatus, tid, featureName @cfg))
+    runStatement (tid, featureName @cfg, lockStatus) writeLockStatus
 
 getAllDbFeaturesImpl ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r
-  ) =>
+  (PGConstraints r) =>
   TeamId ->
   Sem r AllDbFeaturePatches
 getAllDbFeaturesImpl tid = do
-  rows <- embedClientInput $ retry x1 $ query selectAllByTeam (params LocalQuorum (Identity tid))
+  rows <- runStatement tid selectAll
   let m = Map.fromList $ do
-        (name, status, lockStatus, config) <- rows
+        (name, status, lockStatus, config) <- Vector.toList rows
         pure (name, LockableFeaturePatch {..})
   pure $ mkAllDbFeaturePatches m
   where
