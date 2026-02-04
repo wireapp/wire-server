@@ -777,10 +777,9 @@ testControlPingPongWithData = do
   liftIO $ do
     let pingPayload = "pi 3e4ac0590d55a24af7298b po"
     atomically $ writeTChan chPingWrite pingPayload
-    _msg <- waitForMessageRaw chread -- this is a server-sent ping; we'll ignore this
     msg <- waitForMessageRaw chread
     let expected = Just (WS.ControlMessage $ WS.Pong $ fromStrict pingPayload)
-    assertBool "no pong with the same payload" $ msg == expected
+    assertEqual "no pong with the same payload" expected msg
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
