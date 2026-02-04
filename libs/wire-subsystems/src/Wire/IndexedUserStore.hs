@@ -51,6 +51,7 @@ data IndexedUserStore m a where
     TeamSearchInfo ->
     Text ->
     Int ->
+    Maybe [UserTypeFilter] ->
     IndexedUserStore m (SearchResult UserDoc)
   PaginateTeamMembers ::
     BrowseTeamFilters ->

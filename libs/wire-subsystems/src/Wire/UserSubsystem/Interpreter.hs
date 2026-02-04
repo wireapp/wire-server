@@ -169,8 +169,8 @@ runUserSubsystem authInterpreter = interpret $
       blockListInsertImpl email
     UpdateTeamSearchVisibilityInbound status ->
       updateTeamSearchVisibilityInboundImpl status
-    SearchUsers luid query mDomain mMaxResults ->
-      searchUsersImpl luid query mDomain mMaxResults
+    SearchUsers luid query mDomain mMaxResults mTypes ->
+      searchUsersImpl luid query mDomain mMaxResults mTypes
     BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
       browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
     InternalUpdateSearchIndex uid ->
@@ -778,8 +778,9 @@ searchUsersImpl ::
   Text ->
   Maybe Domain ->
   Maybe (Range 1 500 Int32) ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult Contact)
-searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
+searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults mTypes = do
   let searcher = tUnqualified searcherId
   mUser <- UserStore.getUser searcher
   -- this excludes ephemeral users
@@ -790,8 +791,8 @@ searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults = do
   let qDomain = Qualified () (fromMaybe (tDomain searcherId) maybeDomain)
   foldQualified
     searcherId
-    (\_ -> searchLocally ((,mSearcherTeamId) <$> searcherId) searchTerm maybeMaxResults)
-    (\rdom -> searchRemotely rdom mSearcherTeamId searchTerm)
+    (\_ -> searchLocally ((,mSearcherTeamId) <$> searcherId) searchTerm maybeMaxResults mTypes)
+    (\rdom -> searchRemotely rdom mSearcherTeamId searchTerm mTypes)
     qDomain
 
 searchLocally ::
@@ -805,8 +806,9 @@ searchLocally ::
   Local (UserId, Maybe TeamId) ->
   Text ->
   Maybe (Range 1 500 Int32) ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult Contact)
-searchLocally searcher searchTerm maybeMaxResults = do
+searchLocally searcher searchTerm maybeMaxResults mTypes = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   let (searcherId, searcherTeamId) = (fst <$> searcher, snd <$> searcher)
   teamSearchInfo <- mkTeamSearchInfo (tUnqualified searcherTeamId)
@@ -824,6 +826,7 @@ searchLocally searcher searchTerm maybeMaxResults = do
           teamSearchInfo
           searchTerm
           esMaxResults
+          mTypes
       else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
   let esContacts = map userDocToContact' (searchResults esResult)
@@ -898,8 +901,9 @@ searchRemotely ::
   Remote x ->
   Maybe TeamId ->
   Text ->
+  Maybe [UserTypeFilter] ->
   Sem r (SearchResult Contact)
-searchRemotely rDom mTid searchTerm = do
+searchRemotely rDom mTid searchTerm mTypes = do
   let domain = tDomain rDom
   Log.info $
     Log.msg (Log.val "searchRemotely")
@@ -914,7 +918,7 @@ searchRemotely rDom mTid searchTerm = do
 
   searchResponse <-
     runFederated rDom $
-      fedClient @'Brig @"search-users" (FedBrig.SearchRequest searchTerm mTid onlyInTeams)
+      fedClient @'Brig @"search-users" (FedBrig.SearchRequest searchTerm mTid onlyInTeams mTypes)
   let contacts = searchResponse.contacts
   let count = length contacts
   pure

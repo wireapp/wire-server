@@ -122,7 +122,7 @@ endif
 .PHONY: ci-safe
 ci-safe:
 	make c package=all
-	make ci-fast
+	./hack/bin/cabal-run-integration.sh integration
 
 .PHONY: ci
 ci:

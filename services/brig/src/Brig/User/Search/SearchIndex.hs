@@ -36,23 +36,29 @@ import Imports hiding (log, searchable)
 import Wire.API.User (Name (fromName))
 import Wire.API.User.Search
 import Wire.IndexedUserStore (IndexedUserStoreError (..))
-import Wire.IndexedUserStore.ElasticSearch (mappingName)
+import Wire.IndexedUserStore.ElasticSearch (mappingName, restrictSearchSpaceByUserType)
 import Wire.UserSearch.Types
 import Wire.UserStore.IndexUser (normalized)
 
 data SearchSetting
-  = FederatedSearch (Maybe [TeamId])
-  | -- | User that is performing the search
-    -- Team of user that is performing the search
-    -- Outgoing search restrictions
-    LocalSearch
-      UserId
-      (Maybe TeamId)
-      TeamSearchInfo
+  = FederatedSearch
+      { _teamsPartial :: Maybe [TeamId],
+        types :: Maybe [UserTypeFilter]
+      }
+  | LocalSearch
+      { -- | User that is performing the search
+        _searcherPartial :: UserId,
+        -- | Team of user that is performing the search
+        _teamPartial :: Maybe TeamId,
+        -- | Types of users that should be returned (regular, app)
+        types :: Maybe [UserTypeFilter],
+        -- | Outgoing search restrictions
+        _infoPartial :: TeamSearchInfo
+      }
 
 searchSettingTeam :: SearchSetting -> Maybe TeamId
-searchSettingTeam (FederatedSearch _) = Nothing
-searchSettingTeam (LocalSearch _ mbTeam _) = mbTeam
+searchSettingTeam (FederatedSearch _ _) = Nothing
+searchSettingTeam (LocalSearch _ mbTeam _ _) = mbTeam
 
 searchIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
@@ -153,7 +159,8 @@ mkUserQuery setting q =
         $ boolQuery
           { ES.boolQueryMustNotMatch = maybeToList $ matchSelf setting,
             ES.boolQueryMustMatch =
-              [ restrictSearchSpace setting,
+              [ restrictSearchSpaceByTeam setting,
+                restrictSearchSpaceByUserType setting.types,
                 ES.QueryBoolQuery
                   boolQuery
                     { ES.boolQueryShouldMatch =
@@ -185,12 +192,16 @@ termQ f v =
     Nothing
 
 matchSelf :: SearchSetting -> Maybe ES.Query
-matchSelf (FederatedSearch _) = Nothing
-matchSelf (LocalSearch searcher _tid _searchInfo) = Just (termQ "_id" (idToText searcher))
+matchSelf (FederatedSearch _ _) = Nothing
+matchSelf (LocalSearch searcher _tid _mtypes _searchInfo) = Just (termQ "_id" (idToText searcher))
 
 -- | See 'TeamSearchInfo'
-restrictSearchSpace :: SearchSetting -> ES.Query
-restrictSearchSpace (FederatedSearch Nothing) =
+--
+-- FUTUREWORK(fisx): there is at least *some* overlap with
+-- restrictSearchSpaceByTeam in Wire.IndexedUserStore.ElasticSearch,
+-- can that be resolved?
+restrictSearchSpaceByTeam :: SearchSetting -> ES.Query
+restrictSearchSpaceByTeam (FederatedSearch Nothing _) =
   ES.QueryBoolQuery
     boolQuery
       { ES.boolQueryShouldMatch =
@@ -198,7 +209,7 @@ restrictSearchSpace (FederatedSearch Nothing) =
             matchTeamMembersSearchableByAllTeams
           ]
       }
-restrictSearchSpace (FederatedSearch (Just [])) =
+restrictSearchSpaceByTeam (FederatedSearch (Just []) _) =
   ES.QueryBoolQuery
     boolQuery
       { ES.boolQueryMustMatch =
@@ -207,7 +218,7 @@ restrictSearchSpace (FederatedSearch (Just [])) =
             ES.TermQuery (ES.Term "team" "must not match any team") Nothing
           ]
       }
-restrictSearchSpace (FederatedSearch (Just teams)) =
+restrictSearchSpaceByTeam (FederatedSearch (Just teams) _) =
   ES.QueryBoolQuery
     boolQuery
       { ES.boolQueryMustMatch =
@@ -217,7 +228,7 @@ restrictSearchSpace (FederatedSearch (Just teams)) =
       }
   where
     onlyInTeams = ES.QueryBoolQuery boolQuery {ES.boolQueryShouldMatch = map matchTeamMembersOf teams}
-restrictSearchSpace (LocalSearch _uid mteam searchInfo) =
+restrictSearchSpaceByTeam (LocalSearch _uid mteam _ searchInfo) =
   case (mteam, searchInfo) of
     (Nothing, _) -> matchNonTeamMemberUsers
     (Just _, NoTeam) -> matchNonTeamMemberUsers
