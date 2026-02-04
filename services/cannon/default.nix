@@ -29,7 +29,6 @@
 , imports
 , kan-extensions
 , lens
-, lens-family-core
 , lib
 , metrics-wai
 , mwc-random
@@ -91,7 +90,6 @@ mkDerivation {
     imports
     kan-extensions
     lens
-    lens-family-core
     metrics-wai
     mwc-random
     prometheus-client

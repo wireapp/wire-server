@@ -104,7 +104,6 @@ library
     , imports
     , kan-extensions
     , lens                                  >=4.4
-    , lens-family-core                      >=1.1
     , metrics-wai                           >=0.4
     , mwc-random                            >=0.13
     , prometheus-client

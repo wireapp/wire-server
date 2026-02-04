@@ -88,8 +88,8 @@ data WSOpts = WSOpts
 instance Default WSOpts where
   def =
     WSOpts
-      { activityTimeout = 30000000,
-        pongTimeout = 30000000
+      { activityTimeout = 20_000_000,
+        pongTimeout = 20_000_000
       }
 
 instance FromJSON WSOpts where
