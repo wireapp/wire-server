@@ -646,43 +646,43 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
         }
 }
 
+// this function checks if the signature has been validated successfully,
+// and if access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
+static bool zauth_is_authorized_and_allowed(ngx_http_request_t * r, ZauthContext const * ctx) {
+        if (ctx == NULL || ctx->tag != CONTEXT_ZAUTH) {
+                return false;
+        }
+
+        ZauthToken const * t = ctx->token;
+
+        if (t == NULL) {
+                return false;
+        }
+
+        if (zauth_token_verification(t) != ZAUTH_TOKEN_VERIFICATION_SUCCESS) {
+                return false;
+        }
+
+        ZauthServerConf const * sc =
+                ngx_http_get_module_srv_conf(r, zauth_module);
+
+        if (sc == NULL || sc->acl == NULL) {
+                return false;
+        }
+
+        uint8_t is_allowed = 0;
+
+        ngx_int_t res = zauth_token_allowed(t, sc->acl, r->uri.data, r->uri.len, &is_allowed);
+
+        if (res != NGX_OK) {
+                return false;
+        }
+
+        return is_allowed == 1;
+}
+
 static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t data) {
         ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
-
-        // this function checks if the signature has been validated successfully,
-        // and if access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
-        bool zauth_is_authorized_and_allowed() {
-                if (ctx == NULL || ctx->tag != CONTEXT_ZAUTH) {
-                        return false;
-                }
-
-                ZauthToken const * t = ctx->token;
-
-                if (t == NULL) {
-                        return false;
-                }
-
-                if (zauth_token_verification(t) != ZAUTH_TOKEN_VERIFICATION_SUCCESS) {
-                        return false;
-                }
-
-                ZauthServerConf const * sc =
-                        ngx_http_get_module_srv_conf(r, zauth_module);
-
-                if (sc == NULL || sc->acl == NULL) {
-                        return false;
-                }
-
-                uint8_t is_allowed = 0;
-
-                ngx_int_t res = zauth_token_allowed(t, sc->acl, r->uri.data, r->uri.len, &is_allowed);
-
-                if (res != NGX_OK) {
-                        return false;
-                }
-
-                return is_allowed == 1;
-        }
 
         // in this function client, provider, and bot ID is retrieved from the ZAuth token
         // and assigned to variables that are used in the nginx config to set the corresponding headers (e.g. Z-Client, Z-Provider, ...).
@@ -690,7 +690,7 @@ static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_valu
         // and access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
         // before we set the variable
         // otherwise 'zauth_token_lookup' will crash for OAuth requests
-        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH && zauth_is_authorized_and_allowed()) {
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH && zauth_is_authorized_and_allowed(r, ctx)) {
                 return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, data));
         } else {
                 zauth_empty_val(v);
