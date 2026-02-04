@@ -263,7 +263,7 @@ instance ParseFeatureDefaults (FeatureDefaults ExposeInvitationURLsToTeamAdminCo
 instance ToJSON (FeatureDefaults ExposeInvitationURLsToTeamAdminConfig) where
   toJSON =
     \case
-      ExposeInvitationURLsToTeamAdminDefaults -> String "expose-invitation-ur-ls-to-team-admin-defaults"
+      ExposeInvitationURLsToTeamAdminDefaults -> String "expose-invitation-urls-to-team-admin-defaults"
 
 newtype instance FeatureDefaults OutlookCalIntegrationConfig
   = OutlookCalIntegrationDefaults (LockableFeature OutlookCalIntegrationConfig)
