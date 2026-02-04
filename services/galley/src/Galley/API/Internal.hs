@@ -343,7 +343,6 @@ getConfiguredFeatureFlags ::
   Sem r ConfiguredFeatureFlags
 getConfiguredFeatureFlags = do
   env <- input @Env
-  -- let flags = env._options._settings._featureFlags
   let flags = (env ^. Galley.App.options . Galley.Options.settings . Galley.Options.featureFlags)
   pure $ ConfiguredFeatureFlags $ A.toJSON flags
 

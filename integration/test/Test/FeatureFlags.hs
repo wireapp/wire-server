@@ -97,5 +97,6 @@ testNonMemberAccess (Feature featureName) = do
 
 testInternalGetConfiguredFeatureFlags :: (HasCallStack) => App ()
 testInternalGetConfiguredFeatureFlags = do
-  response <- Internal.getConfiguredFeatureFlags
-  response.status `shouldMatchInt` 200
+  bindResponse Internal.getConfiguredFeatureFlags $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` defAllConfiguredFeatures
