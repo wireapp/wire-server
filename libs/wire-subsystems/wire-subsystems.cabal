@@ -285,6 +285,8 @@ library
     Wire.IdPConfigStore.Cassandra
     Wire.IdPConfigStore.Mem
     Wire.IdPConfigStore.Orphans
+    Wire.IdPSubsystem
+    Wire.IdPSubsystem.Interpreter
     Wire.IndexedUserStore
     Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
