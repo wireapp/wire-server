@@ -3,11 +3,37 @@
   "extends": [
     "config:recommended"
   ],
+  "separateMajorMinor": true,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "minimumReleaseAge": "3 days",
   "packageRules": [
     {
       "enabled": false,
-      "matchPackageNames": [
-        "*"
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
+      "enabled": true,
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "enabled": true,
+      "matchUpdateTypes": [
+        "security"
+      ],
+      "prPriority": 100,
+      "prConcurrentLimit": 0,
+      "prHourlyLimit": 0
+    },
+    {
+      "enabled": false,
+      "matchManagers": [
+        "haskell-cabal"
       ]
     }
   ],
