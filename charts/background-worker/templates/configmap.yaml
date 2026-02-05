@@ -41,7 +41,6 @@ data:
       host: {{ .spar.host }}
       port: {{ .spar.port }}
 
-
     cassandra:
       endpoint:
         host: {{ .cassandra.host }}
