@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.IdPConfigStore
+module Wire.IdPConfigStore
   ( IdPConfigStore (..),
     Replacing (..),
     Replaced (..),
@@ -33,15 +33,15 @@ module Spar.Sem.IdPConfigStore
     clearReplacedBy,
     deleteIssuer,
     newHandle,
+    IdpDbError (..),
   )
 where
 
 import Data.Id
 import Imports
 import Polysemy
-import Polysemy.Check (deriveGenericK)
-import qualified SAML2.WebSSO as SAML
-import qualified Wire.API.User.IdentityProvider as IP
+import SAML2.WebSSO qualified as SAML
+import Wire.API.User.IdentityProvider qualified as IP
 
 newtype Replaced = Replaced SAML.IdPId
   deriving (Eq, Ord, Show)
@@ -66,6 +66,13 @@ data IdPConfigStore m a where
 
 deriving stock instance Show (IdPConfigStore m a)
 
--- TODO(sandy): Inline this definition --- no TH
 makeSem ''IdPConfigStore
-deriveGenericK ''IdPConfigStore
+
+data IdpDbError
+  = InsertIdPConfigCannotMixApiVersions
+  | AttemptToGetV1IssuerViaV2API
+  | AttemptToGetV2IssuerViaV1API
+  | IdpNonUnique
+  | IdpWrongTeam
+  | IdpNotFound -- like 'SparIdPNotFound', but a database consistency error.  (should we consolidate something anyway?)
+  deriving (Eq, Show)

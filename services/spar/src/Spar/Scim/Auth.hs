@@ -55,8 +55,6 @@ import Spar.Options
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
@@ -66,6 +64,8 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
 import Wire.API.User.Scim as Api
+import Wire.IdPConfigStore (IdPConfigStore)
+import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 import Wire.Sem.Random (Random)

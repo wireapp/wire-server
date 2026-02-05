@@ -19,8 +19,6 @@ import Spar.API (idpCreate, idpCreateV7, idpDelete, idpUpdate)
 import Spar.Error
 import Spar.Sem.BrigAccess
 import Spar.Sem.GalleyAccess
-import Spar.Sem.IdPConfigStore
-import Spar.Sem.IdPConfigStore.Mem
 import Spar.Sem.IdPRawMetadataStore
 import Spar.Sem.IdPRawMetadataStore.Mem
 import Spar.Sem.SAMLUserStore
@@ -37,6 +35,8 @@ import URI.ByteString (parseURI, strictURIParserOptions)
 import URI.ByteString.QQ (uri)
 import Wire.API.User (User (..))
 import Wire.API.User.IdentityProvider (IdPMetadataInfo (..), WireIdPAPIVersion (..))
+import Wire.IdPConfigStore
+import Wire.IdPConfigStore.Mem
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
 import Wire.Sem.Random
 import Wire.Sem.Random.Null

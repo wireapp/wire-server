@@ -79,8 +79,6 @@ import Spar.Sem.BrigAccess (BrigAccess, getAccount)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.Reporter (Reporter)
 import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -99,6 +97,8 @@ import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.Error
+import Wire.IdPConfigStore (IdPConfigStore)
+import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger

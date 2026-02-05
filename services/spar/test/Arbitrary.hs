@@ -34,11 +34,11 @@ import SAML2.WebSSO.Types
 import Servant.API.ContentTypes
 import Spar.Scim
 import Spar.Scim.Types (ScimUserCreationStatus)
-import qualified Spar.Sem.IdPConfigStore as E
 import Test.QuickCheck
 import URI.ByteString
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import qualified Wire.IdPConfigStore as E
 
 instance Arbitrary IdPList where
   arbitrary = IdPList <$> arbitrary
