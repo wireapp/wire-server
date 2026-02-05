@@ -97,7 +97,6 @@ config:
     jobTimeout: 60s
     # Total attempts, including the first try
     maxAttempts: 3
-  featureFlags: {}
 
   # Controls where conversation data is stored/accessed
   postgresMigration:
