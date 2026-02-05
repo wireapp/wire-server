@@ -267,7 +267,14 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
             authContentRef
               activeData.ciphersuite
               (incomingMessageAuthenticatedContent pub)
-      storeProposal groupId epoch propRef ProposalOriginClient prop
+      storeProposal
+        groupId
+        epoch
+        StoredProposal
+          { ref = propRef,
+            origin = Just ProposalOriginClient,
+            proposal = prop
+          }
 
 getKeyPackageIdentity ::
   (Member (ErrorS 'MLSUnsupportedProposal) r) =>

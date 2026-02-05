@@ -82,14 +82,12 @@ getPendingBackendRemoveProposals gid epoch = do
     catMaybes
       <$> for
         proposals
-        ( \case
-            (Just ProposalOriginBackend, proposal) -> case proposal.value of
-              RemoveProposal i -> pure (Just i)
-              _ -> pure Nothing
-            (Just ProposalOriginClient, _) -> pure Nothing
+        ( \prop -> case (prop.origin, prop.proposal.value) of
+            (Just ProposalOriginBackend, RemoveProposal i) -> pure (Just i)
             (Nothing, _) -> do
               TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
               pure Nothing
+            _ -> pure Nothing
         )
 
   let indexSet = Set.fromList indexList
