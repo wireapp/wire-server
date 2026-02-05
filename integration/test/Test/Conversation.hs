@@ -60,6 +60,8 @@ testConversationWithAppOwnTeam = do
     conv <- postConversation mem1 defProteus >>= getJSON 201
     addMembers mem1 conv (def {users = [mem2]}) >>= assertSuccess
     addMembers mem1 conv (def {users = [app]}) >>= assertLabel 403 "access-denied" -- apps don't support proteus.
+
+  -- mls
   [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
 
   -- mls 1:1
