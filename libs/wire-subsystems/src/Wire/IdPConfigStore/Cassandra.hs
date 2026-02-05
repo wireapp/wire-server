@@ -34,8 +34,6 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
 import SAML2.WebSSO qualified as SAML
--- import Spar.Data.Instances ()
--- import Spar.Error
 import URI.ByteString
 import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
