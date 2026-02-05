@@ -32,6 +32,7 @@ data NewApp = NewApp
   { app :: GetApp,
     password :: PlainTextPassword6
   }
+  deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
 data GetApp = GetApp
@@ -43,6 +44,7 @@ data GetApp = GetApp
     category :: Category,
     description :: Range 0 300 Text
   }
+  deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
 data Category
@@ -131,6 +133,7 @@ data CreatedApp = CreatedApp
   { user :: User,
     cookie :: SomeUserToken
   }
+  deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
 
 instance ToSchema CreatedApp where
@@ -148,3 +151,17 @@ instance ToSchema RefreshAppCookieResponse where
   schema =
     object "RefreshAppCookieResponse" $
       RefreshAppCookieResponse <$> (.cookie) .= field "cookie" schema
+
+instance Arbitrary NewApp where
+  arbitrary = NewApp <$> arbitrary <*> arbitrary
+
+instance Arbitrary GetApp where
+  arbitrary =
+    GetApp
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary

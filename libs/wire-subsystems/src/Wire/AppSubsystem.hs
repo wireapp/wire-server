@@ -34,12 +34,16 @@ import Wire.Error
 data AppSubsystemConfig = AppSubsystemConfig
   { defaultLocale :: Locale
   }
+  deriving (Eq, Show)
 
 data AppSubsystemError
   = AppSubsystemErrorNoPerm
   | AppSubsystemErrorNoUser -- The user having created the app not found
   | AppSubsystemErrorAppUserNotFound -- The user used to "enact" the app not found
   | AppSubsystemErrorNoApp
+  deriving (Eq, Show)
+
+instance Exception AppSubsystemError
 
 appSubsystemErrorToHttpError :: AppSubsystemError -> HttpError
 appSubsystemErrorToHttpError =
