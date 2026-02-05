@@ -24,7 +24,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
-import Data.UUID.V4
 import Data.ZAuth.Token
 import Imports
 import Polysemy
@@ -47,6 +46,7 @@ import Wire.AuthenticationSubsystem.ZAuth
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
+import Wire.Sem.Random
 import Wire.StoredUser
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
@@ -57,7 +57,7 @@ import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
 runAppSubsystem ::
   ( Member UserStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
+    Member Random r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
@@ -65,21 +65,20 @@ runAppSubsystem ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member AuthenticationSubsystem r,
     Member UserSubsystem r
   ) =>
-  Sem (AppSubsystem ': r) a ->
-  Sem r a
-runAppSubsystem = interpret \case
-  CreateApp lusr tid new -> createAppImpl lusr tid new
+  InterpreterFor AuthenticationSubsystem r ->
+  InterpreterFor AppSubsystem r
+runAppSubsystem authInterp = interpret \case
+  CreateApp lusr tid new -> authInterp $ createAppImpl lusr tid new
   GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
-  RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+  RefreshAppCookie lusr tid appId -> authInterp $ runError $ refreshAppCookieImpl lusr tid appId
 
 createAppImpl ::
   ( Member UserStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
+    Member Random r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
@@ -224,14 +223,14 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   pure $ mkSomeToken c.cookieValue
 
 appNewStoredUser ::
-  ( Member (Embed IO) r,
+  ( Member Random r,
     Member (Input AppSubsystemConfig) r
   ) =>
   StoredUser ->
   Apps.GetApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
-  uid <- liftIO nextRandom
+  uid <- uuid
   defLoc <- inputs defaultLocale
   let loc = toLocale defLoc (creator.language, creator.country)
   pure

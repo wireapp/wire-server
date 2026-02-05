@@ -59,6 +59,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.IndexedUserStore qualified as IU
@@ -132,6 +133,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runErrorUnsafe @TeamCollaboratorsError
+                . runErrorUnsafe @AppSubsystemError
                 . runError @FederationError
                 . interpretFederationStack localBackend online mempty config
                 $ getUserProfiles

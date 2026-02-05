@@ -402,7 +402,7 @@ runBrigToIO e (AppT ma) = do
                 (mkEnterpriseLoginSubsystemConfig e)
               . runTeamInvitationSubsystem teamInvitationSubsystemConfig
               . authSubsystemInterpreter
-              . runAppSubsystem
+              . runAppSubsystem authSubsystemInterpreter
           )
     )
     $ runReaderT ma e

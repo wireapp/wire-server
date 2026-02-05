@@ -89,6 +89,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
 import Wire.AppStore
+import Wire.AppSubsystem
+import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
@@ -202,13 +204,14 @@ instance Arbitrary ActiveStoredUser where
 
 type AllErrors =
   [ Error UserSubsystemError,
+    Error AppSubsystemError,
     Error FederationError,
     Error AuthenticationSubsystemError,
     Error RateLimitExceeded,
     Error TeamCollaboratorsError
   ]
 
-type MiniBackendEffects = UserSubsystem ': TeamCollaboratorsSubsystem ': MiniBackendLowerEffects
+type MiniBackendEffects = AppSubsystem ': UserSubsystem ': TeamCollaboratorsSubsystem ': MiniBackendLowerEffects
 
 ----------------------------------------------------------------------
 -- lower effect interpreters (hierarchically)
@@ -347,6 +350,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
 
 type InputEffects =
   '[ Input UserSubsystemConfig,
+     Input AppSubsystemConfig,
      Input (Maybe AllowlistEmailDomains),
      Input (Map TeamId IdPList),
      Input AuthenticationSubsystemConfig,
@@ -396,6 +400,7 @@ inputEffectsInterpreters cfg teamIdps =
     . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst teamIdps
     . runInputConst Nothing
+    . runInputConst (AppSubsystemConfig cfg.defaultLocale)
     . runInputConst cfg
 
 ----------------------------------------------------------------------
@@ -625,7 +630,7 @@ runNoFederationStackUserSubsystemErrorEither localBackend teams cfg =
   run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 userSubsystemErrorEitherUnsafe :: Sem AllErrors a -> Sem '[] (Either UserSubsystemError a)
-userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
+userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
@@ -663,12 +668,15 @@ interpretMaybeFederationStackState ::
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
 interpretMaybeFederationStackState mb =
-  let authSubsystemInterpreter :: InterpreterFor AuthenticationSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
-      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
-
-      userSubsystemInterpreter :: InterpreterFor UserSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
+  let userSubsystemInterpreter :: (Members (MiniBackendLowerEffects `Append` AllErrors) r') => InterpreterFor UserSubsystem r'
       userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-   in miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . userSubsystemInterpreter
+
+      authSubsystemInterpreter :: (Members (MiniBackendLowerEffects `Append` AllErrors) r') => InterpreterFor AuthenticationSubsystem r'
+      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
+   in miniBackendLowerEffectsInterpreters mb
+        . interpretTeamCollaboratorsSubsystem
+        . userSubsystemInterpreter
+        . runAppSubsystem authSubsystemInterpreter
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
@@ -726,7 +734,7 @@ liftIndexedUserStoreState = interpret $ \case
   Put newUserIndex -> modify $ \b -> (b :: MiniBackend) {userIndex = newUserIndex}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case
