@@ -330,18 +330,17 @@ checkReferences ::
   ) =>
   ConvOrSubConv -> Epoch -> Commit -> Sem r ()
 checkReferences convOrSub epoch commit = do
-  allPendingProposals <-
-    Set.fromList <$> getAllPendingProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  allPendingProposals <- getAllPendingProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
   let referencedProposals = Set.fromList $ mapMaybe (\x -> preview _Ref x) commit.proposals
   let (includedProposals, missingProposals) =
-        Set.partition
+        partition
           (\prop -> Set.member prop.ref referencedProposals)
           allPendingProposals
   -- If there are missing proposals, check if they refer to clients that are
   -- deleted by other proposals. This ensures that even in the edge case where
   -- the backend has issued duplicated remove proposals, commits are not
   -- rejected unnecessarily.
-  unless (Set.null missingProposals) $ do
+  unless (null missingProposals) $ do
     let getDeletedIndex prop = case (prop.origin, prop.proposal.value) of
           (Just ProposalOriginBackend, RemoveProposal i) -> Just i
           _ -> Nothing

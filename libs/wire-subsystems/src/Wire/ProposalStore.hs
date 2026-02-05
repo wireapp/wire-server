@@ -32,12 +32,6 @@ data StoredProposal = StoredProposal
     proposal :: RawMLS Proposal
   }
 
-instance Eq StoredProposal where
-  p1 == p2 = p1.ref == p2.ref
-
-instance Ord StoredProposal where
-  compare p1 p2 = compare p1.ref p2.ref
-
 data ProposalStore m a where
   StoreProposal ::
     GroupId ->
