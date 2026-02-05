@@ -102,7 +102,7 @@ instance ToSchema GetByEmailReq where
     object "GetByEmailReq" $
       GetByEmailReq <$> email .= field "email" schema
 
-newtype GetByEmailResp = GetByEmailResp {ssoCode :: SAML.IdPId}
+newtype GetByEmailResp = GetByEmailResp {ssoCode :: Maybe SAML.IdPId}
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema GetByEmailResp
 
@@ -110,7 +110,7 @@ instance ToSchema GetByEmailResp where
   schema =
     object "GetByEmailResp" $
       GetByEmailResp
-        <$> (fromIdPId . ssoCode) .= field "ssoCode" (IdPId <$> uuidSchema)
+        <$> (fmap fromIdPId . ssoCode) .= maybe_ (optField "ssoCode" (IdPId <$> uuidSchema))
 
 type CheckOK = Verb 'HEAD 200
 
