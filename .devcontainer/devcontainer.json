@@ -4,12 +4,10 @@
   
   "features": {
     "ghcr.io/devcontainers/features/nix:1": {
-      "extraNixConfig": "experimental-features = nix-command flakes",
-      "packages": "direnv"
-    }
+      "extraNixConfig": "experimental-features = nix-command flakes"
+    },
+    "ghcr.io/christophermacgown/devcontainer-features/direnv:1": {}
   },
-
-  "postCreateCommand": "direnv allow",
 
   "customizations": {
     "vscode": {
