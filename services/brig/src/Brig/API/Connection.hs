@@ -65,7 +65,6 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
-import Wire.AppStore (AppStore)
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -83,8 +82,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  ( Member AppStore r,
-    Member FederationConfigStore r,
+  ( Member FederationConfigStore r,
     Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
@@ -107,8 +105,7 @@ createConnection self con target = do
 
 createConnectionToLocalUser ::
   forall r.
-  ( Member AppStore r,
-    Member GalleyAPIAccess r,
+  ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
     Member UserStore r,
@@ -205,7 +202,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  (Member AppStore r, Member TeamSubsystem r, Member UserSubsystem r) =>
+  (Member TeamSubsystem r, Member UserSubsystem r) =>
   Local UserId ->
   Local UserId ->
   ExceptT ConnectionError (AppT r) ()

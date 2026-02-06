@@ -39,6 +39,7 @@ import Wire.Arbitrary
 
 data StoredUser = StoredUser
   { id :: UserId,
+    userType :: Maybe UserType,
     name :: Name,
     textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
@@ -128,18 +129,21 @@ toLocale l _ = l
 -- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the
 -- user is activated.
 toIdentity ::
+  UserId ->
   -- | Whether the user is activated
   Bool ->
   Maybe EmailAddress ->
   Maybe UserSSOId ->
+  Maybe UserType ->
   Maybe UserIdentity
-toIdentity True (Just e) Nothing = Just $! EmailIdentity e
-toIdentity True email (Just ssoid) = Just $! SSOIdentity ssoid email
-toIdentity True Nothing Nothing = Nothing
-toIdentity False _ _ = Nothing
+toIdentity uid True _ _ (Just UserTypeApp) = Just $! AppIdentity uid
+toIdentity _ True (Just e) Nothing _ = Just $! EmailIdentity e
+toIdentity _ True email (Just ssoid) _ = Just $! SSOIdentity ssoid email
+toIdentity _ True Nothing Nothing _ = Nothing
+toIdentity _ False _ _ _ = Nothing
 
 instance HasField "identity" StoredUser (Maybe UserIdentity) where
-  getField user = toIdentity user.activated user.email user.ssoId
+  getField user = toIdentity user.id user.activated user.email user.ssoId user.userType
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country
@@ -148,6 +152,7 @@ instance HasField "locale" StoredUser (Maybe Locale) where
 
 data NewStoredUser = NewStoredUser
   { id :: UserId,
+    userType :: UserType,
     name :: Name,
     textStatus :: Maybe TextStatus,
     pict :: Pict,
@@ -180,6 +185,7 @@ recordInstance ''NewStoredUser
 deriving instance
   Show
     ( UserId,
+      UserType,
       Name,
       Maybe TextStatus,
       Pict,
@@ -210,7 +216,7 @@ newStoredUserToUser (Qualified new domain) =
   User
     { userQualifiedId = Qualified new.id domain,
       -- save identity even if the user is not activated
-      userIdentity = toIdentity True new.email new.ssoId,
+      userIdentity = toIdentity new.id True new.email new.ssoId (Just new.userType),
       userEmailUnvalidated = Nothing,
       userDisplayName = new.name,
       userTextStatus = new.textStatus,
