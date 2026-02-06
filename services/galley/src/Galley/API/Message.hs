@@ -54,7 +54,6 @@ import Galley.API.Push
 import Galley.Effects
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
-import Galley.Types.Teams (FanoutLimit)
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy hiding (send)
@@ -73,6 +72,7 @@ import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client

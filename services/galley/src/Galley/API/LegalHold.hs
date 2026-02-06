@@ -50,7 +50,6 @@ import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Error
-import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types.Status (status200)
 import Polysemy
@@ -59,6 +58,7 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation (ConvType (..), ConversationMetadata (..))
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -69,6 +69,7 @@ import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
 import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.FeatureFlags as Team
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
@@ -78,7 +79,6 @@ import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem (FederationSubsystem)

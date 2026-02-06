@@ -28,10 +28,10 @@ import Control.Lens ((%~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
 import Galley.Options (featureFlags, settings)
-import Galley.Types.Teams
 import Imports
 import TestSetup
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 
 withCustomSearchFeature :: FeatureDefaults SearchVisibilityAvailableConfig -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do

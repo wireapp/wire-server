@@ -2456,6 +2456,7 @@ instance Cass.Cql TeamFeatureMigrationState where
 --------------------------------------------------------------------------------
 -- ConfiguredFeatureFlags
 
+-- | Reflects feature flags (it is a placeholder for 'FeatureFlags' in 'Wire.API.Team.FeatureFlags', which would be costly to generate)
 newtype ConfiguredFeatureFlags = ConfiguredFeatureFlags {unConfiguredFeatureFlags :: A.Value}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConfiguredFeatureFlags)

@@ -32,6 +32,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -41,7 +42,6 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.FederationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

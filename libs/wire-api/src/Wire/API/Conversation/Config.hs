@@ -16,12 +16,29 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Wire.API.Conversation.Config where
 
-import Data.Aeson (FromJSON, ToJSON, Value)
-import Data.OpenApi (NamedSchema (..), ToSchema (..))
+import Data.Aeson (FromJSON, ToJSON)
+import Data.OpenApi qualified as S
+import Data.Schema
 import Imports
+import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.FeatureFlags (FeatureDefaults)
 
-newtype ConfiguredConversationSubsystem = ConfiguredConversationSubsystem Value
-  deriving (Show, Eq, ToJSON, FromJSON)
+data ConversationSubsystemConfig = ConversationSubsystemConfig
+  { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
+    federationProtocols :: Maybe [ProtocolTag],
+    legalholdDefaults :: FeatureDefaults LegalholdConfig,
+    maxConvSize :: Word16
+  }
+  deriving (Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ConversationSubsystemConfig)
 
-instance ToSchema ConfiguredConversationSubsystem where
-  declareNamedSchema _ = pure $ NamedSchema (Just "ConfiguredConversationSubsystem") mempty
+instance ToSchema ConversationSubsystemConfig where
+  schema =
+    object "ConversationSubsystemConfig" $
+      ConversationSubsystemConfig
+        <$> pure Nothing
+        <*> pure Nothing
+        <*> pure (error "legalholdDefaults schema")
+        <*> (.maxConvSize) .= field "max_conv_size" schema

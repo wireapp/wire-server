@@ -72,7 +72,6 @@ import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.Types.Error
-import Galley.Types.Teams
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
@@ -98,12 +97,14 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley (NonFederatingBackends, UnreachableBackends)
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
@@ -113,7 +114,6 @@ import Wire.CodeStore.Postgres
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.Error
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem

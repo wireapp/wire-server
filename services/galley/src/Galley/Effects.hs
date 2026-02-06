@@ -71,7 +71,6 @@ import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.Options
-import Galley.Types.Teams
 import Imports (Either)
 import Polysemy
 import Polysemy.Error
@@ -80,6 +79,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ClientStore

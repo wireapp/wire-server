@@ -43,7 +43,6 @@ import Data.Time
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Error
-import Galley.Types.Teams
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -54,6 +53,7 @@ import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName,
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState (HasCellsState)
+import Wire.API.Conversation.Config
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -69,6 +69,7 @@ import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Member.Error
@@ -82,7 +83,6 @@ import Wire.ClientStore
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
-import Wire.ConversationSubsystem.Types
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem (ensureNoUnreachableBackends)

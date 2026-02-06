@@ -24,17 +24,17 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import Galley.Types.Teams (FeatureFlags)
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.Conversation
-import Wire.API.Conversation.Config (ConfiguredConversationSubsystem)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Member.Info qualified as Team
@@ -163,6 +163,6 @@ data GalleyAPIAccess m a where
     UserId ->
     GalleyAPIAccess m (Maybe Team.TeamMemberList)
   GetConversationConfig ::
-    GalleyAPIAccess m ConfiguredConversationSubsystem
+    GalleyAPIAccess m ConversationSubsystemConfig
 
 makeSem ''GalleyAPIAccess

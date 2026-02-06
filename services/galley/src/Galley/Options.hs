@@ -75,7 +75,6 @@ import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
 import Galley.Keys
-import Galley.Types.Teams
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
@@ -84,6 +83,7 @@ import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)

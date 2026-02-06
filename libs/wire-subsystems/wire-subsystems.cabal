@@ -245,7 +245,6 @@ library
     Wire.ConversationSubsystem
     Wire.ConversationSubsystem.Interpreter
     Wire.ConversationSubsystem.One2One
-    Wire.ConversationSubsystem.Types
     Wire.ConversationSubsystem.Util
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory

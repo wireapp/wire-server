@@ -18,7 +18,6 @@ library
     Galley.Types.Conversations.One2One
     Galley.Types.Conversations.Roles
     Galley.Types.Error
-    Galley.Types.Teams
 
   other-modules:      Paths_galley_types
   hs-source-dirs:     src
@@ -76,16 +75,12 @@ library
     , bytestring-conversion
     , containers             >=0.5
     , crypton
-    , data-default
     , errors
     , http-types
     , imports
-    , lens                   >=4.12
     , memory
-    , sop-core
     , text                   >=0.11
     , types-common           >=0.16
-    , utf8-string
     , uuid
     , wai-utilities
     , wire-api

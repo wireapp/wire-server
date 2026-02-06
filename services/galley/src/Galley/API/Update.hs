@@ -100,7 +100,6 @@ import Galley.App
 import Galley.Effects
 import Galley.Options
 import Galley.Types.Error
-import Galley.Types.Teams (FanoutLimit)
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -111,6 +110,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -128,6 +128,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
@@ -137,7 +138,6 @@ import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem

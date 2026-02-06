@@ -27,7 +27,6 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
-import Galley.Types.Teams (FeatureFlags)
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Network.HTTP.Types qualified as HTTP
@@ -42,13 +41,14 @@ import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Config (ConfiguredConversationSubsystem)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Member.Info
@@ -790,7 +790,7 @@ getConversationConfig ::
     Member (Input Endpoint) r,
     Member TinyLog r
   ) =>
-  Sem r ConfiguredConversationSubsystem
+  Sem r ConversationSubsystemConfig
 getConversationConfig = do
   debug $ remote "galley" . msg (val "Getting conversation config")
   responseJsonUnsafe

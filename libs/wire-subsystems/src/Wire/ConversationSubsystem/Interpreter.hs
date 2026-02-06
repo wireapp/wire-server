@@ -33,7 +33,6 @@ import Data.Singletons (Sing)
 import Data.UUID.Tagged qualified as U
 import GHC.TypeNats
 import Galley.Types.Error (InternalError, InvalidInput (..))
-import Galley.Types.Teams (notTeamMember)
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -43,6 +42,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
+import Wire.API.Conversation.Config
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -56,6 +56,7 @@ import Wire.API.Team
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Conf
+import Wire.API.Team.FeatureFlags (notTeamMember)
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
@@ -67,7 +68,6 @@ import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
-import Wire.ConversationSubsystem.Types
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem

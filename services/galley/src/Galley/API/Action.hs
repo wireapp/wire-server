@@ -84,6 +84,7 @@ import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as AddPermission
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -109,7 +110,6 @@ import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E

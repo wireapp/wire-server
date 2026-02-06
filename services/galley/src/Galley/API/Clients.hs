@@ -39,6 +39,7 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Message
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
@@ -46,7 +47,6 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
 import Wire.ClientStore qualified as E
 import Wire.ConversationStore (getConversation)
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

@@ -2,11 +2,11 @@ module Wire.LegalHold where
 
 import Data.Default (def)
 import Data.Id (TeamId)
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.LegalHoldStore qualified as LegalHoldData
 
 computeLegalHoldFeatureStatus ::

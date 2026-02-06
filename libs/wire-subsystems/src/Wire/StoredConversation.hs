@@ -28,7 +28,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time (UTCTime)
 import Data.UUID.Tagged qualified as U
-import Galley.Types.Teams (isTeamMember)
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
@@ -39,6 +38,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation qualified as MLS
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
+import Wire.API.Team.FeatureFlags (isTeamMember)
 import Wire.API.Team.Member
 import Wire.API.User
 import Wire.UserList

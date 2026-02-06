@@ -45,6 +45,7 @@ import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.State
 import Polysemy.TinyLog
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -67,7 +68,6 @@ import Wire.API.User.Client
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

@@ -39,7 +39,6 @@ data Opts = Opts
     brig :: Endpoint,
     gundeck :: Endpoint,
     spar :: Endpoint,
-    federator :: Maybe Endpoint,
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,

@@ -46,6 +46,7 @@ import Polysemy.Input (Input)
 import Polysemy.Resource (Resource)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -61,7 +62,6 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FederationSubsystem
 import Wire.ProposalStore

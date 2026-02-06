@@ -49,13 +49,13 @@ import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Options
 import Galley.Types.Error (InternalError)
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
@@ -63,12 +63,12 @@ import Wire.API.Event.FeatureConfig
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)

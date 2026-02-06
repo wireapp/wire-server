@@ -86,8 +86,7 @@ data Env = Env
     gundeckEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
     galleyEndpoint :: Endpoint,
-    brigEndpoint :: Endpoint,
-    federator :: Maybe Endpoint
+    brigEndpoint :: Endpoint
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -138,7 +137,6 @@ mkEnv opts = do
       galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
-      federator = opts.federator
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <-

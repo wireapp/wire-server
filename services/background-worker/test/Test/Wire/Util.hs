@@ -68,7 +68,6 @@ testEnv = do
       brigEndpoint = undefined
       sparEndpoint = Endpoint "localhost" 0
       galleyEndpoint = undefined
-      federator = Nothing
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a

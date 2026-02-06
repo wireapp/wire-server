@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Teams
+module Wire.API.Team.FeatureFlags
   ( GetFeatureDefaults (..),
     FeatureDefaults (..),
     FeatureFlags,
@@ -41,8 +41,10 @@ import Data.ByteString (toStrict)
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id (UserId)
+import Data.OpenApi qualified as S
 import Data.Range (Range)
 import Data.SOP
+import Data.Schema
 import Data.Set qualified as Set
 import Imports
 import Wire.API.Team.Feature
@@ -89,6 +91,14 @@ data instance FeatureDefaults LegalholdConfig
   deriving stock (Eq, Ord, Show)
   deriving (ParseFeatureDefaults) via RequiredField LegalholdConfig
   deriving (GetFeatureDefaults) via FixedDefaults LegalholdConfig
+  deriving (S.ToSchema) via Schema (FeatureDefaults LegalholdConfig)
+
+instance ToSchema (FeatureDefaults LegalholdConfig) where
+  schema = mkSchema d r w
+    where
+      d = pure $ S.NamedSchema (Just "FeatureDefaults LegalholdConfig") mempty
+      r = parseJSON
+      w = Just . toJSON
 
 instance FromJSON (FeatureDefaults LegalholdConfig) where
   parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently

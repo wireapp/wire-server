@@ -9,18 +9,14 @@
 , bytestring-conversion
 , containers
 , crypton
-, data-default
 , errors
 , gitignoreSource
 , http-types
 , imports
-, lens
 , lib
 , memory
-, sop-core
 , text
 , types-common
-, utf8-string
 , uuid
 , wai-utilities
 , wire-api
@@ -36,16 +32,12 @@ mkDerivation {
     bytestring-conversion
     containers
     crypton
-    data-default
     errors
     http-types
     imports
-    lens
     memory
-    sop-core
     text
     types-common
-    utf8-string
     uuid
     wai-utilities
     wire-api

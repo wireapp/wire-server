@@ -88,7 +88,6 @@ import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Options
 import Galley.Types.Error as Galley
-import Galley.Types.Teams
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -97,6 +96,7 @@ import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Conversation (ConvType (..), ConversationRemoveMembers (..))
 import Wire.API.Conversation qualified
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
@@ -116,6 +116,7 @@ import Wire.API.Team.Collaborator qualified as TeamCollaborator
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as M
 import Wire.API.Team.Member qualified as Public
@@ -129,7 +130,6 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem

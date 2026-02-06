@@ -57,7 +57,6 @@ import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Error
-import Galley.Types.Teams (FanoutLimit)
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -69,7 +68,7 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Config (ConfiguredConversationSubsystem (..))
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -85,6 +84,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
@@ -94,7 +94,6 @@ import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FederationSubsystem (getFederationStatus)
@@ -134,8 +133,8 @@ internalAPI =
 
 getConversationConfigH ::
   (Member (Input ConversationSubsystemConfig) r) =>
-  Sem r ConfiguredConversationSubsystem
-getConversationConfigH = ConfiguredConversationSubsystem . A.toJSON <$> input
+  Sem r ConversationSubsystemConfig
+getConversationConfigH = input
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo

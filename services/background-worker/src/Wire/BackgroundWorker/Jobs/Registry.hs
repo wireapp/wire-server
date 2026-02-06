@@ -24,8 +24,6 @@ import Bilge qualified
 import Bilge.Retry
 import Control.Monad.Catch
 import Control.Retry
-import Data.Aeson (fromJSON)
-import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Id
@@ -33,10 +31,8 @@ import Data.Misc
 import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
-import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Lazy qualified as TL
 import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription, legalHoldServiceUnavailable)
-import Galley.Types.Teams (FeatureDefaults (FeatureLegalHoldDisabledPermanently))
 import Hasql.Pool (UsageError)
 import Imports
 import Network.HTTP.Client qualified as Http
@@ -52,10 +48,11 @@ import System.Logger as Logger
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
-import Wire.API.Conversation.Config (ConfiguredConversationSubsystem (..))
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
+import Wire.API.Team.FeatureFlags (FeatureDefaults (FeatureLegalHoldDisabledPermanently))
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BackgroundJobsRunner (runJob)
@@ -65,7 +62,6 @@ import Wire.BrigAPIAccess.Rpc
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
-import Wire.ConversationSubsystem.Types (ConversationSubsystemConfig (..))
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
 import Wire.FeaturesConfigSubsystem.Interpreter (TeamFeatureStoreError, runFeaturesConfigSubsystem)
@@ -160,7 +156,7 @@ dispatchJob job = do
       let federationAPIAccessConfig =
             FederationAPIAccessConfig
               { ownDomain = env.federationDomain,
-                federatorEndpoint = env.federator,
+                federatorEndpoint = Just env.federatorInternal,
                 http2Manager = env.http2Manager,
                 requestId = job.requestId
               }
@@ -241,17 +237,9 @@ dispatchJob job = do
         . interpretBackgroundJobsRunner
 
     getConversationSubsystemConfig ::
-      ( Member GalleyAPIAccess r,
-        Member P.TinyLog r
-      ) =>
+      (Member GalleyAPIAccess r) =>
       Sem r ConversationSubsystemConfig
-    getConversationSubsystemConfig = do
-      ConfiguredConversationSubsystem v <- getConversationConfig
-      case fromJSON v of
-        Aeson.Error e -> do
-          P.err $ Log.msg (val "Failed to decode conversation config: " <> val (encodeUtf8 $ T.pack $ show e))
-          error "Failed to decode conversation config"
-        Aeson.Success c -> pure c
+    getConversationSubsystemConfig = getConversationConfig
 
     backendQueueEnv env =
       BackendNotificationQueueAccess.Env
