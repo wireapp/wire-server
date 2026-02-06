@@ -62,6 +62,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.Error
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
@@ -111,7 +112,8 @@ createConversation lcnv nc = do
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
         meta.cnvmCellsState,
-        meta.cnvmParent
+        meta.cnvmParent,
+        fmap (.depth) (historyConfig meta.cnvmHistory)
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, storedConv.id_)
   let localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
@@ -140,7 +142,7 @@ parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Imports.Set AccessRole) -> 
 parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
 toStoredConvRow :: Queries.ConvRow -> (Maybe Bool, StoreConv.ConvRow)
-toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
+toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth) =
   ( del,
     ( cty,
       muid,
@@ -159,7 +161,7 @@ toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mg
       mAp,
       mcells,
       mparent,
-      Nothing
+      fmap historyDurationToSecs mhdepth
     )
   )
 
