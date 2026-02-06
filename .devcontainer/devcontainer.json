@@ -1,23 +1,27 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "name": "Wire Server",
+  "image": "nixos/nix:latest",
+  
   "features": {
-    "ghcr.io/devcontainers/features/nix:1": {},
-    "ghcr.io/devcontainers-community/features/direnv:1": {}
-  }
-  , "customizations" :
-  { "vscode":
-    { "extensions":
-      [ "asciidoctor.asciidoctor-vscode"
-      , "bbenoist.nix"
-      , "elmTooling.elm-ls-vscode"
-      , "haskell.haskell"
-      , "mkhl.direnv"
-      ]
-    , "settings":
-      { "elmLS.elmReviewDiagnostics": "warning"
-      , "haskell.formattingProvider": "fourmolu"
-      , "haskell.manageHLS": "PATH"
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "vscode"
+    }
+  },
+
+  "onCreateCommand": "nix profile install nixpkgs#direnv && echo 'eval \"$(direnv hook bash)\"' >> ~/.bashrc",
+  "postCreateCommand": "direnv allow",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "haskell.haskell",
+        "jnoortheen.nix-ide"
+      ],
+      "settings": {
+        "haskell.manageHLS": "PATH"
       }
     }
-  }
+  },
+
+  "remoteUser": "vscode"
 }
