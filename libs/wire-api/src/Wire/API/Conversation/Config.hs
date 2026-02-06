@@ -14,7 +14,10 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Wire.API.Conversation.Config where
+module Wire.API.Conversation.Config
+  ( ConversationSubsystemConfig (..),
+  )
+where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.OpenApi qualified as S
@@ -38,7 +41,7 @@ instance ToSchema ConversationSubsystemConfig where
   schema =
     object "ConversationSubsystemConfig" $
       ConversationSubsystemConfig
-        <$> pure Nothing
-        <*> pure Nothing
-        <*> pure (error "legalholdDefaults schema")
+        <$> (.mlsKeys) .= maybe_ (optField "mls_keys" schema)
+        <*> (.federationProtocols) .= maybe_ (optField "federation_protocols" (array schema))
+        <*> (.legalholdDefaults) .= field "legalhold_defaults" schema
         <*> (.maxConvSize) .= field "max_conv_size" schema
