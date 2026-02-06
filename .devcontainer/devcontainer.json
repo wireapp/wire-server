@@ -3,10 +3,12 @@
   "image": "mcr.microsoft.com/devcontainers/base:debian",
   
   "features": {
-    "ghcr.io/devcontainers/features/nix:1": {}
+    "ghcr.io/devcontainers/features/nix:1": {
+      "extraNixConfig": "experimental-features = nix-command flakes"
+    },
+    "ghcr.io/devcontainers-community/features/direnv:1": {}
   },
 
-  "onCreateCommand": "nix profile install nixpkgs#direnv && echo 'eval \"$(direnv hook bash)\"' >> ~/.bashrc",
   "postCreateCommand": "direnv allow",
 
   "customizations": {
