@@ -129,6 +129,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
 import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.IdPSubsystem (IdPSubsystem)
+import qualified Wire.IdPSubsystem as IdPSubsystem
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -166,6 +168,7 @@ api ::
     Member ScimUserTimesStore r,
     Member ScimTokenStore r,
     Member ScimSubsystem r,
+    Member IdPSubsystem r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -204,6 +207,7 @@ apiSSO ::
     Member ScimTokenStore r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
+    Member IdPSubsystem r,
     Member Random r,
     Member (Error SparError) r,
     Member SAML2 r,
@@ -222,7 +226,7 @@ apiSSO opts =
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
     :<|> Named @"auth-resp" (authresp . Just)
     :<|> Named @"sso-settings" ssoSettings
-    :<|> Named @"sso-get-by-email" undefined
+    :<|> Named @"sso-get-by-email" getSsoCodeByEmail
 
 apiIDP ::
   ( Member Random r,
@@ -470,6 +474,11 @@ authresp mbtid arbody mbHost = do
 ssoSettings :: (Member DefaultSsoCode r) => Sem r SsoSettings
 ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
+
+getSsoCodeByEmail :: (Member IdPSubsystem r) => Maybe ZHostValue -> GetByEmailReq -> Sem r GetByEmailResp
+getSsoCodeByEmail mbHost (GetByEmailReq emailAddr) = do
+  mbIdPId <- IdPSubsystem.getSsoCodeByEmail mbHost emailAddr
+  pure $ GetByEmailResp mbIdPId
 
 ----------------------------------------------------------------------------
 -- IdPConfigStore API
