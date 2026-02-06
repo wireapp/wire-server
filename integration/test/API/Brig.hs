@@ -1263,6 +1263,12 @@ getApp self tid uid = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", uid]
   submit "GET" req
 
+-- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/delete-app
+deleteApp :: (MakesValue self) => self -> String -> String -> String -> App Response
+deleteApp self tid uid password = do
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", uid]
+  submit "DELETE" $ req & addJSONObject ["password" .= password]
+
 -- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-apps
 getApps :: (MakesValue self) => self -> String -> App Response
 getApps self tid = do

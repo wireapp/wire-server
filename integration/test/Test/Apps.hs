@@ -22,11 +22,12 @@ module Test.Apps where
 import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Galley
+import API.Common
 import SetupHelpers
 import Testlib.Prelude
 
-testCreateApp :: (HasCallStack) => App ()
-testCreateApp = do
+testCreateGetDeleteApp :: (HasCallStack) => App ()
+testCreateGetDeleteApp = do
   domain <- make OwnDomain
   (owner, tid, [regularMember]) <- createTeam domain 2
   let new =
@@ -60,12 +61,12 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    void $ resp.json & asList >>= assertOne
+    void $ resp.json >>= asList >>= assertOne
   bindResponse (createApp owner tid (new {name = "fmappie"})) $ \resp -> do
     resp.status `shouldMatchInt` 200
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json & asList
+    apps <- resp.json >>= asList
     (sort <$> ((%. "name") `mapM` apps)) `shouldMatch` ["chappie", "fmappie"]
 
   -- Creator should have type "regular"
@@ -139,6 +140,17 @@ testCreateApp = do
   -- POST /mls/key-packages/claim/{user_domain}/{user}
   claimKeyPackages def regularMember appIdObject `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
+
+  -- Delete app
+  undefined "TODO: deleteUser: should throw an error to force clients to use the app end-point, right?  difference is in auth."
+  undefined "TODO: what about collaborators?"
+  undefined "TODO: events?"
+  deleteApp regularMember2 tid appId defPassword >>= assertStatus 403
+  deleteApp regularMember tid appId defPassword >>= assertStatus 403
+  deleteApp owner tid appId "bad password" >>= assertStatus 403
+  getApp regularMember tid appId >>= assertSuccess
+  deleteApp owner tid appId defPassword >>= assertSuccess
+  getApp regularMember tid appId >>= assertStatus 404
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
