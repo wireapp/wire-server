@@ -281,6 +281,10 @@ library
     Wire.HashPassword.Argon2id
     Wire.HashPassword.Interpreter
     Wire.HashPassword.Scrypt
+    Wire.IdPConfigStore
+    Wire.IdPConfigStore.Cassandra
+    Wire.IdPConfigStore.Mem
+    Wire.IdPConfigStore.Orphans
     Wire.IndexedUserStore
     Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
@@ -404,6 +408,7 @@ library
     , containers
     , cql
     , crypton
+    , crypton-x509
     , currency-codes
     , data-default
     , data-timeout
@@ -431,6 +436,7 @@ library
     , memory
     , mime
     , mime-mail
+    , mtl
     , network
     , network-conduit-tls
     , polysemy

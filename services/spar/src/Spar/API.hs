@@ -100,8 +100,6 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Reporter (Reporter)
@@ -129,6 +127,8 @@ import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
+import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger

@@ -34,6 +34,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Sem.SAMLUserStore
+import Wire.IdPConfigStore.Orphans ()
 
 samlUserStoreToCassandra ::
   forall m r a.

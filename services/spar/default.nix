@@ -200,6 +200,7 @@ mkDerivation {
     wai-extra
     wai-utilities
     wire-api
+    wire-subsystems
     xml-conduit
     yaml
     zauth
@@ -239,6 +240,7 @@ mkDerivation {
     uri-bytestring
     uuid
     wire-api
+    wire-subsystems
   ];
   testToolDepends = [ hspec-discover ];
   description = "User Service for SSO (Single Sign-On) provisioning and authentication";

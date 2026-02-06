@@ -33,7 +33,6 @@ import Spar.Intra.BrigApp (veidFromUserSSOId)
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
@@ -46,6 +45,7 @@ import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import qualified Wire.IdPConfigStore as IdPEffect
 
 spec :: SpecWith TestEnv
 spec = do

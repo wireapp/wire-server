@@ -64,6 +64,7 @@ import qualified System.Logger.Class as Log
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.User.Saml (TTLError)
 import Wire.Error
+import Wire.IdPConfigStore
 import Wire.ScimSubsystem.Interpreter
 
 type SparError = SAML.Error SparCustomError
@@ -124,15 +125,6 @@ data SparProvisioningMoreThanOneIdP
     ScimTokenAndSecondIdpForbidden
   | -- | two IdPs exist and a scim token is forbidden to create
     TwoIdpsAndScimTokenForbidden
-  deriving (Eq, Show)
-
-data IdpDbError
-  = InsertIdPConfigCannotMixApiVersions
-  | AttemptToGetV1IssuerViaV2API
-  | AttemptToGetV2IssuerViaV1API
-  | IdpNonUnique
-  | IdpWrongTeam
-  | IdpNotFound -- like 'SparIdPNotFound', but a database consistency error.  (should we consolidate something anyway?)
   deriving (Eq, Show)
 
 sparToServerErrorWithLogging :: (MonadIO m) => Log.Logger -> SparError -> m ServerError

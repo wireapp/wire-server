@@ -74,7 +74,6 @@ import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.BrigAccess as BrigAccess
-import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
@@ -96,6 +95,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim hiding (handle)
+import qualified Wire.IdPConfigStore as IdPEffect
 
 spec :: SpecWith TestEnv
 spec = do
