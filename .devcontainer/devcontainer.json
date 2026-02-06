@@ -5,9 +5,7 @@
   "features": {
     "ghcr.io/devcontainers/features/nix:1": {
       "extraNixConfig": "experimental-features = nix-command flakes"
-    },
-    "ghcr.io/devcontainers-community/features/direnv:1": {},
-    "ghcr.io/devcontainers/features/common-utils:2": {}
+    }
   },
 
   "postCreateCommand": "direnv allow",
