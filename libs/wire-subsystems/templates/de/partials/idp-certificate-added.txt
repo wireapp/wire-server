@@ -1,0 +1,13 @@
+Hinzugefügt:
+
+${algorithm} Fingerabdruck:
+${fingerprint}
+
+Betreff:
+${subject}
+
+Aussteller:
+${issuer}
+
+
+--------------------------------------------------------------------------------

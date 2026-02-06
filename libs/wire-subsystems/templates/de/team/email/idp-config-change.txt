@@ -1,0 +1,42 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+ÄNDERUNG IN DER KONFIGURATION IHRES IDENTITY PROVIDERS
+Etwas hat sich in der IdP-Konfiguration für Ihr Team geändert.
+
+Team-ID:
+${team_id}
+
+Benutzer-ID:
+${user_id}
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP-ID:
+${idp_id}
+
+Neuer IdP-Aussteller:
+${new_idp_issuer}
+
+Neuer IdP-Endpunkt:
+${new_idp_endpoint}
+
+Alter IdP-Aussteller:
+${old_idp_issuer}
+
+Alter IdP-Endpunkt:
+${old_idp_endpoint}
+
+
+--------------------------------------------------------------------------------
+
+${certificates_details}Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
+Wire Support. [${support}]
+
+Datenschutzerklärung und Nutzungsbedingungen [${legal}]· Missbrauch melden
+[${misuse}]
+${copyright}. Alle Rechte vorbehalten.
