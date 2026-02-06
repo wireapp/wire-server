@@ -22,6 +22,8 @@ import Control.Monad.Catch (throwM)
 import Data.Aeson
 import Data.ByteString.Char8 qualified as BSC
 import Data.ByteString.Conversion
+import Data.Handle (Handle)
+import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -51,7 +53,7 @@ import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Size
-import Wire.API.User (UpdateConnectionsInternal, User, UserIds (..), UserSet (..))
+import Wire.API.User (EmailAddress, UpdateConnectionsInternal, User, UserIds (..), UserSet (..))
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
@@ -122,6 +124,8 @@ interpretBrigAccess brigEndpoint =
       UpdateSearchIndex uid -> updateSearchIndex uid
       GetAccountsBy localGetBy ->
         getAccountsBy localGetBy
+      GetUsersByVariousKeys uids handles emails includePendingInvitations ->
+        getUsersByVariousKeys uids handles emails includePendingInvitations
       CreateGroupInternal managedBy teamId creatorUserId newGroup ->
         createGroupInternal managedBy teamId creatorUserId newGroup
       GetGroupsInternal tid mbFilter mbManagedBy startIndex mbCount ->
@@ -559,6 +563,33 @@ getAccountsBy localGetBy = do
         . json localGetBy
         . expect2xx
   decodeBodyOrThrow "brig" r
+
+-- | Calls 'Brig.API.Internal.listActivatedAccountsH' (iGetUsersByVariousKeys).
+getUsersByVariousKeys ::
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
+  [UserId] ->
+  [Handle] ->
+  [EmailAddress] ->
+  HavePendingInvitations ->
+  Sem r [User]
+getUsersByVariousKeys uids handles emails includePendingInvitations = do
+  r <-
+    brigRequest $
+      method GET
+        . path "/i/users"
+        . queryItemList "ids" uids
+        . queryItemList "handles" handles
+        . queryItemList "email" emails
+        . ( case includePendingInvitations of
+              WithPendingInvitations -> queryItem "includePendingInvitations" "true"
+              NoPendingInvitations -> id
+          )
+        . expect2xx
+  decodeBodyOrThrow "brig" r
+  where
+    queryItemList :: (ToByteString a) => ByteString -> [a] -> Request -> Request
+    queryItemList _ [] = id
+    queryItemList key values = queryItem key (BSC.intercalate "," (map toByteString' values))
 
 -- | Calls 'Brig.API.Internal.createGroupInternalH'.
 createGroupInternal ::
