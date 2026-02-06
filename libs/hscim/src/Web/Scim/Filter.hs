@@ -64,9 +64,10 @@ import Data.Aeson.Text as Aeson
 import Data.Attoparsec.ByteString.Char8
 import Data.Scientific
 import Data.String
-import Data.Text (Text, isInfixOf, isPrefixOf, isSuffixOf, pack)
+import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
-import Data.Text.Lazy (toStrict)
+import qualified Data.Text.Lazy as LT
+import Imports
 import Lens.Micro
 import Web.HttpApiData
 import Web.Scim.AttrName
@@ -119,16 +120,44 @@ data CompareOp
 -- more complex filters
 --
 -- FILTER    = attrExp / logExp / valuePath / *1"not" "(" FILTER ")"
+-- PATH = attrPath / valuePath [subAttr]
+--
+-- FUTUREWORK(fisx): Currently we don't support matching on lists in paths
+-- as we currently don't support filtering on arbitrary attributes yet
+-- e.g.
+-- @
+-- "path":"members[value eq
+--            \"2819c223-7f76-453a-919d-413861904646\"].displayName"
+-- @
+-- is not supported. The code here should actually read something like this:
+-- @
+-- data Filter = FilterAttrCompare (Either AttrPath ValuePath) CompareOp CompValue
+-- @
+--
+-- FUTUREWORK(fisx): does it make sense to have a type-level argument to
+-- AttrPath, ValuePath(?), Filter containing the allowed schemas?
+-- it's certainly information that should be known at compile time...
+--
+-- https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.2
 data Filter
   = -- | Compare the attribute value with a literal
     FilterAttrCompare AttrPath CompareOp CompValue
   deriving (Eq, Show)
 
 -- | valuePath = attrPath "[" valFilter "]"
+--
+-- A `ValuePath` without a `Filter` is morally an `AttrPath`.
+--
+-- Cases covered:
+-- - '.roles'
+-- - '.bla.foo'
+-- - '.email["type" eq "work"]'
+--
 -- TODO(arianvp): This is a slight simplification at the moment as we
 -- don't support the complete Filter grammar. This should be a
 -- valFilter, not a FILTER.
-data ValuePath = ValuePath AttrPath Filter
+-- https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2.2
+data ValuePath = ValuePath AttrPath (Maybe Filter)
   deriving (Eq, Show)
 
 -- | subAttr   = "." ATTRNAME
@@ -143,17 +172,6 @@ data AttrPath = AttrPath (Maybe Schema) AttrName (Maybe SubAttr)
 topLevelAttrPath :: Text -> AttrPath
 topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
 
--- | PATH = attrPath / valuePath [subAttr]
---
--- Currently we don't support matching on lists in paths as
--- we currently don't support filtering on arbitrary attributes yet
--- e.g.
--- @
--- "path":"members[value eq
---            \"2819c223-7f76-453a-919d-413861904646\"].displayName"
--- @
--- is not supported
-
 ----------------------------------------------------------------------------
 -- Parsing
 
@@ -165,7 +183,7 @@ topLevelAttrPath x = AttrPath Nothing (AttrName x) Nothing
 -- lift an Attoparsec parser (from Aeson) to Megaparsec
 parseFilter :: [Schema] -> Text -> Either Text Filter
 parseFilter supportedSchemas =
-  over _Left pack
+  over _Left T.pack
     . parseOnly (skipSpace *> pFilter supportedSchemas <* skipSpace <* endOfInput)
     . encodeUtf8
 
@@ -186,7 +204,7 @@ pSubAttr = char '.' *> (SubAttr <$> pAttrName)
 -- | valuePath = attrPath "[" valFilter "]"
 pValuePath :: [Schema] -> Parser ValuePath
 pValuePath supportedSchemas =
-  ValuePath <$> pAttrPath supportedSchemas <*> (char '[' *> pFilter supportedSchemas <* char ']')
+  ValuePath <$> pAttrPath supportedSchemas <*> optional (char '[' *> pFilter supportedSchemas <* char ']')
 
 -- | Value literal parser.
 pCompValue :: Parser CompValue
@@ -245,7 +263,8 @@ rSubAttr :: SubAttr -> Text
 rSubAttr (SubAttr x) = "." <> rAttrName x
 
 rValuePath :: ValuePath -> Text
-rValuePath (ValuePath attrPath filter') = rAttrPath attrPath <> "[" <> renderFilter filter' <> "]"
+rValuePath (ValuePath attrPath Nothing) = rAttrPath attrPath
+rValuePath (ValuePath attrPath (Just filter')) = rAttrPath attrPath <> "[" <> renderFilter filter' <> "]"
 
 -- | Value literal renderer.
 rCompValue :: CompValue -> Text
@@ -253,8 +272,8 @@ rCompValue = \case
   ValNull -> "null"
   ValBool True -> "true"
   ValBool False -> "false"
-  ValNumber n -> toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
-  ValString s -> toStrict $ Aeson.encodeToLazyText (Aeson.String s)
+  ValNumber n -> LT.toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
+  ValString s -> LT.toStrict $ Aeson.encodeToLazyText (Aeson.String s)
 
 -- | Comparison operator renderer.
 rCompareOp :: CompareOp -> Text
@@ -274,9 +293,9 @@ compareStr :: CompareOp -> Text -> Text -> Bool
 compareStr = \case
   OpEq -> (==) -- equal
   OpNe -> (/=) -- not equal
-  OpCo -> flip isInfixOf -- A contains B
-  OpSw -> flip isPrefixOf -- A starts with B
-  OpEw -> flip isSuffixOf -- A ends with B
+  OpCo -> flip T.isInfixOf -- A contains B
+  OpSw -> flip T.isPrefixOf -- A starts with B
+  OpEw -> flip T.isSuffixOf -- A ends with B
   OpGt -> (>) -- greater than
   OpGe -> (>=) -- greater than or equal to
   OpLt -> (<) -- less than
@@ -291,3 +310,15 @@ instance FromHttpApiData Filter where
 
 instance ToHttpApiData Filter where
   toUrlPiece = renderFilter
+
+instance ToJSON AttrPath where
+  toJSON = toJSON . rAttrPath
+
+instance FromJSON AttrPath where
+  parseJSON val = parseJSON @Text val >>= either fail pure . parseOnly (pAttrPath []) . encodeUtf8
+
+instance ToJSON ValuePath where
+  toJSON = toJSON . rValuePath
+
+instance FromJSON ValuePath where
+  parseJSON val = parseJSON @Text val >>= either fail pure . parseOnly (pValuePath []) . encodeUtf8

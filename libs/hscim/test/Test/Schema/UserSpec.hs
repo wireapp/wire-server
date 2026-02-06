@@ -26,7 +26,9 @@ module Test.Schema.UserSpec
 where
 
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.CaseInsensitive as CI
 import Data.Either (isLeft, isRight)
 import Data.Foldable (for_)
 import Data.Text (Text)
@@ -40,11 +42,11 @@ import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress, validate)
 import qualified Web.Scim.Class.User as UserClass
-import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
+import Web.Scim.Filter (AttrPath (..), ValuePath (..))
+import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..))
 import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
-import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
+import Web.Scim.Schema.PatchOp (Patch (..), PatchOp (..))
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import Web.Scim.Schema.Schema (Schema (..))
 import Web.Scim.Schema.User (NoUserExtra (..), User (..))
@@ -113,9 +115,9 @@ spec = do
           ("active", Bool True)
         ]
         $ \(key, upd) -> do
-          let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
-          let patchOp = PatchOp [operation]
-          User.applyPatch user patchOp `shouldSatisfy` isRight
+          let operation = PatchOpReplace (Just (ValuePath (AttrPath Nothing key Nothing) Nothing)) upd
+          let scimPatch = Patch [operation]
+          PatchOp.applyPatch scimPatch user `shouldSatisfy` isRight
     it "does not support multi-value attributes" $ do
       let schemas' = []
       let extras = KeyMap.empty
@@ -139,17 +141,17 @@ spec = do
           ("x509Certificates", toJSON @[Certificate] mempty)
         ]
         $ \(key, upd) -> do
-          let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
-          let patchOp = PatchOp [operation]
-          User.applyPatch user patchOp `shouldSatisfy` isLeft
+          let operation = PatchOpReplace (Just (ValuePath (AttrPath Nothing key Nothing) Nothing)) upd
+          let scimPatch = Patch [operation]
+          PatchOp.applyPatch scimPatch user `shouldSatisfy` isLeft
     it "applies patch to `extra`" $ do
       let schemas' = []
       let extras = KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
-      let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
-      let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
-      let patchOp = PatchOp [operation]
-      User.extra <$> User.applyPatch user patchOp `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
+      let programmingLanguagePath = ValuePath (AttrPath (Just (CustomSchema "urn:hscim:test")) "programmingLanguage" Nothing) Nothing
+      let operation = PatchOpReplace (Just programmingLanguagePath) (toJSON @Text "haskell")
+      let scimPatch = Patch [operation]
+      User.extra <$> PatchOp.applyPatch scimPatch user `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
@@ -477,15 +479,12 @@ instance FromJSON UserExtraTest where
       Nothing -> pure UserExtraEmpty
       Just (lowercase -> o2) -> UserExtraObject <$> o2 .: "test"
     where
-      lowercase = KeyMap.fromList . map (over _1 lowerKey) . KeyMap.toList
+      lowercase = KeyMap.fromList . map (over _1 (Key.fromText . CI.foldCase . Key.toText)) . KeyMap.toList
 
 instance ToJSON UserExtraTest where
   toJSON UserExtraEmpty = object []
   toJSON (UserExtraObject t) =
     object ["urn:hscim:test" .= object ["test" .= t]]
-
-instance Patchable UserExtraTest where
-  applyOperation _ _ = undefined
 
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)

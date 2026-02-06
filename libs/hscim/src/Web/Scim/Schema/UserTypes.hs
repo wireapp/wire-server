@@ -19,7 +19,7 @@
 
 module Web.Scim.Schema.UserTypes where
 
-import Web.Scim.Schema.Schema (Schema)
+import Web.Scim.Schema.Schema (Schema (User20))
 
 -- | Configurable parts of 'User'.
 class UserTypes tag where
@@ -29,7 +29,5 @@ class UserTypes tag where
   -- | Extra data carried with each 'User'.
   type UserExtra tag
 
-  -- | Schemas supported by the 'User' for filtering and patching.
-  --
-  -- This must include User20, this is not checked.
   supportedSchemas :: [Schema]
+  supportedSchemas = [User20]
