@@ -1,0 +1,3 @@
+Unified Polysemy.Plugin configuration by moving compiler plugin flags from
+per-file OPTIONS_GHC pragmas to cabal file ghc-options sections for spar and
+polysemy-wire-zoo packages.

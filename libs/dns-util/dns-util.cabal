@@ -72,14 +72,15 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
+    -Wredundant-constraints -Wunused-packages -fplugin=Polysemy.Plugin
 
   build-depends:
-      base      >=4.6 && <5.0
+      base             >=4.6 && <5.0
     , dns
     , imports
     , iproute
     , polysemy
+    , polysemy-plugin
     , random
 
   default-language:   GHC2021

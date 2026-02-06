@@ -34,7 +34,7 @@ common common-all
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -fplugin=Polysemy.Plugin
 
   default-extensions:
     AllowAmbiguousTypes
@@ -197,7 +197,6 @@ common common-all
 
 library
   import:          common-all
-  ghc-options:     -fplugin=Polysemy.Plugin
 
   -- cabal-fmt: expand src
   exposed-modules:
@@ -481,7 +480,7 @@ test-suite wire-subsystems-tests
   -- `ghcid --command 'cabal repl test:wire-subsystems-tests' --test='main'`.
   hs-source-dirs: test/unit
   main-is:        ../Main.hs
-  ghc-options:    -fplugin=Polysemy.Plugin -Wno-x-partial -threaded
+  ghc-options:    -Wno-x-partial -threaded
 
   -- cabal-fmt: expand test/unit
   other-modules:

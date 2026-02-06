@@ -102,7 +102,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
+    -Wredundant-constraints -Wunused-packages -fplugin=Polysemy.Plugin
 
   build-depends:
       aeson
@@ -138,6 +138,7 @@ library
     , network
     , pem
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , prometheus-client
     , servant
@@ -275,7 +276,7 @@ executable federator-integration
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -Wredundant-constraints -Wunused-packages -threaded
-    -with-rtsopts=-N1 -Wno-x-partial
+    -with-rtsopts=-N1 -Wno-x-partial -fplugin=Polysemy.Plugin
 
   build-depends:
       aeson
@@ -302,6 +303,7 @@ executable federator-integration
     , lens
     , optparse-applicative
     , polysemy
+    , polysemy-plugin
     , QuickCheck
     , random
     , servant-client-core
@@ -377,7 +379,7 @@ test-suite federator-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N -Wredundant-constraints
-    -Wunused-packages -Wno-x-partial
+    -Wunused-packages -Wno-x-partial -fplugin=Polysemy.Plugin
 
   build-depends:
       aeson
@@ -400,6 +402,7 @@ test-suite federator-tests
     , kan-extensions
     , mtl
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , QuickCheck
     , servant

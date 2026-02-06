@@ -29,6 +29,7 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -Wredundant-constraints -Wunused-packages
+    -fplugin=Polysemy.Plugin
 
   build-depends:
       aeson
@@ -51,6 +52,7 @@ library
     , monad-control
     , polysemy
     , polysemy-conc
+    , polysemy-plugin
     , polysemy-wire-zoo
     , prometheus-client
     , retry

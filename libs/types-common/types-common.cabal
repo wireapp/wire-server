@@ -91,7 +91,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -Wunused-packages
+    -Wredundant-constraints -Wunused-packages -fplugin=Polysemy.Plugin
 
   ghc-prof-options:   -fprof-auto-exported
   build-depends:
@@ -125,6 +125,7 @@ library
     , optparse-applicative   >=0.10
     , pem
     , polysemy
+    , polysemy-plugin
     , protobuf               >=0.2
     , QuickCheck             >=2.9
     , quickcheck-instances   >=0.3.16
