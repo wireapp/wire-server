@@ -694,6 +694,7 @@ CREATE TABLE brig_test.user (
     supported_protocols int,
     team uuid,
     text_status text,
+    user_type int,
     write_time_bumper int
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
