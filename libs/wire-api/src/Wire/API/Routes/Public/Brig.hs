@@ -2138,6 +2138,17 @@ type AppsAPI =
                :> Get '[JSON] [GetApp]
            )
     :<|> Named
+           "delete-app"
+           ( Summary "Delete app"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] DeleteApp
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
+           )
+    :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
                :> ZLocalUser

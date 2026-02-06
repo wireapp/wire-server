@@ -60,7 +60,7 @@ module Wire.API.Team.Member
     nInvitation,
 
     -- * TeamMemberDeleteData
-    TeamMemberDeleteData,
+    TeamMemberDeleteData (..),
     newTeamMemberDeleteData,
     tmdAuthPassword,
 

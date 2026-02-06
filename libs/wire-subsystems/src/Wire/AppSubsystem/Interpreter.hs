@@ -73,6 +73,7 @@ runAppSubsystem authInterp = interpret \case
   CreateApp lusr tid new -> authInterp $ createAppImpl lusr tid new
   GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
+  DeleteApp lusr tid uid delApp -> authInterp $ deleteAppImpl lusr tid uid delApp
   RefreshAppCookie lusr tid appId -> authInterp $ runError $ refreshAppCookieImpl lusr tid appId
 
 createAppImpl ::
@@ -200,6 +201,20 @@ getAppsImpl lusr tid = do
       where
         f a = (a,) <$> Map.lookup a.id umap
         umap = Map.fromList $ (\u -> (u.id, u)) <$> us
+
+deleteAppImpl ::
+  ( Member AuthenticationSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Apps.DeleteApp ->
+  Sem r ()
+deleteAppImpl lusr tid app del = do
+  verifyUserPasswordError lusr del.password
+  todo "make sure lusr is owner/admin of tid"
+  deleteUserAccount lusr app
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,

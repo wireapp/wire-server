@@ -22,6 +22,7 @@ module Wire.GalleyAPIAccess where
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import Imports
@@ -95,6 +96,11 @@ data GalleyAPIAccess m a where
     TeamId ->
     [UserId] ->
     GalleyAPIAccess m [Team.TeamMember]
+  DeleteTeamMember ::
+    TeamId ->
+    UserId ->
+    PlainTextPassword6 ->
+    GalleyAPIAccess m ()
   GetTeamId ::
     UserId ->
     GalleyAPIAccess m (Maybe TeamId)

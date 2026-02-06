@@ -25,6 +25,7 @@ import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import Imports
@@ -81,6 +82,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamMembersWithLimit tid maxResults -> getTeamMembersWithLimit tid maxResults
           SelectTeamMemberInfos tid uids -> selectTeamMemberInfos tid uids
           SelectTeamMembers tid uids -> selectTeamMembers tid uids
+          DeleteTeamMember tid uid pw -> deleteTeamMemberImpl tid uid pw
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
           GetTeamName id' -> getTeamName id'
@@ -395,6 +397,26 @@ selectTeamMembers tid uids = do
     req bdy =
       method POST
         . paths ["i", "teams", toByteString' tid, "members", "get-by-ids"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode bdy)
+        . expect2xx
+
+deleteTeamMemberImpl ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  TeamId ->
+  UserId ->
+  PlainTextPassword6 ->
+  Sem r ()
+deleteTeamMemberImpl tid uid pw = do
+  let bdy = Member.TeamMemberDeleteData (Just pw)
+  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  where
+    req bdy =
+      method DELETE
+        . paths ["teams", toByteString' tid, "members", toByteString' uid]
         . header "Content-Type" "application/json"
         . lbytes (encode bdy)
         . expect2xx

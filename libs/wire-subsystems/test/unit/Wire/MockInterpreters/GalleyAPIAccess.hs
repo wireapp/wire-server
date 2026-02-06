@@ -67,7 +67,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
-  InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
+  DeleteTeamMember _ _ _ -> error "DeleteTeamMember not implemented in miniGalleyAPIAccess"
+  InternalGetConversation _ -> error "InternalGetConversation not implemented in miniGalleyAPIAccess"
   GetTeamContacts _ -> pure Nothing
   SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
 

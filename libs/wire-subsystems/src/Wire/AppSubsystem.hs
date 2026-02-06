@@ -57,6 +57,7 @@ data AppSubsystem m a where
   CreateApp :: Local UserId -> TeamId -> Apps.NewApp -> AppSubsystem m Apps.CreatedApp
   GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m Apps.GetApp
   GetApps :: Local UserId -> TeamId -> AppSubsystem m [Apps.GetApp]
+  DeleteApp :: Local UserId -> TeamId -> UserId -> Apps.DeleteApp -> AppSubsystem m ()
   RefreshAppCookie ::
     Local UserId ->
     TeamId ->

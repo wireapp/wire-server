@@ -47,6 +47,12 @@ data GetApp = GetApp
   deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
+data DeleteApp = DeleteApp
+  { password :: PlainTextPassword6
+  }
+  deriving (Eq, Show)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema DeleteApp
+
 data Category
   = Security
   | Collaboration
@@ -128,6 +134,12 @@ instance ToSchema GetApp where
         <*> (.meta) .= field "metadata" jsonObject
         <*> (.category) .= field "category" schema
         <*> (.description) .= field "description" schema
+
+instance ToSchema DeleteApp where
+  schema =
+    object "DeleteApp" $
+      DeleteApp
+        <$> (.password) .= field "password" schema
 
 data CreatedApp = CreatedApp
   { user :: User,
