@@ -1,0 +1,5 @@
+TODO: polish this some more, put it into the right categories.
+
+Make apps and conversations work.
+
+Cassandra keeps now track of user types, but we don't do data migration.  That means that all apps that have been registered before this release will report as regular users and need to be re-registered.
