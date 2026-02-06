@@ -15,7 +15,8 @@
     "vscode": {
       "extensions": [
         "haskell.haskell",
-        "jnoortheen.nix-ide"
+        "jnoortheen.nix-ide",
+        "mkhl.direnv"
       ],
       "settings": {
         "haskell.manageHLS": "PATH"
