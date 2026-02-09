@@ -80,8 +80,7 @@ servantSitemap =
         :<|> Named @"assets-conv-otr-download-legacy" legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
     qualifiedAPI =
-      Named @"assets-download-v4"
-        downloadAssetV4
+      Named @"assets-download-v4" downloadAssetV4
         :<|> Named @"assets-delete-v4" deleteAssetV4
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
