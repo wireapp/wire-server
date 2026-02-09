@@ -46,7 +46,7 @@ import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.User (AccountStatus (Active), AccountStatusResp (..))
+import Wire.API.User (AccountStatus (..), AccountStatusResp (..))
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -182,6 +182,7 @@ uploadAssetV3 pid req = do
           >>= either (const $ throwE userNotFound) pure
       case fromAccountStatusResp status of
         Active -> pure ()
+        Ephemeral -> pure ()
         _ -> throwE unverifiedUser
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
