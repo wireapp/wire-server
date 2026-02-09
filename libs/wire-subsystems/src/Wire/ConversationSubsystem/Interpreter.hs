@@ -175,9 +175,8 @@ createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
-  when (newConv.newConvHistory /= HistoryPrivate) $ do
-    when (Public.newConvProtocol newConv == BaseProtocolMLSTag) $ throwS @HistoryNotSupported
-    when (newConv.newConvGroupConvType /= Channel) $ throwS @HistoryNotSupported
+  when (newConv.newConvHistory /= HistoryPrivate && newConv.newConvGroupConvType /= Channel) $
+    throwS @HistoryNotSupported
 
   when (Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
     assertMLSEnabled
