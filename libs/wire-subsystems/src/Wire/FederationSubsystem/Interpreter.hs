@@ -1,14 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -23,10 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.FederationSubsystem.Interpreter where
+module Wire.FederationSubsystem.Interpreter
+  ( runFederationSubsystem,
+  )
+where
 
-import Control.Error (headMay)
-import Data.Domain (Domain)
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
@@ -36,13 +29,14 @@ import Wire.API.Component (Component (..))
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Error.Galley (NonFederatingBackends (..), UnreachableBackends (..))
 import Wire.API.Federation.API (fedClient)
-import Wire.API.Federation.API.Brig (DomainSet (..), NonConnectedBackends (..))
+import Wire.API.Federation.API.Brig (DomainSet (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus (FederationStatus (..), RemoteDomains (..))
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
+import Wire.FederationSubsystem.Internals (firstConflictOrFullyConnected)
 
 runFederationSubsystem ::
   ( Member (Error FederationError) r,
@@ -80,16 +74,3 @@ runFederationSubsystem mAllowedProtos = interpret $ \case
               fedClient @'Brig @"get-not-fully-connected-backends"
                 (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
           )
-    -- \| "conflict" here means two remote domains that we are connected to
-    -- but are not connected to each other.
-    firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
-    firstConflictOrFullyConnected =
-      maybe
-        FullyConnected
-        (uncurry NotConnectedDomains)
-        . headMay
-        . mapMaybe toMaybeConflict
-      where
-        toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
-        toMaybeConflict r =
-          headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)

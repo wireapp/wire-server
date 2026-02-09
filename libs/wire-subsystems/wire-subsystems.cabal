@@ -277,6 +277,7 @@ library
     Wire.FederationConfigStore
     Wire.FederationConfigStore.Cassandra
     Wire.FederationSubsystem
+    Wire.FederationSubsystem.Internals
     Wire.FederationSubsystem.Interpreter
     Wire.FireAndForget
     Wire.GalleyAPIAccess
@@ -501,6 +502,7 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
+    Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
