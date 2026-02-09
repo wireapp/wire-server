@@ -49,20 +49,3 @@ testAssetUploadUnknownUser = do
           ]
   bindResponse (uploadSomeAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 403
-
-testAssetUploadEphemeralUser :: (HasCallStack) => App ()
-testAssetUploadEphemeralUser = do
-  emil <- ephemeralUser OwnDomain
-  uid <- objId emil
-  domain <- make OwnDomain
-  let user =
-        object
-          [ "id" .= uid,
-            "qualified_id"
-              .= object
-                [ "domain" .= domain,
-                  "id" .= uid
-                ]
-          ]
-  bindResponse (uploadSomeAsset user) $ \resp -> do
-    resp.status `shouldMatchInt` 403
