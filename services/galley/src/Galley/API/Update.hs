@@ -322,6 +322,7 @@ updateConversationHistory ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
