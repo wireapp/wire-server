@@ -2,6 +2,10 @@ image:
   repository: localstack/localstack
   tag: 0.8.7
 
+awsCliImage:
+  repository: mesosphere/aws-cli
+  tag: 1.14.5
+
 service:
   internalPort: 4579
   externalPort: 4569
