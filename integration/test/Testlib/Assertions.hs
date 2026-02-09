@@ -433,7 +433,7 @@ prettyResponse r =
         pure $ colored blue "response body:",
         pure $
           ( TL.unpack . TL.decodeUtf8With Text.lenientDecode $
-              case r.jsonBody of
+              case r.json of
                 Just b -> (Aeson.encodePretty b)
                 Nothing -> BS.fromStrict r.body
           )

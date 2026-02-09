@@ -275,16 +275,13 @@ data Env = Env
   }
 
 data Response = Response
-  { jsonBody :: Maybe Aeson.Value,
+  { json :: Maybe Aeson.Value,
     body :: ByteString,
     status :: Int,
     headers :: [HTTP.Header],
     request :: HTTP.Request
   }
   deriving stock (Show)
-
-instance HasField "json" Response (App (Maybe Aeson.Value)) where
-  getField response = pure response.jsonBody
 
 data CredentialType = BasicCredentialType | X509CredentialType
   deriving (Eq, Show)

@@ -83,8 +83,7 @@ testFeatureConfigConsistency = do
   where
     parseObjectKeys :: Response -> App (Set.Set String)
     parseObjectKeys res = do
-      val <- res.json
-      case val of
+      case res.json of
         (Just (A.Object hm)) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
 
