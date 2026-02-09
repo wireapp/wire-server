@@ -12,3 +12,5 @@ data IdPSubsystem m a where
   GetSsoCodeByEmail :: Maybe ZHostValue -> EmailAddress -> IdPSubsystem m (Maybe SAML.IdPId)
 
 makeSem ''IdPSubsystem
+
+data IdPSubsystemError = InconsistentUsers

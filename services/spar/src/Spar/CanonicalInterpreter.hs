@@ -75,7 +75,7 @@ import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.IdPConfigStore.Cassandra (idPToCassandra)
-import Wire.IdPSubsystem (IdPSubsystem)
+import Wire.IdPSubsystem (IdPSubsystem, IdPSubsystemError)
 import Wire.IdPSubsystem.Interpreter (interpretIdPSubsystem)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.Rpc (Rpc, runRpcWithHttp)
@@ -102,6 +102,7 @@ type LowerLevelCanonicalEffs =
      Error ParseException,
      Rpc,
      Input ScimSubsystemConfig,
+     Error IdPSubsystemError,
      Error ScimSubsystemError,
      ScimExternalIdStore,
      ScimUserTimesStore,
@@ -152,6 +153,7 @@ runSparToIO ctx =
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
     . mapScimSubsystemErrors
+    . mapIdPSubsystemErrors
     . runInputConst (ctx.sparCtxScimSubsystemConfig)
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
     . iParseException

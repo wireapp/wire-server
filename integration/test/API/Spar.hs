@@ -239,3 +239,11 @@ finalizeSamlLoginWithZHost domain mbZHost tid (SAML.SignedAuthnResponse authnres
   baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
     >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
     >>= \req -> submit "POST" (req & maybe id zHost mbZHost)
+
+getSsoCodeByEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getSsoCodeByEmail = (flip getSsoCodeByEmailWithZHost) Nothing
+
+getSsoCodeByEmailWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> App Response
+getSsoCodeByEmailWithZHost domain mbZHost email = do
+  req <- baseRequest domain Spar Versioned "/sso/get-by-email"
+  submit "POST" ((req & addJSONObject ["email" .= email]) & maybe id zHost mbZHost)

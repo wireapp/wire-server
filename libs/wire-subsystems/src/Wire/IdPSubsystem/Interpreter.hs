@@ -1,33 +1,45 @@
-module Wire.IdPSubsystem.Interpreter (interpretIdPSubsystem) where
+module Wire.IdPSubsystem.Interpreter
+  ( interpretIdPSubsystem,
+  )
+where
 
 import Control.Lens
-import Data.HavePendingInvitations
+import Data.Domain (domainText)
+import Data.HavePendingInvitations (HavePendingInvitations (..))
+import Data.Id
+import Data.Qualified
+import Data.Text qualified as Text
 import Imports
 import Polysemy
+import Polysemy.Error
 import SAML2.WebSSO qualified as SAML
-import Wire.API.User (User, userId, userManagedBy, userSSOId)
+import System.Logger.Message qualified as Log
+import Wire.API.User
 import Wire.API.User.IdentityProvider qualified as IP
-import Wire.API.User.Profile (ManagedBy (..))
 import Wire.BrigAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPSubsystem
+import Wire.Sem.Logger (Logger)
+import Wire.Sem.Logger qualified as Logger
 
 -- TODO: Use RateLimit effect for rate limiting
 interpretIdPSubsystem ::
   ( Member BrigAPIAccess r,
     Member GalleyAPIAccess r,
-    Member IdPConfigStore r
+    Member IdPConfigStore r,
+    Member (Error IdPSubsystemError) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
   InterpreterFor IdPSubsystem r
 interpretIdPSubsystem = interpret $ \case
   GetSsoCodeByEmail mbHost email -> do
     -- TODO: Rate limiting
-    -- TODO: Disable on cloud
+    -- TODO: Disable on cloud or use a team feature that defaults to false
     users <- getUsersByVariousKeys [] [] [email] NoPendingInvitations
-    mbIdPId <- case users of
+    case users of
+      [] -> pure Nothing
       [user] -> do
-        -- Ensure: the user was created via SCIM or SSO
         if not (isScimOrSsoUser user)
           then pure Nothing
           else do
@@ -35,12 +47,28 @@ interpretIdPSubsystem = interpret $ \case
             case mbTeam of
               Just team -> do
                 idps <- getConfigsByTeam team
-                case mbHost of
-                  Just host -> pure $ findIdPByDomain host idps
-                  Nothing -> pure Nothing
+                pure $ selectIdP mbHost idps
               Nothing -> pure Nothing
-      _ -> pure Nothing
-    pure mbIdPId
+      tooMaybeUsers -> do
+        Logger.warn $
+          Log.msg @Text "Multiple users found for email address in getSsoCodeByEmail"
+            . Log.field "email" (fromEmail email)
+            . Log.field "user_ids" (Text.intercalate ", " (map (userIdToText . userQualifiedId) tooMaybeUsers))
+        throw InconsistentUsers
+
+userIdToText :: Qualified UserId -> Text
+userIdToText uid = idToText (qUnqualified uid) <> "@" <> domainText (qDomain uid)
+
+selectIdP :: Maybe Text -> [IP.IdP] -> Maybe SAML.IdPId
+selectIdP mbHost idps = case idps of
+  -- No IdPs: no match
+  [] -> Nothing
+  -- Exactly one IdP: always return it
+  [idp] -> pure (idp ^. SAML.idpId)
+  -- Multiple IdPs: find by domain if host provided
+  _idps' -> case mbHost of
+    Just host -> findIdPByDomain host idps
+    Nothing -> Nothing
 
 isScimOrSsoUser :: User -> Bool
 isScimOrSsoUser user =
