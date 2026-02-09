@@ -31,30 +31,33 @@ interpretIdPSubsystem ::
     Member (Error IdPSubsystemError) r,
     Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
+  Bool ->
   InterpreterFor IdPSubsystem r
-interpretIdPSubsystem = interpret $ \case
+interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
   GetSsoCodeByEmail mbHost email -> do
-    -- TODO: Rate limiting
-    -- TODO: Disable on cloud or use a team feature that defaults to false
-    users <- getUsersByVariousKeys [] [] [email] NoPendingInvitations
-    case users of
-      [] -> pure Nothing
-      [user] -> do
-        if not (isScimOrSsoUser user)
-          then pure Nothing
-          else do
-            mbTeam <- getTeamId (userId user)
-            case mbTeam of
-              Just team -> do
-                idps <- getConfigsByTeam team
-                pure $ selectIdP mbHost idps
-              Nothing -> pure Nothing
-      tooMaybeUsers -> do
-        Logger.warn $
-          Log.msg @Text "Multiple users found for email address in getSsoCodeByEmail"
-            . Log.field "email" (fromEmail email)
-            . Log.field "user_ids" (Text.intercalate ", " (map (userIdToText . userQualifiedId) tooMaybeUsers))
-        throw InconsistentUsers
+    if not enableIdPByEmailDiscovery
+      then pure Nothing
+      else do
+        -- TODO: Rate limiting
+        users <- getUsersByVariousKeys [] [] [email] NoPendingInvitations
+        case users of
+          [] -> pure Nothing
+          [user] -> do
+            if not (isScimOrSsoUser user)
+              then pure Nothing
+              else do
+                mbTeam <- getTeamId (userId user)
+                case mbTeam of
+                  Just team -> do
+                    idps <- getConfigsByTeam team
+                    pure $ selectIdP mbHost idps
+                  Nothing -> pure Nothing
+          tooMaybeUsers -> do
+            Logger.warn $
+              Log.msg @Text "Multiple users found for email address in getSsoCodeByEmail"
+                . Log.field "email" (fromEmail email)
+                . Log.field "user_ids" (Text.intercalate ", " (map (userIdToText . userQualifiedId) tooMaybeUsers))
+            throw InconsistentUsers
 
 userIdToText :: Qualified UserId -> Text
 userIdToText uid = idToText (qUnqualified uid) <> "@" <> domainText (qDomain uid)

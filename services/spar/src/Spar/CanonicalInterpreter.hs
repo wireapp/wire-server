@@ -167,7 +167,7 @@ runSparToIO ctx =
       (foldMap expandVersionExp (disabledAPIVersions . sparCtxOpts $ ctx))
       (galley . sparCtxOpts $ ctx)
     . interpretScimSubsystem
-    . interpretIdPSubsystem
+    . interpretIdPSubsystem (enableIdPByEmailDiscovery . sparCtxOpts $ ctx)
 
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)

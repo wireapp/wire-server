@@ -35,7 +35,8 @@ testGetSsoCodeByEmailWithMultiIngress = do
   withModifiedBackend
     def
       { sparCfg =
-          removeField "saml.spSsoUri"
+          setField "enableIdPByEmailDiscovery" True
+            >=> removeField "saml.spSsoUri"
             >=> removeField "saml.spAppUri"
             >=> removeField "saml.contacts"
             >=> setField
@@ -111,47 +112,53 @@ testGetSsoCodeByEmailWithMultiIngress = do
 -- | Test the /sso/get-by-email endpoint with regular (non-multi-ingress) setup
 testGetSsoCodeByEmailRegular :: (HasCallStack) => App ()
 testGetSsoCodeByEmailRegular = do
-  (owner, tid, _) <- createTeam OwnDomain 1
-  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  withModifiedBackend
+    def {sparCfg = setField "enableIdPByEmailDiscovery" True}
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-  -- Create IdP without domain binding
-  SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
-  idpId <-
-    createIdp owner idpmeta `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 201
-      resp.jsonBody %. "id" >>= asString
+      -- Create IdP without domain binding
+      SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
+      idpId <-
+        createIdp owner idpmeta `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.jsonBody %. "id" >>= asString
 
-  -- Create a SCIM user
-  scimUser <- randomScimUser
-  userEmail <-
-    scimUser %. "emails" >>= asList >>= \case
-      (e : _) -> e %. "value" >>= asString
-      [] -> assertFailure "Expected at least one email"
-  scimTok <- createScimToken owner def {idp = Just idpId}
-  scimToken <- scimTok.json %. "token" & asString
+      -- Create a SCIM user
+      scimUser <- randomScimUser
+      userEmail <-
+        scimUser %. "emails" >>= asList >>= \case
+          (e : _) -> e %. "value" >>= asString
+          [] -> assertFailure "Expected at least one email"
+      scimTok <- createScimToken owner def {idp = Just idpId}
+      scimToken <- scimTok.json %. "token" & asString
 
-  void $ createScimUser OwnDomain scimToken scimUser >>= getJSON 201
+      void $ createScimUser domain scimToken scimUser >>= getJSON 201
 
-  -- Activate the email so the user can be found by email
-  activateEmail OwnDomain userEmail
+      -- Activate the email so the user can be found by email
+      activateEmail domain userEmail
 
-  -- Get the SSO code by email
-  getSsoCodeByEmail OwnDomain userEmail `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    ssoCodeStr <- resp.json %. "ssoCode" >>= asString
-    ssoCodeStr `shouldMatch` idpId
+      -- Get the SSO code by email
+      getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoCodeStr <- resp.json %. "ssoCode" >>= asString
+        ssoCodeStr `shouldMatch` idpId
 
 -- | Test that non-SCIM users return no SSO code
 testGetSsoCodeByEmailNonScimUser :: (HasCallStack) => App ()
 testGetSsoCodeByEmailNonScimUser = do
-  (owner, tid, _) <- createTeam OwnDomain 1
-  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  withModifiedBackend
+    def {sparCfg = setField "enableIdPByEmailDiscovery" True}
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-  -- Get the owner's email
-  userEmail <- owner %. "email" & asString
+      -- Get the owner's email
+      userEmail <- owner %. "email" & asString
 
-  -- Try to get SSO code for regular (non-SCIM) user - should return Nothing
-  getSsoCodeByEmail OwnDomain userEmail `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    mbSsoCode <- lookupField resp.json "ssoCode"
-    mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
+      -- Try to get SSO code for regular (non-SCIM) user - should return Nothing
+      getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
