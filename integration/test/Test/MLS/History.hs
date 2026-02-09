@@ -17,6 +17,8 @@
 
 module Test.MLS.History where
 
+import API.Galley
+import qualified API.GalleyInternal as I
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text.Encoding as T
 import MLS.Util
@@ -55,3 +57,93 @@ testExtraAppMessage = do
     for_ wss $ \ws -> do
       n <- awaitMatch isAppMessage ws
       nPayload n %. "data" `shouldMatch` T.decodeUtf8 (Base64.encode appPackage.message)
+
+testConvCreateWithHistory :: App ()
+testConvCreateWithHistory = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+
+  I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
+
+  let history = object ["depth" .= "infinite"]
+  bindResponse
+    ( postConversation
+        alice
+        ( defMLS
+            { team = Just tid,
+              history = Just history
+            }
+        )
+    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "history-not-supported"
+
+  convId <- bindResponse
+    ( postConversation
+        alice
+        ( defMLS
+            { team = Just tid,
+              history = Just history,
+              groupConvType = Just "channel"
+            }
+        )
+    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      objConvId resp.json
+
+  conv <- getConversation alice convId >>= getJSON 200
+  conv %. "history" `shouldMatch` history
+
+testRegularConvCannotSetHistory :: App ()
+testRegularConvCannotSetHistory = do
+  alice <- randomUser OwnDomain def
+  let history = object ["depth" .= "infinite"]
+  convId <- postConversation alice defMLS >>= getJSON 201 >>= objConvId
+
+  bindResponse (updateHistory alice convId history) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "history-not-supported"
+
+testSetHistory :: App ()
+testSetHistory = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
+
+  let history = object ["depth" .= "infinite"]
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  convId <-
+    createNewGroupWith
+      def
+      alice1
+      defMLS
+        { team = Just tid,
+          groupConvType = Just "channel"
+        }
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  bindResponse (updateHistory bob convId history) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "action-denied"
+
+  bindResponse (updateHistory alice convId history) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  conv <- getConversation alice convId >>= getJSON 200
+  conv %. "history" `shouldMatch` history
+
+channelsConfig :: Value
+channelsConfig =
+  object
+    [ "status" .= "enabled",
+      "config"
+        .= object
+          [ "allowed_to_create_channels" .= "team-members",
+            "allowed_to_open_channels" .= "team-members"
+          ]
+    ]

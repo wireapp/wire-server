@@ -109,6 +109,7 @@ library
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
+    Wire.API.History
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Locale

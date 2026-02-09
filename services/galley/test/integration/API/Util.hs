@@ -120,6 +120,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.History
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Message
@@ -617,6 +618,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
           Nothing
           False
           Nothing
+          def
   post
     ( g
         . path "/conversations"
@@ -657,7 +659,8 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
             newConvCells = False,
             newConvChannelAddPermission = Nothing,
             newConvSkipCreator = False,
-            newConvParent = Nothing
+            newConvParent = Nothing,
+            newConvHistory = HistoryPrivate
           }
   r <-
     post
@@ -704,6 +707,7 @@ createOne2OneTeamConv u1 u2 n tid = do
           Nothing
           False
           Nothing
+          def
   post $ g . path "/one2one-conversations" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -734,6 +738,7 @@ defNewProteusConv =
     Nothing
     False
     Nothing
+    def
 
 defNewMLSConv :: NewConv
 defNewMLSConv =
@@ -794,6 +799,7 @@ postTeamConv tid u us name a r mtimer = do
           Nothing
           False
           Nothing
+          def
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -848,6 +854,7 @@ postConvWithReceipt u us name a r mtimer rcpt = do
           Nothing
           False
           Nothing
+          def
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -1602,7 +1609,8 @@ registerRemoteConv convId originUser name othMembers = do
           receiptMode = Nothing,
           protocol = ProtocolProteus,
           groupConvType = Nothing,
-          channelAddPermission = Nothing
+          channelAddPermission = Nothing,
+          history = Nothing
         }
 
 -------------------------------------------------------------------------------
@@ -2458,6 +2466,7 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         def
         Nothing
+        def
     )
     (RemoteConvMembers selfRole otherMembers)
     ProtocolProteus

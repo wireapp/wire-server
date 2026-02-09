@@ -234,6 +234,10 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member ConversationStore r,
       Member Random r
     )
+  HasConversationActionEffects 'ConversationHistoryUpdateTag r =
+    ( Member ConversationStore r,
+      Member (ErrorS HistoryNotSupported) r
+    )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
       Member (Error NoChanges) r
@@ -362,6 +366,14 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
   HasConversationActionGalleyErrors 'ConversationResetTag =
     '[ ErrorS (ActionDenied LeaveConversation),
        ErrorS GroupIdVersionNotSupported,
+       ErrorS MLSStaleMessage,
+       ErrorS InvalidOperation,
+       ErrorS ConvNotFound
+     ]
+  HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
+    '[ ErrorS (ActionDenied ModifyConversationHistory),
+       ErrorS GroupIdVersionNotSupported,
+       ErrorS HistoryNotSupported,
        ErrorS MLSStaleMessage,
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
@@ -622,6 +634,11 @@ performAction tag origUser lconv action = do
             action = action,
             extraConversationData = ExtraConversationData (Just newGroupId)
           }
+    SConversationHistoryUpdateTag -> do
+      when (storedConv.metadata.cnvmGroupConvType /= Just Channel) $ do
+        throwS @HistoryNotSupported
+      E.setConversationHistory (tUnqualified lcnv) action
+      pure $ mkPerformActionResult action
 
 performConversationJoin ::
   forall r.
@@ -1072,6 +1089,7 @@ updateLocalStateOfRemoteConv rcu con = do
     SomeConversationAction SConversationUpdateProtocolTag _ -> pure (Just sca, [])
     SomeConversationAction SConversationUpdateAddPermissionTag _ -> pure (Just sca, [])
     SomeConversationAction SConversationResetTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationHistoryUpdateTag _ -> pure (Just sca, [])
 
   -- On conversation join, the member(s) joining are not included in the presentUsers,
   -- however they are included in the alreadyPresentUsers from the incoming request.

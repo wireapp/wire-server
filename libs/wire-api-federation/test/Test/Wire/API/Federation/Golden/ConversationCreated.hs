@@ -30,6 +30,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.Provider.Service
 
@@ -72,7 +73,8 @@ testObject_ConversationCreated1 =
       receiptMode = Just (ReceiptMode 42),
       protocol = ProtocolProteus,
       groupConvType = Just GroupConversation,
-      channelAddPermission = Nothing
+      channelAddPermission = Nothing,
+      history = Just (HistoryShared (HistorySharingConfig {depth = HistoryDurationInfinite}))
     }
 
 testObject_ConversationCreated2 :: ConversationCreated ConvId
@@ -101,5 +103,6 @@ testObject_ConversationCreated2 =
               )
           ),
       groupConvType = Nothing,
-      channelAddPermission = Nothing
+      channelAddPermission = Nothing,
+      history = Nothing
     }

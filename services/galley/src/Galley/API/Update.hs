@@ -40,6 +40,7 @@ module Galley.API.Update
     updateConversationMessageTimer,
     updateConversationAccessUnqualified,
     updateConversationAccess,
+    updateConversationHistory,
     updateChannelAddPermission,
     deleteLocalConversation,
     updateRemoteConversation,
@@ -306,6 +307,35 @@ updateConversationAccess lusr con qcnv update = do
   lcnv <- ensureLocal lusr qcnv
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
+
+updateConversationHistory ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS (ActionDenied ModifyConversationHistory)) r,
+    Member (ErrorS InvalidOperation) r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS HistoryNotSupported) r,
+    Member BackendNotificationQueueAccess r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ConversationStore r,
+    Member ConversationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  ConversationHistoryUpdate ->
+  Sem r (UpdateResult Event)
+updateConversationHistory lusr con qcnv update = do
+  lcnv <- ensureLocal lusr qcnv
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation
+      @'ConversationHistoryUpdateTag
+      lcnv
+      (tUntagged lusr)
+      (Just con)
+      update.history
 
 updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,

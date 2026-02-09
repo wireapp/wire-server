@@ -34,6 +34,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation qualified as MLS
 import Wire.API.MLS.SubConversation
@@ -75,7 +76,8 @@ type ConvRowWithId =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe Int64
   )
 
 type ConvRow =
@@ -95,12 +97,13 @@ type ConvRow =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe Int64
   )
 
 splitIdFromRow :: ConvRowWithId -> (ConvId, ConvRow)
-splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
-  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent))
+splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth) =
+  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth))
 
 toProtocol ::
   Maybe ProtocolTag ->
@@ -132,7 +135,7 @@ toConv ::
   Maybe ConvRow ->
   Maybe StoredConversation
 toConv cid ms remoteMems mconv = do
-  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _) <- mconv
+  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _, _) <- mconv
   proto <- toProtocol ptag mgid mep mts mcs
   pure
     StoredConversation
@@ -144,7 +147,7 @@ toConv cid ms remoteMems mconv = do
       }
 
 toConvMeta :: ConvRow -> ConversationMetadata
-toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent) =
+toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent, mhdepth) =
   let accessRoles = maybeRole cty roleV2
    in ConversationMetadata
         { cnvmType = cty,
@@ -158,7 +161,12 @@ toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp
           cnvmGroupConvType = mgct,
           cnvmCellsState = fromMaybe def mcells,
           cnvmChannelAddPermission = mAp,
-          cnvmParent = mparent
+          cnvmParent = mparent,
+          cnvmHistory =
+            maybe
+              HistoryPrivate
+              (HistoryShared . HistorySharingConfig . historyDurationFromSecs)
+              mhdepth
         }
 
 newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation

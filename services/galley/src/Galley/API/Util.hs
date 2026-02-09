@@ -833,7 +833,8 @@ toConversationCreated now lusr StoredConversation {metadata = ConversationMetada
       receiptMode = cnvmReceiptMode,
       protocol = protocol,
       groupConvType = cnvmGroupConvType,
-      channelAddPermission = cnvmChannelAddPermission
+      channelAddPermission = cnvmChannelAddPermission,
+      history = Just cnvmHistory
     }
 
 -- | The function converts a 'ConversationCreated' value to a
@@ -897,7 +898,8 @@ fromConversationCreated loc rc@ConversationCreated {..} =
             cnvmGroupConvType = groupConvType,
             cnvmChannelAddPermission = channelAddPermission,
             cnvmCellsState = def,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = fromMaybe def history
           }
         (OwnConvMembers this others)
         ProtocolProteus

@@ -29,6 +29,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
 import Data.Misc (Milliseconds)
 import Data.Range
@@ -226,6 +227,7 @@ createTeamConvWithRole role g tid u us mtimer = do
           Nothing
           False
           Nothing
+          def
   r <-
     post
       ( g

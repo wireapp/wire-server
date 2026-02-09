@@ -396,6 +396,7 @@ type ConversationAPI =
                :> CanThrow UnreachableBackendsLegacy
                :> CanThrow 'NotAnMlsConversation
                :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -419,6 +420,7 @@ type ConversationAPI =
                :> CanThrow UnreachableBackendsLegacy
                :> CanThrow 'NotAnMlsConversation
                :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -442,6 +444,7 @@ type ConversationAPI =
                :> CanThrow UnreachableBackends
                :> CanThrow 'NotAnMlsConversation
                :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -465,6 +468,7 @@ type ConversationAPI =
                :> CanThrow UnreachableBackends
                :> CanThrow 'NotAnMlsConversation
                :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -487,6 +491,7 @@ type ConversationAPI =
                :> CanThrow UnreachableBackends
                :> CanThrow 'NotAnMlsConversation
                :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptConn
@@ -1335,6 +1340,26 @@ type ConversationAPI =
                     'PUT
                     '[JSON]
                     (UpdateResponses "Access unchanged" "Access updated" Event)
+                    (UpdateResult Event)
+           )
+    :<|> Named
+           "update-conversation-history"
+           ( Summary "Update history settings of a conversation"
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow ('ActionDenied 'ModifyConversationHistory)
+               :> CanThrow 'HistoryNotSupported
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "history"
+               :> ReqBody '[JSON] ConversationHistoryUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "History unchanged" "History updated" Event)
                     (UpdateResult Event)
            )
     :<|> Named

@@ -62,6 +62,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.Error
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
@@ -111,7 +112,8 @@ createConversation lcnv nc = do
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
         meta.cnvmCellsState,
-        meta.cnvmParent
+        meta.cnvmParent,
+        fmap (.depth) (historyConfig meta.cnvmHistory)
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, storedConv.id_)
   let localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
@@ -140,7 +142,7 @@ parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Imports.Set AccessRole) -> 
 parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
 toStoredConvRow :: Queries.ConvRow -> (Maybe Bool, StoreConv.ConvRow)
-toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
+toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth) =
   ( del,
     ( cty,
       muid,
@@ -158,7 +160,8 @@ toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mg
       mgct,
       mAp,
       mcells,
-      mparent
+      mparent,
+      fmap historyDurationToSecs mhdepth
     )
   )
 
@@ -209,6 +212,18 @@ getConvEpoch cid =
 
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
+
+updateConvHistory :: ConvId -> History -> Client ()
+updateConvHistory cid history =
+  retry x5 $
+    write
+      Cql.updateConvHistory
+      ( params
+          LocalQuorum
+          ( fmap (.depth) (historyConfig history),
+            cid
+          )
+      )
 
 updateConvCipherSuite :: ConvId -> CipherSuiteTag -> Client ()
 updateConvCipherSuite cid cs =
@@ -925,6 +940,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetConversationMessageTimer cid value -> do
     logEffect "ConversationStore.SetConversationMessageTimer"
     embedClient client $ updateConvMessageTimer cid value
+  SetConversationHistory cid value -> do
+    logEffect "ConversationStore.SetConversationHistory"
+    embedClient client $ updateConvHistory cid value
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     embedClient client $ updateConvEpoch cid epoch
@@ -1203,6 +1221,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ updateConvMessageTimer cid value
         True -> interpretConversationStoreToPostgres (ConvStore.setConversationMessageTimer cid value)
+  SetConversationHistory cid value -> do
+    logEffect "ConversationStore.SetConversationHistory"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvHistory cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationHistory cid value)
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     withMigrationLockAndCleanup client LockShared (Left cid) $
