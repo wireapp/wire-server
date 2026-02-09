@@ -815,9 +815,7 @@ testShadowConversation = do
   shadowConv <- postConversation charlie1 (defProteus {parent = Just convId.id_}) >>= getJSON 201
   shadowConvId <- objConvId shadowConv
 
-  fetchedConversation <- bindResponse (getConversationInternal charlie1 shadowConvId) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  fetchedConversation <- getConversationInternal charlie1 shadowConvId >>= getJSON 200
   fetchedMembers <- fetchedConversation %. "members"
   let extractId x = x %. "qualified_id"
   fetchedOtherMembers <- fetchedMembers %. "others" & asList

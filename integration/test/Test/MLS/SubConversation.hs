@@ -338,7 +338,7 @@ testCreatorRemovesUserFromParent = do
       for_ [charlie, alice] \m -> do
         resp <- getSubConversation m convId subConvName
         assertBool "alice and charlie should have access to the conversation" (resp.status == 200)
-        mems <- resp.jsonBody %. "members" & asList
+        mems <- resp.json %. "members" & asList
         mems `shouldMatchSet` ((renameField "id" "user_id" <=< make) `traverse` [alice1, charlie1, charlie2])
 
 testResendingProposals :: (HasCallStack) => App ()

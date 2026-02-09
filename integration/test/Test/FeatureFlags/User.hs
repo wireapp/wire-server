@@ -52,7 +52,7 @@ testFeatureConferenceCallingForUser = do
       >>= getBody 200
     I.getFeatureForUser u featureName `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      config <- resp.json
+      let config = resp.json
       config %. "status" `shouldMatch` "disabled"
 
       -- this config is just made up by brig, it does not reflect the actual value

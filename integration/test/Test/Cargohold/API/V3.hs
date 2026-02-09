@@ -84,7 +84,7 @@ testSimpleRoundtrip = do
               $ assertBool "invalid expiration" (Just utc < expires')
         _ -> pure ()
       -- Lookup with token and download via redirect.
-      r2 <- downloadAsset' uid r1.jsonBody tok
+      r2 <- downloadAsset' uid r1.json tok
       r2.status `shouldMatchInt` 302
       assertBool "Response body should be empty" $ r2.body == mempty
 
@@ -100,9 +100,9 @@ testSimpleRoundtrip = do
       assertBool "User mismatch" $ getHeader (mk $ cs "x-amz-meta-user") r3 == pure (cs uid')
       assertBool "Data mismatch" $ r3.body == cs "Hello World"
       -- Delete (forbidden for other users)
-      deleteAssetV3 uid2 r1.jsonBody >>= \r -> r.status `shouldMatchInt` 403
+      deleteAssetV3 uid2 r1.json >>= \r -> r.status `shouldMatchInt` 403
       -- Delete (allowed for creator)
-      deleteAssetV3 uid r1.jsonBody >>= \r -> r.status `shouldMatchInt` 200
+      deleteAssetV3 uid r1.json >>= \r -> r.status `shouldMatchInt` 200
       r4 <- downloadAsset' uid key tok
       r4.status `shouldMatchInt` 404
       let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
@@ -121,7 +121,7 @@ testUploadWrongContentLength = do
       tooBigContentLength = payloadBytes + 1024
   uploadRawV3 uid (body tooBigContentLength payload) >>= \resp -> do
     resp.status `shouldMatchInt` 400
-    resp.jsonBody %. "label" `shouldMatch` "incomplete-body"
+    resp.json %. "label" `shouldMatch` "incomplete-body"
 
   -- Sanity check
   key <-
