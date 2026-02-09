@@ -97,9 +97,9 @@ testGetSsoCodeByEmailWithMultiIngress = do
         ssoCodeStr <- resp.json %. "ssoCode" >>= asString
         ssoCodeStr `shouldMatch` idpIdErnie
 
-      -- Get the SSO code by email without Z-Host (should return nothing - multiple IdPs)
+      -- Get the SSO code by email without Z-Host (should return 404 with null - multiple IdPs)
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
+        resp.status `shouldMatchInt` 404
         mbSsoCode <- lookupField resp.json "ssoCode"
         mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
 
@@ -157,8 +157,86 @@ testGetSsoCodeByEmailNonScimUser = do
       -- Get the owner's email
       userEmail <- owner %. "email" & asString
 
-      -- Try to get SSO code for regular (non-SCIM) user - should return Nothing
+      -- Try to get SSO code for regular (non-SCIM) user - should return 404 with null
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
+        resp.status `shouldMatchInt` 404
+        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
+
+-- | Test that the endpoint returns 404 with null when the feature is disabled (regular setup)
+testGetSsoCodeByEmailDisabledRegular :: (HasCallStack) => App ()
+testGetSsoCodeByEmailDisabledRegular = do
+  withModifiedBackend
+    def {sparCfg = setField "enableIdPByEmailDiscovery" False}
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Create IdP
+      SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
+      void $ createIdp owner idpmeta >>= getJSON 201
+
+      -- Create a SCIM user
+      scimUser <- randomScimUser
+      userEmail <-
+        scimUser %. "emails" >>= asList >>= \case
+          (e : _) -> e %. "value" >>= asString
+          [] -> assertFailure "Expected at least one email"
+
+      -- With feature disabled, should return 404 with empty ssoCode
+      getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
+        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
+
+-- | Test that the endpoint returns 404 with null when the feature is disabled (multi-ingress setup)
+testGetSsoCodeByEmailDisabledMultiIngress :: (HasCallStack) => App ()
+testGetSsoCodeByEmailDisabledMultiIngress = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          setField "enableIdPByEmailDiscovery" False
+            >=> removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp." ++ ernieZHost),
+                          "spSsoUri" .= ("https://" ++ ernieZHost ++ "/sso"),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp." ++ bertZHost),
+                          "spSsoUri" .= ("https://" ++ bertZHost ++ "/sso"),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Create IdP for ernie domain
+      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
+      void $ createIdpWithZHost owner (Just ernieZHost) idpmetaErnie >>= getJSON 201
+
+      -- Create a SCIM user
+      scimUser <- randomScimUser
+      userEmail <-
+        scimUser %. "emails" >>= asList >>= \case
+          (e : _) -> e %. "value" >>= asString
+          [] -> assertFailure "Expected at least one email"
+
+      -- With feature disabled, should return 404 with null even with valid IdP
+      bindResponse (getSsoCodeByEmailWithZHost domain (Just ernieZHost) userEmail) $ \resp -> do
+        resp.status `shouldMatchInt` 404
         mbSsoCode <- lookupField resp.json "ssoCode"
         mbSsoCode `shouldMatch` (Nothing :: Maybe Value)

@@ -475,10 +475,9 @@ ssoSettings :: (Member DefaultSsoCode r) => Sem r SsoSettings
 ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
 
-getSsoCodeByEmail :: (Member IdPSubsystem r) => Maybe ZHostValue -> GetByEmailReq -> Sem r GetByEmailResp
-getSsoCodeByEmail mbHost (GetByEmailReq emailAddr) = do
-  mbIdPId <- IdPSubsystem.getSsoCodeByEmail mbHost emailAddr
-  pure $ GetByEmailResp mbIdPId
+getSsoCodeByEmail :: (Member IdPSubsystem r) => Maybe ZHostValue -> GetByEmailReq -> Sem r (Maybe SAML.IdPId)
+getSsoCodeByEmail mbHost (GetByEmailReq emailAddr) =
+  IdPSubsystem.getSsoCodeByEmail mbHost emailAddr
 
 ----------------------------------------------------------------------------
 -- IdPConfigStore API

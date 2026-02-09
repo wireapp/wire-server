@@ -27,6 +27,7 @@ import Data.Kind (Type)
 import Data.OpenApi qualified as Swagger
 import Data.Proxy
 import Data.Range
+import Data.SOP (I (..), pattern S, pattern Z)
 import Data.Schema
 import Imports
 import SAML2.WebSSO (IdPId (..))
@@ -45,6 +46,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
@@ -90,7 +92,13 @@ type APISSO =
            ( "get-by-email"
                :> ZHostOpt
                :> ReqBody '[JSON] GetByEmailReq
-               :> Post '[JSON] GetByEmailResp
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ Respond 200 "SSO code found" GetByEmailResp,
+                       Respond 404 "SSO code not found or feature disabled" GetByEmailResp
+                     ]
+                    (Maybe SAML.IdPId)
            )
 
 newtype GetByEmailReq = GetByEmailReq {email :: EmailAddress}
@@ -111,6 +119,18 @@ instance ToSchema GetByEmailResp where
     object "GetByEmailResp" $
       GetByEmailResp
         <$> (fmap fromIdPId . ssoCode) .= maybe_ (optField "ssoCode" (IdPId <$> uuidSchema))
+
+instance
+  AsUnion
+    '[ Respond 200 "SSO code found" GetByEmailResp,
+       Respond 404 "SSO code not found or feature disabled" GetByEmailResp
+     ]
+    (Maybe SAML.IdPId)
+  where
+  toUnion (Just idpId) = Z (I (GetByEmailResp (Just idpId)))
+  toUnion Nothing = S (Z (I (GetByEmailResp Nothing)))
+  fromUnion (Z (I (GetByEmailResp mbIdpId))) = mbIdpId
+  fromUnion (S (Z (I (GetByEmailResp mbIdpId)))) = mbIdpId
 
 type CheckOK = Verb 'HEAD 200
 

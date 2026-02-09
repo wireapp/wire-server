@@ -14,3 +14,4 @@ data IdPSubsystem m a where
 makeSem ''IdPSubsystem
 
 data IdPSubsystemError = InconsistentUsers
+  deriving (Show, Eq)
