@@ -601,9 +601,7 @@ newProvider user provider = do
   req <-
     baseRequest user Brig Versioned $
       joinHttpPath ["provider", "register"]
-  submit "POST" (req & addJSON p & addClientIP) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  submit "POST" (req & addJSON p & addClientIP) >>= getJSON 201
 
 getProvider ::
   (HasCallStack, MakesValue domain) =>
@@ -708,9 +706,7 @@ newService dom providerId service = do
   let addHdrs =
         addHeader "Z-Type" "provider"
           . addHeader "Z-Provider" providerId
-  submit "POST" (addJSON s . addHdrs $ req) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  submit "POST" (addJSON s . addHdrs $ req) >>= getJSON 201
 
 getService :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 getService domain pid sid = do

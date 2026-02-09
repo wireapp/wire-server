@@ -140,7 +140,9 @@ getBody status = flip withResponse \resp -> do
 getJSON :: (HasCallStack) => Int -> Response -> App Aeson.Value
 getJSON status = flip withResponse \resp -> do
   resp.status `shouldMatch` status
-  resp.json
+  resp.json >>= \case
+    Nothing -> assertFailure "Response has no JSON body"
+    Just json -> pure json
 
 -- | assert a response code in the 2** range
 assertSuccess :: (HasCallStack) => Response -> App ()

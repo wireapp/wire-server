@@ -85,7 +85,7 @@ testFeatureConfigConsistency = do
     parseObjectKeys res = do
       val <- res.json
       case val of
-        (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
+        (Just (A.Object hm)) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
 
 testNonMemberAccess :: (HasCallStack) => Feature -> App ()

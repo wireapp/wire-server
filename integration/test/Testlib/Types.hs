@@ -283,8 +283,8 @@ data Response = Response
   }
   deriving stock (Show)
 
-instance HasField "json" Response (App Aeson.Value) where
-  getField response = maybe (assertFailure "Response has no json body") pure response.jsonBody
+instance HasField "json" Response (App (Maybe Aeson.Value)) where
+  getField response = pure response.jsonBody
 
 data CredentialType = BasicCredentialType | X509CredentialType
   deriving (Eq, Show)

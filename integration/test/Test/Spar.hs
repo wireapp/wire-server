@@ -310,9 +310,7 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   userByIdExtId <- usersByExtIdResp.json %. "Resources" >>= asList >>= assertOne
   k userByIdExtId
 
-  userByUidResp <- getScimUser domain tok uid
-  userByUidResp.status `shouldMatchInt` 200
-  userByUid <- userByUidResp.json
+  userByUid <- getScimUser domain tok uid >>= getJSON 200
   k userByUid
 
   userByUid `shouldMatch` userByIdExtId
@@ -769,7 +767,8 @@ testSparEmulateSPInitiatedLogin = do
   assertSuccess createIdpResp
 
   -- craft authnresp without req
-  idpValue :: A.Value <- createIdpResp.json
+  idpValue <- withResponse createIdpResp $ \r ->
+    assertJust "Response has no JSON body" r.jsonBody
   let idp :: SAML.IdPConfig Value
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
   authnresp <- getAuthnResponse tid idp privcreds
@@ -791,7 +790,8 @@ testSparSPInitiatedLoginWithUtf8 = do
   assertSuccess createIdpResp
 
   -- gather info about idp and account
-  idpValue :: A.Value <- createIdpResp.json
+  idpValue <- withResponse createIdpResp $ \r ->
+    assertJust "Response has no JSON body" r.jsonBody
   randomness <- randomId
   let idp :: SAML.IdPConfig (Value {- not needed -})
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
