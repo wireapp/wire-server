@@ -102,3 +102,18 @@ testAssetUploadEphemeralUser = do
   bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     BSC.unpack resp.body `shouldMatch` "Hello World!"
+
+testAssetUploadEphemeralUserExpiration :: (HasCallStack) => App ()
+testAssetUploadEphemeralUserExpiration = do
+  let modifiedConfig = def {brigCfg = setField "zauth.authSettings.sessionTokenTimeout" (2 :: Int)}
+
+  withModifiedBackend modifiedConfig $ \domain -> do
+    user <- ephemeralUser domain
+
+    key <- bindResponse (uploadSomeAsset user) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "key"
+
+    eventually $ bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "unverified-user"
