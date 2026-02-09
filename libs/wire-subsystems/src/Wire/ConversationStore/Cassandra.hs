@@ -213,6 +213,18 @@ getConvEpoch cid =
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
+updateConvHistory :: ConvId -> History -> Client ()
+updateConvHistory cid history =
+  retry x5 $
+    write
+      Cql.updateConvHistory
+      ( params
+          LocalQuorum
+          ( fmap (.depth) (historyConfig history),
+            cid
+          )
+      )
+
 updateConvCipherSuite :: ConvId -> CipherSuiteTag -> Client ()
 updateConvCipherSuite cid cs =
   retry x5 $
@@ -928,10 +940,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetConversationMessageTimer cid value -> do
     logEffect "ConversationStore.SetConversationMessageTimer"
     embedClient client $ updateConvMessageTimer cid value
-  SetConversationHistory _cid _value -> do
-    -- conversation history not supported in cassandra
+  SetConversationHistory cid value -> do
     logEffect "ConversationStore.SetConversationHistory"
-    pure ()
+    embedClient client $ updateConvHistory cid value
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     embedClient client $ updateConvEpoch cid epoch
@@ -1210,8 +1221,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ updateConvMessageTimer cid value
         True -> interpretConversationStoreToPostgres (ConvStore.setConversationMessageTimer cid value)
-  SetConversationHistory _cid _value -> do
+  SetConversationHistory cid value -> do
     logEffect "ConversationStore.SetConversationHistory"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvHistory cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationHistory cid value)
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     withMigrationLockAndCleanup client LockShared (Left cid) $

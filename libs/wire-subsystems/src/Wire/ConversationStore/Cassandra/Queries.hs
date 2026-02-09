@@ -175,6 +175,9 @@ getConvEpoch = "select epoch from conversation where conv = ?"
 updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
 updateConvEpoch = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set epoch = ? where conv = ?"
 
+updateConvHistory :: PrepQuery W (Maybe HistoryDuration, ConvId) ()
+updateConvHistory = "update conversation set history_depth = ? where conv = ?"
+
 updateConvCipherSuite :: PrepQuery W (CipherSuiteTag, ConvId) ()
 updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?"
 

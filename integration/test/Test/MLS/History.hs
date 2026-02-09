@@ -106,6 +106,37 @@ testRegularConvCannotSetHistory = do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "history-not-supported"
 
+testSetHistory :: App ()
+testSetHistory = do
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
+
+  let history = object ["depth" .= "infinite"]
+
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  convId <-
+    createNewGroupWith
+      def
+      alice1
+      defMLS
+        { team = Just tid,
+          groupConvType = Just "channel"
+        }
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  bindResponse (updateHistory bob convId history) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "action-denied"
+
+  bindResponse (updateHistory alice convId history) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  conv <- getConversation alice convId >>= getJSON 200
+  conv %. "history" `shouldMatch` history
+
 channelsConfig :: Value
 channelsConfig =
   object
