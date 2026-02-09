@@ -1,0 +1,5 @@
+cannon: Delete obsolete wsOpts
+
+This option was never exposed in the helm chart config, so noone ever configured
+it. The code using this was removed in
+https://github.com/wireapp/wire-server/pull/4994
