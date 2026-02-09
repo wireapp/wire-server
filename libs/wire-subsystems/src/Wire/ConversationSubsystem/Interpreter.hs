@@ -51,6 +51,7 @@ import Wire.API.Federation.API (makeConversationUpdateBundle, sendBundle)
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.History (History (HistoryPrivate))
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission
@@ -107,6 +108,7 @@ interpretConversationSubsystem ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ChannelsNotEnabled) r,
     Member (ErrorS 'NotAnMlsConversation) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
@@ -150,6 +152,7 @@ createGroupConversationGeneric ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'ChannelsNotEnabled) r,
     Member (ErrorS 'NotAnMlsConversation) r,
+    Member (ErrorS HistoryNotSupported) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -172,6 +175,9 @@ createGroupConversationGeneric lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
+  when (newConv.newConvHistory /= HistoryPrivate) $ do
+    when (Public.newConvProtocol newConv == BaseProtocolMLSTag) $ throwS @HistoryNotSupported
+    when (newConv.newConvGroupConvType /= Channel) $ throwS @HistoryNotSupported
 
   when (Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
     assertMLSEnabled

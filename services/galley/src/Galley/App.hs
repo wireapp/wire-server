@@ -382,6 +382,7 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . mapError toResponse
+        . mapError toResponse
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . interpretQueue (e ^. deleteQueue)

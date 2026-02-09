@@ -182,6 +182,7 @@ dispatchJob job = do
         . mapError @UnreachableBackends (T.pack . show)
         . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
         . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
+        . mapError @(Tagged HistoryNotSupported ()) (const ("History not supported" :: Text))
         . mapError @(Tagged OperationDenied ()) (const ("Operation denied" :: Text))
         . mapError @(Tagged 'NotATeamMember ()) (const ("Not a team member" :: Text))
         . mapError @(Tagged 'ConvAccessDenied ()) (const ("Conversation access denied" :: Text))

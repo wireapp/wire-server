@@ -166,6 +166,7 @@ type GalleyEffects1 =
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
+     ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
      ErrorS 'NotConnected,
