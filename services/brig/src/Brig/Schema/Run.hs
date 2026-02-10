@@ -66,7 +66,7 @@ import Brig.Schema.V88_DomainRegistrationTable qualified as V88_DomainRegistrati
 import Brig.Schema.V89_UpdateDomainRegistrationSchema qualified as V89_UpdateDomainRegistrationSchema
 import Brig.Schema.V90_DomainRegistrationTeamIndex qualified as V90_DomainRegistrationTeamIndex
 import Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl qualified as V91_UpdateDomainRegistrationSchema_AddWebappUrl
-import Brig.Schema.V92_AddUserType qualified as V92_AddUserType 
+import Brig.Schema.V92_AddUserType qualified as V92_AddUserType
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
