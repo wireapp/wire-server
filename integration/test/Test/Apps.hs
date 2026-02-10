@@ -106,8 +106,16 @@ testCreateApp = do
       foundUserType searcher exactMatchTerm aTypes =
         searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
-          foundDoc <- resp.json %. "documents" >>= asList
-          (%. "type") `mapM` foundDoc `shouldMatch` aTypes
+          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+          docsInTeam :: [Value] <- do
+            -- make sure that matches from previous test runs don't get in the way.
+            catMaybes
+              <$> ( forM foundDocs $ \doc -> do
+                      tidActual :: String <- doc %. "team" & asString
+                      pure $ if tidActual == tid then Just doc else Nothing
+                  )
+
+          (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
 
   -- App's user is findable from /search/contacts
   BrigI.refreshIndex domain
