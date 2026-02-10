@@ -50,7 +50,6 @@ import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.CaseInsensitive as CI
-import Data.CommaSeparatedList
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
 import Data.Id
@@ -66,7 +65,7 @@ import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
 import URI.ByteString
 import Wire.API.Asset
-import Wire.API.Routes.Internal.Brig (brigInternalClient)
+import Wire.API.User (AccountStatus (..))
 
 upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (Asset' (Local AssetKey))
 upload own bdy = do
@@ -129,18 +128,15 @@ download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> 
 download own key tok mbHost = runMaybeT $ do
   qown <- lift $ qualifyLocal own
   meta <- checkMetadata (tUntagged qown) key tok
-  guardUserExists
+  case own of
+    V3.UserPrincipal uid -> do
+      status <- lift $ getUserStatus uid
+      case status of
+        Just Active -> pure ()
+        Just Ephemeral -> pure ()
+        _ -> lift $ throwE unverifiedUser
+    _ -> pure ()
   lift $ genSignedURL (Just $ tUntagged qown) (Just meta) (S3.mkKey key) mbHost
-  where
-    guardUserExists =
-      case own of
-        V3.UserPrincipal uid -> do
-          -- ephemeral user deletion is triggerd on user lookup, therefore getting the status is not enough here
-          result <- lift $ lift $ executeBrigInteral $ brigInternalClient @"iGetUsersByVariousKeys" (Just $ CommaSeparatedList [uid]) Nothing Nothing Nothing
-          case result of
-            Right [_] -> pure ()
-            _ -> lift $ throwE unverifiedUser
-        _ -> pure ()
 
 downloadUnsafe :: V3.AssetKey -> Maybe Text -> Handler URI
 downloadUnsafe key mbHost = do

@@ -17,7 +17,7 @@
 
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
-import CargoHold.API.Error (unverifiedUser, userNotFound)
+import CargoHold.API.Error (unverifiedUser)
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
@@ -42,11 +42,10 @@ import Servant.Server hiding (Handler)
 import URI.ByteString as URI
 import Wire.API.Asset
 import Wire.API.Routes.AssetBody
-import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.User (AccountStatus (..), AccountStatusResp (..))
+import Wire.API.User (AccountStatus (..))
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -176,12 +175,10 @@ uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   case principal of
     V3.UserPrincipal uid -> do
-      status <-
-        lift (executeBrigInteral $ brigInternalClient @"iGetUserStatus" uid)
-          >>= either (const $ throwE userNotFound) pure
-      case fromAccountStatusResp status of
-        Active -> pure ()
-        Ephemeral -> pure ()
+      status <- getUserStatus uid
+      case status of
+        Just Active -> pure ()
+        Just Ephemeral -> pure ()
         _ -> throwE unverifiedUser
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)

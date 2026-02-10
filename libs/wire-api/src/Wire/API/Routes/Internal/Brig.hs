@@ -418,6 +418,13 @@ type AccountAPI =
                :> "users"
                :> Capture "uid" UserId
                :> "status"
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "When true, enqueue deletion of expired ephemeral users before returning status"
+                    ]
+                    "gc"
+                    Bool
                :> Get '[Servant.JSON] AccountStatusResp
            )
     :<|> Named
