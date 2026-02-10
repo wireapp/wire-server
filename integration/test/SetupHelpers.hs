@@ -67,7 +67,7 @@ ephemeralUser :: (HasCallStack, MakesValue domain) => domain -> App Value
 ephemeralUser domain = do
   name <- randomName
   req <- baseRequest domain Brig Versioned "/register"
-  (submit "POST" $ req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42")
+  submit "POST" (req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42")
     >>= getJSON 201
 
 deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
