@@ -29,7 +29,7 @@ module Wire.API.User.Identity
     ssoIdentity,
     userIdentityObjectSchema,
     maybeUserIdentityObjectSchema,
-    maybeUserIdentityFromComponents, -- FUTUREWORK: do not export?  (if it is easy)
+    maybeUserIdentityFromComponents,
 
     -- * Type
     UserType (..),
