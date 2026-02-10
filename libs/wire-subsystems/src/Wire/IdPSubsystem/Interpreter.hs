@@ -9,6 +9,7 @@ import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
 import Data.Qualified
 import Data.Text qualified as Text
+import Data.UUID qualified as UUID
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -48,7 +49,7 @@ interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
                 case mbTeam of
                   Just team -> do
                     idps <- getConfigsByTeam team
-                    pure $ selectIdP mbHost idps
+                    selectIdP mbHost idps
                   Nothing -> pure Nothing
           tooManyUsers -> do
             Logger.warn $
@@ -60,12 +61,12 @@ interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
 userIdToText :: Qualified UserId -> Text
 userIdToText uid = idToText (qUnqualified uid) <> "@" <> domainText (qDomain uid)
 
-selectIdP :: Maybe Text -> [IP.IdP] -> Maybe SAML.IdPId
+selectIdP :: (Member (Logger (Log.Msg -> Log.Msg)) r) => Maybe Text -> [IP.IdP] -> Sem r (Maybe SAML.IdPId)
 selectIdP mbHost idps = case idps of
   -- No IdPs: no match
-  [] -> Nothing
+  [] -> pure Nothing
   -- Exactly one IdP: always return it
-  [idp] -> pure (idp ^. SAML.idpId)
+  [idp] -> (pure . pure) (idp ^. SAML.idpId)
   -- Multiple IdPs: find by domain if host provided
   _idps' -> findIdPByDomain mbHost idps
 
@@ -73,7 +74,14 @@ isScimOrSsoUser :: User -> Bool
 isScimOrSsoUser user =
   userManagedBy user == ManagedByScim && isJust (userSSOId user)
 
-findIdPByDomain :: Maybe Text -> [IP.IdP] -> Maybe SAML.IdPId
+findIdPByDomain :: (Member (Logger (Log.Msg -> Log.Msg)) r) => Maybe Text -> [IP.IdP] -> Sem r (Maybe SAML.IdPId)
 findIdPByDomain mbHost idps = do
-  idp <- find (\idp -> (idp ^. SAML.idpExtraInfo . IP.domain) == mbHost) idps
-  pure $ idp ^. SAML.idpId
+  let matches :: [SAML.IdPId] =
+        SAML._idpId
+          <$> filter (\idp -> (idp ^. SAML.idpExtraInfo . IP.domain) == mbHost) idps
+  when (length matches > 1) $
+    Logger.warn $
+      Log.msg @Text "Found more than one IdP config for domain"
+        . Log.field "domain" (fromMaybe "None" mbHost)
+        . Log.field "idpIds" (intercalate "," $ (UUID.toString . SAML.fromIdPId) <$> matches)
+  pure $ listToMaybe matches

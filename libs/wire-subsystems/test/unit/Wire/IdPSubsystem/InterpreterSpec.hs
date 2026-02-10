@@ -195,10 +195,13 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       resultTail `shouldBe` Right (Just idp._idpId)
       filter (\(lvl, _msg) -> lvl > Log.Info) logsTail `shouldBe` mempty
 
-    prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user (idps :: NE.NonEmpty IdP) userRef email teamId mbDomain -> do
+    -- TODO: Test: Multiple IdPs none matching
+    prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
       -- This should not happen, because the IdP management API allows to
       -- create only one IdP per domain. However, better not have undefined
       -- behaviour - Just in case...
+
+      idps :: NE.NonEmpty IdP <- generate $ (resize 2 arbitrary) `suchThat` ((>= 2) . length)
       let userWithEmail =
             user
               { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
@@ -231,7 +234,11 @@ spec = describe "IdPSubsystem.Interpreter" $ do
                             Right (Just x) -> x `elem` expectedIdPIds
                             e -> error $ "Unexpected result " <> show e
                         )
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+
+      let warnLogs = filter (\(lvl, _msg) -> lvl > Log.Info) logs
+      length warnLogs `shouldBe` 1
+      (fst . head) warnLogs `shouldBe` Log.Warn
+      (BSUTF8.toString . snd . head) warnLogs `shouldStartWith` "Found more than one IdP config for domain"
 
     prop "returns Nothing for an unknown email" $ \(teamMember :: TeamMember) user idp userRef email anotherEmail teamId mbDomain -> do
       let userWithEmail =
