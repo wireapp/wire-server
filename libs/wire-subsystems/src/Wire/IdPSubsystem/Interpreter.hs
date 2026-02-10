@@ -23,7 +23,6 @@ import Wire.IdPSubsystem
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Logger qualified as Logger
 
--- TODO: Use RateLimit effect for rate limiting
 interpretIdPSubsystem ::
   ( Member BrigAPIAccess r,
     Member GalleyAPIAccess r,
@@ -38,7 +37,6 @@ interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
     if not enableIdPByEmailDiscovery
       then pure Nothing
       else do
-        -- TODO: Rate limiting
         users <- getUsersByVariousKeys [] [] [email] NoPendingInvitations
         case users of
           [] -> pure Nothing
