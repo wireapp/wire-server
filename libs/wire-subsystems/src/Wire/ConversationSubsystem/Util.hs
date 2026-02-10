@@ -1254,17 +1254,25 @@ notifyConversationCreated lusr conn conv joinType = do
         | Data.convType conv == Public.RegularConv = PushV2.RouteAny
         | otherwise = PushV2.RouteDirect
 
-  forM_ lusers $ \lm -> do
-    let luid = toLocalUnsafe (tDomain lusr) lm.id_
-    forM_ (conversationViewMaybe luid remoteOthers localOthers conv) $ \ownConv -> do
-      let e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConversation ownConv)
-      pushNotifications
-        [ def
-            { origin = Just (tUnqualified lusr),
-              json = toJSONObject e,
-              recipients = [userRecipient lm.id_],
-              isCellsEvent = False,
-              route = route,
-              conn = if lm.id_ == tUnqualified lusr then conn else Nothing
-            }
-        ]
+  pushes' <-
+    catMaybes
+      <$> traverse
+        ( \lm -> do
+            let luid = toLocalUnsafe (tDomain lusr) lm.id_
+            case conversationViewMaybe luid remoteOthers localOthers conv of
+              Nothing -> pure Nothing
+              Just ownConv -> do
+                let e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConversation ownConv)
+                pure $
+                  Just
+                    def
+                      { origin = Just (tUnqualified lusr),
+                        json = toJSONObject e,
+                        recipients = [localMemberToRecipient lm],
+                        isCellsEvent = False,
+                        route = route,
+                        conn = conn
+                      }
+        )
+        lusers
+  pushNotifications pushes'
