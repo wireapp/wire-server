@@ -354,6 +354,9 @@ validateLoginId :: LoginId -> Either EmailKey Handle
 validateLoginId (LoginByEmail email) = (Left . mkEmailKey) email
 validateLoginId (LoginByHandle h) = Right h
 
+-- Has a user been activated so they can login?  (This does not apply
+-- to apps, because they do not login, they already have their
+-- cookie.)
 isPendingActivation ::
   forall r.
   ( Member UserSubsystem r,
@@ -387,7 +390,6 @@ isPendingActivation ident = case ident of
        in statusAdmitsPending && case i of
             Just (EmailIdentity e) -> mkEmailKey e /= k
             Just SSOIdentity {} -> False -- sso-created users are activated immediately.
-            Just AppIdentity {} -> False -- apps are activated immediately.
             Nothing -> True
 
 -- | Validate a list of (User/LH) tokens potentially with an associated access token.

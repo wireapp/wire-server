@@ -38,11 +38,8 @@ spec = do
        in if not storedUser.activated
             then user.userIdentity === Nothing
             else
-              if storedUser.userType == Just UserTypeApp
-                then user.userIdentity === Just (AppIdentity storedUser.id)
-                else
-                  (emailIdentity =<< user.userIdentity) === storedUser.email
-                    .&&. (ssoIdentity =<< user.userIdentity) === storedUser.ssoId
+              (emailIdentity =<< user.userIdentity) === storedUser.email
+                .&&. (ssoIdentity =<< user.userIdentity) === storedUser.ssoId
 
     prop "user deleted" $ \domain defaultLocale storedUser ->
       let user = mkUserFromStored domain defaultLocale storedUser

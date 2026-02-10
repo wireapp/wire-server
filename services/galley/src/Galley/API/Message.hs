@@ -91,7 +91,7 @@ import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
-data UserType = User | Bot
+data UserType = User | Bot -- FUTUREWORK: there is UserType in Wire.API.User now, should we use that?  (there is also UserType variant for searcho/contacts, but there is a good reason for that one.)
 
 userToProtectee :: UserType -> UserId -> LegalholdProtectee
 userToProtectee User user = ProtectedUser user

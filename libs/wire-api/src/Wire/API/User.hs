@@ -167,7 +167,6 @@ import Data.ByteString.Conversion
 import Data.CaseInsensitive qualified as CI
 import Data.Code qualified as Code
 import Data.Currency qualified as Currency
-import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
@@ -181,8 +180,7 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.SOP
-import Data.Schema
-import Data.Schema qualified as Schema
+import Data.Schema as Schema
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Ascii
@@ -465,40 +463,6 @@ instance (KnownNat max, 1 <= max) => FromJSON (LimitedQualifiedUserIdList max) w
 
 instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
   toJSON e = A.object ["qualified_users" A..= qualifiedUsers e]
-
---------------------------------------------------------------------------------
--- UserType
-
-data UserType = UserTypeRegular | UserTypeApp | UserTypeBot
-  deriving (Eq, Show, Ord, Generic)
-  deriving (Arbitrary) via (GenericUniform UserType)
-  deriving (A.FromJSON, A.ToJSON) via (Schema UserType)
-
-instance Default UserType where
-  def = UserTypeRegular
-
-instance ToSchema UserType where
-  schema =
-    Schema.enum @Text "UserType" $
-      mconcat
-        [ Schema.element "regular" UserTypeRegular,
-          Schema.element "app" UserTypeApp,
-          Schema.element "bot" UserTypeBot
-        ]
-
-instance C.Cql UserType where
-  ctype = C.Tagged C.IntColumn
-
-  toCql UserTypeRegular = C.CqlInt 0
-  toCql UserTypeBot = C.CqlInt 1
-  toCql UserTypeApp = C.CqlInt 2
-
-  fromCql (C.CqlInt i) = case i of
-    0 -> pure UserTypeRegular
-    1 -> pure UserTypeBot
-    2 -> pure UserTypeApp
-    n -> Left $ "unexpected user type: " ++ show n
-  fromCql _ = Left "user type: int expected"
 
 --------------------------------------------------------------------------------
 -- UserProfile

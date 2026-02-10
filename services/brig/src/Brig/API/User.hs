@@ -452,6 +452,9 @@ createUser rateLimitKey new = do
       User ->
       StoredInvitation ->
       EmailKey ->
+      -- if you are surprised because apps don't even have a
+      -- UserIdentity: we're in createUser here, so apps are not in
+      -- the picture.
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
     acceptInvitationToTeam account inv uk ident = do
@@ -478,7 +481,14 @@ createUser rateLimitKey new = do
           UserPendingActivationStore.remove uid
           InvitationStore.deleteInvitation inv.teamId inv.invitationId
 
-    addUserToTeamSSO :: User -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO ::
+      User ->
+      TeamId ->
+      -- if you are surprised because apps don't even have a
+      -- UserIdentity: we're in createUser here, so apps are not in
+      -- the picture
+      UserIdentity ->
+      ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId account
       added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid Nothing defaultRole
@@ -746,6 +756,8 @@ onActivated (AccountActivated account) = liftSem $ do
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing $ UserActivated account
+  -- userIdentity is always Just at the time of writing this comment,
+  -- since account has been activated already.
   pure (uid, userIdentity account, True)
 onActivated (EmailActivated uid email) = liftSem $ do
   User.internalUpdateSearchIndex uid

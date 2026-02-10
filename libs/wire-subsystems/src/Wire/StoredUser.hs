@@ -129,21 +129,18 @@ toLocale l _ = l
 -- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the
 -- user is activated.
 toIdentity ::
-  UserId ->
   -- | Whether the user is activated
   Bool ->
   Maybe EmailAddress ->
   Maybe UserSSOId ->
-  Maybe UserType ->
   Maybe UserIdentity
-toIdentity uid True _ _ (Just UserTypeApp) = Just $! AppIdentity uid
-toIdentity _ True (Just e) Nothing _ = Just $! EmailIdentity e
-toIdentity _ True email (Just ssoid) _ = Just $! SSOIdentity ssoid email
-toIdentity _ True Nothing Nothing _ = Nothing
-toIdentity _ False _ _ _ = Nothing
+toIdentity True (Just e) Nothing = Just $! EmailIdentity e
+toIdentity True email (Just ssoid) = Just $! SSOIdentity ssoid email
+toIdentity True Nothing Nothing = Nothing
+toIdentity False _ _ = Nothing
 
 instance HasField "identity" StoredUser (Maybe UserIdentity) where
-  getField user = toIdentity user.id user.activated user.email user.ssoId user.userType
+  getField user = toIdentity user.activated user.email user.ssoId
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country
@@ -216,7 +213,7 @@ newStoredUserToUser (Qualified new domain) =
   User
     { userQualifiedId = Qualified new.id domain,
       -- save identity even if the user is not activated
-      userIdentity = toIdentity new.id True new.email new.ssoId (Just new.userType),
+      userIdentity = toIdentity new.activated new.email new.ssoId,
       userEmailUnvalidated = Nothing,
       userDisplayName = new.name,
       userTextStatus = new.textStatus,
