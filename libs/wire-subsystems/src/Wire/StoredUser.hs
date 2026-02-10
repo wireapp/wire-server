@@ -125,22 +125,34 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _ = l
 
+toIdentity ::
+  Maybe EmailAddress ->
+  Maybe UserSSOId ->
+  Maybe UserIdentity
+toIdentity (Just e) Nothing = Just $! EmailIdentity e
+toIdentity email (Just ssoid) = Just $! SSOIdentity ssoid email
+toIdentity Nothing Nothing = Nothing
+
 -- | If the user is not activated, 'toIdentity' will return 'Nothing', because
 -- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the
 -- user is activated.
-toIdentity ::
+--
+-- FUTUREWORK(fisx): our account status representation is a mess.  we
+-- have `activated` for personal users that have an invitation
+-- pending; `status` for team members; sometimes no user identity
+-- means not activated; and maybe more exceptions that i haven't found
+-- today?  this needs to be cleaned up!
+toIdentityIfActivated ::
   -- | Whether the user is activated
   Bool ->
   Maybe EmailAddress ->
   Maybe UserSSOId ->
   Maybe UserIdentity
-toIdentity True (Just e) Nothing = Just $! EmailIdentity e
-toIdentity True email (Just ssoid) = Just $! SSOIdentity ssoid email
-toIdentity True Nothing Nothing = Nothing
-toIdentity False _ _ = Nothing
+toIdentityIfActivated True e s = toIdentity e s
+toIdentityIfActivated False _ _ = Nothing
 
 instance HasField "identity" StoredUser (Maybe UserIdentity) where
-  getField user = toIdentity user.activated user.email user.ssoId
+  getField user = toIdentityIfActivated user.activated user.email user.ssoId
 
 instance HasField "locale" StoredUser (Maybe Locale) where
   getField user = Locale <$> user.language <*> pure user.country
@@ -208,12 +220,13 @@ deriving instance
 instance HasField "service" NewStoredUser (Maybe ServiceRef) where
   getField user = ServiceRef <$> user.serviceId <*> user.providerId
 
+-- This saves the identity from `NewStoredUser` even if the user is
+-- not activated.
 newStoredUserToUser :: Qualified NewStoredUser -> User
 newStoredUserToUser (Qualified new domain) =
   User
     { userQualifiedId = Qualified new.id domain,
-      -- save identity even if the user is not activated
-      userIdentity = toIdentity new.activated new.email new.ssoId,
+      userIdentity = toIdentity new.email new.ssoId,
       userEmailUnvalidated = Nothing,
       userDisplayName = new.name,
       userTextStatus = new.textStatus,
