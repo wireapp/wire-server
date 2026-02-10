@@ -19,6 +19,15 @@
       "settings": {
         "haskell.manageHLS": "PATH"
       }
+    },
+    "codespaces": {
+      "repositories": {
+        "wireapp/wire-server-enterprise": {
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      }
     }
   }
 }
