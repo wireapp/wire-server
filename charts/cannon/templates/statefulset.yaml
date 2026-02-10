@@ -109,6 +109,10 @@ spec:
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
         {{- end }}
+        {{- if .Values.cannonArgs }}
+        args:
+{{ toYaml .Values.cannonArgs | indent 10 }}
+        {{- end }}
         volumeMounts:
         - name: empty
           mountPath: /etc/wire/cannon/externalHost

@@ -3,6 +3,8 @@ image:
   repository: quay.io/wire/cannon
   tag: do-not-use
   pullPolicy: IfNotPresent
+# Optional extra arguments passed to cannon (e.g. ["+RTS", "-M2g", "-RTS"])
+cannonArgs: []
 nginzImage:
   repository: quay.io/wire/nginz
   tag: do-not-use
