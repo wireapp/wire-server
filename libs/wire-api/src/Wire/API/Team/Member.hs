@@ -491,6 +491,7 @@ data HiddenPerm
   | JoinRegularConversations
   | CreateApp
   | ManageApps
+  | DeleteApps
   | UpdateTeamCollaborator
   | RemoveTeamCollaborator
   | SetMemberSearchable
@@ -583,6 +584,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             NewTeamCollaborator,
             CreateApp,
             ManageApps,
+            DeleteApps,
             UpdateTeamCollaborator,
             RemoveTeamCollaborator,
             SetMemberSearchable,

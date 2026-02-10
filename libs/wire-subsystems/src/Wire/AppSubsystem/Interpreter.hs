@@ -204,6 +204,7 @@ getAppsImpl lusr tid = do
 
 deleteAppImpl ::
   ( Member AuthenticationSubsystem r,
+    Member (Error AppSubsystemError) r,
     Member GalleyAPIAccess r
   ) =>
   Local UserId ->
@@ -212,9 +213,11 @@ deleteAppImpl ::
   Apps.DeleteApp ->
   Sem r ()
 deleteAppImpl lusr tid app del = do
-  verifyUserPasswordError lusr del.password
-  todo "make sure lusr is owner/admin of tid"
-  deleteUserAccount lusr app
+  verifyUserPasswordError lusr del.password -- FUTUREWORK: is this assertion redundant?
+  getTeamMember (tUnqualified lusr) tid >>= \case
+    Nothing -> throw AppSubsystemErrorNoPerm
+    Just mem -> unless (mem `T.hasPermission` T.DeleteApps) (throw AppSubsystemErrorNoPerm)
+  deleteTeamMember tid app del.password
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,
