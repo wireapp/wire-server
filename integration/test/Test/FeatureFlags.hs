@@ -82,7 +82,7 @@ testFeatureConfigConsistency = do
     $ assertFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
   where
     parseObjectKeys :: Response -> App (Set.Set String)
-    parseObjectKeys res = do
+    parseObjectKeys res =
       case res.json of
         (Just (A.Object hm)) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
