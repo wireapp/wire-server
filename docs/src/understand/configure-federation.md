@@ -844,7 +844,16 @@ federate:
        ...
 ```
 
-Then redeploy `coturn`
+Our coturn solution has an updated rate-limiting feature we added to mitigate DDOS reflection usage of coturn servers. You will need to add the federating servers public IP addresses of calling services, as well as your local SFTD public IPs to the allowlist list.
+
+```yaml
+ratelimit:
+  allowlist:
+    - "federating.servers.calling.servicesIPs"
+    - "local.sftd.public.ip"
+```
+
+To re-deploy `coturn`
 
 ```bash
 d helm upgrade --install coturn charts/coturn -f values/coturn/values.yaml -f values/coturn/secrets.yaml
