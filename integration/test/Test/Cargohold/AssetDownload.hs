@@ -91,8 +91,8 @@ testDownloadAssetMultiIngressS3DownloadUrl = do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"
 
-testAssetUploadEphemeralUser :: (HasCallStack) => App ()
-testAssetUploadEphemeralUser = do
+testUploadDownloadAssetEphemeralUser :: (HasCallStack) => App ()
+testUploadDownloadAssetEphemeralUser = do
   user <- ephemeralUser OwnDomain
 
   key <- bindResponse (uploadSomeAsset user) $ \resp -> do
@@ -103,8 +103,8 @@ testAssetUploadEphemeralUser = do
     resp.status `shouldMatchInt` 200
     BSC.unpack resp.body `shouldMatch` "Hello World!"
 
-testAssetUploadEphemeralUserExpiration :: (HasCallStack) => App ()
-testAssetUploadEphemeralUserExpiration = do
+testUploadDownloadAssetEphemeralUserExpiration :: (HasCallStack) => App ()
+testUploadDownloadAssetEphemeralUserExpiration = do
   let modifiedConfig = def {brigCfg = setField "zauth.authSettings.sessionTokenTimeout" (2 :: Int)}
 
   withModifiedBackend modifiedConfig $ \domain -> do
@@ -114,6 +114,10 @@ testAssetUploadEphemeralUserExpiration = do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"
 
-    eventually $ bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
+    retryT $ bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "unverified-user"
+
+    retryT $ bindResponse (uploadSomeAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "unverified-user"
