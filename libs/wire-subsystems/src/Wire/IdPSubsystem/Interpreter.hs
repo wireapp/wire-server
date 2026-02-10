@@ -67,15 +67,13 @@ selectIdP mbHost idps = case idps of
   -- Exactly one IdP: always return it
   [idp] -> pure (idp ^. SAML.idpId)
   -- Multiple IdPs: find by domain if host provided
-  _idps' -> case mbHost of
-    Just host -> findIdPByDomain host idps
-    Nothing -> Nothing
+  _idps' -> findIdPByDomain mbHost idps
 
 isScimOrSsoUser :: User -> Bool
 isScimOrSsoUser user =
   userManagedBy user == ManagedByScim && isJust (userSSOId user)
 
-findIdPByDomain :: Text -> [IP.IdP] -> Maybe SAML.IdPId
-findIdPByDomain host idps = do
-  idp <- find (\idp -> (idp ^. SAML.idpExtraInfo . IP.domain) == Just host) idps
+findIdPByDomain :: Maybe Text -> [IP.IdP] -> Maybe SAML.IdPId
+findIdPByDomain mbHost idps = do
+  idp <- find (\idp -> (idp ^. SAML.idpExtraInfo . IP.domain) == mbHost) idps
   pure $ idp ^. SAML.idpId

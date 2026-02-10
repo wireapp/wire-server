@@ -195,7 +195,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       resultTail `shouldBe` Right (Just idp._idpId)
       filter (\(lvl, _msg) -> lvl > Log.Info) logsTail `shouldBe` mempty
 
-    prop "returns and IdP if there are multiple" $ \(teamMember :: TeamMember) user (idps :: NE.NonEmpty IdP) userRef email teamId dom -> do
+    prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user (idps :: NE.NonEmpty IdP) userRef email teamId mbDomain -> do
       -- This should not happen, because the IdP management API allows to
       -- create only one IdP per domain. However, better not have undefined
       -- behaviour - Just in case...
@@ -209,7 +209,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
 
           idpsWithTeam =
             idps
-              <&> SAML.idpExtraInfo . domain ?~ dom
+              <&> SAML.idpExtraInfo . domain .~ mbDomain
               <&> SAML.idpExtraInfo . team .~ teamId
 
           teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
@@ -222,7 +222,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (NE.toList idpsWithTeam)
               teams
               (brigAPIAccessMockFn email userWithEmail)
-              (getSsoCodeByEmail (Just dom) email)
+              (getSsoCodeByEmail mbDomain email)
 
           expectedIdPIds :: [SAML.IdPId] = NE.toList $ ((SAML._idpId) <$> idpsWithTeam)
 
