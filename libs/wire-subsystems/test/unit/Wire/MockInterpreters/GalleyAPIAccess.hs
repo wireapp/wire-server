@@ -82,7 +82,7 @@ memberIsTeamOwnerImpl :: Map TeamId [TeamMember] -> TeamId -> UserId -> Bool
 memberIsTeamOwnerImpl teams tid uid =
   case getTeamMemberImpl teams uid tid of
     Nothing -> False
-    Just mem -> mem ^. userId == uid && mem ^. permissions . to isAdminOrOwner
+    Just mem -> mem ^. userId == uid && mem ^. permissions . to isOwner
 
 getTeamMemberImpl :: Map TeamId [TeamMember] -> UserId -> TeamId -> Maybe TeamMember
 getTeamMemberImpl teams uid tid = do

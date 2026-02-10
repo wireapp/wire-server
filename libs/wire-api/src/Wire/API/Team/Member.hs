@@ -66,6 +66,7 @@ module Wire.API.Team.Member
 
     -- * Permissions
     isAdminOrOwner,
+    isOwner,
     permissionsRole,
     rolePermissions,
     IsPerm (..),
@@ -606,6 +607,15 @@ isAdminOrOwner perms =
   case permissionsRole perms of
     Just RoleOwner -> True
     Just RoleAdmin -> True
+    Just RoleMember -> False
+    Just RoleExternalPartner -> False
+    Nothing -> False
+
+isOwner :: Permissions -> Bool
+isOwner perms =
+  case permissionsRole perms of
+    Just RoleOwner -> True
+    Just RoleAdmin -> False
     Just RoleMember -> False
     Just RoleExternalPartner -> False
     Nothing -> False
