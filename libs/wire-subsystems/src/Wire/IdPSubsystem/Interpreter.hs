@@ -50,11 +50,11 @@ interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
                     idps <- getConfigsByTeam team
                     pure $ selectIdP mbHost idps
                   Nothing -> pure Nothing
-          tooMaybeUsers -> do
+          tooManyUsers -> do
             Logger.warn $
               Log.msg @Text "Multiple users found for email address in getSsoCodeByEmail"
                 . Log.field "email" (fromEmail email)
-                . Log.field "user_ids" (Text.intercalate ", " (map (userIdToText . userQualifiedId) tooMaybeUsers))
+                . Log.field "user_ids" (Text.intercalate ", " (map (userIdToText . userQualifiedId) tooManyUsers))
             throw InconsistentUsers
 
 userIdToText :: Qualified UserId -> Text
