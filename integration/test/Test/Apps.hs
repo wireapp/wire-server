@@ -110,10 +110,9 @@ testCreateApp = do
           docsInTeam :: [Value] <- do
             -- make sure that matches from previous test runs don't get in the way.
             catMaybes
-              <$> ( forM foundDocs $ \doc -> do
+              <$> forM foundDocs (\doc -> do
                       tidActual :: String <- doc %. "team" & asString
-                      pure $ if tidActual == tid then Just doc else Nothing
-                  )
+                      pure $ if tidActual == tid then Just doc else Nothing)
 
           (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
 
