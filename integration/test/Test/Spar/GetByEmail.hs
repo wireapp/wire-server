@@ -66,16 +66,16 @@ testGetSsoCodeByEmailWithMultiIngress = do
       idpIdErnie <-
         createIdpWithZHost owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
-          resp.jsonBody %. "extraInfo.domain" `shouldMatch` ernieZHost
-          resp.jsonBody %. "id" >>= asString
+          resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
+          resp.json %. "id" >>= asString
 
       -- Create IdP for bert domain
       SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdBert <-
         createIdpWithZHost owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
-          resp.jsonBody %. "extraInfo.domain" `shouldMatch` bertZHost
-          resp.jsonBody %. "id" >>= asString
+          resp.json %. "extraInfo.domain" `shouldMatch` bertZHost
+          resp.json %. "id" >>= asString
 
       -- Create a SCIM user managed by the ernie IdP
       scimUser <- randomScimUser
@@ -123,7 +123,7 @@ testGetSsoCodeByEmailRegular = do
       idpId <-
         createIdp owner idpmeta `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
-          resp.jsonBody %. "id" >>= asString
+          resp.json %. "id" >>= asString
 
       -- Create a SCIM user
       scimUser <- randomScimUser
