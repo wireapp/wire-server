@@ -114,10 +114,10 @@ testUploadDownloadAssetEphemeralUserExpiration = do
       resp.status `shouldMatchInt` 201
       resp.json %. "key"
 
-    retryT $ bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
+    eventually $ bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "unverified-user"
 
-    retryT $ bindResponse (uploadSomeAsset user) $ \resp -> do
+    eventually $ bindResponse (uploadSomeAsset user) $ \resp -> do
       resp.status `shouldMatchInt` 403
       resp.json %. "label" `shouldMatch` "unverified-user"
