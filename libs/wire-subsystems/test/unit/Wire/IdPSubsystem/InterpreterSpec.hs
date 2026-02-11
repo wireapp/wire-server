@@ -67,13 +67,13 @@ runAllEffects ::
   ([UserId] -> [Handle] -> [EmailAddress] -> HavePendingInvitations -> [User]) ->
   Sem AllEffects a ->
   (Either IdPSubsystemError a, [CapturedLog])
-runAllEffects enableDiscovery idps teams brigAPIAccessMockFn action = swap $ run $ runState [] $ do
+runAllEffects enableDiscovery idps teams brigAPIMockFn action = swap $ run $ runState [] $ do
   (_idpState, result) <- idPToMem $ do
     -- Insert IdPs into store
     forM_ idps insertConfig
     -- Run the action
     miniGalleyAPIAccess teams def
-      . brigAPIAccessMock brigAPIAccessMockFn
+      . brigAPIAccessMock brigAPIMockFn
       . captureLogger
       . runError
       . interpretIdPSubsystem enableDiscovery
