@@ -127,15 +127,15 @@ randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)
 download own key tok mbHost = runMaybeT $ do
   qown <- lift $ qualifyLocal own
-  meta <- checkMetadata (tUntagged qown) key tok
   case own of
     V3.UserPrincipal uid -> do
-      status <- lift $ getUserStatus uid
+      status <- lift $ getUserStatus uid True
       case status of
-        Just Active -> pure ()
-        Just Ephemeral -> pure ()
+        Active -> pure ()
+        Ephemeral -> pure ()
         _ -> lift $ throwE unverifiedUser
     _ -> pure ()
+  meta <- checkMetadata (tUntagged qown) key tok
   lift $ genSignedURL (Just $ tUntagged qown) (Just meta) (S3.mkKey key) mbHost
 
 downloadUnsafe :: V3.AssetKey -> Maybe Text -> Handler URI

@@ -830,7 +830,9 @@ getAccountStatusH uid mGc = do
       case (mStatus, mExpires) of
         (Just Ephemeral, Just (fromUTCTimeMillis -> e)) -> do
           t <- lift $ liftSem Now.get
-          when (diffUTCTime e t < 0) $ lift $ liftSem $ enqueueUserDeletion uid
+          when (diffUTCTime e t < 0) $ do
+            lift $ liftSem $ enqueueUserDeletion uid
+            throwStd (errorToWai @'E.UserNotFound)
         _ -> pure ()
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]

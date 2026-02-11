@@ -22,6 +22,7 @@ module CargoHold.API.Util
   )
 where
 
+import CargoHold.API.Error (userNotFound)
 import CargoHold.App
 import Control.Error
 import Data.Id
@@ -41,7 +42,7 @@ qualifyLocal x = do
   loc <- asks (.localUnit)
   pure (qualifyAs loc x)
 
-getUserStatus :: UserId -> Handler (Maybe AccountStatus)
-getUserStatus uid = do
-  result <- lift $ executeBrigInteral $ brigInternalClient @"iGetUserStatus" uid (Just True)
-  pure $ either (const Nothing) (Just . fromAccountStatusResp) result
+getUserStatus :: UserId -> Bool -> Handler AccountStatus
+getUserStatus uid gc = do
+  result <- lift $ executeBrigInteral $ brigInternalClient @"iGetUserStatus" uid (Just gc)
+  either (const $ throwE userNotFound) (pure . fromAccountStatusResp) result

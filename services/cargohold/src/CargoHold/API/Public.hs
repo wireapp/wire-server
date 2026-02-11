@@ -175,10 +175,10 @@ uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   case principal of
     V3.UserPrincipal uid -> do
-      status <- getUserStatus uid
+      status <- getUserStatus uid True
       case status of
-        Just Active -> pure ()
-        Just Ephemeral -> pure ()
+        Active -> pure ()
+        Ephemeral -> pure ()
         _ -> throwE unverifiedUser
     _ -> pure ()
   asset <- V3.upload principal (getAssetSource req)
