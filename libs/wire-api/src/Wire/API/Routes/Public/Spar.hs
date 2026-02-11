@@ -131,6 +131,7 @@ instance
   toUnion Nothing = S (Z (I (GetByEmailResp Nothing)))
   fromUnion (Z (I (GetByEmailResp mbIdpId))) = mbIdpId
   fromUnion (S (Z (I (GetByEmailResp mbIdpId)))) = mbIdpId
+  fromUnion (S (S x)) = case x of {}
 
 type CheckOK = Verb 'HEAD 200
 
