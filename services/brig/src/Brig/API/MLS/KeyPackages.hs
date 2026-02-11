@@ -139,6 +139,7 @@ claimLocalKeyPackages qusr skipOwn suite target = do
         uncurry (KeyPackageBundleEntry (tUntagged target) c)
           <$> wrapClientM (Data.claimKeyPackage target c suite)
 
+    -- FUTUREWORK: shouldn't this be defined elsewhere for general use?
     assertUserNotUnderLegalHold :: ExceptT ClientError (AppT r) ()
     assertUserNotUnderLegalHold = do
       -- this is okay because there can only be one StoredUser per UserId
