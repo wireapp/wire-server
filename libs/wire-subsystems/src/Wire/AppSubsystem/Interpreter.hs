@@ -237,6 +237,7 @@ appNewStoredUser creator new = do
   pure
     NewStoredUser
       { id = Id uid,
+        userType = UserTypeApp,
         email = Nothing,
         ssoId = Nothing,
         name = new.name,

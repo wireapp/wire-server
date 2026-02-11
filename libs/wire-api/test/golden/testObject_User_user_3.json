@@ -23,5 +23,6 @@
         "proteus"
     ],
     "team": "00000002-0000-0001-0000-000200000000",
-    "searchable": true
+    "searchable": true,
+    "type": "regular"
 }

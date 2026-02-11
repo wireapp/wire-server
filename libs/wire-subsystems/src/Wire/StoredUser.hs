@@ -39,6 +39,7 @@ import Wire.Arbitrary
 
 data StoredUser = StoredUser
   { id :: UserId,
+    userType :: Maybe UserType,
     name :: Name,
     textStatus :: Maybe TextStatus,
     pict :: Maybe Pict,
@@ -100,6 +101,7 @@ mkUserFromStored domain defaultLocale storedUser =
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
+          userType = inferUserType (isJust svc) storedUser.userType,
           userIdentity = storedUser.identity,
           userEmailUnvalidated = storedUser.emailUnvalidated,
           userDisplayName = storedUser.name,
@@ -119,6 +121,16 @@ mkUserFromStored domain defaultLocale storedUser =
             Just ps -> if S.null ps then defSupportedProtocols else ps,
           userSearchable = (fromMaybe True storedUser.searchable)
         }
+
+-- | This function helps us avoid data migrations in cassandra: we
+-- allow `User`s to have no type value for backwards compatibility.
+-- The type is inferred as "bot" if there is a serviceId, and
+-- "regular" otherwise.  For newly created apps, the second argument
+-- will always be `Just`.
+inferUserType :: Bool {- is service -} -> Maybe UserType -> UserType
+inferUserType True _ = UserTypeBot
+inferUserType False Nothing = UserTypeRegular
+inferUserType False (Just t) = t
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
@@ -160,6 +172,7 @@ instance HasField "locale" StoredUser (Maybe Locale) where
 
 data NewStoredUser = NewStoredUser
   { id :: UserId,
+    userType :: UserType,
     name :: Name,
     textStatus :: Maybe TextStatus,
     pict :: Pict,
@@ -192,6 +205,7 @@ recordInstance ''NewStoredUser
 deriving instance
   Show
     ( UserId,
+      UserType,
       Name,
       Maybe TextStatus,
       Pict,
@@ -223,6 +237,7 @@ newStoredUserToUser :: Qualified NewStoredUser -> User
 newStoredUserToUser (Qualified new domain) =
   User
     { userQualifiedId = Qualified new.id domain,
+      userType = new.userType,
       userIdentity = toIdentity new.email new.ssoId,
       userEmailUnvalidated = Nothing,
       userDisplayName = new.name,

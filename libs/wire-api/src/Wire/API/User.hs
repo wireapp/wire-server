@@ -470,7 +470,7 @@ instance (1 <= max) => ToJSON (LimitedQualifiedUserIdList max) where
 -- UserType
 
 data UserType = UserTypeRegular | UserTypeApp | UserTypeBot
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserType)
   deriving (A.FromJSON, A.ToJSON) via (Schema UserType)
 
@@ -485,6 +485,20 @@ instance ToSchema UserType where
           Schema.element "app" UserTypeApp,
           Schema.element "bot" UserTypeBot
         ]
+
+instance C.Cql UserType where
+  ctype = C.Tagged C.IntColumn
+
+  toCql UserTypeRegular = C.CqlInt 0
+  toCql UserTypeBot = C.CqlInt 1
+  toCql UserTypeApp = C.CqlInt 2
+
+  fromCql (C.CqlInt i) = case i of
+    0 -> pure UserTypeRegular
+    1 -> pure UserTypeBot
+    2 -> pure UserTypeApp
+    n -> Left $ "unexpected user type: " ++ show n
+  fromCql _ = Left "user type: int expected"
 
 --------------------------------------------------------------------------------
 -- UserProfile
@@ -579,6 +593,7 @@ instance FromJSON SelfProfile where
 -- | The data of an existing user.
 data User = User
   { userQualifiedId :: Qualified UserId,
+    userType :: UserType,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
@@ -635,6 +650,8 @@ userObjectSchema =
   User
     <$> userQualifiedId
       .= field "qualified_id" schema
+    <*> userType
+      .= field "type" schema
     <* userId
       .= optional (field "id" (deprecatedSchema "qualified_id" schema))
     <*> userIdentity .= maybeUserIdentityObjectSchema

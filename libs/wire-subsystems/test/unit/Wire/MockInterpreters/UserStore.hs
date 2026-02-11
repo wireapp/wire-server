@@ -198,6 +198,7 @@ newStoredUserToStoredUser :: NewStoredUser -> StoredUser
 newStoredUserToStoredUser new =
   StoredUser
     { id = new.id,
+      userType = Just new.userType,
       name = new.name,
       textStatus = new.textStatus,
       pict = Just new.pict,
