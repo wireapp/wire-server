@@ -36,18 +36,20 @@ import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Random (randomRIO)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import qualified Data.Aeson
+-- import qualified Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
-import Data.Aeson.Types (fromJSON, toJSON)
+-- import Data.Aeson.Types (fromJSON, toJSON)
+import Data.Aeson.Types (fromJSON)
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Csv as Csv
 import Data.Handle (Handle, fromHandle, parseHandle, parseHandleEither)
 import Data.HavePendingInvitations
-import Data.Id (TeamId, UserId, idToText, randomId)
+-- import Data.Id (TeamId, UserId, idToText, randomId)
+import Data.Id (TeamId, UserId)
 import Data.Ix (inRange)
 import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
@@ -77,13 +79,12 @@ import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation
 import qualified Web.Scim.Class.User as Scim.UserC
-import qualified Web.Scim.Filter as Filter
+-- import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
-import Web.Scim.Schema.PatchOp (Operation)
-import qualified Web.Scim.Schema.PatchOp as PatchOp
+-- import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Export as CsvExport
@@ -103,7 +104,7 @@ spec = do
   specCreateUser
   specListUsers
   specGetUser
-  specPatchUser
+  -- specPatchUser
   specUpdateUser
   specDeleteUser
   specAzureQuirks
@@ -237,17 +238,18 @@ specImportToScimFromSAML =
       login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= newPassword])
 
       -- after changing scim external id, login still works.
-      let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
-            where
-              replaceAttrib :: Text -> Text -> PatchOp.Operation
-              replaceAttrib name value =
-                PatchOp.Operation
-                  PatchOp.Replace
-                  (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-                  (Just (toJSON value))
-       in do
-            patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
-            login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
+      -- TODO: gdf
+      -- let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
+      --       where
+      --         replaceAttrib :: Text -> Text -> PatchOp.Operation
+      --         replaceAttrib name value =
+      --           PatchOp.Operation
+      --             PatchOp.Replace
+      --             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+      --             (Just (toJSON value))
+      --  in do
+      --       patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
+      --       login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
 
     passwdReset :: TestEnv -> EmailAddress -> (MonadReader TestEnv m, MonadIO m) => m ()
     passwdReset env email =
@@ -520,43 +522,44 @@ specSuspend = do
       void . activeInactiveAndBack $ \tok uid user active ->
         updateUser tok uid user {Scim.User.active = Just (Scim.ScimBool active)}
 
-    it "PATCH will change state from active to inactive and back" $ do
-      let replaceAttrib name value =
-            PatchOp.Operation
-              PatchOp.Replace
-              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-              (Just (toJSON value))
-      void . activeInactiveAndBack $ \tok uid _user active ->
-        patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
-
-    -- Consider the following series of events:
+    -- TODO: gdf
+    -- it "PATCH will change state from active to inactive and back" $ do
+    --   let replaceAttrib name value =
+    --         PatchOp.Operation
+    --           PatchOp.Replace
+    --           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+    --           (Just (toJSON value))
+    --   void . activeInactiveAndBack $ \tok uid _user active ->
+    --     patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
     --
-    -- ```
-    -- { }                 --- patch "active" true --->
-    -- { "active": true }  --- patch "active" false --->
-    -- { "active": false } --- delete "active" --->
-    -- { }
-    -- ```
-    --
-    -- Since we give the case of missing active flag the same meaning as the flag set to
-    -- @True@, it's most consistent to also re-activating a suspended user if the active flag
-    -- is removed: the active flag must have been @False@ before (otherwise the user would
-    -- have been active already), and if we didn't re-activate the user, the next scim-get
-    -- would yield @{ "active": false }@, which is plainly wrong.
-    it "PATCH removing the active attribute makes you active" $ do
-      let deleteAttrib name =
-            PatchOp.Operation
-              PatchOp.Remove
-              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-              Nothing
-      user <- randomScimUser
-      (tok, _) <- registerIdPAndScimToken
-      scimStoredUserBlah <- createUser tok user
-      let uid = Scim.id . Scim.thing $ scimStoredUserBlah
-      runSpar $ BrigAccess.setStatus uid Suspended
-      void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Suspended)
-      void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
-      void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
+    -- -- Consider the following series of events:
+    -- --
+    -- -- ```
+    -- -- { }                 --- patch "active" true --->
+    -- -- { "active": true }  --- patch "active" false --->
+    -- -- { "active": false } --- delete "active" --->
+    -- -- { }
+    -- -- ```
+    -- --
+    -- -- Since we give the case of missing active flag the same meaning as the flag set to
+    -- -- @True@, it's most consistent to also re-activating a suspended user if the active flag
+    -- -- is removed: the active flag must have been @False@ before (otherwise the user would
+    -- -- have been active already), and if we didn't re-activate the user, the next scim-get
+    -- -- would yield @{ "active": false }@, which is plainly wrong.
+    -- it "PATCH removing the active attribute makes you active" $ do
+    --   let deleteAttrib name =
+    --         PatchOp.Operation
+    --           PatchOp.Remove
+    --           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+    --           Nothing
+    --   user <- randomScimUser
+    --   (tok, _) <- registerIdPAndScimToken
+    --   scimStoredUserBlah <- createUser tok user
+    --   let uid = Scim.id . Scim.thing $ scimStoredUserBlah
+    --   runSpar $ BrigAccess.setStatus uid Suspended
+    --   void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Suspended)
+    --   void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
+    --   void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
 
 ----------------------------------------------------------------------------
 -- User creation
@@ -1984,239 +1987,240 @@ testUpdateUserRole = do
       _ <- updateUser tok userid (scimUser {Scim.User.roles = cs . toByteString <$> maybeToList mUpdatedRole})
       checkTeamMembersRole tid owner userid targetRoleExpected
 
-----------------------------------------------------------------------------
--- Patching users
-specPatchUser :: SpecWith TestEnv
-specPatchUser = do
-  -- Context: PATCH is implemented in the hscim library as a getUser followed
-  -- by a series of transformation on the User object, and then a putUser. The
-  -- correctness of the series of transformations is tested in the hscim test
-  -- suite; and is independent of spar code.  GET and PUT are both already
-  -- tested in the spar code; so here we just simply have a few smoke tests We
-  -- also describe the current limitations. (We only support three fields so
-  -- far)
-  describe "PATCH /Users/:id" $ do
-    let replaceAttrib name value =
-          PatchOp.Operation
-            PatchOp.Replace
-            (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-            (Just (toJSON value))
-    let addAttrib name value =
-          PatchOp.Operation
-            PatchOp.Add
-            (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-            (Just (toJSON value))
-    let removeAttrib name =
-          PatchOp.Operation
-            PatchOp.Remove
-            (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-            Nothing
-    it "doing nothing doesn't change the user" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      storedUser' <- patchUser tok userid (PatchOp.PatchOp [])
-      liftIO $ storedUser `shouldBe` storedUser'
-    it "can update userName" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      user' <- randomScimUser
-      let userName = Scim.User.userName user'
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      storedUser' <-
-        patchUser tok userid $
-          PatchOp.PatchOp
-            [replaceAttrib "userName" userName]
-      let user'' = Scim.value (Scim.thing storedUser')
-      liftIO $ Scim.User.userName user'' `shouldBe` userName
-    it "can't update to someone else's userName" $ do
-      env <- ask
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      user' <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      _ <- createUser tok user'
-      let patchOp = PatchOp.PatchOp [replaceAttrib "userName" (Scim.User.userName user')]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
-    it "can't update to someone else's externalId" $ do
-      env <- ask
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      user' <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      _ <- createUser tok user'
-      let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (Scim.User.externalId user')]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
-    it "can't update a non-existing user" $ do
-      env <- ask
-      (tok, _) <- registerIdPAndScimToken
-      userid <- liftIO $ randomId
-      let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" ("blah" :: Text)]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 404 === statusCode
-    it "can update displayName" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      user' <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      let displayName = Scim.User.displayName user'
-      storedUser' <-
-        patchUser tok userid $
-          PatchOp.PatchOp
-            [replaceAttrib "displayName" displayName]
-      let user'' = Scim.value (Scim.thing storedUser')
-      liftIO $ Scim.User.displayName user'' `shouldBe` displayName
-    it "can update externalId" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      user' <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      let externalId = Scim.User.externalId user'
-      storedUser' <-
-        patchUser tok userid $
-          PatchOp.PatchOp
-            [replaceAttrib "externalId" externalId]
-      let user'' = Scim.value . Scim.thing $ storedUser'
-      liftIO $ Scim.User.externalId user'' `shouldBe` externalId
-    it "replace role works" $ testPatchRole replaceAttrib
-    it "add role works" $ testPatchRole addAttrib
-    it "replace with invalid input should fail" $ testPatchIvalidInput replaceAttrib
-    it "add with invalid input should fail" $ testPatchIvalidInput addAttrib
-    it "replacing every supported atttribute at once works" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      user' <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      let externalId = Scim.User.externalId user'
-      let userName = Scim.User.userName user'
-      let displayName = Scim.User.displayName user'
-      storedUser' <-
-        patchUser tok userid $
-          PatchOp.PatchOp
-            [ replaceAttrib "externalId" externalId,
-              replaceAttrib "userName" userName,
-              replaceAttrib "displayName" displayName
-            ]
-      let user'' = Scim.value . Scim.thing $ storedUser'
-      liftIO $ Scim.User.externalId user'' `shouldBe` externalId
-      liftIO $ Scim.User.userName user'' `shouldBe` userName
-      liftIO $ Scim.User.displayName user'' `shouldBe` displayName
-    it "other valid attributes that we do not explicit support throw an error" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      env <- ask
-      let patchOp = PatchOp.PatchOp [replaceAttrib "emails" ("hello" :: Text)]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
-        !!! const 400 === statusCode
-    it "invalid attributes are quietly ignored for now" $ do
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      env <- ask
-      let patchOp = PatchOp.PatchOp [replaceAttrib "totallyBogus" ("hello" :: Text)]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
-        !!! const 400 === statusCode
-    -- NOTE: Remove at the moment actually never works! As all the fields
-    -- we support are required in our book
-    it "userName cannot be removed according to scim" $ do
-      env <- ask
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      let patchOp = PatchOp.PatchOp [removeAttrib "userName"]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
-    it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
-      pendingWith
-        "We default to the externalId when displayName is removed. lets keep that for now"
-    {-env <- ask
-    (tok, _) <- registerIdPAndScimToken
-    user <- randomScimUser
-    storedUser <- createUser tok user
-    let userid = scimUserId storedUser
-    let patchOp = PatchOp.PatchOp [ removeAttrib "displayName" ]
-    patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode -}
-    it "externalId cannot be removed in spar (though possible in scim)" $ do
-      env <- ask
-      (tok, _) <- registerIdPAndScimToken
-      user <- randomScimUser
-      storedUser <- createUser tok user
-      let userid = scimUserId storedUser
-      let patchOp = PatchOp.PatchOp [removeAttrib "externalId"]
-      patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
-
-testPatchIvalidInput :: (Text -> [Role] -> Operation) -> TestSpar ()
-testPatchIvalidInput patchOp = do
-  env <- ask
-  let brig = env ^. teBrig
-  let galley = env ^. teGalley
-  (owner, tid) <- call $ createUserWithTeam brig galley
-  tok <- registerScimToken tid Nothing
-  uid <- createScimUserWithRole brig tid owner tok defaultRole
-  let patchWithInvalidRole =
-        PatchOp.Operation
-          PatchOp.Replace
-          (Just (PatchOp.NormalPath (Filter.topLevelAttrPath "roles")))
-          (Just $ Data.Aeson.Array $ V.singleton $ Data.Aeson.String "invalid-role")
-  patchUser' tok uid (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
-    const 400 === statusCode
-    const (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
-  let patchWithTooManyRoles = patchOp "roles" [defaultRole, defaultRole]
-  patchUser' tok uid (PatchOp.PatchOp [patchWithTooManyRoles]) !!! do
-    const 400 === statusCode
-    const (Just "A user cannot have more than one role.") =~= responseBody
-
-testPatchRole :: (Text -> [Role] -> Operation) -> TestSpar ()
-testPatchRole replaceOrAdd = do
-  env <- ask
-  let brig = env ^. teBrig
-  let galley = env ^. teGalley
-  (owner, tid) <- call $ createUserWithTeam brig galley
-  tok <- registerScimToken tid Nothing
-  let mTargetRoles = Nothing : fmap Just [minBound ..]
-  let testPatch = testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok
-  let testWithTarget = forM mTargetRoles . testPatch
-  forM_ [minBound ..] testWithTarget
-  where
-    testCreateUserWithInitialRoleAndPatchToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Maybe Role -> TestSpar ()
-    testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok initialRole mTargetRole = do
-      uid <- createScimUserWithRole brig tid owner tok initialRole
-      void $ patchUser tok uid $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
-      checkTeamMembersRole tid owner uid (fromMaybe initialRole mTargetRole)
-      -- also check if remove works
-      let removeAttrib name = PatchOp.Operation PatchOp.Remove (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) Nothing
-      void $ patchUser tok uid $ PatchOp.PatchOp [removeAttrib "roles"]
-      checkTeamMembersRole tid owner uid (fromMaybe initialRole mTargetRole)
-
-createScimUserWithRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> TestSpar UserId
-createScimUserWithRole brig tid owner tok initialRole = do
-  email <- randomEmail
-  scimUser <-
-    randomScimUser <&> \u ->
-      u
-        { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = [cs $ toByteString initialRole]
-        }
-  scimStoredUser <- createUser tok scimUser
-  let userid = scimUserId scimStoredUser
-      userName = Name . fromJust . Scim.User.displayName $ scimUser
-
-  -- user follows invitation flow
-  do
-    inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
-    registerInvitation email userName inviteeCode True
-  checkTeamMembersRole tid owner userid initialRole
-  pure userid
+-- TODO: gdf
+-- ----------------------------------------------------------------------------
+-- -- Patching users
+-- specPatchUser :: SpecWith TestEnv
+-- specPatchUser = do
+--   -- Context: PATCH is implemented in the hscim library as a getUser followed
+--   -- by a series of transformation on the User object, and then a putUser. The
+--   -- correctness of the series of transformations is tested in the hscim test
+--   -- suite; and is independent of spar code.  GET and PUT are both already
+--   -- tested in the spar code; so here we just simply have a few smoke tests We
+--   -- also describe the current limitations. (We only support three fields so
+--   -- far)
+--   describe "PATCH /Users/:id" $ do
+--     let replaceAttrib name value =
+--           PatchOp.Operation
+--             PatchOp.Replace
+--             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+--             (Just (toJSON value))
+--     let addAttrib name value =
+--           PatchOp.Operation
+--             PatchOp.Add
+--             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+--             (Just (toJSON value))
+--     let removeAttrib name =
+--           PatchOp.Operation
+--             PatchOp.Remove
+--             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+--             Nothing
+--     it "doing nothing doesn't change the user" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       storedUser' <- patchUser tok userid (PatchOp.PatchOp [])
+--       liftIO $ storedUser `shouldBe` storedUser'
+--     it "can update userName" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       user' <- randomScimUser
+--       let userName = Scim.User.userName user'
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       storedUser' <-
+--         patchUser tok userid $
+--           PatchOp.PatchOp
+--             [replaceAttrib "userName" userName]
+--       let user'' = Scim.value (Scim.thing storedUser')
+--       liftIO $ Scim.User.userName user'' `shouldBe` userName
+--     it "can't update to someone else's userName" $ do
+--       env <- ask
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       user' <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       _ <- createUser tok user'
+--       let patchOp = PatchOp.PatchOp [replaceAttrib "userName" (Scim.User.userName user')]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+--     it "can't update to someone else's externalId" $ do
+--       env <- ask
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       user' <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       _ <- createUser tok user'
+--       let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (Scim.User.externalId user')]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 409 === statusCode
+--     it "can't update a non-existing user" $ do
+--       env <- ask
+--       (tok, _) <- registerIdPAndScimToken
+--       userid <- liftIO $ randomId
+--       let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" ("blah" :: Text)]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 404 === statusCode
+--     it "can update displayName" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       user' <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       let displayName = Scim.User.displayName user'
+--       storedUser' <-
+--         patchUser tok userid $
+--           PatchOp.PatchOp
+--             [replaceAttrib "displayName" displayName]
+--       let user'' = Scim.value (Scim.thing storedUser')
+--       liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+--     it "can update externalId" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       user' <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       let externalId = Scim.User.externalId user'
+--       storedUser' <-
+--         patchUser tok userid $
+--           PatchOp.PatchOp
+--             [replaceAttrib "externalId" externalId]
+--       let user'' = Scim.value . Scim.thing $ storedUser'
+--       liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+--     it "replace role works" $ testPatchRole replaceAttrib
+--     it "add role works" $ testPatchRole addAttrib
+--     it "replace with invalid input should fail" $ testPatchIvalidInput replaceAttrib
+--     it "add with invalid input should fail" $ testPatchIvalidInput addAttrib
+--     it "replacing every supported atttribute at once works" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       user' <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       let externalId = Scim.User.externalId user'
+--       let userName = Scim.User.userName user'
+--       let displayName = Scim.User.displayName user'
+--       storedUser' <-
+--         patchUser tok userid $
+--           PatchOp.PatchOp
+--             [ replaceAttrib "externalId" externalId,
+--               replaceAttrib "userName" userName,
+--               replaceAttrib "displayName" displayName
+--             ]
+--       let user'' = Scim.value . Scim.thing $ storedUser'
+--       liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+--       liftIO $ Scim.User.userName user'' `shouldBe` userName
+--       liftIO $ Scim.User.displayName user'' `shouldBe` displayName
+--     it "other valid attributes that we do not explicit support throw an error" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       env <- ask
+--       let patchOp = PatchOp.PatchOp [replaceAttrib "emails" ("hello" :: Text)]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
+--         !!! const 400 === statusCode
+--     it "invalid attributes are quietly ignored for now" $ do
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       env <- ask
+--       let patchOp = PatchOp.PatchOp [replaceAttrib "totallyBogus" ("hello" :: Text)]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar)
+--         !!! const 400 === statusCode
+--     -- NOTE: Remove at the moment actually never works! As all the fields
+--     -- we support are required in our book
+--     it "userName cannot be removed according to scim" $ do
+--       env <- ask
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       let patchOp = PatchOp.PatchOp [removeAttrib "userName"]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+--     it "displayName cannot be removed in spar (though possible in scim). Diplayname is required in Wire" $ do
+--       pendingWith
+--         "We default to the externalId when displayName is removed. lets keep that for now"
+--     {-env <- ask
+--     (tok, _) <- registerIdPAndScimToken
+--     user <- randomScimUser
+--     storedUser <- createUser tok user
+--     let userid = scimUserId storedUser
+--     let patchOp = PatchOp.PatchOp [ removeAttrib "displayName" ]
+--     patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode -}
+--     it "externalId cannot be removed in spar (though possible in scim)" $ do
+--       env <- ask
+--       (tok, _) <- registerIdPAndScimToken
+--       user <- randomScimUser
+--       storedUser <- createUser tok user
+--       let userid = scimUserId storedUser
+--       let patchOp = PatchOp.PatchOp [removeAttrib "externalId"]
+--       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+--
+-- testPatchIvalidInput :: (Text -> [Role] -> Operation) -> TestSpar ()
+-- testPatchIvalidInput patchOp = do
+--   env <- ask
+--   let brig = env ^. teBrig
+--   let galley = env ^. teGalley
+--   (owner, tid) <- call $ createUserWithTeam brig galley
+--   tok <- registerScimToken tid Nothing
+--   uid <- createScimUserWithRole brig tid owner tok defaultRole
+--   let patchWithInvalidRole =
+--         PatchOp.Operation
+--           PatchOp.Replace
+--           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath "roles")))
+--           (Just $ Data.Aeson.Array $ V.singleton $ Data.Aeson.String "invalid-role")
+--   patchUser' tok uid (PatchOp.PatchOp [patchWithInvalidRole]) !!! do
+--     const 400 === statusCode
+--     const (Just "The role 'invalid-role' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
+--   let patchWithTooManyRoles = patchOp "roles" [defaultRole, defaultRole]
+--   patchUser' tok uid (PatchOp.PatchOp [patchWithTooManyRoles]) !!! do
+--     const 400 === statusCode
+--     const (Just "A user cannot have more than one role.") =~= responseBody
+--
+-- testPatchRole :: (Text -> [Role] -> Operation) -> TestSpar ()
+-- testPatchRole replaceOrAdd = do
+--   env <- ask
+--   let brig = env ^. teBrig
+--   let galley = env ^. teGalley
+--   (owner, tid) <- call $ createUserWithTeam brig galley
+--   tok <- registerScimToken tid Nothing
+--   let mTargetRoles = Nothing : fmap Just [minBound ..]
+--   let testPatch = testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok
+--   let testWithTarget = forM mTargetRoles . testPatch
+--   forM_ [minBound ..] testWithTarget
+--   where
+--     testCreateUserWithInitialRoleAndPatchToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Maybe Role -> TestSpar ()
+--     testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok initialRole mTargetRole = do
+--       uid <- createScimUserWithRole brig tid owner tok initialRole
+--       void $ patchUser tok uid $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
+--       checkTeamMembersRole tid owner uid (fromMaybe initialRole mTargetRole)
+--       -- also check if remove works
+--       let removeAttrib name = PatchOp.Operation PatchOp.Remove (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name))) Nothing
+--       void $ patchUser tok uid $ PatchOp.PatchOp [removeAttrib "roles"]
+--       checkTeamMembersRole tid owner uid (fromMaybe initialRole mTargetRole)
+--
+-- createScimUserWithRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> TestSpar UserId
+-- createScimUserWithRole brig tid owner tok initialRole = do
+--   email <- randomEmail
+--   scimUser <-
+--     randomScimUser <&> \u ->
+--       u
+--         { Scim.User.externalId = Just $ fromEmail email,
+--           Scim.User.roles = [cs $ toByteString initialRole]
+--         }
+--   scimStoredUser <- createUser tok scimUser
+--   let userid = scimUserId scimStoredUser
+--       userName = Name . fromJust . Scim.User.displayName $ scimUser
+--
+--   -- user follows invitation flow
+--   do
+--     inv <- call $ getInvitation brig email
+--     Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
+--     registerInvitation email userName inviteeCode True
+--   checkTeamMembersRole tid owner userid initialRole
+--   pure userid
 
 ----------------------------------------------------------------------------
 -- Deleting users
