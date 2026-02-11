@@ -159,3 +159,25 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+
+# nodeSelector:
+#   wire.com/role: cannon
+nodeSelector: {}
+
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: wire.com/role
+#           operator: In
+#           values:
+#           - cannon
+affinity: {}
+
+# tolerations:
+# - key: "wire.com/role"
+#   operator: "Equal"
+#   value: "cannon"
+#   effect: "NoSchedule"
+tolerations: []
