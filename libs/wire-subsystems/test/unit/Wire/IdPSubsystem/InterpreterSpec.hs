@@ -371,7 +371,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       result `shouldBe` Right Nothing
       filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
 
-    prop "getting more than one user for an email leads to exception" $ \(teamMember :: TeamMember) user anotherUser userRef email teamId mbDomain -> do
+    prop "getting multiple users for an email leads to exception" $ \(teamMember :: TeamMember) user anotherUser userRef email teamId mbDomain -> do
       idp' <- generate $ do
         idp'' <- arbitrary <&> SAML.idpExtraInfo . domain .~ mbDomain
         more <- arbitrary
