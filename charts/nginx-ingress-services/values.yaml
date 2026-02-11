@@ -23,6 +23,9 @@ federator:
     # Issuer for federator certificate (for mTLS with Client Auth EKU).
     # If not set, uses global tls.issuer configuration.
     issuer: {}
+      # name: ""
+      # kind: ""
+      # group: ""
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate
