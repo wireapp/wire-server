@@ -81,24 +81,77 @@ data PatchOp tag
 
 ----------------------------------------------------------------------
 
--- | Compute a patch operation for the aeson-diff package.  The
+-- | Check whether a pointer exists in a given Value.
+pointerExists :: AD.Pointer -> Value -> Bool
+pointerExists (AD.Pointer keys) jsonVal = go keys jsonVal
+  where
+    go :: [AD.Key] -> Value -> Bool
+    go [] _ = True
+    go (k : ks) v = case k of
+      AD.OKey key -> case v of
+        Object obj ->
+          case AK.lookup key obj of
+            Just next -> go ks next
+            Nothing -> False
+        _ -> False
+      AD.AKey ix -> case v of
+        Array vec ->
+          let len = V.length vec
+           in if ix >= 0 && ix < len
+                then go ks (vec V.! ix)
+                else False
+        _ -> False
+
+-- | Compute a list of patch operations for the aeson-diff package.  The
 -- `Value` argument is needed to compute absolute indices into arrays
 -- from the filter expressions in the scim patch.
 --
 -- Scim schema information in `AttrName`s is ignored (`AD.Patch` does
 -- not do schema validation).
-scimPatchToJsonPatch :: forall tag m. (MonadError ScimError m) => Patch tag -> Value -> m AD.Patch
+scimPatchToJsonPatch :: forall tag m. (MonadError ScimError m) => Patch tag -> Value -> m [AD.Operation]
 scimPatchToJsonPatch (Patch scimOps) jsonOrig = do
-  jsonOps <- do
-    let err = throwError . badRequest InvalidValue . Just . Text.pack
-    (mapOp `mapM` scimOps) & either err pure
-  pure $ AD.Patch jsonOps
+  ops <- mapM mapOp scimOps
+  pure $ concat ops
   where
-    mapOp :: PatchOp tag -> Either String AD.Operation
+    mapOp :: PatchOp tag -> m [AD.Operation]
     mapOp = \case
-      PatchOpAdd mbAttrPath val -> (`AD.Add` val) <$> mapPath mbAttrPath
-      PatchOpRemove attrPath -> AD.Rem <$> mapPath (Just attrPath)
-      PatchOpReplace mbAttrPath val -> (`AD.Rep` val) <$> mapPath mbAttrPath
+      PatchOpAdd mbAttrPath val ->
+        case mapPath mbAttrPath of
+          Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
+          Right ptr -> pure $ ensurePrefixes ptr ++ [AD.Add ptr val]
+      PatchOpRemove attrPath -> do
+        checkMutability attrPath
+        case mapPath (Just attrPath) of
+          Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
+          Right ptr ->
+            if pointerExists ptr jsonOrig
+              then pure [AD.Rem ptr]
+              else pure [] -- Ignore remove operations on non-existent paths
+      PatchOpReplace mbAttrPath val ->
+        case mapPath mbAttrPath of
+          Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
+          Right ptr@(AD.Pointer keys) ->
+            if any isAKey keys
+              then pure [AD.Rep ptr val] -- Use replace for array keys
+              else pure $ ensurePrefixes ptr ++ [AD.Add ptr val] -- Use add (upsert) for object keys
+    checkMutability :: ValuePath -> m ()
+    checkMutability (ValuePath (AttrPath _ name _) _)
+      | CI.foldCase (rAttrName name) == "username" =
+          throwError $ badRequest Mutability Nothing
+      | otherwise = pure ()
+
+    ensurePrefixes :: AD.Pointer -> [AD.Operation]
+    ensurePrefixes (AD.Pointer keys) =
+      [ AD.Add (AD.Pointer p) (Object mempty)
+      | i <- [1 .. length keys - 1],
+        let p = take i keys,
+        not (pointerExists (AD.Pointer p) jsonOrig),
+        case last p of AD.OKey _ -> True; _ -> False
+      ]
+
+    isAKey :: AD.Key -> Bool
+    isAKey AD.AKey {} = True
+    isAKey _ = False
 
     mapPath :: Maybe ValuePath -> Either String AD.Pointer
     mapPath Nothing = pure emptyPath
@@ -203,27 +256,35 @@ arrFilterToIndices fltr arr =
 -- than `Patch`, this can have errors.
 jsonPatchToScimPatch :: forall tag m. (MonadError ScimError m) => AD.Patch -> Value -> m (Patch tag)
 jsonPatchToScimPatch jsonPatch jsonOrig = do
-  ops <- do
-    let err = throwError . badRequest InvalidValue . Just . Text.pack
-    (mapOp `mapM` AD.patchOperations jsonPatch) & either err pure
-  pure $ Patch ops
+  case traverse mapOp (AD.patchOperations jsonPatch) of
+    Left e -> throwError . badRequest InvalidValue . Just . Text.pack $ e
+    Right ops -> pure $ Patch $ concat ops
   where
-    mapOp :: AD.Operation -> Either String (PatchOp tag)
+    mapOp :: AD.Operation -> Either String [PatchOp tag]
     mapOp = \case
-      AD.Add path val -> (`PatchOpAdd` val) <$> mapPath path
-      AD.Rem path -> mapPath path >>= maybe (throwError "remove op requires path argument.") (pure . PatchOpRemove)
-      AD.Rep path val -> (`PatchOpReplace` val) <$> mapPath path
-      AD.Mov {} -> throwError "unsupported patch operation: mov"
-      AD.Cpy {} -> throwError "unsupported patch operation: cpy"
-      AD.Tst {} -> throwError "unsupported patch operation: tst"
+      AD.Add path val ->
+        -- Add becomes Replace if target exists
+        if pointerExists path jsonOrig
+          then Right [PatchOpReplace Nothing val] -- Use replace semantics if target exists
+          else Right [PatchOpAdd Nothing val]
+      AD.Rem path ->
+        case mapPath path of
+          Left _ -> Right []
+          Right Nothing -> Right []
+          Right (Just p) -> Right [PatchOpRemove p]
+      AD.Rep path val ->
+        case mapPath path of
+          Left _ -> Right []
+          Right mbp -> Right [PatchOpReplace mbp val]
+      AD.Mov {} -> Left "unsupported patch operation: mov"
+      AD.Cpy {} -> Left "unsupported patch operation: cpy"
+      AD.Tst {} -> Left "unsupported patch operation: tst"
 
     mapPath :: AD.Pointer -> Either String (Maybe ValuePath)
     mapPath (AD.Pointer []) = pure Nothing
     mapPath (AD.Pointer [AD.OKey key]) = pure $ Just (ValuePath (topLevelAttrPath (AK.toText key)) Nothing)
     mapPath (AD.Pointer [AD.OKey key, AD.OKey sub]) =
       pure $ Just (ValuePath (AttrPath Nothing (AttrName (AK.toText key)) (Just (SubAttr (AttrName (AK.toText sub))))) Nothing)
-    mapPath (AD.Pointer [AD.OKey key, AD.AKey ix, AD.OKey subKey]) =
-      throwError $ "jsonPatchToScimPatch: ValuePath with filter and subAttr not supported: " <> show (key, ix, subKey)
     mapPath (AD.Pointer [AD.OKey key, AD.AKey ix]) = do
       arr <- case jsonOrig of
         Object obj -> case AK.lookup key obj of
@@ -233,6 +294,19 @@ jsonPatchToScimPatch jsonPatch jsonOrig = do
       let fltr = arrIndexToFilter ix arr
           attr = topLevelAttrPath (AK.toText key)
       pure $ Just (ValuePath attr (Just fltr))
+    mapPath (AD.Pointer [AD.OKey key, AD.AKey ix, AD.OKey subKey]) = do
+      -- Handle nested path [key, ix, subkey] by resolving filter
+      arr <- case jsonOrig of
+        Object obj -> case AK.lookup key obj of
+          Just (Array vec) -> pure $ V.toList vec
+          _ -> throwError $ AK.toString key <> " does not point to an array"
+        _ -> throwError "not an object"
+      if ix < 0 || ix >= length arr
+        then throwError $ "jsonPatchToScimPatch: index out of bounds: " <> show (key, ix, subKey)
+        else do
+          let fltr = arrIndexToFilter ix arr
+              subAttr = SubAttr (AttrName (AK.toText subKey))
+          pure $ Just (ValuePath (AttrPath Nothing (AttrName (AK.toText key)) (Just subAttr)) (Just fltr))
     mapPath bad = do
       throwError $ "jsonPatchToScimPatch: illegal or unsupported attribute path: " <> show bad
 
@@ -358,8 +432,10 @@ instance FromJSON (PatchOp tag) where
             val <- o .: "value"
             pure $ PatchOpAdd path val
           "remove" -> do
-            path <- o .: "path"
-            pure $ PatchOpRemove path
+            path <- o .:? "path"
+            case path of
+              Just p -> pure $ PatchOpRemove p
+              Nothing -> fail "noTarget"
           "replace" -> do
             path <- o .:? "path"
             val <- o .: "value"
@@ -389,10 +465,10 @@ applyPatch scimPatch (toJSON -> jsonOrig) = do
     Left err -> throwError . badRequest InvalidValue . Just . Text.pack $ err
     Right val -> pure val
 
-  jsonPatch <- scimPatchToJsonPatch scimPatch jsonOrigLower
+  jsonOps <- scimPatchToJsonPatch scimPatch jsonOrigLower
 
   jsonPatched <-
-    AD.patch jsonPatch jsonOrigLower
+    AD.patch (AD.Patch jsonOps) jsonOrigLower
       & result ("could not apply patch: " <>)
 
   fromJSON jsonPatched

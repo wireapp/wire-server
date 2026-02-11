@@ -117,8 +117,8 @@ spec = do
                 & either (error . show) Imports.id
 
             go = do
-              j <- scimPatchToJsonPatch patchOp (toJSON oldBarbie)
-              jsonPatchToScimPatch j (toJSON oldBarbie)
+              ops <- scimPatchToJsonPatch patchOp (toJSON oldBarbie)
+              jsonPatchToScimPatch (AD.Patch ops) (toJSON oldBarbie)
          in go === Right patchOp
 
     prop "roundtrip (generate two users/groups, diff them, apply the patch, compare)" $

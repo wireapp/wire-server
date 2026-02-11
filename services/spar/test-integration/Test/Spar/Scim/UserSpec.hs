@@ -237,19 +237,19 @@ specImportToScimFromSAML =
       -- ...  after that, password login should work
       login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= newPassword])
 
-      -- after changing scim external id, login still works.
-      -- TODO: gdf
-      -- let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
-      --       where
-      --         replaceAttrib :: Text -> Text -> PatchOp.Operation
-      --         replaceAttrib name value =
-      --           PatchOp.Operation
-      --             PatchOp.Replace
-      --             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-      --             (Just (toJSON value))
-      --  in do
-      --       patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
-      --       login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
+    -- after changing scim external id, login still works.
+    -- TODO: gdf
+    -- let patchOp = PatchOp.PatchOp [replaceAttrib "externalId" (idToText uid)]
+    --       where
+    --         replaceAttrib :: Text -> Text -> PatchOp.Operation
+    --         replaceAttrib name value =
+    --           PatchOp.Operation
+    --             PatchOp.Replace
+    --             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+    --             (Just (toJSON value))
+    --  in do
+    --       patchUser_ (Just tok2) (Just uid) patchOp (env ^. teSpar) !!! const 200 === statusCode
+    --       login env (Aeson.object ["email" Aeson..= email, "password" Aeson..= ("a8b7c1d8-d425-11f0-abbb-637eaf3793ee" :: Text)])
 
     passwdReset :: TestEnv -> EmailAddress -> (MonadReader TestEnv m, MonadIO m) => m ()
     passwdReset env email =
@@ -522,44 +522,44 @@ specSuspend = do
       void . activeInactiveAndBack $ \tok uid user active ->
         updateUser tok uid user {Scim.User.active = Just (Scim.ScimBool active)}
 
-    -- TODO: gdf
-    -- it "PATCH will change state from active to inactive and back" $ do
-    --   let replaceAttrib name value =
-    --         PatchOp.Operation
-    --           PatchOp.Replace
-    --           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-    --           (Just (toJSON value))
-    --   void . activeInactiveAndBack $ \tok uid _user active ->
-    --     patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
-    --
-    -- -- Consider the following series of events:
-    -- --
-    -- -- ```
-    -- -- { }                 --- patch "active" true --->
-    -- -- { "active": true }  --- patch "active" false --->
-    -- -- { "active": false } --- delete "active" --->
-    -- -- { }
-    -- -- ```
-    -- --
-    -- -- Since we give the case of missing active flag the same meaning as the flag set to
-    -- -- @True@, it's most consistent to also re-activating a suspended user if the active flag
-    -- -- is removed: the active flag must have been @False@ before (otherwise the user would
-    -- -- have been active already), and if we didn't re-activate the user, the next scim-get
-    -- -- would yield @{ "active": false }@, which is plainly wrong.
-    -- it "PATCH removing the active attribute makes you active" $ do
-    --   let deleteAttrib name =
-    --         PatchOp.Operation
-    --           PatchOp.Remove
-    --           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-    --           Nothing
-    --   user <- randomScimUser
-    --   (tok, _) <- registerIdPAndScimToken
-    --   scimStoredUserBlah <- createUser tok user
-    --   let uid = Scim.id . Scim.thing $ scimStoredUserBlah
-    --   runSpar $ BrigAccess.setStatus uid Suspended
-    --   void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Suspended)
-    --   void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
-    --   void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
+-- TODO: gdf
+-- it "PATCH will change state from active to inactive and back" $ do
+--   let replaceAttrib name value =
+--         PatchOp.Operation
+--           PatchOp.Replace
+--           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+--           (Just (toJSON value))
+--   void . activeInactiveAndBack $ \tok uid _user active ->
+--     patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
+--
+-- -- Consider the following series of events:
+-- --
+-- -- ```
+-- -- { }                 --- patch "active" true --->
+-- -- { "active": true }  --- patch "active" false --->
+-- -- { "active": false } --- delete "active" --->
+-- -- { }
+-- -- ```
+-- --
+-- -- Since we give the case of missing active flag the same meaning as the flag set to
+-- -- @True@, it's most consistent to also re-activating a suspended user if the active flag
+-- -- is removed: the active flag must have been @False@ before (otherwise the user would
+-- -- have been active already), and if we didn't re-activate the user, the next scim-get
+-- -- would yield @{ "active": false }@, which is plainly wrong.
+-- it "PATCH removing the active attribute makes you active" $ do
+--   let deleteAttrib name =
+--         PatchOp.Operation
+--           PatchOp.Remove
+--           (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+--           Nothing
+--   user <- randomScimUser
+--   (tok, _) <- registerIdPAndScimToken
+--   scimStoredUserBlah <- createUser tok user
+--   let uid = Scim.id . Scim.thing $ scimStoredUserBlah
+--   runSpar $ BrigAccess.setStatus uid Suspended
+--   void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Suspended)
+--   void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
+--   void $ aFewTimes (runSpar $ BrigAccess.getStatus uid) (== Active)
 
 ----------------------------------------------------------------------------
 -- User creation
