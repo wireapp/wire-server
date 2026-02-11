@@ -195,7 +195,6 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       resultTail `shouldBe` Right (Just idp._idpId)
       filter (\(lvl, _msg) -> lvl > Log.Info) logsTail `shouldBe` mempty
 
-    -- TODO: Test: Multiple IdPs none matching
     prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
       -- This should not happen, because the IdP management API allows to
       -- create only one IdP per domain. However, better not have undefined
@@ -367,6 +366,37 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               teams
               (brigAPIAccessMockFn email userWithEmail)
               (getSsoCodeByEmail Nothing email)
+
+      result `shouldBe` Right Nothing
+      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+
+    prop "returns Nothing if there are multiple, but none for this domain" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
+      mbAnotherDomain <- generate $ arbitrary `suchThat` (\mbD -> mbD /= mbDomain)
+      idps :: NE.NonEmpty IdP <- generate $ (resize 2 arbitrary) `suchThat` ((>= 2) . length)
+      let userWithEmail =
+            user
+              { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
+                userEmailUnvalidated = Just email,
+                userTeam = Just teamId,
+                userManagedBy = ManagedByScim
+              }
+
+          idpsWithTeam =
+            idps
+              <&> SAML.idpExtraInfo . domain .~ mbDomain
+              <&> SAML.idpExtraInfo . team .~ teamId
+
+          teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
+
+          teams = Map.singleton teamId [teamMember']
+
+          (result, logs) =
+            runAllEffects
+              True
+              (NE.toList idpsWithTeam)
+              teams
+              (brigAPIAccessMockFn email userWithEmail)
+              (getSsoCodeByEmail mbAnotherDomain email)
 
       result `shouldBe` Right Nothing
       filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
