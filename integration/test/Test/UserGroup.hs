@@ -62,7 +62,7 @@ testUserGroupSmoke = do
 
   bindResponse (getUserGroup owner gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "members" `shouldMatch` [mem1id, mem2id]
+    resp.json %. "members" `shouldMatchSet` [mem1id, mem2id]
 
   bindResponse (updateUserGroup owner badGid (object ["name" .= ""])) $ \resp -> do
     resp.status `shouldMatchInt` 400
@@ -93,7 +93,7 @@ testUserGroupSmoke = do
   bindResponse (getUserGroup owner gid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "name" `shouldMatch` "also good"
-    resp.json %. "members" `shouldMatch` [mem2id, mem3id, mem4id, mem5id]
+    resp.json %. "members" `shouldMatchSet` [mem2id, mem3id, mem4id, mem5id]
 
   bindResponse (getUserGroups owner def) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -131,7 +131,7 @@ testUserGroupSmoke = do
 
     bindResponse (getUserGroup owner ug2Id) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      resp.json %. "members" `shouldMatch` [mem1id]
+      resp.json %. "members" `shouldMatchSet` [mem1id]
 
     bindResponse (updateUserGroupUsers owner ug2Id [mem8id, mem9id]) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -142,7 +142,7 @@ testUserGroupSmoke = do
 
     bindResponse (getUserGroup owner ug2Id) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      resp.json %. "members" `shouldMatch` [mem8id, mem9id]
+      resp.json %. "members" `shouldMatchSet` [mem8id, mem9id]
 
     bindResponse (updateUserGroupUsers owner ug2Id []) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -153,7 +153,7 @@ testUserGroupSmoke = do
 
     bindResponse (getUserGroup owner ug2Id) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      resp.json %. "members" `shouldMatch` ([] :: [()])
+      resp.json %. "members" `shouldMatchSet` ([] :: [()])
 
 testUserGroupAddGroupDenied :: (HasCallStack) => App ()
 testUserGroupAddGroupDenied = do
