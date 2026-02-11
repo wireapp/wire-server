@@ -780,7 +780,7 @@ nginx_conf:
       allow_credentials: true
       specific_user_rate_limit: reqs_per_addr_sso
       specific_user_rate_limit_burst: "10"
-    - path: /sso/get-by-email
+    - path: /sso/get-by-email$
       envs:
       - all
       disable_zauth: true
