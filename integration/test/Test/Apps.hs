@@ -21,8 +21,8 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
-import API.Galley
 import API.Common
+import API.Galley
 import SetupHelpers
 import Testlib.Prelude
 
@@ -61,12 +61,12 @@ testCreateGetDeleteApp = do
     resp.status `shouldMatchInt` 200
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    void $ resp.json >>= asList >>= assertOne
+    void $ resp.json & asList >>= assertOne
   bindResponse (createApp owner tid (new {name = "fmappie"})) $ \resp -> do
     resp.status `shouldMatchInt` 200
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     (sort <$> ((%. "name") `mapM` apps)) `shouldMatch` ["chappie", "fmappie"]
 
   -- Creator should have type "regular"
