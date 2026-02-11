@@ -90,7 +90,7 @@ spec:
               # (SIGTERM is still sent, but afterwards)
               command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}"]
         resources:
-{{ toYaml .Values.resources | nindent 10 }}
+          {{- toYaml .Values.resources | nindent 10 }}
       {{- end }}
       - name: cannon
         env:
@@ -110,7 +110,7 @@ spec:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
         {{- end }}
         args:
-          {{- toYaml .Values.cannonArgs | nindent 10 }}
+          {{ toYaml .Values.cannonArgs | nindent 10 }}
         volumeMounts:
           - name: empty
             mountPath: /etc/wire/cannon/externalHost
@@ -140,7 +140,7 @@ spec:
             port: {{ .Values.service.internalPort }}
             scheme: HTTP
         resources:
-{{ toYaml .Values.resources | nindent 10 }}
+          {{- toYaml .Values.resources | nindent 10 }}
       initContainers:
       - name: cannon-configurator
         image: alpine:3.21.3
