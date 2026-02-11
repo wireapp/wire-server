@@ -1,0 +1,8 @@
+Add `/sso/get-by-email` endpoint to retrieve SSO codes by user email address.
+This will enable clients to fetch SSO codes and not have to ask the user for
+them.
+
+This feature is turned off by default and can be enabled in `spar` by setting
+the `enableIdPByEmailDiscovery` flag. Multi-ingress domains are taken into
+account to find the right SSO code to use. Please refer to the documentation
+for further information.
