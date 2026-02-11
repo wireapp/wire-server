@@ -75,7 +75,7 @@ newtype Patch tag = Patch {fromPatch :: [PatchOp tag]} -- TODO: rename to `ScimP
 
 data PatchOp tag
   = PatchOpAdd (Maybe ValuePath) Value
-  | PatchOpRemove ValuePath
+  | PatchOpRemove (Maybe ValuePath)
   | PatchOpReplace (Maybe ValuePath) Value
   deriving (Eq, Show)
 
@@ -83,24 +83,36 @@ data PatchOp tag
 
 -- | Check whether a pointer exists in a given Value.
 pointerExists :: AD.Pointer -> Value -> Bool
-pointerExists (AD.Pointer keys) jsonVal = go keys jsonVal
+pointerExists ptr jsonVal = isJust (pointerTarget ptr jsonVal)
+
+-- | Get the value at a pointer.
+pointerTarget :: AD.Pointer -> Value -> Maybe Value
+pointerTarget (AD.Pointer keys) jsonVal = go keys jsonVal
   where
-    go :: [AD.Key] -> Value -> Bool
-    go [] _ = True
+    go :: [AD.Key] -> Value -> Maybe Value
+    go [] v = Just v
     go (k : ks) v = case k of
       AD.OKey key -> case v of
         Object obj ->
-          case AK.lookup key obj of
-            Just next -> go ks next
-            Nothing -> False
-        _ -> False
+          let target = CI.foldCase (AK.toText key)
+           in case find (\(k', _) -> CI.foldCase (AK.toText k') == target) (AK.toList obj) of
+                Just (_, next) -> go ks next
+                Nothing -> Nothing
+        _ -> Nothing
       AD.AKey ix -> case v of
         Array vec ->
           let len = V.length vec
            in if ix >= 0 && ix < len
                 then go ks (vec V.! ix)
-                else False
-        _ -> False
+                else Nothing
+        _ -> Nothing
+
+appendKey :: AD.Pointer -> AD.Pointer
+appendKey (AD.Pointer keys) = AD.Pointer (keys ++ [AD.OKey (AK.fromString "-")])
+
+isAKey :: AD.Key -> Bool
+isAKey AD.AKey {} = True
+isAKey _ = False
 
 -- | Compute a list of patch operations for the aeson-diff package.  The
 -- `Value` argument is needed to compute absolute indices into arrays
@@ -110,52 +122,71 @@ pointerExists (AD.Pointer keys) jsonVal = go keys jsonVal
 -- not do schema validation).
 scimPatchToJsonPatch :: forall tag m. (MonadError ScimError m) => Patch tag -> Value -> m [AD.Operation]
 scimPatchToJsonPatch (Patch scimOps) jsonOrig = do
-  ops <- mapM mapOp scimOps
-  pure $ concat ops
+  jsonOrigLower <- either (throwError . badRequest InvalidValue . Just . Text.pack) pure $ jsonLower jsonOrig
+  (_, allOps) <- foldM step (jsonOrigLower, []) scimOps
+  pure $ concat $ reverse allOps
   where
-    mapOp :: PatchOp tag -> m [AD.Operation]
-    mapOp = \case
+    resultToScimError :: Result a -> m a
+    resultToScimError = \case
+      Success a -> pure a
+      Error e -> throwError . badRequest InvalidValue . Just . Text.pack $ e
+
+    step (curr, acc) op = do
+      jsonOps <- mapOp op curr
+      next <- foldM (\c jop -> resultToScimError $ AD.applyOperation jop c) curr jsonOps
+      pure (next, jsonOps : acc)
+
+    mapOp :: PatchOp tag -> Value -> m [AD.Operation]
+    mapOp op curr = case op of
       PatchOpAdd mbAttrPath val ->
-        case mapPath mbAttrPath of
+        case mapPath curr mbAttrPath of
           Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
-          Right ptr -> pure $ ensurePrefixes ptr ++ [AD.Add ptr val]
-      PatchOpRemove attrPath -> do
-        checkMutability attrPath
-        case mapPath (Just attrPath) of
-          Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
-          Right ptr ->
-            if pointerExists ptr jsonOrig
-              then pure [AD.Rem ptr]
-              else pure [] -- Ignore remove operations on non-existent paths
+          Right ptrs ->
+            let translate ptr =
+                  case pointerTarget ptr curr of
+                    Just (Array _) ->
+                      case val of
+                        Array vals -> [AD.Add (appendKey ptr) v | v <- V.toList vals]
+                        _ -> [AD.Add (appendKey ptr) val]
+                    _ -> [AD.Add ptr val]
+             in pure $ concat [ensurePrefixes curr ptr ++ translate ptr | ptr <- ptrs]
+      PatchOpRemove mbAttrPath -> do
+        case mbAttrPath of
+          Nothing -> throwError $ badRequest NoTarget Nothing
+          Just attrPath -> do
+            checkMutability attrPath
+            case mapPath curr (Just attrPath) of
+              Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
+              Right ptrs ->
+                pure [AD.Rem ptr | ptr <- sortBy (flip compare) ptrs, pointerExists ptr curr]
       PatchOpReplace mbAttrPath val ->
-        case mapPath mbAttrPath of
+        case mapPath curr mbAttrPath of
           Left e -> throwError $ badRequest InvalidValue (Just $ Text.pack e)
-          Right ptr@(AD.Pointer keys) ->
-            if any isAKey keys
-              then pure [AD.Rep ptr val] -- Use replace for array keys
-              else pure $ ensurePrefixes ptr ++ [AD.Add ptr val] -- Use add (upsert) for object keys
+          Right ptrs ->
+            let translate ptr@(AD.Pointer keys) =
+                  if any isAKey keys
+                    then [AD.Rep ptr val]
+                    else ensurePrefixes curr ptr ++ [AD.Add ptr val]
+             in pure $ concatMap translate ptrs
+
     checkMutability :: ValuePath -> m ()
     checkMutability (ValuePath (AttrPath _ name _) _)
       | CI.foldCase (rAttrName name) == "username" =
           throwError $ badRequest Mutability Nothing
       | otherwise = pure ()
 
-    ensurePrefixes :: AD.Pointer -> [AD.Operation]
-    ensurePrefixes (AD.Pointer keys) =
+    ensurePrefixes :: Value -> AD.Pointer -> [AD.Operation]
+    ensurePrefixes curr (AD.Pointer keys) =
       [ AD.Add (AD.Pointer p) (Object mempty)
       | i <- [1 .. length keys - 1],
         let p = take i keys,
-        not (pointerExists (AD.Pointer p) jsonOrig),
+        not (pointerExists (AD.Pointer p) curr),
         case last p of AD.OKey _ -> True; _ -> False
       ]
 
-    isAKey :: AD.Key -> Bool
-    isAKey AD.AKey {} = True
-    isAKey _ = False
-
-    mapPath :: Maybe ValuePath -> Either String AD.Pointer
-    mapPath Nothing = pure emptyPath
-    mapPath (Just (ValuePath (AttrPath mbSchema name mbSub) mbFilter)) =
+    mapPath :: Value -> Maybe ValuePath -> Either String [AD.Pointer]
+    mapPath _ Nothing = pure [emptyPath]
+    mapPath curr (Just (ValuePath (AttrPath mbSchema name mbSub) mbFilter)) =
       case (mbSub, mbFilter) of
         (sub, Nothing) ->
           let path = [AD.OKey . AK.fromText . CI.foldCase . rAttrName $ subName | SubAttr subName <- maybeToList sub]
@@ -163,25 +194,147 @@ scimPatchToJsonPatch (Patch scimOps) jsonOrig = do
               fullPath = case mbSchema of
                 Just s | s /= User20 -> AD.OKey (AK.fromText . CI.foldCase . getSchemaUri $ s) : base : path
                 _ -> base : path
-           in pure (AD.Pointer fullPath)
+           in pure [AD.Pointer fullPath]
         (Nothing, Just fl) ->
           let keyText = CI.foldCase (rAttrName name)
               key = AK.fromText keyText
               nm = AD.OKey key
-           in AD.Pointer <$> ((nm :) <$> fltr fl)
-        _ -> throwError $ "scimPatchToJsonPatch: illegal or unsupported attribute path: " <> show (ValuePath (AttrPath mbSchema name mbSub) mbFilter)
+           in map (\k -> AD.Pointer [nm, k]) <$> fltr fl
+        (Just (SubAttr subName), Just fl) ->
+          let keyText = CI.foldCase (rAttrName name)
+              key = AK.fromText keyText
+              nm = AD.OKey key
+              sub = AD.OKey (AK.fromText . CI.foldCase . rAttrName $ subName)
+           in map (\k -> AD.Pointer [nm, k, sub]) <$> fltr fl
       where
         fltr :: Filter -> Either String [AD.Key]
         fltr fl = do
           let keyText = CI.foldCase (rAttrName name)
               key = AK.fromText keyText
-          arr <- case jsonOrig of
-            Object obj -> case AK.lookup key obj of
-              Just (Array vec) -> pure $ V.toList vec
-              _ -> throwError $ AK.toString key <> " does not point to an array"
+          arr <- case curr of
+            Object obj ->
+              let target = CI.foldCase (AK.toText key)
+               in case find (\(k', _) -> CI.foldCase (AK.toText k') == target) (AK.toList obj) of
+                    Just (_, Array vec) -> pure $ V.toList vec
+                    Just (_, _) -> throwError $ AK.toString key <> " does not point to an array"
+                    Nothing -> pure []
             _ -> throwError "not an object"
           let mkPointer ix = AD.AKey ix
           pure $ mkPointer <$> arrFilterToIndices fl arr
+
+-- | The inverse of `jsonPatchToScimPatch`.  This does not validate
+-- schemas, and never fills the schema argument of `AttrPath`.  See
+-- haddocks of `Patch` above.  Since `AD.Patch` is more expressive
+-- than `Patch`, this can have errors.
+jsonPatchToScimPatch :: forall tag m. (MonadError ScimError m) => AD.Patch -> Value -> m (Patch tag)
+jsonPatchToScimPatch jsonPatch jsonOrig = do
+  jsonOrigLower <- either (throwError . badRequest InvalidValue . Just . Text.pack) pure $ jsonLower jsonOrig
+  let opsLower = map lowerOperation (AD.patchOperations jsonPatch)
+  (_, scimOps) <- foldM step (jsonOrigLower, []) opsLower
+  pure $ Patch $ reverse scimOps
+  where
+    lowerOperation :: AD.Operation -> AD.Operation
+    lowerOperation = \case
+      AD.Add path val -> AD.Add (lowerPointer path) val
+      AD.Rem path -> AD.Rem (lowerPointer path)
+      AD.Rep path val -> AD.Rep (lowerPointer path) val
+      AD.Mov path from -> AD.Mov (lowerPointer path) (lowerPointer from)
+      AD.Cpy path from -> AD.Cpy (lowerPointer path) (lowerPointer from)
+      AD.Tst path val -> AD.Tst (lowerPointer path) val
+
+    lowerPointer :: AD.Pointer -> AD.Pointer
+    lowerPointer (AD.Pointer keys) = AD.Pointer (map lowerKey keys)
+
+    lowerKey :: AD.Key -> AD.Key
+    lowerKey (AD.OKey k) = AD.OKey (AK.fromText . CI.foldCase . AK.toText $ k)
+    lowerKey same@AD.AKey {} = same
+
+    step (curr, acc) op = do
+      scimOps <- either (throwError . badRequest InvalidValue . Just . Text.pack) pure $ mapOp op curr
+      case AD.applyOperation op curr of
+        Success next -> pure (next, scimOps ++ acc)
+        Error e -> throwError . badRequest InvalidValue . Just . Text.pack $ "Failed to track JSON state: " ++ e
+
+    mapOp :: AD.Operation -> Value -> Either String [PatchOp tag]
+    mapOp op curr =
+      let next = case AD.applyOperation op curr of
+            Success n -> n
+            Error _ -> curr
+          isArrayElement (AD.Pointer keys) = any isAKey keys
+          replaceArray path' =
+            let (AD.Pointer keys) = path'
+                baseKeys = takeWhile (not . isAKey) keys
+                basePath = AD.Pointer baseKeys
+             in case pointerTarget basePath next of
+                  Just val -> do
+                    mbp <- mapPath curr basePath
+                    pure [PatchOpReplace mbp val]
+                  Nothing -> Left "Base array not found"
+       in case op of
+            AD.Add path _ | isArrayElement path -> replaceArray path
+            AD.Rem path | isArrayElement path -> replaceArray path
+            AD.Rep path _ | isArrayElement path -> replaceArray path
+            AD.Add path val -> do
+              mbp <- mapPath curr path
+              if pointerExists path curr
+                then Right [PatchOpReplace mbp val]
+                else Right [PatchOpAdd mbp val]
+            AD.Rem path ->
+              case mapPath curr path of
+                Left _ -> Right []
+                Right mbp -> Right [PatchOpRemove mbp]
+            AD.Rep path val ->
+              case mapPath curr path of
+                Left _ -> Right []
+                Right mbp -> Right [PatchOpReplace mbp val]
+            AD.Mov {} -> Left "unsupported patch operation: mov"
+            AD.Cpy {} -> Left "unsupported patch operation: cpy"
+            AD.Tst {} -> Left "unsupported patch operation: tst"
+
+    mapPath :: Value -> AD.Pointer -> Either String (Maybe ValuePath)
+    mapPath _ (AD.Pointer []) = pure Nothing
+    mapPath _ (AD.Pointer [AD.OKey key]) = pure $ Just (ValuePath (topLevelAttrPath (CI.foldCase $ AK.toText key)) Nothing)
+    mapPath _ (AD.Pointer [AD.OKey key, AD.OKey sub])
+      | AK.toText sub == "-" = pure $ Just (ValuePath (topLevelAttrPath (CI.foldCase $ AK.toText key)) Nothing)
+      | otherwise =
+          pure $ Just (ValuePath (AttrPath Nothing (AttrName (CI.foldCase $ AK.toText key)) (Just (SubAttr (AttrName (CI.foldCase $ AK.toText sub))))) Nothing)
+    mapPath curr (AD.Pointer [AD.OKey key, AD.AKey ix]) = do
+      arr <- case curr of
+        Object obj ->
+          let target = CI.foldCase (AK.toText key)
+           in case find (\(k', _) -> CI.foldCase (AK.toText k') == target) (AK.toList obj) of
+                Just (_, Array vec) -> pure $ V.toList vec
+                _ -> Left $ AK.toString key <> " does not point to an array"
+        _ -> Left "not an object"
+      let attr = topLevelAttrPath (CI.foldCase $ AK.toText key)
+      if ix < 0 || ix > length arr
+        then Left "index out of bounds"
+        else
+          if ix == length arr
+            then pure $ Just (ValuePath attr Nothing)
+            else do
+              let fltr = arrIndexToFilter ix arr
+              pure $ Just (ValuePath attr (Just fltr))
+    mapPath curr (AD.Pointer [AD.OKey key, AD.AKey ix, AD.OKey subKey]) = do
+      arr <- case curr of
+        Object obj ->
+          let target = CI.foldCase (AK.toText key)
+           in case find (\(k', _) -> CI.foldCase (AK.toText k') == target) (AK.toList obj) of
+                Just (_, Array vec) -> pure $ V.toList vec
+                _ -> Left $ AK.toString key <> " does not point to an array"
+        _ -> Left "not an object"
+      let subAttr = SubAttr (AttrName (CI.foldCase $ AK.toText subKey))
+          attr = AttrPath Nothing (AttrName (CI.foldCase $ AK.toText key)) (Just subAttr)
+      if ix < 0 || ix > length arr
+        then Left "index out of bounds"
+        else
+          if ix == length arr
+            then pure $ Just (ValuePath attr Nothing)
+            else do
+              let fltr = arrIndexToFilter ix arr
+              pure $ Just (ValuePath attr (Just fltr))
+    mapPath _ bad = do
+      Left $ "jsonPatchToScimPatch: illegal or unsupported attribute path: " <> show bad
 
 arrFilterToIndices :: Filter -> [Value] -> [Int]
 arrFilterToIndices fltr arr =
@@ -249,66 +402,6 @@ arrFilterToIndices fltr arr =
       OpEq -> True
       OpNe -> False
       _ -> False
-
--- | The inverse of `jsonPatchToScimPatch`.  This does not validate
--- schemas, and never fills the schema argument of `AttrPath`.  See
--- haddocks of `Patch` above.  Since `AD.Patch` is more expressive
--- than `Patch`, this can have errors.
-jsonPatchToScimPatch :: forall tag m. (MonadError ScimError m) => AD.Patch -> Value -> m (Patch tag)
-jsonPatchToScimPatch jsonPatch jsonOrig = do
-  case traverse mapOp (AD.patchOperations jsonPatch) of
-    Left e -> throwError . badRequest InvalidValue . Just . Text.pack $ e
-    Right ops -> pure $ Patch $ concat ops
-  where
-    mapOp :: AD.Operation -> Either String [PatchOp tag]
-    mapOp = \case
-      AD.Add path val ->
-        -- Add becomes Replace if target exists
-        if pointerExists path jsonOrig
-          then Right [PatchOpReplace Nothing val] -- Use replace semantics if target exists
-          else Right [PatchOpAdd Nothing val]
-      AD.Rem path ->
-        case mapPath path of
-          Left _ -> Right []
-          Right Nothing -> Right []
-          Right (Just p) -> Right [PatchOpRemove p]
-      AD.Rep path val ->
-        case mapPath path of
-          Left _ -> Right []
-          Right mbp -> Right [PatchOpReplace mbp val]
-      AD.Mov {} -> Left "unsupported patch operation: mov"
-      AD.Cpy {} -> Left "unsupported patch operation: cpy"
-      AD.Tst {} -> Left "unsupported patch operation: tst"
-
-    mapPath :: AD.Pointer -> Either String (Maybe ValuePath)
-    mapPath (AD.Pointer []) = pure Nothing
-    mapPath (AD.Pointer [AD.OKey key]) = pure $ Just (ValuePath (topLevelAttrPath (AK.toText key)) Nothing)
-    mapPath (AD.Pointer [AD.OKey key, AD.OKey sub]) =
-      pure $ Just (ValuePath (AttrPath Nothing (AttrName (AK.toText key)) (Just (SubAttr (AttrName (AK.toText sub))))) Nothing)
-    mapPath (AD.Pointer [AD.OKey key, AD.AKey ix]) = do
-      arr <- case jsonOrig of
-        Object obj -> case AK.lookup key obj of
-          Just (Array vec) -> pure $ V.toList vec
-          _ -> throwError $ AK.toString key <> " does not point to an array"
-        _ -> throwError "not an object"
-      let fltr = arrIndexToFilter ix arr
-          attr = topLevelAttrPath (AK.toText key)
-      pure $ Just (ValuePath attr (Just fltr))
-    mapPath (AD.Pointer [AD.OKey key, AD.AKey ix, AD.OKey subKey]) = do
-      -- Handle nested path [key, ix, subkey] by resolving filter
-      arr <- case jsonOrig of
-        Object obj -> case AK.lookup key obj of
-          Just (Array vec) -> pure $ V.toList vec
-          _ -> throwError $ AK.toString key <> " does not point to an array"
-        _ -> throwError "not an object"
-      if ix < 0 || ix >= length arr
-        then throwError $ "jsonPatchToScimPatch: index out of bounds: " <> show (key, ix, subKey)
-        else do
-          let fltr = arrIndexToFilter ix arr
-              subAttr = SubAttr (AttrName (AK.toText subKey))
-          pure $ Just (ValuePath (AttrPath Nothing (AttrName (AK.toText key)) (Just subAttr)) (Just fltr))
-    mapPath bad = do
-      throwError $ "jsonPatchToScimPatch: illegal or unsupported attribute path: " <> show bad
 
 arrIndexToFilter :: Int -> [Value] -> Filter
 arrIndexToFilter ix arr = case drop ix arr of
@@ -392,7 +485,7 @@ instance ToJSON (PatchOp tag) where
       patchOpPath :: PatchOp tag -> Maybe ValuePath
       patchOpPath = \case
         PatchOpAdd mbp _ -> mbp
-        PatchOpRemove p -> Just $ p
+        PatchOpRemove mbp -> mbp
         PatchOpReplace mbp _ -> mbp
 
       patchOpVal :: PatchOp tag -> Maybe Value
@@ -433,9 +526,7 @@ instance FromJSON (PatchOp tag) where
             pure $ PatchOpAdd path val
           "remove" -> do
             path <- o .:? "path"
-            case path of
-              Just p -> pure $ PatchOpRemove p
-              Nothing -> fail "noTarget"
+            pure $ PatchOpRemove path
           "replace" -> do
             path <- o .:? "path"
             val <- o .: "value"

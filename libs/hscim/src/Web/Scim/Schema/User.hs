@@ -73,6 +73,7 @@ where
 import Control.Monad
 import Control.Monad.Except
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Text (Text, pack)
 import GHC.Generics (Generic)
@@ -201,7 +202,32 @@ instance (FromJSON (UserExtra tag)) => FromJSON (User tag) where
             entitlements <- o .:? "entitlements" .!= []
             roles <- o .:? "roles" .!= []
             x509Certificates <- o .:? "x509certificates" .!= []
-            extra <- parseJSON (Object o)
+            let coreKeys =
+                  [ "schemas",
+                    "id",
+                    "externalid",
+                    "username",
+                    "name",
+                    "displayname",
+                    "nickname",
+                    "profileurl",
+                    "title",
+                    "usertype",
+                    "preferredlanguage",
+                    "locale",
+                    "active",
+                    "password",
+                    "emails",
+                    "phonenumbers",
+                    "ims",
+                    "photos",
+                    "addresses",
+                    "entitlements",
+                    "roles",
+                    "x509certificates",
+                    "meta"
+                  ]
+            extra <- parseJSON (Object (KeyMap.filterWithKey (\k _ -> not (Key.toText k `elem` coreKeys)) o))
             pure User {..}
         )
 

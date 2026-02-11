@@ -29,7 +29,7 @@ import Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.CaseInsensitive as CI
-import Data.Either (isLeft, isRight)
+import Data.Either (isRight)
 import Data.Foldable (for_)
 import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
@@ -67,7 +67,7 @@ prop_roundtrip = property $ do
 
 type PatchTag = TestTag Text () () UserExtraPatch
 
-type UserExtraPatch = KeyMap.KeyMap Text
+type UserExtraPatch = Value
 
 spec :: Spec
 spec = do
@@ -106,7 +106,7 @@ spec = do
   describe "applyPatch" $ do
     it "only applies patch for supported fields" $ do
       let schemas' = []
-      let extras = KeyMap.empty
+      let extras = Object KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       for_
         [ ("username", String "lol"),
@@ -118,9 +118,9 @@ spec = do
           let operation = PatchOpReplace (Just (ValuePath (AttrPath Nothing key Nothing) Nothing)) upd
           let scimPatch = Patch [operation]
           PatchOp.applyPatch scimPatch user `shouldSatisfy` isRight
-    it "does not support multi-value attributes" $ do
+    it "supports multi-value attributes" $ do
       let schemas' = []
-      let extras = KeyMap.empty
+      let extras = Object KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       for_
         [ ("schemas", toJSON @[Schema] mempty),
@@ -143,15 +143,15 @@ spec = do
         $ \(key, upd) -> do
           let operation = PatchOpReplace (Just (ValuePath (AttrPath Nothing key Nothing) Nothing)) upd
           let scimPatch = Patch [operation]
-          PatchOp.applyPatch scimPatch user `shouldSatisfy` isLeft
+          PatchOp.applyPatch scimPatch user `shouldSatisfy` isRight
     it "applies patch to `extra`" $ do
       let schemas' = []
-      let extras = KeyMap.empty
+      let extras = Object KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
       let programmingLanguagePath = ValuePath (AttrPath (Just (CustomSchema "urn:hscim:test")) "programmingLanguage" Nothing) Nothing
       let operation = PatchOpReplace (Just programmingLanguagePath) (toJSON @Text "haskell")
       let scimPatch = Patch [operation]
-      User.extra <$> PatchOp.applyPatch scimPatch user `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
+      User.extra <$> PatchOp.applyPatch scimPatch user `shouldBe` Right (object ["urn:hscim:test" .= object ["programminglanguage" .= String "haskell"]])
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip

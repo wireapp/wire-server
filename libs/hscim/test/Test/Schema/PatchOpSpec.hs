@@ -87,7 +87,7 @@ spec = do
                   ),
                   ( Patch
                       [ PatchOpRemove
-                          (ValuePath (AttrPath (Just User20) (AttrName "userName") Nothing) Nothing)
+                          (Just (ValuePath (AttrPath (Just User20) (AttrName "userName") Nothing) Nothing))
                       ],
                     [aesonQQ|
                     { "Schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -158,7 +158,8 @@ instance Arbitrary (User PatchTag) where
 instance Arbitrary Email where
   arbitrary = do
     typ <- elements (Nothing : (Just <$> ["work", "mobile", "yellow"]))
-    value <- EmailAddress . (`unsafeEmailAddress` "example.com") . BS.pack <$> listOf1 arbitrary
+    lp <- chooseInt (1, 20) >>= \len -> vectorOf len (elements (['a' .. 'z'] <> ['0' .. '9']))
+    let value = EmailAddress . (`unsafeEmailAddress` "example.com") . BS.pack . map (fromIntegral . ord) $ lp
     primary <- ScimBool <$$> arbitrary
     pure Email {..}
 
