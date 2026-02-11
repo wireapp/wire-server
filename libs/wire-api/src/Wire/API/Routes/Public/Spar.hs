@@ -118,7 +118,7 @@ instance ToSchema GetByEmailResp where
   schema =
     object "GetByEmailResp" $
       GetByEmailResp
-        <$> (fmap fromIdPId . ssoCode) .= maybe_ (optField "ssoCode" (IdPId <$> uuidSchema))
+        <$> (fmap fromIdPId . ssoCode) .= maybe_ (optField "sso_code" (IdPId <$> uuidSchema))
 
 instance
   AsUnion

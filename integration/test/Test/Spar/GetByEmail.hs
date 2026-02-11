@@ -94,19 +94,19 @@ testGetSsoCodeByEmailWithMultiIngress = do
       -- Get the SSO code by email with matching Z-Host (ernie)
       getSsoCodeByEmailWithZHost domain (Just ernieZHost) userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "ssoCode" >>= asString
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpIdErnie
 
       -- Get the SSO code by email without Z-Host (should return 404 with null - multiple IdPs)
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
-        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode <- lookupField resp.json "sso_code"
         mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
 
       -- Get the SSO code by email with Z-Host for bert domain (should return bert's IdP)
       getSsoCodeByEmailWithZHost domain (Just bertZHost) userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "ssoCode" >>= asString
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpIdBert
 
 -- | Test the /sso/get-by-email endpoint with regular (non-multi-ingress) setup
@@ -142,7 +142,7 @@ testGetSsoCodeByEmailRegular = do
       -- Get the SSO code by email
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "ssoCode" >>= asString
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpId
 
 -- | Test that non-SCIM users return no SSO code
@@ -160,7 +160,7 @@ testGetSsoCodeByEmailNonScimUser = do
       -- Try to get SSO code for regular (non-SCIM) user - should return 404 with null
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
-        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode <- lookupField resp.json "sso_code"
         mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
 
 -- | Test that the endpoint returns 404 with null when the feature is disabled (regular setup)
@@ -186,7 +186,7 @@ testGetSsoCodeByEmailDisabledRegular = do
       -- With feature disabled, should return 404 with empty ssoCode
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
-        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode <- lookupField resp.json "sso_code"
         mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
 
 -- | Test that the endpoint returns 404 with null when the feature is disabled (multi-ingress setup)
@@ -238,5 +238,5 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
       -- With feature disabled, should return 404 with null even with valid IdP
       bindResponse (getSsoCodeByEmailWithZHost domain (Just ernieZHost) userEmail) $ \resp -> do
         resp.status `shouldMatchInt` 404
-        mbSsoCode <- lookupField resp.json "ssoCode"
+        mbSsoCode <- lookupField resp.json "sso_code"
         mbSsoCode `shouldMatch` (Nothing :: Maybe Value)
