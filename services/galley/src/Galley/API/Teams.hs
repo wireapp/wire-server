@@ -805,7 +805,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
             if sizeBeforeDelete == 0
               then 0
               else sizeBeforeDelete - 1
-      E.deleteUser remove
+      E.deleteUser remove -- ?  remove app also?
       owners <- E.getBillingTeamMembers tid
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
@@ -814,10 +814,10 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       case feat.status of
         FeatureStatusEnabled -> do
           admins <- E.getTeamAdmins tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
+          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins) -- ?  remove app also?
         FeatureStatusDisabled -> do
           mems <- getTeamMembersForFanout tid
-          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
+          uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems) -- ?  remove app also?
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.

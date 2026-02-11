@@ -142,6 +142,13 @@ testCreateGetDeleteApp = do
     resp.status `shouldMatchInt` 200
 
   -- Delete app
+  deleteTeamMember tid regularMember2 appId >>= assertStatus 403
+  deleteTeamMember tid regularMember appId >>= assertStatus 403
+  getApp regularMember tid appId >>= assertSuccess
+  deleteTeamMember tid owner appId >>= assertSuccess
+  getApp regularMember tid appId >>= assertStatus 404
+
+{-
   undefined "TODO: deleteUser: should throw an error to force clients to use the app end-point, right?  difference is in auth."
   undefined "TODO: what about collaborators?"
   undefined "TODO: events?"
@@ -151,6 +158,7 @@ testCreateGetDeleteApp = do
   getApp regularMember tid appId >>= assertSuccess
   deleteApp owner tid appId defPassword >>= assertSuccess
   getApp regularMember tid appId >>= assertStatus 404
+-}
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
