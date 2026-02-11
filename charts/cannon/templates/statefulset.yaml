@@ -111,7 +111,7 @@ spec:
         {{- end }}
         {{- if .Values.cannonArgs }}
         args:
-{{ toYaml .Values.cannonArgs | indent 10 }}
+          {{- toYaml .Values.cannonArgs | indent 10 }}
         {{- end }}
         volumeMounts:
         - name: empty
