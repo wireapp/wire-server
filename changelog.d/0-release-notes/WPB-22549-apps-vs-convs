@@ -1,18 +1,1 @@
-TODO: polish this some more, put it into the right categories.
-
-Fix: conversations with apps and members.
-
-- We're now creating a team member in galley for every app, not just a
-  brig user.
-
-- The logic around UserIdentity and user activation has changed: apps
-  are implicitly activated.  We tried to change the UserIdentity type,
-  but I think we broke that when we added SSOIdentity, and with this
-  new change things would get a lot messier (look at
-  UserIdentityComponents), so we gave up and change the logic in all
-  the right places instead.  :(
-
-- Cassandra keeps now track of user types, but we don't do data
-  migration.  That means that all apps that have been registered
-  before this release will report as regular users and need to be
-  re-registered.
+Cassandra (`brig.user`) now keeps track of user types, only for newly created users.  **Read this paragraph if you have already created apps before their official support:** For existing users and bots, the user type is inferred, but existing apps will show as regular users.  Please remove those users from your team and create them again.

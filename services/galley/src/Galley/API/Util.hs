@@ -121,7 +121,7 @@ ensureAccessRole roles users = do
     when (any (isNothing . snd) users) $
       throwS @'NotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
-    activated <- lookupActivatedUsers (fst <$> users) -- this doesn't find the app
+    activated <- lookupActivatedUsers (fst <$> users)
     let guestsExist = length activated /= length users
     unless (not guestsExist || GuestAccessRole `Set.member` roles) $ throwS @'ConvAccessDenied
     let botsExist = any (isJust . userService) activated

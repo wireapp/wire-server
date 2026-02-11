@@ -1,0 +1,7 @@
+Fix: conversations with apps and members should now work.
+
+- Keep track of user type in `StoredUser` and some related types.
+
+- Create team members for apps in galley, not just brig users.
+
+- Apps are not officially supported yet as of this change!
