@@ -52,23 +52,23 @@ spec:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
         {{- end }}
         env:
-        # Any file changes to this path causes nginx to reload configs without
-        # restarting or breaking any connections.
-        - name: WATCH_PATHS
-          value: "/etc/wire/nginz/tls"
+          # Any file changes to this path causes nginx to reload configs without
+          # restarting or breaking any connections.
+          - name: WATCH_PATHS
+            value: "/etc/wire/nginz/tls"
         volumeMounts:
-        - name: nginz-config
-          mountPath: /etc/wire/nginz/conf
-          readOnly: true
-        - name: nginz-secrets
-          mountPath: /etc/wire/nginz/secrets
-          readOnly: true
-        - name: certificate
-          mountPath: /etc/wire/nginz/tls
-          readOnly: true
+          - name: nginz-config
+            mountPath: /etc/wire/nginz/conf
+            readOnly: true
+          - name: nginz-secrets
+            mountPath: /etc/wire/nginz/secrets
+            readOnly: true
+          - name: certificate
+            mountPath: /etc/wire/nginz/tls
+            readOnly: true
         ports:
-        - name: https
-          containerPort: {{ .Values.service.nginz.internalPort }}
+          - name: https
+            containerPort: {{ .Values.service.nginz.internalPort }}
         readinessProbe:
           httpGet:
             path: /status
@@ -90,41 +90,43 @@ spec:
               # (SIGTERM is still sent, but afterwards)
               command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}"]
         resources:
-{{ toYaml .Values.resources | indent 12 }}
+          {{- toYaml .Values.resources | nindent 10 }}
       {{- end }}
       - name: cannon
         env:
-        - name: RABBITMQ_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: cannon
-              key: rabbitmqUsername
-        - name: RABBITMQ_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: cannon
-              key: rabbitmqPassword
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: cannon
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: cannon
+                key: rabbitmqPassword
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
         {{- end }}
+        args:
+          {{- toYaml .Values.cannonArgs | nindent 10 }}
         volumeMounts:
-        - name: empty
-          mountPath: /etc/wire/cannon/externalHost
-        - name: cannon-config
-          mountPath: /etc/wire/cannon/conf
+          - name: empty
+            mountPath: /etc/wire/cannon/externalHost
+          - name: cannon-config
+            mountPath: /etc/wire/cannon/conf
         {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
-        - name: rabbitmq-ca
-          mountPath: "/etc/wire/cannon/rabbitmq-ca/"
+          - name: rabbitmq-ca
+            mountPath: "/etc/wire/cannon/rabbitmq-ca/"
         {{- end }}
         {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
-        - name: "cannon-cassandra"
-          mountPath: "/etc/wire/cannon/cassandra"
+          - name: "cannon-cassandra"
+            mountPath: "/etc/wire/cannon/cassandra"
         {{- end }}
         ports:
-        - name: http
-          containerPort: {{ .Values.service.internalPort }}
+          - name: http
+            containerPort: {{ .Values.service.internalPort }}
         readinessProbe:
           httpGet:
             path: /i/status
@@ -138,7 +140,7 @@ spec:
             port: {{ .Values.service.internalPort }}
             scheme: HTTP
         resources:
-{{ toYaml .Values.resources | indent 12 }}
+          {{- toYaml .Values.resources | nindent 10 }}
       initContainers:
       - name: cannon-configurator
         image: alpine:3.21.3
