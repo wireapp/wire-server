@@ -211,7 +211,7 @@ makeSuccessfulSamlLogin domain host tid email idpId idpMeta = do
   activateEmail domain email
   getUsersByEmail domain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 

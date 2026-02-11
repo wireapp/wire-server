@@ -81,7 +81,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
     res.status `shouldMatchInt` 200
-    u <- res.json >>= asList >>= assertOne
+    u <- res.json & asList >>= assertOne
     u %. "email" `shouldMatch` email
     subject <- u %. "sso_id.subject" >>= asString
     subject `shouldContainString` extId
@@ -99,7 +99,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "handle" `shouldMatch` newHandle
     pure updatedScimUser
 
@@ -115,7 +115,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` email
       subject <- u %. "sso_id.subject" >>= asString
       subject `shouldContainString` newExtId
@@ -139,7 +139,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` oldEmail
       subject <- u %. "sso_id.subject" >>= asString
       subject `shouldContainString` currentExtId
@@ -151,7 +151,7 @@ testSparExternalIdDifferentFromEmailWithIdp = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` newEmail
       subject <- u %. "sso_id.subject" >>= asString
       subject `shouldContainString` currentExtId
@@ -170,7 +170,7 @@ testSparExternalIdDifferentFromEmail = do
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
     res.status `shouldMatchInt` 200
-    res.json >>= asList >>= shouldBeEmpty
+    res.json & asList >>= shouldBeEmpty
 
   registerInvitedUser OwnDomain tid email
 
@@ -179,7 +179,7 @@ testSparExternalIdDifferentFromEmail = do
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
     res.status `shouldMatchInt` 200
-    u <- res.json >>= asList >>= assertOne
+    u <- res.json & asList >>= assertOne
     u %. "email" `shouldMatch` email
     u %. "sso_id.scim_external_id" `shouldMatch` extId
     u %. "handle" `shouldMatch` (scimUser %. "userName")
@@ -197,7 +197,7 @@ testSparExternalIdDifferentFromEmail = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "handle" `shouldMatch` newHandle
     pure updatedScimUser
 
@@ -213,7 +213,7 @@ testSparExternalIdDifferentFromEmail = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` email
       u %. "sso_id.scim_external_id" `shouldMatch` newExtId
     bindResponse (findUsersByExternalId OwnDomain tok extId) $ \res -> do
@@ -237,7 +237,7 @@ testSparExternalIdDifferentFromEmail = do
     -- however brig should still return the old email
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` oldEmail
       u %. "sso_id.scim_external_id" `shouldMatch` currentExtId
 
@@ -248,7 +248,7 @@ testSparExternalIdDifferentFromEmail = do
       (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
     bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
       res.status `shouldMatchInt` 200
-      u <- res.json >>= asList >>= assertOne
+      u <- res.json & asList >>= assertOne
       u %. "email" `shouldMatch` newEmail
       u %. "sso_id.scim_external_id" `shouldMatch` currentExtId
 
@@ -299,7 +299,7 @@ testSparMigrateFromExternalIdOnlyToEmail (MkTagged emailUnchanged) = do
     (u %. "emails" >>= asList >>= assertOne >>= (%. "value")) `shouldMatch` newEmail
   bindResponse (getUsersId OwnDomain [userId]) $ \res -> do
     res.status `shouldMatchInt` 200
-    u <- res.json >>= asList >>= assertOne
+    u <- res.json & asList >>= assertOne
     u %. "email" `shouldMatch` newEmail
     u %. "sso_id.scim_external_id" `shouldMatch` extId
 
@@ -310,9 +310,7 @@ checkSparGetUserAndFindByExtId domain tok extId uid k = do
   userByIdExtId <- usersByExtIdResp.json %. "Resources" >>= asList >>= assertOne
   k userByIdExtId
 
-  userByUidResp <- getScimUser domain tok uid
-  userByUidResp.status `shouldMatchInt` 200
-  userByUid <- userByUidResp.json
+  userByUid <- getScimUser domain tok uid >>= getJSON 200
   k userByUid
 
   userByUid `shouldMatch` userByIdExtId
@@ -424,9 +422,9 @@ testSparScimCreateGetSearchUserGroup = do
   respGroup2 <- createScimUserGroup OwnDomain tok $ mkScimGroup "another group" [mkScimUser scimUserId, mkScimUser scimUserId2]
   respGroup3 <- createScimUserGroup OwnDomain tok $ mkScimGroup "yet another group" [mkScimUser scimUserId2, mkScimUser scimUserId3]
 
-  createdGroup1 <- respGroup1.json
-  createdGroup2 <- respGroup2.json
-  createdGroup3 <- respGroup3.json
+  let createdGroup1 = respGroup1.json
+      createdGroup2 = respGroup2.json
+      createdGroup3 = respGroup3.json
 
   -- Test getting a single SCIM group by id
   gid <- respGroup1.json %. "id" & asString
@@ -769,7 +767,8 @@ testSparEmulateSPInitiatedLogin = do
   assertSuccess createIdpResp
 
   -- craft authnresp without req
-  idpValue :: A.Value <- createIdpResp.json
+  idpValue <- withResponse createIdpResp $ \r ->
+    assertJust "Response has no JSON body" r.json
   let idp :: SAML.IdPConfig Value
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
   authnresp <- getAuthnResponse tid idp privcreds
@@ -791,7 +790,8 @@ testSparSPInitiatedLoginWithUtf8 = do
   assertSuccess createIdpResp
 
   -- gather info about idp and account
-  idpValue :: A.Value <- createIdpResp.json
+  idpValue <- withResponse createIdpResp $ \r ->
+    assertJust "Response has no JSON body" r.json
   randomness <- randomId
   let idp :: SAML.IdPConfig (Value {- not needed -})
       idp = either error id $ A.parseEither (A.parseJSON @(SAML.IdPConfig A.Value)) idpValue
@@ -851,7 +851,7 @@ testSsoLoginAndEmailVerification = do
   activateEmail OwnDomain email
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
@@ -882,25 +882,25 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   when validateSAMLEmails $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      user <- res.json >>= asList >>= assertOne
+      user <- res.json & asList >>= assertOne
       user %. "status" `shouldMatch` "active"
       lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
 
     getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      res.json >>= asList >>= shouldBeEmpty
+      res.json & asList >>= shouldBeEmpty
 
     activateEmail OwnDomain email
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
@@ -963,25 +963,25 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEma
   when validateSAMLEmails $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      user <- res.json >>= asList >>= assertOne
+      user <- res.json & asList >>= assertOne
       user %. "status" `shouldMatch` "active"
       lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
 
     getUsersByEmail OwnDomain [newEmail] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      res.json >>= asList >>= shouldBeEmpty
+      res.json & asList >>= shouldBeEmpty
 
     activateEmail OwnDomain newEmail
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail
 
   getUsersByEmail OwnDomain [newEmail] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail
 
@@ -1057,13 +1057,13 @@ testScimUpdateEmailAddressAndExternalId = do
 
   getUsersId OwnDomain [brigUserId] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
   getUsersByEmail OwnDomain [newEmail1] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
@@ -1090,13 +1090,13 @@ testScimUpdateEmailAddressAndExternalId = do
 
   getUsersId OwnDomain [brigUserId] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
   getUsersByEmail OwnDomain [newEmail1] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
@@ -1123,13 +1123,13 @@ testScimUpdateEmailAddressAndExternalId = do
 
   getUsersId OwnDomain [brigUserId] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
   getUsersByEmail OwnDomain [newEmail1] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
@@ -1159,25 +1159,25 @@ testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
   when validateSAMLEmails $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      user <- res.json >>= asList >>= assertOne
+      user <- res.json & asList >>= assertOne
       user %. "status" `shouldMatch` "active"
       lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
 
     getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
-      res.json >>= asList >>= shouldBeEmpty
+      res.json & asList >>= shouldBeEmpty
 
     activateEmail OwnDomain email
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
@@ -1274,7 +1274,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
         res.json %. "userName" `shouldMatch` newHandle
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
-        u <- res.json >>= asList >>= assertOne
+        u <- res.json & asList >>= assertOne
         u %. "handle" `shouldMatch` newHandle
       pure su
 
@@ -1293,7 +1293,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
         res.json %. "displayName" `shouldMatch` displayName
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
-        u <- res.json >>= asList >>= assertOne
+        u <- res.json & asList >>= assertOne
         u %. "name" `shouldMatch` displayName
       pure su
 
@@ -1311,7 +1311,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
         res.json %. "preferredLanguage" `shouldMatch` "fr"
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
-        u <- res.json >>= asList >>= assertOne
+        u <- res.json & asList >>= assertOne
         u %. "locale" `shouldMatch` "fr"
       pure su
 
@@ -1331,7 +1331,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
       activateEmail OwnDomain newEmail
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
-        u <- res.json >>= asList >>= assertOne
+        u <- res.json & asList >>= assertOne
         u %. "email" `shouldMatch` newEmail
       pure su
 
@@ -1358,7 +1358,7 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
         res.json %. "externalId" `shouldMatch` newExtId
       bindResponse (getUsersId OwnDomain [uid]) $ \res -> do
         res.status `shouldMatchInt` 200
-        u <- res.json >>= asList >>= assertOne
+        u <- res.json & asList >>= assertOne
         subject <-
           if ssoEnabled
             then

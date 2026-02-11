@@ -374,7 +374,7 @@ testAddUserWithUnreachableRemoteUsers domain = do
 
     bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
     runCodensity (startDynamicBackend cDom mempty) $ \_ ->
       void $ addMembers alex conv def {users = [bobId]} >>= getBody 200
@@ -387,7 +387,7 @@ testAddUserWithUnreachableRemoteUsers domain = do
     -- assert an unreachable user cannot be added
     bindResponse (addMembers alex conv def {users = [chrisId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: (HasCallStack) => StaticDomain -> App ()
 testAddUnreachableUserFromFederatingBackend domain = do
@@ -410,7 +410,7 @@ testAddUnreachableUserFromFederatingBackend domain = do
 
     bindResponse (addMembers alice conv def {users = [chadId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachable :: (HasCallStack) => App ()
 testAddUnreachable = do
@@ -677,7 +677,7 @@ testDeleteLocalMember = do
   -- Now that Alex is gone, try removing her once again
   bindResponse (removeMember alice conv alex) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteRemoteMember :: (HasCallStack) => App ()
 testDeleteRemoteMember = do
@@ -696,7 +696,7 @@ testDeleteRemoteMember = do
   -- Now that Bob is gone, try removing him once again
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteRemoteMemberRemoteUnreachable :: (HasCallStack) => App ()
 testDeleteRemoteMemberRemoteUnreachable = do
@@ -720,7 +720,7 @@ testDeleteRemoteMemberRemoteUnreachable = do
   -- Now that Bob is gone, try removing him once again
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteTeamConversationWithRemoteMembers :: (HasCallStack) => App ()
 testDeleteTeamConversationWithRemoteMembers = do
