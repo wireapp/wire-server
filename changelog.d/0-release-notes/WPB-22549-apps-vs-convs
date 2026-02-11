@@ -1,0 +1,1 @@
+Cassandra (`brig.user`) now keeps track of user types, only for newly created users.  **Read this paragraph if you have already created apps before their official support:** For existing users and bots, the user type is inferred, but existing apps will show as regular users.  Please remove those users from your team and create them again.

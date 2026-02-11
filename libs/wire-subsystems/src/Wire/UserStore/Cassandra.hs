@@ -442,10 +442,10 @@ lookupServiceUsersForTeamImpl pid sid tid mPagingState =
 
 insertUser :: PrepQuery W (TupleType NewStoredUser) ()
 insertUser =
-  "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
+  "INSERT INTO user (id, user_type, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by, supported_protocols, searchable) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
 insertServiceUser =
@@ -460,7 +460,7 @@ insertServiceTeam =
 selectUsers :: PrepQuery R (Identity [UserId]) (TupleType StoredUser)
 selectUsers =
   [sql|
-  SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
+  SELECT id, user_type, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
   activated, status, expires, language, country, provider,
   service, handle, team, managed_by, supported_protocols, searchable
   FROM user WHERE id IN ?

@@ -820,6 +820,7 @@ addBot zuid zcon cid add = do
   let usr =
         NewStoredUser
           { id = botUserId bid,
+            userType = UserTypeBot,
             name,
             textStatus = Nothing,
             email = Nothing,
