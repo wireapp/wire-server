@@ -128,7 +128,7 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
   pure
     Apps.CreatedApp
-      { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
+      { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)), -- ?
         cookie = mkSomeToken c.cookieValue
       }
 

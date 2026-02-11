@@ -560,6 +560,7 @@ data User = User
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
+    -- TODO: must we add user type here? i think so!  needed in at least /list-users
     userIdentity :: Maybe UserIdentity,
     userEmailUnvalidated :: Maybe EmailAddress,
     -- | required; non-unique

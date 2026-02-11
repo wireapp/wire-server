@@ -209,7 +209,7 @@ createUserSpar new = do
   -- Create account
   account <- lift $ newStoredUser new' Nothing (Just tid) handle'
   domain <- viewFederationDomain
-  let u = newStoredUserToUser (Qualified account domain)
+  let u = newStoredUserToUser (Qualified account domain) -- ?
   lift . liftSem $ do
     let uid = account.id
 
@@ -395,7 +395,7 @@ createUser rateLimitKey new = do
           new'.newUserPassword
       newStoredUser new' {newUserPassword = mHashedPassword} mbInv tid mbHandle
   domain <- viewFederationDomain
-  let u = newStoredUserToUser (Qualified account domain)
+  let u = newStoredUserToUser (Qualified account domain) -- ?
   let uid = account.id
   lift . liftSem $ do
     Log.debug $ field "user" (toByteString uid) . field "action" (val "User.createUser")
@@ -561,7 +561,7 @@ createUserInviteViaScim (NewUserScimInvitation tid uid extId loc name email _) =
   lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
   lift . liftSem $ UserStore.createUser account Nothing
-  newStoredUserToUser . Qualified account <$> viewFederationDomain
+  newStoredUserToUser . Qualified account <$> viewFederationDomain -- ?
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser password -> ExceptT RegisterError (AppT r) ()

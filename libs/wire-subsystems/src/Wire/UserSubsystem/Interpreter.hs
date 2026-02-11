@@ -976,7 +976,7 @@ getAccountsByEmailNoFilterImpl (tSplit -> (domain, emails)) = do
 --------------------------------------------------------------------------------
 -- getting user accounts by different criteria
 
-getAccountsByImpl ::
+getAccountsByImpl :: -- ?
   forall r.
   ( Member UserStore r,
     Member DeleteQueue r,

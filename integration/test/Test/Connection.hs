@@ -49,7 +49,7 @@ testAppConnection = do
 
   -- the same goes for apps from the same team
   postConnection mem1 app `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 404
+    resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "same-binding-team-users"
 
 testConnectWithRemoteUser :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()

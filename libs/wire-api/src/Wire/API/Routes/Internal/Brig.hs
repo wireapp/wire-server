@@ -106,6 +106,7 @@ data GetBy = GetBy
   { includePendingInvitations :: HavePendingInvitations,
     includeUsersWithExpiredInvitations :: Bool,
     includeUsersWithoutIdentity :: Bool,
+    includeApps :: Bool, -- ? or do we always want to return apps, now that they will have type field?
     getByUserId :: [UserId],
     getByHandle :: [Handle]
   }
@@ -119,6 +120,7 @@ instance Default GetBy where
       { includePendingInvitations = NoPendingInvitations,
         includeUsersWithExpiredInvitations = False,
         includeUsersWithoutIdentity = False,
+        includeApps = True,
         getByUserId = [],
         getByHandle = []
       }
