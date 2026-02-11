@@ -110,7 +110,7 @@ spec:
           {{- toYaml .Values.podSecurityContext | nindent 10 }}
         {{- end }}
         args:
-          {{ toYaml .Values.cannonArgs | nindent 10 }}
+          {{- toYaml .Values.cannonArgs | nindent 10 }}
         volumeMounts:
           - name: empty
             mountPath: /etc/wire/cannon/externalHost
