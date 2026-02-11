@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Galley
 import SetupHelpers
 import Testlib.Prelude
 
@@ -105,8 +106,18 @@ testCreateApp = do
       foundUserType searcher exactMatchTerm aTypes =
         searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
-          foundDoc <- resp.json %. "documents" >>= asList
-          (%. "type") `mapM` foundDoc `shouldMatch` aTypes
+          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+          docsInTeam :: [Value] <- do
+            -- make sure that matches from previous test runs don't get in the way.
+            catMaybes
+              <$> forM
+                foundDocs
+                ( \doc -> do
+                    tidActual <- doc %. "team" & asString
+                    pure $ if tidActual == tid then Just doc else Nothing
+                )
+
+          (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
 
   -- App's user is findable from /search/contacts
   BrigI.refreshIndex domain
@@ -120,6 +131,14 @@ testCreateApp = do
   -- Regular members still have the type "regular"
   memberName <- regularMember %. "name" & asString
   foundUserType owner memberName ["regular"]
+
+  -- GET /one2one-conversations/{usr_domain}/{usr}
+  getMLSOne2OneConversation regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- POST /mls/key-packages/claim/{user_domain}/{user}
+  claimKeyPackages def regularMember appIdObject `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
