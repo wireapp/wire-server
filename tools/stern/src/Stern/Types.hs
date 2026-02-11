@@ -90,16 +90,9 @@ toAdminInfo (TeamInfo d members) =
   TeamAdminInfo
     { taData = d,
       taMembers = length members,
-      taOwners = filter (\(TeamMemberInfo m) -> isOwner m) members,
-      taAdmins = filter (\(TeamMemberInfo m) -> isAdmin m) members
+      taOwners = filter (\(TeamMemberInfo m) -> hasPermission m SetBilling) members,
+      taAdmins = filter (\(TeamMemberInfo m) -> hasPermission m AddTeamMember && not (hasPermission m SetBilling)) members
     }
-
--- FUTUREWORK: use the same criteria as in RoleOwner, RoleAdmin
-isOwner :: TeamMember -> Bool
-isOwner m = hasPermission m SetBilling
-
-isAdmin :: TeamMember -> Bool
-isAdmin m = hasPermission m AddTeamMember && not (hasPermission m SetBilling)
 
 newtype UserProperties = UserProperties
   { unUserProperties :: Map PropertyKey Value
