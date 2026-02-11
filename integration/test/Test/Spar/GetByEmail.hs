@@ -145,7 +145,7 @@ testGetSsoCodeByEmailRegular = do
         ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpId
 
--- | Test that non-SCIM users return no SSO code
+-- | Test that non-SCIM users get no SSO code
 testGetSsoCodeByEmailNonScimUser :: (HasCallStack) => App ()
 testGetSsoCodeByEmailNonScimUser = do
   withModifiedBackend
