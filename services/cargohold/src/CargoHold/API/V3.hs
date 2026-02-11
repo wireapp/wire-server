@@ -65,7 +65,6 @@ import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
 import URI.ByteString
 import Wire.API.Asset
-import Wire.API.User (AccountStatus (..))
 
 upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (Asset' (Local AssetKey))
 upload own bdy = do
@@ -127,14 +126,6 @@ randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)
 download own key tok mbHost = runMaybeT $ do
   qown <- lift $ qualifyLocal own
-  case own of
-    V3.UserPrincipal uid -> do
-      status <- lift $ getUserStatus uid True
-      case status of
-        Active -> pure ()
-        Ephemeral -> pure ()
-        _ -> lift $ throwE unverifiedUser
-    _ -> pure ()
   meta <- checkMetadata (tUntagged qown) key tok
   lift $ genSignedURL (Just $ tUntagged qown) (Just meta) (S3.mkKey key) mbHost
 

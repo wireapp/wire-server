@@ -18,6 +18,7 @@
 module Test.Cargohold.AssetUpload where
 
 import API.Cargohold
+import qualified Data.ByteString.Char8 as BSC
 import SetupHelpers
 import Testlib.Prelude
 
@@ -42,3 +43,29 @@ testAssetUploadUnknownUser = do
           ]
   bindResponse (uploadSomeAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 403
+
+testUploadAssetEphemeralUser :: (HasCallStack) => App ()
+testUploadAssetEphemeralUser = do
+  user <- ephemeralUser OwnDomain
+
+  key <- bindResponse (uploadSomeAsset user) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "key"
+
+  bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    BSC.unpack resp.body `shouldMatch` "Hello World!"
+
+testUploadAssetEphemeralUserExpiration :: (HasCallStack) => App ()
+testUploadAssetEphemeralUserExpiration = do
+  let modifiedConfig = def {brigCfg = setField "zauth.authSettings.sessionTokenTimeout" (2 :: Int)}
+
+  withModifiedBackend modifiedConfig $ \domain -> do
+    user <- ephemeralUser domain
+
+    bindResponse (uploadSomeAsset user) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+
+    eventually $ bindResponse (uploadSomeAsset user) $ \resp -> do
+      resp.status `shouldMatchInt` 403
+      resp.json %. "label" `shouldMatch` "unverified-user"
