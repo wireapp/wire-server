@@ -25,8 +25,6 @@ import qualified SAML2.WebSSO.Test.Util as SAML
 import SetupHelpers
 import Testlib.Prelude
 
--- TODO: Add more tests?
-
 -- | Test the /sso/get-by-email endpoint with multi-ingress setup
 testGetSsoCodeByEmailWithMultiIngress ::
   (HasCallStack) =>
