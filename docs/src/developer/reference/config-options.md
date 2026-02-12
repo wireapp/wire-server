@@ -1475,8 +1475,10 @@ For example:
 }
 ```
 
-There can be at most one IdP per multi-ingress domain. Creating more returns an
+There can be at most one IdP per multi-ingress domain and team. Creating more returns an
 error. Though, IdPs can be reconfigured as long as this invariant holds.
+
+Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
 
 ### Webapp
 
