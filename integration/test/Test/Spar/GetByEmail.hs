@@ -93,7 +93,6 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
           [] -> assertFailure "Expected at least one email"
 
       let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpIdErnie}) else def
-
       scimTok <- createScimToken owner idpTokenConfig
       scimToken <- scimTok.json %. "token" & asString
 
@@ -125,13 +124,16 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
         ssoCodeStr `shouldMatch` idpIdBert
 
 -- | Test the /sso/get-by-email endpoint with regular (non-multi-ingress) setup
-testGetSsoCodeByEmailRegular :: (HasCallStack) => App ()
-testGetSsoCodeByEmailRegular = do
-  withModifiedBackend
-    def {sparCfg = setField "enableIdPByEmailDiscovery" True}
+testGetSsoCodeByEmailRegular :: (HasCallStack) => (TaggedBool "validateSAMLemails") -> (TaggedBool "idpScimToken") -> App ()
+testGetSsoCodeByEmailRegular (TaggedBool validateSAMLemails) (TaggedBool isIdPScimToken) =
+  withModifiedBackend def {sparCfg = setField "enableIdPByEmailDiscovery" True}
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- The test should work for both: SCIM user with and without email confirmation
+      let status = if validateSAMLemails then "enabled" else "disabled"
+      assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
       -- Create IdP without domain binding
       SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
@@ -146,13 +148,19 @@ testGetSsoCodeByEmailRegular = do
         scimUser %. "emails" >>= asList >>= \case
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
-      scimTok <- createScimToken owner def {idp = Just idpId}
+
+      let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpId}) else def
+      scimTok <- createScimToken owner idpTokenConfig
       scimToken <- scimTok.json %. "token" & asString
 
       void $ createScimUser domain scimToken scimUser >>= getJSON 201
 
-      -- Activate the email so the user can be found by email
-      activateEmail domain userEmail
+      if isIdPScimToken
+        then when validateSAMLemails $ do
+          -- Activate the email so the user can be found by email
+          activateEmail domain userEmail
+        else
+          registerInvitedUser domain tid userEmail
 
       -- Get the SSO code by email
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
@@ -171,6 +179,8 @@ testGetSsoCodeByEmailNonScimUser = do
 
       -- Get the owner's email
       userEmail <- owner %. "email" & asString
+
+      -- TODO: This does not register the user
 
       -- Try to get SSO code for regular (non-SCIM) user - should return 404 with null
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
@@ -197,6 +207,8 @@ testGetSsoCodeByEmailDisabledRegular = do
         scimUser %. "emails" >>= asList >>= \case
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
+
+      -- TODO: This does not register the user
 
       -- With feature disabled, should return 404 with empty ssoCode
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
@@ -249,6 +261,8 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
         scimUser %. "emails" >>= asList >>= \case
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
+
+      -- TODO: This does not register the user
 
       -- With feature disabled, should return 404 with null even with valid IdP
       bindResponse (getSsoCodeByEmailWithZHost domain (Just ernieZHost) userEmail) $ \resp -> do
