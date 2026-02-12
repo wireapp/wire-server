@@ -1240,10 +1240,13 @@ Otherwise an HTTP 404 is returned:
 
 ##### SSO code lookup algorithm
 
-Given an email address, the SSO code is by these criteria:
+Given an email address, the SSO code is looked up by these criteria:
 
 - The email address must belong to a member of any team
-- The mapping must be unambiguous (there must be exactly one matching IdP). This is the case for
+- The user must be activated. Either by the activation mail flow or by
+  [auto-activation](#validate-saml-emails)
+- The mapping must be unambiguous (there must be exactly one matching IdP).
+  This is the case for:
   - Teams with exactly one configured IdP
   - There is an IdP for the given multi-ingress domain
 - The user was created via SCIM or SSO
