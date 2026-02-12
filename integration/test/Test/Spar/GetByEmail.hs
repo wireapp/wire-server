@@ -17,6 +17,7 @@
 
 module Test.Spar.GetByEmail where
 
+import API.BrigInternal (CreateUser (..))
 import API.GalleyInternal
 import API.Spar
 import GHC.Stack
@@ -177,10 +178,9 @@ testGetSsoCodeByEmailNonScimUser = do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Get the owner's email
-      userEmail <- owner %. "email" & asString
-
-      -- TODO: This does not register the user
+      -- Register user
+      usr <- randomUser domain def {activate = True}
+      userEmail <- usr %. "email" & asString
 
       -- Try to get SSO code for regular (non-SCIM) user - should return 404 with null
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
