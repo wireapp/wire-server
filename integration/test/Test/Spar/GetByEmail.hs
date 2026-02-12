@@ -262,7 +262,11 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
 
       -- Create IdP for ernie domain
       SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
-      void $ createIdpWithZHost owner (Just ernieZHost) idpmetaErnie >>= getJSON 201
+      idpIdErnie <-
+        createIdpWithZHost owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
+          resp.json %. "id" >>= asString
 
       -- Create a SCIM user
       scimUser <- randomScimUser
@@ -271,7 +275,13 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
 
-      -- TODO: This does not register the user
+      scimTok <- createScimToken owner def {idp = Just idpIdErnie}
+      scimToken <- scimTok.json %. "token" & asString
+
+      void $ createScimUser domain scimToken scimUser >>= getJSON 201
+
+      -- Activate the email so the user can be found by email
+      activateEmail domain userEmail
 
       -- With feature disabled, should return 404 with null even with valid IdP
       bindResponse (getSsoCodeByEmailWithZHost domain (Just ernieZHost) userEmail) $ \resp -> do
