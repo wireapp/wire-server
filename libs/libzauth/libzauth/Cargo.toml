@@ -24,4 +24,4 @@ clap = ">= 2.0"
 # fork of jwt-simple which supports JWK handling
 [dependencies.jwt-simple]
 git = "https://github.com/wireapp/rust-jwt-simple"
-rev = "15a69f82288d68b74a75c1364e5d4bf681f1c07b"
+rev = "4e9a843116500a719a6b31154310a2f77645abc8"
