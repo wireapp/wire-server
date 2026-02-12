@@ -16,6 +16,8 @@ federator:
   enabled: false
   integrationTestHelper: false
   tls:
+    duration: 2160h     # 90d Letsencrypt default; NOTE: changes are ignored if using Letsencrypt
+    renewBefore: 360h   # 15d
     privateKey:
       # rotationPolicy: Always (default) regenerates key on each renewal
       # rotationPolicy: Never preserves key across renewals (for key pinning)
