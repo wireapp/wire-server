@@ -27,8 +27,12 @@ import Testlib.Prelude
 -- TODO: Add more tests?
 
 -- | Test the /sso/get-by-email endpoint with multi-ingress setup
-testGetSsoCodeByEmailWithMultiIngress :: (HasCallStack) => App ()
-testGetSsoCodeByEmailWithMultiIngress = do
+testGetSsoCodeByEmailWithMultiIngress ::
+  (HasCallStack) =>
+  TaggedBool "validateSAMLemails" ->
+  TaggedBool "idpScimToken" ->
+  App ()
+testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBool isIdPScimToken) = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
@@ -59,7 +63,11 @@ testGetSsoCodeByEmailWithMultiIngress = do
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+      assertSuccess =<< setTeamFeatureStatus domain tid "sso" "enabled"
+
+      -- The test should work for both: SCIM user with and without email confirmation
+      let status = if validateSAMLemails then "enabled" else "disabled"
+      assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
       -- Create IdP for ernie domain
       SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
@@ -83,13 +91,20 @@ testGetSsoCodeByEmailWithMultiIngress = do
         scimUser %. "emails" >>= asList >>= \case
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
-      scimTok <- createScimToken owner def {idp = Just idpIdErnie}
+
+      let idpTokenConfig = if isIdPScimToken then (def {idp = Just idpIdErnie}) else def
+
+      scimTok <- createScimToken owner idpTokenConfig
       scimToken <- scimTok.json %. "token" & asString
 
       void $ createScimUser domain scimToken scimUser >>= getJSON 201
 
-      -- Activate the email so the user can be found by email
-      activateEmail domain userEmail
+      if isIdPScimToken
+        then when validateSAMLemails $ do
+          -- Activate the email so the user can be found by email
+          activateEmail domain userEmail
+        else
+          registerInvitedUser domain tid userEmail
 
       -- Get the SSO code by email with matching Z-Host (ernie)
       getSsoCodeByEmailWithZHost domain (Just ernieZHost) userEmail `bindResponse` \resp -> do
