@@ -37,6 +37,7 @@ import Web.Scim.Filter
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.Schema
+import Web.Scim.Schema.UserTypes (UserTypes (..))
 
 -- This type provides the parser for the scim patch syntax, and can be
 -- turned into an `AD.Patch` with `validatePatchOp`.
@@ -564,3 +565,82 @@ applyPatch scimPatch (toJSON -> jsonOrig) = do
 
   fromJSON jsonPatched
     & result ("invalid patch result: " <>)
+
+----------------------------------------------------------------------
+
+validatePatchPaths :: forall tag m. (MonadError ScimError m, UserTypes tag) => Patch tag -> m (Patch tag)
+validatePatchPaths patch@(Patch ops) = do
+  mapM_ validateOp ops
+  pure patch
+  where
+    validateOp :: PatchOp tag -> m ()
+    validateOp op = case extractPath op of
+      Just (ValuePath (AttrPath mbSchema _ _) _) ->
+        case mbSchema of
+          Just schema
+            | schema `notElem` supportedSchemas @tag ->
+                throwError $ badRequest InvalidPath $ Just $ "Unsupported schema: " <> T.pack (show schema)
+          _ -> pure ()
+      Nothing -> pure ()
+
+    extractPath :: PatchOp tag -> Maybe ValuePath
+    extractPath = \case
+      PatchOpAdd mbPath _ -> mbPath
+      PatchOpRemove path -> path
+      PatchOpReplace mbPath _ -> mbPath
+
+----------------------------------------------------------------------
+
+validatePatchMutability :: forall tag m. (MonadError ScimError m) => Patch tag -> m (Patch tag)
+validatePatchMutability (Patch ops) = do
+  mapM_ validateOp ops
+  pure (Patch ops)
+  where
+    validateOp :: PatchOp tag -> m ()
+    validateOp op = case op of
+      PatchOpRemove valPath -> checkRemoveMutability valPath
+      PatchOpReplace (Just valPath) _ -> checkReplaceMutability valPath
+      _ -> pure ()
+
+    checkRemoveMutability :: Maybe ValuePath -> m ()
+    checkRemoveMutability (Just (ValuePath (AttrPath _ name mbSub) _))
+      | isImmutableAttribute name || CI.foldCase (rAttrName name) == "username" =
+          throwError $ badRequest Mutability $ Just $ "Cannot remove attribute: " <> rAttrName name
+      | Just (SubAttr sub) <- mbSub,
+        name == "meta",
+        isImmutableAttribute sub =
+          throwError $ badRequest Mutability $ Just $ "Cannot remove attribute: meta." <> rAttrName sub
+      | otherwise = pure ()
+    checkRemoveMutability _ = pure ()
+
+    checkReplaceMutability :: ValuePath -> m ()
+    checkReplaceMutability (ValuePath (AttrPath _ name mbSub) _)
+      | isImmutableAttribute name =
+          throwError $ badRequest Mutability $ Just $ "Cannot modify immutable attribute: " <> rAttrName name
+      | Just (SubAttr sub) <- mbSub,
+        name == "meta",
+        isImmutableAttribute sub =
+          throwError $ badRequest Mutability $ Just $ "Cannot modify immutable attribute: meta." <> rAttrName sub
+      | otherwise = pure ()
+
+    isImmutableAttribute :: AttrName -> Bool
+    isImmutableAttribute name =
+      let n = CI.foldCase (rAttrName name)
+       in n `elem` ["id", "created", "lastmodified", "location", "version"]
+
+----------------------------------------------------------------------
+
+validateAndApplyPatch ::
+  forall tag m a.
+  ( FromJSON a,
+    ToJSON a,
+    MonadError ScimError m,
+    UserTypes tag
+  ) =>
+  Patch tag ->
+  a ->
+  m a
+validateAndApplyPatch scimPatch orig = do
+  _ <- validatePatchPaths @tag scimPatch
+  _ <- validatePatchMutability scimPatch
+  applyPatch scimPatch orig

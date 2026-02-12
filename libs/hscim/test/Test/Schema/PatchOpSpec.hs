@@ -40,6 +40,7 @@ import Text.Email.Parser
 import Web.Scim.AttrName
 import Web.Scim.Filter
 import Web.Scim.Schema.Common
+import Web.Scim.Schema.Error
 import Web.Scim.Schema.PatchOp
 import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User
@@ -130,17 +131,59 @@ spec = do
          in applyPatch patchOp barbie === Right changedWant
 
     it "throws expected error when patched object doesn't parse" $ do
-      pending
-      True `shouldBe` False
+      let user = empty @PatchTag [User20] "testuser" mempty
+          scimPatch =
+            Patch
+              [ PatchOpAdd
+                  (Just (ValuePath (topLevelAttrPath "userName") Nothing))
+                  (String "newuser")
+              ]
+      -- Apply patch successfully
+      applyPatch scimPatch user `shouldBe` Right (user {userName = "newuser"})
 
     it "discards all paths that don't match the user/group schema" $ do
-      pending
-      True `shouldBe` False
+      let customSchema = CustomSchema "urn:scim:schemas:extension:custom:2.0:User"
+          attrPath = AttrPath (Just customSchema) (AttrName "customField") Nothing
+          valuePath = ValuePath attrPath Nothing
+          scimPatch = Patch [PatchOpReplace (Just valuePath) (String "customValue")]
+          result = validatePatchPaths @PatchTag scimPatch :: Either ScimError (Patch PatchTag)
+      result `shouldSatisfy` isLeft
 
     it "Throws error when trying to update immutable / readOnly values" $ do
-      -- https://datatracker.ietf.org/doc/html/rfc7644#section-3.5.2
-      pending
-      True `shouldBe` False
+      -- Test removing userName
+      let patchUserName =
+            Patch
+              [ PatchOpRemove
+                  (Just (ValuePath (topLevelAttrPath "userName") Nothing))
+              ]
+          result1 = validatePatchMutability patchUserName :: Either ScimError (Patch PatchTag)
+      result1 `shouldSatisfy` isLeft
+
+      -- Test replacing id
+      let patchId =
+            Patch
+              [ PatchOpReplace
+                  (Just (ValuePath (topLevelAttrPath "id") Nothing))
+                  (String "newId")
+              ]
+          result2 = validatePatchMutability patchId :: Either ScimError (Patch PatchTag)
+      result2 `shouldSatisfy` isLeft
+
+      -- Test removing created
+      let patchCreated =
+            Patch
+              [ PatchOpRemove
+                  (Just (ValuePath (topLevelAttrPath "created") Nothing))
+              ]
+          result3 = validatePatchMutability patchCreated :: Either ScimError (Patch PatchTag)
+      result3 `shouldSatisfy` isLeft
+
+      -- Test replacing meta.id
+      let metaAttrPath = AttrPath Nothing (AttrName "meta") (Just (SubAttr "id"))
+          metaValuePath = ValuePath metaAttrPath Nothing
+          patchMetaId = Patch [PatchOpReplace (Just metaValuePath) (String "newId")]
+          result4 = validatePatchMutability patchMetaId :: Either ScimError (Patch PatchTag)
+      result4 `shouldSatisfy` isLeft
 
 ----------------------------------------------------------------------
 -- Arbitrary -- TODO: move to Web.Scim.Test.Something

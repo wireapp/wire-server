@@ -38,7 +38,7 @@ import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse hiding (schemas)
 import Web.Scim.Schema.Meta
-import Web.Scim.Schema.PatchOp (Patch, applyPatch)
+import Web.Scim.Schema.PatchOp (Patch, validateAndApplyPatch)
 import Web.Scim.Schema.User
 
 ----------------------------------------------------------------------------
@@ -146,7 +146,7 @@ class (Monad m, AuthTypes tag, UserTypes tag, FromJSON (UserExtra tag), ToJSON (
     ScimHandler m (StoredUser tag)
   patchUser info uid op' = do
     (WithMeta _ (WithId _ user)) <- getUser info uid
-    newUser <- applyPatch op' user
+    newUser <- validateAndApplyPatch @tag op' user
     putUser info uid newUser
 
   -- | Delete a user.
