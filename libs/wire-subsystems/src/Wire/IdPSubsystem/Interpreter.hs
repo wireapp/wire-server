@@ -3,6 +3,7 @@ module Wire.IdPSubsystem.Interpreter
   )
 where
 
+import API.Brig (SearchContactsCfg (domain))
 import Control.Lens
 import Data.Domain (domainText)
 import Data.HavePendingInvitations (HavePendingInvitations (..))
@@ -36,6 +37,40 @@ interpretIdPSubsystem ::
 interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
   GetSsoCodeByEmail mbHost email -> getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email
 
+-- | Get the right IdP for a domain for a SCIM user identified by their email address.
+--
+-- To understand this, it is important to know that `IdP` can optionally carry
+-- a host domain in its meta-data. There can be only one IdP with a specific
+-- domain per team. So, to look the matching IdP for a (email, domain) tuple
+-- up, we:
+--
+--  - Check that the feature is enabled (it's disabled by default)
+--  - Get the `User` from brig
+--  - Ensure that it is a SCIM user
+--  - Get their team
+--  - Lookup the team's IdP matching the domain
+--
+--  If any of these steps fail, we return `Nothing` - exept when the team has
+--  only exactly one IdP configured; then we consider this as default.
+--
+--  In case we find more than one user for an email address, we throw an
+--  excetion as this "should never happen".
+--
+--
+-- __Design Notes__
+--
+-- The RFC (/Default SSO flow for team by host domain/) states that the lookup
+-- of the EmailAddress should be done by a lookup in spar's database. However,
+-- this cannot be simply done: Cassandra doesn't allow queries on random
+-- columns, only on primary keys. Issuing full table scans (`ALLOW FILTERING`)
+-- could cause bad performace characteristics. Working around that limitation
+-- with e.g. additional lookup tables would lead to massive data migrations.
+--
+-- So, we refer to brig's impression of the user here and got - according to
+-- the tests - all known cases covered.
+--
+-- We query for activated (`NoPendingInvitations`) users, because those may
+-- actually log in.
 getSsoCodeByEmailImpl ::
   ( Member (Logger (Log.Msg -> Log.Msg)) r,
     Member (Error IdPSubsystemError) r,
