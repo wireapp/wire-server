@@ -45,7 +45,7 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.User (AccountStatus (..))
+import Wire.API.User (AccountStatus (..), User (userStatus))
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -175,7 +175,7 @@ uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   case principal of
     V3.UserPrincipal uid -> do
-      status <- getUserStatus uid True
+      status <- userStatus <$> getUser uid
       case status of
         Active -> pure ()
         Ephemeral -> pure ()
