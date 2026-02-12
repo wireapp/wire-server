@@ -53,15 +53,15 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
         case users of
           [] -> pure Nothing
           [user] -> do
-            if not (isScimOrSsoUser user)
-              then pure Nothing
-              else do
+            if isScimOrSsoUser user
+              then do
                 mbTeam <- getTeamId (userId user)
                 case mbTeam of
                   Just team -> do
                     idps <- getConfigsByTeam team
                     selectIdP idps
                   Nothing -> pure Nothing
+              else pure Nothing
           tooManyUsers -> do
             Logger.warn $
               Log.msg @Text "Multiple users found for email address in getSsoCodeByEmail"
