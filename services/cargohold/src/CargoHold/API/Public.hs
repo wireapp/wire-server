@@ -23,6 +23,7 @@ import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import CargoHold.Federation
+import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import Control.Lens
 import Control.Monad.Trans.Except (throwE)
@@ -45,7 +46,7 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.User (AccountStatus (..), User (userStatus))
+import Wire.API.User (AccountStatus (..), User (userStatus, userTeam))
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -173,15 +174,16 @@ uploadAssetV3 ::
   Handler (Asset, AssetLocation Relative)
 uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
-  case principal of
+  maxBytes <- case principal of
     V3.UserPrincipal uid -> do
-      status <- userStatus <$> getUser uid
-      case status of
-        Active -> pure ()
-        Ephemeral -> pure ()
+      user <- getUser uid
+      case userStatus user of
+        Active | isJust (userTeam user) -> asks (.options.settings.maxTotalBytes)
+        Active -> asks (.options.settings.maxTotalBytesStrict)
+        Ephemeral -> asks (.options.settings.maxTotalBytesStrict)
         _ -> throwE unverifiedUser
-    _ -> pure ()
-  asset <- V3.upload principal (getAssetSource req)
+    _ -> asks (.options.settings.maxTotalBytes)
+  asset <- V3.upload principal maxBytes (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
 
 downloadAssetV3 ::

@@ -1165,6 +1165,9 @@ assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
 
+- `settings.maxTotalBytes` (integer, bytes): maximum upload size for team users.
+- `settings.maxTotalBytesStrict` (integer, bytes): stricter maximum upload size for non-team users (including ephemeral users).
+
 ## Settings in cannon
 
 ### Events websocket inactivity
