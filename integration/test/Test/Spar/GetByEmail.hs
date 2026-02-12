@@ -199,7 +199,10 @@ testGetSsoCodeByEmailDisabledRegular = do
 
       -- Create IdP
       SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
-      void $ createIdp owner idpmeta >>= getJSON 201
+      idpId <-
+        createIdp owner idpmeta `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.json %. "id" >>= asString
 
       -- Create a SCIM user
       scimUser <- randomScimUser
@@ -208,7 +211,13 @@ testGetSsoCodeByEmailDisabledRegular = do
           (e : _) -> e %. "value" >>= asString
           [] -> assertFailure "Expected at least one email"
 
-      -- TODO: This does not register the user
+      scimTok <- createScimToken owner def {idp = Just idpId}
+      scimToken <- scimTok.json %. "token" & asString
+
+      void $ createScimUser domain scimToken scimUser >>= getJSON 201
+
+      -- Activate the email so the user can be found by email
+      activateEmail domain userEmail
 
       -- With feature disabled, should return 404 with empty ssoCode
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
