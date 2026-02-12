@@ -844,7 +844,7 @@ federate:
        ...
 ```
 
-Our coturn solution has an updated rate-limiting feature we added to mitigate the abuse of coturn servers for DDoS Reflection Amplifications Attacks. You will need to add the federating servers public IP addresses of calling services, as well as your local SFTD public IPs to the allowlist list.
+Our coturn solution has an updated rate-limiting feature we added to mitigate the abuse of coturn servers for DDoS Reflection Amplifications Attacks. You will need to add the federating servers public IP addresses of coturn servers, as well as your local SFTD public IPs to the allowlist list.
 
 ```yaml
 ratelimit:
