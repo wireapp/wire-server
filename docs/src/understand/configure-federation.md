@@ -849,7 +849,7 @@ Our coturn solution has an updated rate-limiting feature we added to mitigate th
 ```yaml
 ratelimit:
   allowlist:
-    - "federating.servers.calling.servicesIPs"
+    - "federating.servers.coturn.publicIPs"
     - "local.sftd.public.ip"
 ```
 
