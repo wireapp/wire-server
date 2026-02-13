@@ -241,7 +241,7 @@ finalizeSamlLoginWithZHost domain mbZHost tid (SAML.SignedAuthnResponse authnres
     >>= \req -> submit "POST" (req & maybe id zHost mbZHost)
 
 getSsoCodeByEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
-getSsoCodeByEmail = (flip getSsoCodeByEmailWithZHost) Nothing
+getSsoCodeByEmail = flip getSsoCodeByEmailWithZHost Nothing
 
 getSsoCodeByEmailWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> App Response
 getSsoCodeByEmailWithZHost domain mbZHost email = do
