@@ -1256,7 +1256,7 @@ situations due to misconfigured IdPs.
 
 ##### Rate limiting
 
-The `/sso/get-gy-email` endpoint could be used to discover existing email
+The `/sso/get-by-email` endpoint could be used to discover existing email
 addresses and explore their IdPs by using brute-force strategies. Thus, it is
 rate limited as `reqs_per_addr_sso_get_by_email` zone. Details can be
 configured in `nginz`'s Helm chart in the
