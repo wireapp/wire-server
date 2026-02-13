@@ -3,7 +3,6 @@ module Wire.IdPSubsystem.Interpreter
   )
 where
 
-import API.Brig (SearchContactsCfg (domain))
 import Control.Lens
 import Data.Domain (domainText)
 import Data.HavePendingInvitations (HavePendingInvitations (..))
