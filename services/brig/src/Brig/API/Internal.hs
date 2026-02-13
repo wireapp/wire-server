@@ -58,13 +58,11 @@ import Data.Domain (Domain)
 import Data.Handle
 import Data.HavePendingInvitations
 import Data.Id as Id
-import Data.Json.Util (fromUTCTimeMillis)
 import Data.Map.Strict qualified as Map
 import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Time (diffUTCTime)
 import Data.Time.Clock.System
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
@@ -101,7 +99,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
-import Wire.DeleteQueue (DeleteQueue, enqueueUserDeletion)
+import Wire.DeleteQueue (DeleteQueue)
 import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
@@ -126,10 +124,8 @@ import Wire.RateLimit
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
-import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
-import Wire.StoredUser (StoredUser (..))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
@@ -251,8 +247,7 @@ accountAPI ::
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
-    Member (Concurrency Unsafe) r,
-    Member Now r
+    Member (Concurrency Unsafe) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -807,33 +802,13 @@ changeAccountStatusH usr (suStatus -> status) = do
   API.changeSingleAccountStatus usr status !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
-getAccountStatusH ::
-  ( Member UserStore r,
-    Member DeleteQueue r,
-    Member Now r
-  ) =>
-  UserId ->
-  Maybe Bool ->
-  (Handler r) AccountStatusResp
-getAccountStatusH uid mGc = do
+getAccountStatusH :: (Member UserStore r) => UserId -> (Handler r) AccountStatusResp
+getAccountStatusH uid = do
   status <- lift $ liftSem $ lookupStatus uid
-  case status of
-    Nothing -> throwStd (errorToWai @'E.UserNotFound)
-    Just st -> do
-      when (fromMaybe False mGc) $ do
-        mUser <- lift $ liftSem $ getUser uid
-        for_ mUser enqueueIfExpired
-      pure (AccountStatusResp st)
-  where
-    enqueueIfExpired :: (Member DeleteQueue r, Member Now r) => StoredUser -> Handler r ()
-    enqueueIfExpired StoredUser {status = mStatus, expires = mExpires, id = _} =
-      case (mStatus, mExpires) of
-        (Just Ephemeral, Just (fromUTCTimeMillis -> e)) -> do
-          t <- lift $ liftSem Now.get
-          when (diffUTCTime e t < 0) $ do
-            lift $ liftSem $ enqueueUserDeletion uid
-            throwStd (errorToWai @'E.UserNotFound)
-        _ -> pure ()
+  maybe
+    (throwStd (errorToWai @'E.UserNotFound))
+    (pure . AccountStatusResp)
+    status
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
