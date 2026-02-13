@@ -310,7 +310,7 @@ updateConversationAccess lusr con qcnv update = do
 
 updateConversationHistory ::
   ( Member (Error FederationError) r,
-    Member (ErrorS (ActionDenied ModifyConversationHistory)) r,
+    Member (ErrorS (ActionDenied ModifyConversationAccess)) r,
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS HistoryNotSupported) r,

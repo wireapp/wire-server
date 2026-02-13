@@ -371,7 +371,7 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS ConvNotFound
      ]
   HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
-    '[ ErrorS (ActionDenied ModifyConversationHistory),
+    '[ ErrorS (ActionDenied ModifyConversationAccess),
        ErrorS GroupIdVersionNotSupported,
        ErrorS HistoryNotSupported,
        ErrorS MLSStaleMessage,
