@@ -101,6 +101,7 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
+import Web.Scim.Schema.PatchOp (Patch (..), validateAndApplyPatch)
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
@@ -194,6 +195,20 @@ instance
     Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
   putUser tokinfo uid newScimUser =
     updateValidScimUser tokinfo uid =<< validateScimUser "put" tokinfo newScimUser
+
+  patchUser ::
+    ScimTokenInfo ->
+    UserId ->
+    Patch ST.SparTag ->
+    Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)
+  patchUser tokinfo uid patch = do
+    let expandedPatch = ST.expandPatch patch
+    applyExpandedPatch expandedPatch >>= \patchedUser ->
+      updateValidScimUser tokinfo uid =<< validateScimUser "patch" tokinfo patchedUser
+    where
+      applyExpandedPatch p = do
+        (Scim.WithMeta _ (Scim.WithId _ user)) <- Scim.getUser tokinfo uid
+        validateAndApplyPatch @ST.SparTag p user
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler (Sem r) ()
   deleteUser tokeninfo uid =
