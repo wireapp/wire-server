@@ -1,5 +1,6 @@
 module Wire.IdPSubsystem.Interpreter
   ( interpretIdPSubsystem,
+    IdPSubsystemError (..),
   )
 where
 
@@ -23,6 +24,11 @@ import Wire.IdPConfigStore
 import Wire.IdPSubsystem
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Logger qualified as Logger
+
+data IdPSubsystemError
+  = -- | We found multiple users, but expected only one
+    InconsistentUsers
+  deriving (Show, Eq)
 
 interpretIdPSubsystem ::
   ( Member BrigAPIAccess r,

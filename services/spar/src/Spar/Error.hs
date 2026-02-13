@@ -66,7 +66,7 @@ import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.User.Saml (TTLError)
 import Wire.Error
 import Wire.IdPConfigStore
-import Wire.IdPSubsystem (IdPSubsystemError (..))
+import Wire.IdPSubsystem.Interpreter
 import Wire.ScimSubsystem.Interpreter
 
 type SparError = SAML.Error SparCustomError
