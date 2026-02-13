@@ -1,0 +1,1 @@
+Support external cert-manager issuers (e.g. AWS PCA) for federation TLS by adding optional `group` field to `federator.tls.issuer` and making certificate `duration`/`renewBefore` configurable via `federator.tls.duration` and `federator.tls.renewBefore` in nginx-ingress-services chart.

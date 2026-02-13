@@ -19,6 +19,9 @@ spec:
     {{- if .Values.federator.tls.issuer.name }}
     name: {{ .Values.federator.tls.issuer.name | quote }}
     kind: {{ .Values.federator.tls.issuer.kind | default .Values.tls.issuer.kind }}
+    {{- if .Values.federator.tls.issuer.group }}
+    group: {{ .Values.federator.tls.issuer.group }}
+    {{- end }}
     {{- else }}
     name: {{ include "nginx-ingress-services.getIssuerName" . | quote }}
     kind: {{ .Values.tls.issuer.kind }}
@@ -26,8 +29,8 @@ spec:
   usages:
     - server auth
     - client auth
-  duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
-  renewBefore: 360h   # 15d
+  duration: {{ .Values.federator.tls.duration }}
+  renewBefore: {{ .Values.federator.tls.renewBefore }}
   isCA: false
   secretName: federator-certificate-secret
   privateKey:
