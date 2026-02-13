@@ -27,6 +27,7 @@ flag nix-dev-env
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Data.Hourglass.Const
     Data.Time.Clock.DiffTime
     Data.X509.Extended
     Hasql.Pool.Extended
@@ -103,6 +104,7 @@ library
     , exceptions
     , hasql
     , hasql-pool
+    , hourglass
     , http-client
     , http-client-tls
     , http-types
@@ -134,6 +136,7 @@ test-suite extended-tests
   main-is:            Spec.hs
   other-modules:
     Paths_extended
+    Test.Data.Hourglass.ConstSpec
     Test.Data.X509.ExtendedSpec
     Test.System.Logger.ExtendedSpec
 

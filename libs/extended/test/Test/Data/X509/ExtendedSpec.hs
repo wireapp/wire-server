@@ -6,6 +6,7 @@ import Crypto.PubKey.RSA.PKCS15 qualified as PKCS15
 import Data.ASN1.OID (getObjectID)
 import Data.ByteString qualified as BS
 import Data.Hourglass
+import Data.Hourglass.Const
 import Data.PEM
 import Data.String.Conversions
 import Data.X509
@@ -146,14 +147,12 @@ mkSignedCert distinguishedNameIssuer distinguishedNameSubject =
               certSerial = 1,
               certSignatureAlg = SignatureALG HashSHA256 PubKeyALG_RSA,
               certIssuerDN = distinguishedNameIssuer,
-              certValidity = (DateTime {dtDate = Date 2000 January 1, dtTime = midNight}, DateTime {dtDate = Date 2049 January 1, dtTime = midNight}),
+              certValidity = (DateTime {dtDate = Date 2000 January 1, dtTime = midnight}, DateTime {dtDate = Date 2049 January 1, dtTime = midnight}),
               certSubjectDN = distinguishedNameSubject,
               certPubKey = PubKeyRSA pubKey,
               certExtensions = Extensions Nothing
             }
   where
-    midNight = TimeOfDay 0 0 0 0
-
     -- the minimum key size is hard coded to be 256 bytes (= 2048 bits)
     mkKeyPair :: (RSA.PublicKey, RSA.PrivateKey)
     mkKeyPair = case (RSA.generateWith primesA 2048 65537) of

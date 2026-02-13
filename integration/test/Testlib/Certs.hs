@@ -24,6 +24,7 @@ import Crypto.Store.PKCS8 (PrivateKeyFormat (PKCS8Format), keyPairFromPrivKey, k
 import Crypto.Store.X509 (pubKeyToPEM)
 import Data.ASN1.OID (OIDable (getObjectID))
 import Data.Hourglass
+import Data.Hourglass.Const
 import Data.PEM (PEM (PEM), pemWriteBS)
 import Data.String.Conversions (cs)
 import Data.X509
@@ -133,10 +134,8 @@ mkSignedCert pubKey privKey caName ownerName =
               certSerial = 1,
               certSignatureAlg = SignatureALG HashSHA256 PubKeyALG_RSA,
               certIssuerDN = distinguishedName caName,
-              certValidity = (DateTime {dtDate = Date 2000 January 1, dtTime = midNight}, DateTime {dtDate = Date 2049 January 1, dtTime = midNight}),
+              certValidity = (DateTime {dtDate = Date 2000 January 1, dtTime = midnight}, DateTime {dtDate = Date 2049 January 1, dtTime = midnight}),
               certSubjectDN = distinguishedName ownerName,
               certPubKey = PubKeyRSA pubKey,
               certExtensions = Extensions Nothing
             }
-  where
-    midNight = TimeOfDay 0 0 0 0

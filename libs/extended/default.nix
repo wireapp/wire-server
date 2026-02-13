@@ -72,6 +72,7 @@ mkDerivation {
     exceptions
     hasql
     hasql-pool
+    hourglass
     http-client
     http-client-tls
     http-types
