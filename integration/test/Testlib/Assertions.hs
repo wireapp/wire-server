@@ -418,7 +418,8 @@ prettyResponse :: Response -> String
 prettyResponse r =
   unlines $
     concat
-      [ pure $ colored yellow "request: \n" <> showRequest r.request,
+      [ pure $ colored yellow "request as command line: \n" <> requestToCurl r.request,
+        pure $ colored yellow "request: \n" <> showRequest r.request,
         pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
         case getRequestBody r.request of
           Nothing -> []
