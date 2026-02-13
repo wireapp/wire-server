@@ -59,7 +59,7 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     disabledAPIVersions :: !(Set VersionExp),
     scimBaseUri :: URI,
-    -- | Enable IdP discovery by email address via the /sso/get-by-email endpoint
+    -- | Enable IdP discovery by email address via the @/sso/get-by-email@ endpoint
     enableIdPByEmailDiscovery :: !Bool
   }
   deriving (Show, Generic)
