@@ -121,6 +121,7 @@ library
     , memory                >=0.14.18
     , mtl                   >=2.2.2
     , network-uri           >=2.6.1.0
+    , openapi3
     , pretty-show           >=1.9.5
     , process               >=1.6.5.0
     , QuickCheck            >=2.13.2

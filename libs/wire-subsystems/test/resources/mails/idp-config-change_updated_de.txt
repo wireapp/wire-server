@@ -1,0 +1,83 @@
+[https://wire.example.com/p/img/email/logo-email-black.png]
+
+wire.example.com [https://wire.example.com]
+
+ÄNDERUNG IN DER KONFIGURATION IHRES IDENTITY PROVIDERS
+Etwas hat sich in der IdP-Konfiguration für Ihr Team geändert.
+
+Team-ID:
+99f552d8-9dad-60c1-4be9-c88fb532893a
+
+Benutzer-ID:
+4a1ce4ea-5c99-d01e-018f-4dc9d08f787a
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP-ID:
+574ddfb0-4e50-2bff-e924-33ee2b9f7064
+
+Neuer IdP-Aussteller:
+https://new-issuer.example.com/realm
+
+Neuer IdP-Endpunkt:
+https://new-saml-endpoint.example.com/auth
+
+Alter IdP-Aussteller:
+https://issuer.example.com/realm
+
+Alter IdP-Endpunkt:
+https://saml-endpoint.example.com/auth
+
+
+--------------------------------------------------------------------------------
+
+Hinzugefügt:
+
+SHA1 Fingerabdruck:
+11:DE:AC:24:34:30:3D:05:81:02:77:26:41:3D:FC:09:01:92:E4:40
+
+Betreff:
+Country=US,O=ExampleOrg,OU=Dev1,CN=CertOne,Email Address=one@example.com
+
+Aussteller:
+Country=US,O=ExampleOrg,OU=Dev1,CN=CertOne,Email Address=one@example.com
+
+
+--------------------------------------------------------------------------------
+Hinzugefügt:
+
+SHA1 Fingerabdruck:
+DF:CB:99:7D:C7:1A:4A:AC:D3:F6:94:22:97:07:6D:59:7B:BF:7B:57
+
+Betreff:
+Country=DE,O=ExampleOrg,OU=Dev2,CN=CertTwo,Email Address=two@example.com
+
+Aussteller:
+Country=DE,O=ExampleOrg,OU=Dev2,CN=CertTwo,Email Address=two@example.com
+
+
+--------------------------------------------------------------------------------
+
+Entfernt:
+
+SHA1 Fingerabdruck:
+15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37
+
+Betreff:
+CN=accounts.accesscontrol.windows.net
+
+Aussteller:
+CN=accounts.accesscontrol.windows.net
+
+
+--------------------------------------------------------------------------------
+
+Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
+Wire Support. [https://support.wire.com/]
+
+Datenschutzerklärung und Nutzungsbedingungen [https://wire.example.com/legal/]· Missbrauch melden
+[misuse@wire.example.com]
+© WIRE SWISS GmbH. Alle Rechte vorbehalten.

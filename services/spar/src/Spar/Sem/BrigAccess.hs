@@ -41,6 +41,7 @@ module Spar.Sem.BrigAccess
     setStatus,
     getDefaultUserLocale,
     checkAdminGetTeamId,
+    sendSAMLIdPChangedEmail,
   )
 where
 
@@ -55,6 +56,7 @@ import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
 import Wire.API.Locale
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
@@ -82,5 +84,6 @@ data BrigAccess m a where
   SetStatus :: UserId -> AccountStatus -> BrigAccess m ()
   GetDefaultUserLocale :: BrigAccess m Locale
   CheckAdminGetTeamId :: UserId -> BrigAccess m TeamId
+  SendSAMLIdPChangedEmail :: IdpChangedNotification -> BrigAccess m ()
 
 makeSem ''BrigAccess

@@ -18,10 +18,17 @@
 module Wire.MockInterpreters.EmailSending where
 
 import Imports
+import Network.Mail.Mime (Mail)
 import Polysemy
+import Polysemy.State
 import Wire.EmailSending
 
 noopEmailSendingInterpreter :: InterpreterFor EmailSending r
 noopEmailSendingInterpreter =
   interpret \case
     SendMail _ -> pure ()
+
+recordingEmailSendingInterpreter :: (Member (State [Mail]) r) => InterpreterFor EmailSending r
+recordingEmailSendingInterpreter =
+  interpret \case
+    SendMail mail -> modify (mail :)

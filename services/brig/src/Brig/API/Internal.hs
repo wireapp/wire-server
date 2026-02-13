@@ -122,6 +122,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
+import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -180,7 +181,8 @@ servantSitemap ::
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member SAMLEmailSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -198,6 +200,7 @@ servantSitemap =
     :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
     :<|> enterpriseLoginApi
+    :<|> samlIdPApi
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -516,6 +519,9 @@ enterpriseLoginApi =
     :<|> Named @"domain-registration-update" (\d p -> fmap (const NoContent) . lift . liftSem $ updateDomainRegistration d p)
     :<|> Named @"domain-registration-delete" (fmap (const NoContent) . lift . liftSem . deleteDomain)
     :<|> Named @"domain-registration-get" getDomainRegistrationH
+
+samlIdPApi :: (Member SAMLEmailSubsystem r) => ServerT SAMLIdPAPI (Handler r)
+samlIdPApi = Named @"send-idp-changed-email" (lift . liftSem . sendSAMLIdPChanged)
 
 ---------------------------------------------------------------------------
 -- Handlers

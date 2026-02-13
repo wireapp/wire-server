@@ -32,6 +32,7 @@ import Hedgehog
 import Hedgehog.Gen as Gen
 import SAML2.Core qualified as HS
 import SAML2.WebSSO
+import SAML2.WebSSO.Orphans ()
 import SAML2.WebSSO.Test.Arbitrary
 import SAML2.WebSSO.Test.Util
 import Servant

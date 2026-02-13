@@ -43,6 +43,7 @@ module Spar.Intra.Brig
     setStatus,
     getDefaultUserLocale,
     checkAdminGetTeamId,
+    sendSAMLIdPChangedEmail,
   )
 where
 
@@ -64,6 +65,7 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.Locale
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
@@ -453,3 +455,9 @@ checkAdminGetTeamId uid = do
   case statusCode resp of
     200 -> parseResponse @TeamId "brig" resp
     _ -> rethrow "brig" resp
+
+sendSAMLIdPChangedEmail :: (HasCallStack, MonadSparToBrig m) => IdpChangedNotification -> m ()
+sendSAMLIdPChangedEmail notif = do
+  resp <- call $ method POST . path "/i/idp/send-idp-changed-email" . json notif
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp

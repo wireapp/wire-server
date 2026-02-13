@@ -50,9 +50,22 @@ data NewTeamOwnerWelcomeEmailTemplate = NewTeamOwnerWelcomeEmailTemplate
     newTeamOwnerWelcomeEmailSenderName :: !Text
   }
 
+data IdPConfigChangeEmailTemplate = IdPConfigChangeEmailTemplate
+  { idpDetailsAddedHtml :: !Template,
+    idpDetailsAddedText :: !Template,
+    idpDetailsRemovedHtml :: !Template,
+    idpDetailsRemovedText :: !Template,
+    subject :: !Template,
+    bodyText :: !Template,
+    bodyHtml :: !Template,
+    sender :: !EmailAddress,
+    senderName :: !Text
+  }
+
 data TeamTemplates = TeamTemplates
   { invitationEmail :: !InvitationEmailTemplate,
     existingUserInvitationEmail :: !InvitationEmailTemplate,
     memberWelcomeEmail :: !MemberWelcomeEmailTemplate,
-    newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate
+    newTeamOwnerWelcomeEmail :: !NewTeamOwnerWelcomeEmailTemplate,
+    idpConfigChangeEmail :: !IdPConfigChangeEmailTemplate
   }
