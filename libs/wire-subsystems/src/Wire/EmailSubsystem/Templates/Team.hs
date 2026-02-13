@@ -51,15 +51,15 @@ data NewTeamOwnerWelcomeEmailTemplate = NewTeamOwnerWelcomeEmailTemplate
   }
 
 data IdPConfigChangeEmailTemplate = IdPConfigChangeEmailTemplate
-  { idpConfigChangeEmailIdPDetailsAddedHtml :: !Template,
-    idpConfigChangeEmailIdPDetailsAddedText :: !Template,
-    idpConfigChangeEmailIdPDetailsRemovedHtml :: !Template,
-    idpConfigChangeEmailIdPDetailsRemovedText :: !Template,
-    idpConfigChangeEmailSubject :: !Template,
-    idpConfigChangeEmailBodyText :: !Template,
-    idpConfigChangeEmailBodyHtml :: !Template,
-    idpConfigChangeEmailSender :: !EmailAddress,
-    idpConfigChangeEmailSenderName :: !Text
+  { idpDetailsAddedHtml :: !Template,
+    idpDetailsAddedText :: !Template,
+    idpDetailsRemovedHtml :: !Template,
+    idpDetailsRemovedText :: !Template,
+    subject :: !Template,
+    bodyText :: !Template,
+    bodyHtml :: !Template,
+    sender :: !EmailAddress,
+    senderName :: !Text
   }
 
 data TeamTemplates = TeamTemplates

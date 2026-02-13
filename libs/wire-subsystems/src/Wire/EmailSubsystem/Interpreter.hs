@@ -638,18 +638,18 @@ renderIdPConfigChangeEmail ::
   Maybe URI ->
   Sem r Mail
 renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding addedCerts removedCerts tid uid idPId oldIssuer oldEndpoint newIssuer newEndpoint = do
-  idpDetailsAddedText :: Text <-
+  idpDetailsAddedTextRendered :: Text <-
     (TL.toStrict . TL.unlines)
-      <$> mapM (renderTextWithBrandingSem idpConfigChangeEmailIdPDetailsAddedText . idpDetailsToMap) addedCerts
-  idpDetailsAddedHtml :: Text <-
+      <$> mapM (renderTextWithBrandingSem idpDetailsAddedText . idpDetailsToMap) addedCerts
+  idpDetailsAddedHtmlRendered :: Text <-
     (TL.toStrict . TL.unlines)
-      <$> mapM (renderHtmlWithBrandingSem idpConfigChangeEmailIdPDetailsAddedHtml . idpDetailsToMap) addedCerts
-  idpDetailsRemovedText :: Text <-
+      <$> mapM (renderHtmlWithBrandingSem idpDetailsAddedHtml . idpDetailsToMap) addedCerts
+  idpDetailsRemovedTextRendered :: Text <-
     (TL.toStrict . TL.unlines)
-      <$> mapM (renderTextWithBrandingSem idpConfigChangeEmailIdPDetailsRemovedText . idpDetailsToMap) removedCerts
-  idpDetailsRemovedHtml :: Text <-
+      <$> mapM (renderTextWithBrandingSem idpDetailsRemovedText . idpDetailsToMap) removedCerts
+  idpDetailsRemovedHtmlRendered :: Text <-
     (TL.toStrict . TL.unlines)
-      <$> mapM (renderHtmlWithBrandingSem idpConfigChangeEmailIdPDetailsRemovedHtml . idpDetailsToMap) removedCerts
+      <$> mapM (renderHtmlWithBrandingSem idpDetailsRemovedHtml . idpDetailsToMap) removedCerts
 
   let replace =
         branding
@@ -661,22 +661,22 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
           & Map.insert "new_idp_endpoint" (maybe "None" (T.decodeUtf8 . serializeURIRef') newEndpoint)
           & Map.insert "idp_id" ((toText . fromIdPId) idPId)
       certificateDetailsHtml =
-        (T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedHtml, idpDetailsRemovedHtml]
+        (T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedHtmlRendered, idpDetailsRemovedHtmlRendered]
       replaceHtml =
         replace
           & Map.insert "certificates_details" "CERTIFICATE_DETAILS"
       replaceText =
         replace
-          & Map.insert "certificates_details" ((T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedText, idpDetailsRemovedText])
+          & Map.insert "certificates_details" ((T.unlines . Imports.filter (not . T.null)) [idpDetailsAddedTextRendered, idpDetailsRemovedTextRendered])
 
-  txt <- renderTextWithBrandingSem idpConfigChangeEmailBodyText replaceText
+  txt <- renderTextWithBrandingSem bodyText replaceText
   -- For HTML mails ${certificates_details} needs to be replaced in two steps:
   -- First we want to get rid of the variable. Second, we want to insert the
   -- certificates' HTML snippets directly to avoid quoting.
   html <-
-    renderHtmlWithBrandingSem idpConfigChangeEmailBodyHtml replaceHtml
+    renderHtmlWithBrandingSem bodyHtml replaceHtml
       <&> TL.replace "CERTIFICATE_DETAILS" (TL.fromStrict certificateDetailsHtml)
-  subj <- renderTextWithBrandingSem idpConfigChangeEmailSubject replace
+  subj <- renderTextWithBrandingSem subject replace
   pure
     (emptyMail from)
       { mailTo = [to],
@@ -687,7 +687,7 @@ renderIdPConfigChangeEmail email IdPConfigChangeEmailTemplate {..} branding adde
         mailParts = [[plainPart txt, htmlPart html]]
       }
   where
-    from = Address (Just idpConfigChangeEmailSenderName) (fromEmail idpConfigChangeEmailSender)
+    from = Address (Just senderName) (fromEmail sender)
     to = Address Nothing (fromEmail email)
 
     idpDetailsToMap :: CertDescription -> Map Text Text
