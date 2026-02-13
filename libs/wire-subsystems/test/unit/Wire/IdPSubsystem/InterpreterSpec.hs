@@ -141,7 +141,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail mbDomain email)
 
       result `shouldBe` Right (Just idp._idpId)
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "finds IdP for SCIM user by domain" $ \(teamMember :: TeamMember) user idp userRef email teamId dom -> do
       (otherIdPs :: NE.NonEmpty IdP) <-
@@ -174,7 +174,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail (Just dom) email)
 
       resultHead `shouldBe` Right (Just idp._idpId)
-      filter (\(lvl, _msg) -> lvl > Log.Info) logsHead `shouldBe` mempty
+      expectedSevereLogs logsHead mempty
 
       -- Same game, but this time the IdP to find is at the end of the list.
       -- This ensures that the IdP is really looked up and not just taken from
@@ -191,7 +191,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail (Just dom) email)
 
       resultTail `shouldBe` Right (Just idp._idpId)
-      filter (\(lvl, _msg) -> lvl > Log.Info) logsTail `shouldBe` mempty
+      expectedSevereLogs logsTail mempty
 
     prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
       -- This should not happen, because the IdP management API allows to
@@ -232,10 +232,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
                             e -> error $ "Unexpected result " <> show e
                         )
 
-      let warnLogs = filter (\(lvl, _msg) -> lvl > Log.Info) logs
-      length warnLogs `shouldBe` 1
-      (fst . head) warnLogs `shouldBe` Log.Warn
-      (BSUTF8.toString . snd . head) warnLogs `shouldStartWith` "Found more than one IdP config for domain"
+      expectedSevereLogs logs [(Log.Warn, "Found more than one IdP config for domain")]
 
     prop "returns Nothing for an unknown email" $ \(teamMember :: TeamMember) user idp userRef email anotherEmail teamId mbDomain -> do
       let userWithEmail =
@@ -261,7 +258,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail mbDomain anotherEmail)
 
       result `shouldBe` Right Nothing
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "returns Nothing for SCIM user with no IdP" $ \(teamMember :: TeamMember) user userRef email teamId -> do
       let userWithEmail =
@@ -285,7 +282,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail Nothing email)
 
       result `shouldBe` Right Nothing
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "returns Nothing when the user does not belong to a team" $ \user idp userRef email -> do
       let userWithEmail =
@@ -305,7 +302,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail Nothing email)
 
       result `shouldBe` Right Nothing
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "returns Nothing for non SCIM/SSO user" $ \(teamMember :: TeamMember) user idp userRef email teamId -> do
       (userIdentity, userManagedBy) <-
@@ -340,7 +337,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail Nothing email)
 
       result `shouldBe` Right Nothing
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "returns Nothing when the feature is disabled" $ \(teamMember :: TeamMember) user idp userRef email teamId -> do
       let userWithEmail =
@@ -366,7 +363,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail Nothing email)
 
       result `shouldBe` Right Nothing
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "returns Nothing if there are multiple, but none for this domain" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
       mbAnotherDomain <- generate $ arbitrary `suchThat` (\mbD -> mbD /= mbDomain)
@@ -397,7 +394,7 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail mbAnotherDomain email)
 
       result `shouldBe` Right Nothing
-      filter (\(lvl, _msg) -> lvl > Log.Info) logs `shouldBe` mempty
+      expectedSevereLogs logs mempty
 
     prop "getting multiple users for an email leads to exception" $ \(teamMember :: TeamMember) user anotherUser userRef email teamId mbDomain -> do
       idp' <- generate $ do
@@ -431,7 +428,16 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (getSsoCodeByEmail mbDomain email)
 
       result `shouldBe` Left InconsistentUsers
-      let errorLogs = filter (\(lvl, _msg) -> lvl > Log.Info) logs
-      length errorLogs `shouldBe` 1
-      (fst . head) errorLogs `shouldBe` Log.Warn
-      (BSUTF8.toString . snd . head) errorLogs `shouldStartWith` "Multiple users found for email address in getSsoCodeByEmail"
+      expectedSevereLogs logs [(Log.Warn, "Multiple users found for email address in getSsoCodeByEmail")]
+
+-- | Similar to `RecordedLog`, but only carries the prefix of the rendered log message
+type ExpectedLog = (Log.Level, LByteString)
+
+expectedSevereLogs :: [RecordedLog] -> [ExpectedLog] -> Expectation
+expectedSevereLogs recordedLogs expectedLogs =
+  do
+    let errorLogs = filter (\(lvl, _msg) -> lvl > Log.Info) recordedLogs
+    length errorLogs `shouldBe` length expectedLogs
+    forM_ (zip errorLogs expectedLogs) $ \((lvl, msg), (expectedLvl, expectedPrefix)) -> do
+      lvl `shouldBe` expectedLvl
+      BSUTF8.toString msg `shouldStartWith` BSUTF8.toString expectedPrefix
