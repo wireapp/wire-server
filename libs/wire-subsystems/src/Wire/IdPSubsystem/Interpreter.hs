@@ -49,11 +49,11 @@ interpretIdPSubsystem enableIdPByEmailDiscovery = interpret $ \case
 --  - Get their team
 --  - Lookup the team's IdP matching the domain
 --
---  If any of these steps fail, we return `Nothing` - exept when the team has
+--  If any of these steps fail, we return `Nothing` - except when the team has
 --  only exactly one IdP configured; then we consider this as default.
 --
 --  In case we find more than one user for an email address, we throw an
---  excetion as this "should never happen".
+--  exception as this "should never happen".
 --
 --
 -- __Design Notes__
