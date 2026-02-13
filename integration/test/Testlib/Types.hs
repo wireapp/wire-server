@@ -374,7 +374,7 @@ data MLSConv = MLSConv
 
 requestToCurl :: HTTP.Request -> String
 requestToCurl req =
-  intercalate " " $ -- TODO: amke this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
+  intercalate " " $ -- FUTUREWORK: amke this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
     Prelude.filter
       (not . Prelude.null)
       [ "curl",
