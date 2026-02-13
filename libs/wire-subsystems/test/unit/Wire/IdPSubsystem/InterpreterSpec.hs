@@ -46,18 +46,17 @@ import Wire.IdPConfigStore.Mem (idPToMem)
 import Wire.IdPSubsystem
 import Wire.IdPSubsystem.Interpreter
 import Wire.MockInterpreters.GalleyAPIAccess
-import Wire.Sem.Logger (Logger)
-import Wire.Sem.Logger qualified
 import Wire.Sem.Logger qualified as Log
+import Wire.Sem.Logger.TinyLog
 
 type AllEffects =
   [ IdPSubsystem,
     Error IdPSubsystemError,
-    Logger (Log.Msg -> Log.Msg),
+    Log.Logger (Log.Msg -> Log.Msg),
     BrigAPIAccess,
     GalleyAPIAccess,
     IdPConfigStore,
-    State [CapturedLog]
+    State [RecordedLog]
   ]
 
 runAllEffects ::
@@ -66,14 +65,14 @@ runAllEffects ::
   Map TeamId [TeamMember] ->
   ([UserId] -> [Handle] -> [EmailAddress] -> HavePendingInvitations -> [User]) ->
   Sem AllEffects a ->
-  (Either IdPSubsystemError a, [CapturedLog])
+  (Either IdPSubsystemError a, [RecordedLog])
 runAllEffects enableDiscovery idps teams brigAPIMockFn action = swap $ run $ runState [] $ do
   (_idpState, result) <- idPToMem $ do
     forM_ idps insertConfig
     -- Run the action
     miniGalleyAPIAccess teams def
       . brigAPIAccessMock brigAPIMockFn
-      . captureLogger
+      . pureRecordLogs
       . runError
       . interpretIdPSubsystem enableDiscovery
       $ action
@@ -108,17 +107,6 @@ brigAPIAccessMockFn expectedEmail resUser uids handles emails havePending =
   error $
     "Exepected call "
       <> show (expectedEmail, resUser, uids, handles, emails, havePending)
-
-type CapturedLog = (Log.Level, LByteString)
-
-captureLogger ::
-  (Member (State [CapturedLog]) r) =>
-  InterpreterFor (Logger (Log.Msg -> Log.Msg)) r
-captureLogger = interpret $ \case
-  Wire.Sem.Logger.Log lvl msg -> modify ((lvl, renderMsg msg) :)
-
-renderMsg :: (Log.Msg -> Log.Msg) -> LByteString
-renderMsg = Log.render (Log.renderDefault ",")
 
 spec :: Spec
 spec = describe "IdPSubsystem.Interpreter" $ do

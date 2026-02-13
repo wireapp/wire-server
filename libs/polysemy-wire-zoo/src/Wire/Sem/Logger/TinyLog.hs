@@ -23,15 +23,18 @@ module Wire.Sem.Logger.TinyLog
     stringLoggerToTinyLog,
     discardTinyLogs,
     module System.Logger,
+    RecordedLog,
     LogRecorder (..),
     newLogRecorder,
     recordLogs,
+    pureRecordLogs,
   )
 where
 
 import Data.Id
 import Imports
 import Polysemy
+import Polysemy.State
 import Polysemy.TinyLog (TinyLog)
 import System.Logger (Level (..))
 import qualified System.Logger as Log
@@ -64,11 +67,26 @@ stringLoggerToTinyLog = mapLogger @String Log.msg
 discardTinyLogs :: Sem (Logger (Log.Msg -> Log.Msg) ': r) a -> Sem r a
 discardTinyLogs = discardLogs
 
-newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Level, LByteString)]}
+type RecordedLog = (Log.Level, LByteString)
+
+newtype LogRecorder = LogRecorder {recordedLogs :: IORef [RecordedLog]}
 
 newLogRecorder :: IO LogRecorder
 newLogRecorder = LogRecorder <$> newIORef []
 
 recordLogs :: (Member (Embed IO) r) => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
 recordLogs LogRecorder {..} = interpret $ \(Log lvl msg) ->
-  modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])
+  modifyIORef' recordedLogs (++ [(lvl, renderMsg msg)])
+
+-- | Interpret `TinyLog` pure (without `IO`)
+--
+-- This function is meant to be used in unit tests, when you want to record
+-- logs without adding `IO` interpreters to the interpreter stack.
+pureRecordLogs ::
+  (Member (State [RecordedLog]) r) =>
+  InterpreterFor TinyLog r
+pureRecordLogs = interpret $ \case
+  Wire.Sem.Logger.Log lvl msg -> modify ((lvl, renderMsg msg) :)
+
+renderMsg :: (Log.Msg -> Log.Msg) -> LByteString
+renderMsg = Log.render (Log.renderDefault ", ")
