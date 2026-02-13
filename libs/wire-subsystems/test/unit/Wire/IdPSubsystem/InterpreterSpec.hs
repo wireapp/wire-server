@@ -69,7 +69,6 @@ runAllEffects ::
   (Either IdPSubsystemError a, [CapturedLog])
 runAllEffects enableDiscovery idps teams brigAPIMockFn action = swap $ run $ runState [] $ do
   (_idpState, result) <- idPToMem $ do
-    -- Insert IdPs into store
     forM_ idps insertConfig
     -- Run the action
     miniGalleyAPIAccess teams def
@@ -91,9 +90,20 @@ brigAPIAccessMock mockFn = interpret $ \case
   GetUsersByVariousKeys uids handles emails havePending -> pure $ mockFn uids handles emails havePending
   _ -> error "Not implemented in brigAPIAccessMock"
 
-brigAPIAccessMockFn :: EmailAddress -> User -> [UserId] -> [Handle] -> [EmailAddress] -> HavePendingInvitations -> [User]
-brigAPIAccessMockFn expectedEmail resUser [] [] emails NoPendingInvitations | emails == [expectedEmail] = [resUser]
-brigAPIAccessMockFn expectedEmail _resUser [] [] emails NoPendingInvitations | emails /= [expectedEmail] = []
+brigAPIAccessMockFn ::
+  EmailAddress ->
+  User ->
+  [UserId] ->
+  [Handle] ->
+  [EmailAddress] ->
+  HavePendingInvitations ->
+  [User]
+brigAPIAccessMockFn expectedEmail resUser [] [] emails NoPendingInvitations
+  | emails == [expectedEmail] =
+      [resUser]
+brigAPIAccessMockFn expectedEmail _resUser [] [] emails NoPendingInvitations
+  | emails /= [expectedEmail] =
+      []
 brigAPIAccessMockFn expectedEmail resUser uids handles emails havePending =
   error $
     "Exepected call "
