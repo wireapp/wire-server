@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -201,9 +202,8 @@ data TeamOpts = TeamOpts
     -- | Team Member Welcome URL
     tMemberWelcomeUrl :: !Text
   }
-  deriving (Show, Generic)
-
-instance FromJSON TeamOpts
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
 
 loadTeamTemplates :: TeamOpts -> FilePath -> Locale -> EmailAddress -> IO (Localised TeamTemplates)
 loadTeamTemplates tOptions templatesDir defLocale sender = readLocalesDir defLocale templatesDir "team" $ \fp ->
