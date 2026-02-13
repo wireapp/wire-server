@@ -95,13 +95,14 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
       scimTok <- createScimToken owner idpTokenConfig
       scimToken <- scimTok.json %. "token" & asString
 
-      void $ createScimUser domain scimToken scimUser >>= getJSON 201
+      createScimUser domain scimToken scimUser >>= assertSuccess
 
       if isIdPScimToken
         then when validateSAMLemails $ do
           -- Activate the email so the user can be found by email
           activateEmail domain userEmail
         else
+          -- Team members get an invitation (not an activation mail)
           registerInvitedUser domain tid userEmail
 
       -- Get the SSO code by email with matching Z-Host (ernie)
@@ -152,13 +153,14 @@ testGetSsoCodeByEmailRegular (TaggedBool validateSAMLemails) (TaggedBool isIdPSc
       scimTok <- createScimToken owner idpTokenConfig
       scimToken <- scimTok.json %. "token" & asString
 
-      void $ createScimUser domain scimToken scimUser >>= getJSON 201
+      createScimUser domain scimToken scimUser >>= assertSuccess
 
       if isIdPScimToken
         then when validateSAMLemails $ do
           -- Activate the email so the user can be found by email
           activateEmail domain userEmail
         else
+          -- Team members get an invitation (not an activation mail)
           registerInvitedUser domain tid userEmail
 
       -- Get the SSO code by email
@@ -175,6 +177,10 @@ testGetSsoCodeByEmailNonScimUser = do
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Create IdP without domain binding
+      SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
+      createIdp owner idpmeta >>= assertSuccess
 
       -- Register user
       usr <- randomUser domain def {activate = True}
@@ -212,7 +218,7 @@ testGetSsoCodeByEmailDisabledRegular = do
       scimTok <- createScimToken owner def {idp = Just idpId}
       scimToken <- scimTok.json %. "token" & asString
 
-      void $ createScimUser domain scimToken scimUser >>= getJSON 201
+      createScimUser domain scimToken scimUser >>= assertSuccess
 
       -- Activate the email so the user can be found by email
       activateEmail domain userEmail
@@ -276,7 +282,7 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
       scimTok <- createScimToken owner def {idp = Just idpIdErnie}
       scimToken <- scimTok.json %. "token" & asString
 
-      void $ createScimUser domain scimToken scimUser >>= getJSON 201
+      createScimUser domain scimToken scimUser >>= assertSuccess
 
       -- Activate the email so the user can be found by email
       activateEmail domain userEmail
