@@ -73,14 +73,15 @@ testUploadAssetFileSizeLimit = do
 
 testUploadAssetFileSizeLimitStrict :: (HasCallStack) => App ()
 testUploadAssetFileSizeLimitStrict = do
-  let restricUploadLimitOnlyForNonTeamUser = def {cargoholdCfg = setField "settings.maxTotalBytesStrict" (1 :: Int)}
-  withModifiedBackend restricUploadLimitOnlyForNonTeamUser $ \domain -> do
+  let restrictUploadLimitOnlyForNonTeamUser = def {cargoholdCfg = setField "settings.maxTotalBytesStrict" (1 :: Int)}
+  withModifiedBackend restrictUploadLimitOnlyForNonTeamUser $ \domain -> do
     nonTeamUser1 <- ephemeralUser domain
     nonTeamUser2 <- randomUser domain def
     for_ [nonTeamUser1, nonTeamUser2] $ \user ->
       bindResponse (uploadSomeAsset user) $ \resp -> do
         resp.status `shouldMatchInt` 413
         resp.json %. "label" `shouldMatch` "client-error"
+
     (_, _, teamUser : _) <- createTeam domain 2
     bindResponse (uploadSomeAsset teamUser) $ \resp -> do
       resp.status `shouldMatchInt` 201
