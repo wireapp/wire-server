@@ -55,3 +55,32 @@ testUploadAssetEphemeralUser = do
   bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
     resp.status `shouldMatchInt` 200
     BSC.unpack resp.body `shouldMatch` "Hello World!"
+
+testUploadAssetFileSizeLimit :: (HasCallStack) => App ()
+testUploadAssetFileSizeLimit = do
+  let restrictUploadLimitOnlyForTeamUser = def {cargoholdCfg = setField "settings.maxTotalBytes" (1 :: Int)}
+  withModifiedBackend restrictUploadLimitOnlyForTeamUser $ \domain -> do
+    (_, _, teamUser : _) <- createTeam domain 2
+    bindResponse (uploadSomeAsset teamUser) $ \resp -> do
+      resp.status `shouldMatchInt` 413
+      resp.json %. "label" `shouldMatch` "client-error"
+
+    nonTeamUser1 <- ephemeralUser domain
+    nonTeamUser2 <- randomUser domain def
+    for_ [nonTeamUser1, nonTeamUser2] $ \user ->
+      bindResponse (uploadSomeAsset user) $ \resp -> do
+        resp.status `shouldMatchInt` 201
+
+testUploadAssetFileSizeLimitStrict :: (HasCallStack) => App ()
+testUploadAssetFileSizeLimitStrict = do
+  let restricUploadLimitOnlyForNonTeamUser = def {cargoholdCfg = setField "settings.maxTotalBytesStrict" (1 :: Int)}
+  withModifiedBackend restricUploadLimitOnlyForNonTeamUser $ \domain -> do
+    nonTeamUser1 <- ephemeralUser domain
+    nonTeamUser2 <- randomUser domain def
+    for_ [nonTeamUser1, nonTeamUser2] $ \user ->
+      bindResponse (uploadSomeAsset user) $ \resp -> do
+        resp.status `shouldMatchInt` 413
+        resp.json %. "label" `shouldMatch` "client-error"
+    (_, _, teamUser : _) <- createTeam domain 2
+    bindResponse (uploadSomeAsset teamUser) $ \resp -> do
+      resp.status `shouldMatchInt` 201
