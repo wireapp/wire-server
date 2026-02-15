@@ -605,16 +605,16 @@ localOne2OneConvId ::
 localOne2OneConvId self other = do
   (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
   pure . qualifyAs self $ Data.localOne2OneConvId x y
-
-toUUIDs ::
-  (Member (Error InvalidInput) r) =>
-  UserId ->
-  UserId ->
-  Sem r (U.UUID U.V4, U.UUID U.V4)
-toUUIDs a b = do
-  a' <- U.fromUUID (toUUID a) & note InvalidUUID4
-  b' <- U.fromUUID (toUUID b) & note InvalidUUID4
-  pure (a', b')
+  where
+    toUUIDs ::
+      (Member (Error InvalidInput) r) =>
+      UserId ->
+      UserId ->
+      Sem r (U.UUID U.V4, U.UUID U.V4)
+    toUUIDs a b = do
+      a' <- U.fromUUID (toUUID a) & note InvalidUUID4
+      b' <- U.fromUUID (toUUID b) & note InvalidUUID4
+      pure (a', b')
 
 accessRoles :: Public.NewConv -> Set AccessRole
 accessRoles b = fromMaybe defRole (newConvAccessRoles b)
