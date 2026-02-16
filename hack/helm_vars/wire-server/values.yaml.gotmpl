@@ -728,8 +728,6 @@ integration:
     uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
     {{- end }}
     redisPassword: very-secure-redis-master-password
-  tls:
-    caNamespace: wire-federation-v0
 
 {{- if .Values.uploadXml }}
 backoffice:
