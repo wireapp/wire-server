@@ -17,16 +17,10 @@
 
 module Test.Cargohold.AssetUpload where
 
-import API.BrigInternal
 import API.Cargohold
+import qualified Data.ByteString.Char8 as BSC
 import SetupHelpers
 import Testlib.Prelude
-
-testAssetUploadUnverifiedUser :: (HasCallStack) => App ()
-testAssetUploadUnverifiedUser = do
-  user <- randomUser OwnDomain $ def {activate = False}
-  bindResponse (uploadSomeAsset user) $ \resp -> do
-    resp.status `shouldMatchInt` 403
 
 testAssetUploadVerifiedUser :: (HasCallStack) => App ()
 testAssetUploadVerifiedUser = do
@@ -49,3 +43,45 @@ testAssetUploadUnknownUser = do
           ]
   bindResponse (uploadSomeAsset user) $ \resp -> do
     resp.status `shouldMatchInt` 403
+
+testUploadAssetEphemeralUser :: (HasCallStack) => App ()
+testUploadAssetEphemeralUser = do
+  user <- ephemeralUser OwnDomain
+
+  key <- bindResponse (uploadSomeAsset user) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "key"
+
+  bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    BSC.unpack resp.body `shouldMatch` "Hello World!"
+
+testUploadAssetFileSizeLimit :: (HasCallStack) => App ()
+testUploadAssetFileSizeLimit = do
+  let restrictUploadLimitOnlyForTeamUser = def {cargoholdCfg = setField "settings.maxTotalBytes" (1 :: Int)}
+  withModifiedBackend restrictUploadLimitOnlyForTeamUser $ \domain -> do
+    (_, _, teamUser : _) <- createTeam domain 2
+    bindResponse (uploadSomeAsset teamUser) $ \resp -> do
+      resp.status `shouldMatchInt` 413
+      resp.json %. "label" `shouldMatch` "client-error"
+
+    nonTeamUser1 <- ephemeralUser domain
+    nonTeamUser2 <- randomUser domain def
+    for_ [nonTeamUser1, nonTeamUser2] $ \user ->
+      bindResponse (uploadSomeAsset user) $ \resp -> do
+        resp.status `shouldMatchInt` 201
+
+testUploadAssetFileSizeLimitStrict :: (HasCallStack) => App ()
+testUploadAssetFileSizeLimitStrict = do
+  let restrictUploadLimitOnlyForNonTeamUser = def {cargoholdCfg = setField "settings.maxTotalBytesStrict" (1 :: Int)}
+  withModifiedBackend restrictUploadLimitOnlyForNonTeamUser $ \domain -> do
+    nonTeamUser1 <- ephemeralUser domain
+    nonTeamUser2 <- randomUser domain def
+    for_ [nonTeamUser1, nonTeamUser2] $ \user ->
+      bindResponse (uploadSomeAsset user) $ \resp -> do
+        resp.status `shouldMatchInt` 413
+        resp.json %. "label" `shouldMatch` "client-error"
+
+    (_, _, teamUser : _) <- createTeam domain 2
+    bindResponse (uploadSomeAsset teamUser) $ \resp -> do
+      resp.status `shouldMatchInt` 201

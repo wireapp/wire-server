@@ -17,12 +17,13 @@
 
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
-import CargoHold.API.Error (unverifiedUser, userNotFound)
+import CargoHold.API.Error (unverifiedUser)
 import qualified CargoHold.API.Legacy as LegacyAPI
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
 import CargoHold.Federation
+import CargoHold.Options
 import qualified CargoHold.Types.V3 as V3
 import Control.Lens
 import Control.Monad.Trans.Except (throwE)
@@ -42,11 +43,10 @@ import Servant.Server hiding (Handler)
 import URI.ByteString as URI
 import Wire.API.Asset
 import Wire.API.Routes.AssetBody
-import Wire.API.Routes.Internal.Brig (brigInternalClient)
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.User (AccountStatus (Active), AccountStatusResp (..))
+import Wire.API.User (AccountStatus (..), User (userStatus, userTeam))
 
 servantSitemap :: ServerT CargoholdAPI Handler
 servantSitemap =
@@ -80,8 +80,7 @@ servantSitemap =
         :<|> Named @"assets-conv-otr-download-legacy" legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
     qualifiedAPI =
-      Named @"assets-download-v4"
-        downloadAssetV4
+      Named @"assets-download-v4" downloadAssetV4
         :<|> Named @"assets-delete-v4" deleteAssetV4
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
@@ -175,16 +174,16 @@ uploadAssetV3 ::
   Handler (Asset, AssetLocation Relative)
 uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
-  case principal of
+  maxBytes <- case principal of
     V3.UserPrincipal uid -> do
-      status <-
-        lift (executeBrigInteral $ brigInternalClient @"iGetUserStatus" uid)
-          >>= either (const $ throwE userNotFound) pure
-      case fromAccountStatusResp status of
-        Active -> pure ()
+      user <- getUser uid
+      case userStatus user of
+        Active | isJust (userTeam user) -> asks (.options.settings.maxTotalBytes)
+        Active -> asks (.options.settings.maxTotalBytesStrict)
+        Ephemeral -> asks (.options.settings.maxTotalBytesStrict)
         _ -> throwE unverifiedUser
-    _ -> pure ()
-  asset <- V3.upload principal (getAssetSource req)
+    _ -> asks (.options.settings.maxTotalBytes)
+  asset <- V3.upload principal maxBytes (getAssetSource req)
   pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
 
 downloadAssetV3 ::

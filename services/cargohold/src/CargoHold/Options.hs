@@ -130,8 +130,10 @@ makeLensesFor
   ''AWSOpts
 
 data Settings = Settings
-  { -- | Maximum allowed size for uploads, in bytes
+  { -- | Maximum allowed size for uploads, in bytes (applies to team users)
     maxTotalBytes :: !Int,
+    -- | Maximum allowed size for uploads, in bytes (more restrictive setting, applies to non-team users)
+    maxTotalBytesStrict :: !Int,
     -- | TTL for download links, in seconds
     downloadLinkTTL :: !Word,
     -- | Enable audit logging for asset uploads/downloads.

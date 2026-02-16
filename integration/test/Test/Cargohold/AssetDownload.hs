@@ -18,6 +18,7 @@
 module Test.Cargohold.AssetDownload where
 
 import API.Cargohold
+import qualified Data.ByteString.Char8 as BSC
 import GHC.Stack
 import SetupHelpers
 import Testlib.Prelude
@@ -32,9 +33,7 @@ testDownloadAsset = do
 
   bindResponse (downloadAsset user user key "nginz-https.example.com" id) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    assertBool
-      ("Expect 'Hello World!' as text asset content. Got: " ++ show resp.body)
-      (resp.body == fromString "Hello World!")
+    BSC.unpack resp.body `shouldMatch` "Hello World!"
 
 testDownloadAssetMultiIngressS3DownloadUrl :: (HasCallStack) => App ()
 testDownloadAssetMultiIngressS3DownloadUrl = do

@@ -66,8 +66,8 @@ import Network.Wai.Utilities (Error (..))
 import URI.ByteString
 import Wire.API.Asset
 
-upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler (Asset' (Local AssetKey))
-upload own bdy = do
+upload :: V3.Principal -> Int -> ConduitM () ByteString (ResourceT IO) () -> Handler (Asset' (Local AssetKey))
+upload own maxBytes bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
   auditEnabled <- asks (.options.settings.assetAuditLogEnabled)
@@ -81,7 +81,6 @@ upload own bdy = do
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength
-  maxBytes <- asks (.options.settings.maxTotalBytes)
   when (cl > maxBytes) $
     throwE assetTooLarge
   ast <- liftIO $ Id <$> nextRandom
