@@ -93,6 +93,9 @@ data instance FeatureDefaults LegalholdConfig
   deriving (GetFeatureDefaults) via FixedDefaults LegalholdConfig
   deriving (S.ToSchema) via Schema (FeatureDefaults LegalholdConfig)
 
+instance Default (FeatureDefaults LegalholdConfig) where
+  def = FeatureLegalHoldDisabledByDefault
+
 instance ToSchema (FeatureDefaults LegalholdConfig) where
   schema = mkSchema d r w
     where
@@ -119,6 +122,9 @@ data instance FeatureDefaults SSOConfig
   deriving stock (Eq, Ord, Show)
   deriving (ParseFeatureDefaults) via RequiredField SSOConfig
 
+instance Default (FeatureDefaults SSOConfig) where
+  def = FeatureSSOEnabledByDefault
+
 instance FromJSON (FeatureDefaults SSOConfig) where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
   parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
@@ -143,6 +149,9 @@ data instance FeatureDefaults SearchVisibilityAvailableConfig
   = FeatureTeamSearchVisibilityAvailableByDefault
   | FeatureTeamSearchVisibilityUnavailableByDefault
   deriving stock (Eq, Ord, Show)
+
+instance Default (FeatureDefaults SearchVisibilityAvailableConfig) where
+  def = FeatureTeamSearchVisibilityAvailableByDefault
 
 instance ParseFeatureDefaults (FeatureDefaults SearchVisibilityAvailableConfig) where
   parseFeatureDefaults obj = obj .: "teamSearchVisibility"
@@ -183,6 +192,9 @@ newtype instance FeatureDefaults ValidateSAMLEmailsConfig
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
   deriving stock (Eq, Show)
   deriving (GetFeatureDefaults) via FixedDefaults DigitalSignaturesConfig
+
+instance Default (FeatureDefaults DigitalSignaturesConfig) where
+  def = DigitalSignaturesDefaults
 
 instance ParseFeatureDefaults (FeatureDefaults DigitalSignaturesConfig) where
   parseFeatureDefaults _ = pure DigitalSignaturesDefaults
@@ -266,6 +278,9 @@ data instance FeatureDefaults ExposeInvitationURLsToTeamAdminConfig
   = ExposeInvitationURLsToTeamAdminDefaults
   deriving stock (Eq, Show)
   deriving (GetFeatureDefaults) via FixedDefaults ExposeInvitationURLsToTeamAdminConfig
+
+instance Default (FeatureDefaults ExposeInvitationURLsToTeamAdminConfig) where
+  def = ExposeInvitationURLsToTeamAdminDefaults
 
 instance ParseFeatureDefaults (FeatureDefaults ExposeInvitationURLsToTeamAdminConfig) where
   parseFeatureDefaults _ = pure ExposeInvitationURLsToTeamAdminDefaults
@@ -414,6 +429,13 @@ instance
 
 type FeatureFlags = AllFeatures FeatureDefaults
 
+class (Default (FeatureDefaults cfg)) => DefaultFeatureDefaults cfg
+
+instance (Default (FeatureDefaults cfg)) => DefaultFeatureDefaults cfg
+
+instance Default FeatureFlags where
+  def = hcpure (Proxy @DefaultFeatureDefaults) def
+
 featureDefaults ::
   forall cfg.
   ( GetFeatureDefaults (FeatureDefaults cfg),
@@ -462,7 +484,7 @@ instance
   featureFlagsToPairs (x :* xs) = (featureKey @cfg, toJSON x) : featureFlagsToPairs xs
 
 instance ToJSON FeatureFlags where
-   toJSON = A.object . featureFlagsToPairs
+  toJSON = A.object . featureFlagsToPairs
 
 newtype Defaults a = Defaults {_unDefaults :: a}
 
