@@ -20,3 +20,6 @@ ingress-nginx:
     # prevent new kind:Ingress resources to be created in the cluster.
     admissionWebhooks:
       enabled: false
+    scope:
+      enabled: true
+      namespace: "{{ .Release.Namespace }}"

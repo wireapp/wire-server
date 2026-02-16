@@ -4,6 +4,7 @@ nginx-ingress:
     kind: Deployment
     replicaCount: 1
     ingressClass: "nginx-{{ .Release.Namespace }}"
+    watchNamespace: "{{ .Release.Namespace }}"
     service:
       type: NodePort
       externalTrafficPolicy: Local
