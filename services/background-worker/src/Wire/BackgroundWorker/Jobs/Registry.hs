@@ -98,7 +98,14 @@ import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 -- Helper functions for LegalHoldEnv
 -- Adapted from Galley.External.LegalHoldService.Internal
-makeVerifiedRequestWithManagerIO :: Logger -> Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL -> IO ()) -> Fingerprint Rsa -> HttpsUrl -> (Http.Request -> Http.Request) -> IO (Http.Response LC8.ByteString)
+makeVerifiedRequestWithManagerIO ::
+  Logger ->
+  Http.Manager ->
+  ([Fingerprint Rsa] -> SSL.SSL -> IO ()) ->
+  Fingerprint Rsa ->
+  HttpsUrl ->
+  (Http.Request -> Http.Request) ->
+  IO (Http.Response LC8.ByteString)
 makeVerifiedRequestWithManagerIO logger mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
   let verified = verifyFingerprints [fpr]
   extHandleAll (errHandler logger) $ do
