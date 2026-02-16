@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.FederationSubsystem.Internals
-  ( firstConflictOrFullyConnected,
+  ( firstMissingConnectionOrFullyConnected,
   )
 where
 
@@ -28,16 +28,16 @@ import Imports
 import Wire.API.Federation.API.Brig (NonConnectedBackends (..))
 import Wire.API.FederationStatus (FederationStatus (..))
 
--- | "conflict" here means two remote domains that we are connected to
+-- | "missing connection" here means two remote domains that we are connected to
 -- but are not connected to each other.
-firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
-firstConflictOrFullyConnected =
+firstMissingConnectionOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
+firstMissingConnectionOrFullyConnected =
   maybe
     FullyConnected
     (uncurry NotConnectedDomains)
     . headMay
-    . mapMaybe toMaybeConflict
+    . mapMaybe toMaybeMissingConnection
   where
-    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
-    toMaybeConflict r =
+    toMaybeMissingConnection :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
+    toMaybeMissingConnection r =
       headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)

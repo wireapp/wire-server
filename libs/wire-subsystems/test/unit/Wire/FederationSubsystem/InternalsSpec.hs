@@ -24,26 +24,26 @@ import Imports
 import Test.Hspec
 import Wire.API.Federation.API.Brig
 import Wire.API.FederationStatus
-import Wire.FederationSubsystem.Internals
+import Wire.FederationSubsystem.Internals (firstMissingConnectionOrFullyConnected)
 
 spec :: Spec
 spec =
-  describe "firstConflictOrFullyConnected" $ do
+  describe "firstMissingConnectionOrFullyConnected" $ do
     let mkResponse :: Domain -> [Domain] -> Remote NonConnectedBackends
         mkResponse d = toRemoteUnsafe d . NonConnectedBackends . Set.fromList
     it "empty" $
-      firstConflictOrFullyConnected [] `shouldBe` FullyConnected
+      firstMissingConnectionOrFullyConnected [] `shouldBe` FullyConnected
     it "single response" $
-      firstConflictOrFullyConnected [mkResponse (Domain "a.com") []] `shouldBe` FullyConnected
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "a.com") []] `shouldBe` FullyConnected
     it "multiple responses" $
-      firstConflictOrFullyConnected [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") []] `shouldBe` FullyConnected
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") []] `shouldBe` FullyConnected
     it "single bad responses" $
-      firstConflictOrFullyConnected [mkResponse (Domain "a.com") [Domain "b.com"]] `shouldBe` NotConnectedDomains (Domain "a.com") (Domain "b.com")
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "a.com") [Domain "b.com"]] `shouldBe` NotConnectedDomains (Domain "a.com") (Domain "b.com")
     it "one good one bad response" $
-      firstConflictOrFullyConnected [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]] `shouldBe` NotConnectedDomains (Domain "b.com") (Domain "c.com")
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "a.com") [], mkResponse (Domain "b.com") [Domain "c.com"]] `shouldBe` NotConnectedDomains (Domain "b.com") (Domain "c.com")
     it "one bad one good response" $
-      firstConflictOrFullyConnected [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []] `shouldBe` NotConnectedDomains (Domain "b.com") (Domain "c.com")
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") []] `shouldBe` NotConnectedDomains (Domain "b.com") (Domain "c.com")
     it "one bad multiple good responses" $
-      firstConflictOrFullyConnected [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") [], mkResponse (Domain "d.com") []] `shouldBe` NotConnectedDomains (Domain "b.com") (Domain "c.com")
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "b.com") [Domain "c.com"], mkResponse (Domain "a.com") [], mkResponse (Domain "d.com") []] `shouldBe` NotConnectedDomains (Domain "b.com") (Domain "c.com")
     it "multiple bad responses" $
-      firstConflictOrFullyConnected [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]] `shouldBe` NotConnectedDomains (Domain "a.com") (Domain "b.com")
+      firstMissingConnectionOrFullyConnected [mkResponse (Domain "a.com") [Domain "b.com"], mkResponse (Domain "b.com") [Domain "a.com"]] `shouldBe` NotConnectedDomains (Domain "a.com") (Domain "b.com")

@@ -36,7 +36,7 @@ import Wire.API.FederationStatus (FederationStatus (..), RemoteDomains (..))
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
-import Wire.FederationSubsystem.Internals (firstConflictOrFullyConnected)
+import Wire.FederationSubsystem.Internals (firstMissingConnectionOrFullyConnected)
 
 runFederationSubsystem ::
   ( Member (Error FederationError) r,
@@ -53,20 +53,20 @@ runFederationSubsystem mAllowedProtos = interpret $ \case
       unless (maybe True (elem proto) mAllowedProtos) $
         throw FederationDisabledForProtocol
   CheckFederationStatus req -> do
-    status <- getFederationStatus' req
+    status <- getFederationStatusImpl req
     case status of
       FullyConnected -> pure ()
       NotConnectedDomains dom1 dom2 -> throw (NonFederatingBackends dom1 dom2)
-  GetFederationStatus req -> getFederationStatus' req
+  GetFederationStatus req -> getFederationStatusImpl req
   where
-    getFederationStatus' ::
+    getFederationStatusImpl ::
       ( Member (Error UnreachableBackends) r,
         Member (FederationAPIAccess FederatorClient) r
       ) =>
       RemoteDomains ->
       Sem r FederationStatus
-    getFederationStatus' req = do
-      fmap firstConflictOrFullyConnected
+    getFederationStatusImpl req = do
+      fmap firstMissingConnectionOrFullyConnected
         . (ensureNoUnreachableBackends =<<)
         $ E.runFederatedConcurrentlyEither
           (Set.toList req.rdDomains)

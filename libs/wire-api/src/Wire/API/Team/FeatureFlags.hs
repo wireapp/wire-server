@@ -446,23 +446,23 @@ instance
   where
   parseJSON = withObject "FeatureFlags" featureFlagsFromObject
 
-class FeatureFlagsToPair f cfgs where
-  featureFlagsToPair :: NP f cfgs -> [A.Pair]
+class FeatureFlagsToPairs f cfgs where
+  featureFlagsToPairs :: NP f cfgs -> [A.Pair]
 
-instance FeatureFlagsToPair f '[] where
-  featureFlagsToPair _ = []
+instance FeatureFlagsToPairs f '[] where
+  featureFlagsToPairs _ = []
 
 instance
   ( ToJSON (f cfg),
     IsFeatureConfig cfg,
-    FeatureFlagsToPair f cfgs
+    FeatureFlagsToPairs f cfgs
   ) =>
-  FeatureFlagsToPair f (cfg : cfgs)
+  FeatureFlagsToPairs f (cfg : cfgs)
   where
-  featureFlagsToPair (x :* xs) = (featureKey @cfg, toJSON x) : featureFlagsToPair xs
+  featureFlagsToPairs (x :* xs) = (featureKey @cfg, toJSON x) : featureFlagsToPairs xs
 
 instance ToJSON FeatureFlags where
-  toJSON = A.object . featureFlagsToPair
+   toJSON = A.object . featureFlagsToPairs
 
 newtype Defaults a = Defaults {_unDefaults :: a}
 
