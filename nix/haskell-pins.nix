@@ -62,7 +62,7 @@ let
       src = inputs.bloodhound;
     };
 
-    # Merged PR https://github.com/dylex/hsaml2/pull/20
+    # Waiting for Hackage release: https://github.com/dylex/hsaml2/issues/21
     hsaml2 = {
       src = inputs.hsaml2;
     };
@@ -170,23 +170,6 @@ let
   };
 
   hackagePins = {
-    # start pinned dependencies for http2
-    http-semantics = {
-      version = "0.4.0";
-      sha256 = "sha256-rh0z51EKvsu5rQd5n2z3fSRjjEObouNZSBPO9NFYOF0=";
-    };
-
-    network-run = {
-      version = "0.5.0";
-      sha256 = "sha256-vbXh+CzxDsGApjqHxCYf/ijpZtUCApFbkcF5gyN0THU=";
-    };
-
-    time-manager = {
-      version = "0.2.4";
-      sha256 = "sha256-sAt/331YLQ2IU3z90aKYSq1nxoazv87irsuJp7ZG3pw=";
-    };
-    # end pinned dependencies for http2
-
     # This pin should not be necessary. However, without it, Nix tries to fetch
     # the sources from the `amazonka` package and fails.
     # Fix: https://github.com/NixOS/nixpkgs/pull/409098
@@ -204,10 +187,6 @@ let
     warp = {
       version = "3.4.12";
       sha256 = "sha256-Y9xQ1wBbBtSZ4qw3yTGSYX27qi2uFRDJVtAdmQqRnFQ=";
-    };
-    http2 = {
-      version = "5.4.0";
-      sha256 = "sha256-PeEWVd61bQ8G7LvfLeXklzXqNJFaAjE2ecRMWJZESPE=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv

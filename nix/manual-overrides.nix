@@ -86,6 +86,10 @@ hself: hsuper: {
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
 
+  http-semantics = hsuper.http-semantics_0_4_0;
+  network-run = hsuper.network-run_0_5_0;
+  http2 = hsuper.http2_5_4_0;
+
   # -----------------
   # flags and patches
   # (these are fine)
