@@ -67,11 +67,16 @@ import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSpa
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
+import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.IdPConfigStore.Cassandra (idPToCassandra)
+import Wire.IdPSubsystem (IdPSubsystem)
+import Wire.IdPSubsystem.Interpreter (IdPSubsystemError, interpretIdPSubsystem)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.ScimSubsystem
@@ -83,11 +88,12 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO (randomToIO)
 
 type CanonicalEffs =
-  '[ScimSubsystem]
+  '[IdPSubsystem, ScimSubsystem]
     `Append` LowerLevelCanonicalEffs
 
 type LowerLevelCanonicalEffs =
-  '[ BrigAPIAccess,
+  '[ GalleyAPIAccess,
+     BrigAPIAccess,
      SAML2,
      SamlProtocolSettings,
      AssIDStore,
@@ -96,6 +102,7 @@ type LowerLevelCanonicalEffs =
      Error ParseException,
      Rpc,
      Input ScimSubsystemConfig,
+     Error IdPSubsystemError,
      Error ScimSubsystemError,
      ScimExternalIdStore,
      ScimUserTimesStore,
@@ -146,6 +153,7 @@ runSparToIO ctx =
     . scimUserTimesStoreToCassandra
     . scimExternalIdStoreToCassandra
     . mapScimSubsystemErrors
+    . mapIdPSubsystemErrors
     . runInputConst (ctx.sparCtxScimSubsystemConfig)
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
     . iParseException
@@ -155,7 +163,11 @@ runSparToIO ctx =
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     . saml2ToSaml2WebSso
     . interpretBrigAccess ctx.sparCtxOpts.brig
+    . interpretGalleyAPIAccessToRpc
+      (foldMap expandVersionExp (disabledAPIVersions . sparCtxOpts $ ctx))
+      (galley . sparCtxOpts $ ctx)
     . interpretScimSubsystem
+    . interpretIdPSubsystem (enableIdPByEmailDiscovery . sparCtxOpts $ ctx)
 
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)

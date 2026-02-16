@@ -203,6 +203,7 @@ library
     Test.Search
     Test.Services
     Test.Spar
+    Test.Spar.GetByEmail
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
     Test.Spar.STM

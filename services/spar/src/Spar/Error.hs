@@ -39,6 +39,7 @@ module Spar.Error
     renderSparError,
     waiToServant,
     mapScimSubsystemErrors,
+    mapIdPSubsystemErrors,
     httpErrorToSparError,
   )
 where
@@ -65,6 +66,7 @@ import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.User.Saml (TTLError)
 import Wire.Error
 import Wire.IdPConfigStore
+import Wire.IdPSubsystem.Interpreter
 import Wire.ScimSubsystem.Interpreter
 
 type SparError = SAML.Error SparCustomError
@@ -281,3 +283,9 @@ parseResponse serviceName resp = do
 mapScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
 mapScimSubsystemErrors =
   Polysemy.Error.mapError (SAML.CustomError . SparScimError . scimSubsystemErrorToScimError)
+
+mapIdPSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error IdPSubsystemError) r
+mapIdPSubsystemErrors =
+  Polysemy.Error.mapError $ \case
+    InconsistentUsers ->
+      SAML.CustomError $ SparInternalError "Multiple users found for email address"

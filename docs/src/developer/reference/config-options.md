@@ -1206,6 +1206,65 @@ config:
 `appUri` and `ssoUri` are mapped to `spAppUri` and `spSsoUri` in the `spar`
 configuration respectively.
 
+#### Provide SSO codes by user email address
+
+This feature is enabled by the `enableIdPByEmailDiscovery` configuration flag.
+It relates to the `/sso/get-by-email` endpoint which can provide SSO codes (IdP
+IDs) for given email addresses. The idea is to ease the SSO flow at client side
+(your email address is easier at hand than some UUID).
+
+By default `enableIdPByEmailDiscovery` is disabled. The `/sso/get-by-email`
+constantly responds with HTTP 404 then.
+
+If it is enabled, clients can send a HTTP POST request to `/sso/get-by-email`
+with this request body format:
+
+```
+{
+  "email": <user-email-address>
+}
+```
+
+If there is an SSO code for this user, the response is a HTTP 200:
+
+```
+{
+  "sso_code": <idp-id>
+}
+```
+
+Otherwise a HTTP 404 is returned:
+
+```
+{
+  "sso_code": null
+}
+```
+
+##### SSO code lookup algorithm
+
+Given an email address, the SSO code is looked up by these criteria:
+
+- The email address must belong to a member of any team.
+- The user must be activated. Either by the activation mail flow or by
+  [auto-activation](#validate-saml-emails).
+- The mapping must be unambiguous (there must be exactly one matching IdP).
+  This is the case for:
+  - Teams with exactly one configured IdP
+  - There is an IdP for the given multi-ingress domain
+- The user was created via SCIM
+
+The last condition ensures that team admins cannot get into locked-out
+situations due to misconfigured IdPs.
+
+##### Rate limiting
+
+The `/sso/get-by-email` endpoint could be used to discover existing email
+addresses and explore their IdPs by applying brute-force strategies. Thus, it
+is rate limited as `reqs_per_addr_sso_get_by_email` zone. Details can be
+configured in `nginz`'s Helm chart in the
+`nginx_conf.user_rate_limit_request_zones` list.
+
 ### SCIM
 
 In Helm:
@@ -1422,8 +1481,10 @@ For example:
 }
 ```
 
-There can be at most one IdP per multi-ingress domain. Creating more returns an
+There can be at most one IdP per multi-ingress domain and team. Creating more returns an
 error. Though, IdPs can be reconfigured as long as this invariant holds.
+
+Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
 
 ### Webapp
 
