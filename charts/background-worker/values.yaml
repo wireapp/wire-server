@@ -19,6 +19,18 @@ config:
   logLevel: Info
   logFormat: StructuredJSON
   enableFederation: false # keep in sync with brig, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
+  brig:
+    host: brig
+    port: 8080
+  galley:
+    host: galley
+    port: 8080
+  gundeck:
+    host: gundeck
+    port: 8080
+  federatorInternal:
+    host: federator
+    port: 8080
   spar:
     host: spar
     port: 8080

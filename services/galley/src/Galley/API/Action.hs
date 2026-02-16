@@ -55,11 +55,12 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
-import Data.Range (checkedEither)
+import Data.Range (Range, Within, checkedEither)
 import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
+import GHC.TypeLits (KnownNat)
 import Galley.API.Action.Kick
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
@@ -519,7 +520,7 @@ performAction tag origUser lconv action = do
     SConversationRenameTag -> do
       zusrMembership <- join <$> forM storedConv.metadata.cnvmTeam (TeamSubsystem.internalGetTeamMember (qUnqualified origUser))
       for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
-      cn <- either (throw . InvalidRange . fromString) pure $ checkedEither (cupName action)
+      cn <- rangeChecked (cupName action)
       E.setConversationName (tUnqualified lcnv) cn
       pure $ mkPerformActionResult action
     SConversationMessageTimerUpdateTag -> do
@@ -1154,3 +1155,7 @@ pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
           transient = True
         }
     ]
+
+rangeChecked :: (KnownNat n, KnownNat m, Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
+rangeChecked = either (throw . InvalidRange . fromString) pure . checkedEither
+{-# INLINE rangeChecked #-}

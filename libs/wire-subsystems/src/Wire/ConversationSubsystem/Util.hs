@@ -1196,8 +1196,8 @@ notifyConversationUpdated lusr conn j conv = do
 
 -- | Convert a local conversation member (as stored in the DB) to a publicly
 -- facing 'Member' structure.
-localMemberToSelf :: Local x -> LocalMember -> Public.Member
-localMemberToSelf loc lm =
+localMemberToPublic :: Local x -> LocalMember -> Public.Member
+localMemberToPublic loc lm =
   Public.Member
     { memId = tUntagged . qualifyAs loc $ lm.id_,
       memService = lm.service,
@@ -1218,7 +1218,7 @@ localMemberToSelf loc lm =
 conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe Public.OwnConversation
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
-  self <- localMemberToSelf luid <$> listToMaybe selfs
+  self <- localMemberToPublic luid <$> listToMaybe selfs
   let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
   pure $
     Public.OwnConversation

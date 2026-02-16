@@ -58,19 +58,19 @@ runFederationSubsystem mAllowedProtos = interpret $ \case
       FullyConnected -> pure ()
       NotConnectedDomains dom1 dom2 -> throw (NonFederatingBackends dom1 dom2)
   GetFederationStatus req -> getFederationStatusImpl req
-  where
-    getFederationStatusImpl ::
-      ( Member (Error UnreachableBackends) r,
-        Member (FederationAPIAccess FederatorClient) r
-      ) =>
-      RemoteDomains ->
-      Sem r FederationStatus
-    getFederationStatusImpl req = do
-      fmap firstMissingConnectionOrFullyConnected
-        . (ensureNoUnreachableBackends =<<)
-        $ E.runFederatedConcurrentlyEither
-          (Set.toList req.rdDomains)
-          ( \qds ->
-              fedClient @'Brig @"get-not-fully-connected-backends"
-                (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
-          )
+
+getFederationStatusImpl ::
+  ( Member (Error UnreachableBackends) r,
+    Member (FederationAPIAccess FederatorClient) r
+  ) =>
+  RemoteDomains ->
+  Sem r FederationStatus
+getFederationStatusImpl req = do
+  fmap firstMissingConnectionOrFullyConnected
+    . (ensureNoUnreachableBackends =<<)
+    $ E.runFederatedConcurrentlyEither
+      (Set.toList req.rdDomains)
+      ( \qds ->
+          fedClient @'Brig @"get-not-fully-connected-backends"
+            (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
+      )
