@@ -1169,6 +1169,7 @@ instance
 
 ----------------------------------------------------------------------------
 -- Notifications
+
 notifyConversationUpdated ::
   ( Member NotificationSubsystem r,
     Member Now r
