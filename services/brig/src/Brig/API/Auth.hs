@@ -33,6 +33,7 @@ import Data.Text.Lazy qualified as LT
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
+import Data.ZAuth.Validation qualified as ZV
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
@@ -124,6 +125,37 @@ access ::
 access mcid t mt =
   traverse mkUserTokenCookie
     =<< Auth.renewAccess t mt mcid !>> (StdError . zauthError)
+
+accessRotateCookie ::
+  ( Member (Input AuthenticationSubsystemConfig) r,
+    Member AuthenticationSubsystem r,
+    Member CryptoSign r,
+    Member Now r,
+    Member Random r
+  ) =>
+  Maybe ClientId ->
+  [Either Text SomeUserToken] ->
+  RotateCookie ->
+  Handler r SomeAccess
+accessRotateCookie mcid ut' rotateReq = do
+  ut <- handleTokenErrors ut'
+  partitionTokens ut Nothing >>= \case
+    Left (uts, _) -> rotatePlainCookie mcid rotateReq uts
+    -- This endpoint is meant for regular user sessions only.
+    Right _ -> throwStd authTokenMismatch
+  where
+    rotatePlainCookie mc rotate (oldTok :| oldToks) = do
+      (uid, oldCookie) <- Auth.validateTokens (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A)) !>> (StdError . zauthError)
+      let oldCid = userTokenClient oldCookie.cookieValue.body
+      when (((/=) <$> oldCid <*> mc) == Just True) $ throwStd (zauthError ZV.Invalid)
+      let newCid = oldCid <|> mc
+          newLabel = rotate.label <|> oldCookie.cookieLabel
+      accessWithCookie <- lift . liftSem $ do
+        revokeCookies uid [oldCookie.cookieId] []
+        rotatedCookie <- newCookie @_ @ZAuth.U uid newCid oldCookie.cookieType newLabel
+        token <- newAccessToken @ZAuth.U rotatedCookie.cookieValue
+        pure (Access token (Just rotatedCookie))
+      traverse mkUserTokenCookie accessWithCookie
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode _ =

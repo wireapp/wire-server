@@ -590,6 +590,7 @@ servantSitemap =
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
       Named @"access" accessH
+        :<|> Named @"access-rotate-cookie" accessRotateCookie
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH

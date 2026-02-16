@@ -22,8 +22,10 @@ import API.BrigInternal
 import API.Common
 import API.GalleyInternal
 import qualified API.Nginz as Nginz
+import API.Spar
 import qualified Data.ByteString.Char8 as BSChar8
 import SetupHelpers
+import Testlib.JSON
 import Testlib.Prelude
 import Text.Read
 import UnliftIO.Async
@@ -241,3 +243,43 @@ testInvalidCookie = do
           resp.json %. "message" `shouldMatch` "Zauth token expired"
 
 -- @END
+
+testRotateCookieSsoUser :: (HasCallStack) => App ()
+testRotateCookieSsoUser = do
+  let sharedDeviceMarker = "shared-device"
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLEmails" "enabled"
+  idp@(samlId, _) <- do
+    (resp, (meta, creds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+    resp.status `shouldMatchInt` 201
+    (,(meta, creds)) <$> (resp.json %. "id" >>= asString)
+  scimToken <- do
+    let p = def {name = Just "my-idp", idp = Just samlId}
+    createScimToken owner p >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "externalId" >>= asString
+  uid <- bindResponse (createScimUser owner scimToken scimUser) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "id" >>= asString
+  let user = object ["id" .= uid, "qualified_id" .= object ["id" .= uid, "domain" .= domain]]
+  cookie1 <- maybe (assertFailure "Expected a cookie, but got no cookie") pure =<< getCookieWithSaml tid email idp
+  (cookie2, _accessToken) <- do
+    Nginz.accessRotate OwnDomain ("zuid=" <> cookie1) (Just sharedDeviceMarker) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      let accessToken = resp.json %. "access_token"
+      pure (fromMaybe cookie1 $ getCookie "zuid" resp, accessToken)
+
+  -- the first cookie, that was returned from finalize-login should not be valid anymore
+  Nginz.access OwnDomain ("zuid=" <> cookie1) >>= assertStatus 403
+  -- the second cookie shoule be valid
+  Nginz.access OwnDomain ("zuid=" <> cookie2) >>= assertSuccess
+  getCookies user [] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    cookies <- resp.json %. "cookies" >>= asList
+    -- there should be only one active cookie
+    length cookies `shouldMatchInt` 1
+    -- all cookies should be labeled as shared device
+    for_ cookies $ \cookie -> do
+      cookie %. "label" `shouldMatch` sharedDeviceMarker

@@ -35,6 +35,7 @@ module Wire.API.User.Auth
     CookieLabel (..),
     RemoveCookies (..),
     toUnitCookie,
+    RotateCookie (..),
 
     -- * Token
     AccessToken (..),
@@ -385,6 +386,22 @@ instance ToSchema RemoveCookies where
                 (description ?~ "A list of cookie IDs to revoke")
                 (array schema)
             )
+
+--------------------------------------------------------------------------------
+-- RotateCookie
+
+newtype RotateCookie = RotateCookie
+  { label :: Maybe CookieLabel
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RotateCookie)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RotateCookie
+
+instance ToSchema RotateCookie where
+  schema =
+    object "RotateCookie" $
+      RotateCookie
+        <$> label .= maybe_ (optField "label" schema)
 
 --------------------------------------------------------------------------------
 -- Cookies & Access Tokens

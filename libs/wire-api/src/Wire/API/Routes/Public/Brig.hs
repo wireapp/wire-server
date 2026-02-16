@@ -1771,6 +1771,21 @@ type AuthAPI =
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
+           "access-rotate-cookie"
+           ( "access"
+               :> "rotate"
+               :> Summary "Obtain an access tokens for a cookie and additionally rotate the given cookie"
+               :> Description
+                    "This endpoint works similarly to `/access`. \
+                    \Additionally it will invalidate the current cookie and create and return a new one (cookie rotation). \
+                    \It also optionally labels the new cookie. To renew access tokens, please keep using the `/access` endpoint."
+               :> QueryParam "client_id" ClientId
+               :> Cookies '["zuid" ::: SomeUserToken]
+               :> CanThrow 'BadCredentials
+               :> ReqBody '[JSON] RotateCookie
+               :> MultiVerb1 'POST '[JSON] TokenResponse
+           )
+    :<|> Named
            "send-login-code"
            ( "login"
                :> "send"
