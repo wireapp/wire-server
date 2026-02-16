@@ -23,11 +23,11 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
-import Data.SOP.NP (NP (..))
+import Data.SOP (hcpure)
 import Imports
 import Polysemy
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature (AllTeamFeatures, FeatureSingleton (..), IsFeatureConfig (..), LockableFeature (..), npProject')
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
@@ -65,41 +65,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetAllTeamFeaturesForUser _ -> pure configs
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
   GetConfiguredFeatureFlags ->
-    pure $
-      FeatureLegalHoldDisabledByDefault
-        :* FeatureSSOEnabledByDefault
-        :* FeatureTeamSearchVisibilityAvailableByDefault
-        :* def
-        :* def
-        :* DigitalSignaturesDefaults
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* ExposeInvitationURLsToTeamAdminDefaults
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* def
-        :* Nil
+    pure $ hcpure (Proxy @IsFeatureConfig) mkDefaultFeatureDefaults
   GetVerificationCodeEnabled _ -> error "GetVerificationCodeEnabled not implemented in miniGalleyAPIAccess"
   GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
@@ -149,3 +115,41 @@ newTeamMemberListWithMaxResults maxResults members =
   if length members > maxResults
     then newTeamMemberList (take maxResults members) ListTruncated
     else newTeamMemberList members ListComplete
+
+-- | Helper to create a default FeatureDefaults value for any feature type
+-- This is a mock implementation that provides reasonable defaults
+mkDefaultFeatureDefaults :: forall cfg. (IsFeatureConfig cfg) => FeatureDefaults cfg
+mkDefaultFeatureDefaults = case featureSingleton @cfg of
+  FeatureSingletonGuestLinksConfig -> def
+  FeatureSingletonLegalholdConfig -> FeatureLegalHoldDisabledByDefault
+  FeatureSingletonSSOConfig -> FeatureSSOEnabledByDefault
+  FeatureSingletonSearchVisibilityAvailableConfig -> FeatureTeamSearchVisibilityAvailableByDefault
+  FeatureSingletonValidateSAMLEmailsConfig -> def
+  FeatureSingletonDigitalSignaturesConfig -> DigitalSignaturesDefaults
+  FeatureSingletonConferenceCallingConfig -> def
+  FeatureSingletonSndFactorPasswordChallengeConfig -> def
+  FeatureSingletonSearchVisibilityInboundConfig -> def
+  FeatureSingletonClassifiedDomainsConfig -> def
+  FeatureSingletonAppLockConfig -> def
+  FeatureSingletonSelfDeletingMessagesConfig -> def
+  FeatureSingletonFileSharingConfig -> def
+  FeatureSingletonMLSConfig -> def
+  FeatureSingletonExposeInvitationURLsToTeamAdminConfig -> ExposeInvitationURLsToTeamAdminDefaults
+  FeatureSingletonOutlookCalIntegrationConfig -> def
+  FeatureSingletonMlsE2EIdConfig -> def
+  FeatureSingletonMlsMigrationConfig -> def
+  FeatureSingletonEnforceFileDownloadLocationConfig -> def
+  FeatureSingletonLimitedEventFanoutConfig -> def
+  FeatureSingletonDomainRegistrationConfig -> def
+  FeatureSingletonChannelsConfig -> def
+  FeatureSingletonCellsConfig -> def
+  FeatureSingletonAllowedGlobalOperationsConfig -> def
+  FeatureSingletonConsumableNotificationsConfig -> def
+  FeatureSingletonChatBubblesConfig -> def
+  FeatureSingletonAppsConfig -> def
+  FeatureSingletonSimplifiedUserConnectionRequestQRCodeConfig -> def
+  FeatureSingletonAssetAuditLogConfig -> def
+  FeatureSingletonStealthUsersConfig -> def
+  FeatureSingletonCellsInternalConfig -> def
+  FeatureSingletonMeetingsConfig -> def
+  FeatureSingletonMeetingsPremiumConfig -> def
