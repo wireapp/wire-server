@@ -372,6 +372,46 @@ data MLSConv = MLSConv
   }
   deriving (Show)
 
+requestToCurl :: HTTP.Request -> String
+requestToCurl req =
+  unwords $ -- FUTUREWORK: amke this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
+    Prelude.filter
+      (not . Prelude.null)
+      [ "curl",
+        "-X",
+        shellEscape $ C8.unpack $ HTTP.method req,
+        shellEscape $
+          concat
+            [ if HTTP.secure req then "https://" else "http://",
+              C8.unpack (HTTP.host req),
+              portPart,
+              C8.unpack (HTTP.path req),
+              C8.unpack (HTTP.queryString req)
+            ],
+        unwords
+          [ "-H " ++ shellEscape (C8.unpack (CI.original k) ++ ": " ++ C8.unpack v)
+          | (k, v) <- HTTP.requestHeaders req
+          ],
+        body'
+      ]
+  where
+    portPart = if p == defaultPort then "" else ":" ++ show p
+      where
+        p = HTTP.port req
+        defaultPort = if HTTP.secure req then 443 else 80
+
+    body' = case HTTP.requestBody req of
+      HTTP.RequestBodyLBS lbs -> if lbs == mempty then "" else "--data-binary " ++ shellEscape (C8.unpack $ L.toStrict lbs)
+      HTTP.RequestBodyBS bs -> if bs == mempty then "" else "--data-binary " ++ shellEscape (C8.unpack bs)
+      HTTP.RequestBodyBuilder _ _ -> "--data-binary '<builder>'"
+      _ -> ""
+
+    shellEscape :: String -> String
+    shellEscape s = "'" ++ concatMap escape s ++ "'"
+      where
+        escape '\'' = "'\\''"
+        escape c = [c]
+
 showRequest :: HTTP.Request -> String
 showRequest r =
   T.unpack (T.decodeUtf8 (HTTP.method r))

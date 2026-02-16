@@ -232,6 +232,8 @@ zHost = addHeader "Z-Host"
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
   let req = req0 {HTTP.method = T.encodeUtf8 (T.pack method)}
+  -- uncomment this for more debugging noise:
+  -- liftIO $ putStrLn $ requestToCurl req
   manager <- asks (.manager)
   res <- liftIO $ HTTP.httpLbs req manager
   pure $
