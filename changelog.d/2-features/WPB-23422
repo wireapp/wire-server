@@ -1,0 +1,1 @@
+New endpoint `/access/rotate` (alternative to `/access`) which rotates and optionally marks the cookie with a label
