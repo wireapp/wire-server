@@ -26,8 +26,16 @@ import Data.Vector qualified as Vector
 import Data.ZAuth.Creation qualified as ZC
 import Imports
 import Sodium.Crypto.Sign
+import Util.Timeout
 import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.AuthenticationSubsystem.Cookie.Limit
+
+data SuspendInactiveUsers = SuspendInactiveUsers
+  { suspendTimeout :: !Timeout
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON SuspendInactiveUsers
 
 data AuthenticationSubsystemConfig = AuthenticationSubsystemConfig
   { local :: Local (),
@@ -35,7 +43,9 @@ data AuthenticationSubsystemConfig = AuthenticationSubsystemConfig
     zauthEnv :: ZAuthEnv,
     userCookieRenewAge :: Integer,
     userCookieLimit :: Int,
-    userCookieThrottle :: CookieThrottle
+    userCookieThrottle :: CookieThrottle,
+    cookieInsecure :: Bool,
+    suspendInactiveUsers :: Maybe SuspendInactiveUsers
   }
 
 data ZAuthSettings = ZAuthSettings

@@ -88,6 +88,7 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error
+import Wire.ClientStore.Cassandra
 
 data ClientDataError
   = TooManyClients
@@ -423,33 +424,6 @@ insertMLSPublicKeys =
 
 -------------------------------------------------------------------------------
 -- Conversions
-
-toClient ::
-  [(SignatureSchemeTag, Blob)] ->
-  ( ClientId,
-    ClientType,
-    UTCTimeMillis,
-    Maybe Text,
-    Maybe ClientClass,
-    Maybe CookieLabel,
-    Maybe Text,
-    Maybe (C.Set ClientCapability),
-    Maybe UTCTime
-  ) ->
-  Client
-toClient keys (cid, cty, tme, lbl, cls, cok, mdl, cps, lastActive) =
-  Client
-    { clientId = cid,
-      clientType = cty,
-      clientTime = tme,
-      clientClass = cls,
-      clientLabel = lbl,
-      clientCookie = cok,
-      clientModel = mdl,
-      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
-      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys),
-      clientLastActive = lastActive
-    }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
 toPubClient = uncurry PubClient

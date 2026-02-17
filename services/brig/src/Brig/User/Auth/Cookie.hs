@@ -23,7 +23,6 @@ module Brig.User.Auth.Cookie
     revokeCookies,
     revokeAllCookies,
     listCookies,
-    mustSuspendInactiveUser,
 
     -- * Limited Cookies
     RetryAfter (..),
@@ -141,27 +140,6 @@ renewCookie old mcid = do
   ttl <- inputs (.userCookieRenewAge)
   Store.insertCookie uid (toUnitCookie old') (Just (Store.TTL (fromIntegral ttl)))
   pure new
-
--- | Whether a user has not renewed any of her cookies for longer than
--- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
--- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
--- implicitly because of cyclical dependencies).
-mustSuspendInactiveUser :: (MonadReader Env m, MonadClient m) => UserId -> m Bool
-mustSuspendInactiveUser uid =
-  asks (.settings.suspendInactiveUsers) >>= \case
-    Nothing -> pure False
-    Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
-      now <- liftIO =<< asks (.currentTime)
-      let suspendHere :: UTCTime
-          suspendHere = addUTCTime (-suspendAge) now
-          youngEnough :: Cookie () -> Bool
-          youngEnough = (>= suspendHere) . cookieCreated
-      ckies <- listCookies uid []
-      let mustSuspend
-            | null ckies = False
-            | any youngEnough ckies = False
-            | otherwise = True
-      pure mustSuspend
 
 newAccessToken ::
   forall u a r.

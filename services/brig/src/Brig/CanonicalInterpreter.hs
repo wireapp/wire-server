@@ -66,6 +66,8 @@ import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore.Cassandra (interpretClientStoreToCassandra)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
@@ -205,6 +207,7 @@ type BrigLowerLevelEffects =
      ActivationCodeStore,
      InvitationStore,
      PropertyStore,
+     ClientStore,
      SFT,
      ConnectionStore InternalPaging,
      Input Hasql.Pool,
@@ -292,7 +295,9 @@ runBrigToIO e (AppT ma) = do
             local = localUnit,
             userCookieRenewAge = e.settings.userCookieRenewAge,
             userCookieLimit = e.settings.userCookieLimit,
-            userCookieThrottle = e.settings.userCookieThrottle
+            userCookieThrottle = e.settings.userCookieThrottle,
+            cookieInsecure = e.settings.cookieInsecure,
+            suspendInactiveUsers = e.settings.suspendInactiveUsers
           }
       mainESEnv = e.indexEnv ^. to idxElastic
       indexedUserStoreConfig =
@@ -357,6 +362,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst e.hasqlPool
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
+              . interpretClientStoreToCassandra e.casClient
               . interpretPropertyStoreCassandra e.casClient
               . interpretInvitationStoreToCassandra e.casClient
               . interpretActivationCodeStoreToCassandra e.casClient

@@ -29,6 +29,7 @@ import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
 import Control.Monad.Extra (partitionM)
 import Control.Monad.Trans.Maybe
+import Data.ByteString.Conversion (toByteString)
 import Data.CaseInsensitive qualified as CI
 import Data.Domain
 import Data.Handle (Handle)
@@ -52,6 +53,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import Servant.Client.Core
+import System.Logger.Class ((~~))
 import System.Logger.Message qualified as Log
 import Wire.API.EnterpriseLogin
 import Wire.API.Federation.API
@@ -178,6 +180,8 @@ runUserSubsystem authInterpreter = interpret $
     AcceptTeamInvitation luid pwd code ->
       authInterpreter $
         acceptTeamInvitationImpl luid pwd code
+    ChangeSingleAccountStatus uid status -> authInterpreter $ changeSingleAccountStatusImpl uid status
+    SuspendInactiveUser uid -> authInterpreter $ suspendInactiveUserImpl uid
     InternalFindTeamInvitation mEmailKey code ->
       internalFindTeamInvitationImpl mEmailKey code
     GetUserExportData uid -> getUserExportDataImpl uid
@@ -185,6 +189,57 @@ runUserSubsystem authInterpreter = interpret $
     UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
     CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
     UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+
+suspendInactiveUserImpl ::
+  ( Member AuthenticationSubsystem r,
+    Member TinyLog r,
+    Member Events r,
+    Member UserStore r,
+    Member AppStore r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
+  ) =>
+  UserId -> Sem r Bool
+suspendInactiveUserImpl uid = do
+  mustsuspend <- mustSuspendInactiveUser uid
+  when mustsuspend $ do
+    Log.warn $
+      Log.msg (Log.val "Suspending user due to inactivity")
+        ~~ Log.field "user" (toByteString uid)
+        ~~ Log.field "action" ("user.suspend" :: String)
+    void $ runError $ changeSingleAccountStatusImpl uid Suspended
+  pure mustsuspend
+
+changeSingleAccountStatusImpl ::
+  ( Member Events r,
+    Member AuthenticationSubsystem r,
+    Member UserStore r,
+    Member (Error UserSubsystemError) r,
+    Member AppStore r,
+    Member GalleyAPIAccess r,
+    Member IndexedUserStore r,
+    Member Metrics r
+  ) =>
+  UserId ->
+  AccountStatus ->
+  Sem r ()
+changeSingleAccountStatusImpl uid status = do
+  unlessM (UserStore.doesUserExist uid) $ throw UserSubsystemAccountNotFound
+  ev <- mkUserEvent status
+  UserStore.updateAccountStatus uid status
+  syncUserIndex uid
+  generateUserEvent uid Nothing (ev uid)
+  where
+    mkUserEvent accountStatus =
+      case accountStatus of
+        Active -> pure UserResumed
+        Suspended -> do
+          revokeCookies uid [] []
+          pure UserSuspended
+        Deleted -> throw UserSubsystemInvalidAccountStatus
+        Ephemeral -> throw UserSubsystemInvalidAccountStatus
+        PendingInvitation -> throw UserSubsystemInvalidAccountStatus
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do

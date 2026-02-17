@@ -54,6 +54,8 @@ data UserSubsystemError
   | UserSubsystemGuardFailed GuardFailure
   | UserSubsystemMlsRemovalNotAllowed
   | UserSubsystemBlockedDomain
+  | UserSubsystemInvalidAccountStatus
+  | UserSubsystemAccountNotFound
   deriving (Eq, Show)
 
 data GuardFailure
@@ -102,5 +104,7 @@ userSubsystemErrorToHttpError =
             InvalidDomain parseErr -> e400 parseErr
     UserSubsystemMlsRemovalNotAllowed -> errorToWai @E.MlsRemovalNotAllowed
     UserSubsystemBlockedDomain -> errorToWai @E.CustomerExtensionBlockedDomain
+    UserSubsystemInvalidAccountStatus -> Wai.mkError status400 "invalid-status" "The specified account status cannot be set."
+    UserSubsystemAccountNotFound -> Wai.mkError status404 "not-found" "Account not found"
 
 instance Exception UserSubsystemError

@@ -29,7 +29,6 @@ module Brig.API.User
     checkHandle,
     UserStore.lookupHandle,
     changeAccountStatus,
-    changeSingleAccountStatus,
     getLegalHoldStatus,
     revokeIdentity,
     deleteUserNoVerify,
@@ -93,7 +92,6 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -611,7 +609,7 @@ changeAccountStatus ::
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
-  ev <- mkUserEvent usrs status
+  ev <- mkUserEvent
   lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (update ev) usrs
   where
     update ::
@@ -623,41 +621,16 @@ changeAccountStatus usrs status = do
       User.internalUpdateSearchIndex u
       Events.generateUserEvent u Nothing (ev u)
 
-changeSingleAccountStatus ::
-  ( Member UserSubsystem r,
-    Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r,
-    Member UserStore r
-  ) =>
-  UserId ->
-  AccountStatus ->
-  ExceptT AccountStatusError (AppT r) ()
-changeSingleAccountStatus uid status = do
-  unlessM (lift . liftSem $ UserStore.doesUserExist uid) $ throwE AccountNotFound
-  ev <- mkUserEvent (NonEmpty.singleton uid) status
-  lift . liftSem $ do
-    UserStore.updateAccountStatus uid status
-    User.internalUpdateSearchIndex uid
-    Events.generateUserEvent uid Nothing (ev uid)
-
-mkUserEvent ::
-  ( Traversable t,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r
-  ) =>
-  t UserId ->
-  AccountStatus ->
-  ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
-mkUserEvent usrs status =
-  case status of
-    Active -> pure UserResumed
-    Suspended -> do
-      lift $ liftSem (unsafePooledMapConcurrentlyN_ 16 Auth.revokeAllCookies usrs)
-      pure UserSuspended
-    Deleted -> throwE InvalidAccountStatus
-    Ephemeral -> throwE InvalidAccountStatus
-    PendingInvitation -> throwE InvalidAccountStatus
+    mkUserEvent :: ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
+    mkUserEvent =
+      case status of
+        Active -> pure UserResumed
+        Suspended -> do
+          lift $ liftSem (unsafePooledMapConcurrentlyN_ 16 Auth.revokeAllCookies usrs)
+          pure UserSuspended
+        Deleted -> throwE InvalidAccountStatus
+        Ephemeral -> throwE InvalidAccountStatus
+        PendingInvitation -> throwE InvalidAccountStatus
 
 -------------------------------------------------------------------------------
 -- Activation

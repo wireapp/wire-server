@@ -55,7 +55,7 @@ import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.API.User
-import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
+import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 import Wire.EmailSubsystem.Template (TeamOpts)
@@ -262,13 +262,6 @@ data LimitFailedLogins = LimitFailedLogins
   deriving (Eq, Show, Generic)
 
 instance FromJSON LimitFailedLogins
-
-data SuspendInactiveUsers = SuspendInactiveUsers
-  { suspendTimeout :: !Timeout
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON SuspendInactiveUsers
 
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts

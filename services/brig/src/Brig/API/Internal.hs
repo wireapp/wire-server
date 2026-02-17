@@ -74,7 +74,7 @@ import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import UnliftIO.Async (pooledMapConcurrentlyN)
+import UnliftIO qualified as UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.EnterpriseLogin hiding (domain)
 import Wire.API.Error
@@ -249,8 +249,7 @@ accountAPI ::
     Member DomainRegistrationStore r,
     Member RateLimit r,
     Member SparAPIAccess r,
-    Member EnterpriseLoginSubsystem r,
-    Member (Concurrency Unsafe) r
+    Member EnterpriseLoginSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -336,17 +335,13 @@ clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserStore r
+    Member Random r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -794,18 +789,13 @@ getPasswordResetCode email =
     >>= maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) pure
 
 changeAccountStatusH ::
-  ( Member UserSubsystem r,
-    Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r,
-    Member UserStore r
-  ) =>
+  (Member UserSubsystem r) =>
   UserId ->
   AccountStatusUpdate ->
   (Handler r) NoContent
 changeAccountStatusH usr (suStatus -> status) = do
   Log.info $ (Log.msg (Log.val "Change Account Status")) . Log.field "usr" (toByteString usr) . Log.field "status" (show status)
-  API.changeSingleAccountStatus usr status !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
+  (lift $ liftSem $ changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
 getAccountStatusH :: (Member UserStore r) => UserId -> (Handler r) AccountStatusResp

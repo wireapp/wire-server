@@ -162,6 +162,7 @@ import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
+import Wire.ClientStore (ClientStore)
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
@@ -414,7 +415,8 @@ servantSitemap ::
     Member UserGroupSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
-    Member AppSubsystem r
+    Member AppSubsystem r,
+    Member ClientStore r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -590,7 +592,7 @@ servantSitemap =
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
       Named @"access" accessH
-        :<|> Named @"access-rotate-cookie" accessRotateCookie
+        :<|> Named @"access-rotate-cookie" accessRotateCookieH
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
@@ -676,7 +678,8 @@ listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   UserId ->
@@ -688,7 +691,8 @@ getPrekeyUnqualifiedH zusr user client = do
 
 getPrekeyH ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   Qualified UserId ->
@@ -710,7 +714,8 @@ getPrekeyBundleH zusr (Qualified uid domain) =
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -737,7 +742,8 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -749,7 +755,8 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -781,7 +788,8 @@ addClient lusr con new = do
 
 deleteClient ::
   ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member ClientStore r
   ) =>
   UserId ->
   ConnId ->
@@ -795,7 +803,7 @@ listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =
   lift $ API.lookupLocalClients zusr
 
-getClient :: UserId -> ClientId -> (Handler r) (Maybe Public.Client)
+getClient :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) (Maybe Public.Client)
 getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
 getUserClientsUnqualified :: UserId -> (Handler r) [Public.PubClient]
@@ -824,7 +832,7 @@ getUserClientQualified quid cid = do
   x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
 
-getClientCapabilities :: UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
+getClientCapabilities :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient

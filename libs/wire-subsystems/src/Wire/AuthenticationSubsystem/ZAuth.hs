@@ -33,7 +33,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Wire.API.User.Auth (bearerToken)
+import Wire.API.User.Auth (Cookie, CookieType (..), UserTokenCookie (..), bearerToken)
 import Wire.API.User.Auth qualified as Auth
 import Wire.AuthenticationSubsystem.Config
 import Wire.Sem.Now (Now)
@@ -178,3 +178,15 @@ randomConnId :: (Member Random r) => Sem r Word64
 randomConnId = BS.foldl' f 0 <$> Random.bytes 8
   where
     f r w = shiftL r 8 .|. fromIntegral w
+
+mkUserTokenCookie ::
+  (UserTokenLike u) =>
+  Bool ->
+  Cookie (Token u) ->
+  UserTokenCookie
+mkUserTokenCookie insecure c =
+  UserTokenCookie
+    { utcExpires = guard (c.cookieType == PersistentCookie) $> c.cookieExpires,
+      utcToken = mkSomeToken c.cookieValue,
+      utcSecure = not insecure
+    }

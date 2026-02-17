@@ -22,13 +22,19 @@ module Wire.AuthenticationSubsystem.Interpreter
   )
 where
 
+import Control.Error hiding (bool)
 import Data.ByteString.Conversion
 import Data.HavePendingInvitations
 import Data.Id
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NE
 import Data.Misc
 import Data.Qualified
 import Data.Time
 import Data.ZAuth.CryptoSign (CryptoSign)
+import Data.ZAuth.Token (Token)
+import Data.ZAuth.Token qualified as ZAuth
+import Data.ZAuth.Validation qualified as ZAuth
 import Imports hiding (local, lookup)
 import Polysemy
 import Polysemy.Error
@@ -36,13 +42,18 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger
+import Util.Timeout (Timeout (..))
 import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie
 import Wire.AuthenticationSubsystem.Error
+import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.ClientStore
+import Wire.ClientStore qualified as Store
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
@@ -53,6 +64,7 @@ import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.SessionStore
+import Wire.SessionStore qualified as Store
 import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem, getLocalAccountBy)
@@ -72,13 +84,15 @@ interpretAuthenticationSubsystem ::
     Member UserStore r,
     Member RateLimit r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member ClientStore r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
 interpretAuthenticationSubsystem userSubsystemInterpreter =
   interpret $
     userSubsystemInterpreter
+      . mapError AuthenticationSubsystemZAuthFailure
       . \case
         -- Password Management
         CreatePasswordResetCode userKey -> createPasswordResetCodeImpl userKey
@@ -93,8 +107,130 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
         NewCookieLimited uid mcid typ mLabel -> runError $ newCookieLimitedImpl uid mcid typ mLabel
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
+        AccessRotateCookie mcid rotate tokens -> accessRotateCookieImpl mcid rotate tokens
+        ValidateTokens uts at -> validateTokensImpl uts at
+        MustSuspendInactiveUser uid -> mustSuspendInactiveUserImpl uid
         -- Testing
         InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
+
+-- | Whether a user has not renewed any of her cookies for longer than
+-- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
+-- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
+-- implicitly because of cyclical dependencies).
+mustSuspendInactiveUserImpl ::
+  ( Member SessionStore r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member Now r
+  ) =>
+  UserId -> Sem r Bool
+mustSuspendInactiveUserImpl uid = do
+  suspendInactiveUsers <- inputs (.suspendInactiveUsers)
+  case suspendInactiveUsers of
+    Nothing -> pure False
+    Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
+      now <- Now.get
+      let suspendHere :: UTCTime
+          suspendHere = addUTCTime (-suspendAge) now
+          youngEnough :: Cookie () -> Bool
+          youngEnough = (>= suspendHere) . cookieCreated
+      ckies <- Store.listCookies uid
+      let mustSuspend
+            | null ckies = False
+            | any youngEnough ckies = False
+            | otherwise = True
+      pure mustSuspend
+
+validateTokensImpl ::
+  ( ZAuth.UserTokenLike u,
+    ZAuth.AccessTokenLike a,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member (Error ZAuth.Failure) r,
+    Member SessionStore r
+  ) =>
+  NonEmpty (Token u) -> Maybe (Token a) -> Sem r (UserId, Cookie (Token u))
+validateTokensImpl uts at = do
+  tokens <- forM uts $ \ut -> runError $ validateToken ut at
+  getFirstSuccessOrFirstFail tokens
+  where
+    -- -- FUTUREWORK: There is surely a better way to do this
+    getFirstSuccessOrFirstFail ::
+      (Member (Error ZAuth.Failure) r) =>
+      NonEmpty (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
+      Sem r (UserId, Cookie (ZAuth.Token u))
+    getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList tks, rights $ NE.toList tks) of
+      (_, suc : _) -> pure suc
+      (e : _, _) -> throw e
+      _ -> throw ZAuth.Invalid -- Impossible
+    validateToken ::
+      forall r u a.
+      ( ZAuth.UserTokenLike u,
+        ZAuth.AccessTokenLike a,
+        Member (Input AuthenticationSubsystemConfig) r,
+        Member CryptoSign r,
+        Member Now r,
+        Member (Error ZAuth.Failure) r,
+        Member SessionStore r
+      ) =>
+      ZAuth.Token u ->
+      Maybe (ZAuth.Token a) ->
+      Sem r (UserId, Cookie (ZAuth.Token u))
+    validateToken ut mAt = do
+      unless (maybe True ((ut.body.user ==) . (.body.userId)) mAt) $ throw ZAuth.Invalid
+      either throw pure =<< ZAuth.validateToken ut
+      forM_ mAt $ \token -> do
+        result <- ZAuth.validateToken token
+        case result of
+          Left ZAuth.Expired -> throw ZAuth.Expired
+          _ -> pure ()
+      ck <- lookupCookieImpl ut >>= maybe (throw ZAuth.Invalid) pure
+      pure (Id ut.body.user, ck)
+
+-- | Lookup the stored cookie associated with a user token,
+-- if one exists.
+lookupCookieImpl ::
+  ( ZAuth.Body u ~ ZAuth.User,
+    Member SessionStore r
+  ) =>
+  ZAuth.Token u -> Sem r (Maybe (Cookie (ZAuth.Token u)))
+lookupCookieImpl t = do
+  let user = Id t.body.user
+  let rand = t.body.rand
+  let expi = ZAuth.tokenExpiresUTC t
+  fmap setToken <$> Store.lookupCookie user expi (CookieId rand)
+  where
+    setToken c = c {cookieValue = t}
+
+accessRotateCookieImpl ::
+  ( Member (Input AuthenticationSubsystemConfig) r,
+    Member CryptoSign r,
+    Member Now r,
+    Member (Error ZAuth.Failure) r,
+    Member SessionStore r,
+    Member ClientStore r,
+    Member (Error AuthenticationSubsystemError) r,
+    Member Random r,
+    Member UserSubsystem r
+  ) =>
+  Maybe ClientId ->
+  RotateCookie ->
+  NonEmpty (Token ZAuth.U) ->
+  Sem r SomeAccess
+accessRotateCookieImpl mcid rotate (oldTok :| oldToks) = do
+  (uid, oldCookie) <- validateTokensImpl (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A))
+  for_ mcid $ Store.lookup uid >=> maybe (throw ZAuth.Invalid) pure
+  whenM (User.suspendInactiveUser uid) $ throw ZAuth.Expired
+  let oldCid = ZAuth.userTokenClient oldCookie.cookieValue.body
+  when (((/=) <$> oldCid <*> mcid) == Just True) $ throw ZAuth.Invalid
+  let newCid = oldCid <|> mcid
+      newLabel = rotate.label <|> oldCookie.cookieLabel
+  revokeCookiesImpl uid [oldCookie.cookieId] []
+  rotatedCookie <- newCookieImpl @ZAuth.U uid newCid oldCookie.cookieType newLabel
+  token <- ZAuth.newAccessToken rotatedCookie.cookieValue
+  let accessWithCookie = Access token (Just rotatedCookie)
+  insecure <- inputs (.cookieInsecure)
+  pure $ ZAuth.mkUserTokenCookie insecure <$> accessWithCookie
 
 maxAttempts :: Int32
 maxAttempts = 3

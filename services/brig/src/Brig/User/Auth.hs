@@ -21,11 +21,9 @@ module Brig.User.Auth
     login,
     logout,
     renewAccess,
-    validateTokens,
     revokeAccess,
     verifyCode,
     checkClientId,
-    catchSuspendInactiveUser,
 
     -- * Internal
     ssoLogin,
@@ -37,10 +35,8 @@ module Brig.User.Auth
 where
 
 import Brig.API.Types
-import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
-import Brig.Data.Client
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie
@@ -63,7 +59,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import System.Logger (field, msg, val, (~~))
+import System.Logger (field, val)
 import Util.Timeout
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Public
@@ -77,10 +73,10 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
-import Wire.Events (Events)
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as Store
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -99,7 +95,6 @@ login ::
   ( Member GalleyAPIAccess r,
     Member (Input (Local ())) r,
     Member ActivationCodeStore r,
-    Member Events r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
@@ -107,7 +102,6 @@ login ::
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -207,23 +201,19 @@ withRetryLimit action uid = do
 logout ::
   ( ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
-    Member (Input AuthenticationSubsystemConfig) r,
-    Member AuthenticationSubsystem r,
-    Member CryptoSign r,
-    Member Now r
+    Member AuthenticationSubsystem r
   ) =>
   NE.NonEmpty (ZAuth.Token u) ->
   ZAuth.Token a ->
   ExceptT ZAuth.Failure (AppT r) ()
 logout uts at = do
-  (u, ck) <- validateTokens uts (Just at)
+  (u, ck) <- lift $ liftSem $ validateTokens uts (Just at)
   lift . liftSem $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
   forall r u a.
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
@@ -231,22 +221,21 @@ renewAccess ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
     Member Random r,
-    Member UserStore r
+    Member ClientStore r
   ) =>
   NE.NonEmpty (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   Maybe ClientId ->
   ExceptT ZAuth.Failure (AppT r) (Access u)
 renewAccess uts at mcid = do
-  (uid, ck) <- validateTokens uts at
-  wrapClientE $ traverse_ (checkClientId uid) mcid
+  (uid, ck) <- lift $ liftSem $ validateTokens uts at
+  traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
-  catchSuspendInactiveUser uid ZAuth.Expired
+  whenM (lift $ liftSem $ User.suspendInactiveUser uid) $ throwE ZAuth.Expired
   mapExceptT liftSem $ do
     ck' <- nextCookie ck mcid
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
@@ -275,48 +264,17 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-catchSuspendInactiveUser ::
-  ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
-    Member (Concurrency 'Unsafe) r,
-    Member AuthenticationSubsystem r,
-    Member UserStore r
-  ) =>
-  UserId ->
-  e ->
-  ExceptT e (AppT r) ()
-catchSuspendInactiveUser uid errval = do
-  mustsuspend <- lift $ wrapHttpClient $ mustSuspendInactiveUser uid
-  when mustsuspend $ do
-    lift . liftSem . Log.warn $
-      msg (val "Suspending user due to inactivity")
-        ~~ field "user" (toByteString uid)
-        ~~ field "action" ("user.suspend" :: String)
-    lift $ runExceptT (changeSingleAccountStatus uid Suspended) >>= explicitlyIgnoreErrors
-    throwE errval
-  where
-    explicitlyIgnoreErrors :: (Monad m) => Either AccountStatusError () -> m ()
-    explicitlyIgnoreErrors = \case
-      Left InvalidAccountStatus -> pure ()
-      Left AccountNotFound -> pure ()
-      Right () -> pure ()
-
 newAccess ::
   forall u a r.
-  ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
+  ( Member UserSubsystem r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
-    Member (Concurrency Unsafe) r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member AuthenticationSubsystem r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserStore r
+    Member Random r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -324,7 +282,7 @@ newAccess ::
   Maybe CookieLabel ->
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid cid ct cl = do
-  catchSuspendInactiveUser uid LoginSuspended
+  whenM (lift $ liftSem $ User.suspendInactiveUser uid) $ throwE LoginSuspended
   r <- lift $ liftSem $ newCookieLimited uid cid ct cl
   case r of
     Left delay -> throwE $ LoginThrottled delay
@@ -394,57 +352,14 @@ isPendingActivation ident = case ident of
             Just SSOIdentity {} -> False -- sso-created users are activated immediately.
             Nothing -> True
 
--- | Validate a list of (User/LH) tokens potentially with an associated access token.
---   If there are multiple valid cookies, we try all of them. When an access token is
---   given, we perform the usual checks.
---   If multiple cookies are given and several are valid, we return the first valid one.
-validateTokens ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
-  NE.NonEmpty (ZAuth.Token u) ->
-  Maybe (ZAuth.Token a) ->
-  ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
-validateTokens uts at = do
-  tokens <- forM uts $ \ut -> lift $ runExceptT (validateToken ut at)
-  getFirstSuccessOrFirstFail tokens
-  where
-    -- FUTUREWORK: There is surely a better way to do this
-    getFirstSuccessOrFirstFail ::
-      (Monad m) =>
-      NE.NonEmpty (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
-      ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
-    getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList tks, rights $ NE.toList tks) of
-      (_, suc : _) -> pure suc
-      (e : _, _) -> throwE e
-      _ -> throwE ZAuth.Invalid -- Impossible
-
-validateToken ::
-  (ZAuth.UserTokenLike u, ZAuth.AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
-  ZAuth.Token u ->
-  Maybe (ZAuth.Token a) ->
-  ExceptT ZAuth.Failure (AppT r) (UserId, Cookie (ZAuth.Token u))
-validateToken ut at = do
-  unless (maybe True ((ut.body.user ==) . (.body.userId)) at) $
-    throwE ZAuth.Invalid
-  ExceptT . liftSem $ ZAuth.validateToken ut
-  forM_ at $ \token ->
-    ExceptT (liftSem $ ZAuth.validateToken token)
-      `catchE` \e ->
-        unless (e == ZAuth.Expired) (throwE e)
-  ck <- lift (wrapClient $ lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) pure
-  pure (Id ut.body.user, ck)
-
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
-  ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
+  ( Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserStore r
+    Member Random r
   ) =>
   SsoLogin ->
   CookieType ->
@@ -474,16 +389,12 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserStore r
+    Member Random r
   ) =>
   LegalHoldLogin ->
   CookieType ->
@@ -512,6 +423,6 @@ assertLegalHoldEnabled tid = do
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
 
-checkClientId :: (MonadClient m) => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
+checkClientId :: (Member ClientStore r) => UserId -> ClientId -> ExceptT ZAuth.Failure (AppT r) ()
 checkClientId uid cid =
-  lookupClient uid cid >>= maybe (throwE ZAuth.Invalid) (const (pure ()))
+  (lift $ liftSem $ Store.lookup uid cid) >>= maybe (throwE ZAuth.Invalid) (const (pure ()))

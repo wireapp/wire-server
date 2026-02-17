@@ -36,9 +36,11 @@
 module Wire.AuthenticationSubsystem where
 
 import Data.Id
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc
 import Data.Qualified
 import Data.RetryAfter
+import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Polysemy
@@ -76,6 +78,13 @@ data AuthenticationSubsystem m a where
     Maybe CookieLabel ->
     AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
   RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
+  AccessRotateCookie :: Maybe ClientId -> RotateCookie -> NonEmpty (Token ZAuth.U) -> AuthenticationSubsystem m SomeAccess
+  ValidateTokens ::
+    (UserTokenLike u, AccessTokenLike a) =>
+    NonEmpty (ZAuth.Token u) ->
+    Maybe (ZAuth.Token a) ->
+    AuthenticationSubsystem m (UserId, Cookie (ZAuth.Token u))
+  MustSuspendInactiveUser :: UserId -> AuthenticationSubsystem m Bool
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 

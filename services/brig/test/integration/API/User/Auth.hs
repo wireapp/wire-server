@@ -68,7 +68,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Config as AuthOpts
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.HashPassword.Interpreter
 import Wire.Sem.Now (Now)
@@ -977,7 +977,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
   -- (context information: cookies are stored by user, not by device; so if there is a
   -- cookie that is old, it means none of the devices of the user has used it for a request.)
 
-  let Just suspendAge = Opts.suspendTimeout <$> config.settings.suspendInactiveUsers
+  let Just suspendAge = AuthOpts.suspendTimeout <$> config.settings.suspendInactiveUsers
   unless (suspendAge <= 30) $
     error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
 

@@ -21,12 +21,14 @@ module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
 import Data.Domain
 import Data.Id
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc
 import Data.Qualified
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
+import Data.ZAuth.Validation qualified as ZAuthV
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -47,6 +49,7 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.AuthenticationSubsystem.ZAuth (randomConnId)
+import Wire.ClientStore (ClientStore (..))
 import Wire.EmailSubsystem
 import Wire.HashPassword
 import Wire.MiniBackend
@@ -65,6 +68,7 @@ import Wire.UserStore
 type AllEffects =
   [ AuthenticationSubsystem,
     Error AuthenticationSubsystemError,
+    Error ZAuthV.Failure,
     Error RateLimitExceeded,
     RateLimit,
     Random,
@@ -73,6 +77,7 @@ type AllEffects =
     Now,
     State UTCTime,
     Input AuthenticationSubsystemConfig,
+    ClientStore,
     SessionStore,
     State (Map UserId [Cookie ()]),
     PasswordStore,
@@ -105,6 +110,7 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
         . runInMemoryPasswordStoreInterpreter
         . evalState mempty
         . inMemorySessionStoreInterpreter
+        . runInMemoryClientStore
         . runInputConst cfg
         . evalState defaultTime
         . interpretNowAsState
@@ -112,9 +118,14 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
         . staticHashPasswordInterpreter
         . runRandomPure
         . noRateLimit
-        . runErrorUnsafe
-        . runError
+        . runErrorUnsafe @RateLimitExceeded
+        . runErrorUnsafe @ZAuthV.Failure
+        . runError @AuthenticationSubsystemError
         . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
+
+runInMemoryClientStore :: InterpreterFor ClientStore r
+runInMemoryClientStore = interpret \case
+  Lookup _ _ -> pure Nothing
 
 verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
 verifyPasswordPure plain hashed =
@@ -394,6 +405,41 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               pure (c, s)
         length sto `shouldBe` 1
         (head sto).cookieId `shouldBe` cky.cookieId
+
+  describe "accessRotateCookie" do
+    prop "rotates cookie, keeps metadata, and stores only the new cookie" $
+      \localDomain uid cid typ oldLabel newLabel ->
+        let rotateReq = RotateCookie {label = newLabel}
+            Right (oldCookie, rotatedAccess, storedCookies) = runAllEffects localDomain [] Nothing $ do
+              old <- newCookie @_ @ZAuth.U uid cid typ oldLabel
+              rotated <- accessRotateCookie Nothing rotateReq (old.cookieValue :| [])
+              cookies <- listCookies uid
+              pure (old, rotated, cookies)
+            expectedLabel = newLabel <|> oldLabel
+         in case rotatedAccess.accessCookie of
+              Nothing ->
+                counterexample "expected rotated response to include cookie" False
+              Just tokenCookie ->
+                case tokenCookie.utcToken of
+                  LHUserToken _ ->
+                    counterexample "expected a plain user token cookie" False
+                  PlainUserToken token ->
+                    let [storedCookie] = storedCookies
+                     in length storedCookies === 1
+                          .&&. storedCookie.cookieId === CookieId token.body.rand
+                          .&&. storedCookie.cookieId =/= oldCookie.cookieId
+                          .&&. storedCookie.cookieType === oldCookie.cookieType
+                          .&&. storedCookie.cookieLabel === expectedLabel
+                          .&&. rotatedAccess.accessToken.user === uid
+
+    prop "fails with invalid when token is no longer stored" $
+      \localDomain uid cid typ mLabel ->
+        let Right rotateResult = runAllEffects localDomain [] Nothing $ do
+              old <- newCookie @_ @ZAuth.U uid cid typ mLabel
+              revokeCookies uid [] []
+              catchExpectedError $
+                accessRotateCookie Nothing (RotateCookie {label = Nothing}) (old.cookieValue :| [])
+         in rotateResult === Just (AuthenticationSubsystemZAuthFailure ZAuthV.Invalid)
 
   describe "randomConnId" $ do
     it "generates different connection ids" $ do

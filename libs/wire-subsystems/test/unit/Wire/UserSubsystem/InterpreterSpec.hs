@@ -38,6 +38,7 @@ import Data.Set (insert, member, notMember)
 import Data.Set qualified as S
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import Data.ZAuth.Validation qualified as ZAuthV
 import Database.Bloodhound.Internal.Client qualified as ES
 import Imports
 import Polysemy
@@ -132,6 +133,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runErrorUnsafe @TeamCollaboratorsError
+                . runErrorUnsafe @ZAuthV.Failure
                 . runError @FederationError
                 . interpretFederationStack localBackend online mempty config
                 $ getUserProfiles

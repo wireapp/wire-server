@@ -107,6 +107,8 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as Store
 import Wire.DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
 import Wire.Events (Events)
@@ -121,8 +123,8 @@ import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
-lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
-lookupLocalClient uid = wrapClient . Data.lookupClient uid
+lookupLocalClient :: (Member ClientStore r) => UserId -> ClientId -> (AppT r) (Maybe Client)
+lookupLocalClient uid cid = liftSem $ Store.lookup uid cid
 
 lookupLocalClients :: UserId -> (AppT r) [Client]
 lookupLocalClients = wrapClient . Data.lookupClients
@@ -245,13 +247,13 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
 updateClient ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member ClientStore r) =>
   UserId ->
   ClientId ->
   UpdateClient ->
   (Handler r) ()
 updateClient uid cid req = do
-  client <- wrapClientE (lift (Data.lookupClient uid cid) >>= maybe (throwE ClientNotFound) pure) !>> clientError
+  client <- ((lift $ liftSem (Store.lookup uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientError
   wrapClientE $ for_ req.updateClientLabel $ lift . Data.updateClientLabel uid cid . Just
   for_ req.updateClientCapabilities $ \caps -> do
     if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
@@ -275,7 +277,8 @@ updateClient uid cid req = do
 -- a superset of the clients known to galley.
 rmClient ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   ConnId ->
@@ -283,7 +286,7 @@ rmClient ::
   Maybe PlainTextPassword6 ->
   ExceptT ClientError (AppT r) ()
 rmClient u con clt pw =
-  maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
+  maybe (throwE ClientNotFound) fn =<< lift (liftSem (Store.lookup u clt))
   where
     fn client = do
       case clientType client of
@@ -299,7 +302,8 @@ rmClient u con clt pw =
 
 claimPrekey ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   UserId ->
@@ -314,7 +318,8 @@ claimPrekey protectee u d c = do
 
 claimLocalPrekey ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   UserId ->
@@ -358,7 +363,8 @@ claimMultiPrekeyBundlesInternal ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -388,7 +394,8 @@ claimMultiPrekeyBundlesInternal protectee quc = do
 claimMultiPrekeyBundlesV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -424,7 +431,8 @@ claimMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -454,7 +462,8 @@ claimLocalMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   UserClients ->
@@ -517,13 +526,14 @@ execDelete u con c = do
 -- (and possibly duplicated) client data.
 noPrekeys ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member Store.ClientStore r
   ) =>
   UserId ->
   ClientId ->
   (AppT r) ()
 noPrekeys u c = do
-  mclient <- wrapClient $ Data.lookupClient u c
+  mclient <- liftSem $ Store.lookup u c
   case mclient of
     Nothing -> do
       Log.warn $

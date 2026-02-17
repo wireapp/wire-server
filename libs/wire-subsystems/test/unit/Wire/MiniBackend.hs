@@ -64,6 +64,7 @@ import Data.Type.Equality
 import Data.Vector qualified as Vector
 import Data.ZAuth.Creation
 import Data.ZAuth.CryptoSign
+import Data.ZAuth.Validation qualified as ZAuth
 import GHC.Generics
 import Imports
 import Polysemy
@@ -94,6 +95,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
+import Wire.ClientStore (ClientStore (..))
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -208,6 +210,7 @@ type AllErrors =
   [ Error UserSubsystemError,
     Error FederationError,
     Error AuthenticationSubsystemError,
+    Error ZAuth.Failure,
     Error RateLimitExceeded,
     Error TeamCollaboratorsError
   ]
@@ -254,6 +257,7 @@ type MiniBackendLowerEffects =
      DRS.DomainRegistrationStore,
      PasswordResetCodeStore,
      SessionStore,
+     ClientStore,
      UserGroupStore,
      RateLimit,
      HashPassword,
@@ -292,6 +296,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . staticHashPasswordInterpreter
     . noRateLimit
     . userGroupStoreTestInterpreter
+    . runInMemoryClientStore
     . runInMemorySessionStore
     . runInMemoryPasswordResetCodeStore
     . inMemoryDomainRegistrationStoreInterpreter
@@ -349,6 +354,10 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftTeamCollaboratorsStoreState
     . liftPushNotificationsState
 
+runInMemoryClientStore :: InterpreterFor ClientStore r
+runInMemoryClientStore = interpret \case
+  Lookup _ _ -> pure Nothing
+
 type InputEffects =
   '[ Input UserSubsystemConfig,
      Input (Maybe AllowlistEmailDomains),
@@ -388,7 +397,9 @@ defaultAuthenticationSubsystemConfig =
       local = defaultLocalDomain,
       userCookieRenewAge = 2,
       userCookieLimit = 5,
-      userCookieThrottle = StdDevThrottle 5 3
+      userCookieThrottle = StdDevThrottle 5 3,
+      cookieInsecure = True,
+      suspendInactiveUsers = Nothing
     }
 
 defaultLocalDomain :: Local ()
@@ -629,7 +640,7 @@ runNoFederationStackUserSubsystemErrorEither localBackend teams cfg =
   run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 userSubsystemErrorEitherUnsafe :: Sem AllErrors a -> Sem '[] (Either UserSubsystemError a)
-userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
+userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
@@ -730,7 +741,7 @@ liftIndexedUserStoreState = interpret $ \case
   Put newUserIndex -> modify $ \b -> (b :: MiniBackend) {userIndex = newUserIndex}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

@@ -226,6 +226,8 @@ library
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
     Wire.ClientIndexStore
+    Wire.ClientStore
+    Wire.ClientStore.Cassandra
     Wire.CodeStore
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries

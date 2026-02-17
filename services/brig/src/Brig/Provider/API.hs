@@ -121,6 +121,7 @@ import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.AuthenticationSubsystem as Authentication
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.ClientStore (ClientStore)
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -154,7 +155,8 @@ botAPI ::
     Member UserStore r,
     Member (Embed HttpClientIO) r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member ClientStore r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -944,7 +946,8 @@ botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   BotId ->
   Public.UserClients ->

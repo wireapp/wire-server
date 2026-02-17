@@ -21,7 +21,6 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import Brig.Options
 import Brig.User.Auth qualified as Auth
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
@@ -33,7 +32,6 @@ import Data.Text.Lazy qualified as LT
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token (Token)
 import Data.ZAuth.Token qualified as ZAuth
-import Data.ZAuth.Validation qualified as ZV
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
@@ -56,12 +54,11 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Error (zauthError)
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
+import Wire.ClientStore (ClientStore)
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Error (HttpError (..))
-import Wire.Events (Events)
 import Wire.GalleyAPIAccess
-import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -78,17 +75,15 @@ import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 accessH ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
     Member Random r,
-    Member UserStore r
+    Member ClientStore r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -103,7 +98,6 @@ accessH mcid ut' mat' = do
 access ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r,
     UserTokenLike u,
     AccessTokenLike a,
     AccessTokenType u ~ a,
@@ -111,76 +105,33 @@ access ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
     Member Random r,
-    Member UserStore r
+    Member ClientStore r
   ) =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r SomeAccess
-access mcid t mt =
-  traverse mkUserTokenCookie
-    =<< Auth.renewAccess t mt mcid !>> (StdError . zauthError)
+access mcid t mt = do
+  insecure <- lift $ liftSem $ inputs (.cookieInsecure)
+  fmap (mkUserTokenCookie insecure)
+    <$> Auth.renewAccess t mt mcid !>> (StdError . zauthError)
 
-accessRotateCookie ::
-  ( Member (Input AuthenticationSubsystemConfig) r,
-    Member AuthenticationSubsystem r,
-    Member CryptoSign r,
-    Member Now r,
-    Member Random r,
-    Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member UserStore r
-  ) =>
+accessRotateCookieH ::
+  (Member AuthenticationSubsystem r) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
   RotateCookie ->
   Handler r SomeAccess
-accessRotateCookie mcid ut' rotateReq = do
+accessRotateCookieH mcid ut' rotateReq = do
   ut <- handleTokenErrors ut'
   partitionTokens ut Nothing >>= \case
-    Left (uts, _) -> rotateUserCookie mcid rotateReq uts
+    Left (uts, _) -> lift $ liftSem $ accessRotateCookie mcid rotateReq uts
     -- This endpoint is meant for regular user sessions only.
     Right _ -> throwStd authTokenMismatch
-
-rotateUserCookie ::
-  ( Member (Input AuthenticationSubsystemConfig) r,
-    Member AuthenticationSubsystem r,
-    Member CryptoSign r,
-    Member Now r,
-    Member Random r,
-    Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member UserStore r
-  ) =>
-  Maybe ClientId ->
-  RotateCookie ->
-  NonEmpty (Token ZAuth.U) ->
-  Handler r SomeAccess
-rotateUserCookie mcid rotate (oldTok :| oldToks) = do
-  (uid, oldCookie) <-
-    Auth.validateTokens (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A))
-      !>> (StdError . zauthError)
-  wrapClientE $ traverse_ (Auth.checkClientId uid) mcid !>> (StdError . zauthError)
-  Auth.catchSuspendInactiveUser uid (StdError $ zauthError ZV.Expired)
-  let oldCid = userTokenClient oldCookie.cookieValue.body
-  when (((/=) <$> oldCid <*> mcid) == Just True) $ throwStd (zauthError ZV.Invalid)
-  let newCid = oldCid <|> mcid
-      newLabel = rotate.label <|> oldCookie.cookieLabel
-  accessWithCookie <- lift . liftSem $ do
-    revokeCookies uid [oldCookie.cookieId] []
-    rotatedCookie <- newCookie @_ @ZAuth.U uid newCid oldCookie.cookieType newLabel
-    token <- newAccessToken @ZAuth.U rotatedCookie.cookieValue
-    pure (Access token (Just rotatedCookie))
-  traverse mkUserTokenCookie accessWithCookie
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode _ =
@@ -192,14 +143,12 @@ login ::
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member Events r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
     Member ActivationCodeStore r,
     Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -210,14 +159,11 @@ login ::
 login l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- Auth.login l typ !>> loginError
-  traverse mkUserTokenCookie c
+  insecure <- lift $ liftSem $ inputs @AuthenticationSubsystemConfig (.cookieInsecure)
+  pure $ mkUserTokenCookie insecure <$> c
 
 logoutH ::
-  ( Member (Input AuthenticationSubsystemConfig) r,
-    Member AuthenticationSubsystem r,
-    Member CryptoSign r,
-    Member Now r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r ()
@@ -230,10 +176,7 @@ logoutH uts' mat' = do
 logout ::
   ( UserTokenLike u,
     AccessTokenLike a,
-    Member (Input AuthenticationSubsystemConfig) r,
-    Member AuthenticationSubsystem r,
-    Member CryptoSign r,
-    Member Now r
+    Member AuthenticationSubsystem r
   ) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
@@ -253,9 +196,7 @@ changeSelfEmail ::
     Member TinyLog r,
     Member DomainRegistrationStore r,
     Member SparAPIAccess r,
-    Member (Input AuthenticationSubsystemConfig) r,
-    Member CryptoSign r,
-    Member Now r
+    Member AuthenticationSubsystem r
   ) =>
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -272,13 +213,16 @@ changeSelfEmail uts' mat' up = do
     User.requestEmailChange lusr email UpdateOriginWireClient
 
 validateCredentials ::
-  (UserTokenLike u, AccessTokenLike a, Member (Input AuthenticationSubsystemConfig) r, Member CryptoSign r, Member Now r) =>
+  ( UserTokenLike u,
+    AccessTokenLike a,
+    Member AuthenticationSubsystem r
+  ) =>
   NonEmpty (Token u) ->
   Maybe (Token a) ->
   Handler r UserId
 validateCredentials _ Nothing = throwStd missingAccessToken
 validateCredentials uts mat =
-  fst <$> Auth.validateTokens uts mat !>> StdError . zauthError
+  fst <$> (lift $ liftSem $ validateTokens uts mat) !>> StdError . zauthError
 
 listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
 listCookies lusr (fold -> labels) =
@@ -298,35 +242,28 @@ removeCookies lusr (RemoveCookies pw lls ids) =
 
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserStore r
+    Member Random r
   ) =>
   LegalHoldLogin ->
   Handler r SomeAccess
 legalHoldLogin lhl = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   c <- Auth.legalHoldLogin lhl typ !>> legalHoldLoginError
-  traverse mkUserTokenCookie c
+  insecure <- lift $ liftSem $ inputs @AuthenticationSubsystemConfig (.cookieInsecure)
+  pure $ mkUserTokenCookie insecure <$> c
 
 ssoLogin ::
-  ( Member TinyLog r,
-    Member AuthenticationSubsystem r,
+  ( Member AuthenticationSubsystem r,
     Member UserSubsystem r,
-    Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r,
-    Member UserStore r
+    Member Random r
   ) =>
   SsoLogin ->
   Maybe Bool ->
@@ -334,7 +271,8 @@ ssoLogin ::
 ssoLogin l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- Auth.ssoLogin l typ !>> loginError
-  traverse mkUserTokenCookie c
+  insecure <- lift $ liftSem $ inputs (.cookieInsecure)
+  pure $ mkUserTokenCookie insecure <$> c
 
 getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode _ = throwStd loginCodeNotFound
@@ -362,21 +300,6 @@ reauthenticate luid@(tUnqualified -> uid) body = do
 
 --------------------------------------------------------------------------------
 -- Utils
-
-mkUserTokenCookie ::
-  (MonadReader Env m, UserTokenLike u) =>
-  Cookie (Token u) ->
-  m UserTokenCookie
-mkUserTokenCookie c = do
-  s <- asks (.settings)
-  pure
-    UserTokenCookie
-      { utcExpires =
-          guard (c.cookieType == PersistentCookie)
-            $> c.cookieExpires,
-        utcToken = mkSomeToken c.cookieValue,
-        utcSecure = not s.cookieInsecure
-      }
 
 partitionTokens ::
   [SomeUserToken] ->

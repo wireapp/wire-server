@@ -67,6 +67,7 @@ import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.AuthenticationSubsystem
+import Wire.ClientStore (ClientStore)
 import Wire.DeleteQueue
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -89,7 +90,8 @@ federationSitemap ::
     Member UserSubsystem r,
     Member UserStore r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -183,7 +185,8 @@ getUsersByIds _ uids = do
 
 claimPrekey ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   Domain ->
   (UserId, ClientId) ->
@@ -198,7 +201,8 @@ claimPrekeyBundle _ user =
 claimMultiPrekeyBundle ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   Domain ->
   UserClients ->
