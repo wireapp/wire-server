@@ -11,7 +11,7 @@ tls:
     name: federation
     kind: ClusterIssuer
   createIssuer: false
-  caNamespace: wire-federation-v0
+  caNamespace: ""
 
 config:
   ingressClass: "nginx-{{ .Release.Namespace }}"
