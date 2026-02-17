@@ -1814,9 +1814,9 @@ rec {
       };
       "libc" = rec {
         crateName = "libc";
-        version = "0.2.180";
+        version = "0.2.182";
         edition = "2021";
-        sha256 = "1z2n7hl10fnk1xnv19ahhqxwnb4qi9aclnl6gigim2aaahw5mhxw";
+        sha256 = "04k1w1mq9f4cxv520dbr5xw1i7xkbc9fcrvaggyjy25jdkdvl038";
         authors = [
           "The Rust Project Developers"
         ];
