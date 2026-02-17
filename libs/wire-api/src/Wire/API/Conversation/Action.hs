@@ -202,7 +202,8 @@ $( singletons
        conversationActionPermission ConversationUpdateProtocolTag = LeaveConversation
        conversationActionPermission ConversationUpdateAddPermissionTag = ModifyAddPermission
        conversationActionPermission ConversationResetTag = LeaveConversation
-       conversationActionPermission ConversationHistoryUpdateTag = ModifyConversationHistory
+       conversationActionPermission ConversationHistoryUpdateTag =
+         ModifyConversationAccess -- hack: reusing existing action to preserve API compatibility
        |]
  )
 

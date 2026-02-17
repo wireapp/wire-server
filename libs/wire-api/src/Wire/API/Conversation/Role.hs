@@ -47,7 +47,6 @@ module Wire.API.Conversation.Role
     ModifyConversationMessageTimerSym0,
     ModifyConversationReceiptModeSym0,
     ModifyConversationAccessSym0,
-    ModifyConversationHistorySym0,
     ModifyOtherConversationMemberSym0,
     LeaveConversationSym0,
     DeleteConversationSym0,
@@ -104,7 +103,6 @@ data Action
   | ModifyConversationMessageTimer
   | ModifyConversationReceiptMode
   | ModifyConversationAccess
-  | ModifyConversationHistory
   | ModifyOtherConversationMember
   | LeaveConversation
   | DeleteConversation
@@ -120,7 +118,6 @@ type family ActionName (a :: Action) :: Symbol where
   ActionName 'ModifyConversationMessageTimer = "modify_conversation_message_timer"
   ActionName 'ModifyConversationReceiptMode = "modify_conversation_receipt_mode"
   ActionName 'ModifyConversationAccess = "modify_conversation_access"
-  ActionName 'ModifyConversationHistory = "modify_conversation_history"
   ActionName 'ModifyOtherConversationMember = "modify_other_conversation_member"
   ActionName 'LeaveConversation = "leave_conversation"
   ActionName 'DeleteConversation = "delete_conversation"

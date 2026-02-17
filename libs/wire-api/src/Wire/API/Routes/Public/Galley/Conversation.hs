@@ -1350,7 +1350,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
-               :> CanThrow ('ActionDenied 'ModifyConversationHistory)
+               :> CanThrow ('ActionDenied 'ModifyConversationAccess)
                :> CanThrow 'HistoryNotSupported
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
