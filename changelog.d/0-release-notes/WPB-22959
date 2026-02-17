@@ -1,6 +1,0 @@
-Team features can now be migrated from Cassandra to Postgres. To migrate:
-- Set galley `postgresMigration.teamFeatures` to `migration-to-postgresql`.
-- Enable the background-worker flag `migrateTeamFeatures=true` to run the backfill.
-- Monitor the `wire_team_features_migration_finished` metric to confirm completion.
-- Switch `postgresMigration.teamFeatures` to `postgresql` and restart Galley and background-worker.
-- Once fully cut over, drop the Cassandra `team_features_dyn` table.
