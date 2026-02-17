@@ -27,11 +27,13 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.Routes.Version
 
 type BotAPI =
   Named
     "post-bot-message-unqualified"
     ( ZBot
+        :> Until 'V14
         :> ZConversation
         :> CanThrow 'ConvNotFound
         :> "bot"
@@ -47,7 +49,8 @@ type BotAPI =
     )
     :<|> Named
            "get-bot-conversation"
-           ( CanThrow 'AccessDenied
+           ( Until 'V14
+               :> CanThrow 'AccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember

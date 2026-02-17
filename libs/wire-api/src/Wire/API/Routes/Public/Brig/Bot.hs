@@ -62,6 +62,7 @@ type BotAPI =
            "add-bot"
            ( Summary "Add bot"
                :> From V7
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidConversation
                :> CanThrow 'TooManyConversationMembers
@@ -78,6 +79,7 @@ type BotAPI =
            "remove-bot@v6"
            ( Summary "Remove bot"
                :> Until V7
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidConversation
                :> ZAccess
@@ -92,6 +94,7 @@ type BotAPI =
            "remove-bot"
            ( Summary "Remove bot"
                :> From V7
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidConversation
                :> ZAccess
@@ -105,6 +108,7 @@ type BotAPI =
     :<|> Named
            "bot-get-self"
            ( Summary "Get self"
+               :> Until 'V14
                :> CanThrow 'UserNotFound
                :> CanThrow 'AccessDenied
                :> ZBot
@@ -115,6 +119,7 @@ type BotAPI =
     :<|> Named
            "bot-delete-self"
            ( Summary "Delete self"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidBot
                :> ZBot
@@ -126,6 +131,7 @@ type BotAPI =
     :<|> Named
            "bot-list-prekeys"
            ( Summary "List prekeys for bot"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZBot
                :> "bot"
@@ -136,6 +142,7 @@ type BotAPI =
     :<|> Named
            "bot-update-prekeys"
            ( Summary "Update prekeys for bot"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ClientNotFound
                :> ZBot
@@ -184,6 +191,7 @@ type BotAPI =
            "bot-get-client"
            ( Summary "Get client for bot"
                :> From 'V8
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ClientNotFound
                :> ZBot
@@ -200,6 +208,7 @@ type BotAPI =
     :<|> Named
            "bot-claim-users-prekeys"
            ( Summary "Claim users prekeys"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'TooManyClients
                :> CanThrow 'MissingLegalholdConsentOldClients
@@ -214,6 +223,7 @@ type BotAPI =
     :<|> Named
            "bot-list-users"
            ( Summary "List users"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZBot
                :> "bot"
@@ -224,6 +234,7 @@ type BotAPI =
     :<|> Named
            "bot-get-user-clients"
            ( Summary "Get user clients"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZBot
                :> "bot"

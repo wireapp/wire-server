@@ -29,11 +29,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 
 type ServicesAPI =
   Named
     "post-provider-services"
     ( Summary "Create a new service"
+        :> Until 'V14
         :> CanThrow 'AccessDenied
         :> CanThrow 'InvalidServiceKey
         :> ZProvider
@@ -45,6 +47,7 @@ type ServicesAPI =
     :<|> Named
            "get-provider-services"
            ( Summary "List provider services"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZProvider
                :> "provider"
@@ -54,6 +57,7 @@ type ServicesAPI =
     :<|> Named
            "get-provider-services-by-service-id"
            ( Summary "Get provider service by service id"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ServiceNotFound
                :> ZProvider
@@ -65,6 +69,7 @@ type ServicesAPI =
     :<|> Named
            "put-provider-services-by-service-id"
            ( Summary "Update provider service"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ServiceNotFound
                :> CanThrow 'ProviderNotFound
@@ -78,6 +83,7 @@ type ServicesAPI =
     :<|> Named
            "put-provider-services-connection-by-service-id"
            ( Summary "Update provider service connection"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ServiceNotFound
                :> CanThrow 'BadCredentials
@@ -93,6 +99,7 @@ type ServicesAPI =
     :<|> Named
            "delete-provider-services-by-service-id"
            ( Summary "Delete service"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'BadCredentials
                :> CanThrow 'ServiceNotFound
@@ -106,6 +113,7 @@ type ServicesAPI =
     :<|> Named
            "get-provider-services-by-provider-id"
            ( Summary "Get provider services by provider id"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZUser
                :> "providers"
@@ -116,6 +124,7 @@ type ServicesAPI =
     :<|> Named
            "get-services"
            ( Summary "List services"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZUser
                :> "services"
@@ -127,6 +136,7 @@ type ServicesAPI =
     :<|> Named
            "get-services-tags"
            ( Summary "Get services tags"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> ZUser
                :> "services"
@@ -136,6 +146,7 @@ type ServicesAPI =
     :<|> Named
            "get-provider-services-by-provider-id-and-service-id"
            ( Summary "Get provider service by provider id and service id"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ServiceNotFound
                :> ZUser
@@ -148,6 +159,7 @@ type ServicesAPI =
     :<|> Named
            "get-whitelisted-services-by-team-id"
            ( Summary "Get whitelisted services by team id"
+               :> Until 'V14
                :> ZUser
                :> "teams"
                :> Capture "team-id" TeamId
@@ -163,6 +175,7 @@ type ServicesAPI =
     :<|> Named
            "post-team-whitelist-by-team-id"
            ( Summary "Update service whitelist"
+               :> Until 'V14
                :> ZUser
                :> ZConn
                :> "teams"

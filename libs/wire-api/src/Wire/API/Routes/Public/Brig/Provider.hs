@@ -30,6 +30,7 @@ import Wire.API.Provider
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named)
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 import Wire.API.User.Auth
 
 type ActivateResponses =
@@ -51,6 +52,7 @@ type ProviderAPI =
   Named
     "provider-register"
     ( Summary "Register a new provider"
+        :> Until 'V14
         :> CanThrow 'AccessDenied
         :> CanThrow 'InvalidEmail
         :> CanThrow 'VerificationCodeThrottled
@@ -63,6 +65,7 @@ type ProviderAPI =
     :<|> Named
            "provider-activate"
            ( Summary "Activate a provider"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidCode
                :> "provider"
@@ -74,6 +77,7 @@ type ProviderAPI =
     :<|> Named
            "provider-login"
            ( Summary "Login as a provider"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'BadCredentials
                :> "provider"
@@ -93,6 +97,7 @@ type ProviderAPI =
     :<|> Named
            "provider-password-reset"
            ( Summary "Begin a password reset"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'BadCredentials
                :> CanThrow 'InvalidPasswordResetKey
@@ -109,6 +114,7 @@ type ProviderAPI =
     :<|> Named
            "provider-password-reset-complete"
            ( Summary "Complete a password reset"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidCode
                :> CanThrow 'ResetPasswordMustDiffer
@@ -123,6 +129,7 @@ type ProviderAPI =
     :<|> Named
            "provider-delete"
            ( Summary "Delete a provider"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidProvider
                :> CanThrow 'BadCredentials
@@ -134,6 +141,7 @@ type ProviderAPI =
     :<|> Named
            "provider-update"
            ( Summary "Update a provider"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidProvider
                :> ZProvider
@@ -144,6 +152,7 @@ type ProviderAPI =
     :<|> Named
            "provider-update-email"
            ( Summary "Update a provider email"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'InvalidEmail
                :> CanThrow 'InvalidProvider
@@ -157,6 +166,7 @@ type ProviderAPI =
     :<|> Named
            "provider-update-password"
            ( Summary "Update a provider password"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'BadCredentials
                :> CanThrow 'ResetPasswordMustDiffer
@@ -169,6 +179,7 @@ type ProviderAPI =
     :<|> Named
            "provider-get-account"
            ( Summary "Get account"
+               :> Until 'V14
                :> CanThrow 'AccessDenied
                :> CanThrow 'ProviderNotFound
                :> ZProvider
@@ -178,6 +189,7 @@ type ProviderAPI =
     :<|> Named
            "provider-get-profile"
            ( Summary "Get profile"
+               :> Until 'V14
                :> ZUser
                :> "providers"
                :> Capture "pid" ProviderId
