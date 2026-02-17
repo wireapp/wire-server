@@ -58,8 +58,8 @@ else
   export FEDERATION_DOMAIN_2="${NAMESPACE_2}-fed.${FEDERATION_DOMAIN_BASE_2}"
 fi
 
-echo "Fetch federation-ca secret from cert-manager namespace"
-FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
+echo "Fetch federation-ca secret from wire-federation-v0 namespace"
+FEDERATION_CA_CERTIFICATE=$(kubectl -n wire-federation-v0 get secret federator-ca-secret -o json -o jsonpath="{.data['ca\.crt']}" | base64 -d)
 export FEDERATION_CA_CERTIFICATE
 
 copy_federator_ca_secret() {
