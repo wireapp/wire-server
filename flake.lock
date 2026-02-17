@@ -103,23 +103,6 @@
         "type": "github"
       }
     },
-    "hsaml2": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1717163391,
-        "narHash": "sha256-gufEAC7fFqafG8dXkGIOSfAcVv+ZWkawmBgUV+Ics2s=",
-        "owner": "dylex",
-        "repo": "hsaml2",
-        "rev": "874627ad22e69afe4d9a797e39633ffb30697c78",
-        "type": "github"
-      },
-      "original": {
-        "owner": "dylex",
-        "ref": "main",
-        "repo": "hsaml2",
-        "type": "github"
-      }
-    },
     "hspec-wai": {
       "flake": false,
       "locked": {
@@ -211,7 +194,6 @@
         "cql-io": "cql-io",
         "flake-utils": "flake-utils",
         "hedis": "hedis",
-        "hsaml2": "hsaml2",
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",
         "nixpkgs": "nixpkgs",

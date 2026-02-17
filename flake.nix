@@ -16,10 +16,6 @@
       url = "github:wireapp/bloodhound?ref=wire-fork";
       flake = false;
     };
-    hsaml2 = {
-      url = "github:dylex/hsaml2?ref=main";
-      flake = false;
-    };
     hedis = {
       url = "github:wireapp/hedis?ref=wire-changes";
       flake = false;
