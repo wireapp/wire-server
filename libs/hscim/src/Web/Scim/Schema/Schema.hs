@@ -17,11 +17,15 @@
 
 module Web.Scim.Schema.Schema where
 
+import Control.Monad.Error.Class
 import Data.Aeson (FromJSON, ToJSON, Value, parseJSON, toJSON, withText)
 import Data.Attoparsec.ByteString (Parser)
 import qualified Data.Attoparsec.ByteString.Char8 as Parser
+import Data.Data (Proxy)
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Imports
 import Web.Scim.Capabilities.MetaSchema.Group
 import Web.Scim.Capabilities.MetaSchema.ResourceType
 import Web.Scim.Capabilities.MetaSchema.SPConfig
@@ -39,7 +43,7 @@ data Schema
   | Error20
   | PatchOp20
   | CustomSchema Text
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | 'Schema' is *almost* a straight-forward enum type, except for 'CustomSchema'.
 -- Enumerations are nice because they let you write quickcheck generators as @elements
@@ -95,9 +99,9 @@ getSchemaUri (CustomSchema x) =
 -- NOTE: according to the spec, this parser needs to be case insensitive, but
 -- that is literally insane. Won't implement.
 pSchema :: [Schema] -> Parser Schema
-pSchema supportedSchemas =
+pSchema supported =
   Parser.choice $
-    map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supportedSchemas
+    map (\s -> fromSchemaUri . decodeUtf8 <$> Parser.string (encodeUtf8 $ getSchemaUri s)) supported
 
 -- | Get a schema by its URI.
 --
@@ -152,3 +156,13 @@ getSchema PatchOp20 =
 -- FUTUREWORK: allow supplying schemas for 'CustomSchema'.
 getSchema (CustomSchema _) =
   Nothing
+
+class SupportsSchemas a where
+  -- | Schemas supported by the the tagged type. API clients touching
+  -- fields not contained in the listed schemas triggers error 4xx.
+  supportedSchemas :: Proxy a -> Set Schema
+
+-- use https://github.com/ocramz/aeson-schema to validate the listed
+-- schemas.
+validateSchemas :: forall tag m. (SupportsSchemas tag, MonadError String m) => Proxy tag -> Value -> m ()
+validateSchemas = todo

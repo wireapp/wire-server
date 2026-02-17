@@ -41,6 +41,7 @@ import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
+import qualified Web.Scim.Schema.Schema as S
 
 ----------------------------------------------------------------------------
 -- /Groups API
@@ -48,7 +49,7 @@ import Web.Scim.Schema.Meta
 type Schema = Text
 
 -- | Configurable parts of 'Group'.
-class GroupTypes tag where
+class (S.SupportsSchemas tag) => GroupTypes tag where
   -- | Group ID type.
   type GroupId tag
 
