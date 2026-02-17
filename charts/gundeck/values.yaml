@@ -16,7 +16,10 @@ resources:
     memory: "1Gi"
 
 # Should be greater than Warp's graceful shutdown (default 30s).
-terminationGracePeriodSeconds: 40
+terminationGracePeriodSeconds: 50
+
+# Seconds to log connection counts during preStop (after /i/drain)
+preStopDrainSeconds: 20
 config:
   logLevel: Info
   logFormat: StructuredJSON

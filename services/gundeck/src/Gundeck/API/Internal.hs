@@ -33,6 +33,7 @@ import Gundeck.Push.Data qualified as PushTok
 import Gundeck.Push.Native.Types qualified as PushTok
 import Imports
 import Servant
+import System.Logger.Class qualified as Log
 import Wire.API.Push.Token qualified as PushTok
 import Wire.API.Push.V2
 import Wire.API.Routes.Internal.Gundeck
@@ -41,6 +42,7 @@ import Wire.API.Routes.Named
 servantSitemap :: ServerT InternalAPI Gundeck
 servantSitemap =
   Named @"i-status" statusH
+    :<|> Named @"i-drain" drainH
     :<|> Named @"i-push" pushH
     :<|> ( Named @"i-presences-get-for-users" Presence.listAllH
              :<|> Named @"i-presences-get-for-user" Presence.listH
@@ -54,6 +56,13 @@ servantSitemap =
 
 statusH :: (Applicative m) => m NoContent
 statusH = pure NoContent
+
+drainH :: Gundeck NoContent
+drainH = do
+  -- Flip the server into drain mode so all responses set Connection: close
+  setDrainMode True
+  Log.info $ Log.msg (Log.val "Entering drain mode: setting Connection: close on all responses")
+  pure NoContent
 
 pushH :: [Push] -> Gundeck NoContent
 pushH ps = NoContent <$ Push.push ps

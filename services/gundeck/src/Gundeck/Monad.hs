@@ -26,6 +26,7 @@ module Gundeck.Monad
     manager,
     cstate,
     createEnv,
+    setDrainMode,
 
     -- * Gundeck monad
     Gundeck,
@@ -217,3 +218,9 @@ getRabbitMqChan = do
       Log.err $ Log.msg (Log.val "Could not retrieve RabbitMQ channel")
       throwM $ mkError status500 "internal-server-error" "Could not retrieve RabbitMQ channel"
     Just chan -> pure chan
+
+-- | Enable/disable drain mode in the server environment.
+setDrainMode :: Bool -> Gundeck ()
+setDrainMode v = do
+  env <- ask
+  liftIO $ setDrainModeIO env v
