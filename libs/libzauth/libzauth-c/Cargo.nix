@@ -170,11 +170,10 @@ rec {
       };
       "base64" = rec {
         crateName = "base64";
-        version = "0.21.7";
+        version = "0.22.1";
         edition = "2018";
-        sha256 = "0rw52yvsk75kar9wgqfwgb414kvil1gn7mqkrhn9zf1537mpsacx";
+        sha256 = "1imqzgh7bxcikp5vx3shqvw9j09g9ly0xr0jma0q66i52r7jbcvj";
         authors = [
-          "Alice Maz <alice@alicemaz.com>"
           "Marshall Pierce <marshall@mpierce.org>"
         ];
         features = {
