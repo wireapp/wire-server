@@ -145,24 +145,42 @@ accessRotateCookie ::
 accessRotateCookie mcid ut' rotateReq = do
   ut <- handleTokenErrors ut'
   partitionTokens ut Nothing >>= \case
-    Left (uts, _) -> rotatePlainCookie mcid rotateReq uts
+    Left (uts, _) -> rotateUserCookie mcid rotateReq uts
     -- This endpoint is meant for regular user sessions only.
     Right _ -> throwStd authTokenMismatch
-  where
-    rotatePlainCookie mc rotate (oldTok :| oldToks) = do
-      (uid, oldCookie) <- Auth.validateTokens (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A)) !>> (StdError . zauthError)
-      wrapClientE $ traverse_ (Auth.checkClientId uid) mcid !>> (StdError . zauthError)
-      Auth.catchSuspendInactiveUser uid (StdError $ zauthError ZV.Expired)
-      let oldCid = userTokenClient oldCookie.cookieValue.body
-      when (((/=) <$> oldCid <*> mc) == Just True) $ throwStd (zauthError ZV.Invalid)
-      let newCid = oldCid <|> mc
-          newLabel = rotate.label <|> oldCookie.cookieLabel
-      accessWithCookie <- lift . liftSem $ do
-        revokeCookies uid [oldCookie.cookieId] []
-        rotatedCookie <- newCookie @_ @ZAuth.U uid newCid oldCookie.cookieType newLabel
-        token <- newAccessToken @ZAuth.U rotatedCookie.cookieValue
-        pure (Access token (Just rotatedCookie))
-      traverse mkUserTokenCookie accessWithCookie
+
+rotateUserCookie ::
+  ( Member (Input AuthenticationSubsystemConfig) r,
+    Member AuthenticationSubsystem r,
+    Member CryptoSign r,
+    Member Now r,
+    Member Random r,
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member Events r,
+    Member (Concurrency Unsafe) r,
+    Member UserStore r
+  ) =>
+  Maybe ClientId ->
+  RotateCookie ->
+  NonEmpty (Token ZAuth.U) ->
+  Handler r SomeAccess
+rotateUserCookie mcid rotate (oldTok :| oldToks) = do
+  (uid, oldCookie) <-
+    Auth.validateTokens (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A))
+      !>> (StdError . zauthError)
+  wrapClientE $ traverse_ (Auth.checkClientId uid) mcid !>> (StdError . zauthError)
+  Auth.catchSuspendInactiveUser uid (StdError $ zauthError ZV.Expired)
+  let oldCid = userTokenClient oldCookie.cookieValue.body
+  when (((/=) <$> oldCid <*> mcid) == Just True) $ throwStd (zauthError ZV.Invalid)
+  let newCid = oldCid <|> mcid
+      newLabel = rotate.label <|> oldCookie.cookieLabel
+  accessWithCookie <- lift . liftSem $ do
+    revokeCookies uid [oldCookie.cookieId] []
+    rotatedCookie <- newCookie @_ @ZAuth.U uid newCid oldCookie.cookieType newLabel
+    token <- newAccessToken @ZAuth.U rotatedCookie.cookieValue
+    pure (Access token (Just rotatedCookie))
+  traverse mkUserTokenCookie accessWithCookie
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode _ =
