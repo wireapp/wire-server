@@ -273,7 +273,7 @@ testRotateCookieSsoUser = do
 
   -- the first cookie, that was returned from finalize-login should not be valid anymore
   Nginz.access OwnDomain ("zuid=" <> cookie1) >>= assertStatus 403
-  -- the second cookie shoule be valid
+  -- the second cookie should be valid
   Nginz.access OwnDomain ("zuid=" <> cookie2) >>= assertSuccess
   getCookies user [] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200

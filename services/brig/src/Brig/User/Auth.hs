@@ -24,6 +24,7 @@ module Brig.User.Auth
     validateTokens,
     revokeAccess,
     verifyCode,
+    checkClientId,
 
     -- * Internal
     ssoLogin,

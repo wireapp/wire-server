@@ -1290,4 +1290,4 @@ getCookies :: (MakesValue user) => user -> [String] -> App Response
 getCookies user labels = do
   let param = intercalate "," labels
   req <- baseRequest user Brig Versioned "cookies"
-  submit "GET" (req & addQueryParams [("lables", param)])
+  submit "GET" (req & addQueryParams [("labels", param)])

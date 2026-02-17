@@ -146,6 +146,7 @@ accessRotateCookie mcid ut' rotateReq = do
   where
     rotatePlainCookie mc rotate (oldTok :| oldToks) = do
       (uid, oldCookie) <- Auth.validateTokens (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A)) !>> (StdError . zauthError)
+      wrapClientE $ traverse_ (Auth.checkClientId uid) mcid !>> (StdError . zauthError)
       let oldCid = userTokenClient oldCookie.cookieValue.body
       when (((/=) <$> oldCid <*> mc) == Just True) $ throwStd (zauthError ZV.Invalid)
       let newCid = oldCid <|> mc

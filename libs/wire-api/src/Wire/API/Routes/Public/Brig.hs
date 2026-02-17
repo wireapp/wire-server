@@ -1758,7 +1758,7 @@ type AuthAPI =
   Named
     "access"
     ( "access"
-        :> Summary "Obtain an access tokens for a cookie"
+        :> Summary "Obtain an access token for a cookie"
         :> Description
              "You can provide only a cookie or a cookie and token.\
              \ Every other combination is invalid.\
@@ -1774,7 +1774,7 @@ type AuthAPI =
            "access-rotate-cookie"
            ( "access"
                :> "rotate"
-               :> Summary "Obtain an access tokens for a cookie and additionally rotate the given cookie"
+               :> Summary "Obtain an access token for a cookie and additionally rotate the given cookie"
                :> Description
                     "This endpoint works similarly to `/access`. \
                     \Additionally it will invalidate the current cookie and create and return a new one (cookie rotation). \
