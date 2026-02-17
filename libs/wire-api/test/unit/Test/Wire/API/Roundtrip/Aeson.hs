@@ -304,6 +304,7 @@ tests =
       testRoundTrip @User.Auth.RemoveCookies,
       testRoundTrip @User.Auth.TokenType,
       testRoundTrip @User.Auth.AccessToken,
+      testRoundTrip @User.Auth.RotateCookie,
       testRoundTrip @(User.Client.UserClientMap Int),
       testRoundTrip @User.Client.UserClients,
       testRoundTrip @User.Client.UserClientsFull,
