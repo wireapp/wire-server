@@ -25,6 +25,7 @@ module Brig.User.Auth
     revokeAccess,
     verifyCode,
     checkClientId,
+    catchSuspendInactiveUser,
 
     -- * Internal
     ssoLogin,

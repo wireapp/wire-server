@@ -131,7 +131,12 @@ accessRotateCookie ::
     Member AuthenticationSubsystem r,
     Member CryptoSign r,
     Member Now r,
-    Member Random r
+    Member Random r,
+    Member TinyLog r,
+    Member UserSubsystem r,
+    Member Events r,
+    Member (Concurrency Unsafe) r,
+    Member UserStore r
   ) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
@@ -147,6 +152,7 @@ accessRotateCookie mcid ut' rotateReq = do
     rotatePlainCookie mc rotate (oldTok :| oldToks) = do
       (uid, oldCookie) <- Auth.validateTokens (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A)) !>> (StdError . zauthError)
       wrapClientE $ traverse_ (Auth.checkClientId uid) mcid !>> (StdError . zauthError)
+      Auth.catchSuspendInactiveUser uid (StdError $ zauthError ZV.Expired)
       let oldCid = userTokenClient oldCookie.cookieValue.body
       when (((/=) <$> oldCid <*> mc) == Just True) $ throwStd (zauthError ZV.Invalid)
       let newCid = oldCid <|> mc

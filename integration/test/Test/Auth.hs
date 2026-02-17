@@ -265,11 +265,10 @@ testRotateCookieSsoUser = do
     resp.json %. "id" >>= asString
   let user = object ["id" .= uid, "qualified_id" .= object ["id" .= uid, "domain" .= domain]]
   cookie1 <- maybe (assertFailure "Expected a cookie, but got no cookie") pure =<< getCookieWithSaml tid email idp
-  (cookie2, _accessToken) <- do
+  cookie2 <- do
     Nginz.accessRotate OwnDomain ("zuid=" <> cookie1) (Just sharedDeviceMarker) `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
-      let accessToken = resp.json %. "access_token"
-      pure (fromMaybe cookie1 $ getCookie "zuid" resp, accessToken)
+      pure (fromMaybe cookie1 $ getCookie "zuid" resp)
 
   -- the first cookie, that was returned from finalize-login should not be valid anymore
   Nginz.access OwnDomain ("zuid=" <> cookie1) >>= assertStatus 403
