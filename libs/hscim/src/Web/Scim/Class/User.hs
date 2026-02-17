@@ -26,8 +26,9 @@ module Web.Scim.Class.User
   )
 where
 
-import Data.Aeson.Types (FromJSON)
-import Servant
+import Data.Aeson (FromJSON, ToJSON)
+import Servant hiding (Patch)
+import qualified Servant
 import Servant.API.Generic
 import Servant.Server.Generic
 import Web.Scim.Class.Auth
@@ -37,7 +38,7 @@ import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse hiding (schemas)
 import Web.Scim.Schema.Meta
-import Web.Scim.Schema.PatchOp
+import Web.Scim.Schema.PatchOp (Patch, validateAndApplyPatch)
 import Web.Scim.Schema.User
 
 ----------------------------------------------------------------------------
@@ -66,8 +67,8 @@ data UserSite tag route = UserSite
     usPatchUser ::
       route
         :- Capture "id" (UserId tag)
-          :> ReqBody '[SCIM] (PatchOp tag)
-          :> Patch '[SCIM] (StoredUser tag),
+          :> ReqBody '[SCIM] (Patch tag)
+          :> Servant.Patch '[SCIM] (StoredUser tag),
     usDeleteUser ::
       route
         :- Capture "id" (UserId tag)
@@ -78,7 +79,7 @@ data UserSite tag route = UserSite
 ----------------------------------------------------------------------------
 -- Methods used by the API
 
-class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
+class (Monad m, AuthTypes tag, UserTypes tag, FromJSON (UserExtra tag), ToJSON (UserExtra tag)) => UserDB tag m where
   -- | Get all users, optionally filtered by a 'Filter'.
   getUsers ::
     AuthInfo tag ->
@@ -135,18 +136,17 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     AuthInfo tag ->
     UserId tag ->
     -- | PATCH payload
-    PatchOp tag ->
+    Patch tag ->
     ScimHandler m (StoredUser tag)
   default patchUser ::
-    (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
     AuthInfo tag ->
     UserId tag ->
     -- | PATCH payload
-    PatchOp tag ->
+    Patch tag ->
     ScimHandler m (StoredUser tag)
   patchUser info uid op' = do
-    (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
-    (newUser :: User tag) <- applyPatch user op'
+    (WithMeta _ (WithId _ user)) <- getUser info uid
+    newUser <- validateAndApplyPatch @tag op' user
     putUser info uid newUser
 
   -- | Delete a user.

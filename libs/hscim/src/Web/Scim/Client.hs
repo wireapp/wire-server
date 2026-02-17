@@ -48,7 +48,7 @@ where
 import Control.Exception
 import Data.Aeson (FromJSON, ToJSON, Value)
 import Data.Text
-import Servant.API
+import Servant.API hiding (Patch)
 import Servant.Client
 import Servant.Client.Generic
 import qualified Web.Scim.Capabilities.MetaSchema as MetaSchema
@@ -57,7 +57,7 @@ import Web.Scim.Class.Group (Group, GroupId, StoredGroup)
 import Web.Scim.Class.User (StoredUser)
 import Web.Scim.Filter (Filter)
 import Web.Scim.Schema.ListResponse (ListResponse)
-import Web.Scim.Schema.PatchOp (PatchOp)
+import Web.Scim.Schema.PatchOp (Patch)
 import qualified Web.Scim.Schema.ResourceType as ResourceType
 import Web.Scim.Schema.User (User)
 import Web.Scim.Schema.UserTypes (UserExtra, UserId)
@@ -148,7 +148,7 @@ patchUser ::
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
-  PatchOp tag ->
+  Patch tag ->
   IO (StoredUser tag)
 patchUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (_ :<|> (r :<|> _))) -> r
 

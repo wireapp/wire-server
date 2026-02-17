@@ -46,7 +46,7 @@ spec = do
 -- Generators
 
 genValuePath :: forall tag. (UserTypes tag) => Gen ValuePath
-genValuePath = ValuePath <$> genAttrPath @tag <*> genFilter @tag
+genValuePath = ValuePath <$> genAttrPath @tag <*> Gen.maybe (genFilter @tag)
 
 genCompValue :: Gen CompValue
 genCompValue =

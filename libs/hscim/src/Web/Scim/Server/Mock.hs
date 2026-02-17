@@ -55,7 +55,7 @@ import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.ResourceType
-import Web.Scim.Schema.Schema (Schema (Group20, ListResponse20, User20))
+import Web.Scim.Schema.Schema (Schema (Group20, ListResponse20))
 import Web.Scim.Schema.User hiding (displayName)
 
 -- | Tag used in the mock server.
@@ -106,7 +106,6 @@ hoistSTM = hoist liftSTM
 instance UserTypes Mock where
   type UserId Mock = Id
   type UserExtra Mock = NoUserExtra
-  supportedSchemas = [User20]
 
 instance UserDB Mock TestServer where
   getUsers () mbFilter = do
