@@ -40,13 +40,24 @@ export FEDERATION_CA_CERTIFICATE
 
 copy_federator_ca_secret() {
     local target_ns=$1
+    local release_name=${2:-ingress-svc}
     local ca_b64
     ca_b64=$(kubectl -n wire-federation-v0 get secret federator-ca-secret -o jsonpath='{.data.ca\.crt}' 2>/dev/null || true)
+    if [[ -z "${ca_b64}" ]]; then
+        echo "federator-ca-secret not found in wire-federation-v0; aborting" >&2
+        exit 1
+    fi
+    kubectl get ns "${target_ns}" >/dev/null 2>&1 || kubectl create ns "${target_ns}"
     kubectl -n "${target_ns}" apply -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
   name: federator-ca-secret
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    meta.helm.sh/release-name: "${release_name}"
+    meta.helm.sh/release-namespace: "${target_ns}"
 type: Opaque
 data:
   ca.crt: ${ca_b64}
@@ -54,10 +65,8 @@ EOF
 }
 
 echo "Ensure namespaces exist and seed federator CA secret before helmfile"
-kubectl get ns "$NAMESPACE_1" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE_1"
-kubectl get ns "$NAMESPACE_2" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE_2"
-copy_federator_ca_secret "$NAMESPACE_1"
-copy_federator_ca_secret "$NAMESPACE_2"
+copy_federator_ca_secret "$NAMESPACE_1" "ingress-svc"
+copy_federator_ca_secret "$NAMESPACE_2" "ingress-svc"
 
 echo "Installing charts..."
 
