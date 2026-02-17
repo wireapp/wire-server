@@ -1,0 +1,1 @@
+Upgrade wire-server's Nix env. Switch to nixpkgs `nixos-25.11` (the release branch).

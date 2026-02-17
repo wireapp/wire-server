@@ -31,6 +31,9 @@ hself: hsuper: {
   hasql-transaction = hlib.dontCheck hsuper.hasql-transaction; # users 1.2.1 from nixpkgs
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
 
+  # Test fixtures don't seem to be bundled for Hackage
+  hsaml2 = hlib.dontCheck (hsuper.hsaml2);
+
   # ---------------------
   # need to be jailbroken
   # (these need to be fixed upstream eventually)
@@ -85,6 +88,10 @@ hself: hsuper: {
   # -----------------
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+
+  http-semantics = hsuper.http-semantics_0_4_0;
+  network-run = hsuper.network-run_0_5_0;
+  http2 = hsuper.http2_5_4_0;
 
   # -----------------
   # flags and patches
