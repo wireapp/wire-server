@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.One2One
+module Wire.ConversationSubsystem.One2One
   ( one2OneConvId,
     iUpsertOne2OneConversation,
   )

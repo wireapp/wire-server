@@ -66,6 +66,8 @@ testEnv = do
       federationDomain = Domain "local"
       gundeckEndpoint = undefined
       brigEndpoint = undefined
+      sparEndpoint = Endpoint "localhost" 0
+      galleyEndpoint = undefined
   pure Env {..}
 
 runTestAppT :: AppT IO a -> Int -> IO a

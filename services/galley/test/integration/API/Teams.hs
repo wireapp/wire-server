@@ -55,7 +55,6 @@ import Data.UUID.V1 qualified as UUID
 import Galley.Env qualified as Galley
 import Galley.Options (featureFlags, maxConvSize, maxFanoutSize, settings)
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status403)
 import Network.Wai.Utilities.Error qualified as Error
@@ -77,6 +76,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature hiding (timeout)
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Member
 import Wire.API.Team.Member qualified as Teams

@@ -52,7 +52,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.API.Error
 import Galley.Cassandra.Client
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.SearchVisibility
@@ -72,7 +71,7 @@ import Galley.Options hiding (brig, endpoint, federator)
 import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
-import Galley.Types.Teams
+import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
@@ -98,11 +97,14 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
+import Wire.API.Error.Galley (NonFederatingBackends, UnreachableBackends)
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BrigAPIAccess.Rpc
@@ -111,13 +113,14 @@ import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..), interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
 import Wire.Error
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Interpreter
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
+import Wire.FederationSubsystem.Interpreter (runFederationSubsystem)
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
@@ -160,9 +163,9 @@ type GalleyEffects0 =
      Error InvalidInput,
      Error ParseException,
      Error InternalError,
-     -- federation errors can be thrown by almost every endpoint, so we avoid
-     -- having to declare it every single time, and simply handle it here
      Error FederationError,
+     Error UnreachableBackends,
+     Error NonFederatingBackends,
      Error TeamCollaboratorsError,
      Error Hasql.UsageError,
      Error HttpError,
@@ -356,6 +359,8 @@ evalGalley e =
         . mapError toResponse
         . mapError toResponse
         . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
         . mapError mapTeamFeatureStoreError
         . mapError toResponse
@@ -363,6 +368,19 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
+        . mapError toResponse
         . mapError toResponse
         . mapError toResponse
         . mapError rateLimitExceededToHttpError
@@ -411,8 +429,9 @@ evalGalley e =
         . interpretTeamSubsystem teamSubsystemConfig
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
-        . interpretConversationSubsystem
         . interpretTeamCollaboratorsSubsystem
+        . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . interpretConversationSubsystem
   where
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =

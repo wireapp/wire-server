@@ -30,7 +30,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS.CheckClients
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
@@ -38,8 +37,8 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.Effects
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -47,6 +46,7 @@ import Polysemy.Input (Input)
 import Polysemy.Resource (Resource)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -62,7 +62,8 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
+import Wire.FederationSubsystem
 import Wire.ProposalStore
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -82,6 +83,7 @@ processInternalCommit ::
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -258,6 +260,7 @@ addMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -286,6 +289,7 @@ removeMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->

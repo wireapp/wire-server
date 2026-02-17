@@ -1290,7 +1290,7 @@ type ClientAPI =
 -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
 -- - ConvCreate event to self, if creating a connect conversation (via galley)
 -- - ConvConnect event to self, in some cases (via galley),
---   for details see 'Galley.API.Create.createConnectConversation'
+--   for details see 'Wire.ConversationSubsystem.Interpreter.createConnectConversationLogic'
 type ConnectionAPI =
   Named
     "create-connection-unqualified"

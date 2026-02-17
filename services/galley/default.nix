@@ -190,7 +190,6 @@ mkDerivation {
     text
     time
     tinylog
-    transformers
     types-common
     types-common-aws
     unliftio
@@ -296,6 +295,7 @@ mkDerivation {
     base
     containers
     extra
+    galley-types
     imports
     lens
     polysemy

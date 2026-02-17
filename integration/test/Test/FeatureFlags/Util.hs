@@ -273,6 +273,155 @@ checkFeature feature user tid expected = do
     resp.status `shouldMatchInt` 200
     resp.json %. feature `shouldMatch` expected
 
+defAllConfiguredFeatures :: Value
+defAllConfiguredFeatures =
+  object
+    [ "legalhold" .= "whitelist-teams-and-implicit-consent",
+      "sso" .= "disabled-by-default",
+      "searchVisibility" .= "disabled-by-default",
+      "validateSAMLemails" .= defaults enabled',
+      "digitalSignatures" .= "digital-signatures-defaults",
+      "appLock"
+        .= defaults
+          ( object
+              [ "status" .= "enabled",
+                "ttl" .= "unlimited",
+                "config" .= object ["enforceAppLock" .= False, "inactivityTimeoutSecs" .= A.Number 60]
+              ]
+          ),
+      "fileSharing" .= defaults enabled,
+      "classifiedDomains"
+        .= object
+          [ "config" .= object ["domains" .= ["example.com"]],
+            "status" .= "enabled",
+            "ttl" .= "unlimited"
+          ],
+      "conferenceCalling" .= defaults (confCalling def {lockStatus = Just "locked"}),
+      "selfDeletingMessages"
+        .= defaults (defEnabledObj (object ["enforcedTimeoutSeconds" .= A.Number 0])),
+      "conversationGuestLinks" .= defaults enabled,
+      "sndFactorPasswordChallenge" .= defaults disabledLocked,
+      "mls"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "unlocked",
+                "status" .= "disabled",
+                "ttl" .= "unlimited",
+                "config"
+                  .= object
+                    [ "protocolToggleUsers" .= ([] :: [String]),
+                      "defaultProtocol" .= "proteus",
+                      "supportedProtocols" .= ["proteus", "mls"],
+                      "allowedCipherSuites" .= ([2] :: [Int]),
+                      "defaultCipherSuite" .= A.Number 2,
+                      "groupInfoDiagnostics" .= False
+                    ]
+              ]
+          ),
+      "searchVisibilityInbound" .= defaults disabled',
+      "exposeInvitationURLsToTeamAdmin" .= "expose-invitation-urls-to-team-admin-defaults",
+      "outlookCalIntegration" .= defaults disabledLocked,
+      "mlsE2EId"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "unlocked",
+                "status" .= "disabled",
+                "ttl" .= "unlimited",
+                "config"
+                  .= object
+                    [ "verificationExpiration" .= A.Number 86400,
+                      "useProxyOnMobile" .= False,
+                      "crlProxy" .= "https://crlproxy.example.com"
+                    ]
+              ]
+          ),
+      "mlsMigration"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "locked",
+                "status" .= "enabled",
+                "ttl" .= "unlimited",
+                "config"
+                  .= object
+                    [ "startTime" .= "2029-05-16T10:11:12.123Z",
+                      "finaliseRegardlessAfter" .= "2029-10-17T00:00:00Z"
+                    ]
+              ]
+          ),
+      "enforceFileDownloadLocation"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "unlocked",
+                "status" .= "disabled",
+                "ttl" .= "unlimited",
+                "config"
+                  .= object
+                    [ "enforcedDownloadLocation" .= "downloads"
+                    ]
+              ]
+          ),
+      "limitedEventFanout" .= defaults disabled',
+      "domainRegistration" .= defaults disabledLocked,
+      "channels"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "locked",
+                "status" .= "disabled",
+                "ttl" .= "unlimited",
+                "config"
+                  .= object
+                    [ "allowed_to_create_channels" .= "team-members",
+                      "allowed_to_open_channels" .= "team-members"
+                    ]
+              ]
+          ),
+      "cells"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "unlocked",
+                "status" .= "enabled",
+                "ttl" .= "unlimited",
+                "config" .= defCellsConfig
+              ]
+          ),
+      "assetAuditLog" .= disabledLocked',
+      "allowedGlobalOperations"
+        .= object
+          [ "status" .= "enabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "mlsConversationReset" .= False
+                ]
+          ],
+      "consumableNotifications" .= defaults disabledLocked,
+      "chatBubbles" .= defaults disabledLocked,
+      "apps" .= defaults disabledLocked,
+      "simplifiedUserConnectionRequestQRCode" .= defaults enabled,
+      "stealthUsers" .= defaults disabledLocked,
+      "cellsInternal"
+        .= defaults
+          ( object
+              [ "lockStatus" .= "unlocked",
+                "status" .= "enabled",
+                "ttl" .= "unlimited",
+                "config"
+                  .= object
+                    [ "backend" .= object ["url" .= "https://cells-beta.wire.com"],
+                      "collabora" .= object ["edition" .= "COOL"],
+                      "storage" .= object ["perUserQuotaBytes" .= "1000000000000"]
+                    ]
+              ]
+          ),
+      "meetings" .= defaults enabled,
+      "meetingsPremium" .= defaults disabledLocked
+    ]
+  where
+    defaults x = object ["defaults" .= x]
+    enabled' = object ["status" .= "enabled", "ttl" .= "unlimited"]
+    disabled' = object ["status" .= "disabled", "ttl" .= "unlimited"]
+    disabledLocked' = object ["status" .= "disabled", "ttl" .= "unlimited"]
+
 assertForbidden :: (HasCallStack) => Response -> App ()
 assertForbidden = assertLabel 403 "no-team-member"
 

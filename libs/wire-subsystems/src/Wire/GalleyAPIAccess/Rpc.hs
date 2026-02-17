@@ -41,12 +41,14 @@ import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Member.Info
@@ -92,6 +94,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           FinalizeDeleteTeam lusr mconn tid -> finalizeDeleteTeam lusr mconn tid
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
+          GetConfiguredFeatureFlags -> getConfiguredFeatureFlags
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
@@ -100,6 +103,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamAdmins tid -> getTeamAdmins tid
           InternalGetConversation id' -> internalGetConversation id'
           GetTeamContacts uid -> getTeamContacts uid
+          GetConversationConfig -> getConversationConfig
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -577,6 +581,21 @@ getAllTeamFeaturesForUser mbUserId =
           . maybe id (queryItem "user_id" . toByteString') mbUserId
       )
 
+getConfiguredFeatureFlags ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Sem r FeatureFlags
+getConfiguredFeatureFlags = do
+  debug $ remote "galley" . msg (val "Getting configured feature flags")
+  responseJsonUnsafe
+    <$> galleyRequest
+      ( method GET
+          . paths ["i", "features", "configured"]
+          . expect2xx
+      )
+
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus ::
   ( Member Rpc r,
@@ -765,5 +784,18 @@ getTeamContacts uid = do
   where
     req =
       method GET
-        . paths ["i", "users", toByteString' uid, "team", "members"]
-        . expect [status200, status404]
+
+getConversationConfig ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Sem r ConversationSubsystemConfig
+getConversationConfig = do
+  debug $ remote "galley" . msg (val "Getting conversation config")
+  responseJsonUnsafe
+    <$> galleyRequest
+      ( method GET
+          . paths ["i", "conversations", "config"]
+          . expect2xx
+      )

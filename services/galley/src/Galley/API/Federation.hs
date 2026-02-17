@@ -37,7 +37,6 @@ import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
@@ -51,11 +50,11 @@ import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
 import Galley.API.Push
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
 import Galley.Options
 import Galley.Types.Conversations.One2One
+import Galley.Types.Error
 import Imports
 import Network.Wai.Utilities.Exception
 import Polysemy
@@ -71,6 +70,7 @@ import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -96,8 +96,9 @@ import Wire.API.User (BaseProtocolTag (..))
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -282,6 +283,7 @@ leaveConversation ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
@@ -502,6 +504,7 @@ updateConversation ::
     Member Resource r,
     Member ConversationStore r,
     Member Random r,
+    Member FederationSubsystem r,
     Member TeamFeatureStore r,
     Member (Input (Local ())) r,
     Member TeamCollaboratorsSubsystem r,
@@ -645,6 +648,7 @@ sendMLSCommitBundle ::
     Member LegalHoldStore r,
     Member Resource r,
     Member TeamStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member P.TinyLog r,
     Member Random r,

@@ -25,14 +25,12 @@ import Data.Id
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Galley.API.Error
 import Galley.API.MLS.Removal
 import Galley.API.Query qualified as Query
-import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ClientStore qualified as E
 import Galley.Env
 import Galley.Types.Clients (clientIds)
+import Galley.Types.Error
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -41,13 +39,15 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Message
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
+import Wire.ClientStore qualified as E
 import Wire.ConversationStore (getConversation)
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 

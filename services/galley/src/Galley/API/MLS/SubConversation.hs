@@ -40,7 +40,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.App (Env)
 import Galley.Effects
 import Imports
@@ -50,6 +49,7 @@ import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -65,7 +65,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore qualified as Eff
 import Wire.ConversationStore.MLS.Types as Eff
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

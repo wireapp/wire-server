@@ -23,7 +23,6 @@ import Data.Qualified
 import Data.Singletons
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
-import Galley.API.Util
 import Galley.Effects
 import Imports hiding ((\\))
 import Polysemy
@@ -32,10 +31,11 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Event.LeaveReason
 import Wire.API.Federation.Error
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation

@@ -29,7 +29,6 @@ import Data.List.Split (chunksOf)
 import Galley.Cassandra.Queries qualified as Cql
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
-import Galley.Effects.ClientStore (ClientStore (..))
 import Galley.Env
 import Galley.Monad
 import Galley.Options
@@ -40,6 +39,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import UnliftIO qualified
+import Wire.ClientStore (ClientStore (..))
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do

@@ -84,6 +84,8 @@ data Env = Env
     federationDomain :: Domain,
     postgresMigration :: PostgresMigrationOpts,
     gundeckEndpoint :: Endpoint,
+    sparEndpoint :: Endpoint,
+    galleyEndpoint :: Endpoint,
     brigEndpoint :: Endpoint
   }
 
@@ -132,7 +134,9 @@ mkEnv opts = do
       federationDomain = opts.federationDomain
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
+      galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
+      sparEndpoint = opts.spar
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <-

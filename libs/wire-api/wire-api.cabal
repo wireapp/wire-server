@@ -85,6 +85,7 @@ library
     Wire.API.Conversation.Bot
     Wire.API.Conversation.CellsState
     Wire.API.Conversation.Code
+    Wire.API.Conversation.Config
     Wire.API.Conversation.Member
     Wire.API.Conversation.Pagination
     Wire.API.Conversation.Protocol
@@ -233,6 +234,7 @@ library
     Wire.API.Team.Feature
     Wire.API.Team.Feature.Profunctor
     Wire.API.Team.Feature.TH
+    Wire.API.Team.FeatureFlags
     Wire.API.Team.HardTruncationLimit
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold

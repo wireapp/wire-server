@@ -38,12 +38,11 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.API.Error
 import Galley.API.MLS.IncomingMessage
-import Galley.API.Util
 import Galley.Effects
 import Galley.Env
 import Galley.Options
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -69,6 +68,7 @@ import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
 import Wire.BrigAPIAccess
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Now (Now)

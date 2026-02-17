@@ -51,10 +51,7 @@ import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
-import Galley.API.Util
 import Galley.Effects
-import Galley.Effects.ClientStore
-import Galley.Env
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
@@ -75,13 +72,16 @@ import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ClientStore
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Now (Now)

@@ -41,6 +41,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import System.Logger qualified as Log
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Federation.Error
 import Wire.API.MLS.AuthenticatedContent
@@ -53,7 +54,6 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Now (Now)

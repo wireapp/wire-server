@@ -64,7 +64,6 @@ import Data.Map (Map)
 import Data.Misc (HttpsUrl)
 import Data.Qualified
 import Data.Text (Text)
-import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
@@ -72,7 +71,6 @@ import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.Options
-import Galley.Types.Teams
 import Imports (Either)
 import Polysemy
 import Polysemy.Error
@@ -81,8 +79,10 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ClientStore
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
@@ -90,6 +90,7 @@ import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
@@ -115,8 +116,9 @@ import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ TeamCollaboratorsSubsystem,
-     ConversationSubsystem,
+  '[ ConversationSubsystem,
+     FederationSubsystem,
+     TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
      FeaturesConfigSubsystem,
      TeamSubsystem,
@@ -164,5 +166,18 @@ type GalleyEffects1 =
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
-     ErrorS 'NotATeamMember
+     ErrorS 'HistoryNotSupported,
+     ErrorS 'NotATeamMember,
+     ErrorS 'ConvAccessDenied,
+     ErrorS 'NotConnected,
+     ErrorS 'MLSNotEnabled,
+     ErrorS 'MLSNonEmptyMemberList,
+     ErrorS 'MissingLegalholdConsent,
+     ErrorS 'NonBindingTeam,
+     ErrorS 'NoBindingTeamMembers,
+     ErrorS 'TeamNotFound,
+     ErrorS 'InvalidOperation,
+     ErrorS 'ConvNotFound,
+     ErrorS 'ChannelsNotEnabled,
+     ErrorS 'NotAnMlsConversation
    ]

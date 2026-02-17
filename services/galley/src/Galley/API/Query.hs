@@ -66,17 +66,15 @@ import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
 import Data.Tagged
-import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.One2One
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
-import Galley.API.One2One
 import Galley.API.Teams.Features.Get
-import Galley.API.Util
 import Galley.Effects
 import Galley.Env
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -110,6 +108,8 @@ import Wire.CodeStore.Code (Code (codeConversation))
 import Wire.CodeStore.Code qualified as Data
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.HashPassword (HashPassword)
@@ -615,7 +615,7 @@ getLocalSelf lusr cnv = do
   do
     alive <- E.isConversationAlive cnv
     if alive
-      then Mapping.localMemberToSelf lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
+      then localMemberToPublic lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
       else Nothing <$ E.deleteConversation cnv
 
 getConversationMeta ::
@@ -788,6 +788,7 @@ getMLSOne2OneConversationV5 lself qother = do
     else throwS @MLSFederatedOne2OneNotSupported
 
 getMLSOne2OneConversationInternal ::
+  forall r.
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,
@@ -808,6 +809,7 @@ getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
 getMLSOne2OneConversationV6 ::
+  forall r.
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Input Env) r,

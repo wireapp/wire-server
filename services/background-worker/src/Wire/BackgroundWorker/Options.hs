@@ -34,9 +34,11 @@ data Opts = Opts
   { logLevel :: !Level,
     logFormat :: !(Maybe (Last LogFormat)),
     backgroundWorker :: !Endpoint,
+    galley :: Endpoint,
     federatorInternal :: !Endpoint,
     brig :: Endpoint,
     gundeck :: Endpoint,
+    spar :: Endpoint,
     rabbitmq :: !RabbitMqOpts,
     -- | Seconds, Nothing for no timeout
     defederationTimeout :: Maybe Int,

@@ -49,7 +49,6 @@ import Data.String.Conversions
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
 import Galley.Options
-import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Socket (Socket)
@@ -71,6 +70,7 @@ import Wire.API.Internal.Notification (ntfPayload)
 import Wire.API.Provider.Service
 import Wire.API.Team.Feature hiding (timeout)
 import Wire.API.Team.Feature qualified as Public
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
 import Wire.API.User.Client

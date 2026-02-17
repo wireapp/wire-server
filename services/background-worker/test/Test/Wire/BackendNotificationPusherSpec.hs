@@ -369,6 +369,8 @@ spec = do
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
+          sparEndpoint = undefined
+          galleyEndpoint = undefined
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
@@ -408,6 +410,8 @@ spec = do
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
+          sparEndpoint = undefined
+          galleyEndpoint = undefined
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

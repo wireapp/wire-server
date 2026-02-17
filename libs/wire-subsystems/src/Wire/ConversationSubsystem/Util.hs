@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Util where
+module Wire.ConversationSubsystem.Util where
 
 import Control.Lens (view, (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -40,25 +40,20 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import Galley.API.Error
-import Galley.API.Mapping
-import Galley.Effects
-import Galley.Effects.ClientStore
-import Galley.Env
 import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
+import Galley.Types.Error
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog qualified as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState (HasCellsState)
+import Wire.API.Conversation.Config
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -71,10 +66,10 @@ import Wire.API.Federation.Error
 import Wire.API.Federation.Version
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.Push.V2 qualified as PushV2
-import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission (CollaboratorPermission (..))
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.API.Team.Member.Error
@@ -84,12 +79,13 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ClientStore
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem (ensureNoUnreachableBackends)
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
 import Wire.LegalHoldStore
@@ -904,16 +900,6 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (OwnConvMembers this others)
         ProtocolProteus
 
-ensureNoUnreachableBackends ::
-  (Member (Error UnreachableBackends) r) =>
-  [Either (Remote e, b) a] ->
-  Sem r [a]
-ensureNoUnreachableBackends results = do
-  let (errors, values) = partitionEithers results
-  unless (null errors) $
-    throw (UnreachableBackends (map (tDomain . fst) errors))
-  pure values
-
 -- | Notify remote users of being added to a new conversation.
 registerRemoteConversationMemberships ::
   ( Member ConversationStore r,
@@ -1140,15 +1126,6 @@ ensureMemberLimit _ old new = do
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
 
-conversationExisted ::
-  ( Member (Error InternalError) r,
-    Member P.TinyLog r
-  ) =>
-  Local UserId ->
-  StoredConversation ->
-  Sem r (ConversationResponse OwnConversation)
-conversationExisted lusr cnv = Existed <$> conversationViewV9 lusr cnv
-
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
 
@@ -1189,3 +1166,114 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+----------------------------------------------------------------------------
+-- Notifications
+
+notifyConversationUpdated ::
+  ( Member NotificationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Connect ->
+  StoredConversation ->
+  Sem r ()
+notifyConversationUpdated lusr conn j conv = do
+  let lcnv = qualifyAs lusr conv.id_
+  t <- Now.get
+  let e = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) t Nothing (EdConnect j)
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified lusr),
+          json = toJSONObject e,
+          recipients = map localMemberToRecipient conv.localMembers,
+          isCellsEvent = shouldPushToCells conv.metadata e,
+          route = PushV2.RouteDirect,
+          conn
+        }
+    ]
+
+-- | Convert a local conversation member (as stored in the DB) to a publicly
+-- facing 'Member' structure.
+localMemberToPublic :: Local x -> LocalMember -> Public.Member
+localMemberToPublic loc lm =
+  Public.Member
+    { memId = tUntagged . qualifyAs loc $ lm.id_,
+      memService = lm.service,
+      memOtrMutedStatus = msOtrMutedStatus st,
+      memOtrMutedRef = msOtrMutedRef st,
+      memOtrArchived = msOtrArchived st,
+      memOtrArchivedRef = msOtrArchivedRef st,
+      memHidden = msHidden st,
+      memHiddenRef = msHiddenRef st,
+      memConvRoleName = lm.convRoleName
+    }
+  where
+    st = lm.status
+
+-- | View for a given user of a stored conversation.
+--
+-- Returns 'Nothing' if the user is not part of the conversation.
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe Public.OwnConversation
+conversationViewMaybe luid remoteOthers localOthers conv = do
+  let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
+  self <- localMemberToPublic luid <$> listToMaybe selfs
+  let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
+  pure $
+    Public.OwnConversation
+      (tUntagged . qualifyAs luid $ conv.id_)
+      conv.metadata
+      (OwnConvMembers self others)
+      conv.protocol
+
+notifyConversationCreated ::
+  ( Member NotificationSubsystem r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error UnreachableBackends) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member BackendNotificationQueueAccess r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  StoredConversation ->
+  JoinType ->
+  Sem r ()
+notifyConversationCreated lusr conn conv joinType = do
+  now <- Now.get
+  registerRemoteConversationMemberships now lusr (qualifyAs lusr conv) joinType
+  unless (null conv.remoteMembers) $
+    unlessM isFederationConfigured $
+      throw FederationNotConfigured
+
+  let remoteOthers = map remoteMemberToOther $ conv.remoteMembers
+      localOthers = map (localMemberToOther (tDomain lusr)) $ conv.localMembers
+      lusers = conv.localMembers
+      route
+        | Data.convType conv == Public.RegularConv = PushV2.RouteAny
+        | otherwise = PushV2.RouteDirect
+
+  pushes' <-
+    catMaybes
+      <$> traverse
+        ( \lm -> do
+            let luid = toLocalUnsafe (tDomain lusr) lm.id_
+            case conversationViewMaybe luid remoteOthers localOthers conv of
+              Nothing -> pure Nothing
+              Just ownConv -> do
+                let e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConversation ownConv)
+                pure $
+                  Just
+                    def
+                      { origin = Just (tUnqualified lusr),
+                        json = toJSONObject e,
+                        recipients = [localMemberToRecipient lm],
+                        isCellsEvent = False,
+                        route = route,
+                        conn = conn
+                      }
+        )
+        lusers
+  pushNotifications pushes'

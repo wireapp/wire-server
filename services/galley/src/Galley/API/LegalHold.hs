@@ -41,17 +41,15 @@ import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
-import Galley.API.Error
 import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
-import Galley.Types.Teams as Team
+import Galley.Types.Error
 import Imports
 import Network.HTTP.Types.Status (status200)
 import Polysemy
@@ -60,6 +58,7 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation (ConvType (..), ConversationMetadata (..))
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -70,6 +69,7 @@ import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
 import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.FeatureFlags as Team
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
@@ -79,8 +79,9 @@ import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
@@ -184,6 +185,7 @@ removeSettingsInternalPaging ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -230,6 +232,7 @@ removeSettings ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -290,6 +293,7 @@ removeSettings' ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -341,6 +345,7 @@ grantConsent ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -394,6 +399,7 @@ requestDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -491,6 +497,7 @@ approveDevice ::
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -571,6 +578,7 @@ disableForUser ::
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -637,6 +645,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -756,6 +765,7 @@ handleGroupConvPolicyConflicts ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

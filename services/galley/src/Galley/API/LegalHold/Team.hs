@@ -27,14 +27,13 @@ where
 import Data.Id
 import Data.Range
 import Galley.Effects
-import Galley.Env
-import Galley.Types.Teams as Team
 import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags as Team (FanoutLimit, FeatureDefaults (..))
 import Wire.API.Team.Size
 import Wire.BrigAPIAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)

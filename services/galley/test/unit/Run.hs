@@ -21,7 +21,6 @@ module Run
 where
 
 import Imports
-import Test.Galley.API.Action qualified
 import Test.Galley.API.Message qualified
 import Test.Galley.API.One2One qualified
 import Test.Galley.Mapping qualified
@@ -34,6 +33,5 @@ main =
       "Tests"
       [ Test.Galley.API.Message.tests,
         Test.Galley.API.One2One.tests,
-        Test.Galley.Mapping.tests,
-        Test.Galley.API.Action.tests
+        Test.Galley.Mapping.tests
       ]

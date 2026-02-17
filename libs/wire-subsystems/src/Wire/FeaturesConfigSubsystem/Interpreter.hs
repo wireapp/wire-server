@@ -10,7 +10,6 @@ import Data.Id
 import Data.Qualified (tUnqualified)
 import Data.SOP
 import Data.Text.Lazy qualified as LT
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -18,6 +17,7 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Types
 import Wire.FeaturesConfigSubsystem.Utils

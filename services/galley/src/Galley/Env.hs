@@ -37,7 +37,7 @@ import Network.HTTP.Client
 import System.Logger
 import Util.Options
 import Wire.API.MLS.Keys
-import Wire.API.Team.Member
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.AWS qualified as Aws
 import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
@@ -45,8 +45,6 @@ import Wire.RateLimit.Interpreter (RateLimitEnv)
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
-
-type FanoutLimit = Range 1 HardTruncationLimit Int32
 
 -- | Main application environment.
 data Env = Env

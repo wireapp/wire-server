@@ -24,7 +24,6 @@ import Data.Id
 import Data.Qualified
 import Galley.API.Action.Kick
 import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.Effects
 import Imports
 import Polysemy
@@ -34,6 +33,7 @@ import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -48,7 +48,7 @@ import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

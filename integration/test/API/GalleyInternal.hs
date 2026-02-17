@@ -85,6 +85,11 @@ getFederationStatus user domains =
           $ req
           & addJSONObject ["domains" .= domainList]
 
+getConfiguredFeatureFlags :: (HasCallStack) => App Response
+getConfiguredFeatureFlags = do
+  req <- baseRequest OwnDomain Galley Unversioned "i/features/configured"
+  submit "GET" req
+
 -- | https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley/#/galley/put_i_legalhold_whitelisted_teams__tid_
 legalholdWhitelistTeam :: (HasCallStack, MakesValue uid, MakesValue tid) => tid -> uid -> App Response
 legalholdWhitelistTeam tid uid = do

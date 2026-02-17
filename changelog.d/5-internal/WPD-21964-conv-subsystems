@@ -1,0 +1,17 @@
+ # Move conversation creation logic to wire-subsystems
+
+ - Moved conversation creation logic from `Galley.API.Create` to `Wire.ConversationSubsystem.Interpreter`
+ - Relocated utility modules:
+   - `Galley.API.Error` → `Galley.Types.Error`
+   - `Galley.API.One2One` → `Wire.ConversationSubsystem.One2One`
+   - `Galley.API.Util` → `Wire.ConversationSubsystem.Util`
+   - `Galley.Effects.ClientStore` → `Wire.Effects.ClientStore`
+ - Removed `Galley.Validation` module (functionality moved to interpreter)
+ - Updated `background-worker` configmap:
+   - Added `galley` endpoint configuration to template
+   - Added `galleyEndpoint` field to environment
+   - Updated `Registry` to call `getConfiguredFeatureFlags` and provide flags via `runInputSem`
+ - Added roundtrip and golden tests for:
+   - `ConversationSubsystemConfig`
+   - FeatureDefaults types: LegalholdConfig, SSOConfig, SearchVisibilityAvailableConfig
+
