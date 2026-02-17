@@ -40,12 +40,8 @@ export FEDERATION_CA_CERTIFICATE
 
 copy_federator_ca_secret() {
     local target_ns=$1
-    # Try the pre-created secret first (keeps the CA stable across runs), fall back to cert-manager if absent.
     local ca_b64
     ca_b64=$(kubectl -n wire-federation-v0 get secret federator-ca-secret -o jsonpath='{.data.ca\.crt}' 2>/dev/null || true)
-    # if [[ -z "${ca_b64}" ]]; then
-    #     ca_b64=$(kubectl -n cert-manager get secret federation-ca -o jsonpath='{.data.tls\.crt}')
-    # fi
     kubectl -n "${target_ns}" apply -f - <<EOF
 apiVersion: v1
 kind: Secret
@@ -57,7 +53,9 @@ data:
 EOF
 }
 
-echo "Copying federator CA secret from wire-federation-v0 into namespaces"
+echo "Ensure namespaces exist and seed federator CA secret before helmfile"
+kubectl get ns "$NAMESPACE_1" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE_1"
+kubectl get ns "$NAMESPACE_2" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE_2"
 copy_federator_ca_secret "$NAMESPACE_1"
 copy_federator_ca_secret "$NAMESPACE_2"
 
