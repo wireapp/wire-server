@@ -649,6 +649,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.Push
     Test.Wire.API.Golden.Manual.PushRemove
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
+    Test.Wire.API.Golden.Manual.RotateCookie
     Test.Wire.API.Golden.Manual.SearchResultContact
     Test.Wire.API.Golden.Manual.SendActivationCode_user
     Test.Wire.API.Golden.Manual.SubConversation

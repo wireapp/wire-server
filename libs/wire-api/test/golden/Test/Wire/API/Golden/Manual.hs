@@ -53,6 +53,7 @@ import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
 import Test.Wire.API.Golden.Manual.PushRemove
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
+import Test.Wire.API.Golden.Manual.RotateCookie
 import Test.Wire.API.Golden.Manual.SearchResultContact
 import Test.Wire.API.Golden.Manual.SendActivationCode_user
 import Test.Wire.API.Golden.Manual.SubConversation
@@ -437,5 +438,12 @@ tests =
           [ (testObject_IdP_1, "testObject_IdP_1.json"),
             (testObject_IdP_2, "testObject_IdP_2.json"),
             (testObject_IdP_3, "testObject_IdP_3.json")
+          ],
+      testGroup
+        "RotateCookie"
+        $ testObjects
+          [ (testObject_RotatCookie_1, "testObject_RotatCookie_1.json"),
+            (testObject_RotatCookie_2, "testObject_RotatCookie_2.json"),
+            (testObject_RotatCookie_3, "testObject_RotatCookie_3.json")
           ]
     ]
