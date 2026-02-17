@@ -115,7 +115,7 @@ import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..),
 import Wire.Error
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem
-import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Interpreter
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter
 import Wire.FireAndForget
@@ -123,6 +123,7 @@ import Wire.GundeckAPIAccess (runGundeckAPIAccess)
 import Wire.HashPassword.Interpreter
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MigrationLock
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.ProposalStore.Cassandra
@@ -139,6 +140,9 @@ import Wire.SparAPIAccess.Rpc
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamFeatureStore.Cassandra
+import Wire.TeamFeatureStore.Error (TeamFeatureStoreError (..))
+import Wire.TeamFeatureStore.Migrating
+import Wire.TeamFeatureStore.Postgres
 import Wire.TeamJournal.Aws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter
@@ -150,6 +154,7 @@ type GalleyEffects0 =
      Input Hasql.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
+     Error MigrationLockError,
      Error TeamFeatureStoreError,
      Error MigrationError,
      Error InvalidInput,
@@ -298,6 +303,11 @@ evalGalley e =
           CassandraStorage -> interpretCodeStoreToCassandra
           MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
           PostgresqlStorage -> interpretCodeStoreToPostgres
+      teamFeatureStoreInterpreter =
+        case (e ^. options . postgresMigration).teamFeatures of
+          CassandraStorage -> interpretTeamFeatureStoreToCassandra
+          MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
+          PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
       localUnit = toLocalUnsafe (e ^. options . settings . federationDomain) ()
       teamSubsystemConfig =
         TeamSubsystemConfig
@@ -348,6 +358,7 @@ evalGalley e =
         . mapError toResponse
         . logAndMapError toResponse (Text.pack . show) "migration error"
         . mapError mapTeamFeatureStoreError
+        . mapError toResponse
         . runInputConst conversationSubsystemConfig
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
@@ -369,7 +380,7 @@ evalGalley e =
         . interpretTeamListToCassandra
         . interpretTeamMemberStoreToCassandraWithPaging lh
         . interpretTeamMemberStoreToCassandra lh
-        . interpretTeamFeatureStoreToCassandra
+        . teamFeatureStoreInterpreter
         . interpretMLSCommitLockStoreToCassandra (e ^. cstate)
         . convStoreInterpreter
         . interpretTeamNotificationStoreToCassandra

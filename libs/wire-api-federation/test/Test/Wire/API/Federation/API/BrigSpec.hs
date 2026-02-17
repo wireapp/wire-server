@@ -30,7 +30,7 @@ spec = describe "Wire.API.Federation.API.Brig" $ do
   describe "RoundTripTests" $ do
     jsonRoundTrip @SearchRequest
   describe "JSON Golden Tests" $ do
-    jsonGoldenTest "SearchRequest" [aesonQQ|{"term": "searchedThing"}|] (SearchRequest "searchedThing" Nothing Nothing)
+    jsonGoldenTest "SearchRequest" [aesonQQ|{"term": "searchedThing"}|] (SearchRequest "searchedThing" Nothing Nothing Nothing)
 
 jsonGoldenTest :: (Eq a, Show a, FromJSON a) => String -> Value -> a -> Spec
 jsonGoldenTest name val expected =

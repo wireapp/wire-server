@@ -257,6 +257,27 @@ listUsers usr qualifiedUserIds = do
   req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
   submit "POST" (req & addJSONObject ["qualified_ids" .= qUsers])
 
+data SearchContactsCfg = SearchContactsCfg
+  { user :: Value,
+    searchTerm :: String,
+    domain :: String,
+    types :: Maybe [String]
+  }
+  deriving (Eq, Show)
+
+searchContactsWith ::
+  SearchContactsCfg ->
+  App Response
+searchContactsWith cfg = do
+  req <- baseRequest cfg.user Brig Versioned "/search/contacts"
+  q <- asString cfg.searchTerm
+  d <- objDomain cfg.domain
+  let typeFilter = maybe [] f cfg.types
+        where
+          f :: [String] -> [(String, String)]
+          f userTypes = [("type", intercalate "," userTypes)]
+  submit "GET" (req & addQueryParams ([("q", q), ("domain", d)] <> typeFilter))
+
 searchContacts ::
   ( MakesValue user,
     MakesValue searchTerm,
@@ -267,10 +288,10 @@ searchContacts ::
   domain ->
   App Response
 searchContacts user searchTerm domain = do
-  req <- baseRequest user Brig Versioned "/search/contacts"
-  q <- asString searchTerm
-  d <- objDomain domain
-  submit "GET" (req & addQueryParams [("q", q), ("domain", d)])
+  u <- make user
+  s <- make searchTerm & asString
+  d <- make domain & asString
+  searchContactsWith (SearchContactsCfg u s d Nothing)
 
 -- | https://staging-nginz-https.zinfra.io/v6/api/swagger-ui/#/default/get_teams__tid__search
 searchTeam :: (HasCallStack, MakesValue user) => user -> [(String, String)] -> App Response

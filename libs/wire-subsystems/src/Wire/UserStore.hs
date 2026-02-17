@@ -28,6 +28,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Wire.API.Password
+import Wire.API.Team.Feature (FeatureStatus)
 import Wire.API.User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SetSearchable)
@@ -70,12 +71,22 @@ data StoredUserUpdateError = StoredUserUpdateHandleExists
 data UserStore m a where
   CreateUser :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> UserStore m ()
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
+  DoesUserExist :: UserId -> UserStore m Bool
   GetIndexUsersPaginated :: Int32 -> Maybe PagingState -> UserStore m (PageWithState IndexUser)
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
+  UpdateEmail :: UserId -> EmailAddress -> UserStore m ()
+  DeleteEmail :: UserId -> UserStore m ()
   UpdateEmailUnvalidated :: UserId -> EmailAddress -> UserStore m ()
+  DeleteEmailUnvalidated :: UserId -> UserStore m ()
   UpdateUserHandleEither :: UserId -> StoredUserHandleUpdate -> UserStore m (Either StoredUserUpdateError ())
+  UpdateSSOId :: UserId -> Maybe UserSSOId -> UserStore m Bool
+  UpdateManagedBy :: UserId -> ManagedBy -> UserStore m ()
+  UpdateAccountStatus :: UserId -> AccountStatus -> UserStore m ()
+  ActivateUser :: UserId -> UserIdentity -> UserStore m ()
+  DeactivateUser :: UserId -> UserStore m ()
   DeleteUser :: User -> UserStore m ()
+  LookupName :: UserId -> UserStore m (Maybe Name)
   -- | This operation looks up a handle but is guaranteed to not give you stale locks.
   --   It is potentially slower and less resilient than 'GlimpseHandle'.
   LookupHandle :: Handle -> UserStore m (Maybe UserId)
@@ -94,9 +105,15 @@ data UserStore m a where
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
   GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
+  LookupRichInfos :: [UserId] -> UserStore m [(UserId, RichInfo)]
+  UpdateRichInfo :: UserId -> RichInfoAssocList -> UserStore m ()
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
-  DeleteEmail :: UserId -> UserStore m ()
   SetUserSearchable :: UserId -> SetSearchable -> UserStore m ()
+  UpdateFeatureConferenceCalling :: UserId -> Maybe FeatureStatus -> UserStore m ()
+  LookupFeatureConferenceCalling :: UserId -> UserStore m (Maybe FeatureStatus)
+  DeleteServiceUser :: ProviderId -> ServiceId -> BotId -> UserStore m ()
+  LookupServiceUsers :: ProviderId -> ServiceId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId, Maybe TeamId))
+  LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe PagingState -> UserStore m (PageWithState (BotId, ConvId))
 
 makeSem ''UserStore
 

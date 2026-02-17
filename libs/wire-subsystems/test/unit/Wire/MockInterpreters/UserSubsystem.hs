@@ -44,10 +44,9 @@ userSubsystemTestInterpreter initialUsers =
     GetLocalUserProfiles luids ->
       let uids = qUnqualified $ tUntagged luids
        in pure (toProfile <$> filter (\u -> userId u `elem` uids) initialUsers)
-    GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations uids []) ->
+    GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
       pure (filter (\u -> userId u `elem` uids) initialUsers)
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
-    GetAccountNoFilter _ -> error "GetAccountNoFilter: implement on demand (userSubsystemInterpreter)"
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
     CheckHandle _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"
     CheckHandles _ _ -> error "CheckHandles: implement on demand (userSubsystemInterpreter)"

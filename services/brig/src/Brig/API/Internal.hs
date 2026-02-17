@@ -37,7 +37,6 @@ import Brig.Data.Activation
 import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
-import Brig.Data.User qualified as Data
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
@@ -133,6 +132,7 @@ import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
 import Wire.UserSubsystem
+import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
@@ -205,9 +205,10 @@ istatusAPI = Named @"get-status" (pure NoContent)
 ejpdAPI ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
-    Member UserStore r,
     Member Rpc r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
@@ -295,7 +296,6 @@ teamsAPI ::
   ( Member GalleyAPIAccess r,
     Member (UserPendingActivationStore p) r,
     Member BlockListStore r,
-    Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member UserStore r,
     Member (Concurrency 'Unsafe) r,
@@ -342,7 +342,8 @@ authAPI ::
     Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member UserStore r
   ) =>
   ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
@@ -435,19 +436,19 @@ updateFederationRemote dom fedcfg = do
             "keeping track of remote domains in the brig config file is deprecated, but as long as we \
             \do that, removing or updating items listed in the config file is not allowed."
 
-getAccountConferenceCallingConfig :: UserId -> Handler r (Feature ConferenceCallingConfig)
+getAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handler r (Feature ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid = do
-  mStatus <- lift $ wrapClient $ Data.lookupFeatureConferenceCalling uid
+  mStatus <- lift $ liftSem $ UserStore.lookupFeatureConferenceCalling uid
   mDefStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNull)
   pure $ def {status = mStatus <|> mDefStatus ?: (def :: LockableFeature ConferenceCallingConfig).status}
 
-putAccountConferenceCallingConfig :: UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
+putAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Feature ConferenceCallingConfig -> Handler r NoContent
 putAccountConferenceCallingConfig uid feat = do
-  lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just feat.status) $> NoContent
+  lift . liftSem $ UserStore.updateFeatureConferenceCalling uid (Just feat.status) $> NoContent
 
-deleteAccountConferenceCallingConfig :: UserId -> Handler r NoContent
+deleteAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handler r NoContent
 deleteAccountConferenceCallingConfig uid =
-  lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
+  lift . liftSem $ UserStore.updateFeatureConferenceCalling uid Nothing $> NoContent
 
 getMLSClientH :: UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
 getMLSClientH usr cid suite = do
@@ -488,9 +489,10 @@ getMLSClient lusr cid suiteTag = do
         mlsSignatureKey = Map.lookup ss keys
       }
 
-getVerificationCode :: forall r. (Member VerificationCodeSubsystem r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
+getVerificationCode :: forall r. (Member VerificationCodeSubsystem r, Member UserSubsystem r, Member (Input (Local ())) r) => UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = runMaybeT do
-  user <- MaybeT . wrapClientE $ API.lookupUser NoPendingInvitations uid
+  getBy <- lift . lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [uid], includePendingInvitations = NoPendingInvitations}
+  user <- MaybeT . fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   email <- MaybeT . pure $ userEmail user
   let key = mkKey email
   code <- MaybeT . lift . liftSem $ internalLookupCode key (scopeFromAction action)
@@ -789,7 +791,8 @@ changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   AccountStatusUpdate ->
@@ -833,7 +836,8 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 
 revokeIdentityH ::
   ( Member UserSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   EmailAddress ->
   Handler r NoContent
@@ -843,7 +847,8 @@ updateConnectionInternalH ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member TinyLog r,
-    Member (Embed HttpClientIO) r
+    Member (Embed HttpClientIO) r,
+    Member UserStore r
   ) =>
   UpdateConnectionsInternal ->
   (Handler r) NoContent
@@ -862,13 +867,14 @@ addBlacklist email = lift $ NoContent <$ API.blacklistInsert email
 
 updateSSOIdH ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   UserId ->
   UserSSOId ->
   (Handler r) UpdateSSOIdResponse
 updateSSOIdH uid ssoid = lift $ do
-  success <- wrapClient $ Data.updateSSOId uid (Just ssoid)
+  success <- liftSem $ UserStore.updateSSOId uid (Just ssoid)
   liftSem $
     if success
       then do
@@ -879,12 +885,13 @@ updateSSOIdH uid ssoid = lift $ do
 
 deleteSSOIdH ::
   ( Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   UserId ->
   (Handler r) UpdateSSOIdResponse
 deleteSSOIdH uid = lift $ do
-  success <- wrapClient $ Data.updateSSOId uid Nothing
+  success <- liftSem $ UserStore.updateSSOId uid Nothing
   if success
     then liftSem $ do
       UserSubsystem.internalUpdateSearchIndex uid
@@ -892,11 +899,11 @@ deleteSSOIdH uid = lift $ do
       pure UpdateSSOIdSuccess
     else pure UpdateSSOIdNotFound
 
-updateManagedByH :: UserId -> ManagedByUpdate -> (Handler r) NoContent
+updateManagedByH :: (Member UserStore r) => UserId -> ManagedByUpdate -> (Handler r) NoContent
 updateManagedByH uid (ManagedByUpdate managedBy) = do
-  NoContent <$ lift (wrapClient $ Data.updateManagedBy uid managedBy)
+  NoContent <$ lift (liftSem $ UserStore.updateManagedBy uid managedBy)
 
-updateRichInfoH :: UserId -> RichInfoUpdate -> (Handler r) NoContent
+updateRichInfoH :: (Member UserStore r) => UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =
   NoContent <$ do
     let (unRichInfoAssocList -> richInfo) = normalizeRichInfoAssocList . riuRichInfo $ rup
@@ -904,7 +911,7 @@ updateRichInfoH uid rup =
     when (richInfoSize (RichInfo (mkRichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
     -- FUTUREWORK: send an event
     -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
-    lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
+    lift $ liftSem $ UserStore.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
 updateLocale :: (Member UserSubsystem r) => UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
 updateLocale uid upd@(LocaleUpdate locale) = do
@@ -945,9 +952,9 @@ getRichInfoH uid =
   RichInfo . fromMaybe mempty
     <$> lift (liftSem $ UserStore.getRichInfo uid)
 
-getRichInfoMultiH :: Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
+getRichInfoMultiH :: (Member UserStore r) => Maybe (CommaSeparatedList UserId) -> Handler r BrigIRoutes.GetRichInfoMultiResponse
 getRichInfoMultiH (maybe [] fromCommaSeparatedList -> uids) =
-  lift $ wrapClient $ BrigIRoutes.GetRichInfoMultiResponse <$> API.lookupRichInfoMultiUsers uids
+  lift $ liftSem $ BrigIRoutes.GetRichInfoMultiResponse <$> UserStore.lookupRichInfos uids
 
 updateHandleH ::
   (Member UserSubsystem r) =>
@@ -968,7 +975,7 @@ updateUserNameH uid (NameUpdate nameUpd) =
   NoContent <$ do
     luid <- qualifyLocal uid
     name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
-    lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
+    lift (liftSem $ User.getAccountNoFilter luid) >>= \case
       Just _ -> lift . liftSem $ updateUserProfile luid Nothing UpdateOriginScim (def {name = Just name})
       Nothing -> throwStd (errorToWai @'E.InvalidUser)
 

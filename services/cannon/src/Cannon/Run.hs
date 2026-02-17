@@ -24,7 +24,6 @@ where
 import Bilge (ManagerSettings (..), defaultManagerSettings, newManager)
 import Cannon.API.Internal
 import Cannon.API.Public
-import Cannon.App (maxPingInterval)
 import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.RabbitMq
@@ -92,7 +91,7 @@ run o = lowerCodensity $ do
     mkEnv ext o cassandra g d1 d2 man rnd clk (o ^. Cannon.Options.rabbitmq)
 
   void $ Codensity $ Async.withAsync $ runCannon e refreshMetrics
-  let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) (Just idleTimeout)
+  let s = newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) Nothing
 
   otelMiddleWare <- lift newOpenTelemetryWaiMiddleware
   let middleware :: Wai.Middleware
@@ -124,7 +123,6 @@ run o = lowerCodensity $ do
       -- cleanup in wai.  this needs to be tested very carefully when touched.
       runSettings s app
   where
-    idleTimeout = fromIntegral $ maxPingInterval + 3
     -- Each cannon instance advertises its own location (ip or dns name) to gundeck.
     -- Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
     loadExternal :: IO ByteString

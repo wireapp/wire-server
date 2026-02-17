@@ -1,2 +1,3 @@
 a (whitelist (regex "/await")
+             (regex "/websocket")
              (regex "(/v[0-9]+)?/events"))

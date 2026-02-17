@@ -1125,6 +1125,7 @@ spec = describe "UserSubsystem.Interpreter" do
                   (fromHandle searcheeHandle)
                   Nothing
                   (Just $ toRange (Proxy @2))
+                  Nothing
               let expectedContact =
                     Contact
                       { contactTeam = searchee.teamId,

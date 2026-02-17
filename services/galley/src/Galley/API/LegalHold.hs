@@ -80,6 +80,7 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
@@ -101,10 +102,10 @@ createSettings ::
     Member (ErrorS 'LegalHoldServiceInvalidKey) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -131,9 +132,9 @@ getSettings ::
   forall r.
   ( Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -177,7 +178,6 @@ removeSettingsInternalPaging ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member TeamFeatureStore r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
     Member (Embed IO) r,
@@ -185,7 +185,8 @@ removeSettingsInternalPaging ::
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -197,7 +198,6 @@ removeSettings ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
-    Member TeamFeatureStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member BackendNotificationQueueAccess r,
@@ -231,7 +231,8 @@ removeSettings ::
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   UserId ->
   TeamId ->
@@ -388,14 +389,14 @@ requestDevice ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -485,14 +486,14 @@ approveDevice ::
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
-    Member TeamFeatureStore r,
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->

@@ -71,7 +71,7 @@ import Wire.CodeStore
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.NotificationSubsystem
@@ -104,8 +104,8 @@ patchFeatureInternal ::
   Sem r (LockableFeature cfg)
 patchFeatureInternal tid patch = do
   assertTeamExists tid
-  dbFeature <- getDbFeature tid
-  (defFeature :: LockableFeature cfg) <- resolveServerFeature
+  dbFeature <- getDbFeatureRawInternal tid
+  defFeature :: LockableFeature cfg <- resolveServerFeature
   let dbFeatureWithDefaults = dbFeature.applyDbFeature defFeature
   let patchedFeature = applyPatch dbFeatureWithDefaults
   prepareFeature tid patchedFeature

@@ -24,9 +24,12 @@ import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
 import GHC.Generics (Generically (..))
+import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
+import Polysemy.State
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -127,3 +130,22 @@ paginateSem q p r = do
     getNextPage page = do
       client <- input
       embedClient client $ retry r (nextPage page)
+
+handleErrors ::
+  forall r.
+  ( Member (State Int) r,
+    Member TinyLog r
+  ) =>
+  ByteString ->
+  (Sem (Error Hasql.UsageError : r) ()) ->
+  Sem r ()
+handleErrors key action = do
+  eithErr <- runError action
+  case eithErr of
+    Right _ -> pure ()
+    Left e -> do
+      warn $
+        Log.msg (Log.val "error occurred during migration")
+          . Log.field "key" (show key)
+          . Log.field "error" (show e)
+      modify (+ 1)

@@ -239,7 +239,6 @@ library
     Wire.ConversationStore.Migration
     Wire.ConversationStore.Migration.Cleanup
     Wire.ConversationStore.Migration.Types
-    Wire.ConversationStore.MigrationLock
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
@@ -298,6 +297,7 @@ library
     Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.Migration
+    Wire.MigrationLock
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState
@@ -307,6 +307,7 @@ library
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.Postgres
+    Wire.PostgresMigrationOpts
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
@@ -334,6 +335,12 @@ library
     Wire.TeamCollaboratorsSubsystem.Interpreter
     Wire.TeamFeatureStore
     Wire.TeamFeatureStore.Cassandra
+    Wire.TeamFeatureStore.Cassandra.Queries
+    Wire.TeamFeatureStore.Error
+    Wire.TeamFeatureStore.Migrating
+    Wire.TeamFeatureStore.Migration
+    Wire.TeamFeatureStore.Postgres
+    Wire.TeamFeatureStore.Postgres.Queries
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter

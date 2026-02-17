@@ -44,7 +44,7 @@ import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
-import Wire.ConversationStore (PostgresMigrationOpts)
+import Wire.PostgresMigrationOpts
 
 type IsWorking = Bool
 

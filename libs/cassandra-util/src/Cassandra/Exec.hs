@@ -107,11 +107,11 @@ data PageWithState a = PageWithState
 -- serialised and sent to consumers of the API. The state is not good for long
 -- term storage as the bytestring format may change when the schema of a table
 -- changes or when cassandra is upgraded.
-paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> m (PageWithState b)
-paginateWithState q p = do
+paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> RetrySettings -> m (PageWithState b)
+paginateWithState q p retrySettings = do
   let p' = p {Protocol.pageSize = Protocol.pageSize p <|> Just 10000}
   r <- runQ q p'
-  getResult r >>= \case
+  retry retrySettings (getResult r) >>= \case
     Protocol.RowsResult m b ->
       pure $ PageWithState b (pagingState m)
     _ -> throwM $ UnexpectedResponse (hrHost r) (hrResponse r)

@@ -37,7 +37,7 @@ import Wire.API.Federation.Version
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.SpecialiseToVersion
-import Wire.API.User (UserProfile)
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
@@ -51,7 +51,8 @@ data SearchRequest = SearchRequest
     -- | The searcher's team ID, used to matched against the remote backend's team federation policy.
     from :: Maybe TeamId,
     -- | The remote teams that the calling backend is allowed to federate with.
-    onlyInTeams :: Maybe [TeamId]
+    onlyInTeams :: Maybe [TeamId],
+    types :: Maybe [UserTypeFilter]
   }
   deriving (Show, Eq, Generic, Typeable)
   deriving (Arbitrary) via (GenericUniform SearchRequest)

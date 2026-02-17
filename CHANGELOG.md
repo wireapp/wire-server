@@ -1,3 +1,47 @@
+# [2026-02-04] (Chart Release 5.27.0)
+
+## Release notes
+
+
+* Team features can now be migrated from Cassandra to Postgres. To migrate:
+  - Set galley `postgresMigration.teamFeatures` to `migration-to-postgresql`.
+  - Enable the background-worker flag `migrateTeamFeatures=true` to run the backfill.
+  - Monitor the `wire_team_features_migration_finished` metric to confirm completion.
+  - Switch `postgresMigration.teamFeatures` to `postgresql` and restart Galley and background-worker.
+  - Once fully cut over, drop the Cassandra `team_features_dyn` table. (#4979)
+
+
+## API changes
+
+
+* Filter user search by type: `GET /search/contacts?q=...&type=regular,app` (#4986)
+
+
+## Bug fixes and other updates
+
+
+* Fix Brig's emails templates fetch script. (#4878)
+
+* Add mls-duplicate-public-key error to swagger (#4996)
+
+* Set idle timeout on HTTP connections to 30s. Set ping interval to 15s in cannon,
+  missing two pings will cause the connection to close. This also removes ability
+  for the client to control the ping interval. (#4992, #4992)
+
+
+## Internal changes
+
+
+* Migration from Cassandra to Postgres of Team Features (#4982, #4983, #4979)
+
+* Add an `AGENTS.md` file to provide basic information about the project to AI
+  tools. (#4993)
+
+* Add net_connections condition to liveness probe of brig pod (#4990)
+
+* cannon: Add /websocket endpoint which is the same as /await (#5001)
+
+
 # [2026-01-26] (Chart Release 5.26.0)
 
 ## Release notes

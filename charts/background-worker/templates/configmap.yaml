@@ -91,6 +91,7 @@ data:
 
     migrateConversations: {{ .migrateConversations }}
     migrateConversationCodes: {{ .migrateConversationCodes }}
+    migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateConversationsOptions:
 {{toYaml .migrateConversationsOptions | indent 6 }}
 

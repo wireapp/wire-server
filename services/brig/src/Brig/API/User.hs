@@ -31,9 +31,6 @@ module Brig.API.User
     changeAccountStatus,
     changeSingleAccountStatus,
     getLegalHoldStatus,
-    Data.lookupName,
-    Data.lookupUser,
-    Data.lookupRichInfoMultiUsers,
     revokeIdentity,
     deleteUserNoVerify,
     deleteUsersNoVerify,
@@ -74,7 +71,6 @@ import Brig.Data.Client qualified as Data
 import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
-import Brig.Data.User qualified as Data
 import Brig.Effects.ConnectionStore
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
@@ -214,17 +210,16 @@ createUserSpar new = do
   account <- lift $ newStoredUser new' Nothing (Just tid) handle'
   domain <- viewFederationDomain
   let u = newStoredUserToUser (Qualified account domain)
-  lift $ do
+  lift . liftSem $ do
     let uid = account.id
 
     -- FUTUREWORK: make this transactional if possible
-    liftSem $ UserStore.createUser account Nothing
-    case unRichInfo <$> newUserSparRichInfo new of
-      Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
-      Nothing -> pure () -- Nothing to do
-    liftSem $ GalleyAPIAccess.createSelfConv uid
-    liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Events.generateUserEvent uid Nothing (UserCreated u)
+    UserStore.createUser account Nothing
+    for_ new.newUserSparRichInfo $
+      UserStore.updateRichInfo uid . unRichInfo
+    GalleyAPIAccess.createSelfConv uid
+    User.internalUpdateSearchIndex uid
+    Events.generateUserEvent uid Nothing (UserCreated u)
 
   -- Add to team
   userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO u tid (SSOIdentity ident Nothing) (newUserSparRole new)
@@ -250,7 +245,7 @@ createUserSpar new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        wrapClient $ activateUser uid ident
+        liftSem $ UserStore.activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem $
           Log.info $
@@ -473,7 +468,7 @@ createUser rateLimitKey new = do
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
         -- ('insertAccount' sets column activated to False; here it is set to True.)
-        wrapClient $ activateUser uid ident
+        liftSem $ UserStore.activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem do
           Log.info $
@@ -490,7 +485,7 @@ createUser rateLimitKey new = do
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
-        wrapClient $ activateUser uid ident
+        liftSem $ UserStore.activateUser uid ident
         void $ onActivated (AccountActivated account)
         liftSem $
           Log.info $
@@ -524,10 +519,10 @@ createUser rateLimitKey new = do
               !>> activationErrorToRegisterError
           pure Nothing
 
-initAccountFeatureConfig :: UserId -> (AppT r) ()
+initAccountFeatureConfig :: (Member UserStore r) => UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
   mStatus <- preview (App.settingsLens . featureFlagsLens . _Just . to conferenceCalling . to forNew . _Just)
-  wrapClient $ traverse_ (Data.updateFeatureConferenceCalling uid . Just) mStatus
+  liftSem $ traverse_ (UserStore.updateFeatureConferenceCalling uid . Just) mStatus
 
 -- | 'createUser' is becoming hard to maintain, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
@@ -580,7 +575,8 @@ checkRestrictedUserCreation new = do
 -- boils down to deactivating the user.
 revokeIdentity ::
   ( Member UserSubsystem r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserStore r
   ) =>
   EmailAddress ->
   AppT r ()
@@ -588,18 +584,18 @@ revokeIdentity key = do
   mu <- liftSem . lookupKey . mkEmailKey $ key
   for_ mu $ \u -> do
     deactivate <- maybe False (not . isSSOIdentity) <$> fetchUserIdentity u
-    when deactivate . wrapClient . Data.deactivateUser $ u
+    when deactivate . liftSem . UserStore.deactivateUser $ u
 
 -------------------------------------------------------------------------------
 -- Change Account Status
 
 changeAccountStatus ::
   forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member (Concurrency 'Unsafe) r,
+  ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   NonEmpty UserId ->
   AccountStatus ->
@@ -613,7 +609,7 @@ changeAccountStatus usrs status = do
       UserId ->
       Sem r ()
     update ev u = do
-      embed $ Data.updateStatus u status
+      UserStore.updateAccountStatus u status
       User.internalUpdateSearchIndex u
       Events.generateUserEvent u Nothing (ev u)
 
@@ -621,18 +617,19 @@ changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
     Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member UserStore r
   ) =>
   UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
-  unlessM (wrapClientE $ Data.userExists uid) $ throwE AccountNotFound
+  unlessM (lift . liftSem $ UserStore.doesUserExist uid) $ throwE AccountNotFound
   ev <- mkUserEvent (NonEmpty.singleton uid) status
-  lift $ do
-    wrapClient $ Data.updateStatus uid status
-    liftSem $ User.internalUpdateSearchIndex uid
-    liftSem $ Events.generateUserEvent uid Nothing (ev uid)
+  lift . liftSem $ do
+    UserStore.updateAccountStatus uid status
+    User.internalUpdateSearchIndex uid
+    Events.generateUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::
   ( Traversable t,
@@ -660,7 +657,8 @@ activate ::
     Member TinyLog r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -674,7 +672,8 @@ activateNoVerifyEmailDomain ::
     Member TinyLog r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -688,7 +687,8 @@ activateWithCurrency ::
     Member TinyLog r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member UserStore r
   ) =>
   Bool ->
   ActivationTarget ->
@@ -735,7 +735,8 @@ preverify tgt code = do
 onActivated ::
   ( Member TinyLog r,
     Member UserSubsystem r,
-    Member Events r
+    Member Events r,
+    Member UserStore r
   ) =>
   ActivationEvent ->
   AppT r (UserId, Maybe UserIdentity, Bool)
@@ -746,10 +747,10 @@ onActivated (AccountActivated account) = liftSem $ do
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing $ UserActivated account
   pure (uid, userIdentity account, True)
-onActivated (EmailActivated uid email) = do
-  liftSem $ User.internalUpdateSearchIndex uid
-  liftSem $ Events.generateUserEvent uid Nothing (emailUpdated uid email)
-  wrapHttpClient $ Data.deleteEmailUnvalidated uid
+onActivated (EmailActivated uid email) = liftSem $ do
+  User.internalUpdateSearchIndex uid
+  Events.generateUserEvent uid Nothing (emailUpdated uid email)
+  UserStore.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -761,7 +762,8 @@ sendActivationCode ::
     Member ActivationCodeStore r,
     Member UserKeyStore r,
     Member (Polysemy.Error.Error UserSubsystemError) r,
-    Member (Input UserSubsystemConfig) r
+    Member (Input UserSubsystemConfig) r,
+    Member UserSubsystem r
   ) =>
   EmailAddress ->
   Maybe Locale ->
@@ -783,7 +785,9 @@ sendActivationCode email loc = do
     Just (Nothing, c) -> sendVerificationEmail ek (Just c) -- Re-requesting existing code
     Just (Just uid, c) -> sendActivationEmail ek c uid -- User re-requesting activation
   where
+    notFound :: (HasCallStack) => UserId -> ExceptT SendActivationCodeError (AppT r) a
     notFound = throwM . UserDisplayNameNotFound
+
     mkPair ::
       EmailKey ->
       Maybe ActivationCode ->
@@ -796,6 +800,8 @@ sendActivationCode email loc = do
         Nothing -> lift . liftSem $ do
           dat <- newActivationCode k timeout u
           pure (activationKey dat, activationCode dat)
+
+    sendVerificationEmail :: EmailKey -> Maybe ActivationCode -> ExceptT SendActivationCodeError (AppT r) ()
     sendVerificationEmail ek uc = do
       (key, code) <- mkPair ek uc Nothing
       let em = emailKeyOrig ek
@@ -803,7 +809,8 @@ sendActivationCode email loc = do
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
-      u <- maybe (notFound uid) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations uid)
+      luid <- qualifyLocal uid
+      u <- maybe (notFound uid) pure =<< lift (liftSem $ User.getAccountNoFilter luid)
       (aKey, aCode) <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u

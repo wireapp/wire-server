@@ -42,6 +42,7 @@ inMemoryUserStoreInterpreter ::
 inMemoryUserStoreInterpreter = interpret $ \case
   CreateUser new _ -> modify (newStoredUserToStoredUser new :)
   GetUsers uids -> gets $ filter (\user -> user.id `elem` uids)
+  DoesUserExist uid -> gets (any (\u -> u.id == uid))
   UpdateUser uid update -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
@@ -56,6 +57,13 @@ inMemoryUserStoreInterpreter = interpret $ \case
               . maybe Imports.id setStoredUserSupportedProtocols update.supportedProtocols
               $ u
           else u
+  UpdateEmail uid email -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u =
+        if u.id == uid
+          then u {email = Just email} :: StoredUser
+          else u
   UpdateEmailUnvalidated uid email -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
@@ -63,6 +71,22 @@ inMemoryUserStoreInterpreter = interpret $ \case
         if u.id == uid
           then u {emailUnvalidated = Just email} :: StoredUser
           else u
+  DeleteEmailUnvalidated uid -> modify (map doUpdate)
+    where
+      doUpdate :: StoredUser -> StoredUser
+      doUpdate u =
+        if u.id == uid
+          then u {emailUnvalidated = Nothing} :: StoredUser
+          else u
+  UpdateSSOId uid ssoId -> do
+    updateUserInStore uid (\u -> u {ssoId = ssoId})
+    gets (any (\u -> u.id == uid))
+  UpdateManagedBy uid managedBy -> updateUserInStore uid (\u -> u {managedBy = Just managedBy})
+  UpdateAccountStatus uid accountStatus -> updateUserInStore uid (\u -> u {status = Just accountStatus})
+  ActivateUser uid identity -> updateUserInStore uid (\u -> u {activated = True, email = emailIdentity identity})
+  DeactivateUser uid -> updateUserInStore uid (\u -> u {activated = False})
+  UpdateFeatureConferenceCalling {} -> error "UpdateFeatureConferenceCalling: Not implemented"
+  LookupFeatureConferenceCalling {} -> error "FeatureConferenceCalling: Not implemented"
   GetIndexUser uid -> do
     mUser <- gets @[StoredUser] $ find (\user -> user.id == uid)
     pure $ storedUserToIndexUser <$> mUser
@@ -89,6 +113,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
         us' <- f us
         put us'
   DeleteUser user -> modify @[StoredUser] $ filter (\u -> u.id /= User.userId user)
+  LookupName uid -> (.name) <$$> gets (find $ \u -> u.id == uid)
   LookupHandle h -> lookupHandleImpl h
   GlimpseHandle h -> lookupHandleImpl h
   LookupStatus uid -> lookupStatusImpl uid
@@ -99,7 +124,9 @@ inMemoryUserStoreInterpreter = interpret $ \case
       map
         (\u -> if u.id == uid then u {teamId = Just tid} :: StoredUser else u)
   GetActivityTimestamps _ -> pure []
-  GetRichInfo _ -> error "rich info not implemented"
+  GetRichInfo _ -> error "GetRichInfo: not implemented"
+  LookupRichInfos _ -> error "LookupRichInfos: not implemented"
+  UpdateRichInfo {} -> error "UpdateRichInfo: Not implemented"
   GetUserAuthenticationInfo _uid -> error "Not implemented"
   DeleteEmail uid -> modify (map doUpdate)
     where
@@ -115,6 +142,9 @@ inMemoryUserStoreInterpreter = interpret $ \case
         if u.id == uid
           then u {Wire.StoredUser.searchable = Just searchable} :: StoredUser
           else u
+  DeleteServiceUser {} -> error "DeleteServiceUser: Not implemented"
+  LookupServiceUsers {} -> error "lookupServiceUsers: Not implemented"
+  LookupServiceUsersForTeam {} -> error "lookupServiceUsersForteam: Not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =
@@ -189,3 +219,12 @@ newStoredUserToStoredUser new =
       supportedProtocols = Just new.supportedProtocols,
       searchable = Just new.searchable
     }
+
+updateUserInStore :: (Member (State [StoredUser]) r) => UserId -> (StoredUser -> StoredUser) -> Sem r ()
+updateUserInStore uid f = modify (map doUpdate)
+  where
+    doUpdate :: StoredUser -> StoredUser
+    doUpdate u =
+      if u.id == uid
+        then f u
+        else u

@@ -85,7 +85,7 @@ import Util.Options.Common
 import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.Member
-import Wire.ConversationStore
+import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)
 
 newtype GuestLinkTTLSeconds = GuestLinkTTLSeconds

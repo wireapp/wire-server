@@ -1812,11 +1812,13 @@ galley:
     postgresMigration:
       conversation: postgresql
       conversationCodes: postgresql
+      teamFeatures: postgresql
 background-worker:
   config:
     postgresMigration:
       conversation: postgresql
       conversationCodes: postgresql
+      teamFeatures: postgresql
     migrateConversations: false
 ```
 
@@ -1847,13 +1849,16 @@ pattern below applies per store. Use it for `conversation` and
        postgresMigration:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
+         teamFeatures: migration-to-postgresql
    background-worker:
      config:
-       postgresMigration:
-         conversation: migration-to-postgresql
-         conversationCodes: migration-to-postgresql
-       migrateConversations: false
-       migrateConversationCodes: false
+      postgresMigration:
+        conversation: migration-to-postgresql
+        conversationCodes: migration-to-postgresql
+        teamFeatures: migration-to-postgresql
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
    ```
 
    This change should restart all the galley pods, and new writes will follow
@@ -1866,7 +1871,13 @@ pattern below applies per store. Use it for `conversation` and
      config:
        migrateConversations: true
        migrateConversationCodes: true
+       migrateTeamFeatures: true
    ```
+
+   During migration, Cassandra rows are not deleted. Writes and migration share
+   per-row locks to avoid races, so there is no need to delete early. Deletion is
+   deferred to keep rollback options and to remove Cassandra only after a full
+   cutover to PostgreSQL-only.
 
    Wait for the store-specific migration metrics to reach `1.0`. For
    conversations: `wire_local_convs_migration_finished` and
@@ -1882,13 +1893,16 @@ pattern below applies per store. Use it for `conversation` and
        postgresMigration:
          conversation: postgresql
          conversationCodes: postgresql
+         teamFeatures: postgresql
    background-worker:
      config:
-       postgresMigration:
-         conversation: postgresql
-         conversationCodes: postgresql
-       migrateConversations: false
-       migrateConversationCodes: false
+      postgresMigration:
+        conversation: postgresql
+        conversationCodes: postgresql
+        teamFeatures: postgresql
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
    ```
 
 **How to run migrations independently or in batches**
@@ -1956,6 +1970,8 @@ postgresqlPool:
 postgresMigration:
   # Valid: cassandra | migration-to-postgresql | postgresql
   conversation: postgresql
+  conversationCodes: postgresql
+  teamFeatures: postgresql
 
 # Start the migration worker when true
 migrateConversations: false
@@ -1978,7 +1994,7 @@ Notes
 
 - `postgresql` values follow libpq keywords; password is sourced via `secrets.pgPassword`.
 - RabbitMQ admin fields (`adminHost`, `adminPort`) are templated only when `config.enableFederation` is true.
-- `postgresMigration.conversation` must match `galley.config.postgresMigration.conversation` during migration phases.
-- `migrateConversations: true` triggers the migration job; leave it `false` for new installs and after migration.
+- `postgresMigration.<store>` must match between `galley` and `background-worker` during migration phases.
+- `migrateConversations: true` triggers the conversation migration job; leave it `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.

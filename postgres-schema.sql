@@ -243,6 +243,21 @@ CREATE TABLE public.subconversation (
 ALTER TABLE public.subconversation OWNER TO "wire-server";
 
 --
+-- Name: team_features; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.team_features (
+    team uuid NOT NULL,
+    feature text NOT NULL,
+    config jsonb,
+    lock_status integer,
+    status integer
+);
+
+
+ALTER TABLE public.team_features OWNER TO "wire-server";
+
+--
 -- Name: user_group; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -367,6 +382,14 @@ ALTER TABLE ONLY public.remote_conversation_local_member
 
 ALTER TABLE ONLY public.subconversation
     ADD CONSTRAINT subconversation_pkey PRIMARY KEY (conv_id, subconv_id);
+
+
+--
+-- Name: team_features team_features_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.team_features
+    ADD CONSTRAINT team_features_pkey PRIMARY KEY (team, feature);
 
 
 --

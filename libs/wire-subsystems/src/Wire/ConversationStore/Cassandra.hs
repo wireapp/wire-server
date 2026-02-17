@@ -76,8 +76,8 @@ import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
-import Wire.ConversationStore.MigrationLock
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -1094,7 +1094,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.getConversationEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+    withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
       cassConvs <- indexByConvId <$> localConversations client cids
       pgConvs <- indexByConvId <$> interpretConversationStoreToPostgres (ConvStore.getConversations cids)
@@ -1163,7 +1163,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.isConversationAlive cid)
   SelectConversations uid cids -> do
     logEffect "ConversationStore.SelectConversations"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+    withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       cassConvs <- embedClient client $ localConversationIdsOf uid cids
       pgConvs <- interpretConversationStoreToPostgres $ ConvStore.selectConversations uid cids
       pure $ List.nubOrd (pgConvs <> cassConvs)
@@ -1287,7 +1287,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     logEffect "ConversationStore.CreateMembersInRemoteConversation"
 
     -- Save users joining their first remote conv in postgres
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       filterUsersInPostgres uids >>= \pgUids -> do
         let -- These are not in Postgres, but that doesn't mean they're in
             -- cassandra
@@ -1334,7 +1334,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.checkLocalMemberRemoteConv uid rcnv
   SelectRemoteMembers uids rcnv -> do
     logEffect "ConversationStore.SelectRemoteMembers"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       filterUsersInPostgres uids >>= \pgUids -> do
         (pgUsers, _) <- interpretConversationStoreToPostgres $ ConvStore.selectRemoteMembers pgUids rcnv
         (cassUsers, _) <- embedClient client $ filterRemoteConvMembers uids rcnv
@@ -1369,7 +1369,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       interpretConversationStoreToPostgres $ ConvStore.deleteMembers cid ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       -- No need to check where these are, we just delete them from both places
       embedClient client $ removeLocalMembersFromRemoteConv rcnv uids
       interpretConversationStoreToPostgres $ ConvStore.deleteMembersInRemoteConversation rcnv uids
@@ -1487,7 +1487,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.isConversationOutOfSync convId
   HaveRemoteConvs uids -> do
     logEffect "ConversationStore.DeleteSubConversation"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       remotesInCass <- embedClient client $ haveRemoteConvs uids
       remotesInPG <- interpretConversationStoreToPostgres $ ConvStore.haveRemoteConvs uids
       pure $ List.nubOrd (remotesInPG <> remotesInCass)
@@ -1532,10 +1532,12 @@ withMigrationLockAndCleanup ::
   Either ConvId UserId ->
   Sem (Error MigrationLockError : r) a ->
   Sem r a
-withMigrationLockAndCleanup cassClient ty key =
-  withMigrationLocksAndCleanup cassClient ty (MilliSeconds 500) [key]
+withMigrationLockAndCleanup cassClient ty (Left convId) =
+  withMigrationLocksAndConvCleanup cassClient ty (MilliSeconds 500) [convId]
+withMigrationLockAndCleanup cassClient ty (Right userId) =
+  withMigrationLocksAndUserCleanup cassClient ty (MilliSeconds 500) [userId]
 
-withMigrationLocksAndCleanup ::
+withMigrationLocksAndConvCleanup ::
   ( PGConstraints r,
     Member Async r,
     Member TinyLog r,
@@ -1546,12 +1548,33 @@ withMigrationLocksAndCleanup ::
   ClientState ->
   LockType ->
   u ->
-  [Either ConvId UserId] ->
+  [ConvId] ->
   Sem (Error MigrationLockError : r) a ->
   Sem r a
-withMigrationLocksAndCleanup cassClient lockType maxWait convOrUsers action =
-  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait convOrUsers $ do
+withMigrationLocksAndConvCleanup cassClient lockType maxWait convIds action =
+  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait convIds $ do
     interpretConversationStoreToCassandra cassClient
       . runInputConst cassClient
-      $ cleanupIfNecessary convOrUsers
+      $ cleanupIfNecessary (Left <$> convIds)
+    action
+
+withMigrationLocksAndUserCleanup ::
+  ( PGConstraints r,
+    Member Async r,
+    Member TinyLog r,
+    Member Race r,
+    Member (Error MigrationError) r,
+    TimeUnit u
+  ) =>
+  ClientState ->
+  LockType ->
+  u ->
+  [UserId] ->
+  Sem (Error MigrationLockError : r) a ->
+  Sem r a
+withMigrationLocksAndUserCleanup cassClient lockType maxWait userIds action =
+  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait userIds $ do
+    interpretConversationStoreToCassandra cassClient
+      . runInputConst cassClient
+      $ cleanupIfNecessary (Right <$> userIds)
     action

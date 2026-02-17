@@ -28,7 +28,7 @@ IGNORE_TEAM_DIRS = ['team', 'provider']
 
 root = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 emails = os.path.join(root, 'wire-emails')
-templates = os.path.join(root, 'templates')
+templates = os.path.join(root, "..", "..", "libs", "wire-subsystems", "templates")
 temp = os.path.join(root, 'temp')
 css = os.path.join(templates, 'css')
 dist = os.path.join(emails, 'dist')

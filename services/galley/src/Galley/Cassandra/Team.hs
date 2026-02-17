@@ -179,6 +179,6 @@ teamMembersPageFrom ::
   Range 1 HardTruncationLimit Int32 ->
   Client (PageWithState TeamMember)
 teamMembersPageFrom lh tid pagingState (fromRange -> max) = do
-  page <- paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState)
+  page <- paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState) x1
   members <- mapM (newTeamMember' lh tid) (pwsResults page)
   pure $ PageWithState members (pwsState page)

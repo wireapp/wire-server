@@ -15,13 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.CodeStore.Migration
-  ( MigrationOptions (..),
-    migrateCodesLoop,
-  )
-where
+module Wire.CodeStore.Migration (migrateCodesLoop) where
 
 import Cassandra hiding (Value)
+import Data.ByteString.Conversion
 import Data.Code (Key, Value)
 import Data.Conduit
 import Data.Conduit.List qualified as C
@@ -30,7 +27,6 @@ import Data.Misc (HttpsUrl)
 import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
 import Polysemy.TinyLog
@@ -101,25 +97,7 @@ migrateAllCodes migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllCodes")
   withCount (paginateSem Cql.selectAllCodes (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (handleErrors (migrateCodeRow migCounter)))
-
-handleErrors ::
-  ( Member (State Int) r,
-    Member TinyLog r
-  ) =>
-  ((Key, Value, Int32, ConvId, Maybe Password) -> Sem (Error Hasql.UsageError : r) ()) ->
-  (Key, Value, Int32, ConvId, Maybe Password) ->
-  Sem r ()
-handleErrors action row@(k, _, _, _, _) = do
-  eithErr <- runError (action row)
-  case eithErr of
-    Right _ -> pure ()
-    Left e -> do
-      warn $
-        Log.msg (Log.val "error occurred during migration")
-          . Log.field "key" (show k)
-          . Log.field "error" (show e)
-      modify (+ 1)
+    .| C.mapM_ (traverse_ (\row@(key, _, _, _, _) -> handleErrors (toByteString' key) (migrateCodeRow migCounter row)))
 
 migrateCodeRow ::
   ( Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,

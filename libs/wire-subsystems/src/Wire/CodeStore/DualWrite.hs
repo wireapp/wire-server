@@ -31,6 +31,7 @@ import Wire.CodeStore.Cassandra qualified as Cassandra
 import Wire.CodeStore.Postgres qualified as Postgres
 import Wire.Postgres (PGConstraints)
 
+-- | Cassandra is the source of truth during migration; writes are mirrored to Postgres.
 interpretCodeStoreToCassandraAndPostgres ::
   ( Member (Input ClientState) r,
     Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
@@ -38,8 +39,6 @@ interpretCodeStoreToCassandraAndPostgres ::
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
-
--- | Cassandra is the source of truth during migration; writes are mirrored to Postgres.
 interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   GetCode k -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.getCode k

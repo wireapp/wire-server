@@ -107,6 +107,10 @@ nginx_conf:
       envs:
       - all
       use_websockets: true
+    - path: /websocket
+      envs:
+      - all
+      use_websockets: true
     - path: /events
       envs:
       - all

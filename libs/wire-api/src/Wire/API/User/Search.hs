@@ -32,6 +32,9 @@ module Wire.API.User.Search
     PagingState (..),
     EmailVerificationFilter (..),
     SetSearchable (..),
+    UserTypeFilter (..),
+    userTypeFilterToText,
+    userTypeFilterToUserType,
   )
 where
 
@@ -39,7 +42,9 @@ import Cassandra qualified as C
 import Control.Error
 import Control.Lens ((?~))
 import Data.Aeson hiding (object, (.=))
+import Data.Aeson qualified as A
 import Data.Aeson qualified as Aeson
+import Data.Attoparsec.ByteString qualified as AP
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion as BS
@@ -58,7 +63,7 @@ import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
-import Wire.API.User (ManagedBy, UserType)
+import Wire.API.User (ManagedBy, UserType (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -310,6 +315,38 @@ instance FromByteString RoleFilter where
   parser = do
     parts <- C8.split ',' <$> parser
     RoleFilter <$> traverse (maybe (fail "Invalid role") pure . fromByteString) parts
+
+data UserTypeFilter = UserTypeFilterRegular | UserTypeFilterApp
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserTypeFilter)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema UserTypeFilter)
+
+userTypeFilterToText :: UserTypeFilter -> Text
+userTypeFilterToText = TE.decodeUtf8 . toByteString'
+
+userTypeFilterToUserType :: UserTypeFilter -> UserType
+userTypeFilterToUserType UserTypeFilterRegular = UserTypeRegular
+userTypeFilterToUserType UserTypeFilterApp = UserTypeApp
+
+instance ToSchema UserTypeFilter where
+  schema =
+    enum @Text "UserTypeFilter" $
+      mconcat
+        [ element "regular" UserTypeFilterRegular,
+          element "app" UserTypeFilterApp
+        ]
+
+instance FromByteString UserTypeFilter where
+  parser =
+    AP.takeByteString
+      >>= \case
+        "regular" -> pure UserTypeFilterRegular
+        "app" -> pure UserTypeFilterApp
+        x -> fail $ "Invalid UserTypeFilter value: " <> show x
+
+instance ToByteString UserTypeFilter where
+  builder UserTypeFilterRegular = "regular"
+  builder UserTypeFilterApp = "app"
 
 instance FromHttpApiData RoleFilter where
   parseQueryParam = fmap RoleFilter . traverse parseQueryParam . T.split (== ',')
