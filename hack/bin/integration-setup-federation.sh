@@ -34,19 +34,15 @@ export NAMESPACE_2="$NAMESPACE-fed2"
 export FEDERATION_DOMAIN_BASE_2="$NAMESPACE_2.svc.cluster.local"
 export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE_2"
 
-echo "Fetch federation-ca secret from wire-federation-v0 namespace"
-FEDERATION_CA_CERTIFICATE=$(kubectl -n wire-federation-v0 get secret federator-ca-secret -o json -o jsonpath="{.data['ca\.crt']}" | base64 -d)
+echo "Fetch federation-ca secret from cert-manager namespace"
+FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secret federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
 export FEDERATION_CA_CERTIFICATE
 
 copy_federator_ca_secret() {
     local target_ns=$1
     local release_name=${2:-ingress-svc}
     local ca_b64
-    ca_b64=$(kubectl -n wire-federation-v0 get secret federator-ca-secret -o jsonpath='{.data.ca\.crt}' 2>/dev/null || true)
-    if [[ -z "${ca_b64}" ]]; then
-        echo "federator-ca-secret not found in wire-federation-v0; aborting" >&2
-        exit 1
-    fi
+    ca_b64=$(printf "%s" "${FEDERATION_CA_CERTIFICATE}" | base64 | tr -d '\n')
     kubectl get ns "${target_ns}" >/dev/null 2>&1 || kubectl create ns "${target_ns}"
     kubectl -n "${target_ns}" apply -f - <<EOF
 apiVersion: v1
