@@ -1,0 +1,6 @@
+Upgrade nginx-ingress-controller from v1.13.5 (chart 4.13.5) to v1.14.3 (chart 4.14.3).
+
+This upgrade improves snippet annotation handling. A custom-headers ConfigMap is now
+created to enable configuration-snippet annotations to work properly with the newer
+controller version, which allows passing client certificates to federation backends
+via the X-SSL-Certificate header.
