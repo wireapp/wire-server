@@ -49,6 +49,7 @@ import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (Numeri
 import Data.Aeson qualified as A
 import Data.ByteString.Char8 qualified as BS
 import Data.ByteString.Conversion (fromByteString, toByteString')
+import Data.Default
 import Data.Domain (domainText)
 import Data.Id
 import Data.Qualified (Qualified (qUnqualified))
@@ -710,6 +711,7 @@ createTeamConv svc mkHeader token tid name = do
           Nothing
           False
           Nothing
+          def
   post $
     svc
       . path "conversations"

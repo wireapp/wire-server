@@ -26,6 +26,11 @@ config:
 #     key: <ca-attribute>
   richInfoLimit: 5000
   maxScimTokens: 0
+
+  # Enables the `/sso/get-by-email` endpoint which returns the matching IdP for
+  # an email address of a team member.
+  enableIdPByEmailDiscovery: false
+
   logLevel: Info
   logFormat: StructuredJSON
   logNetStrings: false

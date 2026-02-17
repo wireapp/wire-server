@@ -47,7 +47,11 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
   GetTeamMembersWithLimit tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
-  GetTeamId _ -> error "GetTeamId not implemented in miniGalleyAPIAccess"
+  GetTeamId uid ->
+    pure . listToMaybe . Map.keys $
+      Map.filter
+        (\members -> any (\member -> member ^. userId == uid) members)
+        teams
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"

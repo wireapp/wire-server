@@ -61,17 +61,14 @@ import qualified Text.XML.DSig as SAML
 import UnliftIO (pooledForConcurrentlyN)
 
 randomUser :: (HasCallStack, MakesValue domain) => domain -> CreateUser -> App Value
-randomUser domain cu = bindResponse (createUser domain cu) $ \resp -> do
-  resp.status `shouldMatchInt` 201
-  resp.json
+randomUser domain cu = createUser domain cu >>= getJSON 201
 
 ephemeralUser :: (HasCallStack, MakesValue domain) => domain -> App Value
 ephemeralUser domain = do
   name <- randomName
   req <- baseRequest domain Brig Versioned "/register"
-  bindResponse (submit "POST" $ req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42") $ \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  submit "POST" (req & addJSONObject ["name" .= name] & addHeader "X-Forwarded-For" "127.0.0.42")
+    >>= getJSON 201
 
 deleteUser :: (HasCallStack, MakesValue user) => user -> App ()
 deleteUser user = bindResponse (API.Brig.deleteUser user) $ \resp -> do
@@ -163,13 +160,9 @@ createUsers domains = for domains (flip randomUser def)
 
 getAllConvs :: (HasCallStack, MakesValue u) => u -> App [Value]
 getAllConvs u = do
-  page <- bindResponse (listConversationIds u def) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  page <- listConversationIds u def >>= getJSON 200
   ids <- page %. "qualified_conversations" & asList
-  result <- bindResponse (listConversations u ids) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  result <- listConversations u ids >>= getJSON 200
   result %. "found" & asList
 
 getAllConvIds :: (HasCallStack, MakesValue u) => u -> Int -> App [Value]
@@ -178,7 +171,7 @@ getAllConvIds u pageSize = go [] Nothing
     go acc state0 = do
       page <- bindResponse (listConversationIds u def {size = Just pageSize, pagingState = state0}) $ \resp -> do
         resp.status `shouldMatchInt` 200
-        resp.json
+        pure resp.json
       ids <- page %. "qualified_conversations" & asList
       state <- page %. "paging_state" >>= asOptional >>= traverse asString
       hasMore <- page %. "has_more" & asBool
@@ -310,7 +303,7 @@ createOne2OneConversation owningDomain otherDomain = do
         conn <-
           postConnection owningUser otherUser `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 201
-            payload <- resp.json
+            let payload = resp.json
             payload %. "status" `shouldMatch` "sent"
             payload %. "qualified_to" `shouldMatch` otherUserId
             pure payload
@@ -371,9 +364,7 @@ setupProvider u (NewProvider {..}) = do
     Just pass -> pure pass
   (key, code) <- do
     pair <-
-      getProviderActivationCodeInternal dom providerEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        resp.json
+      getProviderActivationCodeInternal dom providerEmail >>= getJSON 200
     k <- pair %. "key" & asString
     c <- pair %. "code" & asString
     pure (k, c)

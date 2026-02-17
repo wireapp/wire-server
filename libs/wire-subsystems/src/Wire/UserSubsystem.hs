@@ -163,6 +163,7 @@ data UserSubsystem m a where
     Text ->
     Maybe Domain ->
     Maybe (Range 1 500 Int32) ->
+    Maybe [UserTypeFilter] ->
     UserSubsystem m (SearchResult Contact)
   BrowseTeam ::
     UserId ->

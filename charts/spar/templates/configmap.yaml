@@ -36,6 +36,8 @@ data:
 
     maxScimTokens: {{ .maxScimTokens }}
 
+    enableIdPByEmailDiscovery: {{ .enableIdPByEmailDiscovery }}
+
     disabledAPIVersions: {{ toJson .disabledAPIVersions }}
 
     saml:

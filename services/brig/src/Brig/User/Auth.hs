@@ -354,6 +354,9 @@ validateLoginId :: LoginId -> Either EmailKey Handle
 validateLoginId (LoginByEmail email) = (Left . mkEmailKey) email
 validateLoginId (LoginByHandle h) = Right h
 
+-- Has a user been activated so they can login?  (This does not apply
+-- to apps, because they do not login, they already have their
+-- cookie.)
 isPendingActivation ::
   forall r.
   ( Member UserSubsystem r,

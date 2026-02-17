@@ -635,13 +635,13 @@ testSsoLoginNoEmailVerification = do
   (Just uid, _) <- loginWithSamlEmail True tid email (idpId, idpMeta)
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
@@ -651,18 +651,18 @@ testSsoLoginNoEmailVerification = do
 
   getUsersId OwnDomain [otherUid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
 
   getUsersByEmail OwnDomain [otherEmail] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json >>= asList >>= shouldBeEmpty
+    res.json & asList >>= shouldBeEmpty
 
   activateEmail OwnDomain otherEmail
   getUsersId OwnDomain [otherUid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` otherEmail
 
@@ -692,12 +692,12 @@ testScimOnlyWithRegisteredEmailDomain = do
     resp.status `shouldMatchInt` 200
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
@@ -734,13 +734,13 @@ testScimAndSamlWithRegisteredEmailDomain = do
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 
@@ -767,18 +767,18 @@ testVerificationRequiredIfEmailDomainRedirectNotSso = do
 
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     lookupField user "email" `shouldMatch` (Nothing :: Maybe String)
 
   getUsersByEmail OwnDomain [email] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    res.json >>= asList >>= shouldBeEmpty
+    res.json & asList >>= shouldBeEmpty
 
   activateEmail OwnDomain email
   getUsersId OwnDomain [uid] `bindResponse` \res -> do
     res.status `shouldMatchInt` 200
-    user <- res.json >>= asList >>= assertOne
+    user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
 

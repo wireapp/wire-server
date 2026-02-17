@@ -33,6 +33,7 @@ import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictForma
 import Spar.Sem.VerdictFormatStore
 import URI.ByteString
 import Wire.API.User.Saml
+import Wire.IdPConfigStore.Orphans ()
 
 verdictFormatStoreToCassandra ::
   forall m r a.

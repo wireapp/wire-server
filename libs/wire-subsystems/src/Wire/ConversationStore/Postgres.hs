@@ -50,6 +50,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Pagination
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -83,6 +84,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetConversationAccess cid value -> setConversationAccessImpl cid value
   SetConversationReceiptMode cid value -> setConversationReceiptModeImpl cid value
   SetConversationMessageTimer cid value -> setConversationMessageTimerImpl cid value
+  SetConversationHistory cid value -> setConversationHistoryImpl cid value
   SetConversationEpoch cid epoch -> setConversationEpochImpl cid epoch
   SetConversationCipherSuite cid cs -> setConversationCipherSuiteImpl cid cs
   SetConversationCellsState cid ps -> setConversationCellsStateImpl cid ps
@@ -135,6 +137,7 @@ upsertConversationImpl lcnv nc = do
       meta = storedConv.metadata
       localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
       remoteUsers = map (\m -> (,m.convRoleName) <$> m.id_) storedConv.remoteMembers
+      hconfig = historyConfig meta.cnvmHistory
       convRow =
         ( storedConv.id_,
           meta.cnvmType,
@@ -150,7 +153,8 @@ upsertConversationImpl lcnv nc = do
           meta.cnvmGroupConvType,
           meta.cnvmChannelAddPermission,
           meta.cnvmCellsState,
-          meta.cnvmParent
+          meta.cnvmParent,
+          fmap (.depth) hconfig
         )
   runTransaction ReadCommitted Write $ do
     Transaction.statement convRow insertConvStatement
@@ -158,15 +162,17 @@ upsertConversationImpl lcnv nc = do
   pure storedConv
   where
     insertConvStatement =
-      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _) @_
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
-                              group_id, group_conv_type, channel_add_permission, cells_state, parent_conv)
+                              group_id, group_conv_type, channel_add_permission, cells_state,
+                              parent_conv, history_depth)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
-                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, $15 :: uuid?)
+                              $11 :: bytea?, $12 ::integer?, $13 :: integer?, $14 :: integer, 
+                              $15 :: uuid?, $16 :: bigint?)
                              ON CONFLICT (id)
                              DO UPDATE
                                 SET type = ($2 :: integer),
@@ -182,7 +188,8 @@ upsertConversationImpl lcnv nc = do
                                     group_conv_type =  ($12 :: integer?),
                                     channel_add_permission =  ($13 :: integer?),
                                     cells_state =  ($14 :: integer),
-                                    parent_conv =  ($15 :: uuid?)
+                                    parent_conv =  ($15 :: uuid?),
+                                    history_depth = ($16 :: bigint?)
                             |]
 
 deleteConversationImpl :: (PGConstraints r) => ConvId -> Sem r ()
@@ -208,15 +215,16 @@ getConversationImpl cid =
         remoteMembers <- dedupMembers cid <$> Transaction.statement cid selectRemoteMembersStmt
         pure $ toConv cid localMembers remoteMembers (Just convRow)
 
-selectConvMetadata :: Hasql.Statement (ConvId) (Maybe ConvRow)
+selectConvMetadata :: Hasql.Statement ConvId (Maybe ConvRow)
 selectConvMetadata =
   dimapPG @_ @_
-    @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+    @(Maybe (_, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _, _))
     @(Maybe ConvRow)
     [maybeStatement|SELECT (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
                            (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                            (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
-                           (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                           (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?),
+                           (parent_conv :: uuid?), (history_depth :: bigint?)
                     FROM conversation
                     WHERE id = ($1 :: uuid)
                    |]
@@ -247,7 +255,8 @@ getConversationsImpl cids = do
       -- is expected to be in same order as `cids` but the expressing that in
       -- the SQL query is tough.
       mConvs = flip map cids $ \convId -> do
-        convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent) <- Map.lookup convId convRowMap
+        convRow@(_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, mParent, _) <-
+          Map.lookup convId convRowMap
         let localMems = findMembers convId mParent localsWithConvId
             remoteMems = findMembers convId mParent remotesWithConvId
         toConv convId localMems remoteMems (Just convRow)
@@ -256,12 +265,13 @@ getConversationsImpl cids = do
     selectMetadata :: Hasql.Statement [ConvId] [ConvRowWithId]
     selectMetadata =
       dimapPG @(Vector _) @[_]
-        @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _))
+        @(Vector (_, _, _, Maybe (Vector _), Maybe (Vector _), _, _, _, _, _, _, _, _, _, _, _, _, _, _))
         @[ConvRowWithId]
         [vectorStatement|SELECT (id :: uuid), (type :: integer), (creator :: uuid?), (access :: integer[]?), (access_roles_v2 :: integer[]?),
                                 (name :: text?), (team :: uuid?), (message_timer :: bigint?), (receipt_mode :: integer?), (protocol :: integer?),
                                 (group_id :: bytea?), (epoch :: bigint?), (epoch_timestamp :: timestamptz?), (cipher_suite :: integer?),
-                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?)
+                                (group_conv_type :: integer?), (channel_add_permission :: integer?), (cells_state :: integer?), (parent_conv :: uuid?),
+                                (history_depth :: bigint?)
                          FROM conversation
                          WHERE id = ANY($1 :: uuid[])
                         |]
@@ -471,6 +481,17 @@ setConversationMessageTimerImpl convId timer =
         [resultlessStatement|UPDATE conversation
                              SET message_timer = ($2 :: bigint?)
                              WHERE id = ($1 :: uuid)|]
+
+setConversationHistoryImpl :: (PGConstraints r) => ConvId -> History -> Sem r ()
+setConversationHistoryImpl convId history =
+  runStatement (convId, fmap (.depth) (historyConfig history)) update
+  where
+    update :: Hasql.Statement (ConvId, Maybe HistoryDuration) ()
+    update =
+      lmapPG
+        [resultlessStatement|UPDATE conversation
+                                       SET history_depth = ($2 :: bigint?)
+                                       WHERE id = ($1 :: uuid)|]
 
 setConversationEpochImpl :: (PGConstraints r) => ConvId -> Epoch -> Sem r ()
 setConversationEpochImpl convId epoch =

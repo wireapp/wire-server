@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, icu, cryptobox, stdenv, ... }:
+{ libsodium, protobuf, hlib, mls-test-cli, fetchurl, curl, pkg-config, postgresql, openssl, icu, stdenv, ... }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -96,7 +96,6 @@ hself: hsuper: {
   hoogle = hlib.justStaticExecutables (hlib.dontCheck (hsuper.hoogle));
 
   # Extra dependencies/flags for local packages
-  cryptobox-haskell = hlib.addBuildDepends hsuper.cryptobox-haskell [ cryptobox ];
   http2-manager = hlib.disableCabalFlag hsuper.http2-manager "test-trailing-dot";
   sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
   text-icu-translit = hlib.addPkgconfigDepend hsuper.text-icu-translit icu;

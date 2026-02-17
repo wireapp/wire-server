@@ -39,6 +39,7 @@ import Spar.DataMigration.Types (logger)
 import Spar.DataMigration.Types hiding (logger)
 import qualified System.Logger as Log
 import URI.ByteString (serializeURIRef')
+import Wire.IdPConfigStore.Orphans ()
 
 -- row in spar.user
 -- primary key are the first two entries

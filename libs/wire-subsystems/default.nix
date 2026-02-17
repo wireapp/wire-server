@@ -28,6 +28,8 @@
 , contravariant
 , cql
 , crypton
+, crypton-x509
+, crypton-x509-store
 , currency-codes
 , data-default
 , data-timeout
@@ -37,6 +39,7 @@
 , extended
 , extra
 , file-embed
+, filepath
 , galley-types
 , generics-sop
 , gitignoreSource
@@ -68,6 +71,7 @@
 , memory
 , mime
 , mime-mail
+, mtl
 , network
 , network-conduit-tls
 , network-uri
@@ -156,6 +160,7 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-x509
     currency-codes
     data-default
     data-timeout
@@ -193,6 +198,7 @@ mkDerivation {
     memory
     mime
     mime-mail
+    mtl
     network
     network-conduit-tls
     network-uri
@@ -272,6 +278,8 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-x509
+    crypton-x509-store
     currency-codes
     data-default
     data-timeout
@@ -281,6 +289,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    filepath
     galley-types
     generics-sop
     hashable

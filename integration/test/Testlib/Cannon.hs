@@ -220,7 +220,7 @@ run wsConnect app = do
         -- exception occurs.
         let r =
               Response
-                { jsonBody = Nothing,
+                { json = Nothing,
                   body = "This is a fake response. The actual response from cannon is not available.",
                   status = 101,
                   headers = mempty,

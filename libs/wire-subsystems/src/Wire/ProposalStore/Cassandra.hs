@@ -34,6 +34,11 @@ import Wire.ConversationStore.Cassandra.Instances ()
 import Wire.ProposalStore
 import Wire.Util (embedClient)
 
+type ProposalRow = (ProposalRef, Maybe ProposalOrigin, RawMLS Proposal)
+
+mkStoredProposal :: ProposalRow -> StoredProposal
+mkStoredProposal (ref, origin, proposal) = StoredProposal ref origin proposal
+
 -- | Proposals in the database expire after this timeout
 defaultTTL :: Timeout
 defaultTTL = 28 # Day
@@ -45,10 +50,10 @@ interpretProposalStoreToCassandra ::
   Sem (ProposalStore ': r) a ->
   Sem r a
 interpretProposalStoreToCassandra = interpret $ \case
-  StoreProposal groupId epoch ref origin raw -> do
+  StoreProposal groupId epoch proposal -> do
     client <- input
     embedClient client . retry x5 $
-      write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, ref, origin, raw))
+      write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, proposal.ref, proposal.origin, proposal.proposal))
   GetProposal groupId epoch ref -> do
     client <- input
     embedClient client (runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref))))
@@ -57,12 +62,12 @@ interpretProposalStoreToCassandra = interpret $ \case
     embedClient client (runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch))))
   GetAllPendingProposals groupId epoch -> do
     client <- input
-    embedClient client $ retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
+    embedClient client $ map mkStoredProposal <$> retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
   DeleteAllProposals groupId -> do
     client <- input
     embedClient client $ retry x5 (write deleteAllProposalsForGroup (params LocalQuorum (Identity groupId)))
 
-storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, ProposalOrigin, RawMLS Proposal) ()
+storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, Maybe ProposalOrigin, RawMLS Proposal) ()
 storeQuery ttl =
   fromString $
     "insert into mls_proposal_refs (group_id, epoch, ref, origin, proposal)\
@@ -75,8 +80,8 @@ getQuery = "select proposal from mls_proposal_refs where group_id = ? and epoch 
 getAllPendingRef :: PrepQuery R (GroupId, Epoch) (Identity ProposalRef)
 getAllPendingRef = "select ref from mls_proposal_refs where group_id = ? and epoch = ?"
 
-getAllPending :: PrepQuery R (GroupId, Epoch) (Maybe ProposalOrigin, RawMLS Proposal)
-getAllPending = "select origin, proposal from mls_proposal_refs where group_id = ? and epoch = ?"
+getAllPending :: PrepQuery R (GroupId, Epoch) ProposalRow
+getAllPending = "select ref, origin, proposal from mls_proposal_refs where group_id = ? and epoch = ?"
 
 deleteAllProposalsForGroup :: PrepQuery W (Identity GroupId) ()
 deleteAllProposalsForGroup = "delete from mls_proposal_refs where group_id = ?"

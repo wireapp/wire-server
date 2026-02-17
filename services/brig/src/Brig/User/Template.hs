@@ -18,9 +18,9 @@
 module Brig.User.Template (loadUserTemplates) where
 
 import Brig.Options qualified as Opt
-import Brig.Template
 import Data.Text.Template
 import Imports
+import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
 import Wire.EmailSubsystem.Templates.User
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)

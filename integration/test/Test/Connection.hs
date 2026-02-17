@@ -17,6 +17,7 @@
 module Test.Connection where
 
 import API.Brig (getConnection, postConnection, putConnection)
+import qualified API.Brig as Brig
 import API.BrigInternal
 import API.Galley
 import Notifications
@@ -24,6 +25,32 @@ import SetupHelpers
 import Testlib.Prelude
 import Testlib.VersionedFed
 import UnliftIO.Async (forConcurrently_)
+
+testAppConnection :: (HasCallStack) => App ()
+testAppConnection = do
+  domain <- make OwnDomain
+  (owner, tid, [mem1, mem2]) <- createTeam domain 3
+
+  let newApp :: Brig.NewApp
+      newApp =
+        def
+          { Brig.name = "chappie",
+            Brig.description = "some description of this app",
+            Brig.category = "ai"
+          }
+  app <- bindResponse (Brig.createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Users from the same team are not supposed to connect to each other
+  postConnection mem1 mem2 `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "same-binding-team-users"
+
+  -- the same goes for apps from the same team
+  postConnection mem1 app `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "not-found"
 
 testConnectWithRemoteUser :: (HasCallStack) => OneOf Domain AnyFedDomain -> App ()
 testConnectWithRemoteUser owningDomain = do

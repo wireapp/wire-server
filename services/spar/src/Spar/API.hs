@@ -100,8 +100,6 @@ import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Reporter (Reporter)
@@ -121,6 +119,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
+import Wire.API.Routes.Internal.Brig (IdpChangedNotification (IdPCreated, IdPDeleted, IdPUpdated))
 import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZHostValue)
@@ -129,6 +128,10 @@ import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
+import qualified Wire.IdPConfigStore as IdPConfigStore
+import Wire.IdPSubsystem (IdPSubsystem)
+import qualified Wire.IdPSubsystem as IdPSubsystem
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
@@ -166,6 +169,7 @@ api ::
     Member ScimUserTimesStore r,
     Member ScimTokenStore r,
     Member ScimSubsystem r,
+    Member IdPSubsystem r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -204,6 +208,7 @@ apiSSO ::
     Member ScimTokenStore r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
+    Member IdPSubsystem r,
     Member Random r,
     Member (Error SparError) r,
     Member SAML2 r,
@@ -222,6 +227,7 @@ apiSSO opts =
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
     :<|> Named @"auth-resp" (authresp . Just)
     :<|> Named @"sso-settings" ssoSettings
+    :<|> Named @"sso-get-by-email" getSsoCodeByEmail
 
 apiIDP ::
   ( Member Random r,
@@ -244,7 +250,7 @@ apiIDP opts =
     :<|> Named @"idp-create@v7" (idpCreateV7 opts.saml)
     :<|> Named @"idp-create" (idpCreate opts.saml) -- post, created
     :<|> Named @"idp-update" (idpUpdate opts.saml) -- put, okay
-    :<|> Named @"idp-delete" idpDelete -- delete, no content
+    :<|> Named @"idp-delete" (idpDelete opts.saml) -- delete, no content
 
 apiINTERNAL ::
   ( Member ScimTokenStore r,
@@ -470,6 +476,10 @@ ssoSettings :: (Member DefaultSsoCode r) => Sem r SsoSettings
 ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
 
+getSsoCodeByEmail :: (Member IdPSubsystem r) => Maybe ZHostValue -> GetByEmailReq -> Sem r (Maybe SAML.IdPId)
+getSsoCodeByEmail mbHost (GetByEmailReq emailAddr) =
+  IdPSubsystem.getSsoCodeByEmail mbHost emailAddr
+
 ----------------------------------------------------------------------------
 -- IdPConfigStore API
 
@@ -565,11 +575,12 @@ idpDelete ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
   Sem r NoContent
-idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
+idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (const Nothing) $ do
   idp <- IdPConfigStore.getConfig idpid
   (zusr, teamId) <- authorizeIdP mbzusr idp
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -587,6 +598,9 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
+    when (SAML.isMultiIngressConfig samlConfig) $
+      BrigAccess.sendSAMLIdPChangedEmail $
+        IdPDeleted zusr idp
   logIdPAction
     "IdP deleted"
     idp
@@ -673,6 +687,9 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
+  when (SAML.isMultiIngressConfig samlConfig) $
+    BrigAccess.sendSAMLIdPChangedEmail $
+      IdPCreated zUser idp
   logIdPAction
     "IdP created"
     idp
@@ -835,7 +852,7 @@ idpUpdate ::
   Sem r IdP
 idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
-   in idpUpdateXML zusr mbHost raw xml
+   in idpUpdateXML samlConfig zusr mbHost raw xml
 
 idpUpdateXML ::
   ( Member Random r,
@@ -846,6 +863,7 @@ idpUpdateXML ::
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
   ) =>
+  SAML.Config ->
   Maybe UserId ->
   Maybe ZHostValue ->
   Text ->
@@ -853,8 +871,8 @@ idpUpdateXML ::
   SAML.IdPId ->
   Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
-  (teamid, idp, previousIdP) <- validateIdPUpdate zusr idpmeta idpid
+idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
+  (zUsr, teamid, idp, previousIdP) <- validateIdPUpdate mbZUsr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
@@ -872,7 +890,10 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
-  logIdPUpdate idp'' previousIdP
+  when (SAML.isMultiIngressConfig samlConfig) $
+    BrigAccess.sendSAMLIdPChangedEmail $
+      IdPUpdated zUsr previousIdP idp''
+  logIdPUpdate zUsr idp'' previousIdP
   pure idp''
   where
     -- Ensure that the domain is not in use by an existing IDP
@@ -896,8 +917,8 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
 
     -- We cannot simply call `logIdPAction` here, because we need diffs for
     -- some values (old vs. new)
-    logIdPUpdate :: (Member (Logger (Msg -> Msg)) r) => IdP -> IdP -> Sem r ()
-    logIdPUpdate idp previousIdP =
+    logIdPUpdate :: (Member (Logger (Msg -> Msg)) r) => UserId -> IdP -> IdP -> Sem r ()
+    logIdPUpdate zUsr idp previousIdP =
       let (removedCerts, newCerts) =
             compareNonEmpty
               (previousIdP ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
@@ -916,7 +937,7 @@ idpUpdateXML zusr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML
                 (fromMaybe "None")
                 (previousIdP ^. SAML.idpExtraInfo . domain)
                 (idp ^. SAML.idpExtraInfo . domain)
-              . Log.field "user" (maybe "None" idToText zusr)
+              . Log.field "user" (idToText zUsr)
               . logChangeableScalar
                 "idp-endpoint"
                 URI.serializeURIRef'
@@ -965,10 +986,10 @@ validateIdPUpdate ::
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
-  m (TeamId, IdP, IdP)
-validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_2 %~ (^. SAML.idpId))) $ do
+  m (UserId, TeamId, IdP, IdP)
+validateIdPUpdate mbZUsr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (Just . show . (_3 %~ (^. SAML.idpId))) $ do
   previousIdP <- IdPConfigStore.getConfig _idpId
-  (_, teamId) <- authorizeIdP zusr previousIdP
+  (zusr, teamId) <- authorizeIdP mbZUsr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . team == teamId) $
     throw errUnknownIdP
   _idpExtraInfo <- do
@@ -998,7 +1019,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateIdPUpdate" (J
 
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
-  pure (teamId, SAML.IdPConfig {..}, previousIdP)
+  pure (zusr, teamId, SAML.IdPConfig {..}, previousIdP)
   where
     -- If the new issuer was previously used, it has to be removed from the list of old issuers,
     -- to prevent it from getting deleted in a later step

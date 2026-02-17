@@ -1165,6 +1165,9 @@ assets. The Haddock of
 [`CargoHold.Options.AWSOpts`](https://github.com/wireapp/wire-server/blob/develop/services/cargohold/src/CargoHold/Options.hs#L64)
 provides a lot of useful information.
 
+- `settings.maxTotalBytes` (integer, bytes): maximum upload size for team users.
+- `settings.maxTotalBytesStrict` (integer, bytes): stricter maximum upload size for non-team users (including ephemeral users).
+
 ## Settings in cannon
 
 ### Events websocket inactivity
@@ -1202,6 +1205,65 @@ config:
 
 `appUri` and `ssoUri` are mapped to `spAppUri` and `spSsoUri` in the `spar`
 configuration respectively.
+
+#### Provide SSO codes by user email address
+
+This feature is enabled by the `enableIdPByEmailDiscovery` configuration flag.
+It relates to the `/sso/get-by-email` endpoint which can provide SSO codes (IdP
+IDs) for given email addresses. The idea is to ease the SSO flow at client side
+(your email address is easier at hand than some UUID).
+
+By default `enableIdPByEmailDiscovery` is disabled. The `/sso/get-by-email`
+constantly responds with HTTP 404 then.
+
+If it is enabled, clients can send a HTTP POST request to `/sso/get-by-email`
+with this request body format:
+
+```
+{
+  "email": <user-email-address>
+}
+```
+
+If there is an SSO code for this user, the response is a HTTP 200:
+
+```
+{
+  "sso_code": <idp-id>
+}
+```
+
+Otherwise a HTTP 404 is returned:
+
+```
+{
+  "sso_code": null
+}
+```
+
+##### SSO code lookup algorithm
+
+Given an email address, the SSO code is looked up by these criteria:
+
+- The email address must belong to a member of any team.
+- The user must be activated. Either by the activation mail flow or by
+  [auto-activation](#validate-saml-emails).
+- The mapping must be unambiguous (there must be exactly one matching IdP).
+  This is the case for:
+  - Teams with exactly one configured IdP
+  - There is an IdP for the given multi-ingress domain
+- The user was created via SCIM
+
+The last condition ensures that team admins cannot get into locked-out
+situations due to misconfigured IdPs.
+
+##### Rate limiting
+
+The `/sso/get-by-email` endpoint could be used to discover existing email
+addresses and explore their IdPs by applying brute-force strategies. Thus, it
+is rate limited as `reqs_per_addr_sso_get_by_email` zone. Details can be
+configured in `nginz`'s Helm chart in the
+`nginx_conf.user_rate_limit_request_zones` list.
 
 ### SCIM
 
@@ -1419,8 +1481,10 @@ For example:
 }
 ```
 
-There can be at most one IdP per multi-ingress domain. Creating more returns an
+There can be at most one IdP per multi-ingress domain and team. Creating more returns an
 error. Though, IdPs can be reconfigured as long as this invariant holds.
+
+Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
 
 ### Webapp
 
@@ -1812,11 +1876,13 @@ galley:
     postgresMigration:
       conversation: postgresql
       conversationCodes: postgresql
+      teamFeatures: postgresql
 background-worker:
   config:
     postgresMigration:
       conversation: postgresql
       conversationCodes: postgresql
+      teamFeatures: postgresql
     migrateConversations: false
 ```
 
@@ -1847,13 +1913,16 @@ pattern below applies per store. Use it for `conversation` and
        postgresMigration:
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
+         teamFeatures: migration-to-postgresql
    background-worker:
      config:
-       postgresMigration:
-         conversation: migration-to-postgresql
-         conversationCodes: migration-to-postgresql
-       migrateConversations: false
-       migrateConversationCodes: false
+      postgresMigration:
+        conversation: migration-to-postgresql
+        conversationCodes: migration-to-postgresql
+        teamFeatures: migration-to-postgresql
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
    ```
 
    This change should restart all the galley pods, and new writes will follow
@@ -1866,7 +1935,13 @@ pattern below applies per store. Use it for `conversation` and
      config:
        migrateConversations: true
        migrateConversationCodes: true
+       migrateTeamFeatures: true
    ```
+
+   During migration, Cassandra rows are not deleted. Writes and migration share
+   per-row locks to avoid races, so there is no need to delete early. Deletion is
+   deferred to keep rollback options and to remove Cassandra only after a full
+   cutover to PostgreSQL-only.
 
    Wait for the store-specific migration metrics to reach `1.0`. For
    conversations: `wire_local_convs_migration_finished` and
@@ -1882,13 +1957,16 @@ pattern below applies per store. Use it for `conversation` and
        postgresMigration:
          conversation: postgresql
          conversationCodes: postgresql
+         teamFeatures: postgresql
    background-worker:
      config:
-       postgresMigration:
-         conversation: postgresql
-         conversationCodes: postgresql
-       migrateConversations: false
-       migrateConversationCodes: false
+      postgresMigration:
+        conversation: postgresql
+        conversationCodes: postgresql
+        teamFeatures: postgresql
+      migrateConversations: false
+      migrateConversationCodes: false
+      migrateTeamFeatures: false
    ```
 
 **How to run migrations independently or in batches**
@@ -1956,6 +2034,8 @@ postgresqlPool:
 postgresMigration:
   # Valid: cassandra | migration-to-postgresql | postgresql
   conversation: postgresql
+  conversationCodes: postgresql
+  teamFeatures: postgresql
 
 # Start the migration worker when true
 migrateConversations: false
@@ -1978,7 +2058,7 @@ Notes
 
 - `postgresql` values follow libpq keywords; password is sourced via `secrets.pgPassword`.
 - RabbitMQ admin fields (`adminHost`, `adminPort`) are templated only when `config.enableFederation` is true.
-- `postgresMigration.conversation` must match `galley.config.postgresMigration.conversation` during migration phases.
-- `migrateConversations: true` triggers the migration job; leave it `false` for new installs and after migration.
+- `postgresMigration.<store>` must match between `galley` and `background-worker` during migration phases.
+- `migrateConversations: true` triggers the conversation migration job; leave it `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.

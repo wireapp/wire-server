@@ -38,6 +38,7 @@ module Wire.BrigAPIAccess
     getUserExportData,
     updateSearchIndex,
     getAccountsBy,
+    getUsersByVariousKeys,
 
     -- * Teams
     getSize,
@@ -74,6 +75,8 @@ where
 
 import Data.Aeson
 import Data.ByteString.Conversion
+import Data.Handle (Handle)
+import Data.HavePendingInvitations (HavePendingInvitations (..))
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -159,6 +162,7 @@ data BrigAPIAccess m a where
   DeleteBot :: ConvId -> BotId -> BrigAPIAccess m ()
   UpdateSearchIndex :: UserId -> BrigAPIAccess m ()
   GetAccountsBy :: GetBy -> BrigAPIAccess m [User]
+  GetUsersByVariousKeys :: [UserId] -> [Handle] -> [EmailAddress] -> HavePendingInvitations -> BrigAPIAccess m [User]
   CreateGroupInternal :: ManagedBy -> TeamId -> Maybe UserId -> NewUserGroup -> BrigAPIAccess m (Either Wai.Error UserGroup)
   GetGroupInternal :: TeamId -> UserGroupId -> Bool -> BrigAPIAccess m (Maybe UserGroup)
   GetGroupsInternal :: TeamId -> Maybe Scim.Filter -> Maybe ManagedBy -> Word -> Maybe Word -> BrigAPIAccess m UserGroupPageWithMembers

@@ -62,6 +62,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.Error
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
@@ -76,8 +77,8 @@ import Wire.ConversationStore.Cassandra.Queries qualified as Cql
 import Wire.ConversationStore.Cassandra.Queries qualified as Queries
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationStore.Migration.Cleanup
-import Wire.ConversationStore.MigrationLock
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
@@ -111,7 +112,8 @@ createConversation lcnv nc = do
         meta.cnvmGroupConvType,
         meta.cnvmChannelAddPermission,
         meta.cnvmCellsState,
-        meta.cnvmParent
+        meta.cnvmParent,
+        fmap (.depth) (historyConfig meta.cnvmHistory)
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, storedConv.id_)
   let localUsers = map (\m -> (m.id_, m.convRoleName)) storedConv.localMembers
@@ -140,7 +142,7 @@ parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Imports.Set AccessRole) -> 
 parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
 toStoredConvRow :: Queries.ConvRow -> (Maybe Bool, StoreConv.ConvRow)
-toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
+toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth) =
   ( del,
     ( cty,
       muid,
@@ -158,7 +160,8 @@ toStoredConvRow (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mg
       mgct,
       mAp,
       mcells,
-      mparent
+      mparent,
+      fmap historyDurationToSecs mhdepth
     )
   )
 
@@ -209,6 +212,18 @@ getConvEpoch cid =
 
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
+
+updateConvHistory :: ConvId -> History -> Client ()
+updateConvHistory cid history =
+  retry x5 $
+    write
+      Cql.updateConvHistory
+      ( params
+          LocalQuorum
+          ( fmap (.depth) (historyConfig history),
+            cid
+          )
+      )
 
 updateConvCipherSuite :: ConvId -> CipherSuiteTag -> Client ()
 updateConvCipherSuite cid cs =
@@ -925,6 +940,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   SetConversationMessageTimer cid value -> do
     logEffect "ConversationStore.SetConversationMessageTimer"
     embedClient client $ updateConvMessageTimer cid value
+  SetConversationHistory cid value -> do
+    logEffect "ConversationStore.SetConversationHistory"
+    embedClient client $ updateConvHistory cid value
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     embedClient client $ updateConvEpoch cid epoch
@@ -1094,7 +1112,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.getConversationEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+    withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
       cassConvs <- indexByConvId <$> localConversations client cids
       pgConvs <- indexByConvId <$> interpretConversationStoreToPostgres (ConvStore.getConversations cids)
@@ -1163,7 +1181,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.isConversationAlive cid)
   SelectConversations uid cids -> do
     logEffect "ConversationStore.SelectConversations"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Left <$> cids) $ do
+    withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       cassConvs <- embedClient client $ localConversationIdsOf uid cids
       pgConvs <- interpretConversationStoreToPostgres $ ConvStore.selectConversations uid cids
       pure $ List.nubOrd (pgConvs <> cassConvs)
@@ -1203,6 +1221,12 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ updateConvMessageTimer cid value
         True -> interpretConversationStoreToPostgres (ConvStore.setConversationMessageTimer cid value)
+  SetConversationHistory cid value -> do
+    logEffect "ConversationStore.SetConversationHistory"
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ updateConvHistory cid value
+        True -> interpretConversationStoreToPostgres (ConvStore.setConversationHistory cid value)
   SetConversationEpoch cid epoch -> do
     logEffect "ConversationStore.SetConversationEpoch"
     withMigrationLockAndCleanup client LockShared (Left cid) $
@@ -1287,7 +1311,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     logEffect "ConversationStore.CreateMembersInRemoteConversation"
 
     -- Save users joining their first remote conv in postgres
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       filterUsersInPostgres uids >>= \pgUids -> do
         let -- These are not in Postgres, but that doesn't mean they're in
             -- cassandra
@@ -1334,7 +1358,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.checkLocalMemberRemoteConv uid rcnv
   SelectRemoteMembers uids rcnv -> do
     logEffect "ConversationStore.SelectRemoteMembers"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       filterUsersInPostgres uids >>= \pgUids -> do
         (pgUsers, _) <- interpretConversationStoreToPostgres $ ConvStore.selectRemoteMembers pgUids rcnv
         (cassUsers, _) <- embedClient client $ filterRemoteConvMembers uids rcnv
@@ -1369,7 +1393,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       interpretConversationStoreToPostgres $ ConvStore.deleteMembers cid ul
   DeleteMembersInRemoteConversation rcnv uids -> do
     logEffect "ConversationStore.DeleteMembersInRemoteConversation"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       -- No need to check where these are, we just delete them from both places
       embedClient client $ removeLocalMembersFromRemoteConv rcnv uids
       interpretConversationStoreToPostgres $ ConvStore.deleteMembersInRemoteConversation rcnv uids
@@ -1487,7 +1511,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.isConversationOutOfSync convId
   HaveRemoteConvs uids -> do
     logEffect "ConversationStore.DeleteSubConversation"
-    withMigrationLocksAndCleanup client LockShared (Seconds 2) (Right <$> uids) $ do
+    withMigrationLocksAndUserCleanup client LockShared (Seconds 2) uids $ do
       remotesInCass <- embedClient client $ haveRemoteConvs uids
       remotesInPG <- interpretConversationStoreToPostgres $ ConvStore.haveRemoteConvs uids
       pure $ List.nubOrd (remotesInPG <> remotesInCass)
@@ -1532,10 +1556,12 @@ withMigrationLockAndCleanup ::
   Either ConvId UserId ->
   Sem (Error MigrationLockError : r) a ->
   Sem r a
-withMigrationLockAndCleanup cassClient ty key =
-  withMigrationLocksAndCleanup cassClient ty (MilliSeconds 500) [key]
+withMigrationLockAndCleanup cassClient ty (Left convId) =
+  withMigrationLocksAndConvCleanup cassClient ty (MilliSeconds 500) [convId]
+withMigrationLockAndCleanup cassClient ty (Right userId) =
+  withMigrationLocksAndUserCleanup cassClient ty (MilliSeconds 500) [userId]
 
-withMigrationLocksAndCleanup ::
+withMigrationLocksAndConvCleanup ::
   ( PGConstraints r,
     Member Async r,
     Member TinyLog r,
@@ -1546,12 +1572,33 @@ withMigrationLocksAndCleanup ::
   ClientState ->
   LockType ->
   u ->
-  [Either ConvId UserId] ->
+  [ConvId] ->
   Sem (Error MigrationLockError : r) a ->
   Sem r a
-withMigrationLocksAndCleanup cassClient lockType maxWait convOrUsers action =
-  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait convOrUsers $ do
+withMigrationLocksAndConvCleanup cassClient lockType maxWait convIds action =
+  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait convIds $ do
     interpretConversationStoreToCassandra cassClient
       . runInputConst cassClient
-      $ cleanupIfNecessary convOrUsers
+      $ cleanupIfNecessary (Left <$> convIds)
+    action
+
+withMigrationLocksAndUserCleanup ::
+  ( PGConstraints r,
+    Member Async r,
+    Member TinyLog r,
+    Member Race r,
+    Member (Error MigrationError) r,
+    TimeUnit u
+  ) =>
+  ClientState ->
+  LockType ->
+  u ->
+  [UserId] ->
+  Sem (Error MigrationLockError : r) a ->
+  Sem r a
+withMigrationLocksAndUserCleanup cassClient lockType maxWait userIds action =
+  mapError FailedToAcquireMigrationLock . withMigrationLocks lockType maxWait userIds $ do
+    interpretConversationStoreToCassandra cassClient
+      . runInputConst cassClient
+      $ cleanupIfNecessary (Right <$> userIds)
     action

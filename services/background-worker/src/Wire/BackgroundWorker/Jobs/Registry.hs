@@ -40,7 +40,6 @@ import Wire.BackgroundJobsRunner (runJob)
 import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.BrigAPIAccess.Rpc
-import Wire.ConversationStore
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
@@ -49,6 +48,7 @@ import Wire.FireAndForget (interpretFireAndForget)
 import Wire.GundeckAPIAccess
 import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException
+import Wire.PostgresMigrationOpts
 import Wire.Rpc
 import Wire.Sem.Delay (runDelay)
 import Wire.Sem.Logger (mapLogger)

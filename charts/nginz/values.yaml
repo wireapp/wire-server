@@ -96,6 +96,7 @@ nginx_conf:
   # 'upstreams.<upstream>.<n>.specific_user_rate_limit'.
   user_rate_limit_request_zones:
     - limit_req_zone $rate_limited_by_addr zone=reqs_per_addr_sso:12m rate=50r/s;
+    - limit_req_zone $rate_limited_by_addr zone=reqs_per_addr_sso_get_by_email:12m rate=5r/m;
     - limit_req_zone $rate_limited_by_zuser zone=reqs_per_user_signatures:12m rate=10r/m;
     - limit_req_zone $rate_limited_by_zuser zone=key_package_claims_per_user:12m rate=3000r/m;
     - limit_req_zone $rate_limited_by_zuser_path zone=key_package_claims_per_user_per_target:12m rate=100r/m;
@@ -779,6 +780,12 @@ nginx_conf:
       allow_credentials: true
       specific_user_rate_limit: reqs_per_addr_sso
       specific_user_rate_limit_burst: "10"
+    - path: /sso/get-by-email$
+      envs:
+      - all
+      disable_zauth: true
+      specific_user_rate_limit: reqs_per_addr_sso_get_by_email
+      specific_user_rate_limit_burst: "15"
     - path: /scim
       envs:
       - all

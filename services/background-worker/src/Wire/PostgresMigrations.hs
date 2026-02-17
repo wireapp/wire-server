@@ -25,6 +25,8 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
+import Wire.Migration (MigrationOptions)
+import Wire.TeamFeatureStore.Migration
 
 conversations :: MigrationOptions -> AppT IO CleanupAction
 conversations migOpts = do
@@ -64,4 +66,21 @@ conversationCodes migOpts = do
   Log.info logger $ Log.msg (Log.val "started conversation codes migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling conversation codes migration")
+    cancel migrationLoop
+
+teamFeatures :: MigrationOptions -> AppT IO CleanupAction
+teamFeatures migOpts = do
+  cassClient <- asks (.cassandraGalley)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting team features migration")
+  count <- register $ counter $ Prometheus.Info "wire_team_features_migrated_to_pg" "Number of team features migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_team_features_migration_finished" "Whether the team features migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_team_features_migration_failed" "Whether the team features migration to Postgresql has failed"
+
+  migrationLoop <- async . lift $ migrateTeamFeaturesLoop migOpts cassClient pgPool logger count finished failed
+
+  Log.info logger $ Log.msg (Log.val "started team features migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling team features migration")
     cancel migrationLoop

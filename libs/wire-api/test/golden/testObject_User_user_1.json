@@ -15,5 +15,6 @@
     "supported_protocols": [
         "proteus"
     ],
-    "searchable": true
+    "searchable": true,
+    "type": "regular"
 }

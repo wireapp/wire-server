@@ -26,6 +26,7 @@ import Data.UUID qualified as UUID (fromString)
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.User
 
 testObject_NewConv_user_1 :: NewConv
@@ -53,7 +54,8 @@ testObject_NewConv_user_1 =
       newConvCells = False,
       newConvChannelAddPermission = Nothing,
       newConvSkipCreator = False,
-      newConvParent = Nothing
+      newConvParent = Nothing,
+      newConvHistory = HistoryPrivate
     }
 
 testObject_NewConv_user_3 :: NewConv
@@ -77,5 +79,6 @@ testObject_NewConv_user_3 =
       newConvCells = True,
       newConvChannelAddPermission = Just Admins,
       newConvSkipCreator = False,
-      newConvParent = Nothing
+      newConvParent = Nothing,
+      newConvHistory = HistoryPrivate
     }

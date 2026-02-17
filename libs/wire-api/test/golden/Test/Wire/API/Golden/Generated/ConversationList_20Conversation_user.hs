@@ -30,6 +30,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
+import Wire.API.History
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -53,7 +54,8 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmGroupConvType = Just GroupConversation,
                     cnvmChannelAddPermission = Nothing,
                     cnvmCellsState = CellsReady,
-                    cnvmParent = Nothing
+                    cnvmParent = Nothing,
+                    cnvmHistory = HistoryPrivate
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =

@@ -89,9 +89,9 @@ testSimpleRoundtrip = do
       assertBool "user mismatch" $ userId1 == decodeHeaderOrFail (mk $ cs "x-amz-meta-user") r3
       assertBool "data mismatch" $ cs "Hello World" == r3.body
       -- Delete (forbidden for other users)
-      deleteAsset uid2 r1.jsonBody >>= \r -> r.status `shouldMatchInt` 403
+      deleteAsset uid2 r1.json >>= \r -> r.status `shouldMatchInt` 403
       -- Delete (allowed for creator)
-      deleteAsset uid r1.jsonBody >>= \r -> r.status `shouldMatchInt` 200
+      deleteAsset uid r1.json >>= \r -> r.status `shouldMatchInt` 200
       r4 <- downloadAsset' uid loc tok
       r4.status `shouldMatchInt` 404
       let Just date' = C8.unpack <$> lookup (mk $ cs "Date") r4.headers
@@ -147,12 +147,12 @@ testSimpleTokens = do
   -- Token renewal fails if not done by owner
   postToken uid2 key >>= \r -> do
     r.status `shouldMatchInt` 403
-    label <- traverse ((%. "label") >=> asString) r.jsonBody
+    label <- traverse ((%. "label") >=> asString) r.json
     label `shouldMatch` "unauthorised"
   -- Token renewal succeeds if done by owner
   r2 <- postToken uid key
   r2.status `shouldMatchInt` 200
-  tok' <- r2.jsonBody %. "token" & asString
+  tok' <- r2.json %. "token" & asString
   assertBool "token unchanged" (tok /= String (cs tok'))
   -- Download by owner with new token.
   r3 <- downloadAsset' uid loc tok'
@@ -180,7 +180,7 @@ testSimpleTokens = do
   -- Delete Token fails if not done by owner
   deleteToken uid2 key >>= \r -> do
     r.status `shouldMatchInt` 403
-    label' <- traverse ((%. "label") >=> asString) r.jsonBody
+    label' <- traverse ((%. "label") >=> asString) r.json
     label' `shouldMatch` "unauthorised"
   -- Delete Token succeeds by owner
   deleteToken uid key >>= \r -> do
@@ -358,7 +358,7 @@ testAssetAuditLogDownloadBackendALocal = do
         body = (applicationText, cs "download-me")
     uploadSimple owner missingMetaSettings body `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
-      resp.jsonBody %. "label" `shouldMatch` "missing-audit-metadata"
+      resp.json %. "label" `shouldMatch` "missing-audit-metadata"
     -- Now upload again with correct metadata and expect success 201
     settings <-
       validAssetMetadataSettings
@@ -394,7 +394,7 @@ testAssetAuditLogDownloadBackendALoggingBackendBNotLogging = do
     (loc, tok) <-
       uploadSimple owner settings body `bindResponse` \r -> do
         r.status `shouldMatchInt` 201
-        (,) <$> r.json <*> (r.json %. "token" & asString)
+        (r.json,) <$> (r.json %. "token" & asString)
     -- Federated download by user on backend B.
     bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -421,7 +421,7 @@ testAssetAuditLogDownloadBackendALoggingBackendBLogging = do
     (loc, tok) <-
       uploadSimple owner settings body `bindResponse` \r -> do
         r.status `shouldMatchInt` 201
-        (,) <$> r.json <*> (r.json %. "token" & asString)
+        (r.json,) <$> (r.json %. "token" & asString)
     -- Federated download by user on backend B.
     bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
       resp.status `shouldMatchInt` 200
@@ -448,7 +448,7 @@ testAssetAuditLogDownloadBackendANotLoggingBackendBLogging = do
     (loc, tok) <-
       uploadSimple owner settings body `bindResponse` \r -> do
         r.status `shouldMatchInt` 201
-        (,) <$> r.json <*> (r.json %. "token" & asString)
+        (r.json,) <$> (r.json %. "token" & asString)
     -- Federated download by user on backend B (audit enabled on B).
     bindResponse (downloadAsset' downloader loc tok) $ \resp -> do
       resp.status `shouldMatchInt` 200

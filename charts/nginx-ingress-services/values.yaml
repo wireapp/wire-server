@@ -16,6 +16,8 @@ federator:
   enabled: false
   integrationTestHelper: false
   tls:
+    duration: 2160h     # 90d Letsencrypt default; NOTE: changes are ignored if using Letsencrypt
+    renewBefore: 360h   # 15d
     privateKey:
       # rotationPolicy: Always (default) regenerates key on each renewal
       # rotationPolicy: Never preserves key across renewals (for key pinning)
@@ -23,6 +25,9 @@ federator:
     # Issuer for federator certificate (for mTLS with Client Auth EKU).
     # If not set, uses global tls.issuer configuration.
     issuer: {}
+      # name: ""
+      # kind: ""
+      # group: ""
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate

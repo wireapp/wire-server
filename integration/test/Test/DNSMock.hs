@@ -69,8 +69,8 @@ requestTechnitiumApiKey = do
   req <- externalRequest url <&> addQueryParams [("user", "admin"), ("pass", "admin"), ("tokenName", "someToken")]
   bindResponse (submit "POST" req) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.jsonBody %. "status" `shouldMatch` ("ok" :: String)
-    asString $ resp.jsonBody %. "token"
+    resp.json %. "status" `shouldMatch` ("ok" :: String)
+    asString $ resp.json %. "token"
 
 setTechnitiumReverseProxyACL :: (HasCallStack) => String -> String -> App ()
 setTechnitiumReverseProxyACL tok acl = do

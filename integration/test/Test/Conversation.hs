@@ -31,12 +31,64 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as T
 import GHC.Stack
+import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
+
+testConversationWithAppOwnTeam :: (HasCallStack) => App ()
+testConversationWithAppOwnTeam = do
+  domain <- make OwnDomain
+  (owner, tid, [mem1, mem2]) <- createTeam domain 3
+
+  let newApp :: NewApp
+      newApp =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          }
+  app <- bindResponse (createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- proteus
+  do
+    conv <- postConversation mem1 defProteus >>= getJSON 201
+    addMembers mem1 conv (def {users = [mem2]}) >>= assertSuccess
+    addMembers mem1 conv (def {users = [app]}) >>= assertLabel 403 "access-denied" -- apps don't support proteus.
+
+  -- mls
+  [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
+
+  -- mls 1:1
+  do
+    -- mem2c needs 2 key packages
+    traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, mem2c, appc]
+
+    let runCheck :: (HasCallStack) => Value -> ClientIdentity -> Value -> App ()
+        runCheck from fromc to = do
+          conv <- getMLSOne2OneConversation from to >>= getJSON 200
+          convId <- objConvId $ conv %. "conversation"
+
+          createGroup def fromc convId
+          msg1 <- createAddCommit fromc convId [to]
+          void (sendAndConsumeCommitBundle msg1)
+
+          msg2 <- createApplicationMessage convId fromc "hi new guy!"
+          void (sendAndConsumeMessage msg2)
+
+    -- regular to regular
+    runCheck mem1 mem1c mem2
+
+    -- regular to app
+    runCheck mem1 mem1c app
+
+    -- app to regular
+    runCheck app appc mem2
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do
@@ -322,7 +374,7 @@ testAddUserWithUnreachableRemoteUsers domain = do
 
     bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
     runCodensity (startDynamicBackend cDom mempty) $ \_ ->
       void $ addMembers alex conv def {users = [bobId]} >>= getBody 200
@@ -335,7 +387,7 @@ testAddUserWithUnreachableRemoteUsers domain = do
     -- assert an unreachable user cannot be added
     bindResponse (addMembers alex conv def {users = [chrisId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: (HasCallStack) => StaticDomain -> App ()
 testAddUnreachableUserFromFederatingBackend domain = do
@@ -358,7 +410,7 @@ testAddUnreachableUserFromFederatingBackend domain = do
 
     bindResponse (addMembers alice conv def {users = [chadId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachable :: (HasCallStack) => App ()
 testAddUnreachable = do
@@ -625,7 +677,7 @@ testDeleteLocalMember = do
   -- Now that Alex is gone, try removing her once again
   bindResponse (removeMember alice conv alex) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteRemoteMember :: (HasCallStack) => App ()
 testDeleteRemoteMember = do
@@ -644,7 +696,7 @@ testDeleteRemoteMember = do
   -- Now that Bob is gone, try removing him once again
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteRemoteMemberRemoteUnreachable :: (HasCallStack) => App ()
 testDeleteRemoteMemberRemoteUnreachable = do
@@ -668,7 +720,7 @@ testDeleteRemoteMemberRemoteUnreachable = do
   -- Now that Bob is gone, try removing him once again
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteTeamConversationWithRemoteMembers :: (HasCallStack) => App ()
 testDeleteTeamConversationWithRemoteMembers = do

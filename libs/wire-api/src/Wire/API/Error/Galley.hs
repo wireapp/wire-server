@@ -108,6 +108,7 @@ data GalleyError
   | ConvNotFound
   | ConvAccessDenied
   | ConvInvalidProtocolTransition
+  | HistoryNotSupported
   | -- MLS Errors
     MLSNotEnabled
   | MLSNonEmptyMemberList
@@ -243,6 +244,8 @@ type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conve
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
 
 type instance MapError 'ConvInvalidProtocolTransition = 'StaticError 403 "invalid-protocol-transition" "Protocol transition is invalid"
+
+type instance MapError 'HistoryNotSupported = 'StaticError 400 "history-not-supported" "Shared history is not supported on this conversation"
 
 type instance MapError 'InvalidTeamNotificationId = 'StaticError 400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 

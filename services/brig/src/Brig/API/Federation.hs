@@ -94,12 +94,12 @@ federationSitemap ::
   ServerT FederationAPI (Handler r)
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
-    :<|> Named @"get-user-by-handle" (\d h -> getUserByHandle d h)
-    :<|> Named @"get-users-by-ids" (\d us -> getUsersByIds d us)
+    :<|> Named @"get-user-by-handle" getUserByHandle
+    :<|> Named @"get-users-by-ids" getUsersByIds
     :<|> Named @"claim-prekey" claimPrekey
     :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
-    :<|> Named @"search-users" (\d sr -> searchUsers d sr)
+    :<|> Named @"search-users" searchUsers
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @(Versioned 'V0 "get-mls-clients") getMLSClientsV0
     :<|> Named @"get-mls-clients" getMLSClients
@@ -232,10 +232,10 @@ searchUsers ::
   Domain ->
   SearchRequest ->
   ExceptT HttpError (AppT r) SearchResponse
-searchUsers domain (SearchRequest _ mTeam (Just [])) = do
+searchUsers domain (SearchRequest _ mTeam (Just []) _) = do
   searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
   pure $ SearchResponse [] searchPolicy
-searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
+searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter) = do
   searchPolicy <- lookupSearchPolicyWithTeam domain mTeam
 
   let searches = case searchPolicy of
@@ -256,7 +256,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
 
     fullSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
     fullSearch n
-      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams) searchTerm n
+      | n > 0 = lift $ searchResults <$> Q.searchIndex (Q.FederatedSearch mOnlyInTeams mbUserTypeFilter) searchTerm n
       | otherwise = pure []
 
     exactHandleSearch :: Int -> ExceptT HttpError (AppT r) [Contact]
@@ -264,7 +264,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
       | n > 0 = do
           let maybeHandle = Handle.parseHandle searchTerm
           maybeOwnerId <- maybe (pure Nothing) (lift . liftSem . API.lookupHandle) maybeHandle
-          case maybeOwnerId of
+          matches :: [Contact] <- case maybeOwnerId of
             Nothing -> pure []
             Just foundUser -> do
               mFoundUserTeamId <- lift $ liftSem $ UserStore.getUserTeam foundUser
@@ -272,6 +272,11 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams) = do
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
                 then lift $ liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
                 else pure []
+          let filterTypes = case mbUserTypeFilter of
+                Just [] -> id
+                Just uts -> filter ((`elem` (userTypeFilterToUserType <$> uts)) . (.contactType))
+                Nothing -> id
+          pure $ filterTypes matches
       | otherwise = pure []
 
     isTeamAllowed :: Maybe [TeamId] -> Maybe TeamId -> Bool

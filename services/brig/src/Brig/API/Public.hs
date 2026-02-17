@@ -150,7 +150,7 @@ import Wire.API.User.Client.Prekey qualified as Public
 import Wire.API.User.Handle qualified as Public
 import Wire.API.User.Password qualified as Public
 import Wire.API.User.RichInfo qualified as Public
-import Wire.API.User.Search (EmailVerificationFilter)
+import Wire.API.User.Search (EmailVerificationFilter, UserTypeFilter)
 import Wire.API.User.Search qualified as Public
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -1285,9 +1285,10 @@ searchUsersHandler ::
   Text ->
   Maybe Domain ->
   Maybe (Range 1 500 Int32) ->
+  Maybe (CommaSeparatedList UserTypeFilter) ->
   Handler r (Public.SearchResult Public.Contact)
-searchUsersHandler luid term mDomain mMaxResults =
-  lift . liftSem $ User.searchUsers luid term mDomain mMaxResults
+searchUsersHandler luid term mDomain mMaxResults mTypes =
+  lift . liftSem $ User.searchUsers luid term mDomain mMaxResults (fromCommaSeparatedList <$> mTypes)
 
 createConnectionUnqualified ::
   ( Member GalleyAPIAccess r,

@@ -39,10 +39,10 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.SAML2
 import Wire.API.User.IdentityProvider (WireIdP)
+import Wire.IdPConfigStore (IdPConfigStore)
+import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 

@@ -85,7 +85,6 @@ import Spar.Scim.Group ()
 import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -101,6 +100,7 @@ import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Scim
+import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.ScimSubsystem
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)

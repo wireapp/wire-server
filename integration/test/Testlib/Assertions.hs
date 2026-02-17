@@ -245,8 +245,8 @@ shouldMatchSet ::
   b ->
   App ()
 shouldMatchSet a b = do
-  la <- fmap sort (asList a)
-  lb <- fmap sort (asList b)
+  la <- asSet a
+  lb <- asSet b
   la `shouldMatch` lb
 
 shouldBeEmpty :: (MakesValue a, HasCallStack) => a -> App ()
@@ -418,7 +418,8 @@ prettyResponse :: Response -> String
 prettyResponse r =
   unlines $
     concat
-      [ pure $ colored yellow "request: \n" <> showRequest r.request,
+      [ pure $ colored yellow "request as command line: \n" <> requestToCurl r.request,
+        pure $ colored yellow "request: \n" <> showRequest r.request,
         pure $ colored yellow "request headers: \n" <> showHeaders (HTTP.requestHeaders r.request),
         case getRequestBody r.request of
           Nothing -> []
@@ -433,7 +434,7 @@ prettyResponse r =
         pure $ colored blue "response body:",
         pure $
           ( TL.unpack . TL.decodeUtf8With Text.lenientDecode $
-              case r.jsonBody of
+              case r.json of
                 Just b -> (Aeson.encodePretty b)
                 Nothing -> BS.fromStrict r.body
           )

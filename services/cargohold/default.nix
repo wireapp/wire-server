@@ -99,6 +99,7 @@ mkDerivation {
     conduit-extra
     containers
     crypton
+    data-default
     errors
     exceptions
     extended

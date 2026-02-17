@@ -239,7 +239,6 @@ library
     Wire.ConversationStore.Migration
     Wire.ConversationStore.Migration.Cleanup
     Wire.ConversationStore.Migration.Types
-    Wire.ConversationStore.MigrationLock
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
@@ -282,6 +281,12 @@ library
     Wire.HashPassword.Argon2id
     Wire.HashPassword.Interpreter
     Wire.HashPassword.Scrypt
+    Wire.IdPConfigStore
+    Wire.IdPConfigStore.Cassandra
+    Wire.IdPConfigStore.Mem
+    Wire.IdPConfigStore.Orphans
+    Wire.IdPSubsystem
+    Wire.IdPSubsystem.Interpreter
     Wire.IndexedUserStore
     Wire.IndexedUserStore.Bulk
     Wire.IndexedUserStore.Bulk.ElasticSearch
@@ -298,6 +303,7 @@ library
     Wire.LegalHoldStore.Env
     Wire.ListItems
     Wire.Migration
+    Wire.MigrationLock
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
     Wire.PaginationState
@@ -307,6 +313,7 @@ library
     Wire.PasswordStore
     Wire.PasswordStore.Cassandra
     Wire.Postgres
+    Wire.PostgresMigrationOpts
     Wire.PostgresMigrations
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
@@ -317,6 +324,8 @@ library
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
+    Wire.SAMLEmailSubsystem
+    Wire.SAMLEmailSubsystem.Interpreter
     Wire.ScimSubsystem
     Wire.ScimSubsystem.Error
     Wire.ScimSubsystem.Interpreter
@@ -334,6 +343,12 @@ library
     Wire.TeamCollaboratorsSubsystem.Interpreter
     Wire.TeamFeatureStore
     Wire.TeamFeatureStore.Cassandra
+    Wire.TeamFeatureStore.Cassandra.Queries
+    Wire.TeamFeatureStore.Error
+    Wire.TeamFeatureStore.Migrating
+    Wire.TeamFeatureStore.Migration
+    Wire.TeamFeatureStore.Postgres
+    Wire.TeamFeatureStore.Postgres.Queries
     Wire.TeamInvitationSubsystem
     Wire.TeamInvitationSubsystem.Error
     Wire.TeamInvitationSubsystem.Interpreter
@@ -397,6 +412,7 @@ library
     , containers
     , cql
     , crypton
+    , crypton-x509
     , currency-codes
     , data-default
     , data-timeout
@@ -424,6 +440,7 @@ library
     , memory
     , mime
     , mime-mail
+    , mtl
     , network
     , network-conduit-tls
     , polysemy
@@ -484,6 +501,7 @@ test-suite wire-subsystems-tests
     Wire.BrigAPIAccess.RpcSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.HashPassword.InterpreterSpec
+    Wire.IdPSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
@@ -522,6 +540,7 @@ test-suite wire-subsystems-tests
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
+    Wire.SAMLEmailSubsystem.InterpreterSpec
     Wire.ScimSubsystem.InterpreterSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
@@ -536,6 +555,9 @@ test-suite wire-subsystems-tests
     build-tool-depends: hspec-discover:hspec-discover
 
   build-depends:
+    , crypton-x509
+    , crypton-x509-store
+    , filepath
     , hspec
     , QuickCheck
     , quickcheck-instances

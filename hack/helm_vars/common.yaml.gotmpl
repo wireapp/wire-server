@@ -16,6 +16,7 @@ dynBackendDomain3: dynamic-backend-3.{{ requiredEnv "NAMESPACE_1" }}.svc.cluster
 {{- $preferredStore := default "cassandra" (env "PREFERRED_STORE") }}
 conversationStore: {{ $preferredStore }}
 conversationCodesStore: {{ $preferredStore }}
+teamFeaturesStore: {{ $preferredStore }}
 
 {{- if (eq (env "UPLOAD_XML_S3_BASE_URL") "") }}
 uploadXml: {}

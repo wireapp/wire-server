@@ -526,13 +526,13 @@ addTeamMember ::
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     Member (Input FanoutLimit) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -570,12 +570,12 @@ uncheckedAddTeamMember ::
     Member Now r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
-    Member TeamFeatureStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member (Input FanoutLimit) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member TeamJournal r
+    Member TeamJournal r,
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   NewTeamMember ->
@@ -1115,10 +1115,10 @@ ensureNotTooLarge tid = do
 ensureNotTooLargeForLegalHold ::
   forall r.
   ( Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   Int ->
@@ -1204,10 +1204,10 @@ canUserJoinTeam ::
   forall r.
   ( Member BrigAPIAccess r,
     Member LegalHoldStore r,
-    Member TeamFeatureStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input FanoutLimit) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   Sem r ()

@@ -174,6 +174,7 @@ import Test.QuickCheck.Gen (suchThat)
 import URI.ByteString.QQ qualified as URI.QQ
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.Named hiding (unnamed)
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
@@ -325,7 +326,14 @@ resolveDbFeature defFeature dbFeature =
         LockStatusUnlocked -> feat
 
 newtype DbConfig = DbConfig {unDbConfig :: A.Value}
+  deriving newtype (Arbitrary)
   deriving (Eq, Show)
+
+instance PostgresMarshall A.Value DbConfig where
+  postgresMarshall = unDbConfig
+
+instance PostgresUnmarshall A.Value DbConfig where
+  postgresUnmarshall = Right . DbConfig
 
 instance Default DbConfig where
   def = DbConfig (A.object [])
@@ -628,6 +636,15 @@ instance Cass.Cql LockStatus where
 
   toCql LockStatusLocked = Cass.CqlInt 0
   toCql LockStatusUnlocked = Cass.CqlInt 1
+
+instance PostgresMarshall Int32 LockStatus where
+  postgresMarshall LockStatusLocked = 0
+  postgresMarshall LockStatusUnlocked = 1
+
+instance PostgresUnmarshall Int32 LockStatus where
+  postgresUnmarshall 0 = Right LockStatusLocked
+  postgresUnmarshall 1 = Right LockStatusUnlocked
+  postgresUnmarshall _ = Left "invalid lockStatus"
 
 newtype LockStatusResponse = LockStatusResponse {_unlockStatus :: LockStatus}
   deriving stock (Eq, Show, Generic)
@@ -2171,6 +2188,15 @@ instance Cass.Cql FeatureStatus where
 
   toCql FeatureStatusDisabled = Cass.CqlInt 0
   toCql FeatureStatusEnabled = Cass.CqlInt 1
+
+instance PostgresMarshall Int32 FeatureStatus where
+  postgresMarshall FeatureStatusEnabled = 1
+  postgresMarshall FeatureStatusDisabled = 0
+
+instance PostgresUnmarshall Int32 FeatureStatus where
+  postgresUnmarshall 1 = Right FeatureStatusEnabled
+  postgresUnmarshall 0 = Right FeatureStatusDisabled
+  postgresUnmarshall _ = Left "invalid feature status"
 
 -- | list of available features config types
 type Features :: [Type]

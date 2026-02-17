@@ -1,0 +1,1 @@
+Add history metadata support to channels. Channels now have a new field `history` which can be set on creation and updated by admins.

@@ -36,6 +36,7 @@ import Spar.Data.Instances ()
 import Spar.Options
 import Spar.Sem.AReqIDStore
 import Wire.API.User.Saml
+import Wire.IdPConfigStore.Orphans ()
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 

@@ -28,8 +28,6 @@ import Polysemy
 import Polysemy.TinyLog
 import Spar.Scim.User (deleteScimUser)
 import Spar.Sem.BrigAccess
-import Spar.Sem.IdPConfigStore
-import Spar.Sem.IdPConfigStore.Mem (idPToMem)
 import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem (samlUserStoreToMem)
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
@@ -42,6 +40,9 @@ import Test.QuickCheck
 import Web.Scim.Schema.Error
 import Wire.API.User
 import Wire.API.User.Scim
+import Wire.IdPConfigStore
+import Wire.IdPConfigStore.Mem (idPToMem)
+import Wire.IdPConfigStore.Orphans ()
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec

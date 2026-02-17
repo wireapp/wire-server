@@ -59,6 +59,7 @@ data ConversationActionTag
   | ConversationUpdateProtocolTag
   | ConversationUpdateAddPermissionTag
   | ConversationResetTag
+  | ConversationHistoryUpdateTag
   deriving (Show, Eq, Generic, Bounded, Enum)
 
 instance Arbitrary ConversationActionTag where
@@ -79,7 +80,8 @@ instance ToSchema ConversationActionTag where
           element "ConversationAccessDataTag" ConversationAccessDataTag,
           element "ConversationUpdateProtocolTag" ConversationUpdateProtocolTag,
           element "ConversationUpdateAddPermissionTag" ConversationUpdateAddPermissionTag,
-          element "ConversationResetTag" ConversationResetTag
+          element "ConversationResetTag" ConversationResetTag,
+          element "ConversationHistoryUpdateTag" ConversationHistoryUpdateTag
         ]
 
 instance ToJSON ConversationActionTag where

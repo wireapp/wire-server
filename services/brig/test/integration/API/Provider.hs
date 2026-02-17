@@ -41,6 +41,7 @@ import Data.ByteString.Char8 qualified as C8
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 qualified as LC8
 import Data.Code qualified as Code
+import Data.Default
 import Data.Domain
 import Data.Handle (parseHandle)
 import Data.HashMap.Strict qualified as HashMap
@@ -1295,7 +1296,8 @@ createConvWithAccessRoles ars g u us =
           newConvCells = False,
           newConvChannelAddPermission = Nothing,
           newConvSkipCreator = False,
-          newConvParent = Nothing
+          newConvParent = Nothing,
+          newConvHistory = def
         }
 
 postMessage ::

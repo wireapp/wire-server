@@ -84,7 +84,7 @@ testRevokeApplicationAccountAccessV6 = do
   user <- randomUser OwnDomain def
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 0
   let uri = "https://example.com"
   let scopes = ["write:conversations"]
@@ -95,21 +95,21 @@ testRevokeApplicationAccountAccessV6 = do
   revokeApplicationAccessV6 user cid1 >>= assertSuccess
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 2
     ids <- for apps $ \app -> app %. "id"
     ids `shouldMatchSet` [cid2, cid3]
   revokeApplicationAccessV6 user cid2 >>= assertSuccess
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 1
     ids <- for apps $ \app -> app %. "id"
     ids `shouldMatchSet` [cid3]
   revokeApplicationAccessV6 user cid3 >>= assertSuccess
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 0
 
 testRevokeApplicationAccountAccess :: App ()
@@ -117,7 +117,7 @@ testRevokeApplicationAccountAccess = do
   user <- randomUser OwnDomain def
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 0
   let uri = "https://example.com"
   let scopes = ["write:conversations"]
@@ -129,21 +129,21 @@ testRevokeApplicationAccountAccess = do
   revokeApplicationAccess user cid1 defPassword >>= assertSuccess
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 2
     ids <- for apps $ \app -> app %. "id"
     ids `shouldMatchSet` [cid2, cid3]
   revokeApplicationAccess user cid2 defPassword >>= assertSuccess
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 1
     ids <- for apps $ \app -> app %. "id"
     ids `shouldMatchSet` [cid3]
   revokeApplicationAccess user cid3 defPassword >>= assertSuccess
   bindResponse (getOAuthApplications user) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
+    apps <- resp.json & asList
     length apps `shouldMatchInt` 0
 
 generateAccessToken :: (MakesValue cid, MakesValue user) => user -> cid -> [String] -> String -> App Value
