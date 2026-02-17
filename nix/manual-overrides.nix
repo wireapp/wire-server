@@ -74,7 +74,9 @@ hself: hsuper: {
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
-  system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
+  # /proc doesn't exist on macOS, so skip tests there
+  system-linux-proc = (if stdenv.isDarwin then hlib.dontCheck else (x: x))
+    (hlib.markUnbroken hsuper.system-linux-proc);
   # FSEvents doesn't work in nix sandbox on macOS; on Linux inotify works fine
   fsnotify = (if stdenv.isDarwin then hlib.dontCheck else (x: x))
     (hlib.markUnbroken hsuper.fsnotify);
