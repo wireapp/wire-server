@@ -117,6 +117,7 @@ library
     Galley.API.Public.CustomBackend
     Galley.API.Public.Feature
     Galley.API.Public.LegalHold
+    Galley.API.Public.Meetings
     Galley.API.Public.Messaging
     Galley.API.Public.MLS
     Galley.API.Public.Servant
