@@ -1,0 +1,233 @@
+{{- if .Values.gatewayAPI.enabled }}
+# Gateway API resources for integration-test dynamic federation backends.
+# Replaces the Ingress loop in ingress.yaml when gatewayAPI.enabled=true.
+#
+# Each dynamicBackend gets its own HTTPRoute under a single shared Gateway.
+# The Gateway uses a wildcard listener hostname to cover all dynamic-backend-N
+# hostnames without requiring one listener per backend.
+#
+# Relationship to nginx-ingress-services:
+#   The nginx-ingress-services release in this namespace handles the main
+#   federation endpoint (federation-test-helper → federator service) and must
+#   also have federator.gatewayAPI.enabled=true. The Gateway here is separate
+#   so that its ClientTrafficPolicy and routing rules are scoped to integration
+#   backends only, and the two Gateways can have independent proxy configurations.
+#
+# Self-signed CA:
+#   The ClientTrafficPolicy references federator-ca-secret. In integration tests
+#   this secret lives in {{ or .Values.tls.caNamespace .Release.Namespace }}.
+#   If tls.caNamespace differs from the release namespace a ReferenceGrant is
+#   rendered below — see the nginx-ingress-services gateway-federator.yaml for
+#   the ReferenceGrant that covers the main federation endpoint; a separate one
+#   is needed here because this ClientTrafficPolicy is a distinct resource.
+---
+# EnvoyProxy: use ClusterIP so in-cluster SRV resolution works without an
+# external load balancer. The federation-test-helper Service in the
+# nginx-ingress-services release selects the federator-gateway proxy pods;
+# the integration-federator-gateway proxy pods are accessed directly via the
+# dynamic-backend-N.<namespace>.svc.cluster.local hostnames resolved by DNS.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: integration-federator-proxy-config
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: ClusterIP
+---
+# Gateway: single wildcard HTTPS listener covering all dynamic-backend-N hostnames,
+# plus an HTTP listener for the redirect rule.
+#
+# The wildcard hostname *.{{ .Release.Namespace }}.svc.cluster.local matches:
+#   dynamic-backend-1.{{ .Release.Namespace }}.svc.cluster.local
+#   dynamic-backend-2.{{ .Release.Namespace }}.svc.cluster.local
+#   ...
+#
+# The federator-certificate-secret must be a wildcard cert for this domain
+# (certificateDomain: *.{{ .Release.Namespace }}.svc.cluster.local).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: integration-federator-gateway
+spec:
+  gatewayClassName: {{ .Values.gatewayAPI.gatewayClassName | quote }}
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: integration-federator-proxy-config
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: {{ printf "*.%s.svc.cluster.local" .Release.Namespace | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: federator-certificate-secret
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: {{ printf "*.%s.svc.cluster.local" .Release.Namespace | quote }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# ClientTrafficPolicy: enforce mTLS on all dynamic-backend routes.
+# Targets the Gateway (not a specific sectionName) so it applies to the https
+# listener; the http listener carries no traffic in practice (redirect only).
+#
+# NOTE: auth-tls-verify-depth has no equivalent in ClientTrafficPolicy.
+# See the commented EnvoyPatchPolicy at the bottom of this file.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: integration-federator-mtls
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: integration-federator-gateway
+    sectionName: https
+  tls:
+    clientValidation:
+      optional: false
+      caCertificateRefs:
+        - kind: Secret
+          group: ""
+          name: federator-ca-secret
+          {{- if .Values.tls.caNamespace }}
+          namespace: {{ .Values.tls.caNamespace | quote }}
+          {{- end }}
+---
+# HTTPRoute: 301 redirect from HTTP to HTTPS for all dynamic backends.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: integration-federator-http-redirect
+spec:
+  parentRefs:
+    - name: integration-federator-gateway
+      sectionName: http
+  hostnames:
+    - {{ printf "*.%s.svc.cluster.local" .Release.Namespace | quote }}
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# EnvoyPatchPolicy: inject the mTLS peer certificate as X-SSL-Certificate on
+# all routes served by this Gateway.
+#
+# Adding at the RouteConfiguration level (path "/request_headers_to_add") rather
+# than per virtual_host means the header is set once and inherited by all routes,
+# equivalent to having the configuration-snippet on every individual Ingress.
+#
+# Verify the RouteConfiguration name before deploying — see the comment in
+# nginx-ingress-services/templates/gateway-federator.yaml for instructions.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: integration-federator-cert-header
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: integration-federator-gateway
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
+      name: {{ printf "%s/integration-federator-gateway/https" .Release.Namespace | quote }}
+      operation:
+        op: add
+        path: "/request_headers_to_add"
+        value:
+          - header:
+              key: "X-SSL-Certificate"
+              value: "%DOWNSTREAM_PEER_CERT%"
+            keep_empty_value: false
+{{- if .Values.tls.caNamespace }}
+---
+# ReferenceGrant: authorise this ClientTrafficPolicy to read federator-ca-secret
+# from {{ .Values.tls.caNamespace }}.
+#
+# This is a second ReferenceGrant distinct from the one in nginx-ingress-services
+# because each ClientTrafficPolicy is a separate resource that requires its own
+# grant — a single grant covers all ClientTrafficPolicies in the listed namespace,
+# but we need one grant entry per consuming namespace.
+#
+# Name includes both the release namespace and a suffix to avoid colliding with
+# the grant created by nginx-ingress-services in the same CA namespace.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: {{ printf "integration-federator-ca-access-%s" .Release.Namespace | quote }}
+  namespace: {{ .Values.tls.caNamespace | quote }}
+spec:
+  from:
+    - group: gateway.envoyproxy.io
+      kind: ClientTrafficPolicy
+      namespace: {{ .Release.Namespace | quote }}
+  to:
+    - group: ""
+      kind: Secret
+      name: federator-ca-secret
+{{- end }}
+{{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+---
+# HTTPRoute for dynamic backend {{ $name }}.
+# Routes federation traffic arriving at
+#   {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+# to the integration service on port {{ $dynamicBackend.federatorExternalPort }}.
+# Replaces: the Ingress resource integration-federator-{{ $name }} in ingress.yaml.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: integration-federator-{{ $name }}
+spec:
+  parentRefs:
+    - name: integration-federator-gateway
+      sectionName: https
+  hostnames:
+    - {{ printf "%s.%s.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $.Release.Namespace | quote }}
+  rules:
+    - backendRefs:
+        - name: integration
+          port: {{ $dynamicBackend.federatorExternalPort }}
+{{- end }}
+{{- end }}
+
+{{- /*
+--------------------------------------------------------------------------------
+VERIFY_DEPTH NOTE
+--------------------------------------------------------------------------------
+To enforce tls.verify_depth on this Gateway, add:
+
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: integration-federator-verify-depth
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: integration-federator-gateway
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.listener.v3.Listener"
+      name: "<namespace>/integration-federator-gateway/https"
+      operation:
+        op: add
+        path: "/filter_chains/0/transport_socket/typed_config/common_tls_context/validation_context/max_verify_depth"
+        value:
+          value: {{ .Values.tls.verify_depth }}
+-------------------------------------------------------------------------------- */}}
