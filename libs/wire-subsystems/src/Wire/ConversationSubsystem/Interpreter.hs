@@ -390,13 +390,15 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     Nothing -> do
       Left <$$> internalGetTeamCollaborator convTeam (tUnqualified lusr)
 
+  let checkGroup = do
+        void $ permissionCheck CreateConversation teamAssociation
+        when (length allUsers > 1 || Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
+          void $ permissionCheck AddRemoveConvMember teamAssociation
   case newConv.newConvGroupConvType of
     Channel -> do
       ensureCreateChannelPermissions tinfo.cnvTeamId mTeamMember
-    GroupConversation -> do
-      void $ permissionCheck CreateConversation teamAssociation
-      when (length allUsers > 1 || Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
-        void $ permissionCheck AddRemoveConvMember teamAssociation
+    GroupConversation -> checkGroup
+    MeetingConversation -> checkGroup
 
   convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
   ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)

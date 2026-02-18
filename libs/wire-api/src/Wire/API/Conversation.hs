@@ -845,7 +845,7 @@ instance PostgresMarshall Int32 ReceiptMode where
 --------------------------------------------------------------------------------
 -- create
 
-data GroupConvType = GroupConversation | Channel
+data GroupConvType = GroupConversation | Channel | MeetingConversation
   deriving stock (Eq, Show, Generic, Enum)
   deriving (Arbitrary) via (GenericUniform GroupConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvType
@@ -855,7 +855,8 @@ instance ToSchema GroupConvType where
     enum @Text "GroupConvType" $
       mconcat
         [ element "group_conversation" GroupConversation,
-          element "channel" Channel
+          element "channel" Channel,
+          element "meeting" MeetingConversation
         ]
 
 instance C.Cql GroupConvType where

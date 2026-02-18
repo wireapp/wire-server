@@ -57,6 +57,7 @@ module Data.Id
     OAuthClientId,
     OAuthRefreshTokenId,
     ChallengeId,
+    MeetingId,
 
     -- * Utils
     uuidSchema,
@@ -114,6 +115,7 @@ data IdTag
   | OAuthRefreshToken
   | Challenge
   | Job
+  | Meeting
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -129,6 +131,7 @@ idTagName OAuthClient = "OAuthClient"
 idTagName OAuthRefreshToken = "OAuthRefreshToken"
 idTagName Challenge = "Challenge"
 idTagName Job = "Job"
+idTagName Meeting = "Meeting"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -157,6 +160,8 @@ instance KnownIdTag 'OAuthRefreshToken where idTagValue = OAuthRefreshToken
 
 instance KnownIdTag 'Job where idTagValue = Job
 
+instance KnownIdTag 'Meeting where idTagValue = Meeting
+
 type AssetId = Id 'Asset
 
 type InvitationId = Id 'Invitation
@@ -184,6 +189,8 @@ type OAuthRefreshTokenId = Id 'OAuthRefreshToken
 type ChallengeId = Id 'Challenge
 
 type JobId = Id 'Job
+
+type MeetingId = Id 'Meeting
 
 -- Id -------------------------------------------------------------------------
 
