@@ -308,6 +308,8 @@ library
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.MeetingsStore
+    Wire.MeetingsStore.Postgres
     Wire.Migration
     Wire.MigrationLock
     Wire.NotificationSubsystem
