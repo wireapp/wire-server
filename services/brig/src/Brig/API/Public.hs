@@ -477,8 +477,6 @@ servantSitemap =
       Named @"get-self" getSelf
         :<|> Named @"delete-self" deleteSelfUser
         :<|> Named @"put-self" updateUser
-        :<|> Named @"change-phone" changePhone
-        :<|> Named @"remove-phone" removePhone
         :<|> Named @"remove-email" removeEmail
         :<|> Named @"check-password-exists" checkPasswordExists
         :<|> Named @"change-password" changePassword
@@ -590,7 +588,6 @@ servantSitemap =
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
       Named @"access" accessH
-        :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmail
@@ -1133,18 +1130,6 @@ updateUser uid conn uu = do
           }
   lift . liftSem $
     updateUserProfile uid (Just conn) UpdateOriginWireClient update
-
--- | Phone based functionality is not supported any more, but the handler is
--- kept here so long as client API version 5 is supported.
-changePhone ::
-  UserId ->
-  ConnId ->
-  Public.PhoneUpdate ->
-  (Handler r) (Maybe Public.ChangePhoneError)
-changePhone _ _ _ = pure . Just $ Public.InvalidNewPhone
-
-removePhone :: UserId -> Handler r (Maybe Public.RemoveIdentityError)
-removePhone _ = (lift . pure) Nothing
 
 removeEmail ::
   ( Member UserSubsystem r,
