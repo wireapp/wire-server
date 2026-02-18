@@ -147,7 +147,9 @@ testConversationWithAppOwnTeam ConvTypeTeam = do
         convId <- createNewGroupWith def fromc defMLS {team = Just tid}
         toId <- to %. "qualified_id"
 
-        events1 <- createAddCommit fromc convId [toId] >>= sendAndConsumeCommitBundle
+        events1 <-
+          createAddCommit fromc convId [toId]
+            >>= sendAndConsumeCommitBundle
         (events1 %. "events.0.conversation" & asString)
           `shouldMatch` (convId %. "id" & asString)
         (events1 %. "events.0.data.add_type" & asString)
@@ -155,7 +157,9 @@ testConversationWithAppOwnTeam ConvTypeTeam = do
         (events1 %. "events.0.data.user_ids" & asList)
           `shouldMatchSet` sequence [to %. "id"]
 
-        events2 <- createApplicationMessage convId fromc "everybody welcome new guy!" >>= sendAndConsumeMessage
+        events2 <-
+          createApplicationMessage convId fromc "everybody welcome new guy!"
+            >>= sendAndConsumeMessage
         events2 %. "events" `shouldMatchSet` ([] :: [Value])
 
   -- regular to regular
@@ -194,7 +198,9 @@ testConversationWithAppOwnTeam ConvTypeChannel = do
   let runCheck :: (HasCallStack) => ClientIdentity -> Value -> App ()
       runCheck fromc to = do
         convId <- createNewGroupWith def fromc defMLS {team = Just tid, groupConvType = Just "channel"}
-        events1 <- createAddCommit fromc convId [to] >>= sendAndConsumeCommitBundle
+        events1 <-
+          createAddCommit fromc convId [to]
+            >>= sendAndConsumeCommitBundle
         (events1 %. "events.0.conversation" & asString)
           `shouldMatch` (convId %. "id" & asString)
         (events1 %. "events.0.data.add_type" & asString)
