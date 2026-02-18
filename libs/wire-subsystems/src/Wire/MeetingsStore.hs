@@ -74,40 +74,54 @@ type StoredMeetingTuple =
   )
 
 instance PostgresMarshall StoredMeetingTuple StoredMeeting where
-  postgresMarshall sm =
-    let (rf, ri, ru) = postgresMarshall sm.recurrence
-     in ( toUUID sm.id,
-          sm.title,
-          toUUID sm.creator,
-          sm.startTime,
-          sm.endTime,
-          rf,
-          ri,
-          ru,
-          toUUID sm.conversationId,
-          V.fromList (map fromEmail sm.invitedEmails),
-          sm.trial,
-          sm.createdAt,
-          sm.updatedAt
+  postgresMarshall storedMeeting =
+    let (rFreq, rInterval, rUntil) = postgresMarshall storedMeeting.recurrence
+     in ( toUUID storedMeeting.id,
+          storedMeeting.title,
+          toUUID storedMeeting.creator,
+          storedMeeting.startTime,
+          storedMeeting.endTime,
+          rFreq,
+          rInterval,
+          rUntil,
+          toUUID storedMeeting.conversationId,
+          V.fromList (map fromEmail storedMeeting.invitedEmails),
+          storedMeeting.trial,
+          storedMeeting.createdAt,
+          storedMeeting.updatedAt
         )
 
 instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
-  postgresUnmarshall (i, t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua) = do
-    rec' <- postgresUnmarshall (rf, ri, ru)
-    pure
-      StoredMeeting
-        { id = Id i,
-          title = t,
-          creator = Id c,
-          startTime = st,
-          endTime = et,
-          recurrence = rec',
-          conversationId = Id ci,
-          invitedEmails = mapMaybe emailAddressText (V.toList ie),
-          trial = tr,
-          createdAt = ca,
-          updatedAt = ua
-        }
+  postgresUnmarshall
+    ( id',
+      title',
+      creator',
+      startTime',
+      endTime',
+      rFreq,
+      rInterval,
+      rUntil,
+      conversationId',
+      invitedEmails',
+      trial',
+      createdAt',
+      updateAt'
+      ) = do
+      recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
+      pure
+        StoredMeeting
+          { id = Id id',
+            title = title',
+            creator = Id creator',
+            startTime = startTime',
+            endTime = endTime',
+            recurrence = recurrence',
+            conversationId = Id conversationId',
+            invitedEmails = mapMaybe emailAddressText (V.toList invitedEmails'),
+            trial = trial',
+            createdAt = createdAt',
+            updatedAt = updateAt'
+          }
 
 data MeetingsStore m a where
   CreateMeeting ::
