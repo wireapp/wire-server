@@ -178,16 +178,25 @@ CREATE TABLE public.local_conversation_remote_member (
 ALTER TABLE public.local_conversation_remote_member OWNER TO "wire-server";
 
 --
+-- Name: meetings; Type: ENUM; Schema: public; Owner: wire-server
+--
+
+CREATE TYPE recurrence_frequency AS ENUM ('daily', 'weekly', 'monthly', 'yearly');
+
+
+ALTER TABLE public.recurrence_frequency OWNER TO "wire-server";
+
+--
 -- Name: meetings; Type: TABLE; Schema: public; Owner: wire-server
 --
 
 CREATE TABLE public.meetings (
-    id uuid NOT NULL,
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
     title text NOT NULL,
     creator uuid NOT NULL,
-    start_time timestamp with time zone NOT NULL,
-    end_time timestamp with time zone NOT NULL,
-    recurrence_frequency text,
+    start_time timestamptz NOT NULL,
+    end_time timestamptz NOT NULL,
+    recurrence_frequency recurrence_frequency,
     recurrence_interval integer,
     recurrence_until timestamptz,
     conversation_id uuid NOT NULL,

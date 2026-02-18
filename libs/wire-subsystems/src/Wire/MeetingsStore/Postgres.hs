@@ -3,7 +3,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -26,39 +26,33 @@ where
 import Data.Id
 import Data.Profunctor (dimap)
 import Data.Time.Clock
-import Data.UUID (UUID)
+import Data.UUID (UUID, nil)
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error (throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.MeetingsStore
+import Wire.Postgres (PGConstraints)
 
 interpretMeetingsStoreToPostgres ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   InterpreterFor MeetingsStore r
 interpretMeetingsStoreToPostgres =
   interpret $ \case
-    CreateMeeting meetingId title creator startTime endTime recurrence convId emails trial ->
-      createMeetingImpl meetingId title creator startTime endTime recurrence convId emails trial
+    CreateMeeting title creator startTime endTime recurrence convId emails trial ->
+      createMeetingImpl title creator startTime endTime recurrence convId emails trial
     GetMeeting meetingId ->
       getMeetingImpl meetingId
 
 createMeetingImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
-  MeetingId ->
+  (PGConstraints r) =>
   Text ->
   UserId ->
   UTCTime ->
@@ -68,12 +62,12 @@ createMeetingImpl ::
   [EmailAddress] ->
   Bool ->
   Sem r StoredMeeting
-createMeetingImpl meetingId title creator startTime endTime recurrence convId emails trial = do
+createMeetingImpl title creator startTime endTime recurrence convId emails trial = do
   pool <- input
   now <- liftIO getCurrentTime
   let sm =
         StoredMeeting
-          { id = meetingId,
+          { id = Id nil,
             title = title,
             creator = creator,
             startTime = startTime,
@@ -90,18 +84,18 @@ createMeetingImpl meetingId title creator startTime endTime recurrence convId em
 
 insertStatement :: Statement StoredMeeting StoredMeeting
 insertStatement =
-  dimap (postgresMarshall @StoredMeetingTuple @StoredMeeting) Imports.id $
+  dimap (tupleWithoutId . postgresMarshall @StoredMeetingTuple @StoredMeeting) Imports.id $
     refineResult
       (postgresUnmarshall @StoredMeetingTuple @StoredMeeting)
       [singletonStatement|
         INSERT INTO meetings
-        (id, title, creator, start_time, end_time,
+        (title, creator, start_time, end_time,
          recurrence_frequency, recurrence_interval, recurrence_until,
          conversation_id, invited_emails, trial, created_at, updated_at)
         VALUES
-        ($1 :: uuid, $2 :: text, $3 :: uuid, $4 :: timestamptz, $5 :: timestamptz,
-         $6 :: text?, $7 :: int4?, $8 :: timestamptz?,
-         $9 :: uuid, $10 :: text[], $11 :: boolean, $12 :: timestamptz, $13 :: timestamptz)
+        ($1 :: text, $2 :: uuid, $3 :: timestamptz, $4 :: timestamptz,
+         $5 :: text? :: recurrence_frequency, $6 :: int4?, $7 :: timestamptz?,
+         $8 :: uuid, $9 :: text[], $10 :: boolean, $11 :: timestamptz, $12 :: timestamptz)
         RETURNING
           id :: uuid, title :: text, creator :: uuid,
           start_time :: timestamptz, end_time :: timestamptz,
@@ -109,12 +103,12 @@ insertStatement =
           conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
           created_at :: timestamptz, updated_at :: timestamptz
       |]
+  where
+    tupleWithoutId (_, t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua) =
+      (t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua)
 
 getMeetingImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   MeetingId ->
   Sem r (Maybe StoredMeeting)
 getMeetingImpl meetingId = do

@@ -2,7 +2,7 @@
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -32,16 +32,27 @@ import Wire.API.User.EmailAddress (emailAddressText, fromEmail)
 import Wire.API.User.Identity (EmailAddress)
 
 data StoredMeeting = StoredMeeting
-  { id :: MeetingId,
+  { -- | unique identifier
+    id :: MeetingId,
+    -- | title of the meeting
     title :: Text,
+    -- | user who created the meeting
     creator :: UserId,
+    -- | start time of the meeting
     startTime :: UTCTime,
+    -- | end time of the meeting
     endTime :: UTCTime,
+    -- | optional recurrence pattern
     recurrence :: Maybe Recurrence,
+    -- | conversation where the meeting belongs
     conversationId :: ConvId,
+    -- | list of invited participants
     invitedEmails :: [EmailAddress],
+    -- | whether it's a trial meeting
     trial :: Bool,
+    -- | when the record was created
     createdAt :: UTCTime,
+    -- | when the record was last updated
     updatedAt :: UTCTime
   }
   deriving (Show, Eq)
@@ -100,7 +111,6 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
 
 data MeetingsStore m a where
   CreateMeeting ::
-    MeetingId ->
     Text ->
     UserId ->
     UTCTime ->

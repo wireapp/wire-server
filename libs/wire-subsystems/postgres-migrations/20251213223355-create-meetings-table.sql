@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -18,13 +18,15 @@
 -- Migration: Add meetings table to PostgreSQL
 -- Description: Creates the meetings table with all required fields, indices, and constraints
 
+CREATE TYPE recurrence_frequency AS ENUM ('daily', 'weekly', 'monthly', 'yearly');
+
 CREATE TABLE IF NOT EXISTS meetings (
-    id uuid NOT NULL,
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
     title text NOT NULL,
     creator uuid NOT NULL,
     start_time timestamptz NOT NULL,
     end_time timestamptz NOT NULL,
-    recurrence_frequency text,
+    recurrence_frequency recurrence_frequency,
     recurrence_interval integer,
     recurrence_until timestamptz,
     conversation_id uuid NOT NULL,
