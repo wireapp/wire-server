@@ -178,8 +178,7 @@ data GalleyError
   | NotAnMlsConversation
   | MLSReadReceiptsNotAllowed
   | MLSInvalidLeafNodeSignature
-  | -- Meeting errors
-    MeetingNotFound
+  | MeetingNotFound
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
