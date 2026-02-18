@@ -1,0 +1,2 @@
+cannon: Do not report status code 500 when websocket is closed due to client
+errors

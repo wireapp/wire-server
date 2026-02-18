@@ -28,6 +28,8 @@ import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
+import Network.WebSockets.Connection.PingPong
+import System.Logger qualified as Log
 import System.Logger.Class hiding (Error, close)
 import System.Logger.Class qualified as Logger
 import UnliftIO (throwIO, timeout)
@@ -37,7 +39,7 @@ maxLifetime :: Int
 maxLifetime = 3 * 24 * 3600
 
 wsapp :: Key -> Maybe ClientId -> Env -> ServerApp
-wsapp k c e pc = runWS e (go `catches` ioErrors k)
+wsapp k c e pc = runWS e (go `catches` ioErrors k c)
   where
     go = do
       runInIO <- askRunInIO
@@ -105,9 +107,15 @@ rejectOnError p x = do
     _ -> pure ()
   throwM x
 
-ioErrors :: (MonadLogger m) => Key -> [Handler m ()]
-ioErrors k =
-  let f s = Logger.err $ client (key2bytes k) . msg s
-   in [ Handler $ \(x :: HandshakeException) -> f (displayException x),
-        Handler $ \(x :: IOException) -> f (displayException x)
+ioErrors :: (MonadLogger m) => Key -> Maybe ClientId -> [Handler m ()]
+ioErrors k mClientId =
+  let f lvl s =
+        Logger.log lvl $
+          logKey k
+            . maybe id (field "clientId") (clientToText <$> mClientId)
+            . msg s
+   in [ Handler $ \(x :: HandshakeException) -> f Log.Error (displayException x),
+        Handler $ \(x :: IOException) -> f Log.Error (displayException x),
+        Handler $ \(x :: PongTimeout) -> f Log.Info (displayException x),
+        Handler $ \(x :: ConnectionException) -> f Log.Info (displayException x)
       ]
