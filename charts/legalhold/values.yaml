@@ -14,6 +14,10 @@
 # The shared secret that the backend uses to authenticate to legalhold
 # serviceToken: ""
 
+image:
+  repository: quay.io/wire/legalhold
+  tag: 1.0.2
+
 podSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:

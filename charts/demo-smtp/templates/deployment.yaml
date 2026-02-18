@@ -28,7 +28,7 @@ spec:
               app: {{ template "demo-smtp.name" . }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           env:
         {{- range $key, $val := .Values.envVars }}
             - name: {{ $key }}
