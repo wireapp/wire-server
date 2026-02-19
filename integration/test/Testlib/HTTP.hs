@@ -27,6 +27,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Data.Function
+import Data.IORef
 import Data.List
 import Data.List.Split (splitOn)
 import qualified Data.Map as Map
@@ -231,19 +232,16 @@ zHost = addHeader "Z-Host"
 
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
-  let req = req0 {HTTP.method = T.encodeUtf8 (T.pack method)}
-  -- uncomment this for more debugging noise:
-  -- liftIO $ putStrLn $ requestToCurl req
+  let request = req0 {HTTP.method = T.encodeUtf8 (T.pack method)}
   manager <- asks (.manager)
-  res <- liftIO $ HTTP.httpLbs req manager
-  pure $
-    Response
-      { json = Aeson.decode (HTTP.responseBody res),
-        body = L.toStrict (HTTP.responseBody res),
-        status = HTTP.statusCode (HTTP.responseStatus res),
-        headers = HTTP.responseHeaders res,
-        request = req
-      }
+  response <- liftIO $ HTTP.httpLbs request manager
+  let json = Aeson.decode (HTTP.responseBody response)
+      body = L.toStrict (HTTP.responseBody response)
+      status = HTTP.statusCode (HTTP.responseStatus response)
+      headers = HTTP.responseHeaders response
+  curl <- asks (.curlTrace)
+  _ <- liftIO $ modifyIORef' curl (<> [requestToCurl request, "# ==> " <> show (status, body, headers), ""])
+  pure Response {..}
 
 locationHeaderHost :: Response -> String
 locationHeaderHost resp =

@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -36,6 +39,7 @@ import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
@@ -49,6 +53,7 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.String
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
@@ -271,7 +276,8 @@ data Env = Env
     dnsMockServerConfig :: DNSMockServerConfig,
     cellsEventQueue :: String,
     cellsEventWatchersLock :: MVar (),
-    cellsEventWatchers :: IORef (Map String QueueWatcher)
+    cellsEventWatchers :: IORef (Map String QueueWatcher),
+    curlTrace :: IORef [String]
   }
 
 data Response = Response
@@ -401,11 +407,23 @@ requestToCurl req =
         defaultPort = if HTTP.secure req then 443 else 80
 
     body' = case HTTP.requestBody req of
-      HTTP.RequestBodyLBS lbs -> if lbs == mempty then "" else "--data-binary " ++ shellEscape (C8.unpack $ L.toStrict lbs)
-      HTTP.RequestBodyBS bs -> if bs == mempty then "" else "--data-binary " ++ shellEscape (C8.unpack bs)
-      HTTP.RequestBodyBuilder _ _ -> "--data-binary '<builder>'"
-      _ -> ""
+      HTTP.RequestBodyLBS lbs -> dataBinary (C8.unpack $ L.toStrict lbs)
+      HTTP.RequestBodyBS bs -> dataBinary (C8.unpack bs)
+      _ ->
+        -- this won't work
+        "--data-binary '<unsupported body type'"
 
+    dataBinary :: String -> String
+    dataBinary "" = ""
+    dataBinary raw = "--data-binary \"$(" <> customEncoded <> "| base64 -d)\""
+      where
+        customEncoded = case Aeson.decode @Aeson.Value (cs raw) of
+          Just _val -> shellEscape raw
+          Nothing -> cs $ Base64.encode $ cs raw
+
+    -- this is probably used wrong, and there are still come escape
+    -- issues to be solved.  but it should be safe as long as we're
+    -- only using it in our own integration tests, right?
     shellEscape :: String -> String
     shellEscape s = "'" ++ concatMap escape s ++ "'"
       where

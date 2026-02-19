@@ -68,11 +68,11 @@ runTest testName ge action = lowerCodensity $ do
                       -- This ensures things like UserInterrupt are properly handled.
                       E.throw e,
                     E.Handler -- AssertionFailure
-                      (fmap Left . printFailureDetails),
+                      (fmap Left . printFailureDetails env),
                     E.Handler -- AppFailure
-                      (fmap Left . printAppFailureDetails),
+                      (fmap Left . printAppFailureDetails env),
                     E.Handler
-                      (fmap Left . printExceptionDetails)
+                      (fmap Left . printExceptionDetails env)
                   ]
 
 pluralise :: Int -> String -> String

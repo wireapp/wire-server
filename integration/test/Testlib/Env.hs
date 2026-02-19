@@ -169,6 +169,7 @@ mkEnv currentTestName ge = do
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
     lpks <- newIORef someLastPrekeys
+    curlTrace <- newIORef []
     pure
       Env
         { serviceMap = gServiceMap ge,
@@ -201,7 +202,8 @@ mkEnv currentTestName ge = do
           dnsMockServerConfig = ge.gDNSMockServerConfig,
           cellsEventQueue = ge.gCellsEventQueue,
           cellsEventWatchersLock = ge.gCellsEventWatchersLock,
-          cellsEventWatchers = ge.gCellsEventWatchers
+          cellsEventWatchers = ge.gCellsEventWatchers,
+          curlTrace
         }
 
 allCiphersuites :: [Ciphersuite]

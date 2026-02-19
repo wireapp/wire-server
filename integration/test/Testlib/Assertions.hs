@@ -40,6 +40,7 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
+import Data.IORef (readIORef)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -400,24 +401,28 @@ super `shouldNotContain` sub = do
   when (sub `isInfixOf` super) $ do
     assertFailure $ "String or List:\n" <> show super <> "\nDoes contain:\n" <> show sub
 
-printFailureDetails :: AssertionFailure -> IO String
-printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
-  s <- prettierCallStack stack
+printFailureDetails :: Env -> AssertionFailure -> IO String
+printFailureDetails env (AssertionFailure stack mbResponse ctx msg) = do
+  s <- liftIO $ prettierCallStack stack
+  ct <- readIORef env.curlTrace -- TODO: if $VERBOSE != 1 (or something), this should just be "crank up verbosity if you want to have a shell script reproducing this."
   pure . unlines $
     colored yellow "assertion failure:"
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
         <> toList (fmap prettyContext ctx)
+        <> ct
 
-printAppFailureDetails :: AppFailure -> IO String
-printAppFailureDetails (AppFailure msg stack) = do
+printAppFailureDetails :: Env -> AppFailure -> IO String
+printAppFailureDetails env (AppFailure msg stack) = do
   s <- prettierCallStack stack
+  ct <- readIORef env.curlTrace -- TODO: if $VERBOSE != 1 (or something), this should just be "crank up verbosity if you want to have a shell script reproducing this."
   pure . unlines $
     colored yellow "app failure:"
       : colored red msg
       : "\n"
       : [s]
+        <> ct
 
 prettyContext :: String -> String
 prettyContext ctx = do
@@ -426,12 +431,14 @@ prettyContext ctx = do
       colored blue ctx
     ]
 
-printExceptionDetails :: SomeException -> IO String
-printExceptionDetails e = do
+printExceptionDetails :: Env -> SomeException -> IO String
+printExceptionDetails env e = do
+  ct <- readIORef env.curlTrace -- TODO: if $VERBOSE != 1 (or something), this should just be "crank up verbosity if you want to have a shell script reproducing this."
   pure . unlines $
     [ colored yellow "exception:",
       colored red (displayException e)
     ]
+      <> ct
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do
