@@ -59,6 +59,7 @@ import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.RichInfo as RichInfo
 
 data BrigAccess m a where
@@ -78,7 +79,7 @@ data BrigAccess m a where
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
   DeleteUser :: UserId -> BrigAccess m DeleteUserResult
   EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword6 -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
-  SsoLogin :: UserId -> BrigAccess m SetCookie
+  SsoLogin :: UserId -> Maybe CookieLabel -> BrigAccess m SetCookie
   GetStatus :: UserId -> BrigAccess m AccountStatus
   GetStatusMaybe :: UserId -> BrigAccess m (Maybe AccountStatus)
   SetStatus :: UserId -> AccountStatus -> BrigAccess m ()

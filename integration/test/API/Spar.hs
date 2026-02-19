@@ -240,8 +240,16 @@ finalizeSamlLogin = (flip finalizeSamlLoginWithZHost) Nothing
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-resp
 finalizeSamlLoginWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> SAML.SignedAuthnResponse -> App Response
 finalizeSamlLoginWithZHost domain mbZHost tid (SAML.SignedAuthnResponse authnresp) = do
+  finalizeSamlLoginWithZHostAndRelay domain mbZHost tid authnresp Nothing
+
+-- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-resp
+finalizeSamlLoginWithZHostAndRelay :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> XML.Document -> Maybe String -> App Response
+finalizeSamlLoginWithZHostAndRelay domain mbZHost tid authnresp mRelayState = do
   baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
-    >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
+    >>= formDataBody
+      ( [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
+          <> maybe [] (\relayState -> [partLBS (cs "RelayState") (cs relayState)]) mRelayState
+      )
     >>= \req -> submit "POST" (req & maybe id zHost mbZHost)
 
 getSsoCodeByEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response

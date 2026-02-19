@@ -32,6 +32,7 @@ module Spar.App
     deleteTeam,
     sparToServerErrorWithLogging,
     renderSparErrorWithLogging,
+    RelayStatePayload (..),
   )
 where
 
@@ -40,6 +41,7 @@ import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Data.Aeson as Aeson (encode, object, (.=))
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import Data.ByteString (toStrict)
 import qualified Data.ByteString.Builder as Builder
@@ -94,6 +96,7 @@ import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
+import Wire.API.User.Auth (CookieLabel (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.Error
@@ -289,12 +292,13 @@ verdictHandler ::
   NonEmpty SAML.Assertion ->
   SAML.AccessVerdict ->
   IdP ->
+  Maybe RelayStatePayload ->
   Sem r SAML.ResponseVerdict
-verdictHandler aresp verdict idp = do
+verdictHandler aresp verdict idp mrelaystate = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
-  Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict)
+  Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict, mrelaystate)
   reqid <- do
     let xs = SAML.assertionToInResponseTo `mapM` aresp
     case NonEmpty.nub <$> xs of
@@ -304,9 +308,9 @@ verdictHandler aresp verdict idp = do
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just VerdictFormatWeb ->
-      verdictHandlerResult verdict idp >>= verdictHandlerWeb
+      verdictHandlerResult verdict idp mrelaystate >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied) ->
-      verdictHandlerResult verdict idp >>= verdictHandlerMobile granted denied
+      verdictHandlerResult verdict idp mrelaystate >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
@@ -333,10 +337,11 @@ verdictHandlerResult ::
   ) =>
   SAML.AccessVerdict ->
   IdP ->
+  Maybe RelayStatePayload ->
   Sem r VerdictHandlerResult
-verdictHandlerResult verdict idp = do
+verdictHandlerResult verdict idp mrelaystate = do
   Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mrelaystate
   Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
@@ -409,8 +414,9 @@ verdictHandlerResultCore ::
   ) =>
   IdP ->
   SAML.AccessVerdict ->
+  Maybe RelayStatePayload ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore idp = \case
+verdictHandlerResultCore idp verdict mrelaystate = case verdict of
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
@@ -436,7 +442,7 @@ verdictHandlerResultCore idp = \case
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
-    cky <- BrigAccess.ssoLogin uid
+    cky <- BrigAccess.ssoLogin uid (cookieLabel =<< mrelaystate)
     pure $ VerifyHandlerGranted cky uid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
@@ -619,3 +625,19 @@ renderSparErrorWithLogging err = do
   let serr = renderSparError err
   Reporter.report Nothing (httpErrorToWaiError serr)
   pure serr
+
+-- TODO: (leif) move this somewhere else
+data RelayStatePayload = RelayStatePayload
+  { reqid :: Text,
+    cookieLabel :: Maybe CookieLabel
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance Aeson.FromJSON RelayStatePayload where
+  parseJSON = Aeson.withObject "RelayStatePayload" $ \o ->
+    RelayStatePayload
+      <$> o Aeson..: "reqid"
+      <*> o Aeson..:? "label"
+
+instance Aeson.ToJSON RelayStatePayload where
+  toJSON a = Aeson.object ("reqid" .= a.reqid : maybe [] (\l -> ["label" .= l]) a.cookieLabel)

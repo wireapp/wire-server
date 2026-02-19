@@ -571,9 +571,9 @@ getCookieWithSamlLogin mbZHost domain expectSuccess tid nameId mLabel (iid, (met
   spmeta <- getSPMetadataWithZHost domain mbZHost tid
   authnreq <- initiateSamlLoginWithZHostAndLabel domain mbZHost mLabel iid
   let spMetaData = toSPMetaData spmeta.body
-      parsedAuthnReq = parseAuthnReqResp authnreq.body
+      (parsedAuthnReq, relayState) = parseAuthnReqRespWithRelay authnreq.body
   authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
-  mCookie <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+  mCookie <- finalizeSamlLoginWithZHostAndRelay domain mbZHost tid (case authnReqResp of SAML.SignedAuthnResponse x -> x) relayState `bindResponse` validateLoginResp
   pure (mCookie, authnReqResp)
   where
     toSPMetaData :: ByteString -> SAML.SPMetadata
@@ -618,25 +618,39 @@ makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq =
 parseAuthnReqResp ::
   ByteString ->
   SAML.AuthnRequest
-parseAuthnReqResp bs = reqBody
+parseAuthnReqResp = fst . parseAuthnReqRespWithRelay
+
+parseAuthnReqRespWithRelay ::
+  ByteString ->
+  (SAML.AuthnRequest, Maybe String)
+parseAuthnReqRespWithRelay bs = (reqBody, relayState)
   where
     xml :: XML.Document
     xml =
       fromRight (error "malformed html in response body") $
         XML.parseText XML.def (cs bs)
 
+    inputs :: [XML.Cursor]
+    inputs =
+      XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing)
+
+    inputValueByName :: String -> Maybe String
+    inputValueByName name = do
+      input <- listToMaybe [i | i <- inputs, listToMaybe (XML.attribute (fromString "name") i) == Just (cs name)]
+      cs <$> listToMaybe (XML.attribute (fromString "value") input)
+
     reqBody :: SAML.AuthnRequest
     reqBody =
-      (XML.fromDocument xml XML.$// XML.element (XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing))
-        & head
-        & XML.attribute (fromString "value")
-        & head
+      fromMaybe (error "missing SAMLRequest input field") (inputValueByName "SAMLRequest")
         & cs
         & EL.decode
         & fromRight (error "")
         & cs
         & SAML.decodeElem
         & fromRight (error "")
+
+    relayState :: Maybe String
+    relayState = inputValueByName "RelayState"
 
 getAuthnResponse :: String -> SAML.IdPConfig extra -> SAML.SignPrivCreds -> App SAML.SignedAuthnResponse
 getAuthnResponse tid idp privCreds = do

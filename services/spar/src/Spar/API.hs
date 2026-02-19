@@ -57,9 +57,12 @@ where
 import Brig.Types.Intra
 import Cassandra as Cas
 import Control.Lens hiding ((.=))
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as SBS
+import qualified Data.ByteString.Base64.URL as Base64URL
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id
@@ -126,6 +129,7 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
@@ -341,7 +345,7 @@ authreq ::
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr _mlabel idpid mbHost = do
+authreq authreqttl msucc merr mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.MkFormRedirect _ ((^. SAML.rqID) -> reqid) _) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
@@ -357,8 +361,11 @@ authreq authreqttl msucc merr _mlabel idpid mbHost = do
         iss :: Sem r SAML.Issuer
         iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
     SAML2.authReq authreqttl iss idpid
+  let relayPayload = Aeson.encode $ RelayStatePayload (SAML.fromID reqid) (CookieLabel <$> mlabel)
+      relayState = Base64URL.encodeUnpadded (LBS.toStrict relayPayload)
+      form' = SAML.setFormRedirectRelayState (Just relayState) form
   VerdictFormatStore.store authreqttl reqid vformat
-  pure form
+  pure form'
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -412,15 +419,18 @@ authresp mbtid arbody mbHost = do
       rsp :: Sem r URI.URI
       rsp = SamlProtocolSettings.responseURI mbtid mbHostDom >>= maybe err pure
 
-  logErrors $ SAML2.authResp mbtid iss rsp go arbody
+      mRelayState :: Maybe RelayStatePayload
+      mRelayState = decodeRelayState arbody
+
+  logErrors $ SAML2.authResp mbtid iss rsp (go mRelayState) arbody
   where
-    go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
-    go _assertions idp (SAML.AccessDenied (shouldRedirectToInit -> True)) = do
+    go :: Maybe RelayStatePayload -> NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go _relayStatePayload _assertions idp (SAML.AccessDenied (shouldRedirectToInit -> True)) = do
       -- redirect back to idp for idp-initiated login.
       redirectToInit idp
-    go assertions verdict idp = do
+    go relayStatePayload assertions verdict idp = do
       -- handle the verdict
-      SAML.ResponseVerdict result <- verdictHandler assertions idp verdict
+      SAML.ResponseVerdict result <- verdictHandler assertions idp verdict relayStatePayload
       throw @SparError $ SAML.CustomServant result
 
     -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.
@@ -473,6 +483,12 @@ authresp mbtid arbody mbHost = do
           $ errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
+
+decodeRelayState :: SAML.AuthnResponseBody -> Maybe RelayStatePayload
+decodeRelayState arbody = do
+  relay <- SAML.authnResponseBodyRelayState arbody
+  raw <- either (const Nothing) Just (Base64URL.decode relay)
+  Aeson.decodeStrict' raw
 
 ssoSettings :: (Member DefaultSsoCode r) => Sem r SsoSettings
 ssoSettings =
