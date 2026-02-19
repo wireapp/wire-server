@@ -266,7 +266,7 @@ testRotateCookieSsoUser = do
   let user = object ["id" .= uid, "qualified_id" .= object ["id" .= uid, "domain" .= domain]]
   cookie1 <- maybe (assertFailure "Expected a cookie, but got no cookie") pure =<< getCookieWithSaml tid email idp
   cookie2 <- do
-    Nginz.accessRotate OwnDomain ("zuid=" <> cookie1) (Just sharedDeviceMarker) `bindResponse` \resp -> do
+    Nginz.rotateCookie OwnDomain ("zuid=" <> cookie1) (Just sharedDeviceMarker) `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       pure (fromMaybe cookie1 $ getCookie "zuid" resp)
 

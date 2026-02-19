@@ -45,7 +45,7 @@ import Data.ZAuth.Token qualified as ZAuth
 import Imports
 import Polysemy
 import Wire.API.User
-import Wire.API.User.Auth
+import Wire.API.User.Auth as Auth
 import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
 import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
@@ -78,7 +78,7 @@ data AuthenticationSubsystem m a where
     Maybe CookieLabel ->
     AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
   RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
-  AccessRotateCookie :: Maybe ClientId -> RotateCookie -> NonEmpty (Token ZAuth.U) -> AuthenticationSubsystem m SomeAccess
+  RotateCookie :: Maybe ClientId -> Auth.RotateCookie -> NonEmpty (Token ZAuth.U) -> AuthenticationSubsystem m SomeAccess
   ValidateTokens ::
     (UserTokenLike u, AccessTokenLike a) =>
     NonEmpty (ZAuth.Token u) ->

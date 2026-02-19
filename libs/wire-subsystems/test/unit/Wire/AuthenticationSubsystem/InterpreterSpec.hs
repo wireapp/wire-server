@@ -43,6 +43,7 @@ import Wire.API.Password as Password
 import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Auth
+import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Password
 import Wire.AppStore
 import Wire.AuthenticationSubsystem
@@ -406,13 +407,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
         length sto `shouldBe` 1
         (head sto).cookieId `shouldBe` cky.cookieId
 
-  describe "accessRotateCookie" do
+  describe "rotateCookie" do
     prop "rotates cookie, keeps metadata, and stores only the new cookie" $
       \localDomain uid cid typ oldLabel newLabel ->
-        let rotateReq = RotateCookie {label = newLabel}
+        let rotateReq = Auth.RotateCookie {label = newLabel}
             Right (oldCookie, rotatedAccess, storedCookies) = runAllEffects localDomain [] Nothing $ do
               old <- newCookie @_ @ZAuth.U uid cid typ oldLabel
-              rotated <- accessRotateCookie Nothing rotateReq (old.cookieValue :| [])
+              rotated <- rotateCookie Nothing rotateReq (old.cookieValue :| [])
               cookies <- listCookies uid
               pure (old, rotated, cookies)
             expectedLabel = newLabel <|> oldLabel
@@ -438,7 +439,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               old <- newCookie @_ @ZAuth.U uid cid typ mLabel
               revokeCookies uid [] []
               catchExpectedError $
-                accessRotateCookie Nothing (RotateCookie {label = Nothing}) (old.cookieValue :| [])
+                rotateCookie Nothing (Auth.RotateCookie {label = Nothing}) (old.cookieValue :| [])
          in rotateResult === Just (AuthenticationSubsystemZAuthFailure ZAuthV.Invalid)
 
   describe "randomConnId" $ do

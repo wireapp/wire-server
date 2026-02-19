@@ -58,7 +58,7 @@ userSubsystemTestInterpreter initialUsers =
     BlockListInsert _ -> error "BlockListInsert: implement on demand (userSubsystemInterpreter)"
     UpdateTeamSearchVisibilityInbound _ -> error "UpdateTeamSearchVisibilityInbound: implement on demand (userSubsystemInterpreter)"
     AcceptTeamInvitation {} -> error "AcceptTeamInvitation: implement on demand (userSubsystemInterpreter)"
-    ChangeSingleAccountStatus _ _ -> error "ChangeSingleAccountStatus: implement on demand (userSubsystemInterpreter)"
+    ChangeAccountStatus _ _ -> error "ChangeAccountStatus: implement on demand (userSubsystemInterpreter)"
     SuspendInactiveUser _ -> pure False
     InternalUpdateSearchIndex _ -> error "InternalUpdateSearchIndex: implement on demand (userSubsystemInterpreter)"
     InternalFindTeamInvitation {} -> error "InternalFindTeamInvitation: implement on demand (userSubsystemInterpreter)"

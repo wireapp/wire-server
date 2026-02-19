@@ -45,7 +45,8 @@ import System.Logger
 import Util.Timeout (Timeout (..))
 import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.User
-import Wire.API.User.Auth
+import Wire.API.User.Auth (Cookie (..), CookieId (..), SomeAccess)
+import Wire.API.User.Auth qualified as Auth
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
@@ -107,7 +108,7 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
         NewCookieLimited uid mcid typ mLabel -> runError $ newCookieLimitedImpl uid mcid typ mLabel
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
-        AccessRotateCookie mcid rotate tokens -> accessRotateCookieImpl mcid rotate tokens
+        RotateCookie mcid rotate tokens -> rotateCookieImpl mcid rotate tokens
         ValidateTokens uts at -> validateTokensImpl uts at
         MustSuspendInactiveUser uid -> mustSuspendInactiveUserImpl uid
         -- Testing
@@ -202,7 +203,7 @@ lookupCookieImpl t = do
   where
     setToken c = c {cookieValue = t}
 
-accessRotateCookieImpl ::
+rotateCookieImpl ::
   ( Member (Input AuthenticationSubsystemConfig) r,
     Member CryptoSign r,
     Member Now r,
@@ -214,10 +215,10 @@ accessRotateCookieImpl ::
     Member UserSubsystem r
   ) =>
   Maybe ClientId ->
-  RotateCookie ->
+  Auth.RotateCookie ->
   NonEmpty (Token ZAuth.U) ->
   Sem r SomeAccess
-accessRotateCookieImpl mcid rotate (oldTok :| oldToks) = do
+rotateCookieImpl mcid rotate (oldTok :| oldToks) = do
   (uid, oldCookie) <- validateTokensImpl (oldTok :| oldToks) (Nothing :: Maybe (Token ZAuth.A))
   for_ mcid $ Store.lookup uid >=> maybe (throw ZAuth.Invalid) pure
   whenM (User.suspendInactiveUser uid) $ throw ZAuth.Expired
@@ -228,7 +229,7 @@ accessRotateCookieImpl mcid rotate (oldTok :| oldToks) = do
   revokeCookiesImpl uid [oldCookie.cookieId] []
   rotatedCookie <- newCookieImpl @ZAuth.U uid newCid oldCookie.cookieType newLabel
   token <- ZAuth.newAccessToken rotatedCookie.cookieValue
-  let accessWithCookie = Access token (Just rotatedCookie)
+  let accessWithCookie = Auth.Access token (Just rotatedCookie)
   insecure <- inputs (.cookieInsecure)
   pure $ ZAuth.mkUserTokenCookie insecure <$> accessWithCookie
 

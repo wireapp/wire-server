@@ -1771,7 +1771,7 @@ type AuthAPI =
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
-           "access-rotate-cookie"
+           "rotate-cookie"
            ( "access"
                :> "rotate"
                :> Summary "Rotate the given cookie and generate an access token for it"

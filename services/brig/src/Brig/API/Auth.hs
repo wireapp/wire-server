@@ -120,16 +120,16 @@ access mcid t mt = do
   fmap (mkUserTokenCookie insecure)
     <$> Auth.renewAccess t mt mcid !>> (StdError . zauthError)
 
-accessRotateCookieH ::
+rotateCookieH ::
   (Member AuthenticationSubsystem r) =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
   RotateCookie ->
   Handler r SomeAccess
-accessRotateCookieH mcid ut' rotateReq = do
+rotateCookieH mcid ut' rotateReq = do
   ut <- handleTokenErrors ut'
   partitionTokens ut Nothing >>= \case
-    Left (uts, _) -> lift $ liftSem $ accessRotateCookie mcid rotateReq uts
+    Left (uts, _) -> lift $ liftSem $ rotateCookie mcid rotateReq uts
     -- This endpoint is meant for regular user sessions only.
     Right _ -> throwStd authTokenMismatch
 
