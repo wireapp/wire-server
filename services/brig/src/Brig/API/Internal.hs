@@ -795,7 +795,7 @@ changeAccountStatusH ::
   (Handler r) NoContent
 changeAccountStatusH usr (suStatus -> status) = do
   Log.info $ (Log.msg (Log.val "Change Account Status")) . Log.field "usr" (toByteString usr) . Log.field "status" (show status)
-  (lift $ liftSem $ changeSingleAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
+  (lift $ liftSem $ User.changeAccountStatus usr status) !>> accountStatusError -- FUTUREWORK: use CanThrow and related machinery
   pure NoContent
 
 getAccountStatusH :: (Member UserStore r) => UserId -> (Handler r) AccountStatusResp

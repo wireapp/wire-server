@@ -423,7 +423,7 @@ changeTeamAccountStatuses tid s = do
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
   uids <- toNonEmpty =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (TeamSubsystem.internalGetTeamMembersWithLimit tid Nothing))
-  API.changeAccountStatus uids s !>> accountStatusError
+  API.changeAccountStatuses uids s !>> accountStatusError
   where
     toNonEmpty (x : xs) = pure $ x :| xs
     toNonEmpty [] = throwStd (notFound "Team not found or no members")

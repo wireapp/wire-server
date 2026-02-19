@@ -28,7 +28,7 @@ module Brig.API.User
     CheckHandleResp (..),
     checkHandle,
     UserStore.lookupHandle,
-    changeAccountStatus,
+    changeAccountStatuses,
     getLegalHoldStatus,
     revokeIdentity,
     deleteUserNoVerify,
@@ -597,7 +597,7 @@ revokeIdentity key = do
 -------------------------------------------------------------------------------
 -- Change Account Status
 
-changeAccountStatus ::
+changeAccountStatuses ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
@@ -608,7 +608,7 @@ changeAccountStatus ::
   NonEmpty UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
-changeAccountStatus usrs status = do
+changeAccountStatuses usrs status = do
   ev <- mkUserEvent
   lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (update ev) usrs
   where

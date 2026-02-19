@@ -180,7 +180,7 @@ runUserSubsystem authInterpreter = interpret $
     AcceptTeamInvitation luid pwd code ->
       authInterpreter $
         acceptTeamInvitationImpl luid pwd code
-    ChangeSingleAccountStatus uid status -> authInterpreter $ changeSingleAccountStatusImpl uid status
+    ChangeAccountStatus uid status -> authInterpreter $ changeAccountStatusImpl uid status
     SuspendInactiveUser uid -> authInterpreter $ suspendInactiveUserImpl uid
     InternalFindTeamInvitation mEmailKey code ->
       internalFindTeamInvitationImpl mEmailKey code
@@ -208,10 +208,10 @@ suspendInactiveUserImpl uid = do
       Log.msg (Log.val "Suspending user due to inactivity")
         ~~ Log.field "user" (toByteString uid)
         ~~ Log.field "action" ("user.suspend" :: String)
-    void $ runError $ changeSingleAccountStatusImpl uid Suspended
+    void $ runError $ changeAccountStatusImpl uid Suspended
   pure mustsuspend
 
-changeSingleAccountStatusImpl ::
+changeAccountStatusImpl ::
   ( Member Events r,
     Member AuthenticationSubsystem r,
     Member UserStore r,
@@ -224,19 +224,19 @@ changeSingleAccountStatusImpl ::
   UserId ->
   AccountStatus ->
   Sem r ()
-changeSingleAccountStatusImpl uid status = do
+changeAccountStatusImpl uid status = do
   unlessM (UserStore.doesUserExist uid) $ throw UserSubsystemAccountNotFound
   ev <- mkUserEvent status
   UserStore.updateAccountStatus uid status
   syncUserIndex uid
-  generateUserEvent uid Nothing (ev uid)
+  generateUserEvent uid Nothing ev
   where
     mkUserEvent accountStatus =
       case accountStatus of
-        Active -> pure UserResumed
+        Active -> pure (UserResumed uid)
         Suspended -> do
           revokeCookies uid [] []
-          pure UserSuspended
+          pure (UserSuspended uid)
         Deleted -> throw UserSubsystemInvalidAccountStatus
         Ephemeral -> throw UserSubsystemInvalidAccountStatus
         PendingInvitation -> throw UserSubsystemInvalidAccountStatus
