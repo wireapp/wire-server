@@ -442,8 +442,8 @@ tests =
       testGroup
         "RotateCookie"
         $ testObjects
-          [ (testObject_RotatCookie_1, "testObject_RotatCookie_1.json"),
-            (testObject_RotatCookie_2, "testObject_RotatCookie_2.json"),
-            (testObject_RotatCookie_3, "testObject_RotatCookie_3.json")
+          [ (testObject_RotateCookie_1, "testObject_RotateCookie_1.json"),
+            (testObject_RotateCookie_2, "testObject_RotateCookie_2.json"),
+            (testObject_RotateCookie_3, "testObject_RotateCookie_3.json")
           ]
     ]

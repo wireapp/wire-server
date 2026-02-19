@@ -20,11 +20,11 @@ module Test.Wire.API.Golden.Manual.RotateCookie where
 import Imports
 import Wire.API.User.Auth
 
-testObject_RotatCookie_1 :: RotateCookie
-testObject_RotatCookie_1 = RotateCookie {label = Nothing}
+testObject_RotateCookie_1 :: RotateCookie
+testObject_RotateCookie_1 = RotateCookie {label = Nothing}
 
-testObject_RotatCookie_2 :: RotateCookie
-testObject_RotatCookie_2 = RotateCookie {label = Just ""}
+testObject_RotateCookie_2 :: RotateCookie
+testObject_RotateCookie_2 = RotateCookie {label = Just ""}
 
-testObject_RotatCookie_3 :: RotateCookie
-testObject_RotatCookie_3 = RotateCookie {label = Just "abc"}
+testObject_RotateCookie_3 :: RotateCookie
+testObject_RotateCookie_3 = RotateCookie {label = Just "abc"}
