@@ -171,3 +171,18 @@ testRefreshAppCookie = do
       resp.json %. "user" `shouldMatch` appId
       resp.json %. "token_type" `shouldMatch` "Bearer"
       resp.json %. "access_token" & asString
+
+testDeleteAppFromTeam :: (HasCallStack) => App ()
+testDeleteAppFromTeam = do
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam domain 1
+  let new = def {name = "chappie"} :: NewApp
+  appId <- bindResponse (createApp owner tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user.id" & asString
+
+  bindResponse (deleteApp owner tid appId Nothing) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (getApp owner tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 404

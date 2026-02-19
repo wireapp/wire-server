@@ -148,3 +148,14 @@ instance ToSchema RefreshAppCookieResponse where
   schema =
     object "RefreshAppCookieResponse" $
       RefreshAppCookieResponse <$> (.cookie) .= field "cookie" schema
+
+data DeleteApp = DeleteApp
+  { password :: Maybe PlainTextPassword6
+  }
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema DeleteApp
+
+instance ToSchema DeleteApp where
+  schema =
+    object "DeleteApp" $
+      DeleteApp
+        <$> (.password) .= maybe_ (optField "password" schema)

@@ -58,5 +58,11 @@ data AppSubsystem m a where
     TeamId ->
     UserId ->
     AppSubsystem m (Either RetryAfter SomeUserToken)
+  DeleteApp ::
+    Local UserId ->
+    TeamId ->
+    UserId ->
+    Apps.DeleteApp ->
+    AppSubsystem m ()
 
 makeSem ''AppSubsystem

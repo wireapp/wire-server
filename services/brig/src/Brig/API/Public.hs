@@ -634,6 +634,7 @@ servantSitemap =
         :<|> Named @"get-app" getApp
         :<|> Named @"get-apps" getApps
         :<|> Named @"refresh-app-cookie" refreshAppCookie
+        :<|> Named @"delete-app" deleteApp
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1771,6 +1772,9 @@ refreshAppCookie lusr tid appId = do
   case mc of
     Left delay -> throwE $ loginError (LoginThrottled delay)
     Right c -> pure $ RefreshAppCookieResponse c
+
+deleteApp :: (_) => Local UserId -> TeamId -> UserId -> DeleteApp -> Handler r ()
+deleteApp lusr tid appId body = lift . liftSem $ AppSubsystem.deleteApp lusr tid appId body
 
 -- Deprecated
 

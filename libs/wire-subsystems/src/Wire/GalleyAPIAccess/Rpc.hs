@@ -73,6 +73,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
    in interpret $
         runInputConst galleyEndpoint . \case
           CreateSelfConv id' -> createSelfConv v id'
+          DeleteUser id' mcon -> deleteUser id' mcon
           GetConv id' id'' -> getConv v id' id''
           GetTeamConv id' id'' id'2 -> getTeamConv v id' id'' id'2
           NewClient id' ci -> newClient id' ci
@@ -147,6 +148,27 @@ createSelfConv v u = do
         . paths [toHeader v, "conversations", "self"]
         . zUser u
         . expect2xx
+
+-- | Calls 'Galley.API.rmUserH'.
+deleteUser ::
+  ( Member Rpc r,
+    Member TinyLog r,
+    Member (Input Endpoint) r
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  Sem r ()
+deleteUser u mconn = do
+  debug $
+    remote "galley"
+      . field "user" (toByteString u)
+      . msg (val "Deleting user from Galley")
+  void . galleyRequest $
+    method DELETE
+      . paths ["i", "user"]
+      . zUser u
+      . maybe id (header "Z-Connection" . fromConnId) mconn
+      . expect2xx
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv ::

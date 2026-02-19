@@ -65,5 +65,6 @@ data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
   GetApp :: UserId -> TeamId -> AppStore m (Maybe StoredApp)
   GetApps :: TeamId -> AppStore m [StoredApp]
+  DeleteApp :: UserId -> TeamId -> AppStore m ()
 
 makeSem ''AppStore

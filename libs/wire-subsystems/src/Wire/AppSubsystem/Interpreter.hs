@@ -75,6 +75,7 @@ runAppSubsystem = interpret \case
   GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+  DeleteApp lusr tid appId body -> deleteAppImpl lusr tid appId body
 
 createAppImpl ::
   ( Member UserStore r,
@@ -262,3 +263,28 @@ appNewStoredUser creator new = do
 
 defAppSupportedProtocols :: Set BaseProtocolTag
 defAppSupportedProtocols = Set.singleton BaseProtocolMLSTag
+
+deleteAppImpl ::
+  ( Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r,
+    Member AppStore r,
+    Member AuthenticationSubsystem r,
+    Member (Input AppSubsystemConfig) r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Apps.DeleteApp ->
+  Sem r ()
+deleteAppImpl lusr tid appId (Apps.DeleteApp mPassword) = do
+  for_ mPassword $ verifyUserPasswordError lusr
+  (_, mem) <- ensureTeamMember lusr tid
+  note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
+  void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
+
+  Store.deleteApp appId tid
+  deleteUser appId Nothing
+  u <- Store.getUser appId >>= note AppSubsystemErrorAppUserNotFound
+  defLoc <- inputs defaultLocale
+  Store.deleteUser (mkUserFromStored (tDomain lusr) defLoc u)
