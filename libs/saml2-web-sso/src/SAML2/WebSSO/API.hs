@@ -30,13 +30,14 @@ import Data.EitherR
 import Data.List qualified as L
 import Data.List.NonEmpty
 import Data.Map qualified as Map
-import Data.Maybe (mapMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Proxy
 import Data.String.Conversions
 import Data.Text qualified as ST
 import Data.Text.Lazy qualified as LT
 import Data.Time
 import GHC.Generics
+import SAML2.Bindings.General (RelayState)
 import SAML2.Util
 import SAML2.WebSSO.API.UnvalidatedSAMLStatus
 import SAML2.WebSSO.Config
@@ -105,6 +106,7 @@ data AuthnResponseBody = AuthnResponseBody
       (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
       Maybe spid ->
       m (NonEmpty Assertion, IdPConfig extra, UnvalidatedSAMLStatus),
+    authnResponseBodyRelayState :: Maybe RelayState,
     authnResponseBodyRaw :: MultipartData Mem
     -- FUTUREWORK: this is only for dumping the error on the "something went wrong" page.  we
     -- should find a better solution there and remove it here.
@@ -157,8 +159,11 @@ parseAuthnResponseBody mbSPId base64 = do
   pure (signedAssertions, idp, status)
 
 instance FromMultipart Mem AuthnResponseBody where
-  fromMultipart resp = Right (AuthnResponseBody eval resp)
+  fromMultipart resp = Right (AuthnResponseBody eval relayState resp)
     where
+      relayState :: Maybe RelayState
+      relayState = either (const Nothing) (Just . cs) (lookupInput "RelayState" resp)
+
       eval ::
         forall m err spid extra.
         (SPStoreIdP (Error err) m, spid ~ IdPConfigSPId m, extra ~ IdPConfigExtra m) =>
@@ -253,8 +258,14 @@ verifyADFS creds raw nodeids = do
 -- form redirect
 
 -- | [2/3.5.4]
-data FormRedirect xml = FormRedirect URI xml
+data FormRedirect xml = MkFormRedirect URI xml (Maybe RelayState)
   deriving (Eq, Show, Generic)
+
+setFormRedirectRelayState :: Maybe RelayState -> FormRedirect payload -> FormRedirect payload
+setFormRedirectRelayState relayState (MkFormRedirect uri payload _) = MkFormRedirect uri payload relayState
+
+formRedirectRelayState :: FormRedirect payload -> Maybe RelayState
+formRedirectRelayState (MkFormRedirect _ _ relayState) = relayState
 
 class (HasXML xml) => HasFormRedirect xml where
   formRedirectFieldName :: xml -> ST
@@ -265,9 +276,10 @@ instance HasFormRedirect AuthnRequest where
 instance (HasXMLRoot xml) => MimeRender HTML (FormRedirect xml) where
   mimeRender
     (Proxy :: Proxy HTML)
-    (FormRedirect (cs . serializeURIRef' -> uri) (cs . EL.encode . cs . encode -> value)) =
-      mkHtml
-        [xml|
+    (MkFormRedirect (cs . serializeURIRef' -> uri) (cs . EL.encode . cs . encode -> value) relayState) =
+      let relayStateText = cs <$> relayState :: Maybe ST
+       in mkHtml
+            [xml|
                  <body onload="document.forms[0].submit()">
                    <noscript>
                      <p>
@@ -276,6 +288,8 @@ instance (HasXMLRoot xml) => MimeRender HTML (FormRedirect xml) where
                        Since your browser does not support JavaScript, you must press the Continue button once to proceed.
                    <form action=#{uri} method="post" accept-charset="utf-8">
                      <input type="hidden" name="SAMLRequest" value=#{value}>
+                     $maybe relay <- relayStateText
+                       <input type="hidden" name="RelayState" value=#{relay}>
                      <noscript>
                        <input type="submit" value="Continue">
              |]
@@ -285,9 +299,10 @@ instance (HasXMLRoot xml) => Servant.MimeUnrender HTML (FormRedirect xml) where
     cursor <- fmapL show $ fromDocument <$> parseLBS def lbs
     let formAction :: [ST] = cursor $// element "{http://www.w3.org/1999/xhtml}form" >=> attribute "action"
         formBody :: [ST] = cursor $// element "{http://www.w3.org/1999/xhtml}input" >=> attributeIs "name" "SAMLRequest" >=> attribute "value"
+        relayState :: [ST] = cursor $// element "{http://www.w3.org/1999/xhtml}input" >=> attributeIs "name" "RelayState" >=> attribute "value"
     uri <- fmapL (<> (": " <> show formAction)) . parseURI' $ mconcat formAction
     resp <- fmapL (<> (": " <> show formBody)) . decode . cs . EL.decodeLenient . cs $ mconcat formBody
-    pure $ FormRedirect uri resp
+    pure $ MkFormRedirect uri resp (listToMaybe relayState <&> cs)
 
 ----------------------------------------------------------------------
 -- handlers
@@ -325,7 +340,7 @@ authreq lifeExpectancySecs getSPIssuer idpid = do
     spiss <- getSPIssuer
     createAuthnRequest lifeExpectancySecs spiss idpiss
   logger Debug $ "authreq req: " <> cs (encode req)
-  leaveH $ FormRedirect uri req
+  leaveH $ MkFormRedirect uri req Nothing
 
 -- | 'authreq' with request life expectancy defaulting to 8 hours.
 authreq' ::

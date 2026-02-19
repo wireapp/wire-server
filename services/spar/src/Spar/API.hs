@@ -337,12 +337,13 @@ authreq ::
   NominalDiffTime ->
   Maybe URI.URI ->
   Maybe URI.URI ->
+  Maybe Text ->
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid mbHost = do
+authreq authreqttl msucc merr _mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr
-  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
+  form@(SAML.MkFormRedirect _ ((^. SAML.rqID) -> reqid) _) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
 
     let err :: Sem r any
@@ -450,6 +451,7 @@ authresp mbtid arbody mbHost = do
           )
             success_url
             error_url
+            Nothing -- TODO(leif)
             (idp ^. SAML.idpId)
 
         initiateLoginEndPointText :: T.Text

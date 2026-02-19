@@ -149,6 +149,7 @@ type APIAuthReq =
     "auth-req"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" Text
         -- (SAML.APIAuthReq from here on, except for the cookies)
         :> Capture "idp" SAML.IdPId
         :> ZHostOpt

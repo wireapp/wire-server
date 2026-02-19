@@ -111,7 +111,14 @@ spec = describe "API" $ do
                 <> "</html>"
           Right (SomeSAMLRequest -> doc) = XML.parseText XML.def have
           spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%25%25|]
-      (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (FormRedirect spuri doc)) `shouldBe` Right want
+      (fmapL show . parseText def . cs $ mimeRender (Proxy @HTML) (MkFormRedirect spuri doc Nothing)) `shouldBe` Right want
+    it "roundtrips RelayState" $ do
+      let Right doc =
+            parseText def "<samlp:AuthnRequest ID=\"test\" IssueInstant=\"2004-01-21T19:00:49Z\" Version=\"2.0\" xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\"></samlp:AuthnRequest>"
+          spuri = [uri|https://ServiceProvider.com/SAML/SLO/Browser/%25%25|]
+          relay = "shared-device"
+          rendered = mimeRender (Proxy @HTML) (MkFormRedirect spuri (doc :: XML.Document) (Just relay))
+      (formRedirectRelayState <$> (mimeUnrender (Proxy @HTML) rendered :: Either String (FormRedirect XML.Document))) `shouldBe` Right (Just relay)
 
   describe "simpleVerifyAuthnResponse" $ do
     let check :: Bool -> Maybe Bool -> Bool -> Spec

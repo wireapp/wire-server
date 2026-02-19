@@ -477,7 +477,11 @@ genIdPConfig genExtra = do
   pure IdPConfig {..}
 
 genFormRedirect :: Gen a -> Gen (FormRedirect a)
-genFormRedirect genBody = FormRedirect <$> genHttps <*> genBody
+genFormRedirect genBody = do
+  uri <- genHttps
+  body <- genBody
+  relay <- Gen.maybe (cs <$> Gen.text (Range.linear 1 30) Gen.alphaNum)
+  pure $ MkFormRedirect uri body relay
 
 genSimpleSetCookie :: forall (name :: Symbol). (KnownSymbol name) => Gen (SimpleSetCookie name)
 genSimpleSetCookie = do

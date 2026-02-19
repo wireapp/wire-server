@@ -165,7 +165,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
   (privKey, _, _) <- DSig.mkSignCredsWithCert Nothing 96
   authnresp :: SAML.AuthnResponse <- do
     case authnreq of
-      (SAML.FormRedirect _ req) -> do
+      (SAML.MkFormRedirect _ req _) -> do
         SAML.SignedAuthnResponse (XML.Document _ el _) <-
           runSimpleSP $
             SAML.mkAuthnResponseWithSubj subject privKey idp spmeta (Just req) True
