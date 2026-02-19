@@ -39,7 +39,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import UnliftIO qualified
-import Wire.ClientStore (ClientStore (..))
+import Wire.ClientIndexStore (ClientIndexStore (..))
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do
@@ -65,21 +65,21 @@ interpretClientStoreToCassandra ::
     Member (Input Env) r,
     Member TinyLog r
   ) =>
-  Sem (ClientStore ': r) a ->
+  Sem (ClientIndexStore ': r) a ->
   Sem r a
 interpretClientStoreToCassandra = interpret $ \case
   GetClients uids -> do
-    logEffect "ClientStore.GetClients"
+    logEffect "ClientIndexStore.GetClients"
     embedClient $ lookupClients uids
   CreateClient uid cid -> do
-    logEffect "ClientStore.CreateClient"
+    logEffect "ClientIndexStore.CreateClient"
     embedClient $ updateClient True uid cid
   DeleteClient uid cid -> do
-    logEffect "ClientStore.DeleteClient"
+    logEffect "ClientIndexStore.DeleteClient"
     embedClient $ updateClient False uid cid
   DeleteClients uid -> do
-    logEffect "ClientStore.DeleteClients"
+    logEffect "ClientIndexStore.DeleteClients"
     embedClient $ eraseClients uid
   UseIntraClientListing -> do
-    logEffect "ClientStore.UseIntraClientListing"
+    logEffect "ClientIndexStore.UseIntraClientListing"
     embedApp . view $ options . settings . intraListing

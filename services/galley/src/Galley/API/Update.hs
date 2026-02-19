@@ -132,7 +132,7 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
-import Wire.ClientStore qualified as E
+import Wire.ClientIndexStore qualified as E
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
@@ -1559,7 +1559,7 @@ removeMemberFromChannel qusr lconv victim = do
 
 postProteusMessage ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member ClientIndexStore r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
@@ -1585,7 +1585,7 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
 
 postProteusBroadcast ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member ClientIndexStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -1637,7 +1637,7 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
 
 postBotMessageUnqualified ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member ClientIndexStore r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -1667,7 +1667,7 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
 
 postOtrBroadcastUnqualified ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member ClientIndexStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -1693,7 +1693,7 @@ postOtrBroadcastUnqualified sender zcon =
 
 postOtrMessageUnqualified ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member ClientIndexStore r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -1856,7 +1856,7 @@ memberTypingUnqualified lusr zcon cnv ts = do
 
 addBot ::
   forall r.
-  ( Member ClientStore r,
+  ( Member ClientIndexStore r,
     Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1923,7 +1923,7 @@ addBot lusr zcon b = do
       pure (bots, users)
 
 rmBot ::
-  ( Member ClientStore r,
+  ( Member ClientIndexStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,

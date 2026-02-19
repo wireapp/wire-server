@@ -17,9 +17,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ClientStore
-  ( -- * ClientStore Effect
-    ClientStore (..),
+module Wire.ClientIndexStore
+  ( -- * ClientIndexStore Effect
+    ClientIndexStore (..),
 
     -- * Create client
     createClient,
@@ -41,11 +41,11 @@ import Galley.Types.Clients
 import Imports
 import Polysemy
 
-data ClientStore m a where
-  GetClients :: [UserId] -> ClientStore m Clients
-  CreateClient :: UserId -> ClientId -> ClientStore m ()
-  DeleteClient :: UserId -> ClientId -> ClientStore m ()
-  DeleteClients :: UserId -> ClientStore m ()
-  UseIntraClientListing :: ClientStore m Bool
+data ClientIndexStore m a where
+  GetClients :: [UserId] -> ClientIndexStore m Clients
+  CreateClient :: UserId -> ClientId -> ClientIndexStore m ()
+  DeleteClient :: UserId -> ClientId -> ClientIndexStore m ()
+  DeleteClients :: UserId -> ClientIndexStore m ()
+  UseIntraClientListing :: ClientIndexStore m Bool
 
-makeSem ''ClientStore
+makeSem ''ClientIndexStore
