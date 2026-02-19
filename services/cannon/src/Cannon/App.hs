@@ -112,7 +112,7 @@ ioErrors k mClientId =
   let f lvl s =
         Logger.log lvl $
           logKey k
-            . maybe id (field "clientId") (clientToText <$> mClientId)
+            . maybe id (field "clientId" . clientToText) mClientId
             . msg s
    in [ Handler $ \(x :: HandshakeException) -> f Log.Error (displayException x),
         Handler $ \(x :: IOException) -> f Log.Error (displayException x),
