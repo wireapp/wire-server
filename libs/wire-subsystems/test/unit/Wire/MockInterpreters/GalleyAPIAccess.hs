@@ -42,7 +42,6 @@ miniGalleyAPIAccess ::
   InterpreterFor GalleyAPIAccess r
 miniGalleyAPIAccess teams configs = interpret $ \case
   CreateSelfConv _ -> error "CreateSelfConv not implemented in miniGalleyAPIAccess"
-  DeleteUser {} -> pure ()
   GetConv _ _ -> error "GetConv not implemented in miniGalleyAPIAccess"
   GetTeamConv {} -> error "GetTeamConv not implemented in miniGalleyAPIAccess"
   NewClient _ _ -> error "NewClient not implemented in miniGalleyAPIAccess"

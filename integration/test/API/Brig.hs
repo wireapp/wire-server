@@ -1274,11 +1274,6 @@ refreshAppCookie u tid appId = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
   submit "POST" req
 
-deleteApp :: (MakesValue u) => u -> String -> String -> Maybe String -> App Response
-deleteApp u tid appId mPassword = do
-  req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId]
-  submit "DELETE" $ req & addJSONObject ["password" .= mPassword]
-
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handle
 checkHandle :: (MakesValue user) => user -> String -> App Response
 checkHandle self handle = do

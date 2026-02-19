@@ -46,6 +46,7 @@ module Wire.API.Routes.Internal.Brig
     FoundInvitationCode (..),
     EnterpriseLoginApi,
     SAMLIdPAPI,
+    DeleteApp,
     IdpChangedNotification (..),
   )
 where
@@ -720,6 +721,7 @@ type API =
            :<|> ProviderAPI
            :<|> EnterpriseLoginApi
            :<|> SAMLIdPAPI
+           :<|> DeleteApp
        )
 
 type SAMLIdPAPI =
@@ -732,6 +734,16 @@ type SAMLIdPAPI =
                :> Post '[Servant.JSON] ()
            )
        )
+
+type DeleteApp =
+  Named
+    "i-delete-app"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "apps"
+        :> Capture "uid" UserId
+        :> Delete '[Servant.JSON] NoContent
+    )
 
 type IStatusAPI =
   Named

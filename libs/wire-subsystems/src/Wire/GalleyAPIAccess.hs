@@ -54,10 +54,6 @@ data GalleyAPIAccess m a where
   CreateSelfConv ::
     UserId ->
     GalleyAPIAccess m ()
-  DeleteUser ::
-    UserId ->
-    Maybe ConnId ->
-    GalleyAPIAccess m ()
   GetConv ::
     UserId ->
     Local ConvId ->

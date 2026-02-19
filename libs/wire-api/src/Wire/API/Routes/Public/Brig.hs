@@ -2110,8 +2110,7 @@ type SystemSettingsAPI =
 type AppsAPI =
   Named
     "create-app"
-    ( From 'V15
-        :> CanThrow 'UserNotFound
+    ( Summary "Create a new app"
         :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -2148,16 +2147,4 @@ type AppsAPI =
                :> Capture "app" UserId
                :> "cookies"
                :> Post '[JSON] RefreshAppCookieResponse
-           )
-    :<|> Named
-           "delete-app"
-           ( Summary "Remove an app from a team"
-               :> From 'V15
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "apps"
-               :> Capture "uid" UserId
-               :> ReqBody '[JSON] DeleteApp
-               :> Delete '[JSON] ()
            )
