@@ -1285,3 +1285,9 @@ checkHandles :: (MakesValue user) => user -> [String] -> App Response
 checkHandles self handles = do
   req <- baseRequest self Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= handles]
   submit "POST" req
+
+getCookies :: (MakesValue user) => user -> [String] -> App Response
+getCookies user labels = do
+  let param = intercalate "," labels
+  req <- baseRequest user Brig Versioned "cookies"
+  submit "GET" (req & addQueryParams [("labels", param)])
