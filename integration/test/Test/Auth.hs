@@ -22,8 +22,10 @@ import API.BrigInternal
 import API.Common
 import API.GalleyInternal
 import qualified API.Nginz as Nginz
+import API.Spar
 import qualified Data.ByteString.Char8 as BSChar8
 import SetupHelpers
+import Testlib.JSON
 import Testlib.Prelude
 import Text.Read
 import UnliftIO.Async
@@ -241,3 +243,35 @@ testInvalidCookie = do
           resp.json %. "message" `shouldMatch` "Zauth token expired"
 
 -- @END
+
+testSetCookieLabelOnSsoFlow :: (HasCallStack) => App ()
+testSetCookieLabelOnSsoFlow = do
+  let sharedDeviceMarker = "shared-device"
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLEmails" "enabled"
+  idp@(samlId, _) <- do
+    (resp, (meta, creds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+    resp.status `shouldMatchInt` 201
+    (,(meta, creds)) <$> (resp.json %. "id" >>= asString)
+  scimToken <- do
+    let p = def {name = Just "my-idp", idp = Just samlId}
+    createScimToken owner p >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "externalId" >>= asString
+  uid <- bindResponse (createScimUser owner scimToken scimUser) $ \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "id" >>= asString
+  let user = object ["id" .= uid, "qualified_id" .= object ["id" .= uid, "domain" .= domain]]
+  cookie <- maybe (assertFailure "Expected a cookie, but got no cookie") pure =<< getCookieWithSaml tid email idp (Just sharedDeviceMarker)
+
+  Nginz.access OwnDomain ("zuid=" <> cookie) >>= assertSuccess
+  getCookies user [] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    cookies <- resp.json %. "cookies" >>= asList
+    -- there should be only one active cookie
+    length cookies `shouldMatchInt` 1
+    -- all cookies should be labeled as shared device
+    for_ cookies $ \c -> do
+      c %. "label" `shouldMatch` sharedDeviceMarker

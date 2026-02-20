@@ -276,6 +276,15 @@ newtype CookieLabel = CookieLabel
       ToSchema
     )
 
+instance S.ToParamSchema CookieLabel where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+
+instance FromHttpApiData CookieLabel where
+  parseUrlPiece = Right . CookieLabel
+
+instance ToHttpApiData CookieLabel where
+  toUrlPiece = cookieLabelText
+
 deriving instance Cql CookieLabel
 
 newtype CookieId = CookieId

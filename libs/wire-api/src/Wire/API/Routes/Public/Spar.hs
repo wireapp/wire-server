@@ -56,6 +56,7 @@ import Wire.API.User (EmailAddress)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
+import Wire.API.User.Auth (CookieLabel)
 
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
@@ -149,6 +150,7 @@ type APIAuthReq =
     "auth-req"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" CookieLabel
         -- (SAML.APIAuthReq from here on, except for the cookies)
         :> Capture "idp" SAML.IdPId
         :> ZHostOpt

@@ -94,3 +94,9 @@ upgradePersonalToTeam :: (HasCallStack, MakesValue user) => user -> String -> St
 upgradePersonalToTeam user token name = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["upgrade-personal-to-team"]
   submit "POST" $ req & addJSONObject ["name" .= name, "icon" .= "default"] & addHeader "Authorization" ("Bearer " <> token)
+
+rotateCookie :: (HasCallStack, MakesValue domain, MakesValue cookie) => domain -> cookie -> Maybe String -> App Response
+rotateCookie domain cookie mLabel = do
+  req <- rawBaseRequest domain Nginz Unversioned $ joinHttpPath ["access", "rotate"]
+  cookieStr <- make cookie >>= asString
+  submit "POST" (req & setCookie cookieStr & addJSONObject ["label" .= maybe Aeson.Null (Aeson.String . fromString) mLabel])

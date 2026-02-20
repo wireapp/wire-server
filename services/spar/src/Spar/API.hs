@@ -126,6 +126,7 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
@@ -337,10 +338,11 @@ authreq ::
   NominalDiffTime ->
   Maybe URI.URI ->
   Maybe URI.URI ->
+  Maybe CookieLabel ->
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid mbHost = do
+authreq authreqttl msucc merr _mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
@@ -440,6 +442,7 @@ authresp mbtid arbody mbHost = do
         -- `APIAuthReq` route.
         success_url = Nothing
         error_url = Nothing
+        cookie_label = Nothing
 
         initiateLoginEndPoint :: URI
         initiateLoginEndPoint =
@@ -450,6 +453,7 @@ authresp mbtid arbody mbHost = do
           )
             success_url
             error_url
+            cookie_label
             (idp ^. SAML.idpId)
 
         initiateLoginEndPointText :: T.Text
