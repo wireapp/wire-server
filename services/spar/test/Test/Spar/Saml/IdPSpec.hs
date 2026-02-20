@@ -547,7 +547,7 @@ brigAccessMock mbAccount = (runState @([IdpChangedNotification]) mempty .) $
     CheckHandleAvailable _handle -> undefined
     DeleteUser _userId -> undefined
     EnsureReAuthorised _mUserId _mPassword _mCode _mAction -> undefined
-    SsoLogin _userId -> undefined
+    SsoLogin _userId _label -> undefined
     GetStatus _userId -> undefined
     GetStatusMaybe _userId -> undefined
     SetStatus _userId _status -> undefined

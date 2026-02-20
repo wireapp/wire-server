@@ -53,10 +53,10 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SwaggerServant
 import Wire.API.User (EmailAddress)
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
-import Wire.API.User.Auth (CookieLabel)
 
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
@@ -141,6 +141,7 @@ type APIAuthReqPrecheck =
     "auth-req-precheck"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" CookieLabel
         :> Capture "idp" SAML.IdPId
         :> CheckOK '[PlainText] NoContent
     )

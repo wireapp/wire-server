@@ -68,6 +68,7 @@ import Wire.API.Locale
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification)
 import Wire.API.Team.Role (Role)
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
@@ -399,13 +400,14 @@ ensureReAuthorised (Just uid) secret mbCode mbAction = do
 ssoLogin ::
   (HasCallStack, MonadSparToBrig m) =>
   UserId ->
+  Maybe CookieLabel ->
   m SetCookie
-ssoLogin buid = do
+ssoLogin buid mlabel = do
   resp :: ResponseLBS <-
     call $
       method POST
         . path "/i/sso-login"
-        . json (SsoLogin buid Nothing)
+        . json (SsoLogin buid mlabel)
         . queryItem "persist" "true"
   if statusCode resp == 200
     then respToCookie resp

@@ -59,7 +59,7 @@ brigAccessToHttp mgr req =
       CheckHandleAvailable h -> Intra.checkHandleAvailable h
       DeleteUser itlu -> Intra.deleteBrigUserInternal itlu
       EnsureReAuthorised mitlu mp mc ma -> Intra.ensureReAuthorised mitlu mp mc ma
-      SsoLogin itlu -> Intra.ssoLogin itlu
+      SsoLogin itlu mlabel -> Intra.ssoLogin itlu mlabel
       GetStatus itlu -> Intra.getStatus itlu
       GetStatusMaybe itlu -> Intra.getStatusMaybe itlu
       SetStatus itlu a -> Intra.setStatus itlu a
