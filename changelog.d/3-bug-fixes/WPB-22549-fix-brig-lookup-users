@@ -1,1 +1,1 @@
-Fix logic around members with user type app and no user identity.
+Listing users never excludes apps on grounds of not having an identity.
