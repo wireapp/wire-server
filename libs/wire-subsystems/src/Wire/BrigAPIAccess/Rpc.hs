@@ -136,6 +136,8 @@ interpretBrigAccess brigEndpoint =
         updateGroup req
       DeleteGroupInternal managedBy teamId groupId ->
         deleteGroupInternal managedBy teamId groupId
+      DeleteApp teamId userId ->
+        deleteApp teamId userId
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -698,6 +700,18 @@ deleteGroupInternal managedBy teamId groupId = do
   where
     errorLabel :: ResponseLBS -> Maybe LText
     errorLabel = fmap Wai.label . responseJsonMaybe
+
+deleteApp ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  TeamId ->
+  UserId ->
+  Sem r ()
+deleteApp teamId userId = do
+  void $
+    brigRequest $
+      method DELETE
+        . paths ["i", "teams", toByteString' teamId, "apps", toByteString' userId]
+        . expect2xx
 
 is2xx :: ResponseLBS -> Bool
 is2xx = statusIs2xx . statusCode

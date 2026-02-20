@@ -96,6 +96,8 @@ import Wire.API.UserEvent
 import Wire.API.UserGroup (UserGroup)
 import Wire.API.UserGroup.Pagination
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AppSubsystem (AppSubsystem)
+import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
@@ -182,7 +184,8 @@ servantSitemap ::
     Member Now r,
     Member CryptoSign r,
     Member Random r,
-    Member SAMLEmailSubsystem r
+    Member SAMLEmailSubsystem r,
+    Member AppSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -201,6 +204,7 @@ servantSitemap =
     :<|> Provider.internalProviderAPI
     :<|> enterpriseLoginApi
     :<|> samlIdPApi
+    :<|> Named @"i-delete-app" deleteAppH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -1058,3 +1062,6 @@ deleteGroupManagedInternalH ::
 deleteGroupManagedInternalH tid gid managedBy = do
   lift . liftSem $ deleteGroupManaged managedBy tid gid
   pure NoContent
+
+deleteAppH :: (Member AppSubsystem r) => TeamId -> UserId -> Handler r NoContent
+deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoContent

@@ -44,6 +44,7 @@ interpretAppStoreToPostgres =
     CreateApp app -> createAppImpl app
     GetApp userId teamId -> getAppImpl userId teamId
     GetApps teamId -> getAppsImpl teamId
+    DeleteApp userId teamId -> deleteAppImpl userId teamId
 
 createAppImpl ::
   ( Member (Input Pool) r,
@@ -85,3 +86,17 @@ getAppsImpl tid =
     dimapPG
       [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
         from apps where team_id = ($1 :: uuid) |]
+
+deleteAppImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Sem r ()
+deleteAppImpl uid tid =
+  runStatement (uid, tid) $
+    lmapPG
+      [resultlessStatement|
+        delete from apps where user_id = ($1 :: uuid) and team_id = ($2 :: uuid) |]

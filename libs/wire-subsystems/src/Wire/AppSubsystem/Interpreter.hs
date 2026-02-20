@@ -75,6 +75,7 @@ runAppSubsystem = interpret \case
   GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+  DeleteApp tid appId -> deleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,
@@ -262,3 +263,11 @@ appNewStoredUser creator new = do
 
 defAppSupportedProtocols :: Set BaseProtocolTag
 defAppSupportedProtocols = Set.singleton BaseProtocolMLSTag
+
+deleteAppImpl ::
+  (Member AppStore r) =>
+  TeamId ->
+  UserId ->
+  Sem r ()
+deleteAppImpl teamId appId =
+  Store.deleteApp appId teamId

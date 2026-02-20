@@ -58,5 +58,9 @@ data AppSubsystem m a where
     TeamId ->
     UserId ->
     AppSubsystem m (Either RetryAfter SomeUserToken)
+  DeleteApp ::
+    TeamId ->
+    UserId ->
+    AppSubsystem m ()
 
 makeSem ''AppSubsystem

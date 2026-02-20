@@ -69,6 +69,7 @@ module Wire.BrigAPIAccess
     getGroupsInternal,
     updateGroup,
     deleteGroupInternal,
+    deleteApp,
     DeleteGroupManagedError (..),
   )
 where
@@ -168,6 +169,7 @@ data BrigAPIAccess m a where
   GetGroupsInternal :: TeamId -> Maybe Scim.Filter -> Maybe ManagedBy -> Word -> Maybe Word -> BrigAPIAccess m UserGroupPageWithMembers
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m (Either Wai.Error ())
   DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
+  DeleteApp :: TeamId -> UserId -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 
