@@ -55,7 +55,6 @@ storeVerdictFormat ::
   VerdictFormat ->
   m ()
 storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr, mlabel)) = do
-  -- TODO: leif
   let ttl = nominalDiffToSeconds diffTime * 2
   retry x5 . write cql $ params LocalQuorum (req, fmtCon, fmtMobSucc, fmtMobErr, mlabel, ttl)
   where
