@@ -1005,16 +1005,20 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
   pure $ filter weWant afterGC
   where
     weWant :: User -> Bool
-    weWant user =
-      not dropBecauseInvitationPending
-        && ( isJust user.userIdentity
-               || includeUsersWithoutIdentity
-               || user.userType == UserTypeApp
-           )
-      where
-        dropBecauseInvitationPending =
-          includePendingInvitations == NoPendingInvitations
-            && user.userStatus == PendingInvitation
+    weWant user = applyPendingInvitationsFilter user && applyIdentityFilter user
+
+    applyPendingInvitationsFilter :: User -> Bool
+    applyPendingInvitationsFilter user =
+      case (includePendingInvitations, user.userStatus) of
+        (NoPendingInvitations, PendingInvitation) -> False
+        _ -> True
+
+    applyIdentityFilter :: User -> Bool
+    applyIdentityFilter user =
+      case (user.userType, includeUsersWithoutIdentity, user.userIdentity) of
+        (UserTypeApp, _, _) -> True
+        (_, False, Nothing) -> False
+        _ -> True
 
     -- user invited via scim expires together with its invitation. the UserSubsystem interface
     -- semantics hides the fact that pending users have no TTL field. we chose to emulate this
