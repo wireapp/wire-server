@@ -90,6 +90,7 @@ type APISSO =
     :<|> Named
            "sso-get-by-email"
            ( "get-by-email"
+               :> From 'V15
                :> ZHostOpt
                :> ReqBody '[JSON] GetByEmailReq
                :> MultiVerb
