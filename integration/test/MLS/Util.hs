@@ -77,7 +77,7 @@ data MessagePackage = MessagePackage
     groupInfo :: Maybe ByteString,
     appMessage :: Maybe ByteString
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 toRandomFile :: ByteString -> App FilePath
 toRandomFile bs = do
