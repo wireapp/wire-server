@@ -567,6 +567,9 @@ getAccountsBy localGetBy = do
   decodeBodyOrThrow "brig" r
 
 -- | Calls 'Brig.API.Internal.listActivatedAccountsH' (iGetUsersByVariousKeys).
+--
+-- FUTUREWORK: are we sure this is really needed?  the only call site
+-- looks weird.
 getUsersByVariousKeys ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   [UserId] ->

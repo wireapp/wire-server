@@ -1002,18 +1002,22 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
       then pure accsByIds
       else garbageCollect accsByIds
 
-  pure $ filter (\u -> filterPendingInvitations u && filterNoIdentity u) afterGC
+  pure $ filter weWant afterGC
   where
-    filterPendingInvitations :: User -> Bool
-    filterPendingInvitations user =
+    weWant :: User -> Bool
+    weWant user = applyPendingInvitationsFilter user && applyIdentityFilter user
+
+    applyPendingInvitationsFilter :: User -> Bool
+    applyPendingInvitationsFilter user =
       case (includePendingInvitations, user.userStatus) of
         (NoPendingInvitations, PendingInvitation) -> False
         _ -> True
 
-    filterNoIdentity :: User -> Bool
-    filterNoIdentity user =
-      case (includeUsersWithoutIdentity, user.userIdentity) of
-        (False, Nothing) -> False
+    applyIdentityFilter :: User -> Bool
+    applyIdentityFilter user =
+      case (user.userType, includeUsersWithoutIdentity, user.userIdentity) of
+        (UserTypeApp, _, _) -> True
+        (_, False, Nothing) -> False
         _ -> True
 
     -- user invited via scim expires together with its invitation. the UserSubsystem interface
