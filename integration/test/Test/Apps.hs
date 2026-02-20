@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Galley
 import SetupHelpers
 import Testlib.Prelude
 
