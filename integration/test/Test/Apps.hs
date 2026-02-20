@@ -26,7 +26,7 @@ import Testlib.Prelude
 
 testCreateApp :: (HasCallStack) => App ()
 testCreateApp = do
-  -- TODO: what about federation?
+  -- FUTUREWORK: what about federation?
   domain <- make OwnDomain
   (owner, tid, [regularMember]) <- createTeam domain 2
   let new =

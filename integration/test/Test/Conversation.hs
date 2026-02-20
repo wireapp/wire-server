@@ -40,17 +40,9 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
 
-data ConvType = ConvTypeProteus | ConvTypeOne2One | ConvTypeTeam | ConvTypeChannel
-  deriving (Eq, Show, Generic)
-
--- | The `ConvType` could be dropped in favor of just having four
--- independent test functions without arg, but the type shows that
--- these tests are structurally very similar, and we could reduce the
--- redundancy further.
---
--- TODO: what about federation?
-testConversationWithAppOwnTeam :: (HasCallStack) => ConvType -> App ()
-testConversationWithAppOwnTeam ConvTypeProteus = do
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeProteus :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeProteus = do
   (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
   let newApp :: NewApp
@@ -72,9 +64,10 @@ testConversationWithAppOwnTeam ConvTypeProteus = do
   -- avoided it thus far.)
   -- see also: https://wearezeta.atlassian.net/browse/WPB-18413
   addMembers mem1 conv (def {users = [app]}) >>= assertSuccess
---
 
-testConversationWithAppOwnTeam ConvTypeOne2One = do
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeOne2One :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeOne2One = do
   (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
   let newApp :: NewApp
@@ -126,10 +119,11 @@ testConversationWithAppOwnTeam ConvTypeOne2One = do
 
   -- app to regular
   runCheck app appc mem2
---
 
-testConversationWithAppOwnTeam ConvTypeTeam = do
-  -- prior art: `testMigrationToPostgresMLS`
+-- prior art: `testMigrationToPostgresMLS`
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeTeam :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeTeam = do
   (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
   let newApp :: NewApp
@@ -156,7 +150,7 @@ testConversationWithAppOwnTeam ConvTypeTeam = do
             >>= sendAndConsumeCommitBundle
 
         unless (fromc == appc) do
-          -- TODO: remove the condition above.
+          -- FUTUREWORK: remove the condition above.
           --
           -- `mem2` does not receive an event for `runCheck appc
           -- mem2`, but we'll fix that problem in the next PR.  This
@@ -182,9 +176,10 @@ testConversationWithAppOwnTeam ConvTypeTeam = do
 
   -- regular to app
   runCheck mem1c app
---
 
-testConversationWithAppOwnTeam ConvTypeChannel = do
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeChannel :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeChannel = do
   -- prior art: `testSetHistory`
   (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
 
@@ -204,7 +199,6 @@ testConversationWithAppOwnTeam ConvTypeChannel = do
 
   [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
 
-  -- TODO: you sure about this?
   traverse_ (uploadNewKeyPackage def) [mem1c, mem1c, mem2c, mem2c, appc, appc]
 
   let runCheck :: (HasCallStack) => ClientIdentity -> Value -> App ()
