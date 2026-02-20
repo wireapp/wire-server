@@ -176,19 +176,27 @@ identityErrorToBrigError = \case
 
 verifyUniquenessAndCheckBlacklist ::
   ( Member BlockListStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   EmailKey ->
   ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
-  checkKey Nothing uk
+  muid <- lift $ liftSem $ lookupKey uk
+  case muid of
+    Just uid -> do
+      luid <- lift $ liftSem $ qualifyLocal' uid
+      muser <- lift $ liftSem $ getLocalAccountBy WithPendingInvitations luid
+      if maybe True (\u -> userStatus u == Deleted) muser
+        then do
+          -- if the user does not exist or is deleted, repair inconsistency and
+          -- allow registration to proceed
+          lift $ liftSem $ deleteKeyForUser uid uk
+        else throwE IdentityErrorUserKeyExists
+    Nothing -> pure ()
   blacklisted <- lift $ liftSem $ BlockListStore.exists uk
   when blacklisted $ throwE IdentityErrorBlacklistedEmail
-  where
-    checkKey u k = do
-      av <- lift $ liftSem $ keyAvailable k u
-      unless av $
-        throwE IdentityErrorUserKeyExists
 
 createUserSpar ::
   forall r.
@@ -352,7 +360,9 @@ createUser rateLimitKey new = do
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing -> do
-        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
+        for_
+          (emailIdentity =<< new.newUserIdentity)
+          (lift . liftSem . guardRegisterActivateUserEmailDomain)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-
@@ -541,8 +551,10 @@ createUserInviteViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (UserPendingActivationStore p) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r
   ) =>
   NewUserScimInvitation ->
   ExceptT HttpError (AppT r) User

@@ -154,7 +154,8 @@ createInvitationViaScim ::
     Member (UserPendingActivationStore p) r,
     Member TinyLog r,
     Member TeamInvitationSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member UserSubsystem r
   ) =>
   TeamId ->
   NewUserScimInvitation ->
