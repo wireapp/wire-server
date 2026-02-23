@@ -45,19 +45,18 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
-import Wire.UserClientIndexStore qualified as E
 import Wire.ConversationStore (getConversation)
+import Wire.ConversationSubsystem qualified as ConvSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
+import Wire.UserClientIndexStore qualified as E
 
 getClients ::
-  ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r
-  ) =>
+  (Member ConvSubsystem.ConversationSubsystem r) =>
   UserId ->
   Sem r [ClientId]
-getClients usr = clientIds usr <$> getBrigClients [usr]
+getClients usr = clientIds usr <$> ConvSubsystem.internalGetClientIds [usr]
 
 -- | Remove a client from conversations it is part of according to the
 -- conversation protocol (Proteus or MLS). In addition, remove the client from

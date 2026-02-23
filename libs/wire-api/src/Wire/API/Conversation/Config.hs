@@ -32,7 +32,8 @@ data ConversationSubsystemConfig = ConversationSubsystemConfig
   { mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
     federationProtocols :: Maybe [ProtocolTag],
     legalholdDefaults :: FeatureDefaults LegalholdConfig,
-    maxConvSize :: Word16
+    maxConvSize :: Word16,
+    listClientsUsingBrig :: Bool
   }
   deriving (Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ConversationSubsystemConfig)
@@ -45,3 +46,4 @@ instance ToSchema ConversationSubsystemConfig where
         <*> (.federationProtocols) .= maybe_ (optField "federation_protocols" (array schema))
         <*> (.legalholdDefaults) .= field "legalhold_defaults" schema
         <*> (.maxConvSize) .= field "max_conv_size" schema
+        <*> (.listClientsUsingBrig) .= field "listClientsUsingBrig" schema

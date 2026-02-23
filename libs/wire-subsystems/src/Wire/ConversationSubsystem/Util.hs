@@ -40,7 +40,6 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Text qualified as T
 import Data.Time
-import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Error
 import Imports hiding (forkIO)
@@ -79,7 +78,6 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.UserClientIndexStore
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
@@ -1128,18 +1126,6 @@ ensureMemberLimit _ old new = do
 
 getLocalUsers :: Domain -> NonEmpty (Qualified UserId) -> [UserId]
 getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomain) . toList
-
-getBrigClients ::
-  ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r
-  ) =>
-  [UserId] ->
-  Sem r Clients
-getBrigClients users = do
-  isInternal <- useIntraClientListing
-  if isInternal
-    then fromUserClients <$> lookupClients users
-    else getClients users
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError

@@ -369,6 +369,7 @@ library
     Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
     Wire.UserClientIndexStore
+    Wire.UserClientIndexStore.Cassandra
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem

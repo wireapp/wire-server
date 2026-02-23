@@ -132,7 +132,6 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
-import Wire.UserClientIndexStore qualified as E
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
@@ -152,6 +151,7 @@ import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
 
@@ -1585,7 +1585,6 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
 
 postProteusBroadcast ::
   ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -1596,7 +1595,8 @@ postProteusBroadcast ::
     Member TeamStore r,
     Member TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member ConversationSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1667,7 +1667,6 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
 
 postOtrBroadcastUnqualified ::
   ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -1678,7 +1677,8 @@ postOtrBroadcastUnqualified ::
     Member TeamStore r,
     Member TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member ConversationSubsystem r
   ) =>
   Local UserId ->
   ConnId ->

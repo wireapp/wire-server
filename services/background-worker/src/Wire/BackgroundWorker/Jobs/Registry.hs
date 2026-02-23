@@ -93,6 +93,7 @@ import Wire.TeamFeatureStore.Error (TeamFeatureStoreError)
 import Wire.TeamJournal.Aws (interpretTeamJournal)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter (TeamSubsystemConfig (..), interpretTeamSubsystem)
+import Wire.UserClientIndexStore.Cassandra
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
@@ -215,6 +216,7 @@ dispatchJob job = do
         . interpretUserStoreCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
         . interpretTeamFeatureStoreToCassandra
+        . interpretUserClientIndexStoreToCassandra env.cassandraGalley
         . convStoreInterpreter env
         . interpretTeamStoreToCassandra
         . interpretTeamCollaboratorsStoreToPostgres

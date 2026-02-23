@@ -30,15 +30,11 @@ module Wire.UserClientIndexStore
     -- * Delete client
     deleteClient,
     deleteClients,
-
-    -- * Configuration
-    useIntraClientListing,
   )
 where
 
 import Data.Id
 import Galley.Types.Clients
-import Imports
 import Polysemy
 
 data UserClientIndexStore m a where
@@ -46,6 +42,5 @@ data UserClientIndexStore m a where
   CreateClient :: UserId -> ClientId -> UserClientIndexStore m ()
   DeleteClient :: UserId -> ClientId -> UserClientIndexStore m ()
   DeleteClients :: UserId -> UserClientIndexStore m ()
-  UseIntraClientListing :: UserClientIndexStore m Bool
 
 makeSem ''UserClientIndexStore

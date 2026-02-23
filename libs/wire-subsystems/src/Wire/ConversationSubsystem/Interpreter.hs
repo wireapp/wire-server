@@ -32,6 +32,7 @@ import Data.Set qualified as Set
 import Data.Singletons (Sing)
 import Data.UUID.Tagged qualified as U
 import GHC.TypeNats
+import Galley.Types.Clients (Clients, fromUserClients)
 import Galley.Types.Error (InternalError, InvalidInput (..))
 import Imports
 import Network.AMQP qualified as Q
@@ -87,6 +88,8 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore (UserClientIndexStore)
+import Wire.UserClientIndexStore qualified as UserClientIndexStore
 import Wire.UserList (UserList (UserList), toUserList, ulAddLocal, ulAll, ulFromLocals, ulLocals, ulRemotes)
 
 interpretConversationSubsystem ::
@@ -122,7 +125,8 @@ interpretConversationSubsystem ::
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member UserClientIndexStore r
   ) =>
   Sem (ConversationSubsystem : r) a ->
   Sem r a
@@ -137,6 +141,8 @@ interpretConversationSubsystem = interpret $ \case
     createProteusSelfConversationLogic lusr
   ConversationSubsystem.CreateConnectConversation lusr conn j ->
     createConnectConversationLogic lusr conn j
+  InternalGetClientIds uids ->
+    internalGetClientIdsImpl uids
 
 createGroupConversationGeneric ::
   forall r.
@@ -799,3 +805,16 @@ notifyConversationActionImpl tag eventFrom notifyOrigDomain con lconv targetsLoc
   pushConversationEvent con conv.metadata.cnvmCellsState e (qualifyAs lcnv targetsLocal) targetsBots
 
   pure $ LocalConversationUpdate {lcuEvent = e, lcuUpdate = update}
+
+internalGetClientIdsImpl ::
+  ( Member BrigAPIAccess r,
+    Member UserClientIndexStore r,
+    Member (Input ConversationSubsystemConfig) r
+  ) =>
+  [UserId] ->
+  Sem r Clients
+internalGetClientIdsImpl users = do
+  isInternal <- inputs (.listClientsUsingBrig)
+  if isInternal
+    then fromUserClients <$> lookupClients users
+    else UserClientIndexStore.getClients users

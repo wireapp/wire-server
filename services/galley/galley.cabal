@@ -135,7 +135,6 @@ library
     Galley.API.Update
     Galley.App
     Galley.Cassandra
-    Galley.Cassandra.Client
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility

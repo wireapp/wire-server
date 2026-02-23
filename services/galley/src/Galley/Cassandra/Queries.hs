@@ -16,7 +16,6 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Tables that are used in this module:
--- - clients
 -- - conversation_codes
 -- - custom_backend
 -- - legalhold_pending_prekeys
@@ -29,10 +28,6 @@ module Galley.Cassandra.Queries
   ( selectCustomBackend,
     upsertCustomBackend,
     deleteCustomBackend,
-    upsertMemberAddClient,
-    upsertMemberRmClient,
-    selectClients,
-    rmClients,
     selectSearchVisibility,
     updateSearchVisibility,
     insertLegalHoldSettings,
@@ -52,31 +47,12 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.LegalHold
 import Data.Misc
-import Data.Text.Lazy qualified as LT
 import Imports
 import Text.RawString.QQ
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
-
--- Clients ------------------------------------------------------------------
-
-selectClients :: PrepQuery R (Identity [UserId]) (UserId, C.Set ClientId)
-selectClients = "select user, clients from clients where user in ?"
-
-rmClients :: PrepQuery W (Identity UserId) ()
-rmClients = "delete from clients where user = ?"
-
-upsertMemberAddClient :: ClientId -> QueryString W (Identity UserId) ()
-upsertMemberAddClient c =
-  let t = LT.fromStrict (clientToText c)
-   in QueryString $ "update clients set clients = clients + {'" <> t <> "'} where user = ?"
-
-upsertMemberRmClient :: ClientId -> QueryString W (Identity UserId) ()
-upsertMemberRmClient c =
-  let t = LT.fromStrict (clientToText c)
-   in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
 
 -- LegalHold ----------------------------------------------------------------
 
