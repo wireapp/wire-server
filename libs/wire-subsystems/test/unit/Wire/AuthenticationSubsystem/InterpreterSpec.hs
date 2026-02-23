@@ -23,6 +23,7 @@ import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.Set qualified as Set
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
 import Data.ZAuth.CryptoSign (CryptoSign)
@@ -394,6 +395,35 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               pure (c, s)
         length sto `shouldBe` 1
         (head sto).cookieId `shouldBe` cky.cookieId
+
+    prop "old cookies with same label are revoked on insert" $
+      \localDomain uid cid typ mLabel otherLabel ->
+        let Right (cookie1, cookie2, cookie3, cookies) =
+              runAllEffects localDomain [] Nothing $
+                (,,,)
+                  <$> newCookie @_ @ZAuth.U uid cid typ mLabel
+                  <*> newCookie @_ @ZAuth.U uid cid typ mLabel
+                  <*> newCookie @_ @ZAuth.U uid cid typ (Just otherLabel)
+                  <*> (Set.fromList . fmap cookieId <$> listCookies uid)
+         in case mLabel of
+              Just l | l == otherLabel -> cookies `shouldBe` Set.singleton cookie3.cookieId
+              Just _ -> cookies `shouldBe` Set.fromList (cookieId <$> [cookie2, cookie3])
+              Nothing -> cookies `shouldBe` Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+
+    prop "same-label revocation does not affect other users" $
+      \localDomain uidA uidB cid typ lab ->
+        uidA /= uidB ==>
+          let Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB) =
+                runAllEffects localDomain [] Nothing $
+                  (,,,,)
+                    <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab)
+                    <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab)
+                    <*> newCookie @_ @ZAuth.U uidA cid typ (Just lab)
+                    <*> (Set.fromList . fmap cookieId <$> listCookies uidA)
+                    <*> (Set.fromList . fmap cookieId <$> listCookies uidB)
+           in cookiesA === Set.singleton cookieA2.cookieId
+                .&&. cookiesB === Set.singleton cookieB.cookieId
+                .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
 
   describe "randomConnId" $ do
     it "generates different connection ids" $ do
