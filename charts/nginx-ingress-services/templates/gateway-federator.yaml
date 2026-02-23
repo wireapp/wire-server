@@ -1,0 +1,246 @@
+{{- if and .Values.federator.enabled .Values.federator.gatewayAPI.enabled }}
+{{- if .Values.config.isAdditionalIngress -}}
+  {{ fail "Federation and multi-backend-domain (multi-ingress) cannot be configured together." }}
+{{- end -}}
+# Gateway API resources for federation mTLS — replaces federator-ingress when
+# federator.gatewayAPI.enabled=true.
+#
+# Prerequisites:
+#   Envoy Gateway installed and a GatewayClass named {{ .Values.federator.gatewayAPI.gatewayClassName }}
+#   https://gateway.envoyproxy.io/docs/tasks/quickstart/
+#
+# Replacing these ingress-nginx annotations:
+#   ssl-redirect             → HTTPRoute with RequestRedirect filter
+#   auth-tls-verify-client   → ClientTrafficPolicy tls.clientValidation.optional=false
+#   auth-tls-secret          → ClientTrafficPolicy tls.clientValidation.caCertificateRefs
+#   auth-tls-verify-depth    → EnvoyPatchPolicy (not in ClientTrafficPolicy API; see note below)
+#   configuration-snippet    → EnvoyPatchPolicy with %DOWNSTREAM_PEER_CERT%
+---
+# EnvoyProxy configures the proxy Deployment and Service Envoy Gateway generates
+# for this Gateway. Setting an explicit serviceType prevents Envoy Gateway from
+# defaulting to LoadBalancer in environments where that is unwanted (e.g.
+# integration tests that rely on ClusterIP + federation-test-helper for
+# in-cluster SRV discovery).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: federator-proxy-config
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: {{ .Values.federator.gatewayAPI.serviceType }}
+---
+# Gateway: TLS-terminating HTTPS listener + plain HTTP listener for redirect.
+# Envoy Gateway creates one proxy Deployment and Service in this namespace
+# for each Gateway (the proxy pods are labelled with owning-gateway-name=federator-gateway).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: federator-gateway
+spec:
+  gatewayClassName: {{ .Values.federator.gatewayAPI.gatewayClassName | quote }}
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: federator-proxy-config
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: {{ .Values.config.dns.federator | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            group: ""
+            name: federator-certificate-secret
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: {{ .Values.config.dns.federator | quote }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# ClientTrafficPolicy: enforce mTLS on the HTTPS listener only.
+# sectionName scopes this policy to the https listener; the http listener
+# (used only for redirect) is intentionally left without client cert validation.
+#
+# NOTE: auth-tls-verify-depth has no direct equivalent in ClientTrafficPolicy.
+# For verify_depth > 1 (intermediate CA chains) add an EnvoyPatchPolicy that
+# patches max_verify_depth into the DownstreamTlsContext — see the commented
+# example at the bottom of this file.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: federator-mtls
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: federator-gateway
+    sectionName: https
+  tls:
+    clientValidation:
+      optional: false
+      caCertificateRefs:
+        - kind: Secret
+          group: ""
+          name: federator-ca-secret
+          {{- if .Values.tls.caNamespace }}
+          namespace: {{ .Values.tls.caNamespace | quote }}
+          {{- end }}
+---
+# HTTPRoute: forward HTTPS traffic to the federator backend.
+# The X-SSL-Certificate header carrying the peer certificate is added by the
+# EnvoyPatchPolicy below — HTTPRoute filters only support static header values.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: federator-https
+spec:
+  parentRefs:
+    - name: federator-gateway
+      sectionName: https
+  hostnames:
+    - {{ .Values.config.dns.federator | quote }}
+  rules:
+    - backendRefs:
+        - name: federator
+          port: {{ .Values.federator.gatewayAPI.servicePort }}
+---
+# HTTPRoute: 301 redirect from HTTP to HTTPS.
+# Replaces: nginx.ingress.kubernetes.io/ssl-redirect: "true"
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: federator-http-redirect
+spec:
+  parentRefs:
+    - name: federator-gateway
+      sectionName: http
+  hostnames:
+    - {{ .Values.config.dns.federator | quote }}
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# EnvoyPatchPolicy: inject the mTLS peer certificate as a request header.
+# Replaces: configuration-snippet: proxy_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
+#
+# %DOWNSTREAM_PEER_CERT% is Envoy's equivalent of nginx's $ssl_client_escaped_cert:
+# the URI-encoded PEM of the downstream mTLS client certificate.
+#
+# The RouteConfiguration name is generated by Envoy Gateway as:
+#   "<namespace>/<gateway-name>/<listener-section-name>"
+# Verify the exact name before deploying (the patch is silently a no-op if wrong):
+#
+#   egctl x translate --from gateway-api --to xds \
+#     --namespace {{ .Release.Namespace }} -f <(helm template ...) \
+#     | grep -B2 '"type.googleapis.com/envoy.config.route.v3.RouteConfiguration"'
+#
+# Alternatively via the Envoy admin endpoint:
+#   kubectl -n {{ .Release.Namespace }} port-forward \
+#     $(kubectl -n {{ .Release.Namespace }} get pod \
+#       -l gateway.envoyproxy.io/owning-gateway-name=federator-gateway \
+#       -o name | head -1) 19000 \
+#   && curl -s localhost:19000/config_dump \
+#        | jq '[.. | objects | select(."@type"? | contains("RoutesConfigDump"))
+#               | .dynamic_route_configs[].route_config.name]'
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: federator-cert-header
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: federator-gateway
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
+      name: {{ printf "%s/federator-gateway/https" .Release.Namespace | quote }}
+      operation:
+        op: add
+        path: "/request_headers_to_add"
+        value:
+          - header:
+              key: "X-SSL-Certificate"
+              value: "%DOWNSTREAM_PEER_CERT%"
+            keep_empty_value: false
+{{- if .Values.tls.caNamespace }}
+---
+# ReferenceGrant: authorise the ClientTrafficPolicy in {{ .Release.Namespace }}
+# to read the CA Secret from {{ .Values.tls.caNamespace }}.
+# Replaces: the implicit cross-namespace reference in the auth-tls-secret annotation.
+#
+# Gateway API enforces namespace isolation: a ClientTrafficPolicy cannot read a
+# Secret from another namespace without a ReferenceGrant in that namespace.
+#
+# This resource carries metadata.namespace={{ .Values.tls.caNamespace }}, so Helm
+# will create it there. The Helm service account must have create/update rights on
+# ReferenceGrant in {{ .Values.tls.caNamespace }}.
+#
+# If you run separate Helm releases per environment, ensure this release's
+# service account has the required RBAC, or extract and apply this resource
+# independently with kubectl.
+#
+# Name includes the release namespace so that two test backends (each running
+# this chart in a different namespace) can coexist without name collision.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: {{ printf "federator-ca-access-%s" .Release.Namespace | quote }}
+  namespace: {{ .Values.tls.caNamespace | quote }}
+spec:
+  from:
+    - group: gateway.envoyproxy.io
+      kind: ClientTrafficPolicy
+      namespace: {{ .Release.Namespace | quote }}
+  to:
+    - group: ""
+      kind: Secret
+      name: federator-ca-secret
+{{- end }}
+{{- end }}
+
+{{- /*
+--------------------------------------------------------------------------------
+VERIFY_DEPTH NOTE
+--------------------------------------------------------------------------------
+ClientTrafficPolicy does not expose max_verify_depth. The default Envoy
+behaviour is no depth limit. If tls.verify_depth must be enforced (e.g. to
+reject certificates signed by an intermediate CA deeper than expected), add
+this EnvoyPatchPolicy.
+
+Replace the listener name with the actual generated xDS Listener name; see the
+instructions on the EnvoyPatchPolicy above for how to discover it.
+
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: federator-verify-depth
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: federator-gateway
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.listener.v3.Listener"
+      name: "<namespace>/federator-gateway/https"
+      operation:
+        op: add
+        path: "/filter_chains/0/transport_socket/typed_config/common_tls_context/validation_context/max_verify_depth"
+        value:
+          value: {{ .Values.tls.verify_depth }}
+-------------------------------------------------------------------------------- */}}

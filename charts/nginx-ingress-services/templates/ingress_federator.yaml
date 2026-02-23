@@ -1,4 +1,4 @@
-{{- if .Values.federator.enabled }}
+{{- if and .Values.federator.enabled (not .Values.federator.gatewayAPI.enabled) }}
 {{- if .Values.config.isAdditionalIngress -}}
   {{ fail "Federation and multi-backend-domain (multi-ingress) cannot be configured together." }}
 {{- end -}}

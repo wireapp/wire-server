@@ -6,15 +6,27 @@ apiVersion: v1
 kind: Service
 metadata:
   name: federation-test-helper
-  namespace: {{ .Release.namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   ports:
   - name: wire-server-federator
     port: 443
     protocol: TCP
+    {{- if .Values.federator.gatewayAPI.enabled }}
+    # Envoy Gateway: proxy pod container port for the HTTPS listener.
+    # Adjust federator.gatewayAPI.envoyContainerPort if your Envoy Gateway
+    # version uses a different port (e.g. 10443 for pre-v1.1 deployments).
+    targetPort: {{ .Values.federator.gatewayAPI.envoyContainerPort }}
+    {{- else }}
     targetPort: https
+    {{- end }}
   selector:
-    {{- if $newLabels }}
+    {{- if .Values.federator.gatewayAPI.enabled }}
+    # Envoy Gateway proxy pod labels set by the Gateway controller.
+    # The controller deploys one proxy Deployment per Gateway into this namespace.
+    gateway.envoyproxy.io/owning-gateway-name: federator-gateway
+    gateway.envoyproxy.io/owning-gateway-namespace: {{ .Release.Namespace }}
+    {{- else if $newLabels }}
     app.kubernetes.io/component: controller
     app.kubernetes.io/name: ingress-nginx
     {{- else }}
