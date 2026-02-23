@@ -1269,6 +1269,12 @@ getApps self tid = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
   submit "GET" req
 
+putAppMetadata :: (HasCallStack, MakesValue user) => String -> user -> String -> Value -> App Response
+putAppMetadata tid owner appId appMetadata = do
+  let path = joinHttpPath ["teams", tid, "apps", appId]
+  req <- baseRequest owner Brig Versioned path
+  submit "PUT" (req & addJSON appMetadata)
+
 refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
 refreshAppCookie u tid appId = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
