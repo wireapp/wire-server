@@ -138,7 +138,7 @@ testConversationWithAppOwnTeamConvTypeTeam = do
     resp.json %. "user"
 
   [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
-  traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, appc]
+  traverse_ (uploadNewKeyPackage def) [mem1c, mem1c, mem2c, mem2c, appc, appc]
 
   let runCheck :: (HasCallStack) => ClientIdentity -> Value -> App ()
       runCheck fromc to = do
@@ -148,20 +148,12 @@ testConversationWithAppOwnTeamConvTypeTeam = do
         events1 <-
           createAddCommit fromc convId [toId]
             >>= sendAndConsumeCommitBundle
-
-        unless (fromc == appc) do
-          -- FUTUREWORK: remove the condition above.
-          --
-          -- `mem2` does not receive an event for `runCheck appc
-          -- mem2`, but we'll fix that problem in the next PR.  This
-          -- PR is already fixing enough stuff.
-
-          (events1 %. "events.0.conversation" & asString)
-            `shouldMatch` (convId %. "id" & asString)
-          (events1 %. "events.0.data.add_type" & asString)
-            `shouldMatch` "internal_add"
-          (events1 %. "events.0.data.user_ids" & asList)
-            `shouldMatchSet` sequence [to %. "id"]
+        (events1 %. "events.0.conversation" & asString)
+          `shouldMatch` (convId %. "id" & asString)
+        (events1 %. "events.0.data.add_type" & asString)
+          `shouldMatch` "internal_add"
+        (events1 %. "events.0.data.user_ids" & asList)
+          `shouldMatchSet` sequence [to %. "id"]
 
         events2 <-
           createApplicationMessage convId fromc "everybody welcome new guy!"

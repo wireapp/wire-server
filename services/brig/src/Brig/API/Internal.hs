@@ -743,7 +743,7 @@ changeSelfEmailMaybeSend u activation email allowScim = do
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
--- Empty list is forbidden for backwards compatibility.
+-- Empty lists are forbidden for backwards compatibility.
 listActivatedAccountsH ::
   ( Member (Input (Local ())) r,
     Member UserSubsystem r
@@ -771,7 +771,7 @@ listActivatedAccountsH
                 getByUserId = uids,
                 getByHandle = handles
               }
-      pure $ others <> byEmails
+      pure $ filter (\u -> u.userStatus /= Deleted) $ others <> byEmails
 
 getActivationCode ::
   ( Member ActivationCodeStore r,

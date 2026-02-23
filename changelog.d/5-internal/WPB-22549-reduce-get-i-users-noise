@@ -1,0 +1,4 @@
+Change `GET /i/users` on brig to never return users with status `Deleted`.
+
+This shouldn't change backend behavior, except for avoiding some race
+conditions involving user deletion and fetching.
