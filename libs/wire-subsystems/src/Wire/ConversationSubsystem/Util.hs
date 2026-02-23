@@ -79,7 +79,7 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.ClientStore
+import Wire.UserClientIndexStore
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
@@ -1131,7 +1131,7 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 
 getBrigClients ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r
+    Member UserClientIndexStore r
   ) =>
   [UserId] ->
   Sem r Clients

@@ -415,7 +415,7 @@ evalGalley e =
         . interpretRateLimit e._passwordHashingRateLimitEnv
         . interpretProposalStoreToCassandra
         . convCodesStoreInterpreter
-        . interpretClientStoreToCassandra
+        . interpretUserClientIndexStoreToCassandra
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv

@@ -225,7 +225,6 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
-    Wire.ClientStore
     Wire.CodeStore
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries
@@ -369,6 +368,7 @@ library
     Wire.TeamSubsystem.GalleyAPI
     Wire.TeamSubsystem.Interpreter
     Wire.TeamSubsystem.Util
+    Wire.UserClientIndexStore
     Wire.UserGroupStore
     Wire.UserGroupStore.Postgres
     Wire.UserGroupSubsystem

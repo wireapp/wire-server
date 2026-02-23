@@ -399,7 +399,7 @@ onMessageSent domain rmUnqualified = do
 
 sendMessage ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member (FederationAPIAccess FederatorClient) r,

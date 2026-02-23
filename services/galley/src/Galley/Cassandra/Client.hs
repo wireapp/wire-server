@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Cassandra.Client
-  ( interpretClientStoreToCassandra,
+  ( interpretUserClientIndexStoreToCassandra,
     lookupClients,
   )
 where
@@ -39,7 +39,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import UnliftIO qualified
-import Wire.ClientStore (ClientStore (..))
+import Wire.UserClientIndexStore (UserClientIndexStore (..))
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
 updateClient add usr cls = do
@@ -59,27 +59,27 @@ lookupClients users =
 eraseClients :: UserId -> Client ()
 eraseClients user = retry x5 (write Cql.rmClients (params LocalQuorum (Identity user)))
 
-interpretClientStoreToCassandra ::
+interpretUserClientIndexStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
     Member (Input Env) r,
     Member TinyLog r
   ) =>
-  Sem (ClientStore ': r) a ->
+  Sem (UserClientIndexStore ': r) a ->
   Sem r a
-interpretClientStoreToCassandra = interpret $ \case
+interpretUserClientIndexStoreToCassandra = interpret $ \case
   GetClients uids -> do
-    logEffect "ClientStore.GetClients"
+    logEffect "UserClientIndexStore.GetClients"
     embedClient $ lookupClients uids
   CreateClient uid cid -> do
-    logEffect "ClientStore.CreateClient"
+    logEffect "UserClientIndexStore.CreateClient"
     embedClient $ updateClient True uid cid
   DeleteClient uid cid -> do
-    logEffect "ClientStore.DeleteClient"
+    logEffect "UserClientIndexStore.DeleteClient"
     embedClient $ updateClient False uid cid
   DeleteClients uid -> do
-    logEffect "ClientStore.DeleteClients"
+    logEffect "UserClientIndexStore.DeleteClients"
     embedClient $ eraseClients uid
   UseIntraClientListing -> do
-    logEffect "ClientStore.UseIntraClientListing"
+    logEffect "UserClientIndexStore.UseIntraClientListing"
     embedApp . view $ options . settings . intraListing

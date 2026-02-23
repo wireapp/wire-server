@@ -31,7 +31,7 @@ module Galley.Effects
     FireAndForget,
 
     -- * Store effects
-    ClientStore,
+    UserClientIndexStore,
     ConversationStore,
     CustomBackendStore,
     LegalHoldStore,
@@ -82,7 +82,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.ClientStore
+import Wire.UserClientIndexStore
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
@@ -132,7 +132,7 @@ type GalleyEffects1 =
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,
-     ClientStore,
+     UserClientIndexStore,
      CodeStore,
      ProposalStore,
      RateLimit,

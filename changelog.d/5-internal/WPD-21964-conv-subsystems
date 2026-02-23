@@ -5,7 +5,7 @@
    - `Galley.API.Error` → `Galley.Types.Error`
    - `Galley.API.One2One` → `Wire.ConversationSubsystem.One2One`
    - `Galley.API.Util` → `Wire.ConversationSubsystem.Util`
-   - `Galley.Effects.ClientStore` → `Wire.Effects.ClientStore`
+   - `Galley.Effects.UserClientIndexStore` → `Wire.Effects.UserClientIndexStore`
  - Removed `Galley.Validation` module (functionality moved to interpreter)
  - Updated `background-worker` configmap:
    - Added `galley` endpoint configuration to template

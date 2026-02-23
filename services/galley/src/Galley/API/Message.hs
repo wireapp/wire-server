@@ -79,7 +79,7 @@ import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.ClientStore
+import Wire.UserClientIndexStore
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
@@ -256,7 +256,7 @@ postRemoteOtrMessage sender conv rawMsg = do
 
 postBroadcast ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -368,7 +368,7 @@ postBroadcast lusr con msg = runError $ do
 
 postQualifiedOtrMessage ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
