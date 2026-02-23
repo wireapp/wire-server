@@ -63,5 +63,9 @@ data ConversationSubsystem m a where
     Connect ->
     ConversationSubsystem m (StoredConversation, Bool)
   InternalGetClientIds :: [UserId] -> ConversationSubsystem m Clients
+  InternalGetLocalMember ::
+    ConvId ->
+    UserId ->
+    ConversationSubsystem m (Maybe LocalMember)
 
 makeSem ''ConversationSubsystem

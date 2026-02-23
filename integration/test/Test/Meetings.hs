@@ -35,20 +35,8 @@ testMeetingCreate = do
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
   meeting %. "invited_emails" `shouldMatch` ["alice@example.com", "bob@example.com"]
 
-testMeetingGet :: (HasCallStack) => App ()
-testMeetingGet = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
-  now <- liftIO getCurrentTime
-  let startTime = addUTCTime 3600 now
-      endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
-
-  r1 <- postMeetings owner newMeeting
-  assertSuccess r1
-
-  meeting <- getJSON 201 r1
+  -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
-
   r2 <- getMeeting owner domain meetingId
   assertSuccess r2
 

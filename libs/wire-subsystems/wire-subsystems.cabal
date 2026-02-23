@@ -172,6 +172,7 @@ common common-all
     , ssl-util
     , statistics
     , stomp-queue
+    , tagged
     , template
     , text
     , text-icu-translit
@@ -519,12 +520,14 @@ test-suite wire-subsystems-tests
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
     Wire.IdPSubsystem.InterpreterSpec
+    Wire.MeetingsSubsystem.InterpreterSpec
     Wire.MiniBackend
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
+    Wire.MockInterpreters.ConversationSubsystem
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
     Wire.MockInterpreters.DomainVerificationChallengeStore
@@ -538,6 +541,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.HashPassword
     Wire.MockInterpreters.IndexedUserStore
     Wire.MockInterpreters.InvitationStore
+    Wire.MockInterpreters.MeetingsStore
     Wire.MockInterpreters.NotificationSubsystem
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore

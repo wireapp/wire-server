@@ -24,6 +24,7 @@ import Wire.MockInterpreters.ActivationCodeStore as MockInterpreters
 import Wire.MockInterpreters.AppStore as MockInterpreters
 import Wire.MockInterpreters.BackgroundJobPublisher as MockInterpreters
 import Wire.MockInterpreters.BlockListStore as MockInterpreters
+import Wire.MockInterpreters.ConversationSubsystem as MockInterpreters
 import Wire.MockInterpreters.CryptoSign as MockInterpreters
 import Wire.MockInterpreters.DomainRegistrationStore as MockInterpreters
 import Wire.MockInterpreters.DomainVerificationChallengeStore as MockInterpreters
@@ -37,6 +38,7 @@ import Wire.MockInterpreters.GalleyAPIAccess as MockInterpreters
 import Wire.MockInterpreters.HashPassword as MockInterpreters
 import Wire.MockInterpreters.IndexedUserStore as MockInterpreters
 import Wire.MockInterpreters.InvitationStore as MockInterpreters
+import Wire.MockInterpreters.MeetingsStore as MockInterpreters
 import Wire.MockInterpreters.NotificationSubsystem as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
 import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters

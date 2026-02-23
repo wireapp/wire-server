@@ -61,7 +61,7 @@ module Galley.Options
     passwordHashingRateLimit,
     checkGroupInfo,
     meetings,
-    validityPeriodHours,
+    validityPeriod,
     postgresMigration,
     GuestLinkTTLSeconds (..),
     PostgresMigrationOpts (..),
@@ -170,8 +170,8 @@ data Settings = Settings
   deriving (Show, Generic)
 
 data MeetingsConfig = MeetingsConfig
-  { -- | Validity period of a meeting in hours. After this time, the meeting is considered expired.
-    _validityPeriodHours :: !(Maybe Double)
+  { -- | Validity period of a meeting. After this time, the meeting is considered expired.
+    _validityPeriod :: !(Maybe Duration)
   }
   deriving (Show, Generic)
 

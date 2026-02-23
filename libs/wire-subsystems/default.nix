@@ -106,6 +106,7 @@
 , statistics
 , stomp-queue
 , string-conversions
+, tagged
 , template
 , text
 , text-icu-translit
@@ -231,6 +232,7 @@ mkDerivation {
     ssl-util
     statistics
     stomp-queue
+    tagged
     template
     text
     text-icu-translit
@@ -354,6 +356,7 @@ mkDerivation {
     statistics
     stomp-queue
     string-conversions
+    tagged
     template
     text
     text-icu-translit

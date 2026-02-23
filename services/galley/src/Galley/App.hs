@@ -453,7 +453,7 @@ evalGalley e =
         . interpretMeetingsSubsystem meetingValidityPeriod
   where
     meetingValidityPeriod =
-      realToFrac $ fromMaybe 48.0 (e ^. options . settings . meetings >>= view validityPeriodHours) * 3600
+      realToFrac $ maybe (48 * 3600) (.duration) (e ^. options . settings . meetings >>= view validityPeriod)
     lh = view (options . settings . featureFlags . to npProject) e
     legalHoldEnv =
       let makeReq fpr url rb = runApp e (LHInternal.makeVerifiedRequest fpr url rb)

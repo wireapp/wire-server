@@ -23,7 +23,7 @@ import Data.Id
 import Data.Qualified (Local, Qualified (..), tDomain, tUnqualified)
 import Data.Range (checked)
 import Data.Set qualified as Set
-import Data.Time.Clock (NominalDiffTime, addUTCTime, getCurrentTime)
+import Data.Time.Clock (NominalDiffTime, addUTCTime)
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Member)
@@ -34,21 +34,23 @@ import Wire.API.Error.Galley
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsPremiumConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
-import Wire.ConversationStore qualified as ConvStore
-import Wire.ConversationSubsystem (ConversationSubsystem, createGroupConversation)
+import Wire.ConversationSubsystem (ConversationSubsystem)
+import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
-import Wire.TeamStore qualified as TeamStore
+import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem qualified as TeamSubsystem
 
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
-    Member ConvStore.ConversationStore r,
     Member ConversationSubsystem r,
-    Member TeamStore.TeamStore r,
+    Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member (Embed IO) r,
+    Member Now r,
     Member (ErrorS 'InvalidOperation) r
   ) =>
   NominalDiffTime ->
@@ -62,7 +64,7 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
-    Member TeamStore.TeamStore r,
+    Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (ErrorS 'InvalidOperation) r
   ) =>
@@ -75,21 +77,16 @@ createMeetingImpl zUser newMeeting = do
     throwS @'InvalidOperation
 
   -- Determine trial status based on team membership and premium feature
-  maybeTeamId <- TeamStore.getOneUserTeam (tUnqualified zUser)
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   (trial, conversationTeamId) <- case maybeTeamId of
     Nothing -> pure (True, Nothing) -- Personal users create trial meetings
     Just teamId -> do
-      -- Verify user is a team member (not just a collaborator)
-      maybeMember <- TeamStore.getTeamMember teamId (tUnqualified zUser)
-      case maybeMember of
-        Nothing -> pure (True, Nothing) -- User not a member (or personal team), treat as trial, DO NOT link conversation to team
-        Just _member -> do
-          premiumFeature <- getFeatureForTeam @_ @MeetingsPremiumConfig teamId
-          let premium =
-                case premiumFeature of
-                  LockableFeature {status = FeatureStatusEnabled} -> True
-                  _ -> False
-          pure (not premium, Just teamId)
+      premiumFeature <- getFeatureForTeam @_ @MeetingsPremiumConfig teamId
+      let premium =
+            case premiumFeature of
+              LockableFeature {status = FeatureStatusEnabled} -> True
+              _ -> False
+      pure (not premium, Just teamId)
 
   -- Create conversation with the meeting creator as the only member (admin role)
   let nameChecked = checked newMeeting.title
@@ -114,7 +111,7 @@ createMeetingImpl zUser newMeeting = do
           }
 
   -- Create and store the conversation via ConversationSubsystem
-  storedConv <- createGroupConversation zUser Nothing newConv
+  storedConv <- ConversationSubsystem.createGroupConversation zUser Nothing newConv
 
   -- Store meeting (trial status is provided by caller)
   storedMeeting <-
@@ -136,8 +133,8 @@ createMeetingImpl zUser newMeeting = do
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
-    Member ConvStore.ConversationStore r,
-    Member (Embed IO) r
+    Member ConversationSubsystem r,
+    Member Now r
   ) =>
   Local UserId ->
   Qualified MeetingId ->
@@ -150,7 +147,7 @@ getMeetingImpl zUser meetingId validityPeriod = do
   case maybeStoredMeeting of
     Nothing -> pure Nothing
     Just storedMeeting -> do
-      now <- liftIO getCurrentTime
+      now <- Now.get
       let cutoff = addUTCTime (negate validityPeriod) now
       if storedMeeting.endTime < cutoff
         then pure Nothing
@@ -162,7 +159,7 @@ getMeetingImpl zUser meetingId validityPeriod = do
             else do
               -- Check if user is a member of the conversation
               let convId = storedMeeting.conversationId
-              maybeMember <- ConvStore.getLocalMember convId (tUnqualified zUser)
+              maybeMember <- ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
               case maybeMember of
                 Just _ -> pure (Just (storedMeetingToMeeting (tDomain zUser) storedMeeting)) -- User is a member, authorized
                 Nothing -> pure Nothing -- User is not a member, not authorized
