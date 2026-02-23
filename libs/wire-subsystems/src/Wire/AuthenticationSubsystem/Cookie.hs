@@ -69,6 +69,7 @@ newCookieImpl uid cid typ label = do
             cookieValue = tok
           }
   SessionStore.insertCookie uid (toUnitCookie c) Nothing
+  for_ c.cookieLabel $ revokeCookiesMatchingExcept uid (Just c.cookieId) [] . (: [])
   pure c
 
 newCookieLimitedImpl ::
@@ -104,11 +105,22 @@ revokeCookiesImpl ::
   [CookieId] ->
   [CookieLabel] ->
   Sem r ()
-revokeCookiesImpl u [] [] = SessionStore.deleteAllCookies u
-revokeCookiesImpl u ids labels = do
+revokeCookiesImpl u ids labels = revokeCookiesMatchingExcept u Nothing ids labels
+
+revokeCookiesMatchingExcept ::
+  (Member SessionStore r) =>
+  UserId ->
+  Maybe CookieId ->
+  [CookieId] ->
+  [CookieLabel] ->
+  Sem r ()
+revokeCookiesMatchingExcept u Nothing [] [] = SessionStore.deleteAllCookies u
+revokeCookiesMatchingExcept u mself ids labels = do
   cc <- filter matching <$> SessionStore.listCookies u
   SessionStore.deleteCookies u cc
   where
     matching c =
-      cookieId c `elem` ids
-        || maybe False (`elem` labels) (cookieLabel c)
+      not (Just c.cookieId == mself)
+        && ( c.cookieId `elem` ids
+               || maybe False (`elem` labels) c.cookieLabel
+           )
