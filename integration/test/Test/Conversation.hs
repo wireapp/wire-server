@@ -138,7 +138,7 @@ testConversationWithAppOwnTeamConvTypeTeam = do
     resp.json %. "user"
 
   [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
-  traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, appc]
+  traverse_ (uploadNewKeyPackage def) [mem1c, mem1c, mem2c, mem2c, appc, appc]
 
   let runCheck :: (HasCallStack) => ClientIdentity -> Value -> App ()
       runCheck fromc to = do
