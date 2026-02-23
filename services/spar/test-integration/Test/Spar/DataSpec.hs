@@ -137,13 +137,13 @@ spec = do
               mvf <- runSpar $ VerdictFormatStore.get vid
               liftIO $ mvf `shouldBe` Just vf
         check
-          `mapM_` [ VerdictFormatWeb,
-                    VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|]
+          `mapM_` [ VerdictFormatWeb Nothing,
+                    VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|] Nothing
                   ]
       context "has timed out" $ do
         it "VerdictFormatStore.get returns Nothing" $ do
           vid <- nextSAMLID
-          () <- runSpar $ VerdictFormatStore.store 1 vid VerdictFormatWeb
+          () <- runSpar $ VerdictFormatStore.store 1 vid (VerdictFormatWeb Nothing)
           liftIO $ threadDelay 2000000
           mvf <- runSpar $ VerdictFormatStore.get vid
           liftIO $ mvf `shouldBe` Nothing

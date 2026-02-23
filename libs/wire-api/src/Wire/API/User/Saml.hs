@@ -43,6 +43,7 @@ import SAML2.WebSSO
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
 import Web.Cookie
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Orphans ()
 
 ----------------------------------------------------------------------------
@@ -57,8 +58,8 @@ type AssId = ID Assertion
 -- two resp. 'AccessVerdict' constructors.  This format is stored in cassandra under the request id
 -- so that the verdict handler can act on it.
 data VerdictFormat
-  = VerdictFormatWeb
-  | VerdictFormatMobile {_formatGrantedURI :: URI, _formatDeniedURI :: URI}
+  = VerdictFormatWeb {_cookieLabel :: Maybe CookieLabel}
+  | VerdictFormatMobile {_formatGrantedURI :: URI, _formatDeniedURI :: URI, _cookieLabel :: Maybe CookieLabel}
   deriving (Eq, Show, Generic)
 
 deriveJSON deriveJSONOptions ''VerdictFormat

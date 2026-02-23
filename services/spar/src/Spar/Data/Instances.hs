@@ -40,10 +40,11 @@ import Data.Text.Encoding.Error
 import Imports
 import Spar.Scim.Types (ScimUserCreationStatus (..))
 import URI.ByteString
+import Wire.API.User.Auth
 import Wire.API.User.Saml
 import Wire.API.User.Scim
 
-type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI)
+type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI, Maybe CookieLabel)
 
 data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
 
@@ -60,12 +61,12 @@ instance Cql VerdictFormatCon where
   fromCql _ = Left "member-status: int expected"
 
 fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
-fromVerdictFormat VerdictFormatWeb = (VerdictFormatConWeb, Nothing, Nothing)
-fromVerdictFormat (VerdictFormatMobile succredir errredir) = (VerdictFormatConMobile, Just succredir, Just errredir)
+fromVerdictFormat (VerdictFormatWeb mlabel) = (VerdictFormatConWeb, Nothing, Nothing, mlabel)
+fromVerdictFormat (VerdictFormatMobile succredir errredir mlabel) = (VerdictFormatConMobile, Just succredir, Just errredir, mlabel)
 
 toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
-toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing) = Just VerdictFormatWeb
-toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
+toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing, mlabel) = Just $ VerdictFormatWeb mlabel
+toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir, mlabel) = Just $ VerdictFormatMobile succredir errredir mlabel
 toVerdictFormat _ = Nothing
 
 deriving instance Cql ScimToken

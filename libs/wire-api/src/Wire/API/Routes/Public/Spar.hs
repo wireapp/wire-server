@@ -53,6 +53,7 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SwaggerServant
 import Wire.API.User (EmailAddress)
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
@@ -141,6 +142,7 @@ type APIAuthReqPrecheck =
     "auth-req-precheck"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" CookieLabel
         :> Capture "idp" SAML.IdPId
         :> CheckOK '[PlainText] NoContent
     )
@@ -150,6 +152,7 @@ type APIAuthReq =
     "auth-req"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" CookieLabel
         -- (SAML.APIAuthReq from here on, except for the cookies)
         :> Capture "idp" SAML.IdPId
         :> ZHostOpt

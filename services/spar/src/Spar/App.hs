@@ -94,6 +94,7 @@ import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.Error
@@ -303,10 +304,10 @@ verdictHandler aresp verdict idp = do
       _ -> throwSparSem SparNoSuchRequest
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
-    Just VerdictFormatWeb ->
-      verdictHandlerResult verdict idp >>= verdictHandlerWeb
-    Just (VerdictFormatMobile granted denied) ->
-      verdictHandlerResult verdict idp >>= verdictHandlerMobile granted denied
+    Just (VerdictFormatWeb mlabel) ->
+      verdictHandlerResult verdict idp mlabel >>= verdictHandlerWeb
+    Just (VerdictFormatMobile granted denied mlabel) ->
+      verdictHandlerResult verdict idp mlabel >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
@@ -333,10 +334,11 @@ verdictHandlerResult ::
   ) =>
   SAML.AccessVerdict ->
   IdP ->
+  Maybe CookieLabel ->
   Sem r VerdictHandlerResult
-verdictHandlerResult verdict idp = do
+verdictHandlerResult verdict idp mlabel = do
   Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel
   Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
@@ -409,8 +411,9 @@ verdictHandlerResultCore ::
   ) =>
   IdP ->
   SAML.AccessVerdict ->
+  Maybe CookieLabel ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore idp = \case
+verdictHandlerResultCore idp verdict mlabel = case verdict of
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
@@ -436,7 +439,7 @@ verdictHandlerResultCore idp = \case
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
-    cky <- BrigAccess.ssoLogin uid
+    cky <- BrigAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether

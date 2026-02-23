@@ -2144,6 +2144,7 @@ CREATE TABLE spar_test.meta (
 
 CREATE TABLE spar_test.verdict (
     req text PRIMARY KEY,
+    cookie_label text,
     format_con int,
     format_mobile_error text,
     format_mobile_success text

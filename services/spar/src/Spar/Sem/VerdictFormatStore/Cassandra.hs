@@ -32,6 +32,7 @@ import Spar.Data
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
 import Spar.Sem.VerdictFormatStore
 import URI.ByteString
+import Wire.API.User.Auth
 import Wire.API.User.Saml
 import Wire.IdPConfigStore.Orphans ()
 
@@ -53,12 +54,12 @@ storeVerdictFormat ::
   AReqId ->
   VerdictFormat ->
   m ()
-storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr)) = do
+storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr, mlabel)) = do
   let ttl = nominalDiffToSeconds diffTime * 2
-  retry x5 . write cql $ params LocalQuorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
+  retry x5 . write cql $ params LocalQuorum (req, fmtCon, fmtMobSucc, fmtMobErr, mlabel, ttl)
   where
-    cql :: PrepQuery W (AReqId, VerdictFormatCon, Maybe URI, Maybe URI, Int32) ()
-    cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error) VALUES (?, ?, ?, ?) USING TTL ?"
+    cql :: PrepQuery W (AReqId, VerdictFormatCon, Maybe URI, Maybe URI, Maybe CookieLabel, Int32) ()
+    cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error, cookie_label) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 getVerdictFormat ::
   (HasCallStack, MonadClient m) =>
@@ -69,4 +70,4 @@ getVerdictFormat req =
     <$> (retry x1 . query1 cql $ params LocalQuorum (Identity req))
   where
     cql :: PrepQuery R (Identity AReqId) VerdictFormatRow
-    cql = "SELECT format_con, format_mobile_success, format_mobile_error FROM verdict WHERE req = ?"
+    cql = "SELECT format_con, format_mobile_success, format_mobile_error, cookie_label FROM verdict WHERE req = ?"

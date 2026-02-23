@@ -126,6 +126,7 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Spar
 import Wire.API.Team.Member (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Wire.API.User
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
@@ -314,10 +315,11 @@ authreqPrecheck ::
   ) =>
   Maybe URI.URI ->
   Maybe URI.URI ->
+  Maybe CookieLabel ->
   SAML.IdPId ->
   Sem r NoContent
-authreqPrecheck msucc merr idpid =
-  validateAuthreqParams msucc merr
+authreqPrecheck msucc merr mlabel idpid =
+  validateAuthreqParams msucc merr mlabel
     *> IdPConfigStore.getConfig idpid
       $> NoContent
 
@@ -337,11 +339,12 @@ authreq ::
   NominalDiffTime ->
   Maybe URI.URI ->
   Maybe URI.URI ->
+  Maybe CookieLabel ->
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid mbHost = do
-  vformat <- validateAuthreqParams msucc merr
+authreq authreqttl msucc merr mlabel idpid mbHost = do
+  vformat <- validateAuthreqParams msucc merr mlabel
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
 
@@ -362,12 +365,12 @@ authreq authreqttl msucc merr idpid mbHost = do
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
-validateAuthreqParams :: (Member (Error SparError) r) => Maybe URI.URI -> Maybe URI.URI -> Sem r VerdictFormat
-validateAuthreqParams msucc merr = case (msucc, merr) of
-  (Nothing, Nothing) -> pure VerdictFormatWeb
+validateAuthreqParams :: (Member (Error SparError) r) => Maybe URI.URI -> Maybe URI.URI -> Maybe CookieLabel -> Sem r VerdictFormat
+validateAuthreqParams msucc merr mlabel = case (msucc, merr) of
+  (Nothing, Nothing) -> pure $ VerdictFormatWeb mlabel
   (Just ok, Just err) -> do
     validateRedirectURL `mapM_` [ok, err]
-    pure $ VerdictFormatMobile ok err
+    pure $ VerdictFormatMobile ok err mlabel
   _ -> throwSparSem $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
 validateRedirectURL :: (Member (Error SparError) r) => URI.URI -> Sem r ()
@@ -440,6 +443,7 @@ authresp mbtid arbody mbHost = do
         -- `APIAuthReq` route.
         success_url = Nothing
         error_url = Nothing
+        cookie_label = Nothing
 
         initiateLoginEndPoint :: URI
         initiateLoginEndPoint =
@@ -450,6 +454,7 @@ authresp mbtid arbody mbHost = do
           )
             success_url
             error_url
+            cookie_label
             (idp ^. SAML.idpId)
 
         initiateLoginEndPointText :: T.Text

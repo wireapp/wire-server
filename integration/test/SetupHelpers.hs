@@ -518,6 +518,10 @@ loginWithSamlEmail :: (HasCallStack) => Bool -> String -> String -> (String, (SA
 loginWithSamlEmail expectSuccess tid email =
   loginWithSamlWithZHost Nothing OwnDomain expectSuccess tid (fromRight (error "could not create name id") $ SAML.emailNameID (cs email))
 
+getCookieWithSaml :: (HasCallStack) => String -> String -> (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) -> Maybe String -> App (Maybe String)
+getCookieWithSaml tid email idp mLabel =
+  fst <$> getCookieWithSamlLogin Nothing OwnDomain True tid (fromRight (error "could not create name id") $ SAML.emailNameID (cs email)) mLabel idp
+
 -- | Given a team configured with saml sso, attempt a login with valid credentials.  This
 -- function simulates client *and* IdP (instead of talking to an IdP).  It can be used to test
 -- scim-provisioned users as well as saml auto-provisioning without scim.
@@ -530,47 +534,13 @@ loginWithSamlWithZHost ::
   SAML.NameID ->
   (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) ->
   App (Maybe String, SAML.SignedAuthnResponse)
-loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId (iid, (meta, privcreds)) = do
-  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
-  spmeta <- getSPMetadataWithZHost domain mbZHost tid
-  authnreq <- initiateSamlLoginWithZHost domain mbZHost iid
-  let spMetaData = toSPMetaData spmeta.body
-      parsedAuthnReq = parseAuthnReqResp authnreq.body
-  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
-  mUid <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId idp = do
+  (mCookie, authnReqResp) <- getCookieWithSamlLogin mbZHost domain expectSuccess tid nameId Nothing idp
+  mUid <- hasPersistentCookieHeader mCookie
   pure (mUid, authnReqResp)
   where
-    toSPMetaData :: ByteString -> SAML.SPMetadata
-    toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
-
-    validateLoginResp :: (HasCallStack) => Response -> App (Maybe String)
-    validateLoginResp resp =
-      if expectSuccess
-        then do
-          resp.status `shouldMatchInt` 200
-          let bdy = cs resp.body
-          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-          bdy `shouldContain` "<title>wire:sso:success</title>"
-          bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
-          hasPersistentCookieHeader resp
-        else do
-          resp.status `shouldMatchInt` 200
-          let bdy = cs resp.body
-          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-          bdy `shouldContain` "<title>wire:sso:error:"
-          bdy `shouldContain` "window.opener.postMessage({"
-          bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
-          bdy `shouldContain` "\"payload\":{"
-          bdy `shouldContain` "\"label\":\"forbidden\""
-          bdy `shouldContain` "}, receiverOrigin)"
-          hasPersistentCookieHeader resp
-
-    hasPersistentCookieHeader :: Response -> App (Maybe String)
-    hasPersistentCookieHeader rsp = do
-      let mCookie = getCookie "zuid" rsp
+    hasPersistentCookieHeader :: Maybe String -> App (Maybe String)
+    hasPersistentCookieHeader mCookie = do
       case mCookie of
         Nothing -> do
           expectSuccess `shouldMatch` False
@@ -585,6 +555,53 @@ loginWithSamlWithZHost mbZHost domain expectSuccess tid nameId (iid, (meta, priv
       case cookie =~ regex :: [[String]] of
         [[_, uuid]] -> Just uuid
         _ -> Nothing
+
+getCookieWithSamlLogin ::
+  (MakesValue domain, HasCallStack) =>
+  Maybe String ->
+  domain ->
+  Bool ->
+  String ->
+  SAML.NameID ->
+  Maybe String ->
+  (String, (SAML.IdPMetadata, SAML.SignPrivCreds)) ->
+  App (Maybe String, SAML.SignedAuthnResponse)
+getCookieWithSamlLogin mbZHost domain expectSuccess tid nameId mLabel (iid, (meta, privcreds)) = do
+  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString iid))) meta ()
+  spmeta <- getSPMetadataWithZHost domain mbZHost tid
+  authnreq <- initiateSamlLoginWithZHostAndLabel domain mbZHost mLabel iid
+  let spMetaData = toSPMetaData spmeta.body
+      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  authnReqResp <- makeAuthnResponse nameId privcreds idpConfig spMetaData parsedAuthnReq
+  mCookie <- finalizeSamlLoginWithZHost domain mbZHost tid authnReqResp `bindResponse` validateLoginResp
+  pure (mCookie, authnReqResp)
+  where
+    toSPMetaData :: ByteString -> SAML.SPMetadata
+    toSPMetaData bs = fromRight (error "could not decode spmetatdata") $ SAML.decode $ cs bs
+
+    validateLoginResp :: (HasCallStack) => Response -> App (Maybe String)
+    validateLoginResp resp = do
+      if expectSuccess
+        then do
+          resp.status `shouldMatchInt` 200
+          let bdy = cs resp.body
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+          bdy `shouldContain` "<title>wire:sso:success</title>"
+          bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+        else do
+          resp.status `shouldMatchInt` 200
+          let bdy = cs resp.body
+          bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+          bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+          bdy `shouldContain` "<title>wire:sso:error:"
+          bdy `shouldContain` "window.opener.postMessage({"
+          bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+          bdy `shouldContain` "\"payload\":{"
+          bdy `shouldContain` "\"label\":\"forbidden\""
+          bdy `shouldContain` "}, receiverOrigin)"
+      pure $ getCookie "zuid" resp
 
 makeAuthnResponse ::
   SAML.NameID ->
