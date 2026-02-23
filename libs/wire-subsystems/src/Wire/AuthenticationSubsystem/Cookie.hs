@@ -120,7 +120,7 @@ revokeCookiesMatchingExcept u mself ids labels = do
   SessionStore.deleteCookies u cc
   where
     matching c =
-      not (Just c.cookieId == mself)
+      (Just c.cookieId /= mself)
         && ( c.cookieId `elem` ids
                || maybe False (`elem` labels) c.cookieLabel
            )
