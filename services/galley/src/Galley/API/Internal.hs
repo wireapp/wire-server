@@ -88,7 +88,6 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
-import Wire.UserClientIndexStore
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
@@ -110,6 +109,7 @@ import Wire.TeamStore
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore
 import Wire.UserList
 
 internalAPI :: API InternalAPI GalleyEffects

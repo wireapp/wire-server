@@ -82,7 +82,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.UserClientIndexStore
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
@@ -112,6 +111,7 @@ import Wire.TeamFeatureStore
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserClientIndexStore
 import Wire.UserGroupStore
 
 -- All the possible high-level effects.
