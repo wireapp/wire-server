@@ -5,7 +5,6 @@
 { mkDerivation
 , aeson
 , amazonka
-, amazonka-core
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
@@ -162,7 +161,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
-    amazonka-core
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
@@ -260,7 +258,6 @@ mkDerivation {
     types-common-aws
     types-common-journal
     unliftio
-    unordered-containers
     uri-bytestring
     utf8-string
     uuid

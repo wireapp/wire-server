@@ -144,6 +144,7 @@ common common-all
     , memory
     , mime
     , mime-mail
+    , MonadRandom
     , network
     , network-conduit-tls
     , network-uri
@@ -163,7 +164,6 @@ common common-all
     , saml2-web-sso
     , schema-profunctor
     , servant
-    , MonadRandom
     , servant-client-core
     , servant-server
     , singletons

@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 module Wire.ClientStore.Cassandra (ClientStoreCassandraEnv (..), interpretClientStoreCassandra) where
 
 import Cassandra as C hiding (Client)
@@ -124,7 +122,7 @@ lookupClientIdsImpl u =
 
 lookupClientIdsBulkImpl :: (MonadClient m) => [UserId] -> m UserClients
 lookupClientIdsBulkImpl us =
-  UserClients . Map.fromList <$> (liftClient $ pooledMapConcurrentlyN 16 getClientIds us)
+  UserClients . Map.fromList <$> liftClient (pooledMapConcurrentlyN 16 getClientIds us)
   where
     getClientIds u = (u,) <$> fmap Set.fromList (lookupClientIdsImpl u)
 
@@ -147,8 +145,6 @@ deleteImpl u c = do
     Right optLockEnv ->
       embedToFinal . runInputConst optLockEnv $ deleteOptLock u c
 
--- todo "call deleteOptLock"
-
 updateLabelImpl :: (MonadClient m) => UserId -> ClientId -> Maybe Text -> m ()
 updateLabelImpl u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
 
@@ -169,9 +165,6 @@ updatePrekeysImpl u c pks = do
   for_ pks $ \k -> do
     let args = (u, c, prekeyId k, prekeyKey k)
     retry x5 $ write insertClientKey (params LocalQuorum args)
-
--- claimPrekeyImpl :: UserId -> ClientId -> m (Maybe ClientPrekey)
--- claimPrekeyImpl = todo "implement ClaimPrekey"
 
 claimPrekeyImpl ::
   forall r.
@@ -198,9 +191,9 @@ claimPrekeyImpl u c = do
   where
     removeAndReturnPreKey :: (PrekeyId, Text) -> C.Client ClientPrekey
     removeAndReturnPreKey (i, k) = do
-      if i /= lastPrekeyId
-        then retry x1 $ write removePrekey (params LocalQuorum (u, c, i))
-        else pure ()
+      when (i /= lastPrekeyId) $
+        retry x1 $
+          write removePrekey (params LocalQuorum (u, c, i))
       -- Log.debug $
       --   field "user" (toByteString u)
       --     . field "client" (toByteString c)

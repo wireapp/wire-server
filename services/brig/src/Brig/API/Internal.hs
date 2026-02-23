@@ -186,12 +186,8 @@ servantSitemap ::
     Member CryptoSign r,
     Member Random r,
     Member SAMLEmailSubsystem r,
-    Member
-      AppSubsystem
-      r
-      Member
-      ClientStore
-      r
+    Member AppSubsystem r,
+    Member ClientStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
