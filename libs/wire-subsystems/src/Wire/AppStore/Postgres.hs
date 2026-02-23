@@ -100,32 +100,33 @@ updateAppImpl ::
   StoredAppUpdate ->
   Sem r (Either AppStoreError ())
 updateAppImpl (toUUID -> teamId) (toUUID -> appId) upd = do
-  exists <-
-    runStatement (appId, teamId) $
-      [singletonStatement|
-      SELECT EXISTS(SELECT 1 FROM apps WHERE user_id = ($1 :: uuid) AND team_id = ($2 :: uuid)) :: bool |]
-  if exists
-    then
-      Right <$> do
-        case (App.categoryToText <$> upd.category, fromRange <$> upd.description) of
-          (Just cat, Just desc) ->
-            runStatement (cat, desc, appId, teamId) $
-              [resultlessStatement|
-              UPDATE apps SET category = ($1 :: text), description = ($2 :: text)
-              WHERE user_id = ($3 :: uuid) AND team_id = ($4 :: uuid) |]
-          (Just cat, Nothing) ->
-            runStatement (cat, appId, teamId) $
-              [resultlessStatement|
-              UPDATE apps SET category = ($1 :: text)
-              WHERE user_id = ($2 :: uuid) AND team_id = ($3 :: uuid) |]
-          (Nothing, Just desc) ->
-            runStatement (desc, appId, teamId) $
-              [resultlessStatement|
-              UPDATE apps SET description = ($1 :: text)
-              WHERE user_id = ($2 :: uuid) AND team_id = ($3 :: uuid) |]
-          (Nothing, Nothing) -> pure ()
-    else do
-      pure $ Left NotFound
+  found <- case (App.categoryToText <$> upd.category, fromRange <$> upd.description) of
+    (Just cat, Just desc) ->
+      runStatement (cat, desc, appId, teamId) $
+        [singletonStatement|
+          UPDATE apps SET category = ($1 :: text), description = ($2 :: text)
+          WHERE user_id = ($3 :: uuid) AND team_id = ($4 :: uuid)
+          RETURNING true :: bool |]
+    (Just cat, Nothing) ->
+      runStatement (cat, appId, teamId) $
+        [singletonStatement|
+          UPDATE apps SET category = ($1 :: text)
+          WHERE user_id = ($2 :: uuid) AND team_id = ($3 :: uuid)
+          RETURNING true :: bool |]
+    (Nothing, Just desc) ->
+      runStatement (desc, appId, teamId) $
+        [singletonStatement|
+          UPDATE apps SET description = ($1 :: text)
+          WHERE user_id = ($2 :: uuid) AND team_id = ($3 :: uuid)
+          RETURNING true :: bool |]
+    (Nothing, Nothing) ->
+      -- here we do not care if the record exists or not, there
+      -- is nothing to update either way.
+      pure True
+  pure $
+    if found
+      then Right ()
+      else Left NotFound
 
 deleteAppImpl ::
   ( Member (Input Pool) r,
