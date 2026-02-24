@@ -51,6 +51,16 @@ import Wire.AuthenticationSubsystem.ZAuth
 import Wire.HashPassword
 import Wire.UserKeyStore
 
+-- | Policy for handling existing cookies with the same label when issuing a new cookie.
+-- The default policy is 'RevokeSameLabel': for a given account and label, only one active
+-- cookie should remain. This keeps label semantics deterministic and prevents stale parallel
+-- sessions under the same logical device label.
+--
+-- 'KeepSameLabel' is a narrowly scoped relaxation used during cookie renewal. In that case
+-- the predecessor cookie may temporarily coexist with its successor for the same device:
+-- it is linked via 'cookieSucc' and written with a TTL, so it will be garbage-collected.
+-- This is accepted to bridge in-flight requests during rotation while preserving eventual
+-- single-cookie-per-(account,label) behavior.
 data SameLabelPolicy = RevokeSameLabel | KeepSameLabel
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform SameLabelPolicy)
