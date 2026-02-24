@@ -342,8 +342,7 @@ eventObjectSchema =
           EventTypeUserSessionRefreshSuggested ->
             tag
               _UserEvent
-              ( tag _UserSessionRefreshSuggested (pure ())
-              )
+              (tag _UserSessionRefreshSuggested (pure ()))
           EventTypePropertiesSet ->
             tag
               _PropertyEvent
@@ -452,7 +451,7 @@ instance ToBytes UserEvent where
   bytes (UserLegalHoldDisabled u) = val "user.legalhold-disable: " +++ toByteString u
   bytes (UserLegalHoldEnabled u) = val "user.legalhold-enable: " +++ toByteString u
   bytes (LegalHoldClientRequested payload) = val "user.legalhold-request: " +++ show payload
-  bytes UserSessionRefreshSuggested = val "user.session-refresh-suggested" 
+  bytes UserSessionRefreshSuggested = val "user.session-refresh-suggested"
 
 instance ToBytes ConnectionEvent where
   bytes e@ConnectionUpdated {} = val "user.connection: " +++ toByteString (connEventUserId e)
