@@ -17,11 +17,11 @@
 
 module Wire.MeetingsSubsystem.Interpreter where
 
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified (Local, Qualified (..), tDomain, tUnqualified)
-import Data.Range (checked)
 import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, addUTCTime)
 import Imports
@@ -82,15 +82,14 @@ createMeetingImpl zUser newMeeting = do
     Nothing -> pure True -- Personal users create trial meetings
     Just teamId -> do
       premiumFeature <- getFeatureForTeam @_ @MeetingsPremiumConfig teamId
-      pure $  premiumFeature.status == FeatureStatusEnabled
+      pure $ premiumFeature.status /= FeatureStatusEnabled
 
   -- Create conversation with the meeting creator as the only member (admin role)
-  let nameChecked = checked newMeeting.title
-      newConv =
+  let newConv =
         NewConv
           { newConvUsers = [],
             newConvQualifiedUsers = [],
-            newConvName = Just $ fromJust nameChecked,
+            newConvName = Just newMeeting.title,
             newConvAccess = Set.singleton PrivateAccess,
             newConvAccessRoles = Nothing,
             newConvTeam = ConvTeamInfo <$> conversationTeamId,
@@ -138,27 +137,20 @@ getMeetingImpl ::
   Sem r (Maybe API.Meeting)
 getMeetingImpl zUser meetingId validityPeriod = do
   -- Get meeting from store
-  maybeStoredMeeting <- Store.getMeeting (qUnqualified meetingId)
-
-  case maybeStoredMeeting of
-    Nothing -> pure Nothing
-    Just storedMeeting -> do
-      now <- Now.get
-      let cutoff = addUTCTime (negate validityPeriod) now
-      if storedMeeting.endTime < cutoff
-        then pure Nothing
-        else do
-          -- Check authorization: user must be creator OR member of the associated conversation
-          let isCreator = storedMeeting.creator == tUnqualified zUser
-          if isCreator
-            then pure (Just (storedMeetingToMeeting (tDomain zUser) storedMeeting))
-            else do
-              -- Check if user is a member of the conversation
-              let convId = storedMeeting.conversationId
-              maybeMember <- ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-              case maybeMember of
-                Just _ -> pure (Just (storedMeetingToMeeting (tDomain zUser) storedMeeting)) -- User is a member, authorized
-                Nothing -> pure Nothing -- User is not a member, not authorized
+  runMaybeT $ do
+    storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+    now <- lift Now.get
+    let cutoff = addUTCTime (negate validityPeriod) now
+    guard $ storedMeeting.endTime >= cutoff
+    -- Check authorization: user must be creator OR member of the associated conversation
+    let isCreator = storedMeeting.creator == tUnqualified zUser
+    if isCreator
+      then pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting
+      else do
+        -- Check if user is a member of the conversation
+        let convId = storedMeeting.conversationId
+        void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
+        pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
 
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting

@@ -22,6 +22,7 @@ import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (tUnqualified)
 import Data.Range (fromRange)
+import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.State
@@ -35,8 +36,10 @@ import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation
 
+type ConversationMembers = Map ConvId (Set UserId)
+
 inMemoryConversationSubsystemInterpreter ::
-  (Member (State (Map ConvId StoredConversation)) r, Member Random r) =>
+  (Member (State (Map ConvId StoredConversation)) r, Member (State ConversationMembers) r, Member Random r) =>
   InterpreterFor ConversationSubsystem r
 inMemoryConversationSubsystemInterpreter = interpret $ \case
   CreateGroupConversation lusr _mconn newConv -> do
@@ -44,7 +47,7 @@ inMemoryConversationSubsystemInterpreter = interpret $ \case
     let conv =
           StoredConversation
             { id_ = cid,
-              localMembers = [], -- In mock we don't care about members yet
+              localMembers = [newMember (tUnqualified lusr)],
               remoteMembers = [],
               metadata =
                 Public.ConversationMetadata
@@ -67,6 +70,9 @@ inMemoryConversationSubsystemInterpreter = interpret $ \case
                 BaseProtocolMLSTag -> ProtocolMLS (ConversationMLSData (GroupId "mock-group-id") Nothing)
             }
     modify (Map.insert cid conv)
+    modify (Map.insert cid (Set.singleton (tUnqualified lusr)))
     pure conv
-  InternalGetLocalMember _cid uid -> pure $ Just (newMember uid) -- Mock implementation
+  InternalGetLocalMember cid uid -> do
+    members <- gets (Map.lookup cid)
+    pure $ if Set.member uid (fromMaybe Set.empty members) then Just (newMember uid) else Nothing
   _ -> error "ConversationSubsystem: not implemented in mock"

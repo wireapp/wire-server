@@ -25,6 +25,7 @@ where
 
 import Data.Id
 import Data.Profunctor (dimap)
+import Data.Range (Range)
 import Data.Time.Clock
 import Data.UUID (UUID, nil)
 import Hasql.Pool
@@ -53,7 +54,7 @@ interpretMeetingsStoreToPostgres =
 
 createMeetingImpl ::
   (PGConstraints r) =>
-  Text ->
+  Range 1 256 Text ->
   UserId ->
   UTCTime ->
   UTCTime ->
