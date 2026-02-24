@@ -106,3 +106,18 @@ testShapeEmptyArray = do
   v `shouldMatchShape` SArray SString
   v `shouldMatchShape` SArray SNumber
   v `shouldMatchShape` SArray (SObject [])
+
+-- | 'valueShape' computes the correct shape of a JSON value.
+testValueShape :: (HasCallStack) => App ()
+testValueShape = do
+  let v =
+        object
+          [ "name" .= ("Alice" :: String),
+            "age" .= (30 :: Int),
+            "active" .= True,
+            "scores" .= [1 :: Int, 2, 3],
+            "address" .= object ["city" .= ("London" :: String)]
+          ]
+  shape <- valueShape v
+  -- The computed shape should itself pass the shape-match on v
+  v `shouldMatchShape` shape
