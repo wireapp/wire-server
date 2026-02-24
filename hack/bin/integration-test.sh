@@ -51,10 +51,10 @@ summary() {
 }
 
 # Copy the secrets from the wire-federation-v0 namespace to the current namespace to be able to delete RabbitMQ queues that are created by the integration tests to avoid overflows
-kubectl -n "$NAMESPACE" delete --force secret rabbitmq-v0 || true
-kubectl -n wire-federation-v0 get secrets rabbitmq -ojson | jq 'del(.metadata.namespace) | del(.metadata.resourceVersion) | del(.metadata.uid) | .metadata.name="rabbitmq-v0"' | kubectl -n "$NAMESPACE" apply -f -
-kubectl -n "$NAMESPACE" delete --force secret rabbitmq-v1 || true
-kubectl -n wire-federation-v1 get secrets rabbitmq -ojson | jq 'del(.metadata.namespace) | del(.metadata.resourceVersion) | del(.metadata.uid) | .metadata.name="rabbitmq-v1"' | kubectl -n "$NAMESPACE" apply -f -
+for fedVersion in $(seq 0 2); do
+    kubectl -n "$NAMESPACE" delete --force secret "rabbitmq-v${fedVersion}" || true
+    kubectl -n "wire-federation-v${fedVersion}" get secrets rabbitmq -ojson | jq 'del(.metadata.namespace) | del(.metadata.resourceVersion) | del(.metadata.uid) | .metadata.name="rabbitmq-v'"${fedVersion}"'"' | kubectl -n "$NAMESPACE" apply -f -
+done
 
 # Run tests in parallel using GNU parallel (see https://www.gnu.org/software/parallel/)
 # The below commands are a little convoluted, but we wish to:
