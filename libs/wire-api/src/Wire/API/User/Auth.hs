@@ -289,7 +289,7 @@ deriving instance Cql CookieLabel
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving newtype (ToSchema, FromJSON, ToJSON, Arbitrary)
 
 instance Cql CookieId where

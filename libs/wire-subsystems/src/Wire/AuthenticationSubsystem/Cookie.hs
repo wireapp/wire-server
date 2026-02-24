@@ -26,6 +26,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.User.Auth
+import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Error
@@ -49,8 +50,9 @@ newCookieImpl ::
   Maybe ClientId ->
   CookieType ->
   Maybe CookieLabel ->
+  SameLabelPolicy ->
   Sem r (Cookie (Token u))
-newCookieImpl uid cid typ label = do
+newCookieImpl uid cid typ label policy = do
   now <- Now.get
   tok <-
     case typ of
@@ -69,6 +71,9 @@ newCookieImpl uid cid typ label = do
             cookieValue = tok
           }
   SessionStore.insertCookie uid (toUnitCookie c) Nothing
+  case policy of
+    KeepSameLabel -> pure ()
+    RevokeSameLabel -> for_ c.cookieLabel $ revokeCookiesMatchingExcept uid (Just c.cookieId) [] . (: [])
   pure c
 
 newCookieLimitedImpl ::
@@ -85,8 +90,9 @@ newCookieLimitedImpl ::
   Maybe ClientId ->
   CookieType ->
   Maybe CookieLabel ->
+  SameLabelPolicy ->
   Sem r (Cookie (Token t))
-newCookieLimitedImpl u c typ label = do
+newCookieLimitedImpl u c typ label policy = do
   cs <- filter ((typ ==) . cookieType) <$> SessionStore.listCookies u
   now <- Now.get
   lim <- CookieLimit <$> inputs (.userCookieLimit)
@@ -96,7 +102,7 @@ newCookieLimitedImpl u c typ label = do
     case throttleCookies now thr cs of
       Just wait -> throw wait
       Nothing -> revokeCookiesImpl u evict []
-  newCookieImpl u c typ label
+  newCookieImpl u c typ label policy
 
 revokeCookiesImpl ::
   (Member SessionStore r) =>
@@ -104,11 +110,22 @@ revokeCookiesImpl ::
   [CookieId] ->
   [CookieLabel] ->
   Sem r ()
-revokeCookiesImpl u [] [] = SessionStore.deleteAllCookies u
-revokeCookiesImpl u ids labels = do
+revokeCookiesImpl u ids labels = revokeCookiesMatchingExcept u Nothing ids labels
+
+revokeCookiesMatchingExcept ::
+  (Member SessionStore r) =>
+  UserId ->
+  Maybe CookieId ->
+  [CookieId] ->
+  [CookieLabel] ->
+  Sem r ()
+revokeCookiesMatchingExcept u Nothing [] [] = SessionStore.deleteAllCookies u
+revokeCookiesMatchingExcept u mself ids labels = do
   cc <- filter matching <$> SessionStore.listCookies u
   SessionStore.deleteCookies u cc
   where
     matching c =
-      cookieId c `elem` ids
-        || maybe False (`elem` labels) (cookieLabel c)
+      (Just c.cookieId /= mself)
+        && ( c.cookieId `elem` ids
+               || maybe False (`elem` labels) c.cookieLabel
+           )

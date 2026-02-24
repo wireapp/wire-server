@@ -128,7 +128,7 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
   -- generate a team event
   generateTeamEvents creator.id tid [EdAppCreate u.id]
 
-  c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
+  c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
     Apps.CreatedApp
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
@@ -244,7 +244,7 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
 
   c :: Cookie (Token U) <-
-    newCookieLimited appId Nothing PersistentCookie (Just "app")
+    newCookieLimited appId Nothing PersistentCookie Nothing RevokeSameLabel
       >>= either throw pure
   pure $ mkSomeToken c.cookieValue
 
