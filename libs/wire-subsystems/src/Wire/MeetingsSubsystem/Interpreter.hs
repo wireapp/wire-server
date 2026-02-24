@@ -77,16 +77,12 @@ createMeetingImpl zUser newMeeting = do
     throwS @'InvalidOperation
 
   -- Determine trial status based on team membership and premium feature
-  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
-  (trial, conversationTeamId) <- case maybeTeamId of
-    Nothing -> pure (True, Nothing) -- Personal users create trial meetings
+  conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  trial <- case conversationTeamId of
+    Nothing -> pure True -- Personal users create trial meetings
     Just teamId -> do
       premiumFeature <- getFeatureForTeam @_ @MeetingsPremiumConfig teamId
-      let premium =
-            case premiumFeature of
-              LockableFeature {status = FeatureStatusEnabled} -> True
-              _ -> False
-      pure (not premium, Just teamId)
+      pure $  premiumFeature.status == FeatureStatusEnabled
 
   -- Create conversation with the meeting creator as the only member (admin role)
   let nameChecked = checked newMeeting.title
