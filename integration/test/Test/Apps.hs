@@ -233,3 +233,7 @@ testPutApp = do
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json `shouldMatch` (Object (appMetadata <> appMetadataReturnedExtra))
+
+  let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
+  bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
+    resp.status `shouldMatchInt` 404
