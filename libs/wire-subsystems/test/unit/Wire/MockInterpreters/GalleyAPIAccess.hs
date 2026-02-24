@@ -85,7 +85,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
         { mlsKeys = Nothing,
           federationProtocols = Nothing,
           legalholdDefaults = FeatureLegalHoldDisabledPermanently,
-          maxConvSize = 500
+          maxConvSize = 500,
+          listClientsUsingBrig = False
         }
 
 -- this is called but the result is not needed in unit tests

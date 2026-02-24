@@ -22,6 +22,7 @@ module Wire.ConversationSubsystem where
 import Data.Id
 import Data.Qualified
 import Data.Singletons (Sing)
+import Galley.Types.Clients (Clients)
 import Imports
 import Polysemy
 import Wire.API.Conversation (ExtraConversationData, NewConv, NewOne2OneConv)
@@ -61,5 +62,6 @@ data ConversationSubsystem m a where
     Maybe ConnId ->
     Connect ->
     ConversationSubsystem m (StoredConversation, Bool)
+  InternalGetClientIds :: [UserId] -> ConversationSubsystem m Clients
 
 makeSem ''ConversationSubsystem

@@ -88,7 +88,6 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
-import Wire.ClientStore
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
@@ -110,6 +109,7 @@ import Wire.TeamStore
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore
 import Wire.UserList
 
 internalAPI :: API InternalAPI GalleyEffects
@@ -349,7 +349,7 @@ rmUser ::
   forall p2 r.
   ( p2 ~ InternalPaging,
     Member BackendNotificationQueueAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (Error DynError) r,
     Member (Error FederationError) r,

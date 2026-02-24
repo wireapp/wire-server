@@ -52,7 +52,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.Cassandra.Client
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
@@ -149,6 +148,7 @@ import Wire.TeamFeatureStore.Postgres
 import Wire.TeamJournal.Aws
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter
+import Wire.UserClientIndexStore.Cassandra (interpretUserClientIndexStoreToCassandra)
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
 -- Effects needed by the interpretation of other effects
@@ -339,7 +339,8 @@ evalGalley e =
           { mlsKeys = e._mlsKeys,
             federationProtocols = e._options._settings._federationProtocols,
             legalholdDefaults = lh,
-            maxConvSize = e._options._settings._maxConvSize
+            maxConvSize = e._options._settings._maxConvSize,
+            listClientsUsingBrig = e._options._settings._intraListing
           }
    in ExceptT
         . runFinal @IO
@@ -415,7 +416,7 @@ evalGalley e =
         . interpretRateLimit e._passwordHashingRateLimitEnv
         . interpretProposalStoreToCassandra
         . convCodesStoreInterpreter
-        . interpretClientStoreToCassandra
+        . interpretUserClientIndexStoreToCassandra (e ^. cstate)
         . interpretTeamCollaboratorsStoreToPostgres
         . interpretFireAndForget
         . BackendNotificationQueueAccess.interpretBackendNotificationQueueAccess backendNotificationQueueAccessEnv

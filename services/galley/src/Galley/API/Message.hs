@@ -79,8 +79,8 @@ import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.ClientStore
 import Wire.ConversationStore
+import Wire.ConversationSubsystem qualified as ConvSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (NotificationSubsystem)
@@ -90,6 +90,7 @@ import Wire.StoredConversation
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore
 
 data UserType = User | Bot -- FUTUREWORK: there is UserType in Wire.API.User now, should we use that?  (there is also UserType variant for searcho/contacts, but there is a good reason for that one.)
 
@@ -256,7 +257,6 @@ postRemoteOtrMessage sender conv rawMsg = do
 
 postBroadcast ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -267,7 +267,8 @@ postBroadcast ::
     Member P.TinyLog r,
     Member NotificationSubsystem r,
     Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member ConvSubsystem.ConversationSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -306,7 +307,7 @@ postBroadcast lusr con msg = runError $ do
   contacts <- getContactList senderUser
   let users = toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
 
-  localClients <- getBrigClients users
+  localClients <- ConvSubsystem.internalGetClientIds users
   let qualifiedLocalClients =
         Map.mapKeys (tDomain lusr,)
           . makeUserMap (Set.fromList users)
@@ -368,7 +369,7 @@ postBroadcast lusr con msg = runError $ do
 
 postQualifiedOtrMessage ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
