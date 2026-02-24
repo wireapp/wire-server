@@ -117,14 +117,14 @@ doesUserExistImpl uid =
 getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
 getIndexUserImpl u = do
   mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
-  pure $ asRecord <$> mIndexUserTuple
+  pure $ indexUserFromTuple <$> mIndexUserTuple
   where
     cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
     cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
 
 getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
 getIndexUserPaginatedImpl pageSize mPagingState =
-  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
+  indexUserFromTuple <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
   where
     cql :: PrepQuery R () (TupleType IndexUser)
     cql = prepared $ QueryString getIndexUserBaseQuery

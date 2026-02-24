@@ -122,7 +122,7 @@ syncAllUsersWithVersion mkVersion =
       -- contains User, Maybe Role, UserType, ..., and pass around
       -- ExtendedUser.  this should make the code less convoluted.
 
-      let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) . value <$> u.teamId) page
+      let teams :: Map TeamId [IndexUser] = Map.fromListWith (<>) $ mapMaybe (\u -> (,[u]) <$> u.teamId) page
           teamIds = Map.keys teams
       visMap <- fmap Map.fromList . unsafePooledForConcurrentlyN 16 teamIds $ \t ->
         (t,) <$> teamSearchVisibilityInbound t
@@ -132,7 +132,7 @@ syncAllUsersWithVersion mkVersion =
       roles :: Map UserId (WithWritetime Role) <- fmap (Map.fromList . concat) . unsafePooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) -> do
         tms <- (.members) <$> selectTeamMemberInfos t (fmap (.userId) us)
         pure $ mapMaybe mkRoleWithWriteTime tms
-      let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ (flip Map.lookup visMap . value =<< indexUser.teamId)
+      let vis indexUser = fromMaybe defaultSearchVisibilityInbound $ (flip Map.lookup visMap =<< indexUser.teamId)
           mkUserDoc indexUser =
             indexUserToDoc
               (vis indexUser)
@@ -216,7 +216,7 @@ getUserType ::
 getUserType iu = case iu.serviceId of
   Just _ -> pure UserTypeBot
   Nothing -> do
-    mmApp <- mapM (getApp iu.userId) (iu.teamId <&> (.value))
+    mmApp <- mapM (getApp iu.userId) iu.teamId
     case join mmApp of
       Just _ -> pure UserTypeApp
       Nothing -> pure UserTypeRegular

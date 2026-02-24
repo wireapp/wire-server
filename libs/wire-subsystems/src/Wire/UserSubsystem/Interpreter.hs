@@ -728,10 +728,10 @@ syncUserIndex uid =
       vis <-
         maybe
           (pure defaultSearchVisibilityInbound)
-          (teamSearchVisibilityInbound . value)
+          teamSearchVisibilityInbound
           indexUser.teamId
-      tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
-      userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
+      tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
+      userType <- getUserType indexUser.userId indexUser.teamId indexUser.serviceId
       let mRole = tm >>= mkRoleWithWriteTime
           userDoc = indexUserToDoc vis (Just userType) (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
