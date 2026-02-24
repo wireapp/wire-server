@@ -1,0 +1,1 @@
+`PUT /teams/:tid/apps/:uid` for app metadata update.

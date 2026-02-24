@@ -45,6 +45,15 @@ data GetApp = GetApp
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
+data PutApp = PutApp
+  { name :: Maybe Name,
+    assets :: Maybe [Asset],
+    accentId :: Maybe ColourId,
+    category :: Maybe Category,
+    description :: Maybe (Range 0 300 Text)
+  }
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
+
 data Category
   = Security
   | Collaboration
@@ -126,6 +135,16 @@ instance ToSchema GetApp where
         <*> (.meta) .= field "metadata" jsonObject
         <*> (.category) .= field "category" schema
         <*> (.description) .= field "description" schema
+
+instance ToSchema PutApp where
+  schema =
+    object "PutApp" $
+      PutApp
+        <$> (.name) .= maybe_ (optField "name" schema)
+        <*> (.assets) .= maybe_ (optField "assets" (array schema))
+        <*> (.accentId) .= maybe_ (optField "accent_id" schema)
+        <*> (.category) .= maybe_ (optField "category" schema)
+        <*> (.description) .= maybe_ (optField "description" schema)
 
 data CreatedApp = CreatedApp
   { user :: User,

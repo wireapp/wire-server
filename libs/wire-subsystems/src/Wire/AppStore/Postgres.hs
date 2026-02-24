@@ -23,12 +23,14 @@ module Wire.AppStore.Postgres
 where
 
 import Data.Id
+import Data.Range
 import Hasql.Pool
 import Hasql.TH
 import Imports
 import Polysemy
 import Polysemy.Error (Error)
 import Polysemy.Input
+import Wire.API.App qualified as App
 import Wire.API.PostgresMarshall
 import Wire.AppStore
 import Wire.Postgres
@@ -44,6 +46,7 @@ interpretAppStoreToPostgres =
     CreateApp app -> createAppImpl app
     GetApp userId teamId -> getAppImpl userId teamId
     GetApps teamId -> getAppsImpl teamId
+    UpdateApp teamId appId put -> updateAppImpl teamId appId put
     DeleteApp userId teamId -> deleteAppImpl userId teamId
 
 createAppImpl ::
@@ -86,6 +89,44 @@ getAppsImpl tid =
     dimapPG
       [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
         from apps where team_id = ($1 :: uuid) |]
+
+updateAppImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  TeamId ->
+  UserId ->
+  StoredAppUpdate ->
+  Sem r (Either AppStoreError ())
+updateAppImpl (toUUID -> teamId) (toUUID -> appId) upd = do
+  found <- case (App.categoryToText <$> upd.category, fromRange <$> upd.description) of
+    (Just cat, Just desc) ->
+      runStatement (cat, desc, appId, teamId) $
+        [maybeStatement|
+          UPDATE apps SET category = ($1 :: text), description = ($2 :: text)
+          WHERE user_id = ($3 :: uuid) AND team_id = ($4 :: uuid)
+          RETURNING true :: bool |]
+    -- (we don't need `false` ever.  instead of `true :: bool`, there
+    -- is also `( ) :: void` in psql, but the hasql parser complains
+    -- about it.)
+    (Just cat, Nothing) ->
+      runStatement (cat, appId, teamId) $
+        [maybeStatement|
+          UPDATE apps SET category = ($1 :: text)
+          WHERE user_id = ($2 :: uuid) AND team_id = ($3 :: uuid)
+          RETURNING true :: bool |]
+    (Nothing, Just desc) ->
+      runStatement (desc, appId, teamId) $
+        [maybeStatement|
+          UPDATE apps SET description = ($1 :: text)
+          WHERE user_id = ($2 :: uuid) AND team_id = ($3 :: uuid)
+          RETURNING true :: bool |]
+    (Nothing, Nothing) ->
+      -- here we do not care if the record exists or not, there
+      -- is nothing to update either way.
+      pure (Just True)
+  pure $ maybe (Left NotFound) (\_ -> Right ()) found
 
 deleteAppImpl ::
   ( Member (Input Pool) r,

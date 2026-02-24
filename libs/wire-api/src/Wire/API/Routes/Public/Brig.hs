@@ -2138,6 +2138,18 @@ type AppsAPI =
                :> Get '[JSON] [GetApp]
            )
     :<|> Named
+           "put-app"
+           ( Summary "Update metadata of an existing app"
+               :> From 'V15
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Capture "app" UserId
+               :> ReqBody '[JSON] PutApp
+               :> Put '[JSON] ()
+           )
+    :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
                :> ZLocalUser

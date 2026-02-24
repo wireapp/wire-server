@@ -18,6 +18,7 @@
 module Wire.AppSubsystem.Interpreter where
 
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.Map qualified as Map
@@ -74,6 +75,7 @@ runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
   GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
+  UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
   DeleteApp tid appId -> deleteAppImpl tid appId
 
@@ -202,6 +204,28 @@ getAppsImpl lusr tid = do
       where
         f a = (a,) <$> Map.lookup a.id umap
         umap = Map.fromList $ (\u -> (u.id, u)) <$> us
+
+updateAppImpl ::
+  ( Member AppStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Apps.PutApp ->
+  Sem r ()
+updateAppImpl lusr tid appid upd = do
+  (_updater, umem) <- ensureTeamMember lusr tid
+  note AppSubsystemErrorNoPerm $ guard (T.hasPermission umem T.CreateApp)
+  Store.updateApp tid appid (Store.MkStoredAppUpdate {category = upd.category, description = upd.description}) >>= \case
+    Right () -> pure ()
+    Left Store.NotFound -> throw AppSubsystemErrorNoApp
+  Store.updateUser appid (def {Store.name = upd.name, Store.assets = upd.assets, Store.accentId = upd.accentId})
+  -- FUTUREWORK(WPB-21287): internalUpdateSearchIndex appid
+  -- FUTUREWORK(WPB-21287): create event `app.updated`
+  pure ()
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,

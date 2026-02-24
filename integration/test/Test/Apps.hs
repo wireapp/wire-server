@@ -22,6 +22,7 @@ module Test.Apps where
 import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Galley
+import Data.Aeson.QQ.Simple
 import SetupHelpers
 import Testlib.Prelude
 
@@ -193,3 +194,46 @@ testDeleteAppFromTeam = do
     bindResponse (BrigI.getUsersId domain [appId]) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json `shouldMatch` ([] :: [Value])
+
+testPutApp :: (HasCallStack) => App ()
+testPutApp = do
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam domain 1
+  let new = def {name = "choppie"} :: NewApp
+  appId <- bindResponse (createApp owner tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user.id" & asString
+
+  let Object appMetadata =
+        [aesonQQ|
+        {
+          "accent_id": 2147483647,
+          "assets": [
+            {
+              "key": "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac",
+              "size": "preview",
+              "type": "image"
+            }
+          ],
+          "name": "Appy McApp",
+          "category": "security",
+          "description": "This is the best app ever."
+        }|]
+
+      Object appMetadataReturnedExtra =
+        [aesonQQ|
+        {
+          "metadata": {},
+          "picture": []
+        }|]
+
+  bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (getApp owner tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` (Object (appMetadata <> appMetadataReturnedExtra))
+
+  let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
+  bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
+    resp.status `shouldMatchInt` 404

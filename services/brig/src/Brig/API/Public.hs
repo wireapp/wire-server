@@ -633,6 +633,7 @@ servantSitemap =
       Named @"create-app" createApp
         :<|> Named @"get-app" getApp
         :<|> Named @"get-apps" getApps
+        :<|> Named @"put-app" putApp
         :<|> Named @"refresh-app-cookie" refreshAppCookie
 
 ---------------------------------------------------------------------------
@@ -1764,6 +1765,9 @@ getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
 
 getApps :: (_) => Local UserId -> TeamId -> Handler r [GetApp]
 getApps lusr tid = lift . liftSem $ AppSubsystem.getApps lusr tid
+
+putApp :: (_) => Local UserId -> TeamId -> UserId -> PutApp -> Handler r ()
+putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put
 
 refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
 refreshAppCookie lusr tid appId = do
