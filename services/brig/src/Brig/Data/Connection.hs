@@ -176,7 +176,7 @@ lookupLocalConnectionsPage ::
   Local UserId ->
   Maybe PagingState ->
   Range 1 1000 Int32 ->
-  m (PageWithState UserConnection)
+  m (PageWithState Void UserConnection)
 lookupLocalConnectionsPage self pagingState (fromRange -> size) =
   fmap (toLocalUserConnection self) <$> paginateWithState connectionsSelect (paramsPagingState LocalQuorum (Identity (tUnqualified self)) size pagingState) x1
 
@@ -186,7 +186,7 @@ lookupRemoteConnectionsPage ::
   Local UserId ->
   Maybe PagingState ->
   Int32 ->
-  m (PageWithState UserConnection)
+  m (PageWithState Void UserConnection)
 lookupRemoteConnectionsPage self pagingState size =
   fmap (toRemoteUserConnection self)
     <$> paginateWithState

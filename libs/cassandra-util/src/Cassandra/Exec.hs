@@ -25,6 +25,9 @@ module Cassandra.Exec
     x5,
     x1,
     paginateC,
+    GeneralPaginationState (..),
+    paginationStateCassandra,
+    paginationStatePostgres,
     PageWithState (..),
     paginateWithState,
     paginateWithStateC,
@@ -97,9 +100,23 @@ paginateC q p r = go =<< lift (retry r (paginate q p))
       when (hasMore page) $
         go =<< lift (retry r (liftClient (nextPage page)))
 
-data PageWithState a = PageWithState
-  { pwsResults :: [a],
-    pwsState :: Maybe Protocol.PagingState
+data GeneralPaginationState a
+  = PaginationStateCassandra Protocol.PagingState
+  | PaginationStatePostgres a
+
+paginationStateCassandra :: GeneralPaginationState pgState -> Maybe Protocol.PagingState
+paginationStateCassandra = \case
+  PaginationStateCassandra state -> Just state
+  PaginationStatePostgres {} -> Nothing
+
+paginationStatePostgres :: GeneralPaginationState pgState -> Maybe pgState
+paginationStatePostgres = \case
+  PaginationStatePostgres pgState -> Just pgState
+  PaginationStateCassandra {} -> Nothing
+
+data PageWithState state res = PageWithState
+  { pwsResults :: [res],
+    pwsState :: Maybe (GeneralPaginationState state)
   }
   deriving (Functor)
 
@@ -107,13 +124,13 @@ data PageWithState a = PageWithState
 -- serialised and sent to consumers of the API. The state is not good for long
 -- term storage as the bytestring format may change when the schema of a table
 -- changes or when cassandra is upgraded.
-paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> RetrySettings -> m (PageWithState b)
+paginateWithState :: (MonadClient m, Tuple a, Tuple b, RunQ q) => q R a b -> QueryParams a -> RetrySettings -> m (PageWithState x b)
 paginateWithState q p retrySettings = do
   let p' = p {Protocol.pageSize = Protocol.pageSize p <|> Just 10000}
   r <- runQ q p'
   retry retrySettings (getResult r) >>= \case
     Protocol.RowsResult m b ->
-      pure $ PageWithState b (pagingState m)
+      pure $ PageWithState b (PaginationStateCassandra <$> pagingState m)
     _ -> throwM $ UnexpectedResponse (hrHost r) (hrResponse r)
 
 -- | Like 'paginateWithState' but returns a conduit instead of one page.
@@ -128,20 +145,20 @@ paginateWithState q p retrySettings = do
 --   where
 --     getUsers state = paginateWithState getUsersQuery (paramsPagingState Quorum () 10000 state)
 -- @
-paginateWithStateC :: forall m a. (Monad m) => (Maybe Protocol.PagingState -> m (PageWithState a)) -> ConduitT () [a] m ()
+paginateWithStateC :: forall m res state. (Monad m) => (Maybe (GeneralPaginationState state) -> m (PageWithState state res)) -> ConduitT () [res] m ()
 paginateWithStateC getPage = do
   go =<< lift (getPage Nothing)
   where
-    go :: PageWithState a -> ConduitT () [a] m ()
+    go :: PageWithState state res -> ConduitT () [res] m ()
     go page = do
       unless (null page.pwsResults) $
         yield (page.pwsResults)
       when (pwsHasMore page) $
-        go =<< lift (getPage page.pwsState)
+        go =<< lift (getPage $ page.pwsState)
 
 paramsPagingState :: Consistency -> a -> Int32 -> Maybe Protocol.PagingState -> QueryParams a
 paramsPagingState c p n state = QueryParams c False p (Just n) state Nothing Nothing
 {-# INLINE paramsPagingState #-}
 
-pwsHasMore :: PageWithState a -> Bool
+pwsHasMore :: PageWithState a b -> Bool
 pwsHasMore = isJust . pwsState
