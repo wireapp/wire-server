@@ -159,7 +159,6 @@ updateLastActiveImpl u c t =
       updateClientLastActiveQuery
       (params LocalQuorum (t, u, c))
 
--- TODO: Add check to upstream callers of this function
 updatePrekeysImpl :: (MonadClient m) => UserId -> ClientId -> [UncheckedPrekeyBundle] -> m ()
 updatePrekeysImpl u c pks = do
   for_ pks $ \k -> do

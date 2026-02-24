@@ -35,6 +35,7 @@ import Data.Qualified
 import Imports
 import Polysemy (Member)
 import Wire.API.User.Client hiding (UpdateClient (..))
+import Wire.API.User.Client.Prekey
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error
@@ -115,8 +116,10 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients caps = do
 
     insert :: UserId -> ExceptT ClientDataError (AppT r) Client
     insert uid = do
-      -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< asks (.currentTime))
+      let prekeys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
+      unless (all checkPrekeyBundle prekeys) $
+        throwE MalformedPrekeys
       mErr <- lift . liftSem $ ClientStore.upsert uid newId now (c {newClientCapabilities = caps})
       case mErr of
         Just DuplicateMLSPublicKey -> throwE MLSPublicKeyDuplicate

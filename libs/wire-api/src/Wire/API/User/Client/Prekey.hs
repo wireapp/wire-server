@@ -21,6 +21,7 @@
 module Wire.API.User.Client.Prekey
   ( PrekeyId (..),
     UncheckedPrekeyBundle (..),
+    checkPrekeyBundle,
     clientIdFromPrekey,
     parsePrekeyBundlePrekeyId,
     PrekeyBundlePrekeyPayload (..),
@@ -150,6 +151,10 @@ instance ToSchema UncheckedPrekeyBundle where
       UncheckedPrekeyBundle
         <$> prekeyId .= field "id" schema
         <*> prekeyKey .= field "key" schema
+
+checkPrekeyBundle :: UncheckedPrekeyBundle -> Bool
+checkPrekeyBundle bundle =
+  parsePrekeyBundlePrekeyId bundle == Right bundle.prekeyId
 
 -- | Construct a new client ID from a prekey.
 --

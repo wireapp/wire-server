@@ -264,8 +264,11 @@ updateClient uid cid req = do
         lift . liftSem . ClientStore.updateCapabilities uid cid . Just $ caps
       else throwE $ clientError ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
+      prekeys = lk ++ req.updateClientPrekeys
   ( do
-      lift . liftSem $ ClientStore.updatePrekeys uid cid (lk ++ req.updateClientPrekeys)
+      unless (all checkPrekeyBundle prekeys) $
+        throwE MalformedPrekeys
+      lift . liftSem $ ClientStore.updatePrekeys uid cid prekeys
       mErr <- lift . liftSem $ ClientStore.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
       case mErr of
         Just DuplicateMLSPublicKey -> throwE MLSPublicKeyDuplicate

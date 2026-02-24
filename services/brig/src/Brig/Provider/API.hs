@@ -30,7 +30,7 @@ where
 import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Types (PasswordResetError (..))
+import Brig.API.Types (ClientDataError (..), PasswordResetError (..))
 import Brig.App
 import Brig.Data.Client qualified as User
 import Brig.Options (Settings (..))
@@ -117,6 +117,7 @@ import Wire.API.User qualified as Public (UserProfile, mkUserProfile)
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import Wire.API.User.Client.Prekey (checkPrekeyBundle)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.AuthenticationSubsystem as Authentication
 import Wire.AuthenticationSubsystem.Config
@@ -946,7 +947,9 @@ botUpdatePrekeys bot upd = do
     Nothing -> throwStd (errorToWai @'E.ClientNotFound)
     Just c -> do
       let pks = updateBotPrekeyList upd
-      (lift . liftSem $ ClientStore.updatePrekeys (botUserId bot) c.clientId pks) !>> clientDataError
+      unless (all checkPrekeyBundle pks) $
+        throwE (clientDataError MalformedPrekeys)
+      lift . liftSem $ ClientStore.updatePrekeys (botUserId bot) c.clientId pks
 
 botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
