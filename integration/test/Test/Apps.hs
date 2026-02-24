@@ -237,3 +237,65 @@ testPutApp = do
   let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
   bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
     resp.status `shouldMatchInt` 404
+
+testRetrieveUsersIncludingApps :: (HasCallStack) => App ()
+testRetrieveUsersIncludingApps = do
+  domain <- make OwnDomain
+  (owner, tid, [regular]) <- createTeam domain 2
+  let new = def {name = "chippie"} :: NewApp
+  appWant <- bindResponse (createApp owner tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+  appId <- appWant %. "id" & asString
+
+  -- [`GET /teams/:tid/members`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-members) (route id: "get-team-members")
+  getTeamMembers owner tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "hasMore" `shouldMatch` False
+    mems <- resp.json %. "members" >>= asList
+    memIds <- (asString . (%. "user")) `mapM` mems
+    memIds
+      `shouldMatchSet` sequence
+        [ pure appId,
+          asString $ regular %. "qualified_id.id",
+          asString $ owner %. "qualified_id.id"
+        ]
+
+  -- [`GET /teams/:tid/members/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-member) (route id: "get-team-member")
+  getTeamMember owner tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user" `shouldMatch` appId
+
+  -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
+  let assertApp :: (MakesValue have, MakesValue want) => have -> want -> App ()
+      assertApp have want = do
+        (have %. "name") `shouldMatch` (want %. "name")
+        (have %. "assets") `shouldMatch` (want %. "assets")
+        (have %. "accent_id") `shouldMatch` (want %. "accent_id")
+        (have %. "category" >>= asString) `shouldMatch` new.category
+        (have %. "description" >>= asString) `shouldMatch` new.description
+        -- `pict` is deprecated, `meta` is not on the roadmap for Q1/26, so we test nothing.
+        pure ()
+
+  -- TODO: Both `StoredUser` and `StoredApp` should contained in `GetApp` fully!
+  -- TODO: make chunks of the various result records of type [Pair], and combine them as needed to match easily against the search output.  this way we also catch unexpected field.
+
+  getApps owner tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    [appHave] <- resp.json & maybe (error "this shouldn't happen") asList
+    assertApp appHave appWant
+
+  -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
+  getApp owner tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    assertApp resp.json appWant
+
+  -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
+  listUsers owner [appWant] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "found[0]" `shouldMatch` appWant
+
+  -- [`GET /search/contacts`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/search-contacts) (route id: "search-contacts")
+
+  pure
+  ()
