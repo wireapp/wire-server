@@ -323,7 +323,7 @@ newAccess ::
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid cid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
-  r <- lift $ liftSem $ newCookieLimited uid cid ct cl
+  r <- lift $ liftSem $ newCookieLimited uid cid ct cl RevokeSameLabel
   case r of
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do

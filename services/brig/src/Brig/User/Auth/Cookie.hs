@@ -133,7 +133,7 @@ renewCookie old mcid = do
   let t = cookieValue old
   let uid = Id t.body.user
   -- Insert new cookie
-  new <- newCookie uid mcid (cookieType old) (cookieLabel old)
+  new <- newCookie uid mcid (cookieType old) (cookieLabel old) KeepSameLabel
   -- Link the old cookie to the new (successor), keeping it
   -- around only for another renewal period so as not to build
   -- an ever growing chain of superseded cookies.

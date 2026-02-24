@@ -45,10 +45,15 @@ import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
+import Wire.Arbitrary
 import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.HashPassword
 import Wire.UserKeyStore
+
+data SameLabelPolicy = RevokeSameLabel | KeepSameLabel
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform SameLabelPolicy)
 
 data AuthenticationSubsystem m a where
   -- Password Management
@@ -67,6 +72,7 @@ data AuthenticationSubsystem m a where
     Maybe ClientId ->
     CookieType ->
     Maybe CookieLabel ->
+    SameLabelPolicy ->
     AuthenticationSubsystem m (Cookie (ZAuth.Token t))
   NewCookieLimited ::
     (UserTokenLike t) =>
@@ -74,6 +80,7 @@ data AuthenticationSubsystem m a where
     Maybe ClientId ->
     CookieType ->
     Maybe CookieLabel ->
+    SameLabelPolicy ->
     AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
   RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
   -- For testing

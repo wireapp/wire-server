@@ -90,8 +90,8 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         VerifyUserPasswordError luid plaintext -> verifyUserPasswordErrorImpl luid plaintext
         VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
         -- Cookie Management
-        NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
-        NewCookieLimited uid mcid typ mLabel -> runError $ newCookieLimitedImpl uid mcid typ mLabel
+        NewCookie uid mcid typ mLabel policy -> newCookieImpl uid mcid typ mLabel policy
+        NewCookieLimited uid mcid typ mLabel policy -> runError $ newCookieLimitedImpl uid mcid typ mLabel policy
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
         -- Testing
         InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey

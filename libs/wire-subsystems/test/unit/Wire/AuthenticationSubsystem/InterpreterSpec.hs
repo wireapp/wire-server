@@ -364,8 +364,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
     prop "trivial attributes: plain user cookie" $
       \localDomain uid cid typ mLabel ->
         let Right (plainCookie, lhCookie) = runAllEffects localDomain [] Nothing $ do
-              plain <- newCookie @_ @ZAuth.U uid cid typ mLabel
-              lh <- newCookie @_ @ZAuth.U uid cid typ mLabel
+              plain <- newCookie @_ @ZAuth.U uid cid typ mLabel RevokeSameLabel
+              lh <- newCookie @_ @ZAuth.U uid cid typ mLabel RevokeSameLabel
               pure (plain, lh)
             assertCookie cookie =
               cookie.cookieCreated === defaultTime
@@ -378,52 +378,60 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
     prop "persistent plain cookie expires at configured time" $
       \localDomain uid cid mLabel ->
         let Right cookie = runAllEffects localDomain [] Nothing $ do
-              newCookie @_ @ZAuth.U uid cid PersistentCookie mLabel
+              newCookie @_ @ZAuth.U uid cid PersistentCookie mLabel RevokeSameLabel
          in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.userTokenTimeout.userTokenTimeoutSeconds) defaultTime
 
     prop "persistent LH cookie expires at configured time" $
       \localDomain uid cid mLabel ->
         let Right cookie = runAllEffects localDomain [] Nothing $ do
-              newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
+              newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel RevokeSameLabel
          in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds) defaultTime
 
     modifyMaxSuccess (const 3) . prop "cookie is persisted" $
       \localDomain uid cid mLabel -> do
         let Right (cky, sto) = runAllEffects localDomain [] Nothing $ do
-              c <- newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel
+              c <- newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel RevokeSameLabel
               s <- listCookies uid
               pure (c, s)
         length sto `shouldBe` 1
         (head sto).cookieId `shouldBe` cky.cookieId
 
     prop "old cookies with same label are revoked on insert" $
-      \localDomain uid cid typ mLabel otherLabel ->
+      \localDomain uid cid typ mLabel otherLabel policy ->
         let Right (cookie1, cookie2, cookie3, cookies) =
               runAllEffects localDomain [] Nothing $
                 (,,,)
-                  <$> newCookie @_ @ZAuth.U uid cid typ mLabel
-                  <*> newCookie @_ @ZAuth.U uid cid typ mLabel
-                  <*> newCookie @_ @ZAuth.U uid cid typ (Just otherLabel)
+                  <$> newCookie @_ @ZAuth.U uid cid typ mLabel policy
+                  <*> newCookie @_ @ZAuth.U uid cid typ mLabel policy
+                  <*> newCookie @_ @ZAuth.U uid cid typ (Just otherLabel) policy
                   <*> (Set.fromList . fmap cookieId <$> listCookies uid)
-         in case mLabel of
-              Just l | l == otherLabel -> cookies `shouldBe` Set.singleton cookie3.cookieId
-              Just _ -> cookies `shouldBe` Set.fromList (cookieId <$> [cookie2, cookie3])
-              Nothing -> cookies `shouldBe` Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+         in case policy of
+              KeepSameLabel -> cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+              RevokeSameLabel -> case mLabel of
+                Just l | l == otherLabel -> cookies === Set.singleton cookie3.cookieId
+                Just _ -> cookies === Set.fromList (cookieId <$> [cookie2, cookie3])
+                Nothing -> cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
 
     prop "same-label revocation does not affect other users" $
-      \localDomain uidA uidB cid typ lab ->
+      \localDomain uidA uidB cid typ lab policy ->
         uidA /= uidB ==>
           let Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB) =
                 runAllEffects localDomain [] Nothing $
                   (,,,,)
-                    <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab)
-                    <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab)
-                    <*> newCookie @_ @ZAuth.U uidA cid typ (Just lab)
+                    <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
+                    <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab) policy
+                    <*> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
                     <*> (Set.fromList . fmap cookieId <$> listCookies uidA)
                     <*> (Set.fromList . fmap cookieId <$> listCookies uidB)
-           in cookiesA === Set.singleton cookieA2.cookieId
-                .&&. cookiesB === Set.singleton cookieB.cookieId
-                .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
+           in case policy of
+                KeepSameLabel ->
+                  cookiesA === Set.fromList [cookieA1.cookieId, cookieA2.cookieId]
+                    .&&. cookiesB === Set.singleton cookieB.cookieId
+                    .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
+                RevokeSameLabel ->
+                  cookiesA === Set.singleton cookieA2.cookieId
+                    .&&. cookiesB === Set.singleton cookieB.cookieId
+                    .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
 
   describe "randomConnId" $ do
     it "generates different connection ids" $ do
