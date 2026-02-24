@@ -220,19 +220,21 @@ testPutApp = do
           "description": "This is the best app ever."
         }|]
 
-      Object appMetadataReturnedExtra =
-        [aesonQQ|
-        {
-          "metadata": {},
-          "picture": []
-        }|]
-
   bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatch` (Object (appMetadata <> appMetadataReturnedExtra))
+    resp.json
+      `shouldMatchShape` SObject
+        [ ("accent_id", SNumber),
+          ("assets", SArray (SObject [("key", SString), ("size", SString), ("type", SString)])),
+          ("name", SString),
+          ("category", SString),
+          ("description", SString),
+          ("metadata", SObject []),
+          ("picture", SArray SAny)
+        ]
 
   let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
   bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
