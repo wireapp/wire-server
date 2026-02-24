@@ -44,6 +44,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
+import Wire.Events
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore (PasswordStore, upsertHashedPassword)
@@ -72,7 +73,8 @@ interpretAuthenticationSubsystem ::
     Member UserStore r,
     Member RateLimit r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member Events r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
