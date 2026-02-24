@@ -5,6 +5,7 @@ import Cassandra qualified as C
 import Cassandra.Settings as C hiding (Client)
 import Control.Error (atMay)
 import Control.Monad.Random (randomRIO)
+import Data.ByteString.Conversion (toByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Id
 import Data.Json.Util
@@ -17,6 +18,7 @@ import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
+import System.Logger.Message
 import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth
@@ -25,6 +27,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.UserMap
 import Wire.ClientStore (ClientStore (..), DuplicateMLSPublicKey (..))
 import Wire.ClientStore.DynamoDB
+import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Metrics (Metrics)
 
 data ClientStoreCassandraEnv = ClientStoreCassandraEnv
@@ -177,26 +180,29 @@ claimPrekeyImpl ::
   Sem r (Maybe ClientPrekey)
 claimPrekeyImpl u c = do
   cas <- inputs (.casClient)
-  inputs (.prekeyLocking) >>= \case
-    -- Use random prekey selection strategy
-    Left localLock -> embedFinal $ withLocalLock localLock $ do
-      prekeys <- C.runClient cas $ retry x1 $ query userPrekeys (params LocalQuorum (u, c))
-      prekey <- pickRandomPrekey prekeys
-      C.runClient cas $ traverse removeAndReturnPreKey prekey
-    -- Use DynamoDB based optimistic locking strategy
-    Right optLockEnv -> runInputConst optLockEnv . withOptLock u c . embedFinal . C.runClient cas $ do
-      prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
-      traverse removeAndReturnPreKey prekey
+  mClaimedKey <-
+    inputs (.prekeyLocking) >>= \case
+      -- Use random prekey selection strategy
+      Left localLock -> embedFinal $ withLocalLock localLock $ do
+        prekeys <- C.runClient cas $ retry x1 $ query userPrekeys (params LocalQuorum (u, c))
+        prekey <- pickRandomPrekey prekeys
+        C.runClient cas $ traverse removeAndReturnPreKey prekey
+      -- Use DynamoDB based optimistic locking strategy
+      Right optLockEnv -> runInputConst optLockEnv . withOptLock u c . embedFinal . C.runClient cas $ do
+        prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
+        traverse removeAndReturnPreKey prekey
+  when (fmap (.prekeyData.prekeyId) mClaimedKey == Just lastPrekeyId) $
+    Log.debug $
+      field "user" (toByteString u)
+        . field "client" (toByteString c)
+        . msg (val "last resort prekey used")
+  pure mClaimedKey
   where
     removeAndReturnPreKey :: (PrekeyId, Text) -> C.Client ClientPrekey
     removeAndReturnPreKey (i, k) = do
       when (i /= lastPrekeyId) $
         retry x1 $
           write removePrekey (params LocalQuorum (u, c, i))
-      -- Log.debug $
-      --   field "user" (toByteString u)
-      --     . field "client" (toByteString c)
-      --     . msg (val "last resort prekey used")
       pure $ ClientPrekey c (UncheckedPrekeyBundle i k)
 
     pickRandomPrekey :: [(PrekeyId, Text)] -> IO (Maybe (PrekeyId, Text))
