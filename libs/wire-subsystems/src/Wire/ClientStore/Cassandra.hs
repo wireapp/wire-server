@@ -229,7 +229,6 @@ addMLSPublicKeysImpl u c keys =
     Left e -> pure $ Just e
     Right () -> pure Nothing
 
--- TODO: Add checks to callers of this
 addMLSPublicKey ::
   (Member (Input ClientStoreCassandraEnv) r, Member (Final IO) r, Member (Error DuplicateMLSPublicKey) r) =>
   UserId ->
