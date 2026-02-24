@@ -269,6 +269,110 @@ shouldMatchOneOf a b = do
     pb <- prettyJSON b
     assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
 
+----------------------------------------------------------------------
+-- Shape DSL
+
+-- | A simple DSL for describing the recursive structure (shape) of a JSON
+-- value.  Use 'shouldMatchShape' to assert that a value conforms to a shape,
+-- or 'valueShape' to compute the shape of an existing value.
+--
+-- Object matching is /strict/: any key present in the actual value but absent
+-- from the expected 'SObject' field list causes an assertion failure.
+data Shape
+  = -- | Matches JSON @null@.
+    SNull
+  | -- | Matches any JSON boolean.
+    SBool
+  | -- | Matches any JSON string.
+    SString
+  | -- | Matches any JSON number.
+    SNumber
+  | -- | Matches a JSON array whose every element matches the given shape.
+    SArray Shape
+  | -- | Matches a JSON object with /exactly/ these fields (strict, no extras).
+    SObject [(String, Shape)]
+  | -- | Matches any JSON value (wildcard).
+    SAny
+  deriving (Show)
+
+-- | Assert that @actual@ conforms to @shape@.  Provides a JSON-path-like
+-- location in the failure message (e.g. @.assets[0].key@).
+shouldMatchShape ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected shape
+  Shape ->
+  App ()
+shouldMatchShape a shape = do
+  val <- make a
+  case matchShape "" val shape of
+    Nothing -> pure ()
+    Just err -> assertFailure $ "Shape mismatch" <> err
+
+-- | Compute the 'Shape' of an existing JSON value.  Useful for inspecting
+-- what shape a response actually has, or for using a known-good response as
+-- a shape template via @shouldMatchShape@.
+--
+-- Arrays: if the array is empty the element shape is 'SAny'; otherwise the
+-- shape of the /first/ element is used for all elements.
+valueShape :: (MakesValue a) => a -> App Shape
+valueShape a = computeShape <$> make a
+  where
+    computeShape :: Value -> Shape
+    computeShape Aeson.Null = SNull
+    computeShape (Aeson.Bool _) = SBool
+    computeShape (Aeson.String _) = SString
+    computeShape (Aeson.Number _) = SNumber
+    computeShape (Aeson.Array arr) =
+      SArray $ case toList arr of
+        [] -> SAny
+        (v : _) -> computeShape v
+    computeShape (Aeson.Object obj) =
+      SObject [(Key.toString k, computeShape v) | (k, v) <- Aeson.toList obj]
+
+-- | Internal recursive shape-matcher.  Returns 'Nothing' on success and
+-- @'Just' errorMessage@ on failure.  The @path@ argument accumulates the
+-- JSON-path-like location prefix.
+matchShape :: String -> Value -> Shape -> Maybe String
+matchShape _ _ SAny = Nothing
+matchShape _ Aeson.Null SNull = Nothing
+matchShape path _ SNull = Just $ " at " <> loc path <> ": expected null"
+matchShape _ (Aeson.Bool _) SBool = Nothing
+matchShape path _ SBool = Just $ " at " <> loc path <> ": expected bool"
+matchShape _ (Aeson.String _) SString = Nothing
+matchShape path _ SString = Just $ " at " <> loc path <> ": expected string"
+matchShape _ (Aeson.Number _) SNumber = Nothing
+matchShape path _ SNumber = Just $ " at " <> loc path <> ": expected number"
+matchShape path (Aeson.Array arr) (SArray elemShape) =
+  listToMaybe
+    . mapMaybe (\(i, v) -> matchShape (path <> "[" <> show (i :: Int) <> "]") v elemShape)
+    $ zip [0 ..] (toList arr)
+matchShape path _ (SArray _) = Just $ " at " <> loc path <> ": expected array"
+matchShape path (Aeson.Object obj) (SObject fields) =
+  let objPairs = [(Key.toString k, v) | (k, v) <- Aeson.toList obj]
+      actualKeys = map fst objPairs
+      expectedKeys = map fst fields
+      unexpectedKeys = actualKeys \\ expectedKeys
+      missingKeys = expectedKeys \\ actualKeys
+      go (k, s) = case lookup k objPairs of
+        Nothing -> Nothing -- already checked above
+        Just v -> matchShape (path <> "." <> k) v s
+   in case (unexpectedKeys, missingKeys) of
+        (k : _, _) ->
+          Just $ " at " <> loc path <> ": unexpected key \"" <> k <> "\""
+        (_, k : _) ->
+          Just $ " at " <> loc path <> ": missing key \"" <> k <> "\""
+        _ ->
+          listToMaybe . mapMaybe go $ fields
+matchShape path _ (SObject _) = Just $ " at " <> loc path <> ": expected object"
+
+-- | Format a path for use in error messages, using the document root (@$@)
+-- when the path is empty.
+loc :: String -> String
+loc "" = "$"
+loc p = p
+
 shouldContainString ::
   (HasCallStack) =>
   -- | The actual value
@@ -440,85 +544,3 @@ prettyResponse r =
                 Nothing -> BS.fromStrict r.body
           )
       ]
-
-----------------------------------------------------------------------
--- Shape DSL
-
--- | A simple DSL for describing the recursive structure (shape) of a JSON
--- value.  Use 'shouldMatchShape' to assert that a value conforms to a shape.
---
--- Object matching is /strict/: any key present in the actual value but absent
--- from the expected 'SObject' field list causes an assertion failure.
-data Shape
-  = -- | Matches JSON @null@.
-    SNull
-  | -- | Matches any JSON boolean.
-    SBool
-  | -- | Matches any JSON string.
-    SString
-  | -- | Matches any JSON number.
-    SNumber
-  | -- | Matches a JSON array whose every element matches the given shape.
-    SArray Shape
-  | -- | Matches a JSON object with /exactly/ these fields (strict, no extras).
-    SObject [(String, Shape)]
-  | -- | Matches any JSON value (wildcard).
-    SAny
-  deriving (Show)
-
--- | Assert that @actual@ conforms to @shape@.  Provides a JSON-path-like
--- location in the failure message (e.g. @.assets[0].key@).
-shouldMatchShape ::
-  (MakesValue a, HasCallStack) =>
-  -- | The actual value
-  a ->
-  -- | The expected shape
-  Shape ->
-  App ()
-shouldMatchShape a shape = do
-  val <- make a
-  case matchShape "" val shape of
-    Nothing -> pure ()
-    Just err -> assertFailure $ "Shape mismatch" <> err
-
--- | Internal recursive shape-matcher.  Returns 'Nothing' on success and
--- @'Just' errorMessage@ on failure.  The @path@ argument accumulates the
--- JSON-path-like location prefix.
-matchShape :: String -> Value -> Shape -> Maybe String
-matchShape _ _ SAny = Nothing
-matchShape _ Aeson.Null SNull = Nothing
-matchShape path _ SNull = Just $ " at " <> loc path <> ": expected null"
-matchShape _ (Aeson.Bool _) SBool = Nothing
-matchShape path _ SBool = Just $ " at " <> loc path <> ": expected bool"
-matchShape _ (Aeson.String _) SString = Nothing
-matchShape path _ SString = Just $ " at " <> loc path <> ": expected string"
-matchShape _ (Aeson.Number _) SNumber = Nothing
-matchShape path _ SNumber = Just $ " at " <> loc path <> ": expected number"
-matchShape path (Aeson.Array arr) (SArray elemShape) =
-  listToMaybe
-    . mapMaybe (\(i, v) -> matchShape (path <> "[" <> show (i :: Int) <> "]") v elemShape)
-    $ zip [0 ..] (toList arr)
-matchShape path _ (SArray _) = Just $ " at " <> loc path <> ": expected array"
-matchShape path (Aeson.Object obj) (SObject fields) =
-  let objPairs = [(Key.toString k, v) | (k, v) <- Aeson.toList obj]
-      actualKeys = map fst objPairs
-      expectedKeys = map fst fields
-      unexpectedKeys = actualKeys \\ expectedKeys
-      missingKeys = expectedKeys \\ actualKeys
-      go (k, s) = case lookup k objPairs of
-        Nothing -> Nothing -- already checked above
-        Just v -> matchShape (path <> "." <> k) v s
-   in case (unexpectedKeys, missingKeys) of
-        (k : _, _) ->
-          Just $ " at " <> loc path <> ": unexpected key \"" <> k <> "\""
-        (_, k : _) ->
-          Just $ " at " <> loc path <> ": missing key \"" <> k <> "\""
-        _ ->
-          listToMaybe . mapMaybe go $ fields
-matchShape path _ (SObject _) = Just $ " at " <> loc path <> ": expected object"
-
--- | Format a path for use in error messages, using the document root (@$@)
--- when the path is empty.
-loc :: String -> String
-loc "" = "$"
-loc p = p
