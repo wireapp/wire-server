@@ -1,4 +1,8 @@
-module Wire.ClientStore.Cassandra (ClientStoreCassandraEnv (..), interpretClientStoreCassandra) where
+module Wire.ClientStore.Cassandra
+  ( ClientStoreCassandraEnv (..),
+    interpretClientStoreCassandra,
+  )
+where
 
 import Cassandra as C hiding (Client)
 import Cassandra qualified as C
