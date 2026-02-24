@@ -59,6 +59,7 @@ eventType (UserEvent (UserIdentityRemoved _)) = EventTypeUserIdentityRemoved
 eventType (UserEvent (UserLegalHoldDisabled _)) = EventTypeUserLegalholdDisabled
 eventType (UserEvent (UserLegalHoldEnabled _)) = EventTypeUserLegalholdEnabled
 eventType (UserEvent (LegalHoldClientRequested _)) = EventTypeUserLegalholdRequested
+eventType (UserEvent UserSessionRefreshSuggested) = EventTypeUserSessionRefreshSuggested
 eventType (ConnectionEvent _) = EventTypeConnection
 eventType (PropertyEvent (PropertySet _ _)) = EventTypePropertiesSet
 eventType (PropertyEvent (PropertyDeleted _)) = EventTypePropertiesDeleted
@@ -89,6 +90,7 @@ data EventType
   | EventTypeUserGroupCreated
   | EventTypeUserGroupUpdated
   | EventTypeUserGroupDeleted
+  | EventTypeUserSessionRefreshSuggested
   deriving stock (Eq, Enum, Bounded)
 
 instance ToSchema EventType where
@@ -105,6 +107,7 @@ instance ToSchema EventType where
           element "user.legalhold-enable" EventTypeUserLegalholdEnabled,
           element "user.legalhold-disable" EventTypeUserLegalholdDisabled,
           element "user.legalhold-request" EventTypeUserLegalholdRequested,
+          element "user.session-refresh-suggested" EventTypeUserSessionRefreshSuggested,
           element "user.properties-set" EventTypePropertiesSet,
           element "user.properties-delete" EventTypePropertiesDeleted,
           element "user.properties-clear" EventTypePropertiesCleared,
@@ -134,6 +137,7 @@ data UserEvent
   | UserLegalHoldDisabled !UserId
   | UserLegalHoldEnabled !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
+  | UserSessionRefreshSuggested
   deriving stock (Eq, Show)
 
 data UserGroupEvent
@@ -335,6 +339,11 @@ eventObjectSchema =
                       <*> lhcClientId .= field "client" (idObjectSchema schema)
                   )
               )
+          EventTypeUserSessionRefreshSuggested ->
+            tag
+              _UserEvent
+              ( tag _UserSessionRefreshSuggested (pure ())
+              )
           EventTypePropertiesSet ->
             tag
               _PropertyEvent
@@ -443,6 +452,7 @@ instance ToBytes UserEvent where
   bytes (UserLegalHoldDisabled u) = val "user.legalhold-disable: " +++ toByteString u
   bytes (UserLegalHoldEnabled u) = val "user.legalhold-enable: " +++ toByteString u
   bytes (LegalHoldClientRequested payload) = val "user.legalhold-request: " +++ show payload
+  bytes UserSessionRefreshSuggested = val "user.session-refresh-suggested" 
 
 instance ToBytes ConnectionEvent where
   bytes e@ConnectionUpdated {} = val "user.connection: " +++ toByteString (connEventUserId e)

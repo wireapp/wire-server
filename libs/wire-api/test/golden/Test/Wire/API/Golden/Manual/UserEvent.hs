@@ -34,6 +34,7 @@ module Test.Wire.API.Golden.Manual.UserEvent
     testObject_UserEvent_16,
     testObject_UserEvent_17,
     testObject_UserEvent_18,
+    testObject_UserEvent_19,
   )
 where
 
@@ -211,6 +212,9 @@ testObject_UserEvent_18 =
             alice.userTeam
         )
     )
+
+testObject_UserEvent_19 :: Event
+testObject_UserEvent_19 = UserEvent UserSessionRefreshSuggested
 
 --------------------------------------------------------------------------------
 
