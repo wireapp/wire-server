@@ -1,6 +1,8 @@
 redis-ephemeral:
   image:
-    tag: "7.4.6"
+    registry: dhi.io
+    repository: redis
+    tag: "7.4.7"
 
   haMode:
     enabled: false
