@@ -242,13 +242,67 @@ testPutApp = do
 
 testRetrieveUsersIncludingApps :: (HasCallStack) => App ()
 testRetrieveUsersIncludingApps = do
+  let userShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("assets", SArray SAny),
+            ("id", SString),
+            ("locale", SString),
+            ("managed_by", SString),
+            ("name", SString),
+            ("picture", SArray SAny),
+            ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("searchable", SBool),
+            ("status", SString),
+            ("supported_protocols", SArray SString),
+            ("team", SString),
+            ("type", SString)
+          ]
+      memberShape =
+        SObject
+          [ ("created_at", SString),
+            ("created_by", SString),
+            ("legalhold_status", SString),
+            ("permissions", SObject [("copy", SNumber), ("self", SNumber)]),
+            ("user", SString)
+          ]
+      appShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("assets", SArray SAny),
+            ("category", SString),
+            ("description", SString),
+            ("metadata", SObject []),
+            ("name", SString),
+            ("picture", SArray SAny)
+            -- TODO: ("id", SString)
+          ]
+      searchResultShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("handle", SAny), -- sometimes "string", but always "null" for apps
+            ("id", SString),
+            ("name", SString),
+            ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("team", SString),
+            ("type", SString)
+          ]
+
   domain <- make OwnDomain
   (owner, tid, [regular]) <- createTeam domain 2
+
+  -- [`POST /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/create-app) (route id: "create-app")
   let new = def {name = "chippie"} :: NewApp
-  appWant <- bindResponse (createApp owner tid new) $ \resp -> do
+  appCreated <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "user"
-  appId <- appWant %. "id" & asString
+    pure resp.json
+  appCreated
+    `shouldMatchShape` SObject
+      [ ("cookie", SString),
+        ("user", userShape)
+        -- TODO: , ("app", appShape)
+      ]
+  appId <- appCreated %. "user.id" & asString
 
   -- [`GET /teams/:tid/members`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-members) (route id: "get-team-members")
   getTeamMembers owner tid `bindResponse` \resp -> do
@@ -267,36 +321,48 @@ testRetrieveUsersIncludingApps = do
   getTeamMember owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
+    resp.json `shouldMatchShape` memberShape
 
   -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
-  let assertApp :: (MakesValue have, MakesValue want) => have -> want -> App ()
-      assertApp have want = do
-        (have %. "name") `shouldMatch` (want %. "name")
-        (have %. "assets") `shouldMatch` (want %. "assets")
-        (have %. "accent_id") `shouldMatch` (want %. "accent_id")
-        (have %. "category" >>= asString) `shouldMatch` new.category
-        (have %. "description" >>= asString) `shouldMatch` new.description
-        -- `pict` is deprecated, `meta` is not on the roadmap for Q1/26, so we test nothing.
-        pure ()
-
-  -- TODO: Both `StoredUser` and `StoredApp` should contained in `GetApp` fully!
-  -- TODO: make chunks of the various result records of type [Pair], and combine them as needed to match easily against the search output.  this way we also catch unexpected field.
-
   getApps owner tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     [appHave] <- resp.json & maybe (error "this shouldn't happen") asList
-    assertApp appHave appWant
+    -- TODO: SObject [("user", userShape), ("app", appShape)]
+    appHave `shouldMatchShape` appShape
 
   -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
   getApp owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    assertApp resp.json appWant
+    resp.json `shouldMatchShape` appShape
 
   -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
-  listUsers owner [appWant] `bindResponse` \resp -> do
+  listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "found[0]" `shouldMatch` appWant
+    resp.json
+      %. "found.0"
+      `shouldMatchShape` SObject
+        [ ("accent_id", SNumber),
+          ("assets", SArray SAny),
+          ("id", SString),
+          ("legalhold_status", SString),
+          ("name", SString),
+          ("picture", SArray SAny),
+          ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+          ("searchable", SBool),
+          ("supported_protocols", SArray SString),
+          ("team", SString),
+          ("type", SString)
+          -- TODO: [("user", ...), ("app", ...)] ?
+        ]
 
   -- [`GET /search/contacts`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/search-contacts) (route id: "search-contacts")
-
-  pure ()
+  putSelf owner (def {name = Just "name-A1"}) >>= assertSuccess
+  putSelf regular (def {name = Just "name-A2"}) >>= assertSuccess
+  putSelf (appCreated %. "user") (def {name = Just "name-A3"}) >>= assertSuccess
+  eventually
+    $ searchContacts owner "name" domain
+    `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      hits :: [Value] <- resp.json %. "documents" & asList
+      length hits `shouldMatchInt` 2 -- owner doesn't find itself
+      (`shouldMatchShape` searchResultShape) `mapM_` hits
