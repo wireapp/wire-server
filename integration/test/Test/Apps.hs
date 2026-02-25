@@ -68,7 +68,9 @@ testCreateApp = do
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     apps <- resp.json & asList
-    (sort <$> ((%. "name") `mapM` apps)) `shouldMatch` ["chappie", "fmappie"]
+    name1 <- apps %. "0.1.name"
+    name2 <- apps %. "1.1.name"
+    [name1, name2] `shouldMatchSet` ["chappie", "fmappie"]
 
   -- Creator should have type "regular"
   bindResponse (getUser owner owner) $ \resp -> do
@@ -274,8 +276,7 @@ testRetrieveUsersIncludingApps = do
             ("description", SString),
             ("metadata", SObject []),
             ("name", SString),
-            ("picture", SArray SAny),
-            ("id", SString)
+            ("picture", SArray SAny)
           ]
       searchResultShape =
         SObject
@@ -326,9 +327,9 @@ testRetrieveUsersIncludingApps = do
   -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
   getApps owner tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    [appHave] <- resp.json & maybe (error "this shouldn't happen") asList
-    -- TODO: SObject [("user", userShape), ("app", appShape)]
-    appHave `shouldMatchShape` appShape
+    apps <- resp.json & maybe (error "this shouldn't happen") pure
+    apps `shouldMatchShape` SArray (SArray SAny)
+    apps %. "0.1" `shouldMatchShape` appShape
 
   -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
   getApp owner tid appId `bindResponse` \resp -> do
