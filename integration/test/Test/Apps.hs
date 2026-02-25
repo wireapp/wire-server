@@ -299,5 +299,4 @@ testRetrieveUsersIncludingApps = do
 
   -- [`GET /search/contacts`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/search-contacts) (route id: "search-contacts")
 
-  pure
-  ()
+  pure ()

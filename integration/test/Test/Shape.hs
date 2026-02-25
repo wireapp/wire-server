@@ -32,28 +32,28 @@ testShapeObjectMatch = do
 testShapeUnexpectedKey :: (HasCallStack) => App ()
 testShapeUnexpectedKey = do
   let v = object ["foo" .= (1 :: Int), "extra" .= (2 :: Int)]
-  expectFailure (\_ -> pure ()) $
+  expectFailure (\_ -> pure ()) do
     v `shouldMatchShape` SObject [("foo", SNumber)]
 
 -- | A missing key in the actual object causes a failure.
 testShapeMissingKey :: (HasCallStack) => App ()
 testShapeMissingKey = do
   let v = object ["foo" .= (1 :: Int)]
-  expectFailure (\_ -> pure ()) $
+  expectFailure (\_ -> pure ()) do
     v `shouldMatchShape` SObject [("foo", SNumber), ("bar", SString)]
 
 -- | Providing a non-object value when 'SObject' is expected causes a failure.
 testShapeWrongTypeObject :: (HasCallStack) => App ()
 testShapeWrongTypeObject = do
   let v = toJSON ("hello" :: String)
-  expectFailure (\_ -> pure ()) $
+  expectFailure (\_ -> pure ()) do
     v `shouldMatchShape` SObject [("foo", SNumber)]
 
 -- | Providing a non-string when 'SString' is expected causes a failure.
 testShapeWrongTypeString :: (HasCallStack) => App ()
 testShapeWrongTypeString = do
   let v = Number 42
-  expectFailure (\_ -> pure ()) $
+  expectFailure (\_ -> pure ()) do
     v `shouldMatchShape` SString
 
 -- | An array element with the wrong type causes a failure, and the error
@@ -62,7 +62,7 @@ testShapeArrayElementMismatch :: (HasCallStack) => App ()
 testShapeArrayElementMismatch = do
   -- First two elements are strings (match), third is a number (mismatch at [2])
   let v = toJSON [toJSON ("a" :: String), toJSON ("b" :: String), toJSON (3 :: Int)]
-  expectFailure (\e -> e.msg `shouldContainString` "[2]") $
+  expectFailure (\e -> e.msg `shouldContainString` "[2]") do
     v `shouldMatchShape` SArray SString
 
 -- | A nested mismatch deep in an object/array reports the full JSON path.
@@ -78,7 +78,7 @@ testShapeNestedPathReported = do
                      ]
                  ]
           ]
-  expectFailure (\e -> e.msg `shouldContainString` ".assets[0].key") $
+  expectFailure (\e -> e.msg `shouldContainString` ".assets[0].key") do
     v
       `shouldMatchShape` SObject
         [ ( "assets",
