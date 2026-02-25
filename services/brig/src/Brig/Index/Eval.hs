@@ -40,10 +40,13 @@ import Data.Id
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Hasql.Pool
+import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended
 import Imports
 import Network.HTTP.Client (Manager)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
@@ -57,6 +60,7 @@ import Wire.IndexedUserStore.ElasticSearch
 import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch
 import Wire.ParseException
+import Wire.PostgresMigrationOpts
 import Wire.Rpc
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics (Metrics)
@@ -66,6 +70,7 @@ import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
 import Wire.UserStore (UserStore)
 import Wire.UserStore.Cassandra
+import Wire.UserStore.Postgres (interpretUserStorePostgres)
 
 type BrigIndexEffectStack =
   [ UserKeyStore,
@@ -79,17 +84,21 @@ type BrigIndexEffectStack =
     Rpc,
     Metrics,
     TinyLog,
+    Input Hasql.Pool,
     Error UsageError,
     Error ClientError,
     Embed IO,
     Final IO
   ]
 
-mkSemDeps :: ESConnectionSettings -> CassandraSettings -> Logger -> IO (Manager, ClientState, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
-mkSemDeps esConn cas logger = do
+type SemDeps = (Manager, ClientState, Hasql.Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
+
+mkSemDeps :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Logger -> IO SemDeps
+mkSemDeps esConn cas pg logger = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
+  pgPool <- initPostgresPool pg.pool pg.settings pg.passwordFile
   let bhEnv =
         BHEnv
           { bhServer = toESServer esConn.esServer,
@@ -107,14 +116,19 @@ mkSemDeps esConn cas logger = do
           }
       reqId = (RequestId "brig-index")
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
-  pure (mgr, casClient, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName)
+  pure (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName)
 
-runSem :: (Manager, ClientState, BHEnv, IndexedUserStoreConfig, RequestId, IndexName) -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
-runSem (mgr, casClient, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) galleyEndpoint logger action = do
+runSem :: SemDeps -> UserStorageLocation -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) userStorage galleyEndpoint logger action = do
+  let userStoreInterpreter = case userStorage.userStorageLocation of
+        CassandraStorage -> interpretUserStoreCassandra casClient
+        MigrationToPostgresql -> error "Migration not implemented for user"
+        PostgresqlStorage -> interpretUserStorePostgres
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @ClientError
     . throwErrorToIOFinal @UsageError
+    . runInputConst pgPool
     . loggerToTinyLogReqId reqId logger
     . ignoreMetrics
     . runRpcWithHttp mgr reqId
@@ -124,7 +138,7 @@ runSem (mgr, casClient, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName
     . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
-    . interpretUserStoreCassandra casClient
+    . userStoreInterpreter
     . interpretUserKeyStoreCassandra casClient
     $ action
 
@@ -142,18 +156,18 @@ runCommand l = \case
   Reset es galley -> do
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas _pg galley -> do
-    semDeps <- mkSemDeps (es ^. esConnection) cas l
-    IndexedUserStoreBulk.syncAllUsers (runSem semDeps galley l)
-  ReindexSameOrNewer es cas _pg galley -> do
-    semDeps <- mkSemDeps (es ^. esConnection) cas l
-    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps galley l)
+  Reindex es cas pg userStorageLocation galley -> do
+    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+    IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l)
+  ReindexSameOrNewer es cas pg userStorageLocation galley -> do
+    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l)
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
-  Migrate es cas _pg galley -> do
-    semDeps <- mkSemDeps (es ^. esConnection) cas l
-    IndexedUserStoreBulk.migrateData (runSem semDeps galley l)
+  Migrate es cas pg userStorageLocation galley -> do
+    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+    IndexedUserStoreBulk.migrateData (runSem semDeps userStorageLocation galley l)
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig
