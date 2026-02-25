@@ -77,10 +77,6 @@ deriving instance Enum Level
 
 deriving instance Bounded Level
 
--- | Used in tests to have no @extra@ in @IdPConfig extra@
-instance Schema.ToSchema () where
-  schema = Schema.named "unit" $ Schema.null_
-
 -- | Used in tests to have JSON as @extra@ in @IdPConfig extra@
 instance Schema.ToSchema A.Value where
   schema =
