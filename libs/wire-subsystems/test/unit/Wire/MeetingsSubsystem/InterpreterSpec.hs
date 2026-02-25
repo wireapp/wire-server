@@ -148,7 +148,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
-    void result `shouldBe` Left (Tagged ())
+    result `shouldBe` Left (Tagged ())
 
   describe "getMeeting access control" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
