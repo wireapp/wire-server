@@ -145,12 +145,14 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       expectedSevereLogs logs mempty
 
     prop "finds IdP for SCIM user by domain" $ \(teamMember :: TeamMember) user idp userRef email teamId dom otherIdPs ->
-      not (any
+      not
+        ( any
             ( \otherIdP ->
                 Just dom == otherIdP._idpExtraInfo._domain
                   || idp._idpId == otherIdP._idpId
             )
-            otherIdPs)
+            otherIdPs
+        )
         ==> let userWithEmail =
                   user
                     { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
