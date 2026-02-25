@@ -25,7 +25,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range (checked)
 import Data.Set qualified as Set
-import Data.Tagged
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock
 import Imports
@@ -34,8 +33,6 @@ import Polysemy.Error
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
-import Wire.API.Error (ErrorS)
-import Wire.API.Error.Galley
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -59,7 +56,7 @@ type TestStack =
      ConversationSubsystem,
      TeamSubsystem,
      FeaturesConfigSubsystem,
-     ErrorS 'InvalidOperation,
+     Error MeetingError,
      State (Map MeetingId Store.StoredMeeting),
      State (Map ConvId StoredConversation),
      State (Map ConvId (Set UserId)),
@@ -88,7 +85,7 @@ runTestStack ::
   Map TeamId [TeamMember] ->
   AllTeamFeatures ->
   Sem TestStack a ->
-  IO (Either (Tagged 'InvalidOperation ()) a)
+  IO (Either MeetingError a)
 runTestStack now gen teams configs =
   runM
     . evalState gen
@@ -99,7 +96,7 @@ runTestStack now gen teams configs =
     . evalState Map.empty
     . evalState Map.empty
     . evalState Map.empty
-    . runError @(Tagged 'InvalidOperation ())
+    . runError @MeetingError
     . interpretFeaturesConfigSubsystemPure configs
     . interpretTeamSubsystemToGalleyAPI
     . inMemoryConversationSubsystemInterpreter
@@ -148,7 +145,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
-    result `shouldBe` Left (Tagged ())
+    result `shouldBe` Left InvalidTimes
 
   describe "getMeeting access control" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

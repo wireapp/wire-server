@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.MeetingsSubsystem.Interpreter where
+module Wire.MeetingsSubsystem.Interpreter
+  ( interpretMeetingsSubsystem,
+    MeetingError (..),
+  )
+where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Default (def)
@@ -26,11 +30,9 @@ import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, addUTCTime)
 import Imports
 import Polysemy
+import Polysemy.Error
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Error (ErrorS)
-import Wire.API.Error hiding (DynError, ErrorS)
-import Wire.API.Error.Galley
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsPremiumConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
@@ -45,13 +47,16 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
+data MeetingError = InvalidTimes
+  deriving stock (Eq, Show)
+
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member Now r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (Error MeetingError) r
   ) =>
   NominalDiffTime ->
   InterpreterFor MeetingsSubsystem r
@@ -66,7 +71,7 @@ createMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (Error MeetingError) r
   ) =>
   Local UserId ->
   API.NewMeeting ->
@@ -74,7 +79,7 @@ createMeetingImpl ::
 createMeetingImpl zUser newMeeting = do
   -- Validate that endTime > startTime
   when (newMeeting.endTime <= newMeeting.startTime) $
-    throwS @'InvalidOperation
+    throw InvalidTimes
 
   -- Determine trial status based on team membership and premium feature
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)

@@ -98,6 +98,7 @@ import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
 import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsSubsystem (MeetingsSubsystem)
+import Wire.MeetingsSubsystem.Interpreter qualified as Meeting
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.RateLimit
@@ -167,6 +168,7 @@ type GalleyEffects1 =
      Input (Either HttpsUrl (Map Text HttpsUrl)),
      Now,
      Queue DeleteItem,
+     Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,

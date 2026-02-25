@@ -99,7 +99,7 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
-import Wire.API.Error.Galley (NonFederatingBackends, UnreachableBackends)
+import Wire.API.Error.Galley (GalleyError (InvalidOperation), NonFederatingBackends, UnreachableBackends)
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
@@ -126,7 +126,7 @@ import Wire.HashPassword.Interpreter
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
-import Wire.MeetingsSubsystem.Interpreter
+import Wire.MeetingsSubsystem.Interpreter qualified as Meeting
 import Wire.MigrationLock
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -402,6 +402,7 @@ evalGalley e =
         . mapError toResponse -- ErrorS OperationDenied
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
+        . mapError meetingError
         . interpretQueue (e ^. deleteQueue)
         . nowToIO
         . runInputConst (e ^. convCodeURI)
@@ -450,7 +451,7 @@ evalGalley e =
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
         . interpretConversationSubsystem
-        . interpretMeetingsSubsystem meetingValidityPeriod
+        . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where
     meetingValidityPeriod =
       realToFrac $ maybe (48 * 3600) (.duration) (e ^. options . settings . meetings >>= view validityPeriod)
@@ -467,3 +468,8 @@ interpretTeamFeatureSpecialContext e =
 
 mapTeamFeatureStoreError :: TeamFeatureStoreError -> InternalError
 mapTeamFeatureStoreError (TeamFeatureStoreErrorInternalError msg) = InternalErrorWithDescription msg
+
+meetingError :: Meeting.MeetingError -> Servant.Tagged 'InvalidOperation ()
+meetingError =
+  \case
+    Meeting.InvalidTimes -> Servant.Tagged @'InvalidOperation ()
