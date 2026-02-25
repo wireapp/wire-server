@@ -87,6 +87,7 @@ common common-all
     , aeson-pretty
     , amazonka
     , amazonka-core
+    , amazonka-dynamodb
     , amazonka-ses
     , amazonka-sqs
     , amqp
@@ -143,6 +144,7 @@ common common-all
     , memory
     , mime
     , mime-mail
+    , MonadRandom
     , network
     , network-conduit-tls
     , network-uri
@@ -225,6 +227,9 @@ library
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
     Wire.BrigAPIAccess.Rpc
+    Wire.ClientStore
+    Wire.ClientStore.Cassandra
+    Wire.ClientStore.DynamoDB
     Wire.CodeStore
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries

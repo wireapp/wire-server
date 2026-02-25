@@ -67,7 +67,6 @@ import Brig.API.Util
 import Brig.App as App
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import Brig.Data.Activation qualified as Data
-import Brig.Data.Client qualified as Data
 import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
@@ -124,6 +123,8 @@ import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BlockListStore as BlockListStore
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
@@ -923,7 +924,8 @@ deleteSelfUser ::
     Member HashPassword r,
     Member RateLimit r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -996,7 +998,8 @@ verifyDeleteUser ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -1025,7 +1028,8 @@ ensureAccountDeleted ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1036,7 +1040,7 @@ ensureAccountDeleted luid@(tUnqualified -> uid) = do
     Just acc -> do
       probs <- liftSem $ getPropertyKeys uid
 
-      clients <- wrapClient $ Data.lookupClients uid
+      clients <- liftSem $ ClientStore.lookupClients uid
 
       localUid <- qualifyLocal uid
       conCount <- wrapClient $ countConnections localUid [(minBound @Relation) .. maxBound]
@@ -1075,7 +1079,8 @@ deleteAccount ::
     Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   User ->
   Sem r ()
@@ -1092,7 +1097,7 @@ deleteAccount user = do
   traverse_ (removeUserFromAllGroups uid) user.userTeam
 
   Intra.rmUser uid (userAssets user)
-  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))
+  ClientStore.lookupClients uid >>= mapM_ (ClientStore.delete uid . (.clientId))
   luid <- embed $ qualifyLocal uid
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))

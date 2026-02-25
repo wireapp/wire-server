@@ -67,6 +67,7 @@ import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.AuthenticationSubsystem
+import Wire.ClientStore (ClientStore)
 import Wire.DeleteQueue
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -89,7 +90,8 @@ federationSitemap ::
     Member UserSubsystem r,
     Member UserStore r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -183,7 +185,8 @@ getUsersByIds _ uids = do
 
 claimPrekey ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   Domain ->
   (UserId, ClientId) ->
@@ -191,14 +194,15 @@ claimPrekey ::
 claimPrekey _ (user, client) = do
   API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
-claimPrekeyBundle :: Domain -> UserId -> (Handler r) PrekeyBundle
+claimPrekeyBundle :: (Member ClientStore r) => Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
 claimMultiPrekeyBundle ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   Domain ->
   UserClients ->
@@ -207,7 +211,8 @@ claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFede
 
 fedClaimKeyPackages ::
   ( Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   Domain ->
   ClaimKeyPackageRequest ->
@@ -284,18 +289,18 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
     isTeamAllowed (Just _) Nothing = False
     isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
 
-getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
+getUserClients :: (Member ClientStore r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
-getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
+getMLSClients :: (Member ClientStore r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
   Internal.getMLSClientsH mcr.userId mcr.cipherSuite
 
-getMLSClient :: Domain -> MLSClientRequest -> Handler r ClientInfo
+getMLSClient :: (Member ClientStore r) => Domain -> MLSClientRequest -> Handler r ClientInfo
 getMLSClient _domain mcr =
   Internal.getMLSClientH mcr.userId mcr.clientId mcr.cipherSuite
 
-getMLSClientsV0 :: Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
+getMLSClientsV0 :: (Member ClientStore r) => Domain -> MLSClientsRequestV0 -> Handler r (Set ClientInfo)
 getMLSClientsV0 domain mcr0 = getMLSClients domain (mlsClientsRequestFromV0 mcr0)
 
 onUserDeleted ::
