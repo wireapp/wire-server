@@ -274,8 +274,8 @@ testRetrieveUsersIncludingApps = do
             ("description", SString),
             ("metadata", SObject []),
             ("name", SString),
-            ("picture", SArray SAny)
-            -- TODO: ("id", SString)
+            ("picture", SArray SAny),
+            ("id", SString)
           ]
       searchResultShape =
         SObject
@@ -299,8 +299,8 @@ testRetrieveUsersIncludingApps = do
   appCreated
     `shouldMatchShape` SObject
       [ ("cookie", SString),
-        ("user", userShape)
-        -- TODO: , ("app", appShape)
+        ("user", userShape),
+        ("app", appShape)
       ]
   appId <- appCreated %. "user.id" & asString
 
