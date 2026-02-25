@@ -43,6 +43,7 @@ import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
+import Wire.API.UserEvent
 import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
@@ -53,6 +54,7 @@ import Wire.Events
 import Wire.HashPassword
 import Wire.MiniBackend
 import Wire.MockInterpreters
+import Wire.MockInterpreters.Events as Event
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.RateLimit
@@ -406,44 +408,63 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "old cookies with same label are revoked on insert" $
       \localDomain uid cid typ mLabel otherLabel policy ->
-        let Right (cookie1, cookie2, cookie3, cookies) =
-              runAllEffects localDomain [] Nothing $
+        let (events, Right (cookie1, cookie2, cookie3, cookies)) =
+              runAllEffectsWithEventState localDomain [] Nothing $
                 (,,,)
                   <$> newCookie @_ @ZAuth.U uid cid typ mLabel policy
                   <*> newCookie @_ @ZAuth.U uid cid typ mLabel policy
                   <*> newCookie @_ @ZAuth.U uid cid typ (Just otherLabel) policy
                   <*> (Set.fromList . fmap cookieId <$> listCookies uid)
-         in -- TODO: (leif) test events
-            case policy of
-              KeepSameLabel -> cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+            assertEvents n =
+              length events === n
+                .&&. conjoin
+                  ( fmap
+                      ( \e ->
+                          e.event === UserEvent UserSessionRefreshSuggested
+                            .&&. e.userId === uid
+                      )
+                      events
+                  )
+         in case policy of
+              KeepSameLabel ->
+                cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+                  .&&. counterexample "there should be no events" (null events)
               RevokeSameLabel -> case mLabel of
-                Just l | l == otherLabel -> cookies === Set.singleton cookie3.cookieId
-                Just _ -> cookies === Set.fromList (cookieId <$> [cookie2, cookie3])
-                Nothing -> cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+                Just l
+                  | l == otherLabel ->
+                      cookies === Set.singleton cookie3.cookieId
+                        .&&. assertEvents 2
+                Just _ ->
+                  cookies === Set.fromList (cookieId <$> [cookie2, cookie3])
+                    .&&. assertEvents 1
+                Nothing ->
+                  cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+                    .&&. counterexample "there should be no events" (null events)
 
-    focus $
-      prop "same-label revocation does not affect other users" $
-        \localDomain uidA uidB cid typ lab policy ->
-          uidA /= uidB ==>
-            let (events, Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB)) =
-                  runAllEffectsWithEventState localDomain [] Nothing $
-                    (,,,,)
-                      <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
-                      <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab) policy
-                      <*> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
-                      <*> (Set.fromList . fmap cookieId <$> listCookies uidA)
-                      <*> (Set.fromList . fmap cookieId <$> listCookies uidB)
-             in case policy of
-                  KeepSameLabel ->
-                    cookiesA === Set.fromList [cookieA1.cookieId, cookieA2.cookieId]
-                      .&&. cookiesB === Set.singleton cookieB.cookieId
-                      .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
-                      .&&. counterexample "there should be no events" (null events)
-                  RevokeSameLabel ->
-                    cookiesA === Set.singleton cookieA2.cookieId
-                      .&&. cookiesB === Set.singleton cookieB.cookieId
-                      .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
-                      .&&. length events === 1 -- TODO: (leif) add more event assertions
+    prop "same-label revocation does not affect other users" $
+      \localDomain uidA uidB cid typ lab policy ->
+        uidA /= uidB ==>
+          let (events, Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB)) =
+                runAllEffectsWithEventState localDomain [] Nothing $
+                  (,,,,)
+                    <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
+                    <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab) policy
+                    <*> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
+                    <*> (Set.fromList . fmap cookieId <$> listCookies uidA)
+                    <*> (Set.fromList . fmap cookieId <$> listCookies uidB)
+           in case policy of
+                KeepSameLabel ->
+                  cookiesA === Set.fromList [cookieA1.cookieId, cookieA2.cookieId]
+                    .&&. cookiesB === Set.singleton cookieB.cookieId
+                    .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
+                    .&&. counterexample "there should be no events" (null events)
+                RevokeSameLabel ->
+                  cookiesA === Set.singleton cookieA2.cookieId
+                    .&&. cookiesB === Set.singleton cookieB.cookieId
+                    .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
+                    .&&. (event <$> events) === [UserEvent UserSessionRefreshSuggested]
+                    .&&. (Event.userId <$> events) === [uidA]
+
   describe "randomConnId" $ do
     it "generates different connection ids" $ do
       let connIds = run . runRandomPure $ replicateM 100 randomConnId
