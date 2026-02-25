@@ -38,6 +38,8 @@ data:
     postgresqlPassword: /etc/wire/brig/secrets/pgPassword
     {{- end }}
 
+    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+
     elasticsearch:
       url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
       index: {{ .elasticsearch.index }}

@@ -69,6 +69,7 @@ import Wire.IndexedUserStore.ElasticSearch
 import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch
 import Wire.ParseException
+import Wire.PostgresMigrationOpts
 import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
@@ -80,6 +81,7 @@ import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
 import Wire.UserStore
 import Wire.UserStore.Cassandra
+import Wire.UserStore.Postgres (interpretUserStorePostgres)
 import Wire.UserSubsystem.Error
 
 type BrigIndexEffectStack =
@@ -108,8 +110,8 @@ type BrigIndexEffectStack =
     Final IO
   ]
 
-runSem :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
-runSem esConn cas pg galleyEndpoint logger action = do
+runSem :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> UserStorageLocation -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem esConn cas pg UserStorageLocation {userStorageLocation} galleyEndpoint logger action = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
@@ -131,6 +133,10 @@ runSem esConn cas pg galleyEndpoint logger action = do
           }
       reqId = (RequestId "brig-index")
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
+      userStoreInterpreter = case userStorageLocation of
+        CassandraStorage -> interpretUserStoreCassandra casClient
+        MigrationToPostgresql -> error "Migration not implemented for user"
+        PostgresqlStorage -> interpretUserStorePostgres
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @UsageError
@@ -149,7 +155,7 @@ runSem esConn cas pg galleyEndpoint logger action = do
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
     . interpretAppStoreToPostgres
-    . interpretUserStoreCassandra casClient
+    . userStoreInterpreter
     . throwErrorToIOFinal @FederationError
     . noFederationAPIAccess
     . throwErrorToIOFinal @UserSubsystemError
@@ -172,17 +178,17 @@ runCommand l = \case
   Reset es galley -> do
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas pg galley -> do
-    runSem (es ^. esConnection) cas pg galley l $
+  Reindex es cas pg userStorageLocation galley -> do
+    runSem (es ^. esConnection) cas pg userStorageLocation galley l $
       IndexedUserStoreBulk.syncAllUsers
-  ReindexSameOrNewer es cas pg galley -> do
-    runSem (es ^. esConnection) cas pg galley l $
+  ReindexSameOrNewer es cas pg userStorageLocation galley -> do
+    runSem (es ^. esConnection) cas pg userStorageLocation galley l $
       IndexedUserStoreBulk.forceSyncAllUsers
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
-  Migrate es cas pg galley -> do
-    runSem (es ^. esConnection) cas pg galley l $
+  Migrate es cas pg userStorageLocation galley -> do
+    runSem (es ^. esConnection) cas pg userStorageLocation galley l $
       IndexedUserStoreBulk.migrateData
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-

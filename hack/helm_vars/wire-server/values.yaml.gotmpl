@@ -64,6 +64,13 @@ brig:
       port: "5432"
       user: wire-server
       dbname: wire-server
+
+    postgresMigration:
+      conversation: {{ .Values.conversationStore }}
+      conversationCodes: {{ .Values.conversationCodesStore }}
+      teamFeatures: {{ .Values.teamFeaturesStore }}
+      user: {{ .Values.userStore }}
+
     elasticsearch:
       scheme: https
       host: {{ .Values.elasticsearch.host }}
@@ -301,6 +308,7 @@ galley:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
       teamFeatures: {{ .Values.teamFeaturesStore }}
+      user: {{ .Values.userStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -672,6 +680,7 @@ background-worker:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
       teamFeatures: {{ .Values.teamFeaturesStore }}
+      user: {{ .Values.userStore }}
     rabbitmq:
       port: 5671
       adminPort: 15671

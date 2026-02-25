@@ -73,6 +73,7 @@ module Brig.App
     enableSFTFederationLens,
     rateLimitEnvLens,
     amqpJobsPublisherChannelLens,
+    postgresMigrationLens,
     initZAuth,
     initLogger,
     initPostgresPool,
@@ -167,6 +168,7 @@ import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
+import Wire.PostgresMigrationOpts (PostgresMigrationOpts)
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
 import Wire.SessionStore.Cassandra
@@ -217,7 +219,8 @@ data Env = Env
     disabledVersions :: Set Version,
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
-    amqpJobsPublisherChannel :: MVar Q.Channel
+    amqpJobsPublisherChannel :: MVar Q.Channel,
+    postgresMigration :: PostgresMigrationOpts
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -314,7 +317,8 @@ newEnv opts = do
         disabledVersions = allDisabledVersions,
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
-        amqpJobsPublisherChannel
+        amqpJobsPublisherChannel,
+        postgresMigration = opts.postgresMigration
       }
   where
     emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)

@@ -35,6 +35,7 @@ module Brig.Index.Options
     cTlsCa,
     cKeyspace,
     PostgresSettings (..),
+    UserStorageLocation (..),
     localElasticSettings,
     brigOptsToPostgresSettings,
     localCassandraSettings,
@@ -71,15 +72,16 @@ import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
 import Util.Options (CassandraOpts (..), Endpoint (..), FilePathSecrets)
+import Wire.PostgresMigrationOpts
 
 data Command
   = Create ElasticSettings Endpoint
   | Reset ElasticSettings Endpoint
-  | Reindex ElasticSettings CassandraSettings PostgresSettings Endpoint
-  | ReindexSameOrNewer ElasticSettings CassandraSettings PostgresSettings Endpoint
+  | Reindex ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint
+  | ReindexSameOrNewer ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
     UpdateMapping ESConnectionSettings Endpoint
-  | Migrate ElasticSettings CassandraSettings PostgresSettings Endpoint
+  | Migrate ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
@@ -124,6 +126,9 @@ data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
     _reindexDestIndex :: ES.IndexName,
     _reindexTimeoutSeconds :: Int
   }
+  deriving (Show)
+
+newtype UserStorageLocation = UserStorageLocation {userStorageLocation :: StorageLocation}
   deriving (Show)
 
 makeLenses ''ElasticSettings
@@ -444,6 +449,17 @@ reindexToAnotherIndexSettingsParser =
           <> showDefault
       )
 
+userStorageLocationParser :: Parser UserStorageLocation
+userStorageLocationParser =
+  UserStorageLocation
+    <$> option
+      (eitherReader parseStorageLocation)
+      ( long "user-storage-location"
+          <> help "Storage location of user, valid options: cassandra, postgersql, migration-to-postgresql"
+          <> value CassandraStorage
+          <> showDefaultWith storageLocationString
+      )
+
 galleyEndpointParser :: Parser Endpoint
 galleyEndpointParser =
   Endpoint
@@ -487,19 +503,19 @@ commandParser =
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
+              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> galleyEndpointParser)
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser)
               (progDesc "Migrate data in elastic search")
           )
         <> command

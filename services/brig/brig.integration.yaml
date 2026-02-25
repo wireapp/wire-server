@@ -270,3 +270,9 @@ optSettings:
 
 logLevel: Warn
 logNetStrings: false
+
+postgresMigration:
+  conversation: postgresql
+  conversationCodes: postgresql
+  teamFeatures: postgresql
+  user: postgresql
