@@ -69,6 +69,8 @@ import Wire.BlockListStore.Cassandra
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
@@ -168,7 +170,8 @@ type BrigCanonicalEffects =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ SAMLEmailSubsystem,
+  '[ ClientSubsystem,
+     SAMLEmailSubsystem,
      TeamSubsystem,
      TeamCollaboratorsStore,
      AppStore,
@@ -416,6 +419,7 @@ runBrigToIO e (AppT ma) = do
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
               . samlEmailSubsystemInterpreter
+              . runClientSubsystem
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem
