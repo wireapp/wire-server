@@ -49,6 +49,9 @@ postgresqlPool:
   agingTimeout: 1d
   idlenessTimeout: 10m
 
+postgresMigration:
+  user: cassandra
+
 galley:
   host: galley
   port: 8080

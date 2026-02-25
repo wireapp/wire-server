@@ -1,8 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-ambiguous-fields #-}
-{-# OPTIONS_GHC -Wwarn #-}
 
-module Wire.UserStore.Postgres where
+module Wire.UserStore.Postgres (interpretUserStorePostgres) where
 
 import Cassandra (GeneralPaginationState (PaginationStatePostgres), PageWithState (..), paginationStatePostgres)
 import Control.Error (lastMay)
@@ -34,8 +33,8 @@ import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
-interpretUserStoreCassandra :: (PGConstraints r) => InterpreterFor UserStore r
-interpretUserStoreCassandra =
+interpretUserStorePostgres :: (PGConstraints r) => InterpreterFor UserStore r
+interpretUserStorePostgres =
   interpret $ \case
     CreateUser new mbConv -> createUserImpl new mbConv
     ActivateUser uid identity -> activateUserImpl uid identity

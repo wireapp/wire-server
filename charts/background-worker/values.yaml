@@ -112,6 +112,7 @@ config:
     conversation: cassandra
     conversationCodes: cassandra
     teamFeatures: cassandra
+    user: cassandra
 
 secrets:
   {}

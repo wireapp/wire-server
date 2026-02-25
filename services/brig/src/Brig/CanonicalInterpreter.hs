@@ -107,6 +107,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
+import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
 import Wire.PropertySubsystem
@@ -149,6 +150,7 @@ import Wire.UserKeyStore
 import Wire.UserKeyStore.Cassandra
 import Wire.UserStore
 import Wire.UserStore.Cassandra
+import Wire.UserStore.Postgres (interpretUserStorePostgres)
 import Wire.UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.Interpreter
@@ -183,6 +185,8 @@ type BrigLowerLevelEffects =
      NotificationSubsystem,
      BackgroundJobsPublisher,
      RateLimit,
+     UserKeyStore,
+     UserStore,
      UserGroupStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
@@ -203,8 +207,6 @@ type BrigLowerLevelEffects =
      CryptoSign,
      HashPassword,
      ClientStore,
-     UserKeyStore,
-     UserStore,
      IndexedUserStore,
      SessionStore,
      PasswordStore,
@@ -341,6 +343,12 @@ runBrigToIO e (AppT ma) = do
       authSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor AuthenticationSubsystem r
       authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
 
+      userStoreInterpreter =
+        case e.postgresMigration.user of
+          CassandraStorage -> interpretUserStoreCassandra e.casClient
+          PostgresqlStorage -> interpretUserStorePostgres
+          MigrationToPostgresql -> error "Migration not implemented for user"
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -385,8 +393,6 @@ runBrigToIO e (AppT ma) = do
               . interpretPasswordStore e.casClient
               . interpretSessionStoreCassandra e.casClient
               . interpretIndexedUserStoreES indexedUserStoreConfig
-              . interpretUserStoreCassandra e.casClient
-              . interpretUserKeyStoreCassandra e.casClient
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
@@ -407,6 +413,8 @@ runBrigToIO e (AppT ma) = do
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
               . interpretUserGroupStoreToPostgres
+              . userStoreInterpreter
+              . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
