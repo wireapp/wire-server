@@ -23,6 +23,7 @@ import Data.Int qualified as DI
 import Data.Json.Util (utcTimeSchema)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified)
+import Data.Range (Range)
 import Data.Schema
 import Data.Time.Clock
 import Deriving.Aeson
@@ -34,7 +35,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- | Core Meeting type
 data Meeting = Meeting
   { id :: Qualified MeetingId,
-    title :: Text,
+    title :: Range 1 256 Text,
     creator :: Qualified UserId,
     startTime :: UTCTime,
     endTime :: UTCTime,
@@ -70,7 +71,7 @@ data NewMeeting = NewMeeting
   { startTime :: UTCTime,
     endTime :: UTCTime,
     recurrence :: Maybe Recurrence,
-    title :: Text,
+    title :: Range 1 256 Text,
     invitedEmails :: [EmailAddress]
   }
   deriving stock (Eq, Show, Generic)

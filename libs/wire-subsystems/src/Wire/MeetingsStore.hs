@@ -19,7 +19,10 @@
 
 module Wire.MeetingsStore where
 
+import Data.Bifunctor (Bifunctor (first))
 import Data.Id
+import Data.Range (Range (fromRange), checkedEither)
+import Data.Text qualified as T
 import Data.Time.Clock
 import Data.UUID (UUID)
 import Data.Vector (Vector)
@@ -35,7 +38,7 @@ data StoredMeeting = StoredMeeting
   { -- | unique identifier
     id :: MeetingId,
     -- | title of the meeting
-    title :: Text,
+    title :: Range 1 256 Text,
     -- | user who created the meeting
     creator :: UserId,
     -- | start time of the meeting
@@ -77,7 +80,7 @@ instance PostgresMarshall StoredMeetingTuple StoredMeeting where
   postgresMarshall storedMeeting =
     let (rFreq, rInterval, rUntil) = postgresMarshall storedMeeting.recurrence
      in ( toUUID storedMeeting.id,
-          storedMeeting.title,
+          fromRange storedMeeting.title,
           toUUID storedMeeting.creator,
           storedMeeting.startTime,
           storedMeeting.endTime,
@@ -107,11 +110,12 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
       createdAt',
       updateAt'
       ) = do
+      rTitle <- first T.pack $ checkedEither title'
       recurrence' <- postgresUnmarshall (rFreq, rInterval, rUntil)
       pure
         StoredMeeting
           { id = Id id',
-            title = title',
+            title = rTitle,
             creator = Id creator',
             startTime = startTime',
             endTime = endTime',
@@ -125,7 +129,7 @@ instance PostgresUnmarshall StoredMeetingTuple StoredMeeting where
 
 data MeetingsStore m a where
   CreateMeeting ::
-    Text ->
+    Range 1 256 Text ->
     UserId ->
     UTCTime ->
     UTCTime ->

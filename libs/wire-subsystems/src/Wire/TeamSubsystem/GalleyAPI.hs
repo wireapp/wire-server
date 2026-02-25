@@ -30,4 +30,5 @@ interpretTeamSubsystemToGalleyAPI = interpret $ \case
   InternalSelectTeamMemberInfos teamId userIds -> GalleyAPIAccess.selectTeamMemberInfos teamId userIds
   InternalSelectTeamMembers teamId userIds -> GalleyAPIAccess.selectTeamMembers teamId userIds
   InternalGetTeamAdmins teamId -> GalleyAPIAccess.getTeamAdmins teamId
+  InternalGetOneUserTeam userId -> GalleyAPIAccess.getTeamId userId
   InternalFinalizeDeleteTeam lusr mcon teamId -> GalleyAPIAccess.finalizeDeleteTeam lusr mcon teamId

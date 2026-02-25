@@ -143,6 +143,8 @@ interpretConversationSubsystem = interpret $ \case
     createConnectConversationLogic lusr conn j
   InternalGetClientIds uids ->
     internalGetClientIdsImpl uids
+  ConversationSubsystem.InternalGetLocalMember cid uid ->
+    ConvStore.getLocalMember cid uid
 
 createGroupConversationGeneric ::
   forall r.

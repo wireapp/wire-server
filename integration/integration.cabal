@@ -172,6 +172,7 @@ library
     Test.Federator
     Test.LegalHold
     Test.Login
+    Test.Meetings
     Test.MessageTimer
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
