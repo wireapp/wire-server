@@ -1,0 +1,1 @@
+Starting in this version, wire-server is tested against a newer version of cassandra (4.0.x)

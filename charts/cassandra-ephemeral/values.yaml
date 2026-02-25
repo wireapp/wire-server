@@ -1,5 +1,8 @@
 # See defaults in https://github.com/kubernetes/charts/blob/master/incubator/cassandra/values.yaml
 cassandra-ephemeral:
+  image:
+    repo: cassandra
+    tag: 4.0.15
   persistence:
     enabled: false
   # Needed for https://github.com/helm/helm/issues/7424

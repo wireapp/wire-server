@@ -6,7 +6,7 @@ metadata:
 spec:
   auth: false
   cassandra:
-    serverVersion: "3.11.11"
+    serverVersion: "4.0.15"
     telemetry:
       prometheus:
         enabled: {{ .Values.prometheus.enabled }}
