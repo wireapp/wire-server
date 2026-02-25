@@ -148,9 +148,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
-    case result of
-      Left (Tagged ()) -> pure ()
-      _ -> fail $ "Expected InvalidOperation error, got: " <> show result
+    void result `shouldBe` Left (Tagged ())
 
   describe "getMeeting access control" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -180,10 +178,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (meeting, _conv) <- createMeeting zUser1 newMeeting
         getMeeting zUser1 meeting.id
 
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> pure ()
-        Right _ -> fail "Expected Nothing for expired meeting"
+      result `shouldBe` Right Nothing
 
     it "returns meeting for creator" $ do
       let newMeeting =
@@ -240,10 +235,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (meeting, _conv) <- createMeeting zUser1 newMeeting
         getMeeting zUser3 meeting.id
 
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> pure ()
-        Right _ -> fail "Expected Nothing for unauthorized user"
+      result `shouldBe` Right Nothing
 
   it "creates trial meeting for personal user" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -263,9 +255,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       (meeting, _conv) <- createMeeting zUser newMeeting
       pure meeting
 
-    case result of
-      Left err -> fail $ "Error: " <> show err
-      Right meeting -> meeting.trial `shouldBe` True
+    fmap (.trial) result `shouldBe` Right True
 
   it "creates meeting with trial flag when premium is enabled for team" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -292,9 +282,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       (meeting, _conv) <- createMeeting zUser newMeeting
       pure meeting
 
-    case result of
-      Left err -> fail $ "Error: " <> show err
-      Right meeting -> meeting.trial `shouldBe` False
+    fmap (.trial) result `shouldBe` Right False
 
   it "creates meeting without trial flag when premium is disabled for team" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -321,6 +309,4 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       (meeting, _conv) <- createMeeting zUser newMeeting
       pure meeting
 
-    case result of
-      Left err -> fail $ "Error: " <> show err
-      Right meeting -> meeting.trial `shouldBe` True
+    fmap (.trial) result `shouldBe` Right True
