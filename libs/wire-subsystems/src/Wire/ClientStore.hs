@@ -29,6 +29,7 @@ data ClientStore m a where
   LookupClientsBulk :: [UserId] -> ClientStore m (UserMap (Set Client))
   LookupPubClientsBulk :: [UserId] -> ClientStore m (UserMap (Set PubClient))
   LookupPrekeyIds :: UserId -> ClientId -> ClientStore m [PrekeyId]
+  GetActivityTimestamps :: UserId -> ClientStore m [Maybe UTCTime]
   -- Proteus
   UpdatePrekeys :: UserId -> ClientId -> [UncheckedPrekeyBundle] -> ClientStore m ()
   ClaimPrekey :: UserId -> ClientId -> ClientStore m (Maybe ClientPrekey)

@@ -22,7 +22,6 @@ import Cassandra.Exec (prepared)
 import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
-import Data.Time.Clock
 import Database.CQL.Protocol
 import Imports
 import Polysemy
@@ -70,7 +69,6 @@ interpretUserStoreCassandra casClient =
       LookupLocale uid -> lookupLocaleImpl uid
       GetUserTeam uid -> getUserTeamImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
-      GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
       LookupRichInfos uids -> lookupRichInfosImpl uids
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
@@ -352,13 +350,6 @@ updateUserTeamImpl u t = retry x5 $ write userTeamUpdate (params LocalQuorum (t,
   where
     userTeamUpdate :: PrepQuery W (TeamId, UserId) ()
     userTeamUpdate = "UPDATE user SET team = ? WHERE id = ?"
-
-getActivityTimestampsImpl :: UserId -> Client [Maybe UTCTime]
-getActivityTimestampsImpl uid = do
-  runIdentity <$$> retry x1 (query q (params LocalQuorum (Identity uid)))
-  where
-    q :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
-    q = "SELECT last_active from clients where user = ?"
 
 getRichInfoImpl :: UserId -> Client (Maybe RichInfoAssocList)
 getRichInfoImpl uid =

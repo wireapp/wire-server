@@ -94,6 +94,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
+import Wire.ClientStore
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -241,6 +242,7 @@ type MiniBackendLowerEffects =
      NotificationSubsystem,
      GalleyAPIAccess,
      SparAPIAccess,
+     ClientStore,
      InvitationStore,
      PasswordStore,
      ActivationCodeStore,
@@ -305,6 +307,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryActivationCodeStoreInterpreter
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
+    . runInMemoryClientStoreInterpreter
     . miniSparAPIAccess
     . miniGalleyAPIAccess teams galleyConfigs
     . inMemoryNotificationSubsystemInterpreter

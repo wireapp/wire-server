@@ -527,6 +527,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
+    Wire.MockInterpreters.ClientStore
     Wire.MockInterpreters.ConversationSubsystem
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore
