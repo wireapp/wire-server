@@ -52,3 +52,18 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
     modify (Map.insert mid sm)
     pure sm
   GetMeeting mid -> gets (Map.lookup mid)
+  UpdateMeeting mid title startTime endTime recurrence -> do
+    sm <- gets (Map.lookup mid)
+    case sm of
+      Nothing -> pure Nothing
+      Just meeting -> do
+        now <- Now.get
+        let updatedMeeting =
+              meeting
+                { title = fromMaybe (meeting.title) title,
+                  startTime = fromMaybe meeting.startTime startTime,
+                  endTime = fromMaybe meeting.endTime endTime,
+                  recurrence = fromMaybe meeting.recurrence recurrence,
+                  updatedAt = now
+                }
+        modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)

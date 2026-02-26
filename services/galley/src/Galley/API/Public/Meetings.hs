@@ -25,4 +25,5 @@ import Wire.API.Routes.Public.Galley.Meetings
 meetingsAPI :: API MeetingsAPI GalleyEffects
 meetingsAPI =
   mkNamedAPI @"create-meeting" Meetings.createMeeting
+    <@> mkNamedAPI @"update-meeting" Meetings.updateMeeting
     <@> mkNamedAPI @"get-meeting" Meetings.getMeeting
