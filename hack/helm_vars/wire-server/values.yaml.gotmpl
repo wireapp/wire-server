@@ -677,6 +677,8 @@ background-worker:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
       teamFeatures: {{ .Values.teamFeaturesStore }}
+    settings:
+      conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
     rabbitmq:
       port: 5671
       adminPort: 15671
