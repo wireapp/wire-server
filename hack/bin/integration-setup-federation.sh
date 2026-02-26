@@ -35,8 +35,34 @@ export FEDERATION_DOMAIN_BASE_2="$NAMESPACE_2.svc.cluster.local"
 export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE_2"
 
 echo "Fetch federation-ca secret from cert-manager namespace"
-FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
+FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secret federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
 export FEDERATION_CA_CERTIFICATE
+
+copy_federator_ca_secret() {
+    local target_ns=$1
+    local release_name=${2:-ingress-svc}
+    local ca_b64
+    ca_b64=$(printf "%s" "${FEDERATION_CA_CERTIFICATE}" | base64 | tr -d '\n')
+    kubectl get ns "${target_ns}" >/dev/null 2>&1 || kubectl create ns "${target_ns}"
+    kubectl -n "${target_ns}" apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: federator-ca-secret
+  labels:
+    app.kubernetes.io/managed-by: "Helm"
+  annotations:
+    meta.helm.sh/release-name: "${release_name}"
+    meta.helm.sh/release-namespace: "${target_ns}"
+type: Opaque
+data:
+  ca.crt: ${ca_b64}
+EOF
+}
+
+echo "Ensure namespaces exist and seed federator CA secret before helmfile"
+copy_federator_ca_secret "$NAMESPACE_1" "ingress-svc"
+copy_federator_ca_secret "$NAMESPACE_2" "ingress-svc"
 
 echo "Installing charts..."
 
@@ -54,6 +80,7 @@ if (( EXIT_CODE > 0)); then
     exit $EXIT_CODE
 fi
 set -e
+
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
