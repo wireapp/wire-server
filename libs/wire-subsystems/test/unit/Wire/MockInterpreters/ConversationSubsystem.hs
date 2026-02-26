@@ -30,6 +30,8 @@ import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol (ConversationMLSData (..), Protocol (..))
 import Wire.API.MLS.Group (GroupId (..))
+import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
+import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.User (BaseProtocolTag (..))
 import Wire.ConversationSubsystem
 import Wire.Sem.Random (Random)
@@ -75,4 +77,16 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
   InternalGetLocalMember cid uid -> do
     members <- gets (Map.lookup cid)
     pureT $ if Set.member uid (fromMaybe Set.empty members) then Just (newMember uid) else Nothing
+  InternalGetConversation cid -> do
+    conv <- gets (Map.lookup cid)
+    pureT conv
+  DeleteLocalConversation _lusr _connId lcnv -> do
+    modify @(Map ConvId StoredConversation) (Map.delete (tUnqualified lcnv))
+    modify @ConversationMembers (Map.delete (tUnqualified lcnv))
+    pureT (Updated undefined)
+  GetConversationIds _lusr _range _pagingState -> do
+    pureT $ MultiTablePaging.MultiTablePage [] False undefined
+  GetConversations cids -> do
+    convs <- gets (\s -> [c | cid <- cids, Just c <- [Map.lookup cid s]])
+    pureT convs
   _ -> error "ConversationSubsystem: not implemented in mock"

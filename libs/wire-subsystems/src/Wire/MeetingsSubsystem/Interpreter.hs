@@ -26,7 +26,7 @@ import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Qualified (Local, Qualified (..), tDomain, tUnqualified)
+import Data.Qualified (Local, Qualified (..), qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
@@ -68,6 +68,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     createMeetingImpl zUser newMeeting
   UpdateMeeting zUser meetingId update ->
     updateMeetingImpl zUser meetingId update validityPeriod
+  DeleteMeeting zUser connId meetingId ->
+    deleteMeetingImpl zUser connId meetingId validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId validityPeriod
   ListMeetings zUser ->
@@ -176,6 +178,36 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.endTime
           update.recurrence
     pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
+
+deleteMeetingImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified MeetingId ->
+  NominalDiffTime ->
+  Sem r Bool
+deleteMeetingImpl zUser connId meetingId validityPeriod = do
+  result <-
+    runMaybeT $ do
+      meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ meeting.endTime >= cutoff
+      guard $ meeting.creator == tUnqualified zUser
+      lift $ Store.deleteMeeting (qUnqualified meetingId)
+      let convId = meeting.conversationId
+          lConvId = qualifyAs zUser convId
+      maybeConv <- lift $ ConversationSubsystem.internalGetConversation convId
+      case maybeConv of
+        Just conv
+          | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
+              void $ lift $ ConversationSubsystem.deleteLocalConversation zUser connId lConvId
+        _ -> pure ()
+      pure ()
+  pure $ isJust result
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
