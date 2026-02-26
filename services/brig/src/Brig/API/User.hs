@@ -188,12 +188,19 @@ verifyUniquenessAndCheckBlacklist uk = do
     Just uid -> do
       luid <- lift $ liftSem $ qualifyLocal' uid
       muser <- lift $ liftSem $ getLocalAccountBy WithPendingInvitations luid
-      if maybe True (\u -> userStatus u == Deleted) muser
-        then do
+
+      let deleted = maybe True (\u -> userStatus u == Deleted) muser
+      let activated = maybe False (isJust . userIdentity) muser
+
+      case (deleted, activated) of
+        (True, _) -> do
           -- if the user does not exist or is deleted, repair inconsistency and
           -- allow registration to proceed
           lift $ liftSem $ deleteKeyForUser uid uk
-        else throwE IdentityErrorUserKeyExists
+        -- if the user is not activated, allow registration to proceed
+        (False, False) -> pure ()
+        -- fail otherwise
+        (False, True) -> throwE IdentityErrorUserKeyExists
     Nothing -> pure ()
   blacklisted <- lift $ liftSem $ BlockListStore.exists uk
   when blacklisted $ throwE IdentityErrorBlacklistedEmail
