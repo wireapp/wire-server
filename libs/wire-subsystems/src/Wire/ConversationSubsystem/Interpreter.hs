@@ -25,6 +25,7 @@ import Control.Lens hiding ((??))
 import Data.Default
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
+import Data.Map.Strict qualified as Map
 import Data.Misc (FutureWork (FutureWork))
 import Data.Qualified
 import Data.Range
@@ -44,6 +45,7 @@ import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Config
+import Wire.API.Conversation.Protocol (ConversationMLSData (cnvmlsGroupId))
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -65,6 +67,8 @@ import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess, enqueueNotificationsConcurrently)
 import Wire.BrigAPIAccess
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore qualified as CodeStore
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
@@ -76,6 +80,8 @@ import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem as NS
+import Wire.ProposalStore (ProposalStore)
+import Wire.ProposalStore qualified as ProposalStore
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
@@ -126,7 +132,9 @@ interpretConversationSubsystem ::
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member UserClientIndexStore r
+    Member UserClientIndexStore r,
+    Member CodeStore r,
+    Member ProposalStore r
   ) =>
   Sem (ConversationSubsystem : r) a ->
   Sem r a
@@ -145,6 +153,8 @@ interpretConversationSubsystem = interpret $ \case
     internalGetClientIdsImpl uids
   ConversationSubsystem.InternalGetLocalMember cid uid ->
     ConvStore.getLocalMember cid uid
+  ConversationSubsystem.DeleteConversation cid ->
+    deleteConversationImpl cid
 
 createGroupConversationGeneric ::
   forall r.
@@ -820,3 +830,31 @@ internalGetClientIdsImpl users = do
   if isInternal
     then fromUserClients <$> lookupClients users
     else UserClientIndexStore.getClients users
+
+deleteConversationImpl ::
+  ( Member ConversationStore r,
+    Member CodeStore r,
+    Member ProposalStore r
+  ) =>
+  ConvId ->
+  Sem r ()
+deleteConversationImpl cid = do
+  mConv <- ConvStore.getConversation cid
+  forM_ mConv $ \storedConv -> do
+    let deleteGroup groupId = do
+          ConvStore.removeAllMLSClients groupId
+          ProposalStore.deleteAllProposals groupId
+
+    for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
+      sconvs <- ConvStore.listSubConversations cid
+      for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
+        let gidSub = cnvmlsGroupId mlsData
+        ConvStore.deleteSubConversation cid subid
+        deleteGroup gidSub
+      deleteGroup gidParent
+
+    key <- CodeStore.makeKey cid
+    CodeStore.deleteCode key
+    case Data.convTeam storedConv of
+      Nothing -> ConvStore.deleteConversation cid
+      Just tid -> ConvStore.deleteTeamConversation tid cid

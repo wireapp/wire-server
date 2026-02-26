@@ -11,6 +11,7 @@
 , bytestring-conversion
 , cassandra-util
 , containers
+, cql-io
 , data-default
 , data-timeout
 , exceptions
@@ -70,6 +71,7 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    cql-io
     data-timeout
     exceptions
     extended

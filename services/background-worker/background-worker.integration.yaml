@@ -83,3 +83,17 @@ postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
   teamFeatures: postgresql
+
+  settings:
+    # Either `conversationCodeURI` or `multiIngress` must be set
+    # conversationCodeURI is the URI prefix for conversation invitation links
+    # It should be of form https://{ACCOUNT_PAGES}/conversation-join/
+    conversationCodeURI: https://account.wire.com/conversation-join/
+    # multiIngress is a Z-Host dependent setting of conversationCodeURI.
+    # Use this only if you want to expose the instance on multiple ingresses.
+    # If set it must be a map from Z-Host to URI prefix
+    # Example:
+    # multiIngress:
+    #    wire.example: https://accounts.wire.example/conversation-join/
+    #    example.net: https://accounts.example.net/conversation-join/
+    multiIngress: null

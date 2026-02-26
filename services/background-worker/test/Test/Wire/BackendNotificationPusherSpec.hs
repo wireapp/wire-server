@@ -371,6 +371,7 @@ spec = do
           brigEndpoint = undefined
           sparEndpoint = undefined
           galleyEndpoint = undefined
+          convCodeURI = undefined
 
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
@@ -412,6 +413,7 @@ spec = do
           brigEndpoint = undefined
           sparEndpoint = undefined
           galleyEndpoint = undefined
+          convCodeURI = undefined
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

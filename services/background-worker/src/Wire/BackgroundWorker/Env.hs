@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -26,7 +25,8 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Domain (Domain)
-import Data.Map.Strict qualified as Map
+import Data.Map qualified as Map
+import Data.Misc (HttpsUrl)
 import HTTP2.Client.Manager
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
@@ -86,7 +86,8 @@ data Env = Env
     gundeckEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
     galleyEndpoint :: Endpoint,
-    brigEndpoint :: Endpoint
+    brigEndpoint :: Endpoint,
+    convCodeURI :: Either HttpsUrl (Map Text HttpsUrl)
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -105,6 +106,14 @@ mkBackendNotificationMetrics =
 mkWorkerRunningGauge :: IO (Vector Text Gauge)
 mkWorkerRunningGauge =
   register (vector "worker" $ gauge $ Prometheus.Info "wire_background_worker_running_workers" "Set to 1 when a worker is running")
+
+validateSettings :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
+validateSettings opts =
+  case (opts.settings.conversationCodeURI, opts.settings.multiIngress) of
+    (Nothing, Nothing) -> error "Either settings.conversationCodeURI or settings.multiIngress must be set"
+    (Just uri, Nothing) -> pure (Left uri)
+    (Nothing, Just mi) -> pure (Right mi)
+    (Just _, Just _) -> error "settings.conversationCodeURI and settings.multiIngress are mutually exclusive"
 
 mkEnv :: Opts -> IO Env
 mkEnv opts = do
@@ -129,6 +138,8 @@ mkEnv opts = do
           (BackgroundJobConsumer, False)
         ]
   backendNotificationMetrics <- mkBackendNotificationMetrics
+  convCodeURI <- validateSettings opts
+  workerRunningGauge <- mkWorkerRunningGauge
   let backendNotificationsConfig = opts.backendNotificationPusher
       backgroundJobsConfig = opts.backgroundJobs
       federationDomain = opts.federationDomain
@@ -137,7 +148,6 @@ mkEnv opts = do
       galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
-  workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
@@ -145,7 +155,34 @@ mkEnv opts = do
   amqpBackendNotificationsChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
-  pure Env {..}
+  pure
+    Env
+      { http2Manager,
+        rabbitmqAdminClient,
+        rabbitmqVHost,
+        logger,
+        federatorInternal,
+        httpManager,
+        defederationTimeout,
+        backendNotificationMetrics,
+        backendNotificationsConfig,
+        backgroundJobsConfig,
+        workerRunningGauge,
+        statuses,
+        cassandra,
+        cassandraGalley,
+        cassandraBrig,
+        hasqlPool,
+        amqpJobsPublisherChannel,
+        amqpBackendNotificationsChannel,
+        federationDomain,
+        postgresMigration,
+        convCodeURI,
+        gundeckEndpoint,
+        sparEndpoint,
+        galleyEndpoint,
+        brigEndpoint
+      }
 
 initHttp2Manager :: IO Http2Manager
 initHttp2Manager = do
