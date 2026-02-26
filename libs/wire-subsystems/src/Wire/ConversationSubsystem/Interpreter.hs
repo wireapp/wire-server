@@ -148,7 +148,7 @@ interpretConversationSubsystem = interpret $ \case
   ConversationSubsystem.GetConversation cid ->
     ConvStore.getConversation cid
   ConversationSubsystem.DeleteConversation cid ->
-    ConvStore.deleteConversation cid
+    deleteConversationImpl cid
 
 createGroupConversationGeneric ::
   forall r.
@@ -824,3 +824,11 @@ internalGetClientIdsImpl users = do
   if isInternal
     then fromUserClients <$> lookupClients users
     else UserClientIndexStore.getClients users
+
+deleteConversationImpl :: (Member ConversationStore r) => ConvId -> Sem r ()
+deleteConversationImpl cid = do
+  mConv <- ConvStore.getConversation cid
+  forM_ mConv $ \conv -> do
+    forM_ conv.metadata.cnvmTeam $ \tid ->
+      ConvStore.deleteTeamConversation tid cid
+    ConvStore.deleteConversation cid
