@@ -2135,7 +2135,7 @@ type AppsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Get '[JSON] [GetApp]
+               :> Get '[JSON] GetAppList
            )
     :<|> Named
            "put-app"

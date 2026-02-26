@@ -203,6 +203,7 @@ library
     Test.Roles
     Test.Search
     Test.Services
+    Test.Shape
     Test.Spar
     Test.Spar.GetByEmail
     Test.Spar.MultiIngressIdp

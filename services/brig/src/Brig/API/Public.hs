@@ -1775,7 +1775,7 @@ createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r GetApp
 getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
 
-getApps :: (_) => Local UserId -> TeamId -> Handler r [GetApp]
+getApps :: (_) => Local UserId -> TeamId -> Handler r GetAppList
 getApps lusr tid = lift . liftSem $ AppSubsystem.getApps lusr tid
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> PutApp -> Handler r ()

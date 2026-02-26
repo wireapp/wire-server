@@ -182,22 +182,24 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r [Apps.GetApp]
+  Sem r Apps.GetAppList
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
   storedApps <- Store.getApps tid
   us <- Store.getUsers ((.id) <$> storedApps)
   let mkApp (storedApp, u) =
-        Apps.GetApp
-          { name = u.name,
-            pict = fromMaybe (Pict []) u.pict,
-            assets = fromMaybe [] u.assets,
-            accentId = u.accentId,
-            meta = storedApp.meta,
-            category = storedApp.category,
-            description = storedApp.description
-          }
-  pure $ mkApp <$> matchAndZip storedApps us
+        ( u.id,
+          Apps.GetApp
+            { name = u.name,
+              pict = fromMaybe (Pict []) u.pict,
+              assets = fromMaybe [] u.assets,
+              accentId = u.accentId,
+              meta = storedApp.meta,
+              category = storedApp.category,
+              description = storedApp.description
+            }
+        )
+  pure . Apps.GetAppList $ mkApp <$> matchAndZip storedApps us
   where
     matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
     matchAndZip as us = mapMaybe f as

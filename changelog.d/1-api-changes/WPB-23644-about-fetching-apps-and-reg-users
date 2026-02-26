@@ -1,0 +1,1 @@
+`GET /teams/:tid/apps` now includes app ids in response.

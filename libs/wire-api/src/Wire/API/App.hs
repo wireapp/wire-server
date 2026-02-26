@@ -19,6 +19,7 @@ module Wire.API.App where
 
 import Data.Aeson qualified as A
 import Data.HashMap.Strict qualified as HM
+import Data.Id
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Range
@@ -44,6 +45,9 @@ data GetApp = GetApp
     description :: Range 0 300 Text
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
+
+newtype GetAppList = GetAppList {fromGetAppList :: [(UserId, GetApp)]}
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetAppList
 
 data PutApp = PutApp
   { name :: Maybe Name,
@@ -125,16 +129,28 @@ instance ToSchema NewApp where
         <*> (.password) .= field "password" schema
 
 instance ToSchema GetApp where
-  schema =
-    object "GetApp" $
-      GetApp
-        <$> (.name) .= field "name" schema
-        <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
-        <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
-        <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
-        <*> (.meta) .= field "metadata" jsonObject
-        <*> (.category) .= field "category" schema
-        <*> (.description) .= field "description" schema
+  schema = object "GetApp" getAppObjectSchema
+
+getAppObjectSchema :: ObjectSchema SwaggerDoc GetApp
+getAppObjectSchema =
+  GetApp
+    <$> (.name) .= field "name" schema
+    <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
+    <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
+    <*> (.meta) .= field "metadata" jsonObject
+    <*> (.category) .= field "category" schema
+    <*> (.description) .= field "description" schema
+
+instance ToSchema GetAppList where
+  schema = GetAppList <$> fromGetAppList .= named "GetAppList" (array getAppWithIdSchema)
+    where
+      getAppWithIdSchema :: ValueSchema NamedSwaggerDoc (UserId, GetApp)
+      getAppWithIdSchema =
+        object "GetAppWithId" $
+          (,)
+            <$> fst .= field "id" schema
+            <*> snd .= getAppObjectSchema
 
 instance ToSchema PutApp where
   schema =

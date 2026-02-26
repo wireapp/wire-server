@@ -676,6 +676,15 @@ getTeamMembers user tid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
   submit "GET" req
 
+getTeamMember ::
+  (HasCallStack, MakesValue user, MakesValue tid, MakesValue mid) =>
+  user -> tid -> mid -> App Response
+getTeamMember user tid mid = do
+  tidStr <- asString tid
+  midStr <- asString mid
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members", midStr])
+  submit "GET" req
+
 data AppLockSettings = AppLockSettings
   { status :: String,
     enforce :: Bool,
