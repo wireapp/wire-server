@@ -988,3 +988,13 @@ searchChannels user tid args = do
             [("discoverable", "true") | args.discoverable]
           ]
       )
+
+postMeetings :: (HasCallStack, MakesValue user) => user -> Value -> App Response
+postMeetings user newMeeting = do
+  req <- baseRequest user Galley Versioned "/meetings"
+  submit "POST" $ req & addJSON newMeeting
+
+getMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getMeeting user domain meetingId = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "GET" req

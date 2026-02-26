@@ -1,0 +1,10 @@
+Add Meetings API for creating and managing scheduled meetings.
+
+New endpoints:
+- `POST /meetings` - Create a meeting with title, start/end times, recurrence patterns (daily, weekly, etc.), and invited emails. Each meeting creates an associated MLS conversation.
+- `GET /meetings/:domain/:meetingId` - Retrieve a meeting by ID. Accessible to the meeting creator or any conversation member.
+
+Features:
+- Recurring meeting support with configurable patterns and end dates
+- Trial status: personal users receive trial meetings, paying team members receive non-trial meetings
+- Meeting expiration: old meetings are automatically filtered based on a configurable validity period

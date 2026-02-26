@@ -53,7 +53,7 @@ data StoredConversation = StoredConversation
     metadata :: ConversationMetadata,
     protocol :: Protocol
   }
-  deriving (Show)
+  deriving stock (Eq, Show)
 
 instance HasCellsState StoredConversation where
   getCellsState = getCellsState . (.metadata)
@@ -298,7 +298,7 @@ data LocalMember = LocalMember
     service :: Maybe ServiceRef,
     convRoleName :: RoleName
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 newMember :: UserId -> LocalMember
 newMember u = newMemberWithRole (u, roleNameWireAdmin)
@@ -328,7 +328,7 @@ data MemberStatus = MemberStatus
     msHidden :: Bool,
     msHiddenRef :: Maybe Text
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 defMemberStatus :: MemberStatus
 defMemberStatus =

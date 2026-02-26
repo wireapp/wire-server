@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -15,14 +17,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Meetings where
+module Wire.MeetingsSubsystem where
 
-import Galley.API.Meetings qualified as Meetings
-import Galley.App
-import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley.Meetings
+import Data.Id
+import Data.Qualified
+import Imports
+import Polysemy
+import Wire.API.Meeting
+import Wire.StoredConversation (StoredConversation)
 
-meetingsAPI :: API MeetingsAPI GalleyEffects
-meetingsAPI =
-  mkNamedAPI @"create-meeting" Meetings.createMeeting
-    <@> mkNamedAPI @"get-meeting" Meetings.getMeeting
+data MeetingsSubsystem m a where
+  CreateMeeting ::
+    Local UserId ->
+    NewMeeting ->
+    MeetingsSubsystem m (Meeting, StoredConversation)
+  GetMeeting ::
+    Local UserId ->
+    Qualified MeetingId ->
+    MeetingsSubsystem m (Maybe Meeting)
+
+makeSem ''MeetingsSubsystem

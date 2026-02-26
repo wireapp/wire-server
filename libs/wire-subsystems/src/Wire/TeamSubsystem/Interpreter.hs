@@ -106,6 +106,7 @@ interpretTeamSubsystemWithInputConfig =
           >>= TeamStore.selectTeamMembers tid
           >>= adjustMembersForImplicitConsent tid
       pure $ newTeamMemberList admins ListComplete
+    InternalGetOneUserTeam uid -> TeamStore.getOneUserTeam uid
     InternalFinalizeDeleteTeam luid mcon tid ->
       internalFinalizeDeleteTeamImpl luid mcon tid
 

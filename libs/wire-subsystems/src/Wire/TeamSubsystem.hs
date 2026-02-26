@@ -33,6 +33,7 @@ data TeamSubsystem m a where
   InternalSelectTeamMembers :: TeamId -> [UserId] -> TeamSubsystem m [TeamMember]
   InternalSelectTeamMemberInfos :: TeamId -> [UserId] -> TeamSubsystem m TeamMemberInfoList
   InternalGetTeamAdmins :: TeamId -> TeamSubsystem m TeamMemberList
+  InternalGetOneUserTeam :: UserId -> TeamSubsystem m (Maybe TeamId)
   InternalFinalizeDeleteTeam :: Local UserId -> Maybe ConnId -> TeamId -> TeamSubsystem m ()
 
 makeSem ''TeamSubsystem
