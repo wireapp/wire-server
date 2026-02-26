@@ -40,7 +40,6 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
-import Data.IORef (readIORef)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -49,9 +48,11 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
+import GHC.IORef
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
 import System.FilePath
+import System.Posix.Env (getEnvironment)
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
@@ -404,7 +405,7 @@ super `shouldNotContain` sub = do
 printFailureDetails :: Env -> AssertionFailure -> IO String
 printFailureDetails env (AssertionFailure stack mbResponse ctx msg) = do
   s <- liftIO $ prettierCallStack stack
-  ct <- readIORef env.curlTrace -- TODO: if $VERBOSE != 1 (or something), this should just be "crank up verbosity if you want to have a shell script reproducing this."
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "assertion failure:"
       : colored red msg
@@ -416,13 +417,20 @@ printFailureDetails env (AssertionFailure stack mbResponse ctx msg) = do
 printAppFailureDetails :: Env -> AppFailure -> IO String
 printAppFailureDetails env (AppFailure msg stack) = do
   s <- prettierCallStack stack
-  ct <- readIORef env.curlTrace -- TODO: if $VERBOSE != 1 (or something), this should just be "crank up verbosity if you want to have a shell script reproducing this."
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "app failure:"
       : colored red msg
       : "\n"
       : [s]
         <> ct
+
+renderCurlTrace :: IORef [String] -> IO [String]
+renderCurlTrace trace = do
+  verbosity <- getEnvironment >>= maybe (pure "") pure . lookup "WIRE_INTEGRATION_TEST_VERBOSITY"
+  if verbosity == "1"
+    then ("HTTP trace in curl pseudo-syntax:" :) <$> readIORef trace
+    else pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
 
 prettyContext :: String -> String
 prettyContext ctx = do
@@ -433,7 +441,7 @@ prettyContext ctx = do
 
 printExceptionDetails :: Env -> SomeException -> IO String
 printExceptionDetails env e = do
-  ct <- readIORef env.curlTrace -- TODO: if $VERBOSE != 1 (or something), this should just be "crank up verbosity if you want to have a shell script reproducing this."
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     [ colored yellow "exception:",
       colored red (displayException e)
