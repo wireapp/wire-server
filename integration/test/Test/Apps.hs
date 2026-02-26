@@ -68,8 +68,8 @@ testCreateApp = do
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
     apps <- resp.json & asList
-    name1 <- apps %. "0.1.name"
-    name2 <- apps %. "1.1.name"
+    name1 <- apps %. "0.name"
+    name2 <- apps %. "1.name"
     [name1, name2] `shouldMatchSet` ["chappie", "fmappie"]
 
   -- Creator should have type "regular"
