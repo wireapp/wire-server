@@ -31,6 +31,11 @@ data MeetingsSubsystem m a where
     Local UserId ->
     NewMeeting ->
     MeetingsSubsystem m (Meeting, StoredConversation)
+  UpdateMeeting ::
+    Local UserId ->
+    Qualified MeetingId ->
+    UpdateMeeting ->
+    MeetingsSubsystem m (Maybe Meeting)
   GetMeeting ::
     Local UserId ->
     Qualified MeetingId ->

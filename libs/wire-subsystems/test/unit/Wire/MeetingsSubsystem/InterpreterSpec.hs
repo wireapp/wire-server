@@ -23,7 +23,7 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Range (checked)
+import Data.Range (checked, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock
@@ -307,3 +307,257 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       pure meeting
 
     fmap (.trial) result `shouldBe` Right True
+
+  describe "updateMeeting" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+
+    it "throws EmptyUpdate when no fields provided" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        updateMeeting zUser1 meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing)
+
+      result `shouldBe` Left EmptyUpdate
+
+    it "throws InvalidTimes when startTime >= endTime" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just (addUTCTime 8000 now),
+                  endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 meeting.id update
+
+      result `shouldBe` Left InvalidTimes
+
+    it "returns Nothing for expired meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime (-7200) now,
+                endTime = addUTCTime (-5000) now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        updateMeeting zUser1 meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
+
+      result `shouldBe` Right Nothing
+
+    it "returns Nothing for non-creator" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Non-creator Update",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        updateMeeting zUser2 meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
+
+      result `shouldBe` Right Nothing
+
+    it "updates title successfully" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Title",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Nothing,
+                  endTime = Nothing,
+                  title = Just (unsafeRange "Updated Title"),
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 meeting.id update
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just updated meeting"
+        Right (Just m) -> do
+          m.title `shouldBe` unsafeRange "Updated Title"
+          m.startTime `shouldBe` newMeeting.startTime
+          m.endTime `shouldBe` newMeeting.endTime
+          m.recurrence `shouldBe` newMeeting.recurrence
+
+    it "updates time range successfully" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Title",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+          newStartTime = addUTCTime 5000 now
+          newEndTime = addUTCTime 10000 now
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just newStartTime,
+                  endTime = Just newEndTime,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 meeting.id update
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just updated meeting"
+        Right (Just m) -> do
+          m.title `shouldBe` fromJust (checked "Original Title")
+          m.startTime `shouldBe` newStartTime
+          m.endTime `shouldBe` newEndTime
+          m.recurrence `shouldBe` newMeeting.recurrence
+
+    it "updates recurrence successfully" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Title",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      let newRecurrence =
+            Just
+              API.Recurrence
+                { freq = API.Daily,
+                  interval = 7,
+                  until = Nothing
+                }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Nothing,
+                  endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Just newRecurrence
+                }
+        updateMeeting zUser1 meeting.id update
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just updated meeting"
+        Right (Just m) -> do
+          m.recurrence `shouldBe` newRecurrence
+          m.title `shouldBe` newMeeting.title
+          m.startTime `shouldBe` newMeeting.startTime
+          m.endTime `shouldBe` newMeeting.endTime
+
+    it "updates all fields successfully" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Title",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      let updatedTime = Just (addUTCTime 4000 now)
+          newEndTime = Just (addUTCTime 8000 now)
+          newRecurrence =
+            Just
+              API.Recurrence
+                { freq = API.Weekly,
+                  interval = 2,
+                  until = Nothing
+                }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = updatedTime,
+                  endTime = newEndTime,
+                  title = checked "New Title",
+                  recurrence = Just newRecurrence
+                }
+        updateMeeting zUser1 meeting.id update
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just updated meeting"
+        Right (Just m) -> do
+          m.title `shouldBe` fromJust (checked "New Title")
+          m.startTime `shouldBe` fromJust updatedTime
+          m.endTime `shouldBe` fromJust newEndTime
+          m.recurrence `shouldBe` newRecurrence
+
+    it "preserves unchanged fields when only one field is updated" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Title",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Nothing,
+                  endTime = Nothing,
+                  title = Just (unsafeRange "Updated Title"),
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 meeting.id update
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just updated meeting"
+        Right (Just m) -> do
+          m.title `shouldBe` unsafeRange "Updated Title"
+          m.startTime `shouldBe` newMeeting.startTime
+          m.endTime `shouldBe` newMeeting.endTime
+          m.recurrence `shouldBe` newMeeting.recurrence

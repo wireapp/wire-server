@@ -45,6 +45,24 @@ type MeetingsAPI =
              Meeting
     )
     :<|> Named
+           "update-meeting"
+           ( Summary "Update an existing meeting"
+               :> From 'V15
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidOperation
+               :> ReqBody '[JSON] UpdateMeeting
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[Respond 200 "Meeting updated" Meeting]
+                    Meeting
+           )
+    :<|> Named
            "get-meeting"
            ( Summary "Get a single meeting by ID"
                :> From 'V15

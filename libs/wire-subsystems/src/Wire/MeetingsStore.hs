@@ -138,6 +138,13 @@ data MeetingsStore m a where
     [EmailAddress] ->
     Bool ->
     MeetingsStore m StoredMeeting
+  UpdateMeeting ::
+    MeetingId ->
+    Maybe (Range 1 256 Text) ->
+    Maybe UTCTime ->
+    Maybe UTCTime ->
+    Maybe (Maybe Recurrence) ->
+    MeetingsStore m (Maybe StoredMeeting)
   GetMeeting ::
     MeetingId ->
     MeetingsStore m (Maybe StoredMeeting)

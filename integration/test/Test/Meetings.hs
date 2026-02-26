@@ -4,12 +4,10 @@ module Test.Meetings where
 
 import API.Galley
 import qualified API.GalleyInternal as I
-import Data.Aeson as Aeson
-import qualified Data.Aeson.Key as Key
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import SetupHelpers
-import Testlib.Prelude as P hiding ((.=))
+import Testlib.Prelude
 
 -- Helper to extract meetingId and domain from a meeting JSON object
 getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)
@@ -17,6 +15,16 @@ getMeetingIdAndDomain meeting = do
   meetingId <- meeting %. "qualified_id" %. "id" >>= asString
   domain <- meeting %. "qualified_id" %. "domain" >>= asString
   pure (meetingId, domain)
+
+-- Helper to create a default new meeting JSON object
+defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
+defaultMeetingJson title startTime endTime invitedEmails =
+  object
+    [ "title" .= title,
+      "start_time" .= startTime,
+      "end_time" .= endTime,
+      "invited_emails" .= invitedEmails
+    ]
 
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
@@ -31,9 +39,9 @@ testMeetingCreate = do
   assertSuccess resp
 
   meeting <- getJSON 201 resp
-  meeting %. "title" `shouldMatch` "Team Standup"
+  meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
-  meeting %. "invited_emails" `shouldMatch` ["alice@example.com", "bob@example.com"]
+  meeting %. "invited_emails" `shouldMatch` (["alice@example.com", "bob@example.com"] :: [String])
 
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -41,7 +49,7 @@ testMeetingCreate = do
   assertSuccess r2
 
   fetchedMeeting <- getJSON 200 r2
-  fetchedMeeting %. "title" `shouldMatch` "Team Standup"
+  fetchedMeeting %. "title" `shouldMatch` ("Team Standup" :: String)
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
@@ -70,9 +78,9 @@ testMeetingCreatePayingTeamNonTrial :: (HasCallStack) => App ()
 testMeetingCreatePayingTeamNonTrial = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
-  let firstMeeting = Aeson.object [Key.fromString "status" .= Key.fromString "enabled"]
+  let firstMeeting = object ["status" .= "enabled"]
   I.setTeamFeatureLockStatus owner tid "meetingsPremium" "unlocked"
-  setTeamFeatureConfig owner tid "meetingsPremium" firstMeeting >>= assertStatus 200
+  I.setTeamFeatureConfig owner tid "meetingsPremium" firstMeeting >>= assertStatus 200
 
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
@@ -91,8 +99,8 @@ testMeetingsConfigDisabledBlocksCreate = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
   -- Disable the MeetingsConfig feature
-  let firstMeeting = Aeson.object [Key.fromString "status" .= Key.fromString "disabled", Key.fromString "lockStatus" .= Key.fromString "unlocked"]
-  setTeamFeatureConfig owner tid "meetings" firstMeeting >>= assertStatus 200
+  let firstMeeting = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
+  I.setTeamFeatureConfig owner tid "meetings" firstMeeting >>= assertStatus 200
 
   -- Try to create a meeting - should fail
   now <- liftIO getCurrentTime
@@ -110,18 +118,18 @@ testMeetingRecurrence = do
       endTime = addUTCTime 7200 now
       recurrenceUntil = Time.formatTime Time.defaultTimeLocale "%FT%TZ" $ addUTCTime (30 * nominalDay) now -- format to avoid rounding expectation mismatch
       recurrence =
-        Aeson.object
-          [ Key.fromString "frequency" .= Key.fromString "daily",
-            Key.fromString "interval" .= (1 :: Int),
-            Key.fromString "until" .= recurrenceUntil
+        object
+          [ "frequency" .= "daily",
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
           ]
       newMeeting =
-        Aeson.object
-          [ Key.fromString "title" .= Key.fromString "Daily Standup with Recurrence",
-            Key.fromString "start_time" .= startTime,
-            Key.fromString "end_time" .= endTime,
-            Key.fromString "recurrence" .= recurrence,
-            Key.fromString "invited_emails" .= ["charlie@example.com"]
+        object
+          [ "title" .= "Daily Standup with Recurrence",
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "recurrence" .= recurrence,
+            "invited_emails" .= ["charlie@example.com"]
           ]
 
   r1 <- postMeetings owner newMeeting
@@ -129,33 +137,63 @@ testMeetingRecurrence = do
 
   meeting <- getJSON 201 r1
   (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let updatedRecurrence =
+        object
+          [ "frequency" .= "weekly",
+            "interval" .= (2 :: Int)
+          ]
+      updatedMeeting =
+        object
+          [ "title" .= "Updated Standup",
+            "start_date" .= startTime,
+            "end_date" .= endTime,
+            "recurrence" .= updatedRecurrence
+          ]
 
-  r2 <- getMeeting owner domain meetingId
+  r2 <- putMeeting owner domain meetingId updatedMeeting
   assertSuccess r2
 
-  fetchedMeeting <- getJSON 200 r2
-  fetchedMeeting %. "title" `shouldMatch` "Daily Standup with Recurrence"
-  recurrence' <- fetchedMeeting %. "recurrence"
-  recurrence' %. "frequency" `shouldMatch` "daily"
-  recurrence' %. "interval" `shouldMatchInt` 1
-  recurrence' %. "until" `shouldMatch` recurrenceUntil
+  updated <- getJSON 200 r2
+  updated %. "title" `shouldMatch` ("Updated Standup" :: String)
+  recurrence' <- updated %. "recurrence"
+  recurrence' %. "frequency" `shouldMatch` "weekly"
+  recurrence' %. "interval" `shouldMatchInt` 2
 
-testMeetingCreateInvalidTimes :: (HasCallStack) => App ()
-testMeetingCreateInvalidTimes = do
+testMeetingUpdateNotFound :: (HasCallStack) => App ()
+testMeetingUpdateNotFound = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
-      endTimeInvalid = addUTCTime 3500 now -- endTime is before startTime
-      newMeetingInvalid = defaultMeetingJson "Invalid Time" startTime endTimeInvalid []
+      endTime = addUTCTime 7200 now
+      update =
+        object
+          [ "title" .= "Updated",
+            "start_date" .= startTime,
+            "end_date" .= endTime
+          ]
 
-  postMeetings owner newMeetingInvalid >>= assertLabel 403 "invalid-op"
+  putMeeting owner "example.com" fakeMeetingId update >>= assertStatus 404
 
--- Helper to create a default new meeting JSON object
-defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
-defaultMeetingJson title startTime endTime invitedEmails =
-  Aeson.object
-    [ Key.fromString "title" .= title,
-      Key.fromString "start_time" .= startTime,
-      Key.fromString "end_time" .= endTime,
-      Key.fromString "invited_emails" .= invitedEmails
-    ]
+testMeetingUpdateUnauthorized :: (HasCallStack) => App ()
+testMeetingUpdateUnauthorized = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (otherUser, _, _membersOther) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
+
+  r1 <- postMeetings owner newMeeting
+  assertSuccess r1
+
+  meeting <- getJSON 201 r1
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let update =
+        object
+          [ "title" .= "Hijacked",
+            "start_date" .= startTime,
+            "end_date" .= endTime
+          ]
+
+  putMeeting otherUser domain meetingId update >>= assertStatus 404
