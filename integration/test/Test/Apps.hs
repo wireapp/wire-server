@@ -1,4 +1,4 @@
-{-# OPTIONS -Wno-ambiguous-fields #-}
+{-# OPTIONS -Wno-incomplete-patterns -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -278,6 +278,9 @@ testRetrieveUsersIncludingApps = do
             ("name", SString),
             ("picture", SArray SAny)
           ]
+      appWithIdShape = case appShape of
+        SObject attrs ->
+          SObject (("id", SString) : attrs)
       searchResultShape =
         SObject
           [ ("accent_id", SNumber),
@@ -327,8 +330,7 @@ testRetrieveUsersIncludingApps = do
   getApps owner tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     apps <- resp.json & maybe (error "this shouldn't happen") pure
-    apps `shouldMatchShape` SArray (SArray SAny)
-    apps %. "0.1" `shouldMatchShape` appShape
+    apps `shouldMatchShape` SArray appWithIdShape
 
   -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
   getApp owner tid appId `bindResponse` \resp -> do
