@@ -2111,6 +2111,7 @@ type AppsAPI =
   Named
     "create-app"
     ( Summary "Create a new app"
+        :> From 'V12
         :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -2121,6 +2122,7 @@ type AppsAPI =
     :<|> Named
            "get-app"
            ( Summary "Get app"
+               :> From 'V14
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -2131,6 +2133,7 @@ type AppsAPI =
     :<|> Named
            "get-apps"
            ( Summary "Get all apps in a team"
+               :> From 'V15
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -2152,6 +2155,7 @@ type AppsAPI =
     :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
+               :> From 'V12
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
