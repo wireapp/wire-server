@@ -47,7 +47,7 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
-data MeetingError = InvalidTimes
+data MeetingError = InvalidTimes | EmptyUpdate
   deriving stock (Eq, Show)
 
 interpretMeetingsSubsystem ::
@@ -63,6 +63,8 @@ interpretMeetingsSubsystem ::
 interpretMeetingsSubsystem validityPeriod = interpret $ \case
   CreateMeeting zUser newMeeting ->
     createMeetingImpl zUser newMeeting
+  UpdateMeeting zUser meetingId update ->
+    updateMeetingImpl zUser meetingId update validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId validityPeriod
 
@@ -130,6 +132,40 @@ createMeetingImpl zUser newMeeting = do
     ( storedMeetingToMeeting (tDomain zUser) storedMeeting,
       storedConv
     )
+
+updateMeetingImpl ::
+  ( Member Store.MeetingsStore r,
+    Member (Error MeetingError) r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  API.UpdateMeeting ->
+  NominalDiffTime ->
+  Sem r (Maybe API.Meeting)
+updateMeetingImpl zUser meetingId update validityPeriod = do
+  when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence) $
+    throw EmptyUpdate
+
+  runMaybeT $ do
+    meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+    now <- lift Now.get
+    let cutoff = addUTCTime (negate validityPeriod) now
+    guard $ meeting.endTime >= cutoff
+    when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
+      lift $
+        throw InvalidTimes
+
+    guard $ meeting.creator == tUnqualified zUser
+    updatedMeeting <-
+      MaybeT $
+        Store.updateMeeting
+          (qUnqualified meetingId)
+          update.title
+          update.startTime
+          update.endTime
+          update.recurrence
+    pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,

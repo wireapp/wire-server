@@ -994,6 +994,11 @@ postMeetings user newMeeting = do
   req <- baseRequest user Galley Versioned "/meetings"
   submit "POST" $ req & addJSON newMeeting
 
+putMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+putMeeting user domain meetingId updatedMeeting = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "PUT" $ req & addJSON updatedMeeting
+
 getMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
 getMeeting user domain meetingId = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])

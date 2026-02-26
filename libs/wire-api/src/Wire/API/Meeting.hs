@@ -117,8 +117,9 @@ instance ToSchema NewMeeting where
 data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
-    title :: Maybe Text,
-    recurrence :: Maybe Recurrence
+    title :: Maybe (Range 1 256 Text),
+    -- | 'Just x' means "set 'recurrence' to 'x', meaning set to a value or unset it"
+    recurrence :: Maybe (Maybe Recurrence)
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UpdateMeeting)
@@ -131,7 +132,7 @@ instance ToSchema UpdateMeeting where
         <$> (.startTime) .= maybe_ (optField "start_time" utcTimeSchema)
         <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
         <*> (.title) .= maybe_ (optField "title" schema)
-        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+        <*> (.recurrence) .= fmap Just (maybe_ (maybe_ (optField' "recurrence" schema)))
 
 instance ToSchema Recurrence where
   schema =

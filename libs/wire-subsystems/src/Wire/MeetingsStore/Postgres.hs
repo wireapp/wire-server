@@ -1,5 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -25,7 +26,7 @@ where
 
 import Data.Id
 import Data.Profunctor (dimap)
-import Data.Range (Range)
+import Data.Range (Range, fromRange)
 import Data.Time.Clock
 import Data.UUID (UUID, nil)
 import Hasql.Pool
@@ -34,10 +35,10 @@ import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (throw)
+import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
-import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
+import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
 import Wire.API.User.Identity (EmailAddress)
 import Wire.MeetingsStore
 import Wire.Postgres (PGConstraints)
@@ -49,8 +50,12 @@ interpretMeetingsStoreToPostgres =
   interpret $ \case
     CreateMeeting title creator startTime endTime recurrence convId emails trial ->
       createMeetingImpl title creator startTime endTime recurrence convId emails trial
+    UpdateMeeting meetingId title startDate endDate schedule ->
+      updateMeetingImpl meetingId title startDate endDate schedule
     GetMeeting meetingId ->
       getMeetingImpl meetingId
+
+-- * Create
 
 createMeetingImpl ::
   (PGConstraints r) =>
@@ -107,6 +112,133 @@ insertStatement =
   where
     tupleWithoutId (_, t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua) =
       (t, c, st, et, rf, ri, ru, ci, ie, tr, ca, ua)
+
+-- * Update
+
+type UpdateStoredMeetingWithRecurrenceTuple =
+  ( Maybe Text, -- title
+    Maybe UTCTime, -- start_time
+    Maybe UTCTime, -- end_time
+    Maybe Text, -- recurrence_frequency
+    Maybe Int32, -- recurrence_interval
+    Maybe UTCTime, -- recurrence_until
+    UUID -- meeting id
+  )
+
+type UpdateMeetingWithRecurrenceTuple =
+  ( Maybe (Range 1 256 Text), -- title
+    Maybe UTCTime, -- start_time
+    Maybe UTCTime, -- end_time
+    Maybe Recurrence, -- recurrence
+    MeetingId -- meeting id
+  )
+
+instance PostgresMarshall UpdateStoredMeetingWithRecurrenceTuple UpdateMeetingWithRecurrenceTuple where
+  postgresMarshall (mTitle, mStartTime, mEndTime, recurrence, id') =
+    let (rFreq, rInterval, rUntil) = postgresMarshall recurrence
+     in ( fromRange <$> mTitle,
+          mStartTime,
+          mEndTime,
+          rFreq,
+          rInterval,
+          rUntil,
+          toUUID id'
+        )
+
+type UpdateStoredMeetingWithoutRecurrenceTuple =
+  ( Maybe Text, -- title
+    Maybe UTCTime, -- start_time
+    Maybe UTCTime, -- end_time
+    UUID -- meeting id
+  )
+
+type UpdateMeetingWithoutRecurrenceTuple =
+  ( Maybe (Range 1 256 Text), -- title
+    Maybe UTCTime, -- start_time
+    Maybe UTCTime, -- end_time
+    MeetingId -- meeting id
+  )
+
+instance {-# OVERLAPPING #-} PostgresMarshall UpdateStoredMeetingWithoutRecurrenceTuple UpdateMeetingWithoutRecurrenceTuple where
+  postgresMarshall (mTitle, mStartTime, mEndTime, id') =
+    ( fromRange <$> mTitle,
+      mStartTime,
+      mEndTime,
+      toUUID id'
+    )
+
+updateMeetingImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  MeetingId ->
+  Maybe (Range 1 256 Text) ->
+  Maybe UTCTime ->
+  Maybe UTCTime ->
+  Maybe (Maybe Recurrence) ->
+  Sem r (Maybe StoredMeeting)
+updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session (Maybe StoredMeeting)
+    session =
+      case mRecurrence of
+        Nothing ->
+          statement (mTitle, mStartDate, mEndDate, meetingId) updateWithoutRecurrenceStatement
+        Just recurrence ->
+          statement (mTitle, mStartDate, mEndDate, recurrence, meetingId) updateWithRecurrenceStatement
+
+    updateWithRecurrenceStatement :: Statement UpdateMeetingWithRecurrenceTuple (Maybe StoredMeeting)
+    updateWithRecurrenceStatement =
+      dimapPG
+        @UpdateStoredMeetingWithRecurrenceTuple
+        @UpdateMeetingWithRecurrenceTuple
+        @(Maybe StoredMeetingTuple)
+        @(Maybe StoredMeeting)
+        [maybeStatement|
+          UPDATE meetings
+          SET title = COALESCE($1 :: text?, title),
+              start_time = COALESCE($2 :: timestamptz?, start_time),
+              end_time = COALESCE($3 :: timestamptz?, end_time),
+              recurrence_frequency = $4 :: text? :: recurrence_frequency,
+              recurrence_interval = $5 :: int4?,
+              recurrence_until = $6 :: timestamptz?,
+              updated_at = NOW()
+          WHERE id = ($7 :: uuid)
+          RETURNING
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+        |]
+
+    updateWithoutRecurrenceStatement :: Statement UpdateMeetingWithoutRecurrenceTuple (Maybe StoredMeeting)
+    updateWithoutRecurrenceStatement =
+      dimapPG
+        @UpdateStoredMeetingWithoutRecurrenceTuple
+        @UpdateMeetingWithoutRecurrenceTuple
+        @(Maybe StoredMeetingTuple)
+        @(Maybe StoredMeeting)
+        [maybeStatement|
+          UPDATE meetings
+          SET title = COALESCE($1 :: text?, title),
+              start_time = COALESCE($2 :: timestamptz?, start_time),
+              end_time = COALESCE($3 :: timestamptz?, end_time),
+              updated_at = NOW()
+          WHERE id = ($4 :: uuid)
+          RETURNING
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+        |]
+
+-- * Get
 
 getMeetingImpl ::
   (PGConstraints r) =>

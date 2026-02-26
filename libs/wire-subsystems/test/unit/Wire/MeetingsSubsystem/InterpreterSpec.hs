@@ -23,7 +23,7 @@ import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
-import Data.Range (checked)
+import Data.Range (checked, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock
@@ -33,6 +33,8 @@ import Polysemy.Error
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -307,3 +309,117 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       pure meeting
 
     fmap (.trial) result `shouldBe` Right True
+
+  describe "updateMeeting" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+
+    it "throws EmptyUpdate when no fields provided" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        updateMeeting zUser1 meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing)
+
+      result `shouldBe` Left EmptyUpdate
+
+    it "throws InvalidTimes when startTime >= endTime" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just (addUTCTime 8000 now),
+                  endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 meeting.id update
+
+      result `shouldBe` Left InvalidTimes
+
+    it "returns Nothing for expired meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime (-7200) now,
+                endTime = addUTCTime (-5000) now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        updateMeeting zUser1 meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
+
+      result `shouldBe` Right Nothing
+
+    it "returns Nothing for non-creator" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Non-creator Update",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        updateMeeting zUser2 meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
+
+      result `shouldBe` Right Nothing
+
+    prop "applies valid update, preserves unchanged fields" $ \(update :: API.UpdateMeeting) ->
+      let baseMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Title",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+          effectiveStart = fromMaybe baseMeeting.startTime update.startTime
+          effectiveEnd = fromMaybe baseMeeting.endTime update.endTime
+          isNotEmpty = update /= API.UpdateMeeting Nothing Nothing Nothing Nothing
+          hasValidTimes = effectiveStart < effectiveEnd
+       in isNotEmpty && hasValidTimes ==>
+            ioProperty $ do
+              result <- runTestStack now gen Map.empty teamConfig $ do
+                (meeting, _conv) <- createMeeting zUser1 baseMeeting
+                updateMeeting zUser1 meeting.id update
+              case result of
+                Left err ->
+                  pure $ counterexample ("Unexpected error: " <> show err) False
+                Right Nothing ->
+                  pure $ counterexample "Expected Just meeting, got Nothing" False
+                Right (Just m) ->
+                  pure $
+                    m.title === fromMaybe baseMeeting.title update.title
+                      .&&. m.startTime === effectiveStart
+                      .&&. m.endTime === effectiveEnd
+                      .&&. m.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
