@@ -300,8 +300,7 @@ testRetrieveUsersIncludingApps = do
   appCreated
     `shouldMatchShape` SObject
       [ ("cookie", SString),
-        ("user", userShape),
-        ("app", appShape)
+        ("user", userShape)
       ]
   appId <- appCreated %. "user.id" & asString
 
