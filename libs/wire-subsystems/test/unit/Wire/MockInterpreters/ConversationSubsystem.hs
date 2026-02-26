@@ -75,4 +75,10 @@ inMemoryConversationSubsystemInterpreter = interpret $ \case
   InternalGetLocalMember cid uid -> do
     members <- gets (Map.lookup cid)
     pure $ if Set.member uid (fromMaybe Set.empty members) then Just (newMember uid) else Nothing
+  GetConversation cid -> gets (Map.lookup cid)
+  DeleteConversation cid -> do
+    convs <- gets @(Map ConvId StoredConversation) id
+    put @(Map ConvId StoredConversation) (Map.delete cid convs)
+    members <- gets @ConversationMembers id
+    put @ConversationMembers (Map.delete cid members)
   _ -> error "ConversationSubsystem: not implemented in mock"

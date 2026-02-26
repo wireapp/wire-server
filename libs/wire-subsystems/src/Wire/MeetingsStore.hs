@@ -145,6 +145,9 @@ data MeetingsStore m a where
     Maybe UTCTime ->
     Maybe (Maybe Recurrence) ->
     MeetingsStore m (Maybe StoredMeeting)
+  DeleteMeeting ::
+    MeetingId ->
+    MeetingsStore m ()
   GetMeeting ::
     MeetingId ->
     MeetingsStore m (Maybe StoredMeeting)

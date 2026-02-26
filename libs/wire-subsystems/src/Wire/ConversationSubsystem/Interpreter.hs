@@ -145,6 +145,10 @@ interpretConversationSubsystem = interpret $ \case
     internalGetClientIdsImpl uids
   ConversationSubsystem.InternalGetLocalMember cid uid ->
     ConvStore.getLocalMember cid uid
+  ConversationSubsystem.GetConversation cid ->
+    ConvStore.getConversation cid
+  ConversationSubsystem.DeleteConversation cid ->
+    ConvStore.deleteConversation cid
 
 createGroupConversationGeneric ::
   forall r.

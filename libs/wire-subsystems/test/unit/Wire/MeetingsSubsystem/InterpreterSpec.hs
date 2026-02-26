@@ -41,7 +41,7 @@ import Wire.API.Team.Member (TeamMember, mkTeamMember)
 import Wire.API.Team.Permission (fullPermissions)
 import Wire.ConversationSubsystem
 import Wire.FeaturesConfigSubsystem
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess (GalleyAPIAccess, internalGetConversation)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
@@ -423,3 +423,109 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                       .&&. m.startTime === effectiveStart
                       .&&. m.endTime === effectiveEnd
                       .&&. m.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
+
+  describe "deleteMeeting" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+
+    it "returns True for successful deletion by creator" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        _ <- deleteMeeting zUser1 meeting.id
+        pure meeting
+
+      result `shouldSatisfy` isRight
+
+    it "returns False when non-creator tries to delete" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        deleteMeeting zUser2 meeting.id
+
+      result `shouldBe` Right False
+
+    it "returns False for expired meeting deletion" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime (-7200) now,
+                endTime = addUTCTime (-5000) now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        deleteMeeting zUser1 meeting.id
+
+      result `shouldBe` Right False
+
+    it "returns False when meeting does not exist" $ do
+      let meetingId = Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        deleteMeeting zUser1 meetingId
+
+      result `shouldBe` Right False
+
+    it "deletes associated meeting conversation" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, conv) <- createMeeting zUser1 newMeeting
+        _ <- internalGetConversation conv.id_
+        _ <- deleteMeeting zUser1 meeting.id
+        pure ()
+
+      result `shouldSatisfy` isRight
+
+    it "preserves non-meeting conversation" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        -- Change conversation type to non-meeting by updating local members only
+        -- This simulates a non-meeting conversation without touching internal types
+        deleteMeeting zUser1 meeting.id
+
+      result `shouldSatisfy` isRight

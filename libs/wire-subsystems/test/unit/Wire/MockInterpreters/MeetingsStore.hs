@@ -67,3 +67,4 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                   updatedAt = now
                 }
         modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)
+  DeleteMeeting mid -> modify (Map.delete mid)
