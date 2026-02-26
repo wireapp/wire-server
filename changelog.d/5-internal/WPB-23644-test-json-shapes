@@ -1,0 +1,1 @@
+Integration tests: test lib now supports `shouldMatchShape` for json schema assertions.

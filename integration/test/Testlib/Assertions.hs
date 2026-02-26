@@ -278,6 +278,9 @@ shouldMatchOneOf a b = do
 --
 -- Object matching is /strict/: any key present in the actual value but absent
 -- from the expected 'SObject' field list causes an assertion failure.
+--
+-- FUTUREWORK: heterogenous arrays (`["yes", true, 3]`)
+-- FUTUREWORK: optional attributes
 data Shape
   = SNull
   | SBool
