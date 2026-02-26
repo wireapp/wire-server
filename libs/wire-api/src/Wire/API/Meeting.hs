@@ -118,6 +118,7 @@ data UpdateMeeting = UpdateMeeting
   { startTime :: Maybe UTCTime,
     endTime :: Maybe UTCTime,
     title :: Maybe (Range 1 256 Text),
+    -- | 'Just x' means "set 'recurrence' to 'x', meaning set to a value or unset it"
     recurrence :: Maybe (Maybe Recurrence)
   }
   deriving stock (Eq, Show, Generic)

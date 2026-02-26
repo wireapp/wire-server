@@ -33,6 +33,8 @@ import Polysemy.Error
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -392,8 +394,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Right Nothing
 
-    it "updates title successfully" $ do
-      let newMeeting =
+    prop "applies valid update, preserves unchanged fields" $ \(update :: API.UpdateMeeting) ->
+      let baseMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Original Title",
                 startTime = addUTCTime 3600 now,
@@ -401,163 +403,23 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 recurrence = Nothing,
                 invitedEmails = []
               }
-
-      result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
-        let update =
-              API.UpdateMeeting
-                { startTime = Nothing,
-                  endTime = Nothing,
-                  title = Just (unsafeRange "Updated Title"),
-                  recurrence = Nothing
-                }
-        updateMeeting zUser1 meeting.id update
-
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> fail "Expected Just updated meeting"
-        Right (Just m) -> do
-          m.title `shouldBe` unsafeRange "Updated Title"
-          m.startTime `shouldBe` newMeeting.startTime
-          m.endTime `shouldBe` newMeeting.endTime
-          m.recurrence `shouldBe` newMeeting.recurrence
-
-    it "updates time range successfully" $ do
-      let newMeeting =
-            API.NewMeeting
-              { title = fromJust $ checked "Original Title",
-                startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 7200 now,
-                recurrence = Nothing,
-                invitedEmails = []
-              }
-          newStartTime = addUTCTime 5000 now
-          newEndTime = addUTCTime 10000 now
-
-      result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
-        let update =
-              API.UpdateMeeting
-                { startTime = Just newStartTime,
-                  endTime = Just newEndTime,
-                  title = Nothing,
-                  recurrence = Nothing
-                }
-        updateMeeting zUser1 meeting.id update
-
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> fail "Expected Just updated meeting"
-        Right (Just m) -> do
-          m.title `shouldBe` fromJust (checked "Original Title")
-          m.startTime `shouldBe` newStartTime
-          m.endTime `shouldBe` newEndTime
-          m.recurrence `shouldBe` newMeeting.recurrence
-
-    it "updates recurrence successfully" $ do
-      let newMeeting =
-            API.NewMeeting
-              { title = fromJust $ checked "Original Title",
-                startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 7200 now,
-                recurrence = Nothing,
-                invitedEmails = []
-              }
-
-      let newRecurrence =
-            Just
-              API.Recurrence
-                { freq = API.Daily,
-                  interval = 7,
-                  until = Nothing
-                }
-
-      result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
-        let update =
-              API.UpdateMeeting
-                { startTime = Nothing,
-                  endTime = Nothing,
-                  title = Nothing,
-                  recurrence = Just newRecurrence
-                }
-        updateMeeting zUser1 meeting.id update
-
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> fail "Expected Just updated meeting"
-        Right (Just m) -> do
-          m.recurrence `shouldBe` newRecurrence
-          m.title `shouldBe` newMeeting.title
-          m.startTime `shouldBe` newMeeting.startTime
-          m.endTime `shouldBe` newMeeting.endTime
-
-    it "updates all fields successfully" $ do
-      let newMeeting =
-            API.NewMeeting
-              { title = fromJust $ checked "Original Title",
-                startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 7200 now,
-                recurrence = Nothing,
-                invitedEmails = []
-              }
-
-      let updatedTime = Just (addUTCTime 4000 now)
-          newEndTime = Just (addUTCTime 8000 now)
-          newRecurrence =
-            Just
-              API.Recurrence
-                { freq = API.Weekly,
-                  interval = 2,
-                  until = Nothing
-                }
-
-      result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
-        let update =
-              API.UpdateMeeting
-                { startTime = updatedTime,
-                  endTime = newEndTime,
-                  title = checked "New Title",
-                  recurrence = Just newRecurrence
-                }
-        updateMeeting zUser1 meeting.id update
-
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> fail "Expected Just updated meeting"
-        Right (Just m) -> do
-          m.title `shouldBe` fromJust (checked "New Title")
-          m.startTime `shouldBe` fromJust updatedTime
-          m.endTime `shouldBe` fromJust newEndTime
-          m.recurrence `shouldBe` newRecurrence
-
-    it "preserves unchanged fields when only one field is updated" $ do
-      let newMeeting =
-            API.NewMeeting
-              { title = fromJust $ checked "Original Title",
-                startTime = addUTCTime 3600 now,
-                endTime = addUTCTime 7200 now,
-                recurrence = Nothing,
-                invitedEmails = []
-              }
-
-      result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
-        let update =
-              API.UpdateMeeting
-                { startTime = Nothing,
-                  endTime = Nothing,
-                  title = Just (unsafeRange "Updated Title"),
-                  recurrence = Nothing
-                }
-        updateMeeting zUser1 meeting.id update
-
-      case result of
-        Left err -> fail $ "Error: " <> show err
-        Right Nothing -> fail "Expected Just updated meeting"
-        Right (Just m) -> do
-          m.title `shouldBe` unsafeRange "Updated Title"
-          m.startTime `shouldBe` newMeeting.startTime
-          m.endTime `shouldBe` newMeeting.endTime
-          m.recurrence `shouldBe` newMeeting.recurrence
+          effectiveStart = fromMaybe baseMeeting.startTime update.startTime
+          effectiveEnd = fromMaybe baseMeeting.endTime update.endTime
+          isNotEmpty = update /= API.UpdateMeeting Nothing Nothing Nothing Nothing
+          hasValidTimes = effectiveStart < effectiveEnd
+       in isNotEmpty && hasValidTimes ==>
+            ioProperty $ do
+              result <- runTestStack now gen Map.empty teamConfig $ do
+                (meeting, _conv) <- createMeeting zUser1 baseMeeting
+                updateMeeting zUser1 meeting.id update
+              case result of
+                Left err ->
+                  pure $ counterexample ("Unexpected error: " <> show err) False
+                Right Nothing ->
+                  pure $ counterexample "Expected Just meeting, got Nothing" False
+                Right (Just m) ->
+                  pure $
+                    m.title === fromMaybe baseMeeting.title update.title
+                      .&&. m.startTime === effectiveStart
+                      .&&. m.endTime === effectiveEnd
+                      .&&. m.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
