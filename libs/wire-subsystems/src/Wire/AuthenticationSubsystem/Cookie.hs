@@ -26,11 +26,13 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Wire.API.User.Auth
+import Wire.API.UserEvent (UserEvent (UserSessionRefreshSuggested))
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
+import Wire.Events
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
@@ -44,7 +46,8 @@ newCookieImpl ::
     Member (Error AuthenticationSubsystemError) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member Events r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -73,7 +76,9 @@ newCookieImpl uid cid typ label policy = do
   SessionStore.insertCookie uid (toUnitCookie c) Nothing
   case policy of
     KeepSameLabel -> pure ()
-    RevokeSameLabel -> for_ c.cookieLabel $ revokeCookiesMatchingExcept uid (Just c.cookieId) [] . (: [])
+    RevokeSameLabel -> for_ c.cookieLabel \l -> do
+      whenM (revokeCookiesMatchingExcept uid (Just c.cookieId) [] [l]) $ do
+        generateUserEvent uid Nothing UserSessionRefreshSuggested
   pure c
 
 newCookieLimitedImpl ::
@@ -84,7 +89,8 @@ newCookieLimitedImpl ::
     Member Now r,
     Member CryptoSign r,
     Member Random r,
-    Member (Error RetryAfter) r
+    Member (Error RetryAfter) r,
+    Member Events r
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -110,7 +116,7 @@ revokeCookiesImpl ::
   [CookieId] ->
   [CookieLabel] ->
   Sem r ()
-revokeCookiesImpl u ids labels = revokeCookiesMatchingExcept u Nothing ids labels
+revokeCookiesImpl u ids labels = void $ revokeCookiesMatchingExcept u Nothing ids labels
 
 revokeCookiesMatchingExcept ::
   (Member SessionStore r) =>
@@ -118,11 +124,12 @@ revokeCookiesMatchingExcept ::
   Maybe CookieId ->
   [CookieId] ->
   [CookieLabel] ->
-  Sem r ()
-revokeCookiesMatchingExcept u Nothing [] [] = SessionStore.deleteAllCookies u
+  Sem r Bool
+revokeCookiesMatchingExcept u Nothing [] [] = SessionStore.deleteAllCookies u $> True
 revokeCookiesMatchingExcept u mself ids labels = do
   cc <- filter matching <$> SessionStore.listCookies u
   SessionStore.deleteCookies u cc
+  pure $ not $ null cc
   where
     matching c =
       (Just c.cookieId /= mself)

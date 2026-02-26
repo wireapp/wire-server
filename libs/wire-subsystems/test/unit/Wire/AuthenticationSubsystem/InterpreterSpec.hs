@@ -43,15 +43,18 @@ import Wire.API.User
 import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
+import Wire.API.UserEvent
 import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.AuthenticationSubsystem.ZAuth (randomConnId)
 import Wire.EmailSubsystem
+import Wire.Events
 import Wire.HashPassword
 import Wire.MiniBackend
 import Wire.MockInterpreters
+import Wire.MockInterpreters.Events as Event
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
 import Wire.RateLimit
@@ -65,6 +68,7 @@ import Wire.UserStore
 
 type AllEffects =
   [ AuthenticationSubsystem,
+    Events,
     Error AuthenticationSubsystemError,
     Error RateLimitExceeded,
     RateLimit,
@@ -82,13 +86,17 @@ type AllEffects =
     TinyLog,
     EmailSubsystem,
     UserStore,
+    State [MiniEvent],
     State [StoredUser],
     State (Map EmailAddress [SentMail]),
     State [StoredApp]
   ]
 
 runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
-runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
+runAllEffects domain users emailDomains action = snd $ runAllEffectsWithEventState domain users emailDomains action
+
+runAllEffectsWithEventState :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
+runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
   let cfg =
         defaultAuthenticationSubsystemConfig
           { allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
@@ -98,6 +106,7 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
         . evalState mempty
         . evalState mempty
         . evalState mempty
+        . runState mempty
         . inMemoryUserStoreInterpreter
         . inMemoryEmailSubsystemInterpreter
         . discardTinyLogs
@@ -115,6 +124,7 @@ runAllEffects localDomain preexistingUsers mAllowedEmailDomains =
         . noRateLimit
         . runErrorUnsafe
         . runError
+        . miniEventInterpreter
         . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
 
 verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
@@ -398,25 +408,44 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "old cookies with same label are revoked on insert" $
       \localDomain uid cid typ mLabel otherLabel policy ->
-        let Right (cookie1, cookie2, cookie3, cookies) =
-              runAllEffects localDomain [] Nothing $
+        let (events, Right (cookie1, cookie2, cookie3, cookies)) =
+              runAllEffectsWithEventState localDomain [] Nothing $
                 (,,,)
                   <$> newCookie @_ @ZAuth.U uid cid typ mLabel policy
                   <*> newCookie @_ @ZAuth.U uid cid typ mLabel policy
                   <*> newCookie @_ @ZAuth.U uid cid typ (Just otherLabel) policy
                   <*> (Set.fromList . fmap cookieId <$> listCookies uid)
+            assertEvents n =
+              length events === n
+                .&&. conjoin
+                  ( fmap
+                      ( \e ->
+                          e.event === UserEvent UserSessionRefreshSuggested
+                            .&&. e.userId === uid
+                      )
+                      events
+                  )
          in case policy of
-              KeepSameLabel -> cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+              KeepSameLabel ->
+                cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+                  .&&. counterexample "there should be no events" (null events)
               RevokeSameLabel -> case mLabel of
-                Just l | l == otherLabel -> cookies === Set.singleton cookie3.cookieId
-                Just _ -> cookies === Set.fromList (cookieId <$> [cookie2, cookie3])
-                Nothing -> cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+                Just l
+                  | l == otherLabel ->
+                      cookies === Set.singleton cookie3.cookieId
+                        .&&. assertEvents 2
+                Just _ ->
+                  cookies === Set.fromList (cookieId <$> [cookie2, cookie3])
+                    .&&. assertEvents 1
+                Nothing ->
+                  cookies === Set.fromList (cookieId <$> [cookie1, cookie2, cookie3])
+                    .&&. counterexample "there should be no events" (null events)
 
     prop "same-label revocation does not affect other users" $
       \localDomain uidA uidB cid typ lab policy ->
         uidA /= uidB ==>
-          let Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB) =
-                runAllEffects localDomain [] Nothing $
+          let (events, Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB)) =
+                runAllEffectsWithEventState localDomain [] Nothing $
                   (,,,,)
                     <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
                     <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab) policy
@@ -428,10 +457,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   cookiesA === Set.fromList [cookieA1.cookieId, cookieA2.cookieId]
                     .&&. cookiesB === Set.singleton cookieB.cookieId
                     .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
+                    .&&. counterexample "there should be no events" (null events)
                 RevokeSameLabel ->
                   cookiesA === Set.singleton cookieA2.cookieId
                     .&&. cookiesB === Set.singleton cookieB.cookieId
                     .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
+                    .&&. (event <$> events) === [UserEvent UserSessionRefreshSuggested]
+                    .&&. (Event.userId <$> events) === [uidA]
 
   describe "randomConnId" $ do
     it "generates different connection ids" $ do

@@ -281,7 +281,8 @@ tests =
             (testObject_UserEvent_15, "testObject_UserEvent_15.json"),
             (testObject_UserEvent_16, "testObject_UserEvent_16.json"),
             (testObject_UserEvent_17, "testObject_UserEvent_17.json"),
-            (testObject_UserEvent_18, "testObject_UserEvent_18.json")
+            (testObject_UserEvent_18, "testObject_UserEvent_18.json"),
+            (testObject_UserEvent_19, "testObject_UserEvent_19.json")
           ],
       testGroup "MLSPublicKeys" $
         testObjects
