@@ -26,6 +26,7 @@ import Data.Id
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Set qualified as Set
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -34,7 +35,7 @@ import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Arbitrary (arbitrary))
+import Test.QuickCheck
 import Test.QuickCheck.Gen
 import Wire.API.Team.Member
 import Wire.API.User
@@ -143,96 +144,100 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       result `shouldBe` Right (Just idp._idpId)
       expectedSevereLogs logs mempty
 
-    prop "finds IdP for SCIM user by domain" $ \(teamMember :: TeamMember) user idp userRef email teamId dom -> do
-      (otherIdPs :: NE.NonEmpty IdP) <-
-        generate $
-          arbitrary
-            `suchThat` (not . any (\otherIdP -> Just dom == otherIdP._idpExtraInfo._domain))
-      let userWithEmail =
-            user
-              { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
-                userEmailUnvalidated = Just email,
-                userTeam = Just teamId,
-                userManagedBy = ManagedByScim
-              }
+    prop "finds IdP for SCIM user by domain" $ \(teamMember :: TeamMember) user idp userRef email teamId dom otherIdPs ->
+      not
+        ( any
+            ( \otherIdP ->
+                Just dom == otherIdP._idpExtraInfo._domain
+                  || idp._idpId == otherIdP._idpId
+            )
+            otherIdPs
+        )
+        ==> let userWithEmail =
+                  user
+                    { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
+                      userEmailUnvalidated = Just email,
+                      userTeam = Just teamId,
+                      userManagedBy = ManagedByScim
+                    }
 
-          -- Set the target multi-ingress domain for one IdP
-          patchedIdp = idp & SAML.idpExtraInfo . domain ?~ dom
-          patchedIdpsHead = patchedIdp NE.<| otherIdPs
-          idpsWithTeamHead = patchedIdpsHead <&> SAML.idpExtraInfo . team .~ teamId
+                -- Set the target multi-ingress domain for one IdP
+                patchedIdp = idp & SAML.idpExtraInfo . domain ?~ dom
+                patchedIdpsHead = patchedIdp NE.<| otherIdPs
+                idpsWithTeamHead = patchedIdpsHead <&> SAML.idpExtraInfo . team .~ teamId
 
-          teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
+                teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
 
-          teams = Map.singleton teamId [teamMember']
+                teams = Map.singleton teamId [teamMember']
 
-          (resultHead, logsHead) =
-            runAllEffects
-              True
-              (NE.toList idpsWithTeamHead)
-              teams
-              (brigAPIAccessMockFn email userWithEmail)
-              (getSsoCodeByEmail (Just dom) email)
+                (resultHead, logsHead) =
+                  runAllEffects
+                    True
+                    (NE.toList idpsWithTeamHead)
+                    teams
+                    (brigAPIAccessMockFn email userWithEmail)
+                    (getSsoCodeByEmail (Just dom) email)
+             in do
+                  resultHead `shouldBe` Right (Just idp._idpId)
+                  expectedSevereLogs logsHead mempty
 
-      resultHead `shouldBe` Right (Just idp._idpId)
-      expectedSevereLogs logsHead mempty
+                  -- Same game, but this time the IdP to find is at the end of the list.
+                  -- This ensures that the IdP is really looked up and not just taken from
+                  -- the head of the list.
+                  let patchedIdpsTail = NE.reverse $ patchedIdp NE.<| (NE.reverse otherIdPs)
+                      idpsWithTeamTail = patchedIdpsTail <&> SAML.idpExtraInfo . team .~ teamId
 
-      -- Same game, but this time the IdP to find is at the end of the list.
-      -- This ensures that the IdP is really looked up and not just taken from
-      -- the head of the list.
-      let patchedIdpsTail = NE.reverse $ patchedIdp NE.<| (NE.reverse otherIdPs)
-          idpsWithTeamTail = patchedIdpsTail <&> SAML.idpExtraInfo . team .~ teamId
+                      (resultTail, logsTail) =
+                        runAllEffects
+                          True
+                          (NE.toList idpsWithTeamTail)
+                          teams
+                          (brigAPIAccessMockFn email userWithEmail)
+                          (getSsoCodeByEmail (Just dom) email)
 
-          (resultTail, logsTail) =
-            runAllEffects
-              True
-              (NE.toList idpsWithTeamTail)
-              teams
-              (brigAPIAccessMockFn email userWithEmail)
-              (getSsoCodeByEmail (Just dom) email)
+                  resultTail `shouldBe` Right (Just idp._idpId)
+                  expectedSevereLogs logsTail mempty
 
-      resultTail `shouldBe` Right (Just idp._idpId)
-      expectedSevereLogs logsTail mempty
-
-    prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
+    prop "returns any IdP if there are multiple" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain idps ->
       -- This should not happen, because the IdP management API allows to
       -- create only one IdP per domain. However, better not have undefined
       -- behaviour - Just in case...
 
-      idps :: NE.NonEmpty IdP <- generate $ (resize 2 arbitrary) `suchThat` ((>= 2) . length)
-      let userWithEmail =
-            user
-              { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
-                userEmailUnvalidated = Just email,
-                userTeam = Just teamId,
-                userManagedBy = ManagedByScim
-              }
+      allUniqueAndAtLeast 2 idps ==>
+        let userWithEmail =
+              user
+                { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
+                  userEmailUnvalidated = Just email,
+                  userTeam = Just teamId,
+                  userManagedBy = ManagedByScim
+                }
 
-          idpsWithTeam =
-            idps
-              <&> SAML.idpExtraInfo . domain .~ mbDomain
-              <&> SAML.idpExtraInfo . team .~ teamId
+            idpsWithTeam =
+              idps
+                <&> SAML.idpExtraInfo . domain .~ mbDomain
+                <&> SAML.idpExtraInfo . team .~ teamId
 
-          teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
+            teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
 
-          teams = Map.singleton teamId [teamMember']
+            teams = Map.singleton teamId [teamMember']
 
-          (result, logs) =
-            runAllEffects
-              True
-              (NE.toList idpsWithTeam)
-              teams
-              (brigAPIAccessMockFn email userWithEmail)
-              (getSsoCodeByEmail mbDomain email)
+            (result, logs) =
+              runAllEffects
+                True
+                (NE.toList idpsWithTeam)
+                teams
+                (brigAPIAccessMockFn email userWithEmail)
+                (getSsoCodeByEmail mbDomain email)
 
-          expectedIdPIds :: [SAML.IdPId] = NE.toList $ ((SAML._idpId) <$> idpsWithTeam)
+            expectedIdPIds :: [SAML.IdPId] = NE.toList $ ((SAML._idpId) <$> idpsWithTeam)
+         in do
+              result
+                `shouldSatisfy` ( \case
+                                    Right (Just x) -> x `elem` expectedIdPIds
+                                    e -> error $ "Unexpected result " <> show e
+                                )
 
-      result
-        `shouldSatisfy` ( \case
-                            Right (Just x) -> x `elem` expectedIdPIds
-                            e -> error $ "Unexpected result " <> show e
-                        )
-
-      expectedSevereLogs logs [(Log.Warn, "Found more than one IdP config for domain")]
+              expectedSevereLogs logs [(Log.Warn, "Found more than one IdP config for domain")]
 
     prop "returns Nothing for an unknown email" $ \(teamMember :: TeamMember) user idp userRef email anotherEmail teamId mbDomain -> do
       let userWithEmail =
@@ -365,36 +370,35 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       result `shouldBe` Right Nothing
       expectedSevereLogs logs mempty
 
-    prop "returns Nothing if there are multiple, but none for this domain" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
-      mbAnotherDomain <- generate $ arbitrary `suchThat` (\mbD -> mbD /= mbDomain)
-      idps :: NE.NonEmpty IdP <- generate $ (resize 2 arbitrary) `suchThat` ((>= 2) . length)
-      let userWithEmail =
-            user
-              { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
-                userEmailUnvalidated = Just email,
-                userTeam = Just teamId,
-                userManagedBy = ManagedByScim
-              }
+    prop "returns Nothing if there are multiple, but none for this domain" \(teamMember :: TeamMember) user userRef email teamId mbDomain mbAnotherDomain idps ->
+      allUniqueAndAtLeast 2 idps && mbAnotherDomain /= mbDomain ==>
+        let userWithEmail =
+              user
+                { userIdentity = Just (SSOIdentity (UserSSOId userRef) (Just email)),
+                  userEmailUnvalidated = Just email,
+                  userTeam = Just teamId,
+                  userManagedBy = ManagedByScim
+                }
 
-          idpsWithTeam =
-            idps
-              <&> SAML.idpExtraInfo . domain .~ mbDomain
-              <&> SAML.idpExtraInfo . team .~ teamId
+            idpsWithTeam =
+              idps
+                <&> SAML.idpExtraInfo . domain .~ mbDomain
+                <&> SAML.idpExtraInfo . team .~ teamId
 
-          teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
+            teamMember' = teamMember & Wire.API.Team.Member.userId .~ (qUnqualified userWithEmail.userQualifiedId)
 
-          teams = Map.singleton teamId [teamMember']
+            teams = Map.singleton teamId [teamMember']
 
-          (result, logs) =
-            runAllEffects
-              True
-              (NE.toList idpsWithTeam)
-              teams
-              (brigAPIAccessMockFn email userWithEmail)
-              (getSsoCodeByEmail mbAnotherDomain email)
-
-      result `shouldBe` Right Nothing
-      expectedSevereLogs logs mempty
+            (result, logs) =
+              runAllEffects
+                True
+                (NE.toList idpsWithTeam)
+                teams
+                (brigAPIAccessMockFn email userWithEmail)
+                (getSsoCodeByEmail mbAnotherDomain email)
+         in do
+              result `shouldBe` Right Nothing
+              expectedSevereLogs logs mempty
 
     prop "getting multiple users for an email leads to exception" $ \(teamMember :: TeamMember) user anotherUser userRef email teamId mbDomain -> do
       idp' <- generate $ do
@@ -441,3 +445,12 @@ expectedSevereLogs recordedLogs expectedLogs =
     forM_ (zip errorLogs expectedLogs) $ \((lvl, msg), (expectedLvl, expectedPrefix)) -> do
       lvl `shouldBe` expectedLvl
       BSUTF8.toString msg `shouldStartWith` BSUTF8.toString expectedPrefix
+
+-- | Keep IdPs unique by ID and issuer so the in-memory store does not collapse them.
+allUniqueAndAtLeast :: Int -> NE.NonEmpty (SAML.IdPConfig extra) -> Bool
+allUniqueAndAtLeast n xs =
+  length xs >= n
+    && let ids = Set.fromList (SAML._idpId <$> NE.toList xs)
+           issuers = Set.fromList ((^. SAML.idpMetadata . SAML.edIssuer) <$> NE.toList xs)
+        in Set.size ids == length xs
+             && Set.size issuers == length xs
