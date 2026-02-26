@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-binds -Wno-incomplete-patterns -Wno-incomplete-uni-patterns -Wno-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -35,6 +36,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
 import Data.Maybe (maybeToList)
+import Data.Schema hiding (doc)
 import Data.String.Conversions
 import Data.UUID
 import Data.Yaml qualified as Yaml
@@ -368,3 +370,11 @@ spec = describe "API" $ do
 
     it "utf8 encoding, another test with keycloak" $ do
       check "keycloak-idp-metadata.xml" "keycloak-response.xml"
+
+-- | Used in tests to have no @extra@ in @IdPConfig extra@
+-- 'InPConfig_' (alias for 'IdPConfig ()') is baked
+-- to deeply into the code and tests that it is not convenient
+-- to use an alternative type for the extra info.
+-- Therefore we have to live with the narrow scope ToSchema instance for () here.
+instance ToSchema () where
+  schema = named "unit" $ null_

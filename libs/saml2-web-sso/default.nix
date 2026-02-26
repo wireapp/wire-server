@@ -208,6 +208,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    schema-profunctor
     servant
     servant-multipart
     servant-server
