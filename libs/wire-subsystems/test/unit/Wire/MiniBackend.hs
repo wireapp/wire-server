@@ -144,7 +144,6 @@ instance Arbitrary PendingNotEmptyIdentityStoredUser where
 newtype NotPendingEmptyIdentityStoredUser = NotPendingEmptyIdentityStoredUser StoredUser
   deriving (Show, Eq)
 
--- TODO: make sure this is a valid state
 instance Arbitrary NotPendingEmptyIdentityStoredUser where
   arbitrary = do
     user <- arbitrary `suchThat` \user -> isNothing user.identity && user.userType /= Just UserTypeApp
