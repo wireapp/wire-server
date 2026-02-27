@@ -102,7 +102,6 @@ import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
-import Wire.API.App
 import Wire.API.Connection qualified as Public
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
@@ -1769,19 +1768,19 @@ updateUserGroupChannels lusr gid appendOnly upd =
 checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
 checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
-createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
+createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r Public.CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
-getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r GetApp
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r Public.GetApp
 getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
 
-getApps :: (_) => Local UserId -> TeamId -> Handler r GetAppList
+getApps :: (_) => Local UserId -> TeamId -> Handler r Public.GetAppList
 getApps lusr tid = lift . liftSem $ AppSubsystem.getApps lusr tid
 
-putApp :: (_) => Local UserId -> TeamId -> UserId -> PutApp -> Handler r ()
+putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put
 
-refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
+refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r Public.RefreshAppCookieResponse
 refreshAppCookie lusr tid appId = do
   mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId
   case mc of

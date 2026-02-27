@@ -34,7 +34,6 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
-import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
@@ -95,9 +94,9 @@ createAppImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Apps.NewApp ->
-  Sem r Apps.CreatedApp
-createAppImpl lusr tid (Apps.NewApp new password6) = do
+  NewApp ->
+  Sem r CreatedApp
+createAppImpl lusr tid (NewApp new password6) = do
   verifyUserPasswordError lusr password6
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
@@ -130,7 +129,7 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
-    Apps.CreatedApp
+    CreatedApp
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
         cookie = mkSomeToken c.cookieValue
       }
@@ -158,13 +157,13 @@ getAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Sem r Apps.GetApp
+  Sem r GetApp
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
   u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
   pure $
-    Apps.GetApp
+    GetApp
       { name = u.name,
         pict = fromMaybe (Pict []) u.pict,
         assets = fromMaybe [] u.assets,
@@ -182,14 +181,14 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r Apps.GetAppList
+  Sem r GetAppList
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
   storedApps <- Store.getApps tid
   us <- Store.getUsers ((.id) <$> storedApps)
   let mkApp (storedApp, u) =
         ( u.id,
-          Apps.GetApp
+          GetApp
             { name = u.name,
               pict = fromMaybe (Pict []) u.pict,
               assets = fromMaybe [] u.assets,
@@ -199,7 +198,7 @@ getAppsImpl lusr tid = do
               description = storedApp.description
             }
         )
-  pure . Apps.GetAppList $ mkApp <$> matchAndZip storedApps us
+  pure . GetAppList $ mkApp <$> matchAndZip storedApps us
   where
     matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
     matchAndZip as us = mapMaybe f as
@@ -216,7 +215,7 @@ updateAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Apps.PutApp ->
+  PutApp ->
   Sem r ()
 updateAppImpl lusr tid appid upd = do
   (_updater, umem) <- ensureTeamMember lusr tid
@@ -255,7 +254,7 @@ appNewStoredUser ::
     Member (Input AppSubsystemConfig) r
   ) =>
   StoredUser ->
-  Apps.GetApp ->
+  GetApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
   uid <- liftIO nextRandom
