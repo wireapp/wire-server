@@ -146,6 +146,7 @@ library
     Galley.Data.TeamNotifications
     Galley.Effects
     Galley.Effects.CustomBackendStore
+    Galley.Effects.DeleteConversationSubsystem
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.TeamMemberStore

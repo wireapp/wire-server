@@ -62,6 +62,7 @@ import Galley.Cassandra.Team
   )
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
+import Galley.Effects.DeleteConversationSubsystem (interpretDeleteConversationSubsystem)
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Keys
@@ -450,6 +451,7 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . interpretDeleteConversationSubsystem
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where

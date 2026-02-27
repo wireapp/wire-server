@@ -80,7 +80,6 @@ import Galley.API.Action
 import Galley.API.LegalHold.Team
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
-import Galley.API.Update qualified as API
 import Galley.App
 import Galley.Effects
 import Galley.Effects.Queue qualified as E
@@ -131,6 +130,7 @@ import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.DeleteConversationSubsystem
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem
 import Wire.ListItems qualified as E
@@ -962,33 +962,14 @@ getTeamConversation zusr tid cid = do
   pure $ newTeamConversation teamConv
 
 deleteTeamConversation ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member CodeStore r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member ProposalStore r,
-    Member ConversationSubsystem r,
-    Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
+  (Member DeleteConversationSubsystem r) =>
   Local UserId ->
   ConnId ->
   TeamId ->
   ConvId ->
   Sem r ()
-deleteTeamConversation lusr zcon _tid cid = do
-  let lconv = qualifyAs lusr cid
-  void $ API.deleteLocalConversation lusr zcon lconv
+deleteTeamConversation lusr zcon _tid cid =
+  deleteConversation lusr zcon _tid cid
 
 getSearchVisibility ::
   ( Member (ErrorS 'NotATeamMember) r,

@@ -251,6 +251,7 @@ library
     Wire.ConversationSubsystem.Interpreter
     Wire.ConversationSubsystem.One2One
     Wire.ConversationSubsystem.Util
+    Wire.DeleteConversationSubsystem
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore

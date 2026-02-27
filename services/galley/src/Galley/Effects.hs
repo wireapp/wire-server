@@ -49,6 +49,7 @@ module Galley.Effects
 
     -- * Other effects
     Queue,
+    DeleteConversationSubsystem,
 
     -- * Polysemy re-exports
     Member,
@@ -85,6 +86,7 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
+import Wire.DeleteConversationSubsystem
 import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
@@ -121,6 +123,7 @@ import Wire.UserGroupStore
 type GalleyEffects1 =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     DeleteConversationSubsystem,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
