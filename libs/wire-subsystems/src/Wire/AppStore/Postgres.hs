@@ -30,8 +30,8 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error)
 import Polysemy.Input
-import Wire.API.App qualified as App
 import Wire.API.PostgresMarshall
+import Wire.API.User qualified as User
 import Wire.AppStore
 import Wire.Postgres
 
@@ -100,7 +100,7 @@ updateAppImpl ::
   StoredAppUpdate ->
   Sem r (Either AppStoreError ())
 updateAppImpl (toUUID -> teamId) (toUUID -> appId) upd = do
-  found <- case (App.categoryToText <$> upd.category, fromRange <$> upd.description) of
+  found <- case (User.categoryToText <$> upd.category, fromRange <$> upd.description) of
     (Just cat, Just desc) ->
       runStatement (cat, desc, appId, teamId) $
         [maybeStatement|

@@ -26,8 +26,8 @@ import Data.Range
 import Data.UUID
 import Imports
 import Polysemy
-import Wire.API.App as App
 import Wire.API.PostgresMarshall
+import Wire.API.User
 import Wire.Arbitrary
 
 data StoredApp = StoredApp

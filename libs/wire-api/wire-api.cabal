@@ -69,7 +69,6 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.API.Allowlists
-    Wire.API.App
     Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.BackgroundJobs
