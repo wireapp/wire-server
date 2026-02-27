@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.6
+-- Dumped from database version 17.7
+-- Dumped by pg_dump version 17.7
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -39,6 +39,20 @@ ALTER SCHEMA public OWNER TO "wire-server";
 
 COMMENT ON SCHEMA public IS '';
 
+
+--
+-- Name: recurrence_frequency; Type: TYPE; Schema: public; Owner: wire-server
+--
+
+CREATE TYPE public.recurrence_frequency AS ENUM (
+    'daily',
+    'weekly',
+    'monthly',
+    'yearly'
+);
+
+
+ALTER TYPE public.recurrence_frequency OWNER TO "wire-server";
 
 SET default_tablespace = '';
 
@@ -96,7 +110,8 @@ CREATE TABLE public.conversation (
     receipt_mode integer,
     team uuid,
     type integer NOT NULL,
-    parent_conv uuid
+    parent_conv uuid,
+    history_depth bigint
 );
 
 
@@ -178,32 +193,26 @@ CREATE TABLE public.local_conversation_remote_member (
 ALTER TABLE public.local_conversation_remote_member OWNER TO "wire-server";
 
 --
--- Name: meetings; Type: ENUM; Schema: public; Owner: wire-server
---
-
-CREATE TYPE recurrence_frequency AS ENUM ('daily', 'weekly', 'monthly', 'yearly');
-
-
-ALTER TABLE public.recurrence_frequency OWNER TO "wire-server";
-
---
 -- Name: meetings; Type: TABLE; Schema: public; Owner: wire-server
 --
 
 CREATE TABLE public.meetings (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     title text NOT NULL,
     creator uuid NOT NULL,
-    start_time timestamptz NOT NULL,
-    end_time timestamptz NOT NULL,
-    recurrence_frequency recurrence_frequency,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone NOT NULL,
+    recurrence_frequency public.recurrence_frequency,
     recurrence_interval integer,
-    recurrence_until timestamptz,
+    recurrence_until timestamp with time zone,
     conversation_id uuid NOT NULL,
-    invited_emails text[] DEFAULT '{}'::text[],
-    trial boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    invited_emails text[] DEFAULT '{}'::text[] NOT NULL,
+    trial boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT meetings_title_length CHECK ((length(title) <= 256)),
+    CONSTRAINT meetings_title_not_empty CHECK ((length(TRIM(BOTH FROM title)) > 0)),
+    CONSTRAINT meetings_valid_time_range CHECK ((end_time > start_time))
 );
 
 
@@ -385,19 +394,19 @@ ALTER TABLE ONLY public.conversation
 
 
 --
--- Name: meetings meetings_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.meetings
-    ADD CONSTRAINT meetings_pkey PRIMARY KEY (id);
-
-
---
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
 ALTER TABLE ONLY public.local_conversation_remote_member
     ADD CONSTRAINT local_conversation_remote_member_pkey PRIMARY KEY (conv, user_remote_domain, user_remote_id);
+
+
+--
+-- Name: meetings meetings_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.meetings
+    ADD CONSTRAINT meetings_pkey PRIMARY KEY (id);
 
 
 --

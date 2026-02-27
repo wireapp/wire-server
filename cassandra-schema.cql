@@ -1639,6 +1639,7 @@ CREATE TABLE galley_test.conversation (
     epoch bigint,
     group_conv_type int,
     group_id blob,
+    history_depth bigint,
     message_timer bigint,
     name text,
     parent_conv uuid,
