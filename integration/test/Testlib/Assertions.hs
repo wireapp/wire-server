@@ -404,7 +404,7 @@ super `shouldNotContain` sub = do
 
 printFailureDetails :: Env -> AssertionFailure -> IO String
 printFailureDetails env (AssertionFailure stack mbResponse ctx msg) = do
-  s <- liftIO $ prettierCallStack stack
+  s <- prettierCallStack stack
   ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "assertion failure:"

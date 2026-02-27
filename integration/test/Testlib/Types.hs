@@ -1,4 +1,3 @@
-
 {-# LANGUAGE DeriveGeneric #-}
 
 -- This file is part of the Wire Server implementation.
@@ -411,7 +410,7 @@ requestToCurl req =
       HTTP.RequestBodyBS bs -> dataBinary (C8.unpack bs)
       _ ->
         -- this won't work
-        "--data-binary '<unsupported body type'"
+        "--data-binary '<unsupported body type>'"
 
     dataBinary :: String -> String
     dataBinary "" = ""
