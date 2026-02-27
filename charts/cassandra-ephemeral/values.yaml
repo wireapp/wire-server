@@ -2,7 +2,7 @@
 cassandra-ephemeral:
   image:
     repo: cassandra
-    tag: 4.0.15
+    tag: 4.0.19
   persistence:
     enabled: false
   # Needed for https://github.com/helm/helm/issues/7424
