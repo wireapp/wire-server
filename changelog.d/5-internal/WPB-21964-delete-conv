@@ -1,6 +1,6 @@
-- Moved conversation deletion logic from `Galley.API.Action` to `Wire.ConversationSubsystem.Interpreter`
+- Moved conversation deletion logic from `Wire.ConversationSubsystem.Action` to `Wire.ConversationSubsystem.Interpreter`
 - Relocated remote member deletion utilities:
-  - `Galley.API.Action.deleteMembersInRemoteConversation` → `Wire.ConversationSubsystem.Util.deleteMembersInRemoteConversation`
+  - `Wire.ConversationSubsystem.Action.deleteMembersInRemoteConversation` → `Wire.ConversationSubsystem.Util.deleteMembersInRemoteConversation`
 - Updated conversation deletion implementation to handle:
   - MLS group cleanup (clients and proposals)
   - Sub-conversation removal

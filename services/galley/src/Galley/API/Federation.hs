@@ -36,20 +36,9 @@ import Data.Set qualified as Set
 import Data.Singletons (SingI (..), demote, sing)
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
-import Galley.API.Action
-import Galley.API.MLS
-import Galley.API.MLS.Enabled
-import Galley.API.MLS.GroupInfo
-import Galley.API.MLS.Message
-import Galley.API.MLS.One2One
-import Galley.API.MLS.Removal
-import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
-import Galley.API.MLS.Util
-import Galley.API.MLS.Welcome
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
-import Galley.API.Message
-import Galley.API.Push
+import Wire.ConversationSubsystem.Message
 import Galley.App
 import Galley.Effects
 import Galley.Options
@@ -96,11 +85,22 @@ import Wire.API.User (BaseProtocolTag (..))
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.MLS
+import Wire.ConversationSubsystem.MLS.Enabled
+import Wire.ConversationSubsystem.MLS.GroupInfo
+import Wire.ConversationSubsystem.MLS.Message
+import Wire.ConversationSubsystem.MLS.One2One
+import Wire.ConversationSubsystem.MLS.Removal
+import Wire.ConversationSubsystem.MLS.SubConversation hiding (leaveSubConversation)
+import Wire.ConversationSubsystem.MLS.Util
+import Wire.ConversationSubsystem.MLS.Welcome
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
+import Wire.NotificationSubsystem.PushUtils
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation

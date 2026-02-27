@@ -15,18 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.MLS where
+module Wire.ConversationSubsystem.MLS.Commit
+  ( getCommitData,
+    getExternalCommitData,
+    processInternalCommit,
+    processExternalCommit,
+  )
+where
 
-import Galley.App
-import Imports
-import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley.MLS
-import Wire.ConversationSubsystem.MLS
-import Wire.ConversationSubsystem.MLS.Reset
-
-mlsAPI :: API MLSAPI GalleyEffects
-mlsAPI =
-  mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
-    <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
-    <@> mkNamedAPI @"mls-public-keys" (const getMLSPublicKeys)
-    <@> mkNamedAPI @"mls-reset-conversation" resetMLSConversation
+import Wire.ConversationSubsystem.MLS.Commit.Core
+import Wire.ConversationSubsystem.MLS.Commit.ExternalCommit
+import Wire.ConversationSubsystem.MLS.Commit.InternalCommit

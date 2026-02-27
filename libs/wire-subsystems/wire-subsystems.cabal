@@ -102,6 +102,7 @@ common common-all
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , comonad
     , conduit
     , constraints
     , containers
@@ -139,6 +140,7 @@ common common-all
     , imports
     , iproute
     , iso639
+    , kan-extensions
     , lens
     , lrucaching
     , memory
@@ -248,8 +250,39 @@ library
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Action
+    Wire.ConversationSubsystem.Action.Kick
+    Wire.ConversationSubsystem.Action.Leave
+    Wire.ConversationSubsystem.Action.Notify
+    Wire.ConversationSubsystem.Action.Reset
     Wire.ConversationSubsystem.Interpreter
+    Wire.ConversationSubsystem.Message
+    Wire.ConversationSubsystem.MLS
+    Wire.ConversationSubsystem.MLS.CheckClients
+    Wire.ConversationSubsystem.MLS.Commit
+    Wire.ConversationSubsystem.MLS.Commit.Core
+    Wire.ConversationSubsystem.MLS.Commit.ExternalCommit
+    Wire.ConversationSubsystem.MLS.Commit.InternalCommit
+    Wire.ConversationSubsystem.MLS.Conversation
+    Wire.ConversationSubsystem.MLS.Enabled
+    Wire.ConversationSubsystem.MLS.GroupInfo
+    Wire.ConversationSubsystem.MLS.GroupInfoCheck
+    Wire.ConversationSubsystem.MLS.IncomingMessage
+    Wire.ConversationSubsystem.MLS.Keys
+    Wire.ConversationSubsystem.MLS.Message
+    Wire.ConversationSubsystem.MLS.Migration
+    Wire.ConversationSubsystem.MLS.One2One
+    Wire.ConversationSubsystem.MLS.OutOfSync
+    Wire.ConversationSubsystem.MLS.Propagate
+    Wire.ConversationSubsystem.MLS.Proposal
+    Wire.ConversationSubsystem.MLS.Removal
+    Wire.ConversationSubsystem.MLS.Reset
+    Wire.ConversationSubsystem.MLS.SubConversation
+    Wire.ConversationSubsystem.MLS.Util
+    Wire.ConversationSubsystem.MLS.Welcome
+    Wire.ConversationSubsystem.Query
     Wire.ConversationSubsystem.One2One
+    Wire.ConversationSubsystem.Update
     Wire.ConversationSubsystem.Util
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
@@ -274,6 +307,7 @@ library
     Wire.ExternalAccess
     Wire.ExternalAccess.External
     Wire.FeaturesConfigSubsystem
+    Wire.FeaturesConfigSubsystem.Get
     Wire.FeaturesConfigSubsystem.Interpreter
     Wire.FeaturesConfigSubsystem.Types
     Wire.FeaturesConfigSubsystem.Utils
@@ -311,7 +345,9 @@ library
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
     Wire.LegalHoldStore.Cassandra.Queries
+    Wire.LegalHoldStore.Conflicts
     Wire.LegalHoldStore.Env
+    Wire.LegalHoldStore.Get
     Wire.ListItems
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
@@ -321,6 +357,7 @@ library
     Wire.MigrationLock
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.NotificationSubsystem.PushUtils
     Wire.PaginationState
     Wire.ParseException
     Wire.PasswordResetCodeStore

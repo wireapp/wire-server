@@ -155,6 +155,8 @@ interpretConversationSubsystem = interpret $ \case
     ConvStore.getLocalMember cid uid
   ConversationSubsystem.DeleteConversation cid ->
     deleteConversationImpl cid
+  ConversationSubsystem.InternalDeleteConversation cid ->
+    internalDeleteConversationImpl cid
 
 createGroupConversationGeneric ::
   forall r.
@@ -839,6 +841,16 @@ deleteConversationImpl ::
   ConvId ->
   Sem r ()
 deleteConversationImpl cid = do
+  internalDeleteConversationImpl cid
+
+internalDeleteConversationImpl ::
+  ( Member ConversationStore r,
+    Member CodeStore r,
+    Member ProposalStore r
+  ) =>
+  ConvId ->
+  Sem r ()
+internalDeleteConversationImpl cid = do
   mConv <- ConvStore.getConversation cid
   forM_ mConv $ \storedConv -> do
     let deleteGroup groupId = do
