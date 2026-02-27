@@ -581,8 +581,8 @@ specCreateUser = describe "POST /Users" $ do
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "set locale to default and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing (Just (Locale (Language DE) Nothing))
     it "set locale to fr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language FR) Nothing)) (Just (Locale (Language DE) Nothing))
-    it "set locale to hr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) (Just (Locale (Language DE) Nothing))
-    it "set locale to hr and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) Nothing
+    it "set locale to hr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language Data.LanguageCodes.HR) Nothing)) (Just (Locale (Language DE) Nothing))
+    it "set locale to hr and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language Data.LanguageCodes.HR) Nothing)) Nothing
     it "set locale to default and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing Nothing
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "testCreateRejectsInvalidHandle - rejects invalid handle" $ testCreateRejectsInvalidHandle
