@@ -377,7 +377,7 @@ data MLSConv = MLSConv
 
 requestToCurl :: HTTP.Request -> String
 requestToCurl req =
-  unwords $ -- FUTUREWORK: amke this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
+  unwords $ -- FUTUREWORK: make this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
     Prelude.filter
       (not . Prelude.null)
       [ "curl",
