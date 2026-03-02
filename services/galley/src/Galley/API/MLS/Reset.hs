@@ -95,8 +95,7 @@ resetMLSConversation lusr reset = do
     lusr
     ( \lcnv ->
         void $
-          updateLocalConversation
-            @'ConversationResetTag
+          updateLocalConversationReset
             lcnv
             (tUntagged lusr)
             Nothing

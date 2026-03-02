@@ -276,7 +276,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
-          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+          . updateLocalConversationUncheckedJoin lconv qusr con
           . (\uids -> ConversationJoin uids roleNameWireMember def)
       )
       . nonEmpty
@@ -304,7 +304,7 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
-          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+          . updateLocalConversationUncheckedRemoveMembers lconv qusr con
           . flip ConversationRemoveMembers EdReasonRemoved
       )
       . nonEmpty
