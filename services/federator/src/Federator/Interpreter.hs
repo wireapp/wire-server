@@ -28,6 +28,7 @@ import Data.Aeson (encode)
 import Data.Id
 import Data.Kind
 import Data.Metrics.Servant qualified as Metrics
+import Data.Sequence qualified as Seq
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LText
 import Federator.Discovery
@@ -46,7 +47,7 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp qualified as Warp
 import Network.Wai.Utilities (getRequestId)
 import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Server (federationRequestIdHeaderName, requestIdMiddleware)
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName, federationRequestIdHeaderName, requestIdMiddleware)
 import Network.Wai.Utilities.Server qualified as Wai
 import Polysemy
 import Polysemy.Embed
@@ -56,7 +57,7 @@ import Polysemy.Internal
 import Polysemy.TinyLog
 import Servant (ServerError (..), serve)
 import Servant hiding (ServerError, respond, serve)
-import Servant.Client (mkClientEnv)
+import Servant.Client (middleware, mkClientEnv)
 import Servant.Client.Core
 import Util.Options (Endpoint (..))
 import Wire.API.Component (Component (Brig))
@@ -183,7 +184,7 @@ runFederator env rid =
         ]
     . runInputConst rid
     . runInputConst env
-    . runInputSem (embed @IO (getFederationDomainConfigs env))
+    . runInputSem (embed @IO (getFederationDomainConfigs env rid))
     . runInputSem (embed @IO (readIORef (view http2Manager env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
@@ -201,12 +202,20 @@ waiToServant waierr =
       errHeaders = [("Content-Type", "application/json")]
     }
 
-getFederationDomainConfigs :: Env -> IO FedUp.FederationDomainConfigs
-getFederationDomainConfigs env = do
+getFederationDomainConfigs :: Env -> RequestId -> IO FedUp.FederationDomainConfigs
+getFederationDomainConfigs env reqId = do
   let mgr = env ^. httpManager
       Endpoint h p = env ^. service $ Brig
       baseurl = BaseUrl Http (T.unpack h) (fromIntegral p) ""
-      clientEnv = mkClientEnv mgr baseurl
+      clientEnv =
+        (mkClientEnv mgr baseurl)
+          { middleware = \app req ->
+              app
+                req
+                  { requestHeaders =
+                      (defaultRequestIdHeaderName, unRequestId reqId) Seq.<| requestHeaders req
+                  }
+          }
   FedUp.getFederationDomainConfigs clientEnv >>= \case
     Right v -> pure v
     Left e -> error $ displayException e
