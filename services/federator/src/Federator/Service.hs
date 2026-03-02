@@ -44,7 +44,6 @@ where
 -- FUTUREWORK(federation): Once we authenticate the call, we should send authentication data
 -- to brig so brig can do some authorization as required.
 
-import Bilge qualified as RPC
 import Control.Exception
 import Control.Lens (view)
 import Control.Monad.Codensity
@@ -58,6 +57,7 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP.Types.Header
+import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
 import Servant.Client.Core qualified as Servant
@@ -114,7 +114,7 @@ interpretServiceHTTP = interpret $ \case
               requestHeaders =
                 [ ("Content-Type", "application/json"),
                   (originDomainHeaderName, Text.encodeUtf8 (domainText domain)),
-                  (RPC.requestIdName, rid)
+                  (defaultRequestIdHeaderName, rid)
                 ]
                   <> headers
             }

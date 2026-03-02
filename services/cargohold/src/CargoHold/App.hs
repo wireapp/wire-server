@@ -233,7 +233,8 @@ executeBrigInteral :: BrigInternalClient a -> App (Either Servant.ClientError a)
 executeBrigInteral action = do
   httpMgr <- asks (.httpManager)
   brigEndpoint <- asks (.options.brig)
-  liftIO $ IBrig.runBrigInternalClient httpMgr brigEndpoint action
+  reqId <- asks (.requestId)
+  liftIO $ IBrig.runBrigInternalClient httpMgr brigEndpoint reqId action
 
 -------------------------------------------------------------------------------
 -- Handler Monad

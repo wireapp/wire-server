@@ -19,7 +19,6 @@
 
 module Proxy.Proxy (Proxy, appInProxy, runProxy) where
 
-import Bilge.Request (requestIdName)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.IO.Unlift ()
@@ -28,6 +27,7 @@ import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
 import Network.Wai
+import Network.Wai.Utilities.Server
 import Proxy.Env
 import System.Logger qualified as Log
 import System.Logger qualified as Logger
@@ -64,7 +64,7 @@ reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
 lookupReqId :: Logger -> Request -> IO RequestId
-lookupReqId l r = case lookup requestIdName (requestHeaders r) of
+lookupReqId l r = case lookup defaultRequestIdHeaderName (requestHeaders r) of
   Just rid -> pure $ RequestId rid
   Nothing -> do
     localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom
