@@ -62,6 +62,7 @@ interpretClientStoreCassandra env =
       LookupClientsBulk uids -> runCasClient $ lookupClientsBulkImpl uids
       LookupPubClientsBulk uids -> runCasClient $ lookupPubClientsBulkImpl uids
       LookupPrekeyIds uid cid -> runCasClient $ lookupPrekeyIdsImpl uid cid
+      GetActivityTimestamps uid -> runCasClient $ getActivityTimestampsImpl uid
       -- Proteus
       UpdatePrekeys uid cid prekeys -> runCasClient $ updatePrekeysImpl uid cid prekeys
       ClaimPrekey uid cid -> claimPrekeyImpl uid cid
@@ -137,6 +138,13 @@ lookupPrekeyIdsImpl :: (MonadClient m) => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIdsImpl u c =
   map runIdentity
     <$> retry x1 (query selectPrekeyIds (params LocalQuorum (u, c)))
+
+getActivityTimestampsImpl :: (MonadClient m) => UserId -> m [Maybe UTCTime]
+getActivityTimestampsImpl uid = do
+  runIdentity <$$> retry x1 (query q (params LocalQuorum (Identity uid)))
+  where
+    q :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
+    q = "SELECT last_active from clients where user = ?"
 
 deleteImpl ::
   (Member (Input ClientStoreCassandraEnv) r, Member (Final IO) r) =>

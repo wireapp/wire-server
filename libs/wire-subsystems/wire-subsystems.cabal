@@ -231,6 +231,8 @@ library
     Wire.ClientStore
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
+    Wire.ClientSubsystem
+    Wire.ClientSubsystem.Interpreter
     Wire.CodeStore
     Wire.CodeStore.Cassandra
     Wire.CodeStore.Cassandra.Queries
@@ -527,6 +529,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.AppStore
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
+    Wire.MockInterpreters.ClientStore
     Wire.MockInterpreters.ConversationSubsystem
     Wire.MockInterpreters.CryptoSign
     Wire.MockInterpreters.DomainRegistrationStore

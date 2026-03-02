@@ -74,6 +74,8 @@ import Wire.API.UserEvent
 import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
+import Wire.ClientSubsystem (ClientSubsystem)
+import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.Events
@@ -128,7 +130,8 @@ runUserSubsystem ::
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
-    Member UserGroupStore r
+    Member UserGroupStore r,
+    Member ClientSubsystem r
   ) =>
   InterpreterFor AuthenticationSubsystem r ->
   Sem (UserSubsystem ': r) a ->
@@ -1085,11 +1088,11 @@ acceptTeamInvitationImpl luid pw code = do
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
-getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
+getUserExportDataImpl :: (Member UserStore r, Member ClientSubsystem r) => UserId -> Sem r (Maybe TeamExportUser)
 getUserExportDataImpl uid = fmap hush . runError @() $ do
   su <- UserStore.getUser uid >>= note ()
   mRichInfo <- UserStore.getRichInfo uid
-  timestamps <- UserStore.getActivityTimestamps uid
+  timestamps <- ClientSubsystem.internalGetActivityTimestamps uid
   -- Make sure the list of timestamps is non-empty so that 'maximum' is
   -- well-defined and returns 'Nothing' when no valid timestamps are present.
   let lastActive = maximum (Nothing : timestamps)

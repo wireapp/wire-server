@@ -23,7 +23,6 @@ import Cassandra (GeneralPaginationState, PageWithState (..))
 import Data.Default
 import Data.Handle
 import Data.Id
-import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -103,7 +102,6 @@ data UserStore m a where
   GetUserTeam :: UserId -> UserStore m (Maybe TeamId)
   -- GetUsersTeams :: [UserId] -> UserStore m (Maybe [TeamId])
   UpdateUserTeam :: UserId -> TeamId -> UserStore m ()
-  GetActivityTimestamps :: UserId -> UserStore m [Maybe UTCTime]
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
   LookupRichInfos :: [UserId] -> UserStore m [(UserId, RichInfo)]
   UpdateRichInfo :: UserId -> RichInfoAssocList -> UserStore m ()

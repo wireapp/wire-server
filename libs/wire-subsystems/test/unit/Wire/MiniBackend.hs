@@ -94,6 +94,9 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
+import Wire.ClientStore
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -235,11 +238,13 @@ data MiniBackendParams r = MiniBackendParams
 -- organize along effect types ("all `State`s"), but the domain ("everything about block
 -- lists").
 type MiniBackendLowerEffects =
-  '[ TeamSubsystem,
+  '[ ClientSubsystem,
+     TeamSubsystem,
      EmailSubsystem,
      NotificationSubsystem,
      GalleyAPIAccess,
      SparAPIAccess,
+     ClientStore,
      InvitationStore,
      PasswordStore,
      ActivationCodeStore,
@@ -304,11 +309,13 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryActivationCodeStoreInterpreter
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
+    . runInMemoryClientStoreInterpreter
     . miniSparAPIAccess
     . miniGalleyAPIAccess teams galleyConfigs
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
     . interpretTeamSubsystemToGalleyAPI
+    . runClientSubsystem
 
 type StateEffects =
   '[ State [Push],
