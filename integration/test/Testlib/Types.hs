@@ -418,7 +418,7 @@ requestToCurl req =
           Just _val -> shellEscape raw
           Nothing -> cs $ Base64.encode $ cs raw
 
-    -- this is probably used wrong, and there are still come escape
+    -- this is probably used wrong, and there are still some escape
     -- issues to be solved.  but it should be safe as long as we're
     -- only using it in our own integration tests, right?
     shellEscape :: String -> String
