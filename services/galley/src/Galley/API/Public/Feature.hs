@@ -22,7 +22,6 @@ module Galley.API.Public.Feature where
 
 import Galley.API.Teams
 import Galley.API.Teams.Features
-import Galley.API.Teams.Features.Get
 import Galley.App
 import Imports
 import Wire.API.Routes.API
@@ -30,6 +29,7 @@ import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForTeamMember)
+import Wire.FeaturesConfigSubsystem.Get
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =

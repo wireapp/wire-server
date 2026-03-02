@@ -76,9 +76,7 @@ import Data.Range as Range
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock (UTCTime)
-import Galley.API.Action
 import Galley.API.LegalHold.Team
-import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
@@ -130,8 +128,10 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FeaturesConfigSubsystem.Get
 import Wire.FederationSubsystem
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem

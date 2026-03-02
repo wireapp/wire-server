@@ -23,6 +23,7 @@
 , bytestring-conversion
 , case-insensitive
 , cassandra-util
+, comonad
 , conduit
 , constraints
 , containers
@@ -66,6 +67,7 @@
 , imports
 , iproute
 , iso639
+, kan-extensions
 , lens
 , lib
 , lrucaching
@@ -158,6 +160,7 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     cassandra-util
+    comonad
     conduit
     constraints
     containers
@@ -197,6 +200,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    kan-extensions
     lens
     lrucaching
     memory
@@ -279,6 +283,7 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     cassandra-util
+    comonad
     conduit
     constraints
     containers
@@ -319,6 +324,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    kan-extensions
     lens
     lrucaching
     memory

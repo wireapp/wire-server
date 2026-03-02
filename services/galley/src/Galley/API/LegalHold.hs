@@ -41,9 +41,7 @@ import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
-import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
-import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.App
 import Galley.Effects
@@ -79,11 +77,13 @@ import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Query (iterateConversations)
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
+import Wire.LegalHoldStore.Get
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging

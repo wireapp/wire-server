@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Galley.API.Message where
+module Test.Wire.ConversationSubsystem.Message where
 
 import Control.Lens
 import Data.Domain
@@ -24,7 +24,7 @@ import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.UUID.Types
-import Galley.API.Message
+import Wire.ConversationSubsystem.Message
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -34,7 +34,7 @@ import Wire.API.User.Client (QualifiedUserClients (..))
 tests :: TestTree
 tests =
   testGroup
-    "Galley.API.Message"
+    "Wire.ConversationSubsystem.Message"
     [ testGroup
         "checkMessageClients"
         [ checkMessageClientSuccess,

@@ -73,46 +73,15 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
-    Galley.API.Action
-    Galley.API.Action.Kick
-    Galley.API.Action.Leave
-    Galley.API.Action.Notify
-    Galley.API.Action.Reset
     Galley.API.Clients
     Galley.API.Create
     Galley.API.CustomBackend
     Galley.API.Federation
     Galley.API.Internal
     Galley.API.LegalHold
-    Galley.API.LegalHold.Conflicts
-    Galley.API.LegalHold.Get
     Galley.API.LegalHold.Team
     Galley.API.Mapping
     Galley.API.Meetings
-    Galley.API.Message
-    Galley.API.MLS
-    Galley.API.MLS.CheckClients
-    Galley.API.MLS.Commit
-    Galley.API.MLS.Commit.Core
-    Galley.API.MLS.Commit.ExternalCommit
-    Galley.API.MLS.Commit.InternalCommit
-    Galley.API.MLS.Conversation
-    Galley.API.MLS.Enabled
-    Galley.API.MLS.GroupInfo
-    Galley.API.MLS.GroupInfoCheck
-    Galley.API.MLS.IncomingMessage
-    Galley.API.MLS.Keys
-    Galley.API.MLS.Message
-    Galley.API.MLS.Migration
-    Galley.API.MLS.One2One
-    Galley.API.MLS.OutOfSync
-    Galley.API.MLS.Propagate
-    Galley.API.MLS.Proposal
-    Galley.API.MLS.Removal
-    Galley.API.MLS.Reset
-    Galley.API.MLS.SubConversation
-    Galley.API.MLS.Util
-    Galley.API.MLS.Welcome
     Galley.API.Public.Bot
     Galley.API.Public.Conversation
     Galley.API.Public.CustomBackend
@@ -126,12 +95,9 @@ library
     Galley.API.Public.TeamConversation
     Galley.API.Public.TeamMember
     Galley.API.Public.TeamNotification
-    Galley.API.Push
-    Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Export
     Galley.API.Teams.Features
-    Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
     Galley.API.Update
     Galley.App
@@ -554,7 +520,7 @@ test-suite galley-tests
   other-modules:
     Paths_galley
     Run
-    Test.Galley.API.Message
+    Test.Wire.ConversationSubsystem.Message
     Test.Galley.API.One2One
     Test.Galley.Mapping
 

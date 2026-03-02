@@ -37,18 +37,13 @@ import Data.Qualified
 import Data.Range
 import Data.Singletons
 import Data.Time
-import Galley.API.Action
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
-import Galley.API.LegalHold.Conflicts
-import Galley.API.MLS.Removal
 import Galley.API.Public.Servant
-import Galley.API.Query qualified as Query
 import Galley.API.Teams
 import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
-import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.App
 import Galley.Effects
@@ -92,11 +87,16 @@ import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.MLS.Removal
 import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem.Get
 import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
+import Wire.LegalHoldStore.Conflicts
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

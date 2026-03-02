@@ -18,15 +18,15 @@
 module Galley.API.Public.Conversation where
 
 import Galley.API.Create
-import Galley.API.MLS.GroupInfo
-import Galley.API.MLS.SubConversation
-import Galley.API.Query
 import Galley.API.Update
 import Galley.App
 import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.MLS.GroupInfo
+import Wire.ConversationSubsystem.MLS.SubConversation
+import Wire.ConversationSubsystem.Query
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =

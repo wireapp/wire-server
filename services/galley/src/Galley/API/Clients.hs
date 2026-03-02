@@ -25,8 +25,6 @@ import Data.Id
 import Data.Proxy
 import Data.Qualified
 import Data.Range
-import Galley.API.MLS.Removal
-import Galley.API.Query qualified as Query
 import Galley.Effects
 import Galley.Env
 import Galley.Types.Clients (clientIds)
@@ -47,6 +45,8 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore (getConversation)
 import Wire.ConversationSubsystem qualified as ConvSubsystem
+import Wire.ConversationSubsystem.MLS.Removal
+import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)

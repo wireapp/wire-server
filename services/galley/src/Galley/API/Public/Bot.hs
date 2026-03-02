@@ -19,7 +19,6 @@ module Galley.API.Public.Bot where
 
 import Data.Id
 import Data.Qualified
-import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features qualified as Features
 import Galley.API.Update
 import Galley.App
@@ -33,6 +32,7 @@ import Wire.API.Event.Team qualified as Public ()
 import Wire.API.Provider.Bot
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
+import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.TeamSubsystem (TeamSubsystem)
 

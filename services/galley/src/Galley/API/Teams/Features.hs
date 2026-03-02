@@ -43,7 +43,6 @@ import Data.Kind
 import Data.Qualified (Local)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
-import Galley.API.Teams.Features.Get
 import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
@@ -71,6 +70,7 @@ import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
+import Wire.FeaturesConfigSubsystem.Get
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationSubsystem (FederationSubsystem)

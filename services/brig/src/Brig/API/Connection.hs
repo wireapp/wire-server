@@ -196,8 +196,8 @@ createConnectionToLocalUser self conn target = do
 
 -- | Guard local connection creation against legal-hold consent conflicts.
 -- Rejects when one user is `no_consent` while the other has LH enabled.
--- See also: "Galley.API.LegalHold.Conflicts.guardLegalholdPolicyConflictsUid"
--- and "Galley.API.Action.checkLHPolicyConflictsLocal".
+-- See also: "Wire.LegalHoldStore.Conflicts.guardLegalholdPolicyConflictsUid"
+-- and "Wire.ConversationSubsystem.Action.checkLHPolicyConflictsLocal".
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.

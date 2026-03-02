@@ -32,8 +32,9 @@ import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
+import Database.CQL.IO (ClientState)
 import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription, legalHoldServiceUnavailable)
-import Hasql.Pool (UsageError)
+import Hasql.Pool (Pool, UsageError)
 import Imports
 import Network.HTTP.Client qualified as Http
 import OpenSSL.Session qualified as SSL
@@ -59,6 +60,10 @@ import Wire.BackgroundJobsRunner (runJob)
 import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.BrigAPIAccess.Rpc
+import Wire.CodeStore (CodeStore)
+import Wire.CodeStore.Cassandra
+import Wire.CodeStore.DualWrite
+import Wire.CodeStore.Postgres
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
@@ -76,6 +81,7 @@ import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException
 import Wire.PostgresMigrationOpts
+import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
 import Wire.Rpc
 import Wire.Sem.Concurrency (ConcurrencySafety (Unsafe))
 import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
@@ -174,6 +180,19 @@ dispatchJob job = do
             let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
                 makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
              in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
+          convCodesStoreInterpreter ::
+            ( Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+              Member (Input Pool) r,
+              Member (Error UsageError) r,
+              Member (Input ClientState) r,
+              Member (Embed IO) r
+            ) =>
+            InterpreterFor CodeStore r
+          convCodesStoreInterpreter =
+            case env.postgresMigration.conversationCodes of
+              CassandraStorage -> interpretCodeStoreToCassandra
+              MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+              PostgresqlStorage -> interpretCodeStoreToPostgres
       runFinal @IO
         . unsafelyPerformConcurrency @_ @'Unsafe
         . embedToFinal @IO
@@ -212,6 +231,7 @@ dispatchJob job = do
         . runInputConst env.cassandraGalley
         . runInputConst legalHoldEnv
         . runInputConst (ExposeInvitationURLsAllowlist [])
+        . runInputConst env.convCodeURI
         . interpretServiceStoreToCassandra env.cassandraBrig
         . interpretUserStoreCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
@@ -244,6 +264,8 @@ dispatchJob job = do
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
+        . convCodesStoreInterpreter
+        . interpretProposalStoreToCassandra
         . interpretConversationSubsystem
         . interpretBackgroundJobsRunner
 
