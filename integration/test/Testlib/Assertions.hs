@@ -40,6 +40,7 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
+import Data.IORef
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -48,7 +49,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
-import Data.IORef
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
 import System.FilePath
