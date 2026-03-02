@@ -540,6 +540,7 @@ in
       pkgs.lsof
       pkgs.haskellPackages.headroom
       profileEnv
+      pkgs.syft
     ]
     ++ ghcWithPackages
     ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
