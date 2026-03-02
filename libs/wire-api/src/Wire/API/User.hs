@@ -59,6 +59,7 @@ module Wire.API.User
     categoryToText,
     CreatedApp (..),
     RefreshAppCookieResponse (..),
+    UserProfileWithAppInfo (..),
 
     -- * UpgradePersonalToTeam
     CreateUserTeam (..),
@@ -2075,7 +2076,7 @@ instance ToSchema SupportedProtocolUpdate where
 
 ------- Partial Successes
 data ListUsersById = ListUsersById
-  { listUsersByIdFound :: [UserProfile],
+  { listUsersByIdFound :: [UserProfileWithAppInfo],
     listUsersByIdFailed :: Maybe (NonEmpty (Qualified UserId))
   }
   deriving (Eq, Show)
@@ -2107,6 +2108,8 @@ data GetApp = GetApp
     category :: Category,
     description :: Range 0 300 Text
   }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
 
 newtype GetAppList = GetAppList {fromGetAppList :: [(UserId, GetApp)]}
@@ -2246,3 +2249,24 @@ instance ToSchema RefreshAppCookieResponse where
   schema =
     object "RefreshAppCookieResponse" $
       RefreshAppCookieResponse <$> (.cookie) .= field "cookie" schema
+
+-- | `UserProfile` with extra `"app"` field.  Needed in `POST
+-- /list-users`.
+--
+-- [fisx]: (There may be a fancier way to do this by making the
+-- `UserProfile` type polymorphic, but I doubt it'll take less time to
+-- do it or that it'd be clearer in the end.)
+data UserProfileWithAppInfo = UserProfileWithAppInfo
+  { core :: UserProfile,
+    appInfo :: Maybe GetApp
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserProfileWithAppInfo)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfileWithAppInfo)
+
+instance ToSchema UserProfileWithAppInfo where
+  schema =
+    object "UserProfileWithAppInfo" $
+      UserProfileWithAppInfo
+        <$> core .= userProfileObjectSchema
+        <*> appInfo .= maybe_ (optField "app" schema)

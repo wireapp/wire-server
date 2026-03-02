@@ -23,6 +23,7 @@ import Data.Domain
 import Data.Id
 import Data.LegalHold
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Imports
@@ -36,45 +37,61 @@ user1, user2 :: UserId
 user1 = Id . fromJust $ UUID.fromString "4f201a43-935e-4e19-8fe0-0a878d3d6e74"
 user2 = Id . fromJust $ UUID.fromString "eb48b095-d96f-4a94-b4ec-2a1d61447e13"
 
-profile1, profile2 :: UserProfile
+profile1, profile2 :: UserProfileWithAppInfo
 profile1 =
-  UserProfile
-    { profileQualifiedId = Qualified user1 domain1,
-      profileName = Name "user1",
-      profileTextStatus = Nothing,
-      profilePict = Pict [],
-      profileAssets = [],
-      profileAccentId = ColourId 0,
-      profileDeleted = False,
-      profileService = Nothing,
-      profileHandle = Nothing,
-      profileExpire = Nothing,
-      profileTeam = Nothing,
-      profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled,
-      profileSupportedProtocols = defSupportedProtocols,
-      profileType = UserTypeRegular,
-      profileSearchable = True
-    }
+  UserProfileWithAppInfo
+    ( UserProfile
+        { profileQualifiedId = Qualified user1 domain1,
+          profileName = Name "user1",
+          profileTextStatus = Nothing,
+          profilePict = Pict [],
+          profileAssets = [],
+          profileAccentId = ColourId 0,
+          profileDeleted = False,
+          profileService = Nothing,
+          profileHandle = Nothing,
+          profileExpire = Nothing,
+          profileTeam = Nothing,
+          profileEmail = Nothing,
+          profileLegalholdStatus = UserLegalHoldDisabled,
+          profileSupportedProtocols = defSupportedProtocols,
+          profileType = UserTypeRegular,
+          profileSearchable = True
+        }
+    )
+    Nothing
 profile2 =
-  UserProfile
-    { profileQualifiedId = Qualified user2 domain2,
-      profileName = Name "user2",
-      profileTextStatus = rightToMaybe $ mkTextStatus "text status",
-      profilePict = Pict [],
-      profileAssets = [],
-      profileAccentId = ColourId 0,
-      profileDeleted = False,
-      profileService = Nothing,
-      profileHandle = Nothing,
-      profileExpire = Nothing,
-      profileTeam = Nothing,
-      profileEmail = Nothing,
-      profileLegalholdStatus = UserLegalHoldDisabled,
-      profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag],
-      profileType = UserTypeRegular,
-      profileSearchable = True
-    }
+  UserProfileWithAppInfo
+    ( UserProfile
+        { profileQualifiedId = Qualified user2 domain2,
+          profileName = Name "user2",
+          profileTextStatus = rightToMaybe $ mkTextStatus "text status",
+          profilePict = Pict [],
+          profileAssets = [],
+          profileAccentId = ColourId 0,
+          profileDeleted = False,
+          profileService = Nothing,
+          profileHandle = Nothing,
+          profileExpire = Nothing,
+          profileTeam = Nothing,
+          profileEmail = Nothing,
+          profileLegalholdStatus = UserLegalHoldDisabled,
+          profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag],
+          profileType = UserTypeRegular,
+          profileSearchable = True
+        }
+    )
+    ( Just
+        GetApp
+          { name = Name "alsoUser2", -- this should always be the same as in the user profile above.
+            pict = Pict [],
+            assets = [],
+            accentId = ColourId 0,
+            meta = mempty,
+            category = Other,
+            description = unsafeRange "bloob"
+          }
+    )
 
 testObject_ListUsersById_user_1 :: ListUsersById
 testObject_ListUsersById_user_1 = ListUsersById mempty Nothing
