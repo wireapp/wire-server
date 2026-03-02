@@ -108,7 +108,6 @@ library
       aeson
     , async
     , base
-    , bilge
     , binary
     , bytestring
     , bytestring-conversion
