@@ -245,7 +245,7 @@ submit method req0 = do
   verbosity <- liftIO $ fmap (maybe "" id) (lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY")
   when (verbosity == "1") do
     curl <- asks (.curlTrace)
-    void $ liftIO $ modifyIORef' curl (<> [requestToCurl request, "# ==> " <> show (status, body, headers), ""])
+    liftIO $ modifyIORef' curl (<> [requestToCurl request, "# ==> " <> show (status, body, headers), ""])
   pure Response {..}
 
 locationHeaderHost :: Response -> String
