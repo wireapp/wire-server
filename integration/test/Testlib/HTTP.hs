@@ -19,7 +19,6 @@ module Testlib.HTTP where
 
 import qualified Control.Exception as E
 import Control.Monad (when)
-import Control.Monad.Extra (void)
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
