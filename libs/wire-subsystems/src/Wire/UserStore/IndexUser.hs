@@ -45,6 +45,7 @@ data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
 
 data IndexUser = IndexUser
   { userId :: UserId,
+    userType :: UserType,
     teamId :: Maybe TeamId,
     name :: Name,
     accountStatus :: Maybe AccountStatus,
@@ -66,6 +67,7 @@ data IndexUser = IndexUser
 type instance
   TupleType IndexUser =
     ( UserId,
+      UserType,
       Maybe TeamId, Maybe (Writetime TeamId),
       Name, Writetime Name,
       Maybe AccountStatus, Maybe (Writetime AccountStatus),
@@ -84,6 +86,7 @@ type instance
 indexUserFromTuple :: TupleType IndexUser -> IndexUser
 indexUserFromTuple
     ( userId,
+      userType,
       teamId, tTeam,
       name, tName,
       accountStatus, tStatus,
@@ -127,7 +130,7 @@ indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
     then
       UserDoc
         { udId = userId,
-          udType = mUserType,
+          udType = mUserType <|> Just userType,
           udSearchable = searchable,
           udEmailUnvalidated = unverifiedEmail,
           udSso = sso =<< ssoId,
