@@ -71,7 +71,6 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
-import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -108,7 +107,6 @@ import Witherable (wither)
 
 runUserSubsystem ::
   ( Member UserStore r,
-    Member AppStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -312,7 +310,7 @@ blockListInsertImpl = BlockList.insert . mkEmailKey
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
   mLangCountry <- UserStore.lookupLocale (tUnqualified luid)
-  defLocale <- inputs defaultLocale
+  defLocale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   pure (toLocale defLocale <$> mLangCountry)
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -320,7 +318,6 @@ lookupLocaleOrDefaultImpl luid = do
 getUserProfilesImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
@@ -346,7 +343,6 @@ getUserProfilesImpl self others =
 getLocalUserProfilesImpl ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
@@ -364,7 +360,6 @@ getUserProfilesFromDomain ::
     Member DeleteQueue r,
     Member Now r,
     Member UserStore r,
-    Member AppStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
@@ -395,7 +390,6 @@ getUserProfilesRemotePart ruids = do
 getUserProfilesLocalPart ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
@@ -435,7 +429,6 @@ getUserProfilesLocalPart requestingUser luids = do
 getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member DeleteQueue r,
     Member Now r,
     Member (Input UserSubsystemConfig) r,
@@ -446,16 +439,15 @@ getLocalUserProfileImpl ::
   Sem r (Maybe UserProfile)
 getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
   let domain = tDomain luid
-  locale <- inputs defaultLocale
+  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   runMaybeT $ do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
     lhs :: UserLegalHoldStatus <- do
       teamMember <- lift $ join <$> (internalGetTeamMember storedUser.id `mapM` storedUser.teamId)
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
-    userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
     let user = mkUserFromStored domain locale storedUser
-        usrProfile = mkUserProfile emailVisibilityConfigWithViewer userType user lhs
+        usrProfile = mkUserProfile emailVisibilityConfigWithViewer (inferUserType storedUser.serviceId storedUser.userType) user lhs
     lift $ deleteLocalIfExpired user
     pure $ usrProfile
 
@@ -467,7 +459,7 @@ getSelfProfileImpl ::
   Local UserId ->
   Sem r (Maybe SelfProfile)
 getSelfProfileImpl self = do
-  defLocale <- inputs defaultLocale
+  defLocale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   mStoredUser <- getUser (tUnqualified self)
   mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mStoredUser
   let mUser = mkUserFromStored (tDomain self) defLocale <$> mHackedUser
@@ -501,7 +493,6 @@ deleteLocalIfExpired user =
 getUserProfilesWithErrorsImpl ::
   forall r fedM.
   ( Member UserStore r,
-    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
@@ -578,7 +569,6 @@ guardLockedHandleField user updateOrigin handle = do
 
 updateUserProfileImpl ::
   ( Member UserStore r,
-    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member Events r,
     Member GalleyAPIAccess r,
@@ -643,7 +633,6 @@ updateHandleImpl ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member UserStore r,
-    Member AppStore r,
     Member IndexedUserStore r,
     Member Metrics r
   ) =>
@@ -710,7 +699,6 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 syncUserIndex ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
     Member Metrics r
@@ -734,9 +722,8 @@ syncUserIndex uid =
           teamSearchVisibilityInbound
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
-      userType <- getUserType indexUser.userId indexUser.teamId indexUser.serviceId
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (Just userType) (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis (Just indexUser.userType) (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -764,7 +751,6 @@ searchUsersImpl ::
   forall r fedM.
   ( Member UserStore r,
     Member GalleyAPIAccess r,
-    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
     Member FederationConfigStore r,
@@ -801,7 +787,6 @@ searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults mTypes = do
 searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member AppStore r,
     Member UserStore r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r
@@ -880,7 +865,6 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
               || (not config.searchSameTeamOnly)
       if isContactVisible && fromMaybe True storedUser.searchable
         then do
-          userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
           pure $
             Contact
               { contactQualifiedId = Qualified storedUser.id (tDomain searcher),
@@ -888,7 +872,7 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
                 contactHandle = Handle.fromHandle <$> storedUser.handle,
                 contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
                 contactTeam = storedUser.teamId,
-                contactType = userType
+                contactType = inferUserType storedUser.serviceId storedUser.userType
               }
         else hoistMaybe Nothing
 
@@ -1054,7 +1038,6 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
 acceptTeamInvitationImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member AppStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
@@ -1119,7 +1102,6 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
 removeEmailEitherImpl ::
   ( Member UserKeyStore r,
     Member UserStore r,
-    Member AppStore r,
     Member Events r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -1154,7 +1136,6 @@ checkUserIsAdminImpl uid = do
 
 setUserSearchableImpl ::
   ( Member UserStore r,
-    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
@@ -1170,20 +1151,3 @@ setUserSearchableImpl luid uid searchable = do
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
-
--- * Helpers
-
-getUserType ::
-  forall r.
-  (Member AppStore r) =>
-  UserId ->
-  Maybe TeamId ->
-  Maybe ServiceId ->
-  Sem r UserType
-getUserType uid mTid mbServiceId = case mbServiceId of
-  Just _ -> pure UserTypeBot
-  Nothing -> do
-    mmApp <- mapM (getApp uid) mTid
-    case join mmApp of
-      Just _ -> pure UserTypeApp
-      Nothing -> pure UserTypeRegular
