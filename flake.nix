@@ -5,6 +5,7 @@
     self.submodules = true;
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
     nixpkgs_24_11.url = "github:nixos/nixpkgs?ref=nixos-24.11";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     tom-bombadil = {
       url = "github:wireapp/tom-bombadil";
@@ -82,7 +83,7 @@
     };
   };
 
-  outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, tom-bombadil, ... }:
+  outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -95,8 +96,11 @@
         pkgs_24_11 = import nixpkgs_24_11 {
           inherit system;
         };
+        pkgs_unstable = import nixpkgs-unstable {
+          inherit system;
+        };
         bomDependenciesDrv = tom-bombadil.lib.${system}.bomDependenciesDrv;
-        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 inputs bomDependenciesDrv; };
+        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 pkgs_unstable inputs bomDependenciesDrv; };
       in
       {
         # profileEnv wireServer docs docsEnv mls-test-cli nginz;

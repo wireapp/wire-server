@@ -23,6 +23,7 @@ KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 PSQL_DB               ?= backendA
 export PSQL_DB
+DEPENDENCY_TRACK_PROJECT_NAME ?= sven-bom-test
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -76,6 +77,7 @@ endif
   # `/dist` and `.ghc.environment` shouldn't be created or used by anybody any more, we're just making sure here.
 	-rm -rf dist .ghc.environment
 	-rm -f "bill-of-materials.$(HELM_SEMVER).json"
+	-rm -rf tmp/sboms
 
 .PHONY: clean-hint
 clean-hint:
@@ -703,6 +705,53 @@ upload-bombon: sbom.json
 		--project-version $(HELM_SEMVER) \
 		--auto-create \
 		--bom-file ./sbom.json
+
+# Generate SBOMs for Helm charts
+.PHONY: sboms-helm
+sboms-helm:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-helm-sboms.sh tmp/sboms/helm $(HELM_SEMVER)
+
+# Generate SBOMs for Docker Compose
+.PHONY: sboms-docker-compose
+sboms-docker-compose:
+	./hack/bin/create-docker-compose-sboms.sh tmp/sboms/docker-compose
+
+# Generate SBOMs for Helmfile
+.PHONY: sboms-helmfile
+sboms-helmfile:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-helmfile-sboms.sh tmp/sboms/helmfile $(HELM_SEMVER)
+
+# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+.PHONY: sboms
+sboms: sboms-helm sboms-docker-compose sboms-helmfile
+
+# Validate all SBOM files using cyclonedx
+.PHONY: validate-sboms
+validate-sboms:
+	@echo "Validating SBOM files..."
+	@find tmp/sboms -name '*.json' -type f -not -path '*/.oci-cache/*' | while read sbom; do \
+		echo "Validating: $$sbom"; \
+		cyclonedx validate --input-file "$$sbom" --fail-on-errors; \
+	done
+	@echo "All SBOMs validated successfully"
+
+# Upload all SBOMs to Dependency Track
+# Requires DEPENDENCY_TRACK_API_KEY environment variable
+.PHONY: upload-sboms
+upload-sboms:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/upload-all-sboms.sh $(DEPENDENCY_TRACK_PROJECT_NAME) "$(HELM_SEMVER)"
 
 .PHONY: openapi-validate
 openapi-validate:
