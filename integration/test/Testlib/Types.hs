@@ -412,11 +412,17 @@ requestToCurl req =
 
     dataBinary :: String -> String
     dataBinary "" = ""
-    dataBinary raw = "--data-binary \"$(" <> customEncoded <> "| base64 -d)\""
-      where
-        customEncoded = case Aeson.decode @Aeson.Value (cs raw) of
-          Just _val -> shellEscape raw
-          Nothing -> cs $ Base64.encode $ cs raw
+    dataBinary raw =
+      case Aeson.decode @Aeson.Value (cs raw) of
+        -- For JSON bodies, pass the payload directly, properly shell-escaped.
+        Just _val ->
+          "--data-binary " <> shellEscape raw
+        -- For non-JSON (potentially binary) bodies, use a base64 literal
+        -- and decode it at runtime via a valid command substitution.
+        Nothing ->
+          let b64 :: String
+              b64 = cs (Base64.encode (cs raw))
+           in "--data-binary \"$(printf %s " <> shellEscape b64 <> " | base64 -d)\""
 
     -- this is probably used wrong, and there are still some escape
     -- issues to be solved.  but it should be safe as long as we're
