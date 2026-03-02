@@ -1117,7 +1117,7 @@ listUsersByIdsOrHandles self q = do
     byIds ::
       Local UserId ->
       [Qualified UserId] ->
-      Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
+      Handler r ([(Qualified UserId, FederationError)], [Public.UserProfileWithAppInfo])
     byIds lself uids = lift (liftSem (getUserProfilesWithErrors lself uids))
 
 newtype GetActivationCodeResp

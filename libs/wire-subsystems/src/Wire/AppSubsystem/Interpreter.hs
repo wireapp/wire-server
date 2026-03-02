@@ -72,7 +72,7 @@ runAppSubsystem ::
   Sem r a
 runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
-  GetApp lusr tid uid -> getAppImpl lusr tid uid
+  Wire.AppSubsystem.GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
   UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
@@ -163,7 +163,7 @@ getAppImpl lusr tid uid = do
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
   u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
   pure $
-    GetApp
+    Wire.API.User.GetApp
       { name = u.name,
         pict = fromMaybe (Pict []) u.pict,
         assets = fromMaybe [] u.assets,
@@ -188,7 +188,7 @@ getAppsImpl lusr tid = do
   us <- Store.getUsers ((.id) <$> storedApps)
   let mkApp (storedApp, u) =
         ( u.id,
-          GetApp
+          Wire.API.User.GetApp
             { name = u.name,
               pict = fromMaybe (Pict []) u.pict,
               assets = fromMaybe [] u.assets,

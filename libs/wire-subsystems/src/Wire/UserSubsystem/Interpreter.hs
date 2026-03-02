@@ -148,6 +148,8 @@ runUserSubsystem authInterpreter = interpret $
       getSelfProfileImpl self
     GetUserProfilesWithErrors self others ->
       getUserProfilesWithErrorsImpl self others
+    GetUserProfilesWithErrorsWithAppInfo self others ->
+      getUserProfilesWithErrorsWithAppInfoImpl self others
     UpdateUserProfile self mconn mb update ->
       updateUserProfileImpl self mconn mb update
     CheckHandle uhandle ->
@@ -528,6 +530,34 @@ getUserProfilesWithErrorsImpl self others = do
 
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
     renderBucketError (e, qlist) = (,e) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
+
+getUserProfilesWithErrorsWithAppInfoImpl ::
+  forall r fedM.
+  ( Member UserStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member (Input UserSubsystemConfig) r,
+    Member (FederationAPIAccess fedM) r,
+    Member DeleteQueue r,
+    Member Now r,
+    RunClient (fedM 'Brig),
+    FederationMonad fedM,
+    Typeable fedM,
+    Member TeamSubsystem r
+  ) =>
+  -- | should it contain app info, or nothing?
+  Local UserId ->
+  [Qualified UserId] ->
+  Sem r ([(Qualified UserId, FederationError)], [UserProfileWithAppInfo])
+getUserProfilesWithErrorsWithAppInfoImpl self others = do
+  (errs, profs) <- getUserProfilesWithErrorsImpl self others
+  -- TODO: change AppSubsystem to have `getApp`, `getApps`, `getAppApps`. so we can do this in one psql query.
+  apps <- Map.fromList <$> forM others fetchApp
+  pure (errs, injectAppInfo apps <$> profs)
+  where
+    fetchApp :: Qualified UserId -> Sem r (UserId, GetApp)
+    fetchApp (qUnqualified -> other) = (other,) <$> todo -- getApp self other
+    injectAppInfo :: Map UserId GetApp -> UserProfile -> UserProfileWithAppInfo
+    injectAppInfo apps usr = UserProfileWithAppInfo usr (Map.lookup usr.id apps)
 
 -- | Some fields cannot be overwritten by clients for scim-managed users; some others if e2eid
 -- is used.  If a client attempts to overwrite any of these, throw `UserSubsystem*ManagedByScim`.
