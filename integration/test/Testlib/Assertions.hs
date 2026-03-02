@@ -48,7 +48,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
-import GHC.IORef
+import Data.IORef
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
 import System.FilePath
