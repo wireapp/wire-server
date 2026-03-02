@@ -1,0 +1,6 @@
+`DELETE /meetings/:domain/:meetingId` for deleting meetings.
+
+Authorization: only the meeting creator can delete the meeting.
+Validity: meetings that ended too long ago cannot be deleted (configurable validity period).
+
+When a meeting is deleted, the associated MLS conversation is also deleted if it's a MeetingConversation type.

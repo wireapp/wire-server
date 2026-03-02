@@ -43,7 +43,7 @@ import Wire.API.Team.HardTruncationLimit (hardTruncationLimit)
 import Wire.API.UserGroup
 import Wire.BackgroundJobsPublisher
 import Wire.BackgroundJobsRunner (BackgroundJobsRunner (..))
-import Wire.ConversationStore (ConversationStore, getConversation, upsertMembers)
+import Wire.ConversationStore (ConversationStore, upsertMembers)
 import Wire.ConversationSubsystem
 import Wire.Sem.Random
 import Wire.StoredConversation

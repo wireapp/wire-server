@@ -67,5 +67,7 @@ data ConversationSubsystem m a where
     ConvId ->
     UserId ->
     ConversationSubsystem m (Maybe LocalMember)
+  GetConversation :: ConvId -> ConversationSubsystem m (Maybe StoredConversation)
+  DeleteConversation :: ConvId -> ConversationSubsystem m ()
 
 makeSem ''ConversationSubsystem

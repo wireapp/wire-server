@@ -65,6 +65,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     createMeetingImpl zUser newMeeting
   UpdateMeeting zUser meetingId update ->
     updateMeetingImpl zUser meetingId update validityPeriod
+  DeleteMeeting zUser meetingId ->
+    deleteMeetingImpl zUser meetingId validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId validityPeriod
 
@@ -166,6 +168,38 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.endTime
           update.recurrence
     pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
+
+deleteMeetingImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  NominalDiffTime ->
+  Sem r Bool
+deleteMeetingImpl zUser meetingId validityPeriod = do
+  -- Get existing meeting
+  result <-
+    runMaybeT $ do
+      meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ meeting.endTime >= cutoff
+      -- Check authorization (only creator can delete)
+      guard $ meeting.creator == tUnqualified zUser
+      -- Delete meeting
+      lift $ Store.deleteMeeting (qUnqualified meetingId)
+      -- Delete associated conversation if it's a meeting conversation
+      let convId = meeting.conversationId
+      maybeConv <- lift $ ConversationSubsystem.getConversation convId
+      case maybeConv of
+        Just conv
+          | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
+              lift $ ConversationSubsystem.deleteConversation convId
+        _ -> pure ()
+      pure ()
+  pure $ isJust result
 
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,

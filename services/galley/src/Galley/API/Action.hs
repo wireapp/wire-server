@@ -110,7 +110,8 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem (ConversationSubsystem)
+-- import Wire.ConversationSubsystem hiding (ConversationSubsystem (..))
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
