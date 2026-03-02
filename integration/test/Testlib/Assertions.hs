@@ -51,8 +51,8 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
+import System.Environment (getEnvironment)
 import System.FilePath
-import System.Posix.Env (getEnvironment)
 import Testlib.JSON
 import Testlib.Printing
 import Testlib.Types
