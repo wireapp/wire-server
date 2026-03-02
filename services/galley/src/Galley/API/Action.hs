@@ -110,14 +110,14 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem (ConversationSubsystem)
+import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
-import Wire.ProposalStore qualified as E
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -497,25 +497,7 @@ performAction tag origUser lconv action = do
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
       pure $ mkPerformActionResult action
     SConversationDeleteTag -> do
-      let deleteGroup groupId = do
-            E.removeAllMLSClients groupId
-            E.deleteAllProposals groupId
-
-      let cid = storedConv.id_
-      for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
-        sconvs <- E.listSubConversations cid
-        for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
-          let gidSub = cnvmlsGroupId mlsData
-          E.deleteSubConversation cid subid
-          deleteGroup gidSub
-        deleteGroup gidParent
-
-      key <- E.makeKey (tUnqualified lcnv)
-      E.deleteCode key
-      case convTeam storedConv of
-        Nothing -> E.deleteConversation (tUnqualified lcnv)
-        Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
-
+      ConversationSubsystem.deleteConversation (tUnqualified lcnv)
       pure $ mkPerformActionResult action
     SConversationRenameTag -> do
       zusrMembership <- join <$> forM storedConv.metadata.cnvmTeam (TeamSubsystem.internalGetTeamMember (qUnqualified origUser))

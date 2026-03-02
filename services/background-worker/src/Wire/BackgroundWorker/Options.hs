@@ -19,13 +19,14 @@ module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
 import Data.Domain (Domain)
+import Data.Map
 import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
-import System.Logger.Extended
+import System.Logger.Extended hiding (Settings)
 import Util.Options
 import Wire.Migration
 import Wire.PostgresMigrationOpts
@@ -57,7 +58,8 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     backgroundJobs :: BackgroundJobsConfig,
-    federationDomain :: Domain
+    federationDomain :: Domain,
+    settings :: !Settings
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts
@@ -99,3 +101,13 @@ data BackgroundJobsConfig = BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically BackgroundJobsConfig
+
+data Settings = Settings
+  { -- | URI prefix for conversations with access mode 'code'
+    conversationCodeURI :: !(Maybe HttpsUrl),
+    -- | Map from Z-Host header to URI prefix for conversations with access mode 'code'
+    -- conversationCodeURI and multiIngress are mutually exclusive. One of both must be configured.
+    multiIngress :: !(Maybe (Map Text HttpsUrl))
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON) via Generically Settings
