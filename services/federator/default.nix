@@ -84,7 +84,6 @@ mkDerivation {
     aeson
     async
     base
-    bilge
     binary
     bytestring
     bytestring-conversion

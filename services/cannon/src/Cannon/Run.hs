@@ -28,6 +28,7 @@ import Cannon.Dict qualified as D
 import Cannon.Options
 import Cannon.RabbitMq
 import Cannon.Types hiding (Env)
+import Cannon.Types qualified as CannonTypes
 import Cannon.WS hiding (drainOpts, env)
 import Cassandra.Util (defInitCassandra)
 import Control.Concurrent
@@ -46,6 +47,7 @@ import Imports hiding (head, threadDelay)
 import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Middleware.Gzip qualified as Gzip
+import Network.Wai.Utilities (getRequestId)
 import Network.Wai.Utilities.Server
 import OpenTelemetry.Instrumentation.Wai
 import OpenTelemetry.Trace hiding (Server)
@@ -103,11 +105,15 @@ run o = lowerCodensity $ do
           . Gzip.gzip Gzip.defaultGzipSettings
           . catchErrors g defaultRequestIdHeaderName
       app :: Application
-      app = middleware (serve (Proxy @CombinedAPI) server)
-      server :: Servant.Server CombinedAPI
-      server =
-        hoistServer (Proxy @CannonAPI) (runCannonToServant e) publicAPIServer
-          :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
+      app = middleware serverApp
+      serverApp :: Application
+      serverApp req cont = do
+        let envWithReqId = e {CannonTypes.reqId = getRequestId defaultRequestIdHeaderName req}
+            server :: Servant.Server CombinedAPI
+            server =
+              hoistServer (Proxy @CannonAPI) (runCannonToServant envWithReqId) publicAPIServer
+                :<|> hoistServer (Proxy @Internal.API) (runCannonToServant envWithReqId) internalServer
+        serve (Proxy @CombinedAPI) server req cont
   tid <- lift myThreadId
 
   Codensity $ \k ->

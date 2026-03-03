@@ -65,10 +65,12 @@ import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified, qualifiedSchema)
 import Data.Schema hiding (swaggerDoc)
+import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client qualified as HTTP
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Servant hiding (Handler, addHeader, respond)
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
@@ -1097,8 +1099,11 @@ newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
 brigInternalClient :: forall (name :: Symbol) endpoint. (HasEndpoint API endpoint name, Servant.HasClient BrigInternalClient endpoint) => Servant.Client BrigInternalClient endpoint
 brigInternalClient = namedClient @API @name @BrigInternalClient
 
-runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
-runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
+runBrigInternalClient :: HTTP.Manager -> Endpoint -> RequestId -> BrigInternalClient a -> IO (Either Servant.ClientError a)
+runBrigInternalClient httpMgr (Endpoint brigHost brigPort) reqId (BrigInternalClient action) = do
   let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
-      clientEnv = Servant.mkClientEnv httpMgr baseUrl
+      clientEnv =
+        (Servant.mkClientEnv httpMgr baseUrl)
+          { Servant.middleware = \app req -> app req {Servant.requestHeaders = (defaultRequestIdHeaderName, unRequestId reqId) Seq.<| Servant.requestHeaders req}
+          }
   Servant.runClientM action clientEnv

@@ -26,7 +26,6 @@ module Federator.Remote
   )
 where
 
-import Bilge.Request qualified as RPC
 import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
@@ -46,6 +45,7 @@ import Imports
 import Network.HTTP.Types qualified as HTTP
 import Network.HTTP2.Client qualified as HTTP2
 import Network.Socket qualified as Sock
+import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -108,7 +108,7 @@ interpretRemote = interpret $ \case
         -- filter out Host header, because the HTTP2 client adds it back
         headers' =
           filter ((/= "Host") . fst) headers
-            <> [(RPC.requestIdName, rid)]
+            <> [(defaultRequestIdHeaderName, rid)]
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     mgr <- input
