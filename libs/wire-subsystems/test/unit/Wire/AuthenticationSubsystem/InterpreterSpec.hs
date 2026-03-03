@@ -21,6 +21,7 @@ module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
 import Data.Domain
 import Data.Id
+import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range (rcast)
@@ -39,6 +40,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains))
+import Wire.API.Password
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Password
@@ -56,7 +58,6 @@ import Wire.MockInterpreters
 import Wire.MockInterpreters.Events as Event
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
-import Wire.PasswordStore qualified as PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
@@ -92,11 +93,11 @@ type AllEffects =
     State [StoredApp]
   ]
 
-runAllEffects :: Domain -> [StoredUser] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
-runAllEffects domain users emailDomains action = snd $ runAllEffectsWithEventState domain users emailDomains action
+runAllEffects :: Domain -> [StoredUser] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
+runAllEffects domain users passwords emailDomains action = snd $ runAllEffectsWithEventState domain users passwords emailDomains action
 
-runAllEffectsWithEventState :: Domain -> [StoredUser] -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
-runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
+runAllEffectsWithEventState :: Domain -> [StoredUser] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
+runAllEffectsWithEventState localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
   let cfg =
         defaultAuthenticationSubsystemConfig
           { allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
@@ -107,7 +108,7 @@ runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
         . evalState mempty
         . runState mempty
         . runInMemoryUserKeyStoreIntepreterWithStoredUsers preexistingUsers
-        . runInMemoryUserStoreInterpreter preexistingUsers
+        . runInMemoryUserStoreInterpreter preexistingUsers preexistingPasswords
         . inMemoryEmailSubsystemInterpreter
         . discardTinyLogs
         . evalState mempty
@@ -143,9 +144,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             uid = user.id
+            passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
             eithRes =
-              runAllEffects testDomain [user] Nothing $ do
-                forM_ mPreviousPassword (hashPassword >=> PasswordStore.upsertHashedPassword uid)
+              runAllEffects testDomain [user] passwords Nothing $ do
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
                 createPasswordResetCode (mkEmailKey email)
@@ -171,9 +172,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             uid = user.id
+            passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
             Right (newPasswordVerification, cookiesAfterReset) =
-              runAllEffects testDomain [user] Nothing $ do
-                forM_ mPreviousPassword (hashPassword >=> PasswordStore.upsertHashedPassword uid)
+              runAllEffects testDomain [user] passwords Nothing $ do
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
                 createPasswordResetCode (mkEmailKey email)
@@ -188,7 +189,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
     prop "reset code is not generated when email is not in allow list" $
       \email localDomain ->
         let createPasswordResetCodeResult =
-              runAllEffects localDomain [] (Just ["example.com"]) $
+              runAllEffects localDomain [] mempty (Just ["example.com"]) $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
          in domainPart email /= "example.com" ==>
@@ -203,7 +204,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             createPasswordResetCodeResult =
-              runAllEffects testDomain [user] (Just [decodeUtf8 $ domainPart email]) $
+              runAllEffects testDomain [user] mempty (Just [decodeUtf8 $ domainPart email]) $
                 createPasswordResetCode (mkEmailKey email)
          in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
               isRight createPasswordResetCodeResult
@@ -216,7 +217,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   emailUnvalidated = Nothing
                 }
             createPasswordResetCodeResult =
-              runAllEffects testDomain [user] Nothing $
+              runAllEffects testDomain [user] mempty Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
          in (isJust user.status && user.status /= Just Active) ==>
@@ -225,7 +226,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
     prop "reset code is not generated for when there is no user for the email" $
       \email localDomain ->
         let createPasswordResetCodeResult =
-              runAllEffects localDomain [] Nothing $
+              runAllEffects localDomain [] mempty Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
          in createPasswordResetCodeResult === Right ()
@@ -240,7 +241,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 }
             uid = user.id
             Right (newPasswordVerification, mCaughtException) =
-              runAllEffects testDomain [user] Nothing $ do
+              runAllEffects testDomain [user] mempty Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
                 (_, resetCode) <- expect1ResetPasswordEmail email
 
@@ -262,9 +263,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
             Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
-              runAllEffects testDomain [user] Nothing $ do
-                PasswordStore.upsertHashedPassword uid =<< hashPassword oldPassword
+              runAllEffects testDomain [user] passwords Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
                 (_, resetCode) <- expect1ResetPasswordEmail email
 
@@ -287,9 +288,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
             Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
-              runAllEffects testDomain [user] Nothing $ do
-                PasswordStore.upsertHashedPassword uid =<< hashPassword oldPassword
+              runAllEffects testDomain [user] passwords Nothing $ do
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
                 (,,mCaughtExc)
                   <$> verifyUserPassword uid (toInputPassword oldPassword)
@@ -307,9 +308,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
             Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
-              runAllEffects testDomain [user] Nothing $ do
-                hashAndUpsertPassword uid oldPassword
+              runAllEffects testDomain [user] passwords Nothing $ do
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity wrongEmail) resetCode newPassword
                 (,,mCaughtExc)
                   <$> verifyUserPassword uid (toInputPassword oldPassword)
@@ -328,9 +329,9 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   status = Just Active
                 }
             uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
             Right (oldPasswordVerification, newPasswordVerification, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
-              runAllEffects testDomain [user] Nothing $ do
-                PasswordStore.upsertHashedPassword uid =<< hashPassword oldPassword
+              runAllEffects testDomain [user] passwords Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
                 (_, generatedResetCode) <- expect1ResetPasswordEmail email
 
@@ -367,7 +368,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 }
             uid = user.id
             Right newPasswordVerification =
-              runAllEffects testDomain [user] Nothing $ do
+              runAllEffects testDomain [user] mempty Nothing $ do
                 void $ createPasswordResetCode (mkEmailKey email)
                 mLookupRes <- internalLookupPasswordResetCode (mkEmailKey email)
                 for_ mLookupRes $ \(_, resetCode) -> resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
@@ -376,7 +377,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
   describe "newCookie" $ do
     prop "trivial attributes: plain user cookie" $
       \localDomain uid cid typ mLabel ->
-        let Right (plainCookie, lhCookie) = runAllEffects localDomain [] Nothing $ do
+        let Right (plainCookie, lhCookie) = runAllEffects localDomain [] mempty Nothing $ do
               plain <- newCookie @_ @ZAuth.U uid cid typ mLabel RevokeSameLabel
               lh <- newCookie @_ @ZAuth.U uid cid typ mLabel RevokeSameLabel
               pure (plain, lh)
@@ -390,19 +391,19 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
 
     prop "persistent plain cookie expires at configured time" $
       \localDomain uid cid mLabel ->
-        let Right cookie = runAllEffects localDomain [] Nothing $ do
+        let Right cookie = runAllEffects localDomain [] mempty Nothing $ do
               newCookie @_ @ZAuth.U uid cid PersistentCookie mLabel RevokeSameLabel
          in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.userTokenTimeout.userTokenTimeoutSeconds) defaultTime
 
     prop "persistent LH cookie expires at configured time" $
       \localDomain uid cid mLabel ->
-        let Right cookie = runAllEffects localDomain [] Nothing $ do
+        let Right cookie = runAllEffects localDomain [] mempty Nothing $ do
               newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel RevokeSameLabel
          in cookie.cookieExpires === addUTCTime (fromIntegral defaultZAuthSettings.legalHoldUserTokenTimeout.legalHoldUserTokenTimeoutSeconds) defaultTime
 
     modifyMaxSuccess (const 3) . prop "cookie is persisted" $
       \localDomain uid cid mLabel -> do
-        let Right (cky, sto) = runAllEffects localDomain [] Nothing $ do
+        let Right (cky, sto) = runAllEffects localDomain [] mempty Nothing $ do
               c <- newCookie @_ @ZAuth.LU uid cid PersistentCookie mLabel RevokeSameLabel
               s <- listCookies uid
               pure (c, s)
@@ -412,7 +413,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
     prop "old cookies with same label are revoked on insert" $
       \localDomain uid cid typ mLabel otherLabel policy ->
         let (events, Right (cookie1, cookie2, cookie3, cookies)) =
-              runAllEffectsWithEventState localDomain [] Nothing $
+              runAllEffectsWithEventState localDomain [] mempty Nothing $
                 (,,,)
                   <$> newCookie @_ @ZAuth.U uid cid typ mLabel policy
                   <*> newCookie @_ @ZAuth.U uid cid typ mLabel policy
@@ -448,7 +449,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
       \localDomain uidA uidB cid typ lab policy ->
         uidA /= uidB ==>
           let (events, Right (cookieA1, cookieB, cookieA2, cookiesA, cookiesB)) =
-                runAllEffectsWithEventState localDomain [] Nothing $
+                runAllEffectsWithEventState localDomain [] mempty Nothing $
                   (,,,,)
                     <$> newCookie @_ @ZAuth.U uidA cid typ (Just lab) policy
                     <*> newCookie @_ @ZAuth.U uidB cid typ (Just lab) policy
@@ -479,10 +480,6 @@ newtype Upto4 = Upto4 Int
 
 instance Arbitrary Upto4 where
   arbitrary = Upto4 <$> elements [0 .. 4]
-
-hashAndUpsertPassword :: (Member PasswordStore r) => UserId -> PlainTextPassword8 -> Sem r ()
-hashAndUpsertPassword uid password =
-  upsertHashedPassword uid =<< hashPassword password
 
 expect1ResetPasswordEmail :: (Member (State (Map EmailAddress [SentMail])) r) => EmailAddress -> Sem r PasswordResetPair
 expect1ResetPasswordEmail email =

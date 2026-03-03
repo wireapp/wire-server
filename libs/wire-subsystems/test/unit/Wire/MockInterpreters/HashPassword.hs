@@ -30,13 +30,13 @@ import Wire.HashPassword.Interpreter
 
 staticHashPasswordInterpreter :: InterpreterFor HashPassword r
 staticHashPasswordInterpreter = interpret $ \case
-  HashPassword6 password -> hashPassword password
-  HashPassword8 password -> hashPassword password
+  HashPassword6 password -> pure $ hashPassword password
+  HashPassword8 password -> pure $ hashPassword password
   VerifyPasswordWithStatus plain hashed -> pure $ verifyPasswordWithStatusImpl PasswordHashingScrypt plain hashed
 
-hashPassword :: (Monad m) => PlainTextPassword' t -> m Password
+hashPassword :: PlainTextPassword' t -> Password
 hashPassword password =
-  pure . Argon2Password $
+  Argon2Password $
     hashPasswordArgon2idWithSalt
       fastArgon2IdOptions
       "9bytesalt"

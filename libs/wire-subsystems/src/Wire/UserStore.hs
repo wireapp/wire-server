@@ -105,6 +105,8 @@ data UserStore m a where
   GetRichInfo :: UserId -> UserStore m (Maybe RichInfoAssocList)
   LookupRichInfos :: [UserId] -> UserStore m [(UserId, RichInfo)]
   UpdateRichInfo :: UserId -> RichInfoAssocList -> UserStore m ()
+  UpsertHashedPassword :: UserId -> Password -> UserStore m ()
+  LookupHashedPassword :: UserId -> UserStore m (Maybe Password)
   GetUserAuthenticationInfo :: UserId -> UserStore m (Maybe (Maybe Password, AccountStatus))
   SetUserSearchable :: UserId -> SetSearchable -> UserStore m ()
   UpdateFeatureConferenceCalling :: UserId -> Maybe FeatureStatus -> UserStore m ()

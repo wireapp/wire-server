@@ -68,7 +68,7 @@ runDependencies ::
   Either EnterpriseLoginSubsystemError a
 runDependencies =
   run
-    . runInMemoryUserSubsystemInterpreter mempty
+    . runInMemoryUserSubsytemInterpreter mempty mempty
     . (evalState mempty . inMemoryUserKeyStoreInterpreter . raiseUnder)
     . fakeRpc
     . runRandomPure
