@@ -51,7 +51,7 @@ settingsPublicObjectSchema =
       .= maybe_
         ( optFieldWithDocModifier
             "nomadProfiles"
-            (description ?~ "Whether Nomad client profiles are enabled; null or absence falls back to the server default.")
+            (description ?~ "Whether Nomad client profiles are enabled; null or absence means not enabled.")
             schema
         )
 
