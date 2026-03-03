@@ -154,6 +154,9 @@ userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
 userDocToTeamContact userGroups UserDoc {..} =
   TeamContact
     { teamContactUserId = udId,
+      teamContactUserType =
+        -- bots are not searchable as contacts, so we can assume this is not one.
+        inferUserType Nothing udType,
       teamContactTeam = udTeam,
       teamContactSso = udSso,
       teamContactScimExternalId = udScimExternalId,
