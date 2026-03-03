@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: cassandra
-        image: cassandra:4.0.19
+        image: cassandra:4.1.10
     {{- if not .Values.client_encryption_options.enabled }}
         command: ["cqlsh", "k8ssandra-cluster-datacenter-1-service"]
     {{- else }}
