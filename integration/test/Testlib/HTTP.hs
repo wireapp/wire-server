@@ -241,7 +241,7 @@ submit method req0 = do
       body = L.toStrict (HTTP.responseBody response)
       status = HTTP.statusCode (HTTP.responseStatus response)
       headers = HTTP.responseHeaders response
-  verbosity <- liftIO $ fmap (maybe "" id) (lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY")
+  verbosity <- liftIO $ fmap (fromMaybe "") (lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY")
   when (verbosity == "1") do
     curl <- asks (.curlTrace)
     liftIO $ modifyIORef' curl (<> [requestToCurl request, "# ==> " <> show (status, body, headers), ""])
