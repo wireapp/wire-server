@@ -190,7 +190,6 @@ instance ToSchema Sso where
 -- | Returned by 'browseTeam' under @/teams/:tid/search@.
 data TeamContact = TeamContact
   { teamContactUserId :: UserId,
-    teamContactUserType :: UserType,
     teamContactName :: Text,
     teamContactColorId :: Maybe Int,
     teamContactHandle :: Maybe Text,
@@ -215,7 +214,6 @@ instance ToSchema TeamContact where
     object "TeamContact" $
       TeamContact
         <$> teamContactUserId .= field "id" schema
-        <*> teamContactUserType .= field "type" schema
         <*> teamContactName .= field "name" schema
         <*> teamContactColorId .= optField "accent_id" (maybeWithDefault Aeson.Null schema)
         <*> teamContactHandle .= optField "handle" (maybeWithDefault Aeson.Null schema)

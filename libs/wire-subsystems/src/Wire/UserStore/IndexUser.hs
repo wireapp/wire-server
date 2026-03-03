@@ -36,7 +36,6 @@ import URI.ByteString
 import Wire.API.Team.Role (Role)
 import Wire.API.User hiding (userId)
 import Wire.API.User.Search
-import Wire.StoredUser (inferUserType)
 import Wire.UserSearch.Types
 
 type Activated = Bool
@@ -46,7 +45,6 @@ data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
 
 data IndexUser = IndexUser
   { userId :: UserId,
-    userType :: UserType,
     teamId :: Maybe TeamId,
     name :: Name,
     accountStatus :: Maybe AccountStatus,
@@ -99,26 +97,24 @@ indexUserFromTuple
       unverifiedEmail, tEmailUnvalidated,
       searchable, tSearchable,
       tWriteTimeBumper
-    ) =
-  let userType = inferUserType serviceId Nothing
-   in IndexUser {
-           createdAt = writetimeToUTC tActivated,
-           updatedAt = maximum $ catMaybes [writetimeToUTC <$> tTeam,
-                                            Just $ writetimeToUTC  tName,
-                                            writetimeToUTC <$> tStatus,
-                                            writetimeToUTC <$> tHandle,
-                                            writetimeToUTC <$> tEmail,
-                                            Just $ writetimeToUTC tColour,
-                                            Just $ writetimeToUTC tActivated,
-                                            writetimeToUTC <$> tService,
-                                            writetimeToUTC <$> tManagedBy,
-                                            writetimeToUTC <$> tSsoId,
-                                            writetimeToUTC <$> tEmailUnvalidated,
-                                            writetimeToUTC <$> tSearchable,
-                                            writetimeToUTC <$> tWriteTimeBumper
-                                           ],
-             ..
-         }
+    ) = IndexUser {
+          createdAt = writetimeToUTC tActivated,
+          updatedAt = maximum $ catMaybes [writetimeToUTC <$> tTeam,
+                                           Just $ writetimeToUTC  tName,
+                                           writetimeToUTC <$> tStatus,
+                                           writetimeToUTC <$> tHandle,
+                                           writetimeToUTC <$> tEmail,
+                                           Just $ writetimeToUTC tColour,
+                                           Just $ writetimeToUTC tActivated,
+                                           writetimeToUTC <$> tService,
+                                           writetimeToUTC <$> tManagedBy,
+                                           writetimeToUTC <$> tSsoId,
+                                           writetimeToUTC <$> tEmailUnvalidated,
+                                           writetimeToUTC <$> tSearchable,
+                                           writetimeToUTC <$> tWriteTimeBumper
+                                          ],
+            ..
+        }
 {- ORMOLU_ENABLE -}
 
 indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
@@ -131,7 +127,7 @@ indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
     then
       UserDoc
         { udId = userId,
-          udType = mUserType <|> Just userType,
+          udType = mUserType,
           udSearchable = searchable,
           udEmailUnvalidated = unverifiedEmail,
           udSso = sso =<< ssoId,
