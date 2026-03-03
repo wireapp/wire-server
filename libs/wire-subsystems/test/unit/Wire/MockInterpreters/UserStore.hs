@@ -34,6 +34,12 @@ import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
+runInMemoryUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
+runInMemoryUserStoreInterpreter initialUsers =
+  evalState initialUsers
+    . inMemoryUserStoreInterpreter
+    . raiseUnder
+
 inMemoryUserStoreInterpreter ::
   forall r.
   (Member (State [StoredUser]) r) =>

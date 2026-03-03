@@ -42,8 +42,10 @@ import Wire.API.User as User
 import Wire.API.User.Scim
 import Wire.API.UserGroup
 import Wire.BrigAPIAccess (BrigAPIAccess (..))
+import Wire.MockInterpreters
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.StoredUser
 import Wire.UserGroupSubsystem qualified as UGS
 import Wire.UserGroupSubsystem.Interpreter qualified as UGS
 import Wire.UserGroupSubsystem.InterpreterSpec qualified as UGS
@@ -60,17 +62,17 @@ type AllDependencies =
 runDependencies ::
   forall a.
   (HasCallStack) =>
-  [User] ->
+  [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
   Either ScimSubsystemError a
 runDependencies initialUsers initialTeams =
-  either (error . show) id . runDependenciesSafe initialUsers initialTeams
+  either (error . show) Imports.id . runDependenciesSafe initialUsers initialTeams
 
 runDependenciesSafe ::
   forall a.
   (HasCallStack) =>
-  [User] ->
+  [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
   Either UGS.UserGroupSubsystemError (Either ScimSubsystemError a)
@@ -88,12 +90,12 @@ runDependenciesSafe initialUsers initialTeams =
     scimBaseUri = Common.URI . fromJust . parseURI $ "http://nowhere.net/scim/v2"
 
     -- Mock BrigAPIAccess interpreter for tests
-    mockBrigAPIAccess :: (Member UGS.UserGroupSubsystem r) => [User] -> InterpreterFor BrigAPIAccess r
+    mockBrigAPIAccess :: (Member UGS.UserGroupSubsystem r) => [StoredUser] -> InterpreterFor BrigAPIAccess r
     mockBrigAPIAccess users = interpret $ \case
       CreateGroupInternal managedBy teamId creatorUserId newGroup -> do
         Right <$> UGS.createGroupInternal managedBy teamId creatorUserId newGroup
       GetAccountsBy getBy -> do
-        pure $ filter (\u -> User.userId u `elem` getBy.getByUserId) users
+        pure . map (mkUserFromStored testDomain testLocale) $ filter (\u -> u.id `elem` getBy.getByUserId) users
       GetGroupInternal tid gid False -> do
         UGS.getGroupInternal tid gid False
       DeleteGroupInternal managedBy teamId groupId ->
@@ -110,8 +112,8 @@ instance Arbitrary Group.Group where
           members = []
         }
 
-mkScimGroupMember :: User -> Group.Member
-mkScimGroupMember (idToText . User.userId -> value) =
+mkScimGroupMember :: StoredUser -> Group.Member
+mkScimGroupMember (idToText . (.id) -> value) =
   let typ = "User"
       ref = "$schema://$host.$domain/scim/vs/Users/$uuid" -- not a real URI, just a string for testing.
    in Group.Member {..}
@@ -123,7 +125,7 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
       let newScimGroup =
             newScimGroup_
               { Group.members =
-                  let scimMembers = filter (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
+                  let scimMembers = filter (\u -> u.managedBy == Just ManagedByScim) (UGS.allUsers team)
                    in mkScimGroupMember <$> scimMembers
               }
           resultOrError = do
@@ -161,18 +163,18 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
               scimCreateUserGroup team.tid newScimGroup
 
           want =
-            if all (\u -> u.userManagedBy == ManagedByScim) groupMembers
+            if all (\u -> u.managedBy == Just ManagedByScim) groupMembers
               then isRight
               else isLeft
       unless (want have) do
-        expectationFailure . show $ ((.userManagedBy) <$> UGS.allUsers team)
+        expectationFailure . show $ ((.managedBy) <$> UGS.allUsers team)
 
   describe "scimDeleteUserGroup" $ do
     prop "deletes a SCIM-managed group" $ \(team :: UGS.ArbitraryTeam) (newScimGroup_ :: Group.Group) ->
       let newScimGroup =
             newScimGroup_
               { Group.members =
-                  let scimUsers = filter (\u -> u.userManagedBy == ManagedByScim) (UGS.allUsers team)
+                  let scimUsers = filter (\u -> u.managedBy == Just ManagedByScim) (UGS.allUsers team)
                    in mkScimGroupMember <$> scimUsers
               }
           resultOrError = do
@@ -190,7 +192,7 @@ spec = UGS.timeoutHook $ describe "ScimSubsystem.Interpreter" $ do
 
     it "fails to delete non-SCIM-managed groups" $ do
       team :: UGS.ArbitraryTeam <- generate arbitrary
-      let ugName = either (error . show) id $ userGroupNameFromText "test-group"
+      let ugName = either (error . show) Imports.id $ userGroupNameFromText "test-group"
       let newGroup = NewUserGroup {name = ugName, members = mempty}
       let have =
             runDependenciesSafe (UGS.allUsers team) (UGS.galleyTeam team) $ do
