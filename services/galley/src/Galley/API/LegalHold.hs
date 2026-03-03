@@ -45,7 +45,6 @@ import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
-import Galley.App
 import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
@@ -63,7 +62,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
@@ -165,11 +163,9 @@ removeSettingsInternalPaging ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -211,11 +207,9 @@ removeSettings ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -268,13 +262,11 @@ removeSettings' ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member LegalHoldStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
@@ -321,10 +313,8 @@ grantConsent ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -369,11 +359,9 @@ requestDevice ::
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -464,11 +452,9 @@ approveDevice ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'UserLegalHoldNotPending) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,
@@ -543,10 +529,8 @@ disableForUser ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -609,10 +593,8 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member Now r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -727,10 +709,8 @@ handleGroupConvPolicyConflicts ::
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member Now r,
     Member ProposalStore r,
     Member P.TinyLog r,

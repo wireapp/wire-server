@@ -82,8 +82,6 @@ import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
 import Galley.Effects
-import Galley.Env (Env)
-import Galley.Options (Opts)
 import Galley.Types.Error
 import Imports hiding ((\\))
 import Polysemy
@@ -146,18 +144,14 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     ( -- TODO: Replace with subsystems
       Member BrigAPIAccess r,
       Member (Error FederationError) r,
-      Member (Error InternalError) r,
       Member (ErrorS 'NotATeamMember) r,
       Member (ErrorS 'NotConnected) r,
-      Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
       Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
       Member (ErrorS 'InvalidOperation) r,
       Member (ErrorS 'ConvAccessDenied) r,
-      Member (ErrorS 'ConvNotFound) r,
       Member (ErrorS 'TooManyMembers) r,
       Member (ErrorS 'MissingLegalholdConsent) r,
       Member (ErrorS 'GroupIdVersionNotSupported) r,
-      Member (Error NonFederatingBackends) r,
       Member (Error UnreachableBackends) r,
       Member ExternalAccess r,
       Member (FederationAPIAccess FederatorClient) r,
@@ -165,7 +159,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Input ConversationSubsystemConfig) r,
       Member Now r,
       Member LegalHoldStore r,
-      Member ConversationStore r,
       Member ProposalStore r,
       Member Random r,
       Member TeamStore r,
@@ -174,131 +167,50 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member (Error NoChanges) r
     )
   HasConversationActionEffects 'ConversationLeaveTag r =
-    ( Member (Error InternalError) r,
-      Member (Error NoChanges) r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member Now r,
-      Member (Input Env) r,
-      Member (Input ConversationSubsystemConfig) r,
-      Member ProposalStore r,
-      Member ConversationStore r,
-      Member Random r,
-      Member TinyLog r
-    )
+    ()
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
-    ( Member (Error NoChanges) r,
-      Member ConversationStore r,
-      Member ProposalStore r,
-      Member (Input Env) r,
-      Member (Input ConversationSubsystemConfig) r,
-      Member Now r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member (Error InternalError) r,
-      Member Random r,
-      Member TinyLog r,
-      Member (Error NoChanges) r
-    )
+    ()
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
     ( Member (ErrorS 'ConvMemberNotFound) r,
       Member ConversationStore r
     )
   HasConversationActionEffects 'ConversationDeleteTag r =
-    ( Member BrigAPIAccess r,
-      Member CodeStore r,
-      Member ConversationStore r,
-      Member (Error FederationError) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member ProposalStore r,
-      Member TeamStore r
-    )
+    (Member (ErrorS 'NotATeamMember) r)
   HasConversationActionEffects 'ConversationRenameTag r =
-    ( Member (Error InvalidInput) r,
-      Member ConversationStore r,
-      Member TeamStore r,
-      Member (ErrorS InvalidOperation) r
-    )
+    ()
   HasConversationActionEffects 'ConversationAccessDataTag r =
     ( Member BrigAPIAccess r,
       Member CodeStore r,
-      Member (Error InternalError) r,
-      Member (Error InvalidInput) r,
       Member (Error NoChanges) r,
       Member (ErrorS 'InvalidTargetAccess) r,
       Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
       Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
       Member FireAndForget r,
       Member NotificationSubsystem r,
-      Member (Input Env) r,
       Member (Input ConversationSubsystemConfig) r,
       Member ProposalStore r,
-      Member TeamStore r,
       Member TinyLog r,
       Member Now r,
       Member ConversationStore r,
       Member Random r
     )
   HasConversationActionEffects 'ConversationHistoryUpdateTag r =
-    ( Member ConversationStore r,
-      Member (ErrorS HistoryNotSupported) r
-    )
+    ()
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
-    ( Member ConversationStore r,
-      Member (Error NoChanges) r
-    )
+    ()
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
-    ( Member ConversationStore r,
-      Member (Error NoChanges) r,
-      Member (ErrorS MLSReadReceiptsNotAllowed) r
-    )
+    (Member (ErrorS MLSReadReceiptsNotAllowed) r)
   HasConversationActionEffects 'ConversationUpdateProtocolTag r =
-    ( Member ConversationStore r,
-      Member (ErrorS 'ConvInvalidProtocolTransition) r,
-      Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
-      Member (Error NoChanges) r,
-      Member BrigAPIAccess r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member (Input Env) r,
-      Member (Input Opts) r,
-      Member Now r,
-      Member ProposalStore r,
-      Member Random r,
-      Member TeamFeatureStore r,
-      Member TinyLog r,
-      Member FeaturesConfigSubsystem r
+    (
     )
   HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
-    ( Member (Error NoChanges) r,
-      Member ConversationStore r,
-      Member (ErrorS 'InvalidTargetAccess) r
-    )
+    (Member (ErrorS 'InvalidTargetAccess) r)
   HasConversationActionEffects 'ConversationResetTag r =
-    ( Member (Input Env) r,
-      Member Now r,
-      Member (ErrorS ConvNotFound) r,
-      Member (ErrorS InvalidOperation) r,
-      Member ConversationStore r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member ProposalStore r,
-      Member Random r,
-      Member Resource r,
-      Member TinyLog r,
-      Member (ErrorS MLSStaleMessage) r
-    )
+    ()
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
-    '[ ErrorS ('ActionDenied 'LeaveConversation),
-       ErrorS ('ActionDenied 'AddConversationMember),
+    '[ ErrorS ('ActionDenied 'AddConversationMember),
        ErrorS 'GroupIdVersionNotSupported,
        ErrorS 'NotATeamMember,
        ErrorS 'InvalidOperation,
@@ -358,32 +270,23 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS 'InvalidOperation,
        ErrorS 'ConvNotFound,
        ErrorS 'ConvInvalidProtocolTransition,
-       ErrorS 'MLSMigrationCriteriaNotSatisfied,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound
+       ErrorS 'MLSMigrationCriteriaNotSatisfied
      ]
   HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
     '[ ErrorS ('ActionDenied 'ModifyAddPermission),
        ErrorS 'InvalidOperation,
        ErrorS 'ConvNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
        ErrorS 'InvalidTargetAccess
      ]
   HasConversationActionGalleyErrors 'ConversationResetTag =
     '[ ErrorS (ActionDenied LeaveConversation),
-       ErrorS GroupIdVersionNotSupported,
        ErrorS MLSStaleMessage,
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
      ]
   HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
     '[ ErrorS (ActionDenied ModifyConversationAccess),
-       ErrorS GroupIdVersionNotSupported,
        ErrorS HistoryNotSupported,
-       ErrorS MLSStaleMessage,
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
      ]
@@ -717,15 +620,12 @@ updateLocalConversationJoin ::
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member BrigAPIAccess r,
-    Member (Error InternalError) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -765,13 +665,9 @@ updateLocalConversationLeave ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Error InternalError) r,
-    Member (Error NoChanges) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
-    Member (Input Env) r,
     Member ProposalStore r,
     Member ConversationStore r,
     Member Random r,
@@ -819,14 +715,11 @@ updateLocalConversationDelete ::
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
-    Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member (FederationAPIAccess FederatorClient) r,
-    Member ProposalStore r,
-    Member TeamStore r
+    Member ProposalStore r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -867,7 +760,6 @@ updateLocalConversationRename ::
     Member TeamSubsystem r,
     Member (Error InvalidInput) r,
     Member ConversationStore r,
-    Member TeamStore r,
     Member (ErrorS InvalidOperation) r
   ) =>
   Local ConvId ->
@@ -944,11 +836,7 @@ updateLocalConversationAccessData ::
     Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationAccessDataTag))) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
-    Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member (Error NoChanges) r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member TinyLog r,
     Member ConversationStore r,
     Member BrigAPIAccess r,
@@ -956,7 +844,6 @@ updateLocalConversationAccessData ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
-    Member TeamStore r,
     Member Now r,
     Member Random r,
     Member FireAndForget r,
@@ -988,10 +875,7 @@ updateLocalConversationRemoveMembers ::
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRemoveMembersTag))) r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
-    Member (Error InternalError) r,
     Member (Error NoChanges) r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member TinyLog r,
     Member ConversationStore r,
     Member ExternalAccess r,
@@ -1027,8 +911,6 @@ updateLocalConversationUpdateProtocol ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
-    Member (Input Opts) r,
-    Member (Input Env) r,
     Member (Error NoChanges) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member TinyLog r,
@@ -1040,7 +922,6 @@ updateLocalConversationUpdateProtocol ::
     Member Now r,
     Member Random r,
     Member TeamSubsystem r,
-    Member TeamFeatureStore r,
     Member FeaturesConfigSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
@@ -1113,7 +994,6 @@ updateLocalConversationReset ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member TinyLog r,
     Member ConversationStore r,
@@ -1183,15 +1063,12 @@ updateLocalConversationUncheckedJoin ::
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member BrigAPIAccess r,
-    Member (Error InternalError) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -1234,12 +1111,9 @@ updateLocalConversationUncheckedRemoveMembers ::
     Member (Error NoChanges) r,
     Member ConversationStore r,
     Member ProposalStore r,
-    Member (Input Env) r,
     Member Now r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
-    Member (Error InternalError) r,
     Member Random r,
     Member TinyLog r
   ) =>
