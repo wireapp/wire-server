@@ -77,11 +77,9 @@ import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.BrigAPIAccess
-import Wire.ConversationStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
-import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
@@ -90,7 +88,6 @@ import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -182,10 +179,7 @@ removeSettingsInternalPaging ::
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -229,10 +223,7 @@ removeSettings ::
     Member P.TinyLog r,
     Member Random r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -291,9 +282,6 @@ removeSettings' ::
     Member Random r,
     Member P.TinyLog r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -343,9 +331,6 @@ grantConsent ::
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -396,10 +381,7 @@ requestDevice ::
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -494,10 +476,7 @@ approveDevice ::
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -576,9 +555,6 @@ disableForUser ::
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -643,9 +619,6 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -763,9 +736,6 @@ handleGroupConvPolicyConflicts ::
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

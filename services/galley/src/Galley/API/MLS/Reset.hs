@@ -42,10 +42,8 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.FederationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 
 resetMLSConversation ::
@@ -73,9 +71,7 @@ resetMLSConversation ::
     Member Random r,
     Member Resource r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

@@ -1,0 +1,2 @@
+Refactor: inline `performAction` callback in `updateLocalConversation*` wrapper functions.
+The idea is to progressively move away from singletons to type class/functions to allow progressive migration to `wire-subsystems`.
