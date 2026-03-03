@@ -607,8 +607,8 @@ servantSitemap =
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
     systemSettingsAPI =
-      Named @"get-system-settings-unauthorized" getSystemSettings
-        :<|> Named @"get-system-settings" getSystemSettingsInternal
+      Named @"get-system-settings-unauthorized" getSystemSettingsPublic
+        :<|> Named @"get-system-settings" (const getSystemSettingsInternal)
 
     domainVerificationAPI :: ServerT DomainVerificationAPI (Handler r)
     domainVerificationAPI =
@@ -1606,18 +1606,18 @@ sendVerificationCode req = do
       mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
-getSystemSettings :: (Handler r) SystemSettingsPublic
-getSystemSettings = do
-  optSettings <- asks (.settings)
-  pure $
-    SystemSettingsPublic $
-      fromMaybe False optSettings.restrictUserCreation
+getSystemSettingsPublic :: Handler r SystemSettingsPublic
+getSystemSettingsPublic = ssPublic <$> getSystemSettingsInternal
 
-getSystemSettingsInternal :: UserId -> (Handler r) SystemSettings
-getSystemSettingsInternal _ = do
+getSystemSettingsInternal :: Handler r SystemSettings
+getSystemSettingsInternal = do
   optSettings <- asks (.settings)
-  let pSettings = SystemSettingsPublic $ fromMaybe False optSettings.restrictUserCreation
-  let iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
+  let pSettings =
+        SystemSettingsPublic
+          { setRestrictUserCreation = fromMaybe False optSettings.restrictUserCreation,
+            nomadProfiles = optSettings.nomadProfiles
+          }
+      iSettings = SystemSettingsInternal $ fromMaybe False optSettings.enableMLS
   pure $ SystemSettings pSettings iSettings
 
 authorizeTeam ::

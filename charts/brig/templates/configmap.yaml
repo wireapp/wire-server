@@ -390,5 +390,8 @@ data:
       {{- end }}
       setChallengeTTL: {{ or .setChallengeTTL 604800 }}
       setEphemeralUserCreationEnabled: {{ .setEphemeralUserCreationEnabled }}
+      {{- if .setNomadProfiles }}
+      setNomadProfiles: {{ .setNomadProfiles }} 
+      {{- end }}
     {{- end }}
   {{- end }}
