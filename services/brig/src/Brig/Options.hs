@@ -589,7 +589,9 @@ data Settings = Settings
     -- | Time-to-live for new domain verification challenges, in seconds
     challengeTTL :: !Timeout,
     -- | Whether to allow ephemeral user creation
-    ephemeralUserCreationEnabled :: !Bool
+    ephemeralUserCreationEnabled :: !Bool,
+    -- | Determines if this backend supports nomad profiles.
+    nomadProfiles :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 
