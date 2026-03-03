@@ -259,7 +259,6 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 addMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
@@ -288,8 +287,6 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
 removeMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->

@@ -283,10 +283,7 @@ leaveConversation ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->

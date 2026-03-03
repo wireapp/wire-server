@@ -295,9 +295,6 @@ type UpdateConversationAccessEffects =
 updateConversationAccess ::
   ( Members UpdateConversationAccessEffects r,
     Member Now r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -316,13 +313,8 @@ updateConversationHistory ::
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS HistoryNotSupported) r,
-    Member BackendNotificationQueueAccess r,
-    Member (Input ConversationSubsystemConfig) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -342,9 +334,6 @@ updateConversationHistory lusr con qcnv update = do
 updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,
     Member Now r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -361,8 +350,7 @@ updateConversationAccessUnqualified lusr con cnv update =
       update
 
 updateConversationReceiptMode ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -376,11 +364,7 @@ updateConversationReceiptMode ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -443,8 +427,7 @@ updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) mconn >>= note NoChanges
 
 updateConversationReceiptModeUnqualified ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
+  ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -458,11 +441,7 @@ updateConversationReceiptModeUnqualified ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -472,18 +451,13 @@ updateConversationReceiptModeUnqualified ::
 updateConversationReceiptModeUnqualified lusr zcon cnv = updateConversationReceiptMode lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 updateConversationMessageTimer ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -506,18 +480,13 @@ updateConversationMessageTimer lusr zcon qcnv update =
       qcnv
 
 updateConversationMessageTimerUnqualified ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -528,7 +497,6 @@ updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMess
 
 deleteLocalConversation ::
   ( Member BrigAPIAccess r,
-    Member BackendNotificationQueueAccess r,
     Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
@@ -540,11 +508,7 @@ deleteLocalConversation ::
     Member ConversationSubsystem r,
     Member ProposalStore r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -785,9 +749,6 @@ updateConversationProtocolWithLocalUser ::
     Member ProposalStore r,
     Member TeamFeatureStore r,
     Member FeaturesConfigSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -814,8 +775,7 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
       qcnv
 
 updateChannelAddPermission ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -833,11 +793,7 @@ updateChannelAddPermission ::
     Member BrigAPIAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (ErrorS 'InvalidTargetAccess) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -987,7 +943,6 @@ addMembers ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -1043,7 +998,6 @@ addMembersUnqualifiedV2 ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -1089,7 +1043,6 @@ addMembersUnqualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member FederationSubsystem r,
-    Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1136,7 +1089,6 @@ replaceMembers ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
     Member UserGroupStore r,
     Member ConversationSubsystem r,
     Member FederationSubsystem r,
@@ -1259,8 +1211,7 @@ updateUnqualifiedSelfMember lusr zcon cnv update = do
   updateSelfMember lusr zcon (tUntagged lcnv) update
 
 updateOtherMemberLocalConv ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
@@ -1268,11 +1219,7 @@ updateOtherMemberLocalConv ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1287,8 +1234,7 @@ updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult
     ConversationMemberUpdate qvictim update
 
 updateOtherMemberUnqualified ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
@@ -1296,11 +1242,7 @@ updateOtherMemberUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1314,8 +1256,7 @@ updateOtherMemberUnqualified lusr zcon cnv victim update = do
   updateOtherMemberLocalConv lcnv lusr zcon (tUntagged lvictim) update
 
 updateOtherMember ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
     Member (ErrorS 'InvalidTarget) r,
@@ -1323,11 +1264,7 @@ updateOtherMember ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1366,9 +1303,6 @@ removeMemberUnqualified ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1399,9 +1333,6 @@ removeMemberQualified ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1480,9 +1411,6 @@ removeMemberFromLocalConv ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1713,8 +1641,7 @@ postOtrMessageUnqualified sender zcon cnv =
         (runLocalInput sender . postQualifiedOtrMessage User (tUntagged sender) (Just zcon) lcnv)
 
 updateConversationName ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
@@ -1722,11 +1649,7 @@ updateConversationName ::
     Member (ErrorS 'InvalidOperation) r,
     Member ConversationSubsystem r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1742,8 +1665,7 @@ updateConversationName lusr zcon qcnv convRename = do
     convRename
 
 updateUnqualifiedConversationName ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
@@ -1751,11 +1673,7 @@ updateUnqualifiedConversationName ::
     Member (ErrorS 'InvalidOperation) r,
     Member ConversationSubsystem r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1767,8 +1685,7 @@ updateUnqualifiedConversationName lusr zcon cnv rename = do
   updateLocalConversationName lusr zcon lcnv rename
 
 updateLocalConversationName ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
@@ -1776,11 +1693,7 @@ updateLocalConversationName ::
     Member (ErrorS 'InvalidOperation) r,
     Member ConversationSubsystem r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r,
-    Member FederationSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
