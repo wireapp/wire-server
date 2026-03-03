@@ -307,12 +307,10 @@ leaveConversation requestingDomain lc = do
         outcome <-
           runError @FederationError $
             lcuUpdate
-              <$> updateLocalConversation
-                @'ConversationLeaveTag
+              <$> updateLocalConversationLeave
                 lcnv
                 leaver
                 Nothing
-                ()
         case outcome of
           Left e -> do
             logFederationError lcnv e
@@ -526,66 +524,66 @@ updateConversation origDomain updateRequest = do
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationJoinTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationJoin lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationLeave lcnv (tUntagged rusr) Nothing
       SConversationRemoveMembersTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationRemoveMembers lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationMemberUpdate lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationDelete lcnv (tUntagged rusr) Nothing
       SConversationRenameTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRenameTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationRenameTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationRename lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationMessageTimerUpdate lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationReceiptModeUpdate lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationAccessData lcnv (tUntagged rusr) Nothing action
       SConversationUpdateProtocolTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationUpdateProtocolTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationUpdateProtocol lcnv (tUntagged rusr) Nothing action
       SConversationUpdateAddPermissionTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationUpdateAddPermissionTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationUpdateAddPermission lcnv (tUntagged rusr) Nothing action
       SConversationResetTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationResetTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationResetTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationReset lcnv (tUntagged rusr) Nothing action
       SConversationHistoryUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationHistoryUpdateTag lcnv (tUntagged rusr) Nothing action
+          $ updateLocalConversationHistoryUpdate lcnv (tUntagged rusr) Nothing action
   where
     mkResponse =
       fmap (either ConversationUpdateResponseError Imports.id)

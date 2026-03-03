@@ -20,12 +20,24 @@ module Galley.API.Action
     ConversationActionTag (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
-    HasConversationActionEffects,
     HasConversationActionGalleyErrors,
 
     -- * Performing actions
-    updateLocalConversation,
-    updateLocalConversationUnchecked,
+    updateLocalConversationUncheckedJoin,
+    updateLocalConversationUncheckedRemoveMembers,
+    updateLocalConversationJoin,
+    updateLocalConversationLeave,
+    updateLocalConversationMemberUpdate,
+    updateLocalConversationDelete,
+    updateLocalConversationRename,
+    updateLocalConversationMessageTimerUpdate,
+    updateLocalConversationReceiptModeUpdate,
+    updateLocalConversationAccessData,
+    updateLocalConversationRemoveMembers,
+    updateLocalConversationUpdateProtocol,
+    updateLocalConversationUpdateAddPermission,
+    updateLocalConversationReset,
+    updateLocalConversationHistoryUpdate,
     NoChanges (..),
     LocalConversationUpdate (..),
     notifyTypingIndicator,
@@ -98,10 +110,12 @@ import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.History
 import Wire.API.MLS.Group.Serialisation qualified as Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
@@ -819,6 +833,463 @@ performConversationAccessData qusr lconv action = do
             noTeamMembers <- filterM (fmap isNothing . flip TeamSubsystem.internalGetTeamMember tid) (toList (bmLocals bm))
             pure $ bm {bmLocals = Set.fromList noTeamMembers}
           Nothing -> pure bm
+
+updateLocalConversationJoin ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationJoinTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member BrigAPIAccess r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
+    Member ExternalAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member LegalHoldStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member (Error NoChanges) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationJoin ->
+  Sem r LocalConversationUpdate
+updateLocalConversationJoin =
+  updateLocalConversation @'ConversationJoinTag
+
+updateLocalConversationLeave ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationLeaveTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error InternalError) r,
+    Member (Error NoChanges) r,
+    Member ExternalAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member (Input Env) r,
+    Member ProposalStore r,
+    Member ConversationStore r,
+    Member Random r,
+    Member TinyLog r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Sem r LocalConversationUpdate
+updateLocalConversationLeave convId uid connId =
+  updateLocalConversation @'ConversationLeaveTag convId uid connId ()
+
+updateLocalConversationMemberUpdate ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationMemberUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (ErrorS ConvMemberNotFound) r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ConversationStore r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationMemberUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationMemberUpdate =
+  updateLocalConversation @'ConversationMemberUpdateTag
+
+updateLocalConversationDelete ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationDeleteTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member BrigAPIAccess r,
+    Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member ProposalStore r,
+    Member TeamStore r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Sem r LocalConversationUpdate
+updateLocalConversationDelete convId uid connId =
+  updateLocalConversation @'ConversationDeleteTag convId uid connId ()
+
+updateLocalConversationRename ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRenameTag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error InvalidInput) r,
+    Member ConversationStore r,
+    Member TeamStore r,
+    Member (ErrorS InvalidOperation) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationRename ->
+  Sem r LocalConversationUpdate
+updateLocalConversationRename =
+  updateLocalConversation @'ConversationRenameTag
+
+updateLocalConversationMessageTimerUpdate ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationMessageTimerUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ConversationStore r,
+    Member (Error NoChanges) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationMessageTimerUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationMessageTimerUpdate =
+  updateLocalConversation @'ConversationMessageTimerUpdateTag
+
+updateLocalConversationReceiptModeUpdate ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationReceiptModeUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ConversationStore r,
+    Member (Error NoChanges) r,
+    Member (ErrorS MLSReadReceiptsNotAllowed) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationReceiptModeUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationReceiptModeUpdate =
+  updateLocalConversation @'ConversationReceiptModeUpdateTag
+
+updateLocalConversationAccessData ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationAccessDataTag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Input Env) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (Error NoChanges) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member BrigAPIAccess r,
+    Member CodeStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member TeamStore r,
+    Member Now r,
+    Member Random r,
+    Member FireAndForget r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'InvalidTargetAccess) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationAccessData ->
+  Sem r LocalConversationUpdate
+updateLocalConversationAccessData =
+  updateLocalConversation @'ConversationAccessDataTag
+
+updateLocalConversationRemoveMembers ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRemoveMembersTag))) r,
+    Member ConversationSubsystem r,
+    Member (Input Env) r,
+    Member (Error InternalError) r,
+    Member (Error NoChanges) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationRemoveMembers ->
+  Sem r LocalConversationUpdate
+updateLocalConversationRemoveMembers =
+  updateLocalConversation @'ConversationRemoveMembersTag
+
+updateLocalConversationUpdateProtocol ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationUpdateProtocolTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Input Opts) r,
+    Member (Input Env) r,
+    Member (Error NoChanges) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member BrigAPIAccess r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member TeamFeatureStore r,
+    Member FeaturesConfigSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS 'ConvInvalidProtocolTransition) r,
+    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ProtocolTag ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUpdateProtocol =
+  updateLocalConversation @'ConversationUpdateProtocolTag
+
+updateLocalConversationUpdateAddPermission ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationUpdateAddPermissionTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Error NoChanges) r,
+    Member ConversationStore r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS 'InvalidTargetAccess) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  AddPermissionUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUpdateAddPermission =
+  updateLocalConversation @'ConversationUpdateAddPermissionTag
+
+updateLocalConversationReset ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationResetTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Input Env) r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member FederationSubsystem r,
+    Member Resource r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS MLSStaleMessage) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  MLSReset ->
+  Sem r LocalConversationUpdate
+updateLocalConversationReset =
+  updateLocalConversation @'ConversationResetTag
+
+updateLocalConversationHistoryUpdate ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationHistoryUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member ConversationStore r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS HistoryNotSupported) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  History ->
+  Sem r LocalConversationUpdate
+updateLocalConversationHistoryUpdate =
+  updateLocalConversation @'ConversationHistoryUpdateTag
+
+updateLocalConversationUncheckedJoin ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationJoinTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member BrigAPIAccess r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error NonFederatingBackends) r,
+    Member (Error UnreachableBackends) r,
+    Member ExternalAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member LegalHoldStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member (Error NoChanges) r
+  ) =>
+  Local StoredConversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationJoin ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUncheckedJoin =
+  updateLocalConversationUnchecked @'ConversationJoinTag
+
+updateLocalConversationUncheckedRemoveMembers ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRemoveMembersTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error NoChanges) r,
+    Member ConversationStore r,
+    Member ProposalStore r,
+    Member (Input Env) r,
+    Member Now r,
+    Member ExternalAccess r,
+    Member (FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member (Error InternalError) r,
+    Member Random r,
+    Member TinyLog r
+  ) =>
+  Local StoredConversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationRemoveMembers ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUncheckedRemoveMembers =
+  updateLocalConversationUnchecked @'ConversationRemoveMembersTag
 
 updateLocalConversation ::
   forall tag r.

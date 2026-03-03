@@ -1,0 +1,2 @@
+Refactor: introduce specific wrapper functions for `updateLocalConversation` instead of using type applications.
+The idea is to progressively move away from singletons to type class to allow progressive migration to `wire-subsystems`.
