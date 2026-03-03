@@ -22,10 +22,9 @@ resources:
   # https://wearezeta.atlassian.net/browse/BE-518)
   requests:
     memory: "256Mi"
-    cpu: "100m"
+    cpu: "200m"
   limits:
     memory: "512Mi"
-    cpu: "500m"
 config:
   logLevel: Info
   logFormat: StructuredJSON
