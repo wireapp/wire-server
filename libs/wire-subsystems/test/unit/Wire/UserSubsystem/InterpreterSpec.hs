@@ -1100,10 +1100,7 @@ spec = describe "UserSubsystem.Interpreter" do
             searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
 
             storedUserToDoc :: StoredUser -> UserDoc
-            storedUserToDoc user =
-              let indexUser = storedUserToIndexUser user
-                  userType = if isJust user.serviceId then UserTypeBot else UserTypeRegular
-               in indexUserToDoc defaultSearchVisibilityInbound (Just userType) Nothing indexUser
+            storedUserToDoc user = indexUserToDoc defaultSearchVisibilityInbound Nothing (storedUserToIndexUser user)
 
             indexFromStoredUsers :: [StoredUser] -> UserIndex
             indexFromStoredUsers storedUsers = do

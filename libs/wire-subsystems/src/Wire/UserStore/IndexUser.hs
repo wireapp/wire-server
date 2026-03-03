@@ -124,13 +124,13 @@ indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
 indexUserToVersion role iu =
   mkIndexVersion [Just $ Writetime iu.updatedAt, const () <$$> fmap writetime role]
 
-indexUserToDoc :: SearchVisibilityInbound -> Maybe UserType -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
         { udId = userId,
-          udType = mUserType <|> Just userType,
+          udType = Just userType,
           udSearchable = searchable,
           udEmailUnvalidated = unverifiedEmail,
           udSso = sso =<< ssoId,
