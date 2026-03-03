@@ -1,3 +1,158 @@
+# [2026-03-03] (Chart Release 5.28.0)
+
+## Release notes
+
+
+* The following Helm charts changed in this branch:
+  - `charts/demo-smtp`
+  - `charts/fake-aws-ses`
+  - `charts/fake-aws-sns`
+  - `charts/legalhold`
+
+  Image field overrides are supported via split values (`repository` + `tag`) in the changed charts.
+  There are backward incompatibilities if old string-style image overrides are still used. (#5015)
+
+* Cassandra (`brig.user`) now keeps track of user types, only for newly created users.  **Read this paragraph if you have already created apps before their official support:** For existing users and bots, the user type is inferred, but existing apps will show as regular users.  Please remove those users from your team and create them again. (#5022)
+
+* Starting in this version, wire-server is tested against cassandra (4.1.x). The codebase is compatible with cassandra 3.11, 4.0, and 4.1. But going forward, only 4.1 or newer will get tested. We recommend you eventually upgrade cassandra to 4.1.x. (#5062)
+
+
+## API changes
+
+
+* `PUT /teams/:tid/apps/:uid` for app metadata update. (#5053)
+
+* `GET /teams/:tid/apps` now includes app ids in response. (#5057)
+
+
+## Features
+
+
+* Add Meetings API for creating and managing scheduled meetings.
+
+  New endpoints:
+  - `POST /meetings` - Create a meeting with title, start/end times, recurrence patterns (daily, weekly, etc.), and invited emails. Each meeting creates an associated MLS conversation.
+  - `GET /meetings/:domain/:meetingId` - Retrieve a meeting by ID. Accessible to the meeting creator or any conversation member.
+
+  Features:
+  - Recurring meeting support with configurable patterns and end dates
+  - Trial status: personal users receive trial meetings, paying team members receive non-trial meetings
+  - Meeting expiration: old meetings are automatically filtered based on a configurable validity period (#4918)
+
+* `PUT /meetings/:domain/:meetingId` for updating meetings.
+
+  Supported fields:
+  - `startTime`, `endTime` - update meeting time (must be valid: start < end)
+  - `title` - update meeting title
+  - `recurrence` - update recurrence pattern
+
+  Authorization: only the meeting creator can update the meeting. (#5065)
+
+* Ephemeral users are now allowed to upload and download files (#5016)
+
+* Pass optional cookie label on initiating the SSO login flow (#5049)
+
+
+* Revoke cookie with same label on login (#5055)
+
+* Emit new event `user.session-refresh-suggested` on cookie revocation (#5060)
+
+* New public system setting for nomad profiles support (#5077)
+
+* Print better error logs even when errors are overwritten to be hidden from the users (#5000)
+
+* Add history metadata support to channels. Channels now have a new field `history` which can be set on creation and updated by admins. (#4991)
+
+* Send an email to team admins and owners when an IdP is changed via API (create,
+  update, delete). This behaviour is for now only enabled for multi-ingress
+  setups. (#4987)
+
+* Add `/sso/get-by-email` endpoint to retrieve SSO codes by user email address.
+  This will enable clients to fetch SSO codes and not have to ask the user for
+  them.
+
+  This feature is turned off by default and can be enabled in `spar` by setting
+  the `enableIdPByEmailDiscovery` flag. Multi-ingress domains are taken into
+  account to find the right SSO code to use. Users must have been created via
+  SCIM; non-SCIM users are ignored. Please refer to the documentation for further
+  information. (#5024)
+
+
+## Bug fixes and other updates
+
+
+* Delete app when removing a user from a team. (#5046)
+
+* Listing users never excludes apps on grounds of not having an identity. (#5029)
+
+* cannon: Do not report status code 500 when websocket is closed due to client
+  errors (#5045)
+
+* Remove ModifyConversationHistory permission (#5027)
+
+* The backend is now able to accept commits in the presence of duplicated remove proposals (#4999)
+
+* Repair user key inconsistency when inviting user (#5031)
+
+* Repair user key inconsistency on registration
+   (#5050)
+
+
+## Internal changes
+
+
+* Made hard coded images in helm charts configurable (#5015)
+
+* Fix: create team members for apps in galley, not just brig users. (#4970)
+
+* Change `GET /i/users` on brig to never return users with status `Deleted`.
+
+  This shouldn't change backend behavior, except for avoiding some race
+  conditions involving user deletion and fetching. (#5052)
+
+* Request-Id is now correctly propagated in `cannon` and `cargohold` (#5073)
+
+* Integration tests: test lib now supports `shouldMatchShape` for json schema assertions. (#5057)
+
+*  # Move conversation creation logic to wire-subsystems
+
+   - Moved conversation creation logic from `Galley.API.Create` to `Wire.ConversationSubsystem.Interpreter`
+   - Relocated utility modules:
+     - `Galley.API.Error` → `Galley.Types.Error`
+     - `Galley.API.One2One` → `Wire.ConversationSubsystem.One2One`
+     - `Galley.API.Util` → `Wire.ConversationSubsystem.Util`
+     - `Galley.Effects.UserClientIndexStore` → `Wire.Effects.UserClientIndexStore`
+   - Removed `Galley.Validation` module (functionality moved to interpreter)
+   - Updated `background-worker` configmap:
+     - Added `galley` endpoint configuration to template
+     - Added `galleyEndpoint` field to environment
+     - Updated `Registry` to call `getConfiguredFeatureFlags` and provide flags via `runInputSem`
+   - Added roundtrip and golden tests for:
+     - `ConversationSubsystemConfig`
+     - FeatureDefaults types: LegalholdConfig, SSOConfig, SearchVisibilityAvailableConfig
+
+
+* cannon chart: allow optional extra command line args to pass to the cannon process (#5023)
+
+* cannon chart: add scheduling options for node selector, affinity, and tolerations (#5020)
+
+* Updated email templates to v1.0.148 (#5003)
+
+* Federator helm chart: by default remove the CPU limit (and throttling). A limit can still be specified. (#5076)
+
+* Move `IdPConfigStore` to `wire-subsystems`. This will enable using it in other effects. (#5011)
+
+* Upgrade wire-server's Nix env. Switch to nixpkgs `nixos-25.11` (the release branch). (#5032)
+
+* Update `libzauth-c`'s dependencies. (#5039)
+
+
+## Federation changes
+
+
+* Support external cert-manager issuers (e.g. AWS PCA) for federation TLS by adding optional `group` field to `federator.tls.issuer` and making certificate `duration`/`renewBefore` configurable via `federator.tls.duration` and `federator.tls.renewBefore` in nginx-ingress-services chart. (#5025)
+
+
 # [2026-02-04] (Chart Release 5.27.0)
 
 ## Release notes

@@ -1,8 +1,0 @@
-The following Helm charts changed in this branch:
-- `charts/demo-smtp`
-- `charts/fake-aws-ses`
-- `charts/fake-aws-sns`
-- `charts/legalhold`
-
-Image field overrides are supported via split values (`repository` + `tag`) in the changed charts.
-There are backward incompatibilities if old string-style image overrides are still used.

@@ -1,1 +1,0 @@
-Federator helm chart: by default remove the CPU limit (and throttling). A limit can still be specified.

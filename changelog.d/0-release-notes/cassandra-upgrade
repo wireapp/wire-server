@@ -1,1 +1,0 @@
-Starting in this version, wire-server is tested against cassandra (4.1.x). The codebase is compatible with cassandra 3.11, 4.0, and 4.1. But going forward, only 4.1 or newer will get tested. We recommend you eventually upgrade cassandra to 4.1.x.
