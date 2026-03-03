@@ -100,7 +100,7 @@ indexUserFromTuple
       searchable, tSearchable,
       tWriteTimeBumper
     ) =
-  let userType = inferUserType serviceId (Nothing :: Maybe UserType)
+  let userType = inferUserType serviceId Nothing
    in IndexUser {
            createdAt = writetimeToUTC tActivated,
            updatedAt = maximum $ catMaybes [writetimeToUTC <$> tTeam,

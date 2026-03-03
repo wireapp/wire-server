@@ -310,7 +310,7 @@ blockListInsertImpl = BlockList.insert . mkEmailKey
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
   mLangCountry <- UserStore.lookupLocale (tUnqualified luid)
-  defLocale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  defLocale <- inputs defaultLocale
   pure (toLocale defLocale <$> mLangCountry)
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -439,7 +439,7 @@ getLocalUserProfileImpl ::
   Sem r (Maybe UserProfile)
 getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
   let domain = tDomain luid
-  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  locale <- inputs defaultLocale
   runMaybeT $ do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
@@ -459,7 +459,7 @@ getSelfProfileImpl ::
   Local UserId ->
   Sem r (Maybe SelfProfile)
 getSelfProfileImpl self = do
-  defLocale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  defLocale <- inputs defaultLocale
   mStoredUser <- getUser (tUnqualified self)
   mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mStoredUser
   let mUser = mkUserFromStored (tDomain self) defLocale <$> mHackedUser
