@@ -1145,18 +1145,6 @@ brig:
       setEphemeralUserCreationEnabled: false
 ```
 
-### Nomad Profiles
-
-If the backend supports nomad profiles, set the optional field `setNomadProfiles` to `true`.
-
-
-```yaml
-brig:
-  config:
-    optSettings:
-      setNomadProfiles: true
-```
-
 ### Domain Verification Challenge TTL
 
 ```yaml

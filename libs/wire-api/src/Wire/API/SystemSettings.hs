@@ -31,8 +31,7 @@ import Wire.Arbitrary
 -- Used to expose settings via the @/system/settings/unauthorized@ endpoint.
 -- ALWAYS CHECK WITH SECURITY IF YOU WANT TO ADD SETTINGS HERE.
 data SystemSettingsPublic = SystemSettingsPublic
-  { setRestrictUserCreation :: !Bool,
-    nomadProfiles :: !(Maybe Bool)
+  { sspSetRestrictUserCreation :: !Bool
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SystemSettingsPublic
@@ -45,8 +44,7 @@ instance ToSchema SystemSettingsPublic where
 settingsPublicObjectSchema :: ObjectSchema SwaggerDoc SystemSettingsPublic
 settingsPublicObjectSchema =
   SystemSettingsPublic
-    <$> setRestrictUserCreation .= fieldWithDocModifier "setRestrictUserCreation" (description ?~ "Do not allow certain user creation flows") schema
-    <*> nomadProfiles .= maybe_ (optField "nomadProfiles" schema)
+    <$> sspSetRestrictUserCreation .= fieldWithDocModifier "setRestrictUserCreation" (description ?~ "Do not allow certain user creation flows") schema
 
 data SystemSettingsInternal = SystemSettingsInternal
   { ssiSetEnableMls :: !Bool
