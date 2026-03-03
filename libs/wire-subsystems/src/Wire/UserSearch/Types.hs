@@ -39,6 +39,7 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.Search
 import Wire.Arbitrary
+import Wire.StoredUser
 
 newtype IndexVersion = IndexVersion {docVersion :: DocVersion}
 
@@ -145,17 +146,17 @@ userDocToContact contactQualifiedId getName userDoc =
         contactHandle = fromHandle <$> userDoc.udHandle,
         contactTeam = userDoc.udTeam,
         contactType =
-          -- NB: after wire release upgrade and before ES reindexing,
-          -- apps may identify as regular users in the search result.
-          -- this is an accepted limitation and will be fixed in
-          -- https://github.com/wireapp/wire-server/pull/4947
-          fromMaybe UserTypeRegular userDoc.udType
+          -- bots are not searchable as contacts, so we can assume this is not one.
+          inferUserType Nothing userDoc.udType
       }
 
 userDocToTeamContact :: [UserGroupId] -> UserDoc -> TeamContact
 userDocToTeamContact userGroups UserDoc {..} =
   TeamContact
     { teamContactUserId = udId,
+      teamContactUserType =
+        -- bots are not searchable as contacts, so we can assume this is not one.
+        inferUserType Nothing udType,
       teamContactTeam = udTeam,
       teamContactSso = udSso,
       teamContactScimExternalId = udScimExternalId,

@@ -8,10 +8,11 @@
     "managed_by": "wire",
     "name": "h,",
     "role": "admin",
-    "saml_idp": "𨊾\u001f",
+    "saml_idp": "\ud860\udebe\u001f",
     "scim_external_id": null,
+    "searchable": true,
     "sso": null,
     "team": "00000001-0000-0000-0000-000200000001",
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }

@@ -10,8 +10,9 @@
     "role": "partner",
     "saml_idp": null,
     "scim_external_id": null,
+    "searchable": true,
     "sso": null,
     "team": null,
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }

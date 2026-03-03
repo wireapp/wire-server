@@ -101,7 +101,7 @@ mkUserFromStored domain defaultLocale storedUser =
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
-          userType = inferUserType (isJust svc) storedUser.userType,
+          userType = inferUserType svc storedUser.userType,
           userIdentity = storedUser.identity,
           userEmailUnvalidated = storedUser.emailUnvalidated,
           userDisplayName = storedUser.name,
@@ -127,10 +127,10 @@ mkUserFromStored domain defaultLocale storedUser =
 -- The type is inferred as "bot" if there is a serviceId, and
 -- "regular" otherwise.  For newly created apps, the second argument
 -- will always be `Just`.
-inferUserType :: Bool {- is service -} -> Maybe UserType -> UserType
-inferUserType True _ = UserTypeBot
-inferUserType False Nothing = UserTypeRegular
-inferUserType False (Just t) = t
+inferUserType :: forall serviceId. Maybe serviceId -> Maybe UserType -> UserType
+inferUserType (Just _) _ = UserTypeBot
+inferUserType Nothing Nothing = UserTypeRegular
+inferUserType Nothing (Just t) = t
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c

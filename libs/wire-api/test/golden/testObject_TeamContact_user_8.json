@@ -3,15 +3,16 @@
     "created_at": "1864-05-06T04:27:11.179Z",
     "email": "some@example",
     "email_unvalidated": null,
-    "handle": "\u0008dL",
+    "handle": "\bdL",
     "id": "00000001-0000-0000-0000-000000000000",
     "managed_by": "scim",
-    "name": "􄫇Z",
+    "name": "\udbd2\udec7Z",
     "role": "member",
     "saml_idp": "",
     "scim_external_id": null,
+    "searchable": true,
     "sso": null,
     "team": "00000002-0000-0000-0000-000100000002",
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }
