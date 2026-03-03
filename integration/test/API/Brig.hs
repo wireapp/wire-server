@@ -1297,13 +1297,3 @@ getCookies user labels = do
   let param = intercalate "," labels
   req <- baseRequest user Brig Versioned "cookies"
   submit "GET" (req & addQueryParams [("labels", param)])
-
-getSystemSettingsPublic :: (MakesValue domain) => domain -> App Response
-getSystemSettingsPublic domain = do
-  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["system", "settings", "unauthorized"]
-  submit "GET" req
-
-getSystemSettingsInternal :: (MakesValue user) => user -> App Response
-getSystemSettingsInternal user = do
-  req <- baseRequest user Brig Versioned $ joinHttpPath ["system", "settings"]
-  submit "GET" req

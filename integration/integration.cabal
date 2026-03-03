@@ -210,7 +210,6 @@ library
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
     Test.Swagger
-    Test.SystemSettings
     Test.TeamCollaborators
     Test.Teams
     Test.TeamSettings
