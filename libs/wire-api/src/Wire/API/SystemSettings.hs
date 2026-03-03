@@ -46,7 +46,14 @@ settingsPublicObjectSchema :: ObjectSchema SwaggerDoc SystemSettingsPublic
 settingsPublicObjectSchema =
   SystemSettingsPublic
     <$> setRestrictUserCreation .= fieldWithDocModifier "setRestrictUserCreation" (description ?~ "Do not allow certain user creation flows") schema
-    <*> nomadProfiles .= maybe_ (optField "nomadProfiles" schema)
+    -- even though this is inconsistent, there is no reason to keep using the set prefix for newly added fields, therefore it is omitted for nomadProfiles
+    <*> nomadProfiles
+      .= maybe_
+        ( optFieldWithDocModifier
+            "nomadProfiles"
+            (description ?~ "Whether Nomad client profiles are enabled; null or absence falls back to the server default.")
+            schema
+        )
 
 data SystemSettingsInternal = SystemSettingsInternal
   { ssiSetEnableMls :: !Bool
