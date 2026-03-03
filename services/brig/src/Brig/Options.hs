@@ -591,15 +591,6 @@ data Settings = Settings
     -- | Whether to allow ephemeral user creation
     ephemeralUserCreationEnabled :: !Bool,
     -- | Determines if this backend supports nomad profiles.
-    --
-    -- This option is tri-state:
-    --
-    --   * 'Nothing'    – nomad profile support is unspecified and the field
-    --                    is omitted from 'SystemSettingsPublic' JSON. Clients
-    --                    should treat this as \"no explicit preference\" and
-    --                    fall back to their default behaviour.
-    --   * 'Just True'  – nomad profiles are explicitly supported/enabled.
-    --   * 'Just False' – nomad profiles are explicitly not supported/disabled.
     nomadProfiles :: !(Maybe Bool)
   }
   deriving (Show, Generic)
