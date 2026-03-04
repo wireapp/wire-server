@@ -128,9 +128,9 @@ mkUserFromStored domain defaultLocale storedUser =
 -- "regular" otherwise.  For newly created apps, the second argument
 -- will always be `Just`.
 inferUserType :: forall serviceId. Maybe serviceId -> Maybe UserType -> UserType
-inferUserType (Just _) _ = UserTypeBot
+inferUserType _ (Just t) = t
+inferUserType (Just _) Nothing = UserTypeBot
 inferUserType Nothing Nothing = UserTypeRegular
-inferUserType Nothing (Just t) = t
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
