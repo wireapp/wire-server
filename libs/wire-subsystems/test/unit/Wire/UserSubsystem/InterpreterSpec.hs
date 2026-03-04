@@ -104,7 +104,6 @@ spec = describe "UserSubsystem.Interpreter" do
               mkExpectedProfiles domain users =
                 [ mkUserProfileWithEmail
                     Nothing
-                    (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                     (mkUserFromStored domain miniLocale targetUser)
                     defUserLegalHoldStatus
                 | targetUser <- users
@@ -164,11 +163,6 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
-                        ( case (targetUser.userType, targetUser.serviceId) of
-                            (Just t, _) -> t
-                            (Nothing, Just _) -> UserTypeBot
-                            (Nothing, Nothing) -> UserTypeRegular
-                        )
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -185,11 +179,6 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfile
                 === [ mkUserProfile
                         (fmap (const Nothing) config.emailVisibilityConfig)
-                        ( case (targetUser.userType, targetUser.serviceId) of
-                            (Just t, _) -> t
-                            (Nothing, Just _) -> UserTypeBot
-                            (Nothing, Nothing) -> UserTypeRegular
-                        )
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
