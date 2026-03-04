@@ -554,11 +554,12 @@ proxy:
   secrets:
     proxy_config: |-
       secrets {
-              youtube    = "..."
-              googlemaps = "..."
-              soundcloud = "..."
-              giphy      = "..."
-              spotify    = "Basic ..."
+          youtube    = "my-youtube-secret"
+          googlemaps = "my-googlemaps-secret"
+          soundcloud = "my-soundcloud-secret"
+          giphy      = "my-giphy-secret"
+          # Base64 encoded client ID and secret: `Bearer id:secret`:
+          spotify    = "my-spotify-secret"
        }
   config:
     disabledAPIVersions: []
@@ -690,7 +691,6 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
-    pgPassword: "posty-the-gres"
 
 integration:
   ingress:
@@ -742,15 +742,3 @@ backoffice:
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
 {{- end }}
 
-proxy:
-  replicaCount: 1
-  secrets:
-    proxy_config: |
-      secrets {
-          youtube    = "my-youtube-secret"
-          googlemaps = "my-googlemaps-secret"
-          soundcloud = "my-soundcloud-secret"
-          giphy      = "my-giphy-secret"
-          # Base64 encoded client ID and secret: `Bearer id:secret`:
-          spotify    = "my-spotify-secret"
-      }

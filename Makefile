@@ -674,6 +674,13 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
+# Render wire-server manifests using helmfile-rendered values from
+# hack/helm_vars/wire-server/*.gotmpl. Useful for before/after diff checks.
+# Usage:
+#   OUTPUT_FILE=/tmp/wire-server-before.yaml make helm-render-wire-server-resources
+helm-render-wire-server-resources: clean-charts charts-integration
+	./hack/bin/helm-render-wire-server-resources.sh
+
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \
 	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
