@@ -7,14 +7,10 @@
 
 tags:
   legalhold: false
-  federation: false # keep in sync with global.enableFederation
+  federation: false 
   backoffice: false
   mlsstats: false
   integration: false
-
-global:
-  enableFederation: false
-  federationDomain: ""
 
 galley:
   replicaCount: 3
@@ -42,6 +38,7 @@ galley:
     logLevel: Info
     logFormat: StructuredJSON
     logNetStrings: false
+    enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
     cassandra:
       host: aws-cassandra
       replicaCount: 3
@@ -497,6 +494,7 @@ backgroundWorker:
   config:
     logLevel: Info
     logFormat: StructuredJSON
+    enableFederation: false # keep in sync with brig, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
     brig:
       host: brig
       port: 8080

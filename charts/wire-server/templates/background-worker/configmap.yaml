@@ -77,14 +77,14 @@ data:
     postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
     {{- end }}
 
-    federationDomain: {{ $.Values.global.federationDomain }}
+    federationDomain: {{ $.Values.backgroundWorker.config.federationDomain }}
 
     {{- with .rabbitmq }}
     rabbitmq:
       host: {{ .host }}
       port: {{ .port }}
       vHost: {{ .vHost }}
-      {{- if $.Values.global.enableFederation }}
+      {{- if $.Values.backgroundWorker.config.enableFederation }}
       adminHost: {{ default .host .adminHost }}
       adminPort: {{ .adminPort }}
       {{- end }}

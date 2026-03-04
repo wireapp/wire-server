@@ -6,7 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federation: true # keep in sync with global.enableFederation
+  federation: true 
   backoffice: true
   proxy: true
   legalhold: false
@@ -59,6 +59,7 @@ brig:
     limits:
       memory: 1Gi
   config:
+    enableFederation: true
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
       teamCreatorWelcome: https://teams.wire.com/login
@@ -132,6 +133,8 @@ brig:
           defaultForNull:
             status: disabled
       setFederationStrategy: allowAll
+      # See helmfile for the real value
+      setFederationDomain: integration.example.com
       setFederationDomainConfigsUpdateFreq: 10
       setDisabledAPIVersions: []
       set2FACodeGenerationDelaySecs: 5
@@ -260,11 +263,14 @@ cargohold:
     limits:
       memory: 512Mi
   config:
+    enableFederation: true
     aws:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
     settings:
       assetAuditLogEnabled: false
+      # See helmfile for the real value
+      federationDomain: integration.example.com
       disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
@@ -283,6 +289,7 @@ galley:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
+    enableFederation: true
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -313,6 +320,8 @@ galley:
       maxFanoutSize: 18
       maxConvSize: 16
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
+      # See helmfile for the real value
+      federationDomain: integration.example.com
       disabledAPIVersions: []
 
       # These values are insecure, against anyone getting hold of the hash,
@@ -631,6 +640,9 @@ backgroundWorker:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
+    enableFederation: true
+    # See helmfile for the real value
+    federationDomain: integration.example.com
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
