@@ -15,3 +15,399 @@ tags:
 global:
   enableFederation: false
   federationDomain: ""
+
+galley:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/galley
+    tag: do-not-use
+    schemaRepository: quay.io/wire/galley-schema
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "100Mi"
+      cpu: "100m"
+    limits:
+      memory: "500Mi"
+  # This is not supported for production use, only here for testing:
+  # preStop:
+  #  exec:
+  #   command: ["sh", "-c", "curl http://acme.example"]
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    cassandra:
+      host: aws-cassandra
+      replicaCount: 3
+    #   To enable TLS provide a CA:
+    #   tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    #   Or refer to an existing secret (containing the CA):
+    #   tlsCaSecretRef:
+    #     name: <secret-name>
+    #     key: <ca-attribute>
+
+    # Postgres connection settings
+    #
+    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    # To set the password via a brig secret see `secrets.pgPassword`.
+    #
+    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+    # additional files (e.g. certificates) into the galley container. This way
+    # does not work for password files (parameter `passfile`), because
+    # libpq-connect requires access rights (mask 0600) for them that we cannot
+    # provide for random uids.
+    #
+    # Below is an example configuration we're using for our CI tests.
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
+
+    # Not used if enableFederation is false
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+      enableTls: false
+      insecureSkipVerifyTls: false
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+
+    postgresMigration:
+      conversation: cassandra
+      conversationCodes: cassandra
+      teamFeatures: cassandra
+    settings:
+      httpPoolSize: 128
+      maxTeamSize: 10000
+      exposeInvitationURLsTeamAllowlist: []
+      maxConvSize: 500
+      intraListing: true
+      # Either `conversationCodeURI` or `multiIngress` must be set
+      #
+      # `conversationCodeURI` is the URI prefix for conversation invitation links
+      # It should be of form https://{ACCOUNT_PAGES}/conversation-join/
+      conversationCodeURI: null
+      #
+      # `multiIngress` is a `Z-Host` depended setting of conversationCodeURI.
+      # Use this only if you want to expose the instance on multiple ingresses.
+      # If set it must a map from `Z-Host` to URI prefix
+      # Example:
+      # multiIngress:
+      #    wire.example: https://accounts.wire.example/conversation-join/
+      #    example.net: https://accounts.example.net/conversation-join/
+      multiIngress: null
+      # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+      # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+      disabledAPIVersions: [development]
+      # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
+      # Default is 31536000 (365 days) if not set
+      guestLinkTTLSeconds: 31536000
+      passwordHashingOptions:
+        algorithm: scrypt # or argon2id
+        # When algorithm is argon2id, these can be configured:
+        # iterations: <iterations>
+        # parallelism: <paralellism>
+        # memory: <memory used in KiB>
+      passwordHashingRateLimit:
+        ipAddrLimit:
+          burst: 5
+          inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+        userLimit:
+          burst: 5
+          inverseRate: 60000000 # 1 min, makes it 60 req/hour
+        internalLimit:
+          burst: 10
+          inverseRate: 0 # No rate limiting for internal use
+        ipv4CidrBlock: 32 # Only block individual IP addresses
+        ipv6CidrBlock: 64 # Block /64 range at a time.
+        ipAddressExceptions: []
+        maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+
+      checkGroupInfo: false
+
+      meetings:
+        validityPeriod: "48h"
+
+      # To disable proteus for new federated conversations:
+      # federationProtocols: ["mls"]
+
+      featureFlags: # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
+        appLock:
+          defaults:
+            config:
+              enforceAppLock: false
+              inactivityTimeoutSecs: 60
+            status: enabled
+        classifiedDomains:
+          config:
+            domains: []
+          status: disabled
+        conferenceCalling:
+          defaults:
+            status: enabled
+            lockStatus: locked
+        conversationGuestLinks:
+          defaults:
+            lockStatus: unlocked
+            status: enabled
+        fileSharing:
+          defaults:
+            lockStatus: unlocked
+            status: enabled
+        enforceFileDownloadLocation:
+          defaults:
+            lockStatus: locked
+            status: disabled
+            config: {}
+        legalhold: disabled-by-default
+        mls:
+          defaults:
+            status: disabled
+            config:
+              protocolToggleUsers: []
+              defaultProtocol: proteus
+              allowedCipherSuites: [2]
+              defaultCipherSuite: 2
+              supportedProtocols: [proteus, mls] # must contain defaultProtocol
+              groupInfoDiagnostics: false
+            lockStatus: unlocked
+        searchVisibilityInbound:
+          defaults:
+            status: disabled
+        selfDeletingMessages:
+          defaults:
+            config:
+              enforcedTimeoutSeconds: 0
+            lockStatus: unlocked
+            status: enabled
+        sndFactorPasswordChallenge:
+          defaults:
+            lockStatus: locked
+            status: disabled
+        sso: disabled-by-default
+        teamSearchVisibility: disabled-by-default
+        validateSAMLEmails:
+          defaults:
+            status: enabled
+        outlookCalIntegration:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        mlsE2EId:
+          defaults:
+            status: disabled
+            config:
+              verificationExpiration: 86400
+              acmeDiscoveryUrl: null
+            lockStatus: unlocked
+        mlsMigration:
+          defaults:
+            status: disabled
+            config:
+              startTime: null # "2029-05-16T10:11:12.123Z"
+              finaliseRegardlessAfter: null # "2029-10-17T00:00:00.000Z"
+              usersThreshold: 100
+              clientsThreshold: 100
+            lockStatus: locked
+        limitedEventFanout:
+          defaults:
+            status: disabled
+        domainRegistration:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        channels:
+          defaults:
+            status: disabled
+            config:
+              allowed_to_create_channels: team-members
+              allowed_to_open_channels: team-members
+            lockStatus: locked
+        cells:
+          defaults:
+            status: disabled
+            lockStatus: locked
+            config:
+              channels:
+                enabled: true
+                default: enabled
+              groups:
+                enabled: true
+                default: enabled
+              one2one:
+                enabled: true
+                default: enabled
+              users:
+                externals: true
+                guests: false
+              collabora:
+                enabled: false
+              publicLinks:
+                enableFiles: true
+                enableFolders: true
+                enforcePassword: false
+                enforceExpirationMax: 0
+                enforceExpirationDefault: 0
+              storage:
+                perFileQuotaBytes: "100000000"
+                recycle:
+                  autoPurgeDays: 30
+                  disable: false
+                  allowSkip: false
+              metadata:
+                namespaces:
+                  usermetaTags:
+                    defaultValues: []
+                    allowFreeValues: true
+        cellsInternal:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+            config:
+              backend:
+                url: https://cells-beta.wire.com
+              collabora:
+                edition: COOL
+              storage:
+                perUserQuotaBytes: "1000000000000"
+        allowedGlobalOperations:
+          status: enabled
+          config:
+            mlsConversationReset: false
+        assetAuditLog:
+          status: disabled
+        consumableNotifications:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        chatBubbles:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        apps:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        simplifiedUserConnectionRequestQRCode:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+        stealthUsers:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        meetings:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+        meetingsPremium:
+          defaults:
+            status: disabled
+            lockStatus: locked
+    aws:
+      region: "eu-west-1"
+    proxy: {}
+  serviceAccount:
+    # When setting this to 'false', either make sure that a service account named
+    # 'galley' exists or change the 'name' field to 'default'
+    create: true
+    name: galley
+    annotations: {}
+    automountServiceAccountToken: true
+
+  secrets: {}
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  tests:
+    config:
+      {}
+      # uploadXml:
+      #   baseUrl: s3://bucket/path/
+
+    secrets:
+      # uploadXmlAwsAccessKeyId: <key-id>
+      # uploadXmlAwsSecretAccessKey: <secret>
+
+      # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
+      providerPrivateKey: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw
+        /feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o
+        dmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKVVPOaOzgtAB21XKRiQ4ermqgi3/nj
+        r03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiSbUKr/BeArYRcjzr/h5m1In6fG/if
+        9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg87X883H+LA/d6X5CTiPv1VMxXdBUi
+        GPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7lanQIDAQABAoIBAQC0doVy7zgpLsBv
+        Sz0AnbPe1pjxEwRlntRbJSfSULySALqJvs5s4adSVGUBHX3z/LousAP1SRpCppuU
+        8wrLBFgjQVlaAzyQB84EEl+lNtrG8Jrvd2es9R/4sJDkqy50+yuPN5wnzWPFIjhg
+        3jP5CHDu29y0LMzsY5yjkzDe9B0bueXEZVU+guRjhpwHHKOFeAr9J9bugFUwgeAr
+        jF0TztzFAb0fsUNPiQAho1J5PyjSVgItaPfAPv/p30ROG+rz+Rd5NSSvBC5F+yOo
+        azb84zzwCg/knAfIz7SOMRrmBh2qhGZFZ8gXdq65UaYv+cpT/qo28mpAT2vOkyeD
+        aPZp0ysBAoGBAOQROoDipe/5BTHBcXYuUE1qa4RIj3wgql5I8igXr4K6ppYBmaOg
+        DL2rrnqD86chv0P4l/XOomKFwYhVGXtqRkeYnk6mQXwNVkgqcGbY5PSNyMg5+ekq
+        jSOOPHGzzTWKzYuUDUpB/Lf6jbTv8fq2GYW3ZYiqQ/xiugOvglZrTE7NAoGBANLl
+        irjByfxAWGhzCrDx0x5MBpsetadI9wUA8u1BDdymsRg73FDn3z7NipVUAMDXMGVj
+        lqbCRlHESO2yP4GaPEA4FM+MbTZSuhAYV+SY07mEPLHF64/nJas83Zp91r5rhaqJ
+        L9rWCl3KJ5OUnr3YizCnHIW72FxjwtpjxHJLupsRAoGAGIbhy8qUHeKh9F/hW9xP
+        NoQjW+6Rv7+jktA1eqpRbbW1BJzXcQldVWiJMxPNuEOg1iZ98SlvvTi1P3wnaWZc
+        eIapP7wRfs3QYaJuxCC/Pq2g0ieqALFazGAXkALOJtvujvw1Ea9XBlIjuzmyxEuh
+        Iwg+Gxx0g0f6yTquwax4YGECgYEAnpAK3qKFNO1ECzQDo8oNy0ep59MNDPtlDhQK
+        katJus5xdCD9oq7TQKrVOTTxZAvmzTQ1PqfuqueDVYOhD9Zg2n/P1cRlEGTek99Z
+        pfvppB/yak6+r3FA9yBKFS/r1zuMQg3nNweav62QV/tz5pT7AdeDMGFtaPlwtTYx
+        qyWY5aECgYBPySbPccNj+xxQzxcti2y/UXjC04RgOA/Hm1D0exa0vBqS9uxlOdG8
+        F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc
+        Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==
+        -----END RSA PRIVATE KEY-----
+      providerPublicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0
+        G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH
+        WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV
+        VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS
+        bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8
+        7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
+        nQIDAQAB
+        -----END PUBLIC KEY-----
+      providerPublicCert: |
+        -----BEGIN CERTIFICATE-----
+        MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
+        RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
+        cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW
+        EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy
+        WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs
+        aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x
+        HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB
+        AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A
+        QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP
+        wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua
+        qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi
+        fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU
+        zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN
+        AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog
+        BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v
+        OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY
+        XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+
+        hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
+        T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
+        -----END CERTIFICATE-----

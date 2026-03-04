@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: galley
 data:
-  {{- with .Values.config }}
+  {{- with .Values.galley.config }}
   galley.yaml: |
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
@@ -21,13 +21,13 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useCassandraTLS" .) "true" }}
-      tlsCa: /etc/wire/galley/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- if eq (include "galley.useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/galley/cassandra/{{- (include "galley.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if hasKey $.Values.secrets "pgPassword" }}
+    {{- if hasKey $.Values.galley.secrets "pgPassword" }}
     postgresqlPassword: /etc/wire/galley/secrets/pgPassword
     {{- end }}
 
@@ -94,7 +94,7 @@ data:
       {{- if .settings.federationProtocols }}
       federationProtocols: {{ .settings.federationProtocols }}
       {{- end }}
-      {{- if $.Values.secrets.mlsPrivateKeys }}
+      {{- if $.Values.galley.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:
         removal:
           ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"

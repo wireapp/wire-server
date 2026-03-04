@@ -17,8 +17,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.galley.service.externalPort }}
+      targetPort: {{ .Values.galley.service.internalPort }}
   selector:
     app: galley
     release: {{ .Release.Name }}

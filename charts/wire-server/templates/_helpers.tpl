@@ -1,14 +1,14 @@
 
 {{/* Allow KubeVersion to be overridden. */}}
-{{- define "kubeVersion" -}}
+{{- define "galley.kubeVersion" -}}
   {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
 {{- end -}}
 
-{{- define "includeSecurityContext" -}}
-  {{- (semverCompare ">= 1.24-0" (include "kubeVersion" .)) -}}
+{{- define "galley.includeSecurityContext" -}}
+  {{- (semverCompare ">= 1.24-0" (include "galley.kubeVersion" .)) -}}
 {{- end -}}
 
-{{- define "useCassandraTLS" -}}
+{{- define "galley.useCassandraTLS" -}}
 {{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
 {{- end -}}
 
@@ -16,7 +16,7 @@
 This is used to switch between provided secret (e.g. by cert-manager) and
 created one (in case the CA is provided as PEM string.)
 */}}
-{{- define "tlsSecretRef" -}}
+{{- define "galley.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
 {{- else }}

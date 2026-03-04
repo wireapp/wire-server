@@ -9,7 +9,7 @@ data:
   integration.yaml: |
     galley:
       host: galley
-      port: {{ .Values.service.internalPort }}
+      port: {{ .Values.galley.service.internalPort }}
 
     brig:
       host: brig

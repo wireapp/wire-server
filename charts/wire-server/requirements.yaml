@@ -57,13 +57,6 @@ dependencies:
     - spar
     - haskellServices
     - services
-- name: galley
-  version: "0.0.42"
-  repository: "file://../galley"
-  tags:
-    - galley
-    - haskellServices
-    - services
 - name: brig
   version: "0.0.42"
   repository: "file://../brig"
