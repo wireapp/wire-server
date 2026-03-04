@@ -115,7 +115,7 @@ spec:
             value: {{ join "," .noProxyList | quote }}
           {{- end }}
           {{- end }}
-          {{- if .Values.config.enableFederation }}
+          {{- if .Values.global.enableFederation }}
           - name: RABBITMQ_USERNAME
             valueFrom:
               secretKeyRef:

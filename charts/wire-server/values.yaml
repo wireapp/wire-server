@@ -7,7 +7,11 @@
 
 tags:
   legalhold: false
-  federation: false # see also {background-worker, brig, cargohold, galley}.config.enableFederation
+  federation: false # keep in sync with global.enableFederation
   backoffice: false
   mlsstats: false
   integration: false
+
+global:
+  enableFederation: false
+  federationDomain: ""

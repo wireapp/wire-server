@@ -6,12 +6,18 @@ tags:
   cannon: true
   cargohold: true
   spar: true
-  federation: true # also see {background-worker,brig,cargohold,galley}.config.enableFederation
+  federation: true # keep in sync with global.enableFederation
   backoffice: true
   proxy: true
   legalhold: false
   sftd: false
   integration: true
+
+global:
+  # keep in sync with tags.federation
+  enableFederation: true
+  # See helmfile for the real value
+  federationDomain: integration.example.com
 
 cassandra-migrations:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
@@ -93,7 +99,6 @@ brig:
       sessionTokenTimeout: 20
       accessTokenTimeout: 30
       providerTokenTimeout: 60
-    enableFederation: true # keep in sync with galley.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     multiSFT:
       enabled: false # keep multiSFT default in sync with brig and sft chart's config.multiSFT
     optSettings:
@@ -120,8 +125,6 @@ brig:
       setMaxConvAndTeamSize: 16
       setMaxTeamSize: 32
       setMaxConvSize: 16
-      # See helmfile for the real value
-      setFederationDomain: integration.example.com
       setFeatureFlags:
         conferenceCalling:
           defaultForNew:
@@ -260,10 +263,7 @@ cargohold:
     aws:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
-    enableFederation: true # keep in sync with brig.config.enableFederation, galley.config.enableFederation and tags.federator!
     settings:
-      # See helmfile for the real value
-      federationDomain: integration.example.com
       assetAuditLogEnabled: false
       disabledAPIVersions: []
   secrets:
@@ -303,7 +303,6 @@ galley:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
         key: "ca.crt"
-    enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     postgresMigration:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
@@ -314,8 +313,6 @@ galley:
       maxFanoutSize: 18
       maxConvSize: 16
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/conversation-join/
-      # See helmfile for the real value
-      federationDomain: integration.example.com
       disabledAPIVersions: []
 
       # These values are insecure, against anyone getting hold of the hash,
@@ -634,7 +631,6 @@ background-worker:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
-    enableFederation: true
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
@@ -673,7 +669,6 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
-    federationDomain: integration.example.com
     postgresMigration:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
@@ -741,4 +736,3 @@ backoffice:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
 {{- end }}
-

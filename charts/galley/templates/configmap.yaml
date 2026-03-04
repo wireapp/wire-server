@@ -43,7 +43,7 @@ data:
       host: spar
       port: 8080
 
-    {{- if .enableFederation }}
+    {{- if $.Values.global.enableFederation }}
     federator:
       host: federator
       port: 8080
@@ -90,7 +90,7 @@ data:
       {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
-      federationDomain: {{ .settings.federationDomain }}
+      federationDomain: {{ $.Values.global.federationDomain }}
       {{- if .settings.federationProtocols }}
       federationProtocols: {{ .settings.federationProtocols }}
       {{- end }}

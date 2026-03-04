@@ -110,7 +110,7 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
-    {{- if .Values.config.enableFederation }}
+    {{- if .Values.global.enableFederation }}
     - name: RABBITMQ_USERNAME
       value: "guest"
     - name: RABBITMQ_PASSWORD

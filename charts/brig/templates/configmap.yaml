@@ -81,7 +81,7 @@ data:
     {{- if .multiSFT }}
     multiSFT: {{ .multiSFT.enabled }}
     {{- end }}
-    {{- if .enableFederation }}
+    {{- if $.Values.global.enableFederation }}
     # TODO remove this
     federator:
       host: federator
@@ -297,7 +297,7 @@ data:
       setPropertyMaxKeyLen: {{ .setPropertyMaxKeyLen }}
       setPropertyMaxValueLen: {{ .setPropertyMaxValueLen }}
       setDeleteThrottleMillis: {{ .setDeleteThrottleMillis }}
-      setFederationDomain: {{ .setFederationDomain }}
+      setFederationDomain: {{ $.Values.global.federationDomain }}
       {{- if .setFederationStrategy }}
       setFederationStrategy: {{ .setFederationStrategy }}
       {{- end }}

@@ -10,7 +10,7 @@ data:
     cargohold:
       host: cargohold
       port: {{ .Values.service.internalPort }}
-    {{- if .Values.config.enableFederation }}
+    {{- if .Values.global.enableFederation }}
     federator:
       host: federator
       port: 8080
