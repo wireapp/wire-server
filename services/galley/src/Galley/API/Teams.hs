@@ -102,7 +102,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
-import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -960,18 +959,15 @@ getTeamConversation zusr tid cid = do
   pure $ newTeamConversation teamConv
 
 deleteTeamConversation ::
-  ( Member BrigAPIAccess r,
-    Member CodeStore r,
+  ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member ProposalStore r,
     Member ConversationSubsystem r,
-    Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
