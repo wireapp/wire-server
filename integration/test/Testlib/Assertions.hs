@@ -432,7 +432,7 @@ renderCurlTrace trace = do
     False -> pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
 
 isTestVerbose :: (MonadIO m) => m Bool
-isTestVerbose = liftIO $ maybe False (== "1") <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
+isTestVerbose = liftIO $ (Just "1" ==) <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
 
 prettyContext :: String -> String
 prettyContext ctx = do
