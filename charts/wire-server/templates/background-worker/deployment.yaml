@@ -8,7 +8,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.backgroundWorker.replicaCount }}
   strategy:
     # Ensures only one version of the background worker is running at any given
     # moment. This means small downtime, but the background workers should be
@@ -24,9 +24,9 @@ spec:
         release: {{ .Release.Name }}
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
-        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
-        checksum/cassandra-secret: {{ include (print .Template.BasePath "/cassandra-secret.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print .Template.BasePath "/background-worker/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/background-worker/secret.yaml") . | sha256sum }}
+        checksum/cassandra-secret: {{ include (print .Template.BasePath "/background-worker/cassandra-secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
       serviceAccount: null
@@ -39,55 +39,55 @@ spec:
         - name: "background-worker-secrets"
           secret:
             secretName: "background-worker"
-        {{- if eq (include "useGundeckCassandraTLS" .Values.config) "true" }}
+        {{- if eq (include "useGundeckCassandraTLS" .Values.backgroundWorker.config) "true" }}
         - name: "background-worker-cassandra-gundeck"
           secret:
-            secretName: {{ (include "gundeckTlsSecretRef" .Values.config | fromYaml).name }}
+            secretName: {{ (include "gundeckTlsSecretRef" .Values.backgroundWorker.config | fromYaml).name }}
         {{- end }}
-        {{- if eq (include "useBrigCassandraTLS" .Values.config) "true" }}
+        {{- if eq (include "useBrigCassandraTLS" .Values.backgroundWorker.config) "true" }}
         - name: "background-worker-cassandra-brig"
           secret:
-            secretName: {{ (include "brigTlsSecretRef" .Values.config | fromYaml).name }}
+            secretName: {{ (include "brigTlsSecretRef" .Values.backgroundWorker.config | fromYaml).name }}
         {{- end }}
-        {{- if eq (include "useGalleyCassandraTLS" .Values.config) "true" }}
+        {{- if eq (include "useGalleyCassandraTLS" .Values.backgroundWorker.config) "true" }}
         - name: "background-worker-cassandra-galley"
           secret:
-            secretName: {{ (include "galleyTlsSecretRef" .Values.config | fromYaml).name }}
+            secretName: {{ (include "galleyTlsSecretRef" .Values.backgroundWorker.config | fromYaml).name }}
         {{- end }}
-        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        {{- if .Values.backgroundWorker.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
-            secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+            secretName: {{ .Values.backgroundWorker.config.rabbitmq.tlsCaSecretRef.name }}
         {{- end }}
         {{- if .Values.additionalVolumes }}
         {{ toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}
       containers:
         - name: background-worker
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          image: "{{ .Values.backgroundWorker.image.repository }}:{{ .Values.backgroundWorker.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.backgroundWorker.imagePullPolicy | quote }}
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
-            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+            {{- toYaml .Values.backgroundWorker.podSecurityContext | nindent 12 }}
         {{- end }}
           volumeMounts:
           - name: "background-worker-secrets"
             mountPath: "/etc/wire/background-worker/secrets"
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"
-          {{- if eq (include "useGundeckCassandraTLS" .Values.config) "true" }}
+          {{- if eq (include "useGundeckCassandraTLS" .Values.backgroundWorker.config) "true" }}
           - name: "background-worker-cassandra-gundeck"
             mountPath: "/etc/wire/background-worker/cassandra-gundeck"
           {{- end }}
-          {{- if eq (include "useBrigCassandraTLS" .Values.config) "true" }}
+          {{- if eq (include "useBrigCassandraTLS" .Values.backgroundWorker.config) "true" }}
           - name: "background-worker-cassandra-brig"
             mountPath: "/etc/wire/background-worker/cassandra-brig"
           {{- end }}
-          {{- if eq (include "useGalleyCassandraTLS" .Values.config) "true" }}
+          {{- if eq (include "useGalleyCassandraTLS" .Values.backgroundWorker.config) "true" }}
           - name: "background-worker-cassandra-galley"
             mountPath: "/etc/wire/background-worker/cassandra-galley"
           {{- end }}
-          {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+          {{- if .Values.backgroundWorker.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/background-worker/rabbitmq-ca/"
           {{- end }}
@@ -109,18 +109,18 @@ spec:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.backgroundWorker.service.internalPort }}
             failureThreshold: 6
             periodSeconds: 5
           livenessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.backgroundWorker.service.internalPort }}
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.backgroundWorker.service.internalPort }}
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+{{ toYaml .Values.backgroundWorker.resources | indent 12 }}

@@ -8,14 +8,14 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-  {{- with .Values.config }}
+  {{- with .Values.backgroundWorker.config }}
   background-worker.yaml: |
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
     backgroundWorker:
       host: 0.0.0.0
-      port: {{ $.Values.service.internalPort }}
+      port: {{ $.Values.backgroundWorker.service.internalPort }}
 
     federatorInternal:
       host: {{ .federatorInternal.host }}
@@ -73,7 +73,7 @@ data:
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if hasKey $.Values.secrets "pgPassword" }}
+    {{- if hasKey $.Values.backgroundWorker.secrets "pgPassword" }}
     postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
     {{- end }}
 

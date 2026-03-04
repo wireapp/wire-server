@@ -412,7 +412,7 @@ galley:
         T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
         -----END CERTIFICATE-----
 
-background-worker:
+backgroundWorker:
   replicaCount: 1
   image:
     repository: quay.io/wire/background-worker

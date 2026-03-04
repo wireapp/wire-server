@@ -84,13 +84,6 @@ dependencies:
     - federation
     - haskellServices
     - services
-- name: background-worker
-  version: "0.0.42"
-  repository: "file://../background-worker"
-  tags:
-    - background-worker
-    - haskellServices
-    - services
 - name: integration
   version: "0.0.42"
   repository: "file://../integration"
