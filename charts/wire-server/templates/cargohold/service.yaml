@@ -17,8 +17,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.cargohold.service.externalPort }}
+      targetPort: {{ .Values.cargohold.service.internalPort }}
   selector:
     app: cargohold
     release: {{ .Release.Name }}

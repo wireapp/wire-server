@@ -9,7 +9,7 @@ data:
   integration.yaml: |
     cargohold:
       host: cargohold
-      port: {{ .Values.service.internalPort }}
+      port: {{ .Values.cargohold.service.internalPort }}
     {{- if .Values.global.enableFederation }}
     federator:
       host: federator

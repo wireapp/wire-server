@@ -4,13 +4,13 @@ metadata:
   name: "cargohold"
 data:
   cargohold.yaml: |
-    logFormat: {{ .Values.config.logFormat }}
-    logLevel: {{ .Values.config.logLevel }}
-    logNetStrings: {{ .Values.config.logNetStrings }}
+    logFormat: {{ .Values.cargohold.config.logFormat }}
+    logLevel: {{ .Values.cargohold.config.logLevel }}
+    logNetStrings: {{ .Values.cargohold.config.logNetStrings }}
 
     cargohold:
       host: 0.0.0.0
-      port: {{ .Values.service.internalPort }}
+      port: {{ .Values.cargohold.service.internalPort }}
 
     {{- if $.Values.global.enableFederation }}
     federator:
@@ -23,7 +23,7 @@ data:
       port: 8080
 
     aws:
-      {{- with .Values.config.aws }}
+      {{- with .Values.cargohold.config.aws }}
       s3Bucket: {{ .s3Bucket }}
       s3Endpoint: {{ .s3Endpoint }}
       {{- if .s3DownloadEndpoint }}
@@ -48,7 +48,7 @@ data:
       {{- end }}
 
     settings:
-      {{- with .Values.config.settings }}
+      {{- with .Values.cargohold.config.settings }}
       {{- if .maxTotalBytes }}
       maxTotalBytes: {{ .maxTotalBytes }}
       {{- end }}

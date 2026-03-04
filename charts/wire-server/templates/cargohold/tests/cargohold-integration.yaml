@@ -16,10 +16,10 @@ spec:
     # NOTE: the bucket for these tests must be created.
     # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created.
   - name: integration
-    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    image: "{{ .Values.cargohold.image.repository }}-integration:{{ .Values.cargohold.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+      {{- toYaml .Values.cargohold.podSecurityContext | nindent 6 }}
         {{- end }}
     command:
     - /bin/bash
@@ -33,7 +33,7 @@ spec:
         exit_code=$?
       fi
 
-      {{- if .Values.tests.config.uploadXml }}
+      {{- if .Values.cargohold.tests.config.uploadXml }}
       # In case a different S3 compliant storage is used to upload test result.
       if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
         export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
@@ -66,13 +66,13 @@ spec:
           name: cargohold
           key: awsSecretKey
     - name: AWS_REGION
-      value: "{{ .Values.config.aws.region }}"
+      value: "{{ .Values.cargohold.config.aws.region }}"
     - name: TEST_XML
       value: /tmp/result.xml
-    {{- if .Values.tests.config.uploadXml }}
+    {{- if .Values.cargohold.tests.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
-      value: {{ .Values.tests.config.uploadXml.baseUrl }}
-    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+      value: {{ .Values.cargohold.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.cargohold.tests.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:

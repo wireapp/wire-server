@@ -36,13 +36,6 @@ dependencies:
     - proxy
     - haskellServices
     - services
-- name: cargohold
-  version: "0.0.42"
-  repository: "file://../cargohold"
-  tags:
-    - cargohold
-    - haskellServices
-    - services
 - name: gundeck
   version: "0.0.42"
   repository: "file://../gundeck"

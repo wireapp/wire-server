@@ -1,4 +1,4 @@
-{{- if gt (int .Values.replicaCount) 1 }}
+{{- if gt (int .Values.cargohold.replicaCount) 1 }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -9,7 +9,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  maxUnavailable: {{ sub (int .Values.replicaCount) 1 }}
+  maxUnavailable: {{ sub (int .Values.cargohold.replicaCount) 1 }}
   selector:
     matchLabels:
       app: cargohold
