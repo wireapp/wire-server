@@ -146,7 +146,9 @@ userDocToContact contactQualifiedId getName userDoc =
         contactHandle = fromHandle <$> userDoc.udHandle,
         contactTeam = userDoc.udTeam,
         contactType =
-          -- bots are not searchable as contacts, so we can assume this is not one.
+          -- users of type `UserTypeBot` are not searchable as
+          -- contacts, so we can assume this is either
+          -- `UserTypeRegular` or `UserTypeApp`.
           inferUserType Nothing userDoc.udType
       }
 

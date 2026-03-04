@@ -127,6 +127,9 @@ mkUserFromStored domain defaultLocale storedUser =
 -- The type is inferred as "bot" if there is a serviceId, and
 -- "regular" otherwise.  For newly created apps, the second argument
 -- will always be `Just`.
+--
+-- NB: The polymorphism is necessary because different caller have
+-- different types of service ids in the `Maybe`.
 inferUserType :: forall serviceId. Maybe serviceId -> Maybe UserType -> UserType
 inferUserType _ (Just t) = t
 inferUserType (Just _) Nothing = UserTypeBot
