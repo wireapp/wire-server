@@ -2256,6 +2256,11 @@ instance ToSchema RefreshAppCookieResponse where
 -- [fisx]: (There may be a fancier way to do this by making the
 -- `UserProfile` type polymorphic, but I doubt it'll take less time to
 -- do it or that it'd be clearer in the end.)
+--
+-- TODO: no, don't introduce a new data type here!  instead, make
+-- `appInfo :: Maybe AppInfo` a field in `UserProfile`, where
+-- `AppInfo` is like `GetApp`, but without redundancies to user
+-- profile.
 data UserProfileWithAppInfo = UserProfileWithAppInfo
   { core :: UserProfile,
     appInfo :: Maybe GetApp

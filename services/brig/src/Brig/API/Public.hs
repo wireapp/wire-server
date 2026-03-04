@@ -636,7 +636,7 @@ servantSitemap =
         :<|> Named @"get-app" getApp
         :<|> Named @"get-apps" getApps
         :<|> Named @"put-app" putApp
-        :<|> Named @"refresh-app-cookie" refreshAppCookie
+        :<|> Named @"refresh-app-cookie" refreshAppCookie -- TODO: does this invalidate the old cookies?
 
 ---------------------------------------------------------------------------
 -- Handlers
