@@ -40,6 +40,7 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
+import Data.IORef
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -50,6 +51,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
+import System.Environment
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
@@ -400,24 +402,37 @@ super `shouldNotContain` sub = do
   when (sub `isInfixOf` super) $ do
     assertFailure $ "String or List:\n" <> show super <> "\nDoes contain:\n" <> show sub
 
-printFailureDetails :: AssertionFailure -> IO String
-printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
+printFailureDetails :: Env -> AssertionFailure -> IO String
+printFailureDetails env (AssertionFailure stack mbResponse ctx msg) = do
   s <- prettierCallStack stack
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "assertion failure:"
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
         <> toList (fmap prettyContext ctx)
+        <> ct
 
-printAppFailureDetails :: AppFailure -> IO String
-printAppFailureDetails (AppFailure msg stack) = do
+printAppFailureDetails :: Env -> AppFailure -> IO String
+printAppFailureDetails env (AppFailure msg stack) = do
   s <- prettierCallStack stack
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "app failure:"
       : colored red msg
       : "\n"
       : [s]
+        <> ct
+
+renderCurlTrace :: IORef [String] -> IO [String]
+renderCurlTrace trace = do
+  isTestVerbose >>= \case
+    True -> ("HTTP trace in curl pseudo-syntax:" :) <$> readIORef trace
+    False -> pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
+
+isTestVerbose :: (MonadIO m) => m Bool
+isTestVerbose = liftIO $ (Just "1" ==) <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
 
 prettyContext :: String -> String
 prettyContext ctx = do
@@ -426,12 +441,14 @@ prettyContext ctx = do
       colored blue ctx
     ]
 
-printExceptionDetails :: SomeException -> IO String
-printExceptionDetails e = do
+printExceptionDetails :: Env -> SomeException -> IO String
+printExceptionDetails env e = do
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     [ colored yellow "exception:",
       colored red (displayException e)
     ]
+      <> ct
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do

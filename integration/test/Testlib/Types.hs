@@ -36,6 +36,7 @@ import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
@@ -49,6 +50,7 @@ import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.String
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
@@ -271,7 +273,8 @@ data Env = Env
     dnsMockServerConfig :: DNSMockServerConfig,
     cellsEventQueue :: String,
     cellsEventWatchersLock :: MVar (),
-    cellsEventWatchers :: IORef (Map String QueueWatcher)
+    cellsEventWatchers :: IORef (Map String QueueWatcher),
+    curlTrace :: IORef [String]
   }
 
 data Response = Response
@@ -374,7 +377,7 @@ data MLSConv = MLSConv
 
 requestToCurl :: HTTP.Request -> String
 requestToCurl req =
-  unwords $ -- FUTUREWORK: amke this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
+  unwords $ -- FUTUREWORK: make this multi-line, but so thhhaaaatttt iiiitttt ddddoooesn't go wrong.
     Prelude.filter
       (not . Prelude.null)
       [ "curl",
@@ -401,11 +404,29 @@ requestToCurl req =
         defaultPort = if HTTP.secure req then 443 else 80
 
     body' = case HTTP.requestBody req of
-      HTTP.RequestBodyLBS lbs -> if lbs == mempty then "" else "--data-binary " ++ shellEscape (C8.unpack $ L.toStrict lbs)
-      HTTP.RequestBodyBS bs -> if bs == mempty then "" else "--data-binary " ++ shellEscape (C8.unpack bs)
-      HTTP.RequestBodyBuilder _ _ -> "--data-binary '<builder>'"
-      _ -> ""
+      HTTP.RequestBodyLBS lbs -> dataBinary (C8.unpack $ L.toStrict lbs)
+      HTTP.RequestBodyBS bs -> dataBinary (C8.unpack bs)
+      _ ->
+        -- this won't work
+        "--data-binary '<unsupported body type>'"
 
+    dataBinary :: String -> String
+    dataBinary "" = ""
+    dataBinary raw =
+      case Aeson.decode @Aeson.Value (cs raw) of
+        -- For JSON bodies, pass the payload directly, properly shell-escaped.
+        Just _val ->
+          "--data-binary " <> shellEscape raw
+        -- For non-JSON (potentially binary) bodies, use a base64 literal
+        -- and decode it at runtime via a valid command substitution.
+        Nothing ->
+          let b64 :: String
+              b64 = cs (Base64.encode (cs raw))
+           in "--data-binary \"$(printf %s " <> shellEscape b64 <> " | base64 -d)\""
+
+    -- this is probably used wrong, and there are still some escape
+    -- issues to be solved.  but it should be safe as long as we're
+    -- only using it in our own integration tests, right?
     shellEscape :: String -> String
     shellEscape s = "'" ++ concatMap escape s ++ "'"
       where
