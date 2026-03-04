@@ -34,8 +34,8 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 
-runInMemoryUserSubsytemInterpreter :: [StoredUser] -> InterpreterFor UserSubsystem r
-runInMemoryUserSubsytemInterpreter initialUsers =
+runInMemoryUserSubsystemInterpreter :: [StoredUser] -> InterpreterFor UserSubsystem r
+runInMemoryUserSubsystemInterpreter initialUsers =
   runInMemoryUserStoreInterpreter initialUsers
     . runInMemoryUserKeyStoreIntepreterWithStoredUsers initialUsers
     . inMemoryUserSubsystemInterpreter

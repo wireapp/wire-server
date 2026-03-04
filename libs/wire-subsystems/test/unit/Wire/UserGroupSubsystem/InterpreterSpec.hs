@@ -110,7 +110,7 @@ interpretDependencies initialUsers initialTeams =
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
     . interpretTeamSubsystemToGalleyAPI
-    . runInMemoryUserSubsytemInterpreter initialUsers
+    . runInMemoryUserSubsystemInterpreter initialUsers
 
 runDependenciesWithReturnState ::
   [StoredUser] ->
@@ -129,7 +129,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
     . interpretTeamSubsystemToGalleyAPI
-    . runInMemoryUserSubsytemInterpreter initialUsers
+    . runInMemoryUserSubsystemInterpreter initialUsers
 
 expectRight :: (Show err) => Either err Property -> Property
 expectRight = \case
