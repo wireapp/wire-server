@@ -310,7 +310,7 @@ blockListInsertImpl = BlockList.insert . mkEmailKey
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
   mLangCountry <- UserStore.lookupLocale (tUnqualified luid)
-  defLocale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
+  defLocale <- inputs (.defaultLocale)
   pure (toLocale defLocale <$> mLangCountry)
 
 -- | Obtain user profiles for a list of users as they can be seen by
