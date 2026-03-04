@@ -53,7 +53,7 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.galley.image.repository }}-integration:{{ .Values.galley.image.tag }}"
-    {{- if eq (include "galley.includeSecurityContext" .) "true" }}
+    {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
       {{- toYaml .Values.galley.podSecurityContext | nindent 6 }}
     {{- end }}
