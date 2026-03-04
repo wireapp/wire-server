@@ -427,7 +427,7 @@ printAppFailureDetails env (AppFailure msg stack) = do
 
 renderCurlTrace :: IORef [String] -> IO [String]
 renderCurlTrace trace = do
-  verbosity <- getEnvironment >>= maybe (pure "") pure . lookup "WIRE_INTEGRATION_TEST_VERBOSITY"
+  verbosity <- fromMaybe "" <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
   if verbosity == "1"
     then ("HTTP trace in curl pseudo-syntax:" :) <$> readIORef trace
     else pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
