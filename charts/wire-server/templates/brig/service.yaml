@@ -17,8 +17,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.brig.service.externalPort }}
+      targetPort: {{ .Values.brig.service.internalPort }}
   selector:
     app: brig
     release: {{ .Release.Name }}

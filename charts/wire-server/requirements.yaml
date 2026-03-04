@@ -50,13 +50,6 @@ dependencies:
     - spar
     - haskellServices
     - services
-- name: brig
-  version: "0.0.42"
-  repository: "file://../brig"
-  tags:
-    - brig
-    - haskellServices
-    - services
 - name: nginz
   version: "0.0.42"
   repository: "file://../nginz"

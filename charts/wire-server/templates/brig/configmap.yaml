@@ -8,7 +8,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-  {{- with .Values.config }}
+  {{- with .Values.brig.config }}
   brig.yaml: |
     logNetStrings: {{ .logNetStrings }}
     logFormat: {{ .logFormat }}
@@ -28,13 +28,13 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useCassandraTLS" .) "true" }}
-      tlsCa: /etc/wire/brig/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- if eq (include "brig.useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/brig/cassandra/{{- (include "brig.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if hasKey $.Values.secrets  "pgPassword" }}
+    {{- if hasKey $.Values.brig.secrets  "pgPassword" }}
     postgresqlPassword: /etc/wire/brig/secrets/pgPassword
     {{- end }}
 
@@ -47,16 +47,16 @@ data:
       {{- if .elasticsearch.additionalWriteIndex }}
       additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
       {{- end }}
-      {{- if $.Values.secrets.elasticsearch }}
+      {{- if $.Values.brig.secrets.elasticsearch }}
       credentials: /etc/wire/brig/secrets/elasticsearch-credentials.yaml
       {{- end }}
-      {{- if eq (include "configureElasticSearchCa" .) "true" }}
-      caCert: /etc/wire/brig/elasticsearch-ca/{{ include "elasticsearchTlsSecretKey" .}}
+      {{- if eq (include "brig.configureElasticSearchCa" .) "true" }}
+      caCert: /etc/wire/brig/elasticsearch-ca/{{ include "brig.elasticsearchTlsSecretKey" .}}
       {{- end }}
-      {{- if eq (include "configureAdditionalElasticSearchCa" .) "true" }}
-      additionalCaCert: /etc/wire/brig/additional-elasticsearch-ca/{{ include "additionalElasticsearchTlsSecretKey" .}}
+      {{- if eq (include "brig.configureAdditionalElasticSearchCa" .) "true" }}
+      additionalCaCert: /etc/wire/brig/additional-elasticsearch-ca/{{ include "brig.additionalElasticsearchTlsSecretKey" .}}
       {{- end }}
-      {{- if $.Values.secrets.elasticsearchAdditional }}
+      {{- if $.Values.brig.secrets.elasticsearchAdditional }}
       additionalCredentials: /etc/wire/brig/secrets/elasticsearch-additional-credentials.yaml
       {{- end }}
       insecureSkipVerifyTls: {{ .elasticsearch.insecureSkipVerifyTls }}
@@ -226,16 +226,16 @@ data:
       {{- end }}
 
     turn:
-      {{- if eq $.Values.turn.serversSource "dns" }}
+      {{- if eq $.Values.brig.turn.serversSource "dns" }}
       serversSource: dns
-      baseDomain: {{ required ".turn.baseDomain must be configured if .turn.serversSource is set to dns" $.Values.turn.baseDomain  }}
-      discoveryIntervalSeconds: {{ $.Values.turn.discoveryIntervalSeconds }}
-      {{- else if eq $.Values.turn.serversSource "files" }}
+      baseDomain: {{ required ".turn.baseDomain must be configured if .turn.serversSource is set to dns" $.Values.brig.turn.baseDomain  }}
+      discoveryIntervalSeconds: {{ $.Values.brig.turn.discoveryIntervalSeconds }}
+      {{- else if eq $.Values.brig.turn.serversSource "files" }}
       serversSource: files
       servers: /etc/wire/brig/turn/turn-servers.txt
       serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
       {{- else }}
-      {{- fail (cat "Invalid value for .turn.serversSource, expected dns or files, got: " $.Values.turn.serversSource) }}
+      {{- fail (cat "Invalid value for .turn.serversSource, expected dns or files, got: " $.Values.brig.turn.serversSource) }}
       {{- end }}
       secret: /etc/wire/brig/secrets/turn-secret.txt
       configTTL: 3600 # 1 hour
@@ -251,7 +251,7 @@ data:
       {{- if .sftDiscoveryIntervalSeconds }}
       sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
       {{- end }}
-      {{- if $.Values.secrets.sftTokenSecret }}
+      {{- if $.Values.brig.secrets.sftTokenSecret }}
       sftToken:
         {{- with .sftToken }}
         ttl: {{ .ttl }}
@@ -358,13 +358,13 @@ data:
       {{- if .setDpopTokenExpirationTimeSecs }}
       setDpopTokenExpirationTimeSecs: {{ .setDpopTokenExpirationTimeSecs }}
       {{- end }}
-      {{- if $.Values.secrets.dpopSigKeyBundle }}
+      {{- if $.Values.brig.secrets.dpopSigKeyBundle }}
       setPublicKeyBundle: /etc/wire/brig/secrets/dpop_sig_key_bundle.pem
       {{- end }}
       {{- if .setEnableMLS }}
       setEnableMLS: {{ .setEnableMLS }}
       {{- end }}
-      {{- if $.Values.secrets.oauthJwkKeyPair }}
+      {{- if $.Values.brig.secrets.oauthJwkKeyPair }}
       setOAuthJwkKeyPair: /etc/wire/brig/secrets/oauth_ed25519.jwk
       {{- end }}
       {{- if .setOAuthAuthCodeExpirationTimeSecs }}

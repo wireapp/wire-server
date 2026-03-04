@@ -6,7 +6,7 @@ target_version=${1?$USAGE}
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 CHARTS_DIR="$TOP_LEVEL/.local/charts"
 
-charts=(brig cannon gundeck spar proxy cassandra-migrations elasticsearch-index federator backoffice integration wire-server-enterprise)
+charts=(cannon gundeck spar proxy cassandra-migrations elasticsearch-index federator backoffice integration wire-server-enterprise)
 
 for chart in "${charts[@]}"; do
     values_file="$CHARTS_DIR/$chart/values.yaml"
@@ -18,5 +18,5 @@ done
 # special case nginz
 sed -i "s/^    tag: .*/    tag: $target_version/g" "$CHARTS_DIR/nginz/values.yaml"
 
-# Galley, Cargohold, and BackgroundWorker are inlined into the umbrella chart.
+# Brig, Galley, Cargohold, and BackgroundWorker are inlined into the umbrella chart.
 sed -i "s/^    tag: .*/    tag: $target_version/g" "$CHARTS_DIR/wire-server/values.yaml"

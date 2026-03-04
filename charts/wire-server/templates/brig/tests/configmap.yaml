@@ -11,7 +11,7 @@ data:
       # Full URL is set so that there can be a common cookiedomain between nginz and brig
       # needed by some integration tests
       host: brig.{{ .Release.Namespace }}.svc.cluster.local
-      port: {{ .Values.service.internalPort }}
+      port: {{ .Values.brig.service.internalPort }}
 
     cannon:
       host: cannon
@@ -90,4 +90,4 @@ data:
         host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8081
 
-    additionalElasticSearch: https://{{ .Values.test.elasticsearch.additionalHost }}:9200
+    additionalElasticSearch: https://{{ .Values.brig.test.elasticsearch.additionalHost }}:9200

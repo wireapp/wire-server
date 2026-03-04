@@ -1,4 +1,4 @@
-{{- if eq $.Values.turn.serversSource "files" }}
+{{- if eq $.Values.brig.turn.serversSource "files" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,7 +10,7 @@ metadata:
     heritage: {{ .Release.Service }}
 data:
   turn-servers.txt: |2
-{{- include "turn-servers.txt" . | indent 4 }}
+{{- include "brig.turn-servers.txt" . | indent 4 }}
   turn-servers-v2.txt: |2
-{{- include "turn-servers-v2.txt" . | indent 4 }}
+{{- include "brig.turn-servers-v2.txt" . | indent 4 }}
 {{- end }}

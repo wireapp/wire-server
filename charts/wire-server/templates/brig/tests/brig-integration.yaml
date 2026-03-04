@@ -44,27 +44,27 @@ spec:
     - name: "brig-integration-secrets"
       secret:
         secretName: "brig-integration"
-    {{- if eq (include "configureElasticSearchCa" .Values.config) "true" }}
+    {{- if eq (include "brig.configureElasticSearchCa" .Values.brig.config) "true" }}
     - name: elasticsearch-ca
       secret:
-        secretName: {{ include "elasticsearchTlsSecretName" .Values.config }}
+        secretName: {{ include "brig.elasticsearchTlsSecretName" .Values.brig.config }}
     {{- end}}
-    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    {{- if eq (include "brig.useCassandraTLS" .Values.brig.config) "true" }}
     - name: "brig-cassandra"
       secret:
-        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+        secretName: {{ (include "brig.tlsSecretRef" .Values.brig.config | fromYaml).name }}
     {{- end}}
-    {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+    {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       secret:
-        secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+        secretName: {{ .Values.brig.config.rabbitmq.tlsCaSecretRef.name }}
     {{- end }}
   containers:
   - name: integration
-    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    image: "{{ .Values.brig.image.repository }}-integration:{{ .Values.brig.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+      {{- toYaml .Values.brig.podSecurityContext | nindent 6 }}
         {{- end }}
     # TODO: Add TURN tests once we have an actual way to test it
     # The brig-integration tests mutate the turn settings files before tests
@@ -85,7 +85,7 @@ spec:
         exit_code=$?
       fi
 
-      {{- if .Values.tests.config.uploadXml }}
+      {{- if .Values.brig.tests.config.uploadXml }}
       # In case a different S3 compliant storage is used to upload test result.
       if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
         export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
@@ -116,15 +116,15 @@ spec:
       #       non-default locations
       #       (see corresp. TODO in galley.)
       mountPath: "/etc/wire/integration-secrets"
-    {{- if eq (include "configureElasticSearchCa" .Values.config) "true" }}
+    {{- if eq (include "brig.configureElasticSearchCa" .Values.brig.config) "true" }}
     - name: elasticsearch-ca
       mountPath: "/etc/wire/brig/elasticsearch-ca"
     {{- end}}
-    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    {{- if eq (include "brig.useCassandraTLS" .Values.brig.config) "true" }}
     - name: "brig-cassandra"
       mountPath: "/etc/wire/brig/cassandra"
     {{- end }}
-    {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+    {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       mountPath: "/etc/wire/brig/rabbitmq-ca/"
     {{- end }}
@@ -143,10 +143,10 @@ spec:
       value: "guest"
     - name: TEST_XML
       value: /tmp/result.xml
-    {{- if .Values.tests.config.uploadXml }}
+    {{- if .Values.brig.tests.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
-      value: {{ .Values.tests.config.uploadXml.baseUrl }}
-    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+      value: {{ .Values.brig.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.brig.tests.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
