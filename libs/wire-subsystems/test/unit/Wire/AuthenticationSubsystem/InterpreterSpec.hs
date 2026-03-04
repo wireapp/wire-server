@@ -219,7 +219,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               runAllEffects testDomain [user] Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
-         in (user.status /= Just Active && user.status /= Nothing) ==>
+         in (isJust user.status && user.status /= Just Active) ==>
               createPasswordResetCodeResult === Right ()
 
     prop "reset code is not generated for when there is no user for the email" $
