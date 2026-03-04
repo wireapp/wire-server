@@ -1,0 +1,6 @@
+Progressively move away from singletons to type class to allow progressive migration to `wire-subsystems` of Galley's actions.
+Refactoring performed:
+
+* introduce specific wrapper functions for `updateLocalConversation` instead of using type applications.
+* inline `performAction` callback in `updateLocalConversation*` wrapper functions.
+* creating a local type class for actions and constraints

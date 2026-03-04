@@ -1424,7 +1424,8 @@ removeMemberFromChannel ::
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error NoChanges) r
   ) =>
   Qualified UserId ->
   Local StoredConversation ->
