@@ -36,11 +36,15 @@ data NewApp = NewApp
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
-data GetApp = GetApp
-  { name :: Name,
-    pict :: Pict,
+data GetApp = GetApp -- TODO: call this `App`
+  { -- TODO: user :: User,  -- now we don't need name, pict, assets, accentId
+    name :: Name,
+    pict :: Pict, -- TODO: deprecated, use assets instead!
     assets :: [Asset],
     accentId :: ColourId,
+    -- Meta is a little like `RichInfo`, but for apps.  Makes a difference in UI, mostly.
+    -- TODO: make sure clients don't expect this and remove it from V15.
+    -- TODO: if we keep it: impose size limit the same way as with 'RichInfo'.
     meta :: A.Object,
     category :: Category,
     description :: Range 0 300 Text
@@ -59,7 +63,7 @@ data PutApp = PutApp
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
 
-data Category
+data Category -- TODO: make this a string?  or find out why clients don't allow for lists of arbitrary strings?
   = Security
   | Collaboration
   | Productivity
@@ -164,7 +168,7 @@ instance ToSchema PutApp where
         <*> (.description) .= maybe_ (optField "description" schema)
 
 data CreatedApp = CreatedApp
-  { user :: User,
+  { user :: User, -- TODO: change this to `app :: App` (previously GetApp),
     cookie :: SomeUserToken
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp

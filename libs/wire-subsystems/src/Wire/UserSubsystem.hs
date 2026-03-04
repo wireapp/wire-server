@@ -127,6 +127,8 @@ data UserSubsystem m a where
   -- `([Qualified ([UserId], FederationError)], [UserProfile]) -> ([(Qualified UserId,
   -- FederationError)], [UserProfile])` to maintain API compatibility.)
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
+  -- | Like `GetUserProfilesWithErrors`, but includes app info for local users of type app.
+  GetUserProfilesWithErrorsWithAppInfo :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfileWithAppInfo])
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | Get the union of all user accounts matching the `GetBy` argument *and* having a non-empty UserIdentity.
