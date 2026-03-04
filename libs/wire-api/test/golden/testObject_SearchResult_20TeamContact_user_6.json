@@ -12,10 +12,11 @@
             "role": "owner",
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000000-0000-0000-0000-000000000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -29,10 +30,11 @@
             "role": "owner",
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": null,
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": null,
@@ -46,10 +48,11 @@
             "role": null,
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000000-0000-0001-0000-000100000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -63,10 +66,11 @@
             "role": "owner",
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000000-0000-0000-0000-000000000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -80,13 +84,14 @@
             "role": null,
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": {
                 "issuer": "https://example.com/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": null,
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": null,
@@ -100,10 +105,11 @@
             "role": "member",
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000001-0000-0001-0000-000100000001",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -117,10 +123,11 @@
             "role": "admin",
             "saml_idp": null,
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": null,
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -134,13 +141,14 @@
             "role": null,
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+            "searchable": true,
             "sso": {
                 "issuer": "https://example.com/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": "00000001-0000-0001-0000-000100000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": null,
@@ -154,10 +162,11 @@
             "role": "partner",
             "saml_idp": null,
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000000-0000-0001-0000-000100000001",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -171,10 +180,11 @@
             "role": "owner",
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+            "searchable": true,
             "sso": null,
             "team": "00000001-0000-0001-0000-000000000001",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -188,10 +198,11 @@
             "role": "member",
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000001-0000-0000-0000-000000000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -205,13 +216,14 @@
             "role": "partner",
             "saml_idp": "",
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+            "searchable": true,
             "sso": {
                 "issuer": "https://example.com/issuer/123",
                 "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": "00000001-0000-0001-0000-000100000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -225,10 +237,11 @@
             "role": "partner",
             "saml_idp": null,
             "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+            "searchable": true,
             "sso": null,
             "team": null,
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         }
     ],
     "found": -4,

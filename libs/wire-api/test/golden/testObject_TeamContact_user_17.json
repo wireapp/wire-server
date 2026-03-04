@@ -8,13 +8,14 @@
     "managed_by": "wire",
     "name": "/MB",
     "role": "owner",
-    "saml_idp": "𡭄",
+    "saml_idp": "\ud846\udf44",
     "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+    "searchable": true,
     "sso": {
         "issuer": "https://example.com/issuer/123",
         "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
     },
     "team": "00000002-0000-0000-0000-000200000001",
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }
