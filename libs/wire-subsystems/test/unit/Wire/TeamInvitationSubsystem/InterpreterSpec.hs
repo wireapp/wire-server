@@ -225,7 +225,6 @@ spec = do
 
     prop "try to invite to blocked domain" $
       \(tid :: TeamId)
-       -- (domain :: Domain)
        (preExistingPersonalAccount :: Maybe StoredUser)
        (preExistingInviteeEmail :: EmailAddress)
        (inviterNoEmail :: StoredUser)
@@ -241,7 +240,6 @@ spec = do
                   StoredUser
 
           blockedEmailDomain <- anyElementOf blockedDomains
-          -- inviter <- arbitrary @StoredUser `suchThat` hasEmailIdentity
 
           let blockedEmailAddress :: EmailAddress =
                 unsafeEmailAddress
