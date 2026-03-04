@@ -6,12 +6,13 @@
     "handle": "S",
     "id": "00000002-0000-0002-0000-000100000001",
     "managed_by": "scim",
-    "name": "\u001a󰈀P",
+    "name": "\u001a\udb80\ude00P",
     "role": "member",
-    "saml_idp": "󲥹\u0007",
+    "saml_idp": "\udb8a\udd79\u0007",
     "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+    "searchable": true,
     "sso": null,
     "team": "00000000-0000-0002-0000-000200000000",
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }
