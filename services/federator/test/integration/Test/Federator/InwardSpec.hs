@@ -70,7 +70,7 @@ spec env =
         brig <- view teBrig <$> ask
         user <- randomUser brig
 
-        let expectedProfile = mkUserProfile EmailVisibleToSelf UserTypeRegular user UserLegalHoldNoConsent
+        let expectedProfile = mkUserProfile EmailVisibleToSelf user UserLegalHoldNoConsent
         bdy <-
           responseJsonError
             =<< inwardCall "/federation/brig/get-users-by-ids" (encode [userId user])
