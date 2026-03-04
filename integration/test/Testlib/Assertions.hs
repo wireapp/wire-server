@@ -51,7 +51,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
-import System.Environment (getEnvironment)
+import System.Environment
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
@@ -427,10 +427,12 @@ printAppFailureDetails env (AppFailure msg stack) = do
 
 renderCurlTrace :: IORef [String] -> IO [String]
 renderCurlTrace trace = do
-  verbosity <- fromMaybe "" <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
-  if verbosity == "1"
-    then ("HTTP trace in curl pseudo-syntax:" :) <$> readIORef trace
-    else pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
+  isTestVerbose >>= \case
+    True -> ("HTTP trace in curl pseudo-syntax:" :) <$> readIORef trace
+    False -> pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
+
+isTestVerbose :: (MonadIO m) => m Bool
+isTestVerbose = liftIO $ maybe False (== "1") <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
 
 prettyContext :: String -> String
 prettyContext ctx = do

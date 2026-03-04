@@ -18,7 +18,7 @@
 module Testlib.HTTP where
 
 import qualified Control.Exception as E
-import Control.Monad (when)
+import Control.Monad.Extra (whenM)
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -45,7 +45,6 @@ import Network.HTTP.Types (hContentLength, hLocation)
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.URI (parseQuery)
 import Network.URI (URI (..), URIAuth (..), parseURI)
-import System.Environment
 import Testlib.Assertions
 import Testlib.Env
 import Testlib.JSON
@@ -241,8 +240,7 @@ submit method req0 = do
       body = L.toStrict (HTTP.responseBody response)
       status = HTTP.statusCode (HTTP.responseStatus response)
       headers = HTTP.responseHeaders response
-  verbosity <- liftIO $ fmap (fromMaybe "") (lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY")
-  when (verbosity == "1") do
+  whenM isTestVerbose do
     curl <- asks (.curlTrace)
     liftIO $ modifyIORef' curl (<> [requestToCurl request, "# ==> " <> show (status, body, headers), ""])
   pure Response {..}
