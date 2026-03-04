@@ -65,11 +65,9 @@ import Wire.SessionStore
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserStore
-import Wire.UserSubsystem (UserSubsystem)
 
 type AllEffects =
   [ AuthenticationSubsystem,
-    UserSubsystem,
     Events,
     Error AuthenticationSubsystemError,
     Error RateLimitExceeded,
@@ -127,7 +125,6 @@ runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
         . runErrorUnsafe
         . runError
         . miniEventInterpreter
-        . inMemoryUserSubsystemInterpreter
         . interpretAuthenticationSubsystem inMemoryUserSubsystemInterpreter
 
 toInputPassword :: PlainTextPassword8 -> PlainTextPassword6
