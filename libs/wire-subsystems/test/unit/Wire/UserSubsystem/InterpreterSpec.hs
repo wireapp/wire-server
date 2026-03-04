@@ -164,7 +164,11 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
-                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
+                        ( case (targetUser.userType, targetUser.serviceId) of
+                            (Just t, _) -> t
+                            (Nothing, Just _) -> UserTypeBot
+                            (Nothing, Nothing) -> UserTypeRegular
+                        )
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -181,7 +185,11 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfile
                 === [ mkUserProfile
                         (fmap (const Nothing) config.emailVisibilityConfig)
-                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
+                        ( case (targetUser.userType, targetUser.serviceId) of
+                            (Just t, _) -> t
+                            (Nothing, Just _) -> UserTypeBot
+                            (Nothing, Nothing) -> UserTypeRegular
+                        )
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -1130,6 +1138,6 @@ spec = describe "UserSubsystem.Interpreter" do
                         contactName = fromName searchee.name,
                         contactHandle = fromHandle <$> searchee.handle,
                         contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId,
-                        contactType = UserTypeRegular
+                        contactType = fromMaybe UserTypeRegular searchee.userType
                       }
               pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]
