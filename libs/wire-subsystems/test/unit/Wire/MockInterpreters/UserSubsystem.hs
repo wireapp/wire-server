@@ -17,35 +17,56 @@
 
 module Wire.MockInterpreters.UserSubsystem where
 
+import Control.Monad.Trans.Maybe (MaybeT (..))
+import Data.Domain
+import Data.LanguageCodes
 import Data.LegalHold
 import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.User
+import Wire.MockInterpreters.UserKeyStore
+import Wire.MockInterpreters.UserStore
+import Wire.StoredUser
+import Wire.UserKeyStore (UserKeyStore)
+import Wire.UserKeyStore qualified as UserKeyStore
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 
-userSubsystemTestInterpreter :: [User] -> InterpreterFor UserSubsystem r
-userSubsystemTestInterpreter initialUsers =
+runInMemoryUserSubsystemInterpreter :: [StoredUser] -> InterpreterFor UserSubsystem r
+runInMemoryUserSubsystemInterpreter initialUsers =
+  runInMemoryUserStoreInterpreter initialUsers
+    . runInMemoryUserKeyStoreIntepreterWithStoredUsers initialUsers
+    . inMemoryUserSubsystemInterpreter
+    . raiseUnder
+    . raiseUnder
+
+testDomain :: Domain
+testDomain = Domain "test.example"
+
+testLocale :: Locale
+testLocale = Locale (Language EN) Nothing
+
+inMemoryUserSubsystemInterpreter :: (Member UserStore r, Member UserKeyStore r) => InterpreterFor UserSubsystem r
+inMemoryUserSubsystemInterpreter =
   interpret \case
-    GetAccountsByEmailNoFilter (tUnqualified -> emails) ->
-      pure $
-        filter
-          (\u -> userEmail u `elem` (Just <$> emails))
-          initialUsers
-    GetUserTeam uid -> pure $ do
-      user <- find (\u -> userId u == uid) initialUsers
-      user.userTeam
-    GetSelfProfile uid ->
-      pure . fmap SelfProfile $
-        find (\u -> qUnqualified u.userQualifiedId == tUnqualified uid) initialUsers
+    GetAccountsByEmailNoFilter (tUnqualified -> emails) -> do
+      uids <- catMaybes <$> traverse (UserKeyStore.lookupKey . UserKeyStore.mkEmailKey) emails
+      storedUsers <- UserStore.getUsers uids
+      pure $ mkUserFromStored testDomain testLocale <$> storedUsers
+    GetUserTeam uid -> runMaybeT do
+      user <- MaybeT $ UserStore.getUser uid
+      MaybeT $ pure user.teamId
+    GetSelfProfile uid -> do
+      SelfProfile . mkUserFromStored testDomain testLocale <$$> UserStore.getUser (tUnqualified uid)
     IsBlocked _ -> pure False
     GetUserProfiles _ _ -> error "GetUserProfiles: implement on demand (userSubsystemInterpreter)"
     GetUserProfilesWithErrors _ _ -> error "GetUserProfilesWithErrors: implement on demand (userSubsystemInterpreter)"
     GetLocalUserProfiles luids ->
-      let uids = qUnqualified $ tUntagged luids
-       in pure (toProfile <$> filter (\u -> userId u `elem` uids) initialUsers)
+      toProfile . mkUserFromStored testDomain testLocale <$$> UserStore.getUsers (tUnqualified luids)
     GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
-      pure (filter (\u -> userId u `elem` uids) initialUsers)
+      mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
     CheckHandle _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"

@@ -50,12 +50,14 @@ import Wire.MockInterpreters
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random
+import Wire.StoredUser
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserKeyStore
+import Wire.UserStore (UserStore)
 import Wire.UserSubsystem
 import Wire.Util
 
@@ -75,12 +77,14 @@ type AllEffects =
     State UTCTime,
     EmailSubsystem,
     State (Map EmailAddress [SentMail]),
-    UserSubsystem
+    UserSubsystem,
+    UserStore,
+    UserKeyStore
   ]
 
 data RunAllEffectsArgs = RunAllEffectsArgs
   { teams :: Map TeamId [TeamMember],
-    initialUsers :: [User],
+    initialUsers :: [StoredUser],
     constGuardResult :: Maybe DomainRegistration
   }
   deriving (Eq, Show)
@@ -88,7 +92,9 @@ data RunAllEffectsArgs = RunAllEffectsArgs
 runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either TeamInvitationSubsystemError a
 runAllEffects args =
   run
-    . userSubsystemTestInterpreter args.initialUsers
+    . runInMemoryUserKeyStoreIntepreterWithStoredUsers args.initialUsers
+    . runInMemoryUserStoreInterpreter args.initialUsers
+    . inMemoryUserSubsystemInterpreter
     . evalState mempty
     . noopEmailSubsystemInterpreter
     . evalState defaultTime
@@ -111,30 +117,38 @@ spec = do
     prop "honors dommain config from `brig.domain_registration`" $
       \(tid :: TeamId)
        (preDomRegUpd :: DomainRegistrationUpdate)
-       (preInviter :: User)
+       (preInviter :: StoredUser)
        (inviterEmail :: EmailAddress)
        (inviteeEmail :: EmailAddress)
-       (preExistingPersonalAccount :: Maybe User)
+       (preExistingPersonalAccount :: Maybe StoredUser)
        (preRegisteredDomain {- if Nothing, use invitee's email domain -} :: Maybe Domain)
        (sameTeam {- team id matches the team id in the domain registration -} :: Bool) ->
           let -- prepare the pre* prop args
               --
-              domRegUpd = preDomRegUpd & if sameTeam then setTeamId else id
+              domRegUpd = preDomRegUpd & if sameTeam then setTeamId else Imports.id
                 where
                   setTeamId upd = case upd.teamInvite of
                     Team _ -> DomainRegistrationUpdate upd.domainRedirect (Team tid)
                     _ -> upd
 
-              inviter = preInviter {userIdentity = Just $ EmailIdentity inviterEmail}
+              inviter =
+                preInviter
+                  { email = Just inviterEmail,
+                    activated = True,
+                    status = Just Active
+                  } ::
+                  StoredUser
 
               existingPersonalAccount =
                 preExistingPersonalAccount <&> \r ->
                   r
-                    { userIdentity = Just $ EmailIdentity inviteeEmail,
-                      userStatus = Active,
-                      userTeam = Nothing,
-                      userManagedBy = ManagedByWire
-                    }
+                    { email = Just inviteeEmail,
+                      activated = True,
+                      status = Just Active,
+                      teamId = Nothing,
+                      managedBy = Just ManagedByWire
+                    } ::
+                    StoredUser
 
               registeredDomain :: Domain
               registeredDomain = fromMaybe edom preRegisteredDomain
@@ -150,8 +164,8 @@ spec = do
                     blockedDomains = HashSet.empty
                   }
 
-              inviterUid = qUnqualified inviter.userQualifiedId
-              inviterLuid = let domain = qDomain inviter.userQualifiedId in toLocalUnsafe domain inviterUid
+              inviterUid = inviter.id
+              inviterLuid = toLocalUnsafe testDomain inviterUid
               inviterMember = mkTeamMember inviterUid fullPermissions Nothing UserLegalHoldDisabled
 
               invReq =
@@ -211,14 +225,21 @@ spec = do
 
     prop "try to invite to blocked domain" $
       \(tid :: TeamId)
-       (preExistingPersonalAccount :: Maybe User)
+       (preExistingPersonalAccount :: Maybe StoredUser)
        (preExistingInviteeEmail :: EmailAddress)
+       (inviterNoEmail :: StoredUser)
+       (inviterEmail :: EmailAddress)
        (emailUsername :: EmailUsername)
        (blockedDomains :: NonEmptyList Domain) -> do
-          let hasEmailIdentity user = isJust $ emailIdentity =<< userIdentity user
+          let inviter =
+                inviterNoEmail
+                  { email = Just inviterEmail,
+                    status = Just Active,
+                    activated = True
+                  } ::
+                  StoredUser
 
           blockedEmailDomain <- anyElementOf blockedDomains
-          inviter <- arbitrary @User `suchThat` hasEmailIdentity
 
           let blockedEmailAddress :: EmailAddress =
                 unsafeEmailAddress
@@ -241,18 +262,19 @@ spec = do
                     blockedDomains = (HashSet.fromList . getNonEmpty) blockedDomains
                   }
 
-              inviterUid = qUnqualified inviter.userQualifiedId
-              inviterLuid = let domain = qDomain inviter.userQualifiedId in toLocalUnsafe domain inviterUid
+              inviterUid = inviter.id
+              inviterLuid = toLocalUnsafe testDomain inviterUid
               inviterMember = mkTeamMember inviterUid fullPermissions Nothing UserLegalHoldDisabled
 
               existingPersonalAccount =
                 preExistingPersonalAccount <&> \r ->
                   r
-                    { userIdentity = Just $ EmailIdentity preExistingInviteeEmail,
-                      userStatus = Active,
-                      userTeam = Nothing,
-                      userManagedBy = ManagedByWire
-                    }
+                    { email = Just preExistingInviteeEmail,
+                      status = Just Active,
+                      teamId = Nothing,
+                      managedBy = Just ManagedByWire
+                    } ::
+                    StoredUser
 
               interpreterArgs =
                 RunAllEffectsArgs

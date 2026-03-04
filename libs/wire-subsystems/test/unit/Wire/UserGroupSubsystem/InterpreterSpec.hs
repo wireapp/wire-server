@@ -61,6 +61,7 @@ import Wire.MockInterpreters as Mock
 import Wire.NotificationSubsystem
 import Wire.Sem.Random qualified as Random
 import Wire.Sem.Random.Null qualified as Random
+import Wire.StoredUser
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
 import Wire.UserGroupSubsystem
@@ -82,11 +83,11 @@ type AllDependencies =
                 Error UserGroupSubsystemError
               ]
 
-runDependenciesFailOnError :: (HasCallStack) => [User] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
-runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) id . runDependencies usrs team
+runDependenciesFailOnError :: (HasCallStack) => [StoredUser] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
+runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) Imports.id . runDependencies usrs team
 
 runDependencies ::
-  [User] ->
+  [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
   Either UserGroupSubsystemError a
@@ -95,7 +96,7 @@ runDependencies initialUsers initialTeams =
 
 interpretDependencies ::
   forall r a.
-  [User] ->
+  [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem (AllDependencies `Append` r) a ->
   Sem ('[Error UserGroupSubsystemError] `Append` r) a
@@ -109,10 +110,10 @@ interpretDependencies initialUsers initialTeams =
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
     . interpretTeamSubsystemToGalleyAPI
-    . userSubsystemTestInterpreter initialUsers
+    . runInMemoryUserSubsystemInterpreter initialUsers
 
 runDependenciesWithReturnState ::
-  [User] ->
+  [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
   Either UserGroupSubsystemError ([Push], a)
@@ -128,7 +129,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . runInMemoryUserGroupStore def
     . miniGalleyAPIAccess initialTeams def
     . interpretTeamSubsystemToGalleyAPI
-    . userSubsystemTestInterpreter initialUsers
+    . runInMemoryUserSubsystemInterpreter initialUsers
 
 expectRight :: (Show err) => Either err Property -> Property
 expectRight = \case
@@ -164,7 +165,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             runDependenciesWithReturnState (allUsers team) (galleyTeam team)
               . interpretUserGroupSubsystem
               $ do
-                let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList members} :: NewUserGroup
+                let newUserGroup' = (newUserGroup newUserGroupName) {members = (.id) <$> V.fromList members} :: NewUserGroup
                 createdGroup <- createGroup (ownerId team) newUserGroup'
                 retrievedGroup <- getGroup (ownerId team) createdGroup.id_ False
                 now <- toUTCTimeMillis <$> get
@@ -234,19 +235,19 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList (allUsers team)} :: NewUserGroup
+            let newUserGroup' = (newUserGroup newUserGroupName) {members = (.id) <$> V.fromList (allUsers team)} :: NewUserGroup
                 [nonAdminUser] = someAdminsOrOwners 1 team
-            void $ createGroup (User.userId nonAdminUser) newUserGroup'
+            void $ createGroup (nonAdminUser.id) newUserGroup'
             unexpected
 
     prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
-      let othersWithoutTeamMembers = filter (\u -> u.userTeam /= Just team.tid) otherUsers
+      let othersWithoutTeamMembers = filter (\u -> u.teamId /= Just team.tid) otherUsers
        in notNull othersWithoutTeamMembers
             ==> expectLeft UserGroupMemberIsNotInTheSameTeam
               . runDependencies (allUsers team <> otherUsers) (galleyTeam team)
               . interpretUserGroupSubsystem
             $ do
-              let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList otherUsers} :: NewUserGroup
+              let newUserGroup' = (newUserGroup newUserGroupName) {members = (.id) <$> V.fromList otherUsers} :: NewUserGroup
               void $ createGroup (ownerId team) newUserGroup'
               unexpected
 
@@ -325,7 +326,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
     it "getGroups: q=<name>, returning 0, 1, 2 groups" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
-        let newGroups = [newUserGroup (either undefined id $ userGroupNameFromText name) | name <- ["1", "2", "2", "33"]]
+        let newGroups = [newUserGroup (either undefined Imports.id $ userGroupNameFromText name) | name <- ["1", "2", "2", "33"]]
         groups <- (\ng -> passTime 1 >> createGroup (ownerId team1) ng) `mapM` newGroups
 
         get0 <- getGroups (ownerId team1) def {searchString = Just "nope"}
@@ -347,7 +348,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
             . runDependencies (allUsers team1) (galleyTeam team1)
             . interpretUserGroupSubsystem
             $ do
-              let mkNewGroup = newUserGroup (either undefined id $ userGroupNameFromText "same name")
+              let mkNewGroup = newUserGroup (either undefined Imports.id $ userGroupNameFromText "same name")
                   mkGroup = passTime 1 >> createGroup (ownerId team1) mkNewGroup
 
               -- groups are only distinguished by creation date
@@ -435,7 +436,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
     it "getGroups (ordering)" $ do
       WithMods team1 :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam <- generate arbitrary
       runDependenciesFailOnError (allUsers team1) (galleyTeam team1) . interpretUserGroupSubsystem $ do
-        let mkGroup name = createGroup (ownerId team1) (newUserGroup $ either undefined id $ userGroupNameFromText name)
+        let mkGroup name = createGroup (ownerId team1) (newUserGroup $ either undefined Imports.id $ userGroupNameFromText name)
 
         -- construct groups such that there are groups with same name and different creation
         -- date and vice versa.  create names in random order (not alpha).  the digits are
@@ -538,10 +539,10 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
-            let newUserGroup' = (newUserGroup newUserGroupName) {members = User.userId <$> V.fromList (allUsers team)} :: NewUserGroup
+            let newUserGroup' = (newUserGroup newUserGroupName) {members = (.id) <$> V.fromList (allUsers team)} :: NewUserGroup
                 [nonAdminUser] = someAdminsOrOwners 1 team
             grp <- createGroup (ownerId team) newUserGroup'
-            void $ updateGroup (User.userId nonAdminUser) grp.id_ (UserGroupUpdate newUserGroupName2)
+            void $ updateGroup nonAdminUser.id grp.id_ (UserGroupUpdate newUserGroupName2)
             unexpected
 
   describe "DeleteGroup :: UserId -> UserGroupId -> UserGroupSubsystem m ()" $ do
@@ -608,7 +609,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
           $ do
             grp <- createGroup (ownerId team) (newUserGroup groupName)
             let [nonAdminUser] = someAdminsOrOwners 1 team
-            void $ deleteGroup (User.userId nonAdminUser) grp.id_
+            void $ deleteGroup nonAdminUser.id grp.id_
             unexpected
 
   describe "AddUser, RemoveUser :: UserId -> UserGroupId -> UserId -> UserGroupSubsystem m ()" $ do
@@ -621,23 +622,23 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 $ do
                   ug :: UserGroup <- createGroup (ownerId team) (newUserGroup newGroupName)
 
-                  addUser (ownerId team) ug.id_ (User.userId mbr1)
+                  addUser (ownerId team) ug.id_ mbr1.id
                   ugWithFirst <- getGroup (ownerId team) ug.id_ False
 
-                  addUser (ownerId team) ug.id_ (User.userId mbr1)
+                  addUser (ownerId team) ug.id_ mbr1.id
                   ugWithIdemP <- getGroup (ownerId team) ug.id_ False
 
-                  addUser (ownerId team) ug.id_ (User.userId mbr2)
+                  addUser (ownerId team) ug.id_ mbr2.id
                   ugWithSecond <- getGroup (ownerId team) ug.id_ False
 
-                  removeUser (ownerId team) ug.id_ (User.userId mbr1)
+                  removeUser (ownerId team) ug.id_ mbr1.id
                   ugWithoutFirst <- getGroup (ownerId team) ug.id_ False
-                  removeUser (ownerId team) ug.id_ (User.userId mbr1) -- idemp
+                  removeUser (ownerId team) ug.id_ mbr1.id -- idemp
                   let propertyCheck =
-                        ((.members) <$> ugWithFirst) === Just (Identity $ V.fromList [User.userId mbr1])
-                          .&&. ((.members) <$> ugWithIdemP) === Just (Identity $ V.fromList [User.userId mbr1])
-                          .&&. ((sort . V.toList . runIdentity . (.members)) <$> ugWithSecond) === Just (sort [User.userId mbr1, User.userId mbr2])
-                          .&&. ((.members) <$> ugWithoutFirst) === Just (Identity $ V.fromList [User.userId mbr2])
+                        ((.members) <$> ugWithFirst) === Just (Identity $ V.fromList [mbr1.id])
+                          .&&. ((.members) <$> ugWithIdemP) === Just (Identity $ V.fromList [mbr1.id])
+                          .&&. ((sort . V.toList . runIdentity . (.members)) <$> ugWithSecond) === Just (sort [mbr1.id, mbr2.id])
+                          .&&. ((.members) <$> ugWithoutFirst) === Just (Identity $ V.fromList [mbr2.id])
                   pure (ug, propertyCheck)
 
             assertUpdateEvent :: UserGroup -> Push -> Property
@@ -646,7 +647,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
                 push.origin === Just (ownerId team)
                   .&&. ugid === ug.id_
                   .&&. Set.fromList push.recipients
-                    === Set.fromList [Recipient {recipientUserId = User.userId user, recipientClients = RecipientClientsAll} | user <- allAdmins team]
+                    === Set.fromList [Recipient {recipientUserId = user.id, recipientClients = RecipientClientsAll} | user <- allAdmins team]
               _ -> counterexample ("Failed to decode push: " <> show push) False
          in case resultOrError of
               Left err -> counterexample ("Unexpected error: " <> show err) False
@@ -728,24 +729,24 @@ instance (ArbitraryWithMods mods a) => Arbitrary (WithMods mods a) where
 
 data ArbitraryTeam = ArbitraryTeam
   { tid :: TeamId,
-    owner :: (User, TeamMember),
-    members :: [(User, TeamMember)]
+    owner :: (StoredUser, TeamMember),
+    members :: [(StoredUser, TeamMember)]
   }
   deriving (Show, Eq)
 
 instance Arbitrary ArbitraryTeam where
   arbitrary = do
     tid <- arbitrary
-    let assignTeam u = u {userTeam = Just tid}
+    let assignTeam u = u {teamId = Just tid} :: StoredUser
     adminUser <- assignTeam <$> arbitrary
     adminMember <-
       arbitrary @TeamMember
         <&> (permissions .~ rolePermissions RoleOwner)
-        <&> (TM.userId .~ User.userId adminUser)
+        <&> (TM.userId .~ adminUser.id)
     otherUsers <- listOf' arbitrary
     otherUserWithMembers <- for otherUsers $ \u -> do
       mem <- arbitrary
-      pure (u, mem & TM.userId .~ User.userId u)
+      pure (u, mem & TM.userId .~ u.id)
     pure . ArbitraryTeam tid (adminUser, adminMember) $ map (first assignTeam) otherUserWithMembers
 
   shrink team =
@@ -755,13 +756,13 @@ instance Arbitrary ArbitraryTeam where
         let lessMembers = take (length team.members `div` 2) team.members
          in [team {members = lessMembers}]
 
-allUsers :: ArbitraryTeam -> [User]
+allUsers :: ArbitraryTeam -> [StoredUser]
 allUsers t = fst <$> t.owner : t.members
 
 ownerId :: ArbitraryTeam -> UserId
-ownerId t = User.userId (fst t.owner)
+ownerId t = (fst t.owner).id
 
-allAdmins :: ArbitraryTeam -> [User]
+allAdmins :: ArbitraryTeam -> [StoredUser]
 allAdmins t = fst <$> filter (isAdminOrOwner . (^. permissions) . snd) (t.owner : t.members)
 
 -- | The Map is required by the mock GalleyAPIAccess
@@ -771,10 +772,10 @@ galleyTeam t = galleyTeamWithExtra t []
 galleyTeamWithExtra :: ArbitraryTeam -> [TeamMember] -> Map TeamId [TeamMember]
 galleyTeamWithExtra t tm = Map.singleton t.tid $ tm <> map snd (t.owner : t.members)
 
-someAdminsOrOwners :: Int -> ArbitraryTeam -> [User]
+someAdminsOrOwners :: Int -> ArbitraryTeam -> [StoredUser]
 someAdminsOrOwners num team = someMembersWithRoles num team (Just [RoleMember, RoleExternalPartner])
 
-someMembersWithRoles :: (HasCallStack) => Int -> ArbitraryTeam -> Maybe [Role] -> [User]
+someMembersWithRoles :: (HasCallStack) => Int -> ArbitraryTeam -> Maybe [Role] -> [StoredUser]
 someMembersWithRoles num team mbRoles = result
   where
     result =

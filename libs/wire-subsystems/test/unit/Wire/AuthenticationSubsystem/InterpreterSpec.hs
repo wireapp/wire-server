@@ -23,6 +23,7 @@ import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Data.Range (rcast)
 import Data.Set qualified as Set
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time
@@ -38,9 +39,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains))
-import Wire.API.Password as Password
 import Wire.API.User
-import Wire.API.User qualified as User
 import Wire.API.User.Auth
 import Wire.API.User.Password
 import Wire.API.UserEvent
@@ -57,6 +56,7 @@ import Wire.MockInterpreters
 import Wire.MockInterpreters.Events as Event
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
+import Wire.PasswordStore qualified as PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
@@ -86,16 +86,16 @@ type AllEffects =
     TinyLog,
     EmailSubsystem,
     UserStore,
+    UserKeyStore,
     State [MiniEvent],
-    State [StoredUser],
     State (Map EmailAddress [SentMail]),
     State [StoredApp]
   ]
 
-runAllEffects :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
+runAllEffects :: Domain -> [StoredUser] -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
 runAllEffects domain users emailDomains action = snd $ runAllEffectsWithEventState domain users emailDomains action
 
-runAllEffectsWithEventState :: Domain -> [User] -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
+runAllEffectsWithEventState :: Domain -> [StoredUser] -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
 runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
   let cfg =
         defaultAuthenticationSubsystemConfig
@@ -105,9 +105,9 @@ runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
    in run
         . evalState mempty
         . evalState mempty
-        . evalState mempty
         . runState mempty
-        . inMemoryUserStoreInterpreter
+        . runInMemoryUserKeyStoreIntepreterWithStoredUsers preexistingUsers
+        . runInMemoryUserStoreInterpreter preexistingUsers
         . inMemoryEmailSubsystemInterpreter
         . discardTinyLogs
         . evalState mempty
@@ -125,14 +125,11 @@ runAllEffectsWithEventState localDomain preexistingUsers mAllowedEmailDomains =
         . runErrorUnsafe
         . runError
         . miniEventInterpreter
-        . interpretAuthenticationSubsystem (userSubsystemTestInterpreter preexistingUsers)
+        . interpretAuthenticationSubsystem inMemoryUserSubsystemInterpreter
 
-verifyPasswordPure :: PlainTextPassword' t -> Password -> Bool
-verifyPasswordPure plain hashed =
-  run
-    . noRateLimit
-    . staticHashPasswordInterpreter
-    $ verifyPassword (RateLimitIp (IpAddr "0.0.0.0")) plain hashed
+toInputPassword :: PlainTextPassword8 -> PlainTextPassword6
+toInputPassword pw8 =
+  PlainTextPassword' . rcast $ fromPlainTextPassword' pw8
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
@@ -141,48 +138,51 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (newPasswordHash, cookiesAfterReset) =
-              runAllEffects localDomain [user] Nothing $ do
-                forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
+            uid = user.id
+            eithRes =
+              runAllEffects testDomain [user] Nothing $ do
+                forM_ mPreviousPassword (hashPassword >=> PasswordStore.upsertHashedPassword uid)
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
                 createPasswordResetCode (mkEmailKey email)
                 (_, resetCode) <- expect1ResetPasswordEmail email
                 resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
-
-                (,) <$> lookupHashedPassword uid <*> listCookies uid
-         in mPreviousPassword /= Just newPassword ==>
-              (fmap (verifyPasswordPure newPassword) newPasswordHash === Just True)
-                .&&. (cookiesAfterReset === [])
+                (,,)
+                  <$> forM mPreviousPassword (verifyUserPassword uid . toInputPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
+                  <*> listCookies uid
+         in case eithRes of
+              Left e -> counterexample ("Unexpected Error: " <> show e) False
+              Right (mOldPasswordVerification, newPasswordVerification, cookiesAfterReset) ->
+                (maybe (property True) (\(verification, _) -> verification === False) mOldPasswordVerification)
+                  .&&. fst newPasswordVerification === True
+                  .&&. (cookiesAfterReset === [])
 
     prop "password reset should work with the returned password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (newPasswordHash, cookiesAfterReset) =
-              runAllEffects localDomain [user] Nothing $ do
-                forM_ mPreviousPassword (hashPassword >=> upsertHashedPassword uid)
+            uid = user.id
+            Right (newPasswordVerification, cookiesAfterReset) =
+              runAllEffects testDomain [user] Nothing $ do
+                forM_ mPreviousPassword (hashPassword >=> PasswordStore.upsertHashedPassword uid)
                 mapM_ (uncurry (insertCookie uid)) cookiesWithTTL
 
                 createPasswordResetCode (mkEmailKey email)
                 (passwordResetKey, resetCode) <- expect1ResetPasswordEmail email
                 resetPassword (PasswordResetIdentityKey passwordResetKey) resetCode newPassword
 
-                (,) <$> lookupHashedPassword uid <*> listCookies uid
+                (,) <$> verifyUserPassword uid (toInputPassword newPassword) <*> listCookies uid
          in mPreviousPassword /= Just newPassword ==>
-              (fmap (verifyPasswordPure newPassword) newPasswordHash === Just True)
+              (fst newPasswordVerification === True)
                 .&&. (cookiesAfterReset === [])
 
     prop "reset code is not generated when email is not in allow list" $
@@ -198,13 +198,12 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
       \email userNoEmail ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              runAllEffects localDomain [user] (Just [decodeUtf8 $ domainPart email]) $
+              runAllEffects testDomain [user] (Just [decodeUtf8 $ domainPart email]) $
                 createPasswordResetCode (mkEmailKey email)
          in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
               isRight createPasswordResetCodeResult
@@ -213,15 +212,14 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
       \email userNoEmail ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing
+                { email = Just email,
+                  emailUnvalidated = Nothing
                 }
-            localDomain = userNoEmail.userQualifiedId.qDomain
             createPasswordResetCodeResult =
-              runAllEffects localDomain [user] Nothing $
+              runAllEffects testDomain [user] Nothing $
                 createPasswordResetCode (mkEmailKey email)
                   <* expectNoEmailSent
-         in userStatus user /= Active ==>
+         in (isJust user.status && user.status /= Just Active) ==>
               createPasswordResetCodeResult === Right ()
 
     prop "reset code is not generated for when there is no user for the email" $
@@ -236,14 +234,13 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
       \email userNoEmail newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (newPasswordHash, mCaughtException) =
-              runAllEffects localDomain [user] Nothing $ do
+            uid = user.id
+            Right (newPasswordVerification, mCaughtException) =
+              runAllEffects testDomain [user] Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
                 (_, resetCode) <- expect1ResetPasswordEmail email
 
@@ -252,83 +249,88 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                 -- Reset password still works with previously generated reset code
                 resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
 
-                (,mCaughtExc) <$> lookupHashedPassword uid
-         in (fmap (verifyPasswordPure newPassword) newPasswordHash === Just True)
+                (,mCaughtExc) <$> verifyUserPassword uid (toInputPassword newPassword)
+         in (fst newPasswordVerification === True)
               .&&. (mCaughtException === Nothing)
 
     prop "reset code is not accepted after expiry" $
       \email userNoEmail oldPassword newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [user] Nothing $ do
-                upsertHashedPassword uid =<< hashPassword oldPassword
+            uid = user.id
+            Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
+              runAllEffects testDomain [user] Nothing $ do
+                PasswordStore.upsertHashedPassword uid =<< hashPassword oldPassword
                 createPasswordResetCode (mkEmailKey email)
                 (_, resetCode) <- expect1ResetPasswordEmail email
 
                 passTime (passwordResetCodeTtl + 1)
 
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
-                (,mCaughtExc) <$> lookupHashedPassword uid
+                (,,mCaughtExc)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
          in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
-              .&&. verifyPasswordProp oldPassword passwordInDB
+              .&&. fst oldPasswordVerification === True
+              .&&. fst newPasswordVerification === False
 
     prop "password reset is not allowed with arbitrary codes when no other codes exist" $
       \email userNoEmail resetCode oldPassword newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [user] Nothing $ do
-                upsertHashedPassword uid =<< hashPassword oldPassword
+            uid = user.id
+            Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
+              runAllEffects testDomain [user] Nothing $ do
+                PasswordStore.upsertHashedPassword uid =<< hashPassword oldPassword
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
-                (,mCaughtExc) <$> lookupHashedPassword uid
+                (,,mCaughtExc)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
          in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
-              .&&. verifyPasswordProp oldPassword passwordInDB
+              .&&. fst oldPasswordVerification === True
+              .&&. fst newPasswordVerification === False
 
     prop "password reset doesn't work if email is wrong" $
       \email wrongEmail userNoEmail resetCode oldPassword newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (passwordInDB, resetPasswordResult) =
-              runAllEffects localDomain [user] Nothing $ do
+            uid = user.id
+            Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
+              runAllEffects testDomain [user] Nothing $ do
                 hashAndUpsertPassword uid oldPassword
                 mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity wrongEmail) resetCode newPassword
-                (,mCaughtExc) <$> lookupHashedPassword uid
+                (,,mCaughtExc)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
          in email /= wrongEmail ==>
               resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetKey
-                .&&. verifyPasswordProp oldPassword passwordInDB
+                .&&. fst oldPasswordVerification === True
+                .&&. fst newPasswordVerification === False
 
     prop "only 3 wrong password reset attempts are allowed" $
       \email userNoEmail arbitraryResetCode oldPassword newPassword (Upto4 wrongResetAttempts) ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right (passwordHashInDB, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
-              runAllEffects localDomain [user] Nothing $ do
-                upsertHashedPassword uid =<< hashPassword oldPassword
+            uid = user.id
+            Right (oldPasswordVerification, newPasswordVerification, correctResetCode, wrongResetErrors, resetPassworedWithCorectCodeResult) =
+              runAllEffects testDomain [user] Nothing $ do
+                PasswordStore.upsertHashedPassword uid =<< hashPassword oldPassword
                 createPasswordResetCode (mkEmailKey email)
                 (_, generatedResetCode) <- expect1ResetPasswordEmail email
 
@@ -338,38 +340,39 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                       resetPassword (PasswordResetEmailIdentity email) arbitraryResetCode newPassword
 
                 mFinalResetErr <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) generatedResetCode newPassword
-                (,generatedResetCode,wrongResetErrs,mFinalResetErr) <$> lookupHashedPassword uid
+                (,,generatedResetCode,wrongResetErrs,mFinalResetErr)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
             expectedFinalResetResult =
               if wrongResetAttempts >= 3
                 then Just AuthenticationSubsystemInvalidPasswordResetCode
                 else Nothing
-            expectedFinalPassword =
+            assertPasswordVerification =
               if wrongResetAttempts >= 3
-                then oldPassword
-                else newPassword
+                then fst oldPasswordVerification === True .&&. fst newPasswordVerification === False
+                else fst oldPasswordVerification === False .&&. fst newPasswordVerification === True
          in correctResetCode /= arbitraryResetCode ==>
               wrongResetErrors == replicate wrongResetAttempts (Just AuthenticationSubsystemInvalidPasswordResetCode)
                 .&&. resetPassworedWithCorectCodeResult === expectedFinalResetResult
-                .&&. verifyPasswordProp expectedFinalPassword passwordHashInDB
+                .&&. assertPasswordVerification
 
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $
       \email userNoEmail newPassword ->
         let user =
               userNoEmail
-                { userIdentity = Just $ EmailIdentity email,
-                  userEmailUnvalidated = Nothing,
-                  userStatus = Active
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active
                 }
-            uid = User.userId user
-            localDomain = userNoEmail.userQualifiedId.qDomain
-            Right passwordHashInDB =
-              runAllEffects localDomain [user] Nothing $ do
+            uid = user.id
+            Right newPasswordVerification =
+              runAllEffects testDomain [user] Nothing $ do
                 void $ createPasswordResetCode (mkEmailKey email)
                 mLookupRes <- internalLookupPasswordResetCode (mkEmailKey email)
                 for_ mLookupRes $ \(_, resetCode) -> resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
-                lookupHashedPassword uid
-         in verifyPasswordProp newPassword passwordHashInDB
+                verifyUserPassword uid (toInputPassword newPassword)
+         in fst newPasswordVerification === True
   describe "newCookie" $ do
     prop "trivial attributes: plain user cookie" $
       \localDomain uid cid typ mLabel ->
@@ -476,11 +479,6 @@ newtype Upto4 = Upto4 Int
 
 instance Arbitrary Upto4 where
   arbitrary = Upto4 <$> elements [0 .. 4]
-
-verifyPasswordProp :: PlainTextPassword8 -> Maybe Password -> Property
-verifyPasswordProp plainTextPassword passwordHash =
-  counterexample ("Password doesn't match, plainText=" <> show plainTextPassword <> ", passwordHash=" <> show passwordHash) $
-    fmap (verifyPasswordPure plainTextPassword) passwordHash == Just True
 
 hashAndUpsertPassword :: (Member PasswordStore r) => UserId -> PlainTextPassword8 -> Sem r ()
 hashAndUpsertPassword uid password =

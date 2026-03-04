@@ -24,6 +24,7 @@ import Test.QuickCheck
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString
 import Wire.API.Locale
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (fullPermissions)
@@ -341,6 +342,7 @@ runInterpreters ::
        Email.EmailSubsystem,
        UserStore,
        State [StoredUser],
+       State (Map UserId Password),
        GalleyAPIAccess,
        Logger (Logger.Msg -> Logger.Msg),
        EmailSending,
@@ -351,13 +353,14 @@ runInterpreters ::
   IO ([Mail], [(Level, LByteString)], a)
 runInterpreters users teamMap teamTemplates branding action = do
   lr <- newLogRecorder
-  (mails, (_userState, res)) <-
+  (mails, res) <-
     runM
       . runState @[Mail] [] -- Use runState to capture and return the Mail state
       . recordingEmailSendingInterpreter
       . recordLogs lr
       . miniGalleyAPIAccess teamMap def
-      . runState @[StoredUser] users
+      . evalState @(Map UserId Password) mempty
+      . evalState @[StoredUser] users
       . inMemoryUserStoreInterpreter
       . emailSubsystemInterpreter undefined teamTemplates branding
       . interpretTeamSubsystemToGalleyAPI
