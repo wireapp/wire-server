@@ -39,7 +39,7 @@ while getopts ":h:s:" opt; do
 done
 shift $((OPTIND -1))
 
-if [ "$#" -ne 0 ]; then
+if [[ "$#" -ne 0 ]]; then
   echo "$USAGE" 1>&2
   exit 1
 fi
@@ -180,7 +180,7 @@ CURL_OUT=$(curl \
 
 SCIM_USER_REGISTER_TEAM=$(echo "$CURL_OUT" | jq -r .team)
 
-if [ "$SCIM_USER_REGISTER_TEAM" != "$TEAM_UUID" ]; then
+if [[ "$SCIM_USER_REGISTER_TEAM" != "$TEAM_UUID" ]]; then
     echo "unexpected error: user got assigned to no / the wrong team?!"
     echo "${CURL_OUT}"
     exit 1

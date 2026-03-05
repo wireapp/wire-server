@@ -56,7 +56,7 @@ while getopts ":o:e:p:v:t:c:h:" opt; do
 done
 shift $((OPTIND -1))
 
-if [ "$#" -ne 0 ]; then
+if [[ "$#" -ne 0 ]]; then
   echo "$USAGE" 1>&2
   exit 1
 fi

@@ -31,7 +31,7 @@ gen_ca() {
 gen_cert() {
   echo "generating certificate: $2"
   subj=()
-  if [ -n "$3" ]; then
+  if [[ -n "$3" ]]; then
     subj=(-subj "/CN=$3")
   fi
   openssl x509 -req -in <(openssl req -nodes -newkey rsa:2048 -keyout "$1/key.pem" -out /dev/stdout -subj "/" 2>/dev/null) -CA "$1/ca.pem" -CAkey "$1/ca-key.pem" "${subj[@]}" -out "$1/cert.pem" -set_serial 0 -days 3650 -extfile <( echo "extendedKeyUsage = serverAuth, clientAuth"; echo "subjectAltName = critical, $2" ) 2>/dev/null
@@ -42,10 +42,10 @@ gen_cert() {
 # Copy certificates into the target directory, using the given file names. If a
 # name is empty, the corresponding certificate is skipped.
 install_certs() {
-  if [ -n "$3" ]; then cp "$1/ca.pem" "$2/$3.pem"; fi
-  if [ -n "$4" ]; then cp "$1/ca-key.pem" "$2/$4.pem"; fi
-  if [ -n "$5" ]; then cp "$1/cert.pem" "$2/$5.pem"; fi
-  if [ -n "$6" ]; then cp "$1/key.pem" "$2/$6.pem"; fi
+  if [[ -n "$3" ]]; then cp "$1/ca.pem" "$2/$3.pem"; fi
+  if [[ -n "$4" ]]; then cp "$1/ca-key.pem" "$2/$4.pem"; fi
+  if [[ -n "$5" ]]; then cp "$1/cert.pem" "$2/$5.pem"; fi
+  if [[ -n "$6" ]]; then cp "$1/key.pem" "$2/$6.pem"; fi
 }
 
 # federation

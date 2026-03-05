@@ -43,7 +43,7 @@ function upstream() {
         fi
     done
     # shellcheck disable=SC2128
-    if [ -n "$servers" ]; then
+    if [[ -n "$servers" ]]; then
         echo '{"sft_servers_all": ['"${servers[*]}"']}' | jq >${new}
     else
         printf "" >>${new}

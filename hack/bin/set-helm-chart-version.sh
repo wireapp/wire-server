@@ -22,10 +22,10 @@ function write_versions() {
     update_chart Chart.yaml
 
     # update all dependencies, if any
-    if [ -e requirements.yaml ]; then
+    if [[ -e requirements.yaml ]]; then
         sed -e "s/  version: \".*\"/  version: \"$target_version\"/g" requirements.yaml > "$tempfile" && mv "$tempfile" requirements.yaml
         for dep in $(helm dependency list | grep -v NAME | awk '{print $1}'); do
-            if [ -d "$CHARTS_DIR/$dep" ] && [ "$chart" != "$dep" ]; then
+            if [[ -d "$CHARTS_DIR/$dep" ]] && [[ "$chart" != "$dep" ]]; then
                 (cd "$CHARTS_DIR/$dep" && write_versions "$target_version")
             fi
         done

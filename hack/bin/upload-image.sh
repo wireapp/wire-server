@@ -33,15 +33,15 @@ function retry {
     local attemptCount=1
     shift 1
 
-    while [ $attemptCount -le "$maxAttempts" ]; do
+    while [[ $attemptCount -le "$maxAttempts" ]]; do
         if "$@"; then
             break
         else
             local status=$?
-            if [ $attemptCount -lt "$maxAttempts" ]; then
+            if [[ $attemptCount -lt "$maxAttempts" ]]; then
                 echo "Command [$*] failed after attempt $attemptCount of $maxAttempts. Retrying in $secondsDelay second(s)." >&2
                 sleep $secondsDelay
-            elif [ $attemptCount -eq "$maxAttempts" ]; then
+            elif [[ $attemptCount -eq "$maxAttempts" ]]; then
                 echo "Command [$*] failed after $attemptCount attempt(s)" >&2
                 return $status
             fi

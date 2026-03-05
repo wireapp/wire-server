@@ -30,7 +30,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 log() {
-  if [ "$VERBOSE" -eq 1 ]; then
+  if [[ "$VERBOSE" -eq 1 ]]; then
     echo -e "${GREEN}[INFO]${NC} $*" >&2
   fi
 }
@@ -78,7 +78,7 @@ create_team_admin() {
   local body
   body=$(echo "$response" | head -n-1)
 
-  if [ "$http_code" != "201" ]; then
+  if [[ "$http_code" != "201" ]]; then
     log_error "Failed to create team admin (HTTP $http_code)"
     echo "$body" >&2
     return 1
@@ -89,7 +89,7 @@ create_team_admin() {
   local team_id
   team_id=$(echo "$body" | jq -r '.team')
 
-  if [ -z "$user_id" ] || [ "$user_id" = "null" ]; then
+  if [[ -z "$user_id" ]] || [[ "$user_id" = "null" ]]; then
     log_error "Failed to extract user ID from response"
     return 1
   fi
@@ -120,7 +120,7 @@ login() {
   local body
   body=$(echo "$response" | head -n-1)
 
-  if [ "$http_code" != "200" ]; then
+  if [[ "$http_code" != "200" ]]; then
     log_error "Login failed (HTTP $http_code)"
     echo "$body" >&2
     return 1
@@ -129,7 +129,7 @@ login() {
   local access_token
   access_token=$(echo "$body" | jq -r '.access_token')
 
-  if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+  if [[ -z "$access_token" ]] || [[ "$access_token" = "null" ]]; then
     log_error "Failed to extract access token from response"
     return 1
   fi
@@ -150,7 +150,7 @@ enable_channels() {
 
   local unlock_code
   unlock_code=$(echo "$unlock_response" | tail -n1)
-  if [ "$unlock_code" != "200" ]; then
+  if [[ "$unlock_code" != "200" ]]; then
     log_warn "Failed to unlock channels feature (HTTP $unlock_code), continuing anyway..."
   fi
 
@@ -167,7 +167,7 @@ enable_channels() {
   local body
   body=$(echo "$response" | head -n-1)
 
-  if [ "$http_code" != "200" ]; then
+  if [[ "$http_code" != "200" ]]; then
     log_error "Failed to enable channels feature (HTTP $http_code)"
     echo "$body" >&2
     return 1
@@ -206,7 +206,7 @@ create_user_group() {
   local body
   body=$(echo "$response" | head -n-1)
 
-  if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+  if [[ "$http_code" != "200" ]] && [[ "$http_code" != "201" ]]; then
     log_error "Failed to create user group (HTTP $http_code)"
     echo "$body" >&2
     return 1
@@ -215,7 +215,7 @@ create_user_group() {
   local group_id
   group_id=$(echo "$body" | jq -r '.id')
 
-  if [ -z "$group_id" ] || [ "$group_id" = "null" ]; then
+  if [[ -z "$group_id" ]] || [[ "$group_id" = "null" ]]; then
     log_error "Failed to extract group ID from response"
     return 1
   fi
@@ -313,7 +313,7 @@ main() {
 EOF
 
   log "Input file: $input_file"
-  if [ "$VERBOSE" -eq 1 ]; then
+  if [[ "$VERBOSE" -eq 1 ]]; then
     log "Contents:"
     cat "$input_file" >&2
   fi
@@ -328,7 +328,7 @@ EOF
   log "Running CLI tool via cabal"
 
   local cli_opts=()
-  if [ "$VERBOSE" -eq 1 ]; then
+  if [[ "$VERBOSE" -eq 1 ]]; then
     cli_opts+=("-v")
   fi
 
@@ -349,7 +349,7 @@ EOF
 
   local cli_exit_code=$?
 
-  if [ $cli_exit_code -ne 0 ]; then
+  if [[ $cli_exit_code -ne 0 ]]; then
     log_error "CLI tool failed with exit code $cli_exit_code"
     log_error "Output:"
     cat "$output_file" >&2
@@ -379,7 +379,7 @@ EOF
   local result_count
   result_count=$(echo "$result_groups" | wc -l)
 
-  if [ "$result_count" -ne 3 ]; then
+  if [[ "$result_count" -ne 3 ]]; then
     log_error "Expected 3 groups in results, got $result_count"
     rm -f "$input_file" "$output_file"
     exit 1
@@ -402,7 +402,7 @@ EOF
   log "Failed channels: $failed_channels"
   log "Successful associations: $successful_associations"
 
-  if [ "$successful_channels" -eq 0 ]; then
+  if [[ "$successful_channels" -eq 0 ]]; then
     log_error "No channels were created successfully"
     log "Full output:"
     jq '.' "$output_file" >&2
@@ -410,7 +410,7 @@ EOF
     exit 1
   fi
 
-  if [ "$successful_associations" -eq 0 ]; then
+  if [[ "$successful_associations" -eq 0 ]]; then
     log_error "No associations were successful"
     log "Full output:"
     jq '.' "$output_file" >&2
@@ -429,7 +429,7 @@ EOF
   log "Total Channels Created: $successful_channels/$total_channels"
   log "Successful Associations: $successful_associations/3"
 
-  if [ "$VERBOSE" -eq 1 ]; then
+  if [[ "$VERBOSE" -eq 1 ]]; then
     log ""
     log "=== Full Results ==="
     jq '.' "$output_file" >&2
