@@ -93,7 +93,7 @@ runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either TeamInvitationS
 runAllEffects args =
   run
     . runInMemoryUserKeyStoreIntepreterWithStoredUsers args.initialUsers
-    . runInMemoryUserStoreInterpreter args.initialUsers
+    . runInMemoryUserStoreInterpreter args.initialUsers mempty
     . inMemoryUserSubsystemInterpreter
     . evalState mempty
     . noopEmailSubsystemInterpreter

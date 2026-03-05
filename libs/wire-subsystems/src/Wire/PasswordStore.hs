@@ -25,8 +25,7 @@ import Polysemy
 import Wire.API.Password
 
 data PasswordStore m a where
-  UpsertHashedPassword :: UserId -> Password -> PasswordStore m ()
-  LookupHashedPassword :: UserId -> PasswordStore m (Maybe Password)
+  -- | FUTUREWORK: When we create ProviderStore, we should migrate this action to that.
   LookupHashedProviderPassword :: ProviderId -> PasswordStore m (Maybe Password)
 
 makeSem ''PasswordStore

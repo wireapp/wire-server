@@ -80,6 +80,7 @@ import Wire.API.Allowlists (AllowlistEmailDomains)
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.Member hiding (userId)
@@ -325,6 +326,7 @@ type StateEffects =
      State (Map EmailKey (Maybe UserId, ActivationCode)),
      State [EmailKey],
      State [StoredUser],
+     State (Map UserId Password),
      State UserGroupInMemState,
      State [StoredApp],
      State UserIndex,
@@ -347,6 +349,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
     . liftIndexedUserStoreState
     . liftAppStoreState
     . liftUserGroupStoreState
+    . liftUserPasswordState
     . liftUserStoreState
     . liftBlockListStoreState
     . liftActivationCodeStoreState
@@ -415,6 +418,7 @@ data MiniBackend = MkMiniBackend
   { -- | this is morally the same as the users stored in the actual backend
     --   invariant: for each key, the user.id and the key are the same
     users :: [StoredUser],
+    userPasswords :: Map UserId Password,
     apps :: [StoredApp],
     userIndex :: UserIndex,
     userKeys :: Map EmailKey UserId,
@@ -428,12 +432,13 @@ data MiniBackend = MkMiniBackend
     pushNotifications :: [Push],
     userGroups :: UserGroupInMemState
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Show, Generic)
 
 instance Default MiniBackend where
   def =
     MkMiniBackend
       { users = mempty,
+        userPasswords = mempty,
         apps = mempty,
         userIndex = emptyIndex,
         userKeys = mempty,
@@ -719,6 +724,11 @@ liftUserStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredUser] 
 liftUserStoreState = interpret $ \case
   Polysemy.State.Get -> gets (.users)
   Put newUsers -> modify $ \b -> (b :: MiniBackend) {users = newUsers}
+
+liftUserPasswordState :: (Member (State MiniBackend) r) => Sem (State (Map UserId Password) : r) a -> Sem r a
+liftUserPasswordState = interpret $ \case
+  Polysemy.State.Get -> gets (.userPasswords)
+  Put newPasswords -> modify $ \b -> (b :: MiniBackend) {userPasswords = newPasswords}
 
 liftAppStoreState :: (Member (State MiniBackend) r) => Sem (State [StoredApp] : r) a -> Sem r a
 liftAppStoreState = interpret $ \case

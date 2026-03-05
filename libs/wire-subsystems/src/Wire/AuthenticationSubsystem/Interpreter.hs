@@ -47,7 +47,7 @@ import Wire.EmailSubsystem
 import Wire.Events
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
-import Wire.PasswordStore (PasswordStore, upsertHashedPassword)
+import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore qualified as PasswordStore
 import Wire.RateLimit
 import Wire.Sem.Now
@@ -55,7 +55,8 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.SessionStore
 import Wire.UserKeyStore
-import Wire.UserStore
+import Wire.UserStore (UserStore)
+import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem, getLocalAccountBy)
 import Wire.UserSubsystem qualified as User
 
@@ -119,7 +120,6 @@ instance Exception PasswordResetError where
 authenticateEitherImpl ::
   ( Member UserStore r,
     Member HashPassword r,
-    Member PasswordStore r,
     Member RateLimit r
   ) =>
   UserId ->
@@ -127,7 +127,7 @@ authenticateEitherImpl ::
   Sem r (Either AuthError ())
 authenticateEitherImpl uid plaintext = do
   runError $
-    getUserAuthenticationInfo uid >>= \case
+    UserStore.getUserAuthenticationInfo uid >>= \case
       Nothing -> throw AuthInvalidUser
       Just (_, Deleted) -> throw AuthInvalidUser
       Just (_, Suspended) -> throw AuthSuspended
@@ -144,7 +144,7 @@ authenticateEitherImpl uid plaintext = do
     hashAndUpdatePwd pwd = do
       tryHashPassword6 rateLimitKey pwd >>= \case
         Left _ -> pure ()
-        Right hashed -> upsertHashedPassword uid hashed
+        Right hashed -> UserStore.upsertHashedPassword uid hashed
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If
@@ -161,7 +161,7 @@ reauthenticateEitherImpl ::
   Maybe (PlainTextPassword' t) ->
   Sem r (Either ReAuthError ())
 reauthenticateEitherImpl user plaintextMaybe =
-  getUserAuthenticationInfo user
+  UserStore.getUserAuthenticationInfo user
     >>= runError
       . \case
         Nothing -> throw (ReAuthError AuthInvalidUser)
@@ -296,8 +296,8 @@ resetPasswordImpl ::
     Member UserSubsystem r,
     Member HashPassword r,
     Member SessionStore r,
-    Member PasswordStore r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member UserStore r
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
@@ -314,7 +314,7 @@ resetPasswordImpl ident code pw = do
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
       hashedPw <- hashPassword8 rateLimitKey pw
-      PasswordStore.upsertHashedPassword uid hashedPw
+      UserStore.upsertHashedPassword uid hashedPw
       codeDelete key
       deleteAllCookies uid
   where
@@ -330,7 +330,7 @@ resetPasswordImpl ident code pw = do
 
     checkNewIsDifferent :: UserId -> PlainTextPassword' t -> Sem r ()
     checkNewIsDifferent uid newPassword = do
-      mCurrentPassword <- PasswordStore.lookupHashedPassword uid
+      mCurrentPassword <- UserStore.lookupHashedPassword uid
       case mCurrentPassword of
         Just currentPassword ->
           whenM (verifyPassword (RateLimitUser uid) newPassword currentPassword) $
@@ -369,25 +369,25 @@ verifyProviderPasswordImpl pid plaintext = do
   verifyPasswordWithStatus (RateLimitProvider pid) plaintext password
 
 verifyUserPasswordImpl ::
-  ( Member PasswordStore r,
-    Member (Error AuthenticationSubsystemError) r,
+  ( Member (Error AuthenticationSubsystemError) r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member UserStore r
   ) =>
   UserId ->
   PlainTextPassword6 ->
   Sem r (Bool, PasswordStatus)
 verifyUserPasswordImpl uid plaintext = do
   password <-
-    PasswordStore.lookupHashedPassword uid
+    UserStore.lookupHashedPassword uid
       >>= maybe (throw AuthenticationSubsystemBadCredentials) pure
   verifyPasswordWithStatus (RateLimitUser uid) plaintext password
 
 verifyUserPasswordErrorImpl ::
-  ( Member PasswordStore r,
-    Member (Error AuthenticationSubsystemError) r,
+  ( Member (Error AuthenticationSubsystemError) r,
     Member HashPassword r,
-    Member RateLimit r
+    Member RateLimit r,
+    Member UserStore r
   ) =>
   Local UserId ->
   PlainTextPassword6 ->

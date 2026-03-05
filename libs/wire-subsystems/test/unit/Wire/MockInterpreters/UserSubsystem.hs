@@ -19,11 +19,13 @@ module Wire.MockInterpreters.UserSubsystem where
 
 import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Domain
+import Data.Id
 import Data.LanguageCodes
 import Data.LegalHold
 import Data.Qualified
 import Imports
 import Polysemy
+import Wire.API.Password
 import Wire.API.User
 import Wire.MockInterpreters.UserKeyStore
 import Wire.MockInterpreters.UserStore
@@ -34,9 +36,9 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 
-runInMemoryUserSubsystemInterpreter :: [StoredUser] -> InterpreterFor UserSubsystem r
-runInMemoryUserSubsystemInterpreter initialUsers =
-  runInMemoryUserStoreInterpreter initialUsers
+runInMemoryUserSubsytemInterpreter :: [StoredUser] -> Map UserId Password -> InterpreterFor UserSubsystem r
+runInMemoryUserSubsytemInterpreter initialUsers passwords =
+  runInMemoryUserStoreInterpreter initialUsers passwords
     . runInMemoryUserKeyStoreIntepreterWithStoredUsers initialUsers
     . inMemoryUserSubsystemInterpreter
     . raiseUnder

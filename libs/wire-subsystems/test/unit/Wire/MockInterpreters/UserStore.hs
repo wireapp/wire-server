@@ -19,14 +19,17 @@
 
 module Wire.MockInterpreters.UserStore where
 
+import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.Handle
 import Data.Id
+import Data.Map qualified as Map
 import Data.Time
 import Data.Time.Calendar.OrdinalDate
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.State
+import Wire.API.Password
 import Wire.API.User hiding (DeleteUser)
 import Wire.API.User qualified as User
 import Wire.API.User.Search (SetSearchable (SetSearchable))
@@ -34,20 +37,27 @@ import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
-runInMemoryUserStoreInterpreter :: [StoredUser] -> InterpreterFor UserStore r
-runInMemoryUserStoreInterpreter initialUsers =
-  evalState initialUsers
+runInMemoryUserStoreInterpreter :: [StoredUser] -> Map UserId Password -> InterpreterFor UserStore r
+runInMemoryUserStoreInterpreter users passwords =
+  evalState users
+    . evalState passwords
     . inMemoryUserStoreInterpreter
+    . raiseUnder
     . raiseUnder
 
 inMemoryUserStoreInterpreter ::
   forall r.
-  (Member (State [StoredUser]) r) =>
+  ( Member (State [StoredUser]) r,
+    Member (State (Map UserId Password)) r
+  ) =>
   InterpreterFor UserStore r
 inMemoryUserStoreInterpreter = interpret $ \case
-  CreateUser new _ -> modify (newStoredUserToStoredUser new :)
-  GetUsers uids -> gets $ filter (\user -> user.id `elem` uids)
-  DoesUserExist uid -> gets (any (\u -> u.id == uid))
+  CreateUser new _ -> do
+    modify (newStoredUserToStoredUser new :)
+    forM_ new.password $ modify . Map.insert new.id
+  GetUsers uids -> do
+    gets $ filter (\user -> user.id `elem` uids)
+  DoesUserExist uid -> gets @[StoredUser] (any (\u -> u.id == uid))
   UpdateUser uid update -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser
@@ -85,7 +95,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
           else u
   UpdateSSOId uid ssoId -> do
     updateUserInStore uid (\u -> u {ssoId = ssoId})
-    gets (any (\u -> u.id == uid))
+    gets @[StoredUser] (any (\u -> u.id == uid))
   UpdateManagedBy uid managedBy -> updateUserInStore uid (\u -> u {managedBy = Just managedBy})
   UpdateAccountStatus uid accountStatus -> updateUserInStore uid (\u -> u {status = Just accountStatus})
   ActivateUser uid identity -> updateUserInStore uid (\u -> u {activated = True, email = emailIdentity identity})
@@ -118,7 +128,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
         us' <- f us
         put us'
   DeleteUser user -> modify @[StoredUser] $ filter (\u -> u.id /= User.userId user)
-  LookupName uid -> (.name) <$$> gets (find $ \u -> u.id == uid)
+  LookupName uid -> (.name) <$$> gets @[StoredUser] (find $ \u -> u.id == uid)
   LookupHandle h -> lookupHandleImpl h
   GlimpseHandle h -> lookupHandleImpl h
   LookupStatus uid -> lookupStatusImpl uid
@@ -131,7 +141,14 @@ inMemoryUserStoreInterpreter = interpret $ \case
   GetRichInfo _ -> error "GetRichInfo: not implemented"
   LookupRichInfos _ -> error "LookupRichInfos: not implemented"
   UpdateRichInfo {} -> error "UpdateRichInfo: Not implemented"
-  GetUserAuthenticationInfo _uid -> error "Not implemented"
+  UpsertHashedPassword uid pw ->
+    modify $ Map.insert uid pw
+  LookupHashedPassword uid ->
+    gets $ Map.lookup uid
+  GetUserAuthenticationInfo uid -> runMaybeT $ do
+    status <- MaybeT $ lookupStatusImpl uid
+    pw <- lift $ gets @(Map UserId Password) $ Map.lookup uid
+    pure (pw, status)
   DeleteEmail uid -> modify (map doUpdate)
     where
       doUpdate :: StoredUser -> StoredUser

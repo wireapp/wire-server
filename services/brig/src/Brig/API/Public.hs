@@ -180,7 +180,6 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
-import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
@@ -386,7 +385,6 @@ servantSitemap ::
     Member NotificationSubsystem r,
     Member Now r,
     Member PasswordResetCodeStore r,
-    Member PasswordStore r,
     Member PropertySubsystem r,
     Member PublicKeyBundle r,
     Member SFT r,
@@ -1171,12 +1169,11 @@ removeEmail = lift . liftSem . User.removeEmailEither >=> reint
       Left e -> lift . liftSem . throw $ e
       Right () -> pure Nothing
 
-checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
-checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
+checkPasswordExists :: (Member UserStore r) => UserId -> (Handler r) Bool
+checkPasswordExists = fmap isJust . lift . liftSem . UserStore.lookupHashedPassword
 
 changePassword ::
-  ( Member PasswordStore r,
-    Member UserStore r,
+  ( Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -1438,7 +1435,6 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
-    Member PasswordStore r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
