@@ -8,12 +8,12 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.gundeck.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxUnavailable: 0
-      maxSurge: {{ .Values.replicaCount }}
+      maxSurge: {{ .Values.gundeck.replicaCount }}
   selector:
     matchLabels:
       app: gundeck
@@ -24,11 +24,11 @@ spec:
         release: {{ .Release.Name }}
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
-        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print .Template.BasePath "/gundeck/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/gundeck/secret.yaml") . | sha256sum }}
     spec:
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      terminationGracePeriodSeconds: {{ .Values.gundeck.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ .Values.gundeck.serviceAccount.name }}
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"
@@ -40,50 +40,50 @@ spec:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
-        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
-            secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+            secretName: {{ .Values.gundeck.config.rabbitmq.tlsCaSecretRef.name }}
         {{- end }}
-        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+        {{- if eq (include "gundeck.useCassandraTLS" .Values.gundeck.config) "true" }}
         - name: "gundeck-cassandra"
           secret:
-            secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+            secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
         {{- end}}
-        {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+        {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
         - name: "redis-ca"
           secret:
-            secretName: {{ include "redisTlsSecretName" .Values.config }}
+            secretName: {{ include "gundeck.redisTlsSecretName" .Values.gundeck.config }}
         {{- end }}
-        {{- if eq (include "configureAdditionalRedisCa" .Values.config) "true" }}
+        {{- if eq (include "gundeck.configureAdditionalRedisCa" .Values.gundeck.config) "true" }}
         - name: "additional-redis-ca"
           secret:
-            secretName: {{ include "additionalRedisTlsSecretName" .Values.config }}
+            secretName: {{ include "gundeck.additionalRedisTlsSecretName" .Values.gundeck.config }}
         {{- end }}
       containers:
         - name: gundeck
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          image: "{{ .Values.gundeck.image.repository }}:{{ .Values.gundeck.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.gundeck.imagePullPolicy | quote }}
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
-            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+            {{- toYaml .Values.gundeck.podSecurityContext | nindent 12 }}
         {{- end }}
           volumeMounts:
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
-          {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+          {{- if eq (include "gundeck.useCassandraTLS" .Values.gundeck.config) "true" }}
           - name: "gundeck-cassandra"
             mountPath: "/etc/wire/gundeck/cassandra"
           {{- end }}
-          {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+          {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
           - name: "redis-ca"
             mountPath: "/etc/wire/gundeck/redis-ca/"
           {{- end }}
-          {{- if eq (include "configureAdditionalRedisCa" .Values.config) "true" }}
+          {{- if eq (include "gundeck.configureAdditionalRedisCa" .Values.gundeck.config) "true" }}
           - name: "additional-redis-ca"
             mountPath: "/etc/wire/gundeck/additional-redis-ca/"
           {{- end }}
-          {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+          {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/gundeck/rabbitmq-ca/"
           {{- end }}
@@ -98,7 +98,7 @@ spec:
               secretKeyRef:
                 name: gundeck
                 key: rabbitmqPassword
-          {{- if hasKey .Values.secrets "awsKeyId" }}
+          {{- if hasKey .Values.gundeck.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:
@@ -110,28 +110,28 @@ spec:
                 name: gundeck
                 key: awsSecretKey
           {{- end }}
-          {{- if hasKey .Values.secrets "redisUsername" }}
+          {{- if hasKey .Values.gundeck.secrets "redisUsername" }}
           - name: REDIS_USERNAME
             valueFrom:
               secretKeyRef:
                 name: gundeck
                 key: redisUsername
           {{- end }}
-          {{- if hasKey .Values.secrets "redisPassword" }}
+          {{- if hasKey .Values.gundeck.secrets "redisPassword" }}
           - name: REDIS_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: gundeck
                 key: redisPassword
           {{- end }}
-          {{- if hasKey .Values.secrets "redisAdditionalWriteUsername" }}
+          {{- if hasKey .Values.gundeck.secrets "redisAdditionalWriteUsername" }}
           - name: REDIS_ADDITIONAL_WRITE_USERNAME
             valueFrom:
               secretKeyRef:
                 name: gundeck
                 key: redisAdditionalWriteUsername
           {{- end }}
-          {{- if hasKey .Values.secrets "redisAdditionalWritePassword" }}
+          {{- if hasKey .Values.gundeck.secrets "redisAdditionalWritePassword" }}
           - name: REDIS_ADDITIONAL_WRITE_PASSWORD
             valueFrom:
               secretKeyRef:
@@ -139,8 +139,8 @@ spec:
                 key: redisAdditionalWritePassword
           {{- end }}
           - name: AWS_REGION
-            value: "{{ .Values.config.aws.region }}"
-          {{- with .Values.config.proxy }}
+            value: "{{ .Values.gundeck.config.aws.region }}"
+          {{- with .Values.gundeck.config.proxy }}
           {{- if .httpProxy }}
           - name: http_proxy
             value: {{ .httpProxy | quote }}
@@ -161,20 +161,20 @@ spec:
           {{- end }}
           {{- end }} 
           ports:
-            - containerPort: {{ .Values.service.internalPort }}
+            - containerPort: {{ .Values.gundeck.service.internalPort }}
           livenessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.gundeck.service.internalPort }}
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.gundeck.service.internalPort }}
           lifecycle:
             preStop:
               exec:
                 command: ["sh", "-c", "sleep 10"]
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+{{ toYaml .Values.gundeck.resources | indent 12 }}

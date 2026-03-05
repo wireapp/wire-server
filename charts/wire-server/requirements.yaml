@@ -22,13 +22,6 @@ dependencies:
     - backoffice
     - haskellServices
     - services
-- name: gundeck
-  version: "0.0.42"
-  repository: "file://../gundeck"
-  tags:
-    - gundeck
-    - haskellServices
-    - services
 - name: spar
   version: "0.0.42"
   repository: "file://../spar"

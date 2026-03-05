@@ -17,8 +17,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.gundeck.service.externalPort }}
+      targetPort: {{ .Values.gundeck.service.internalPort }}
   selector:
     app: gundeck
     release: {{ .Release.Name }}

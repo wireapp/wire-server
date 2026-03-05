@@ -13,20 +13,20 @@ spec:
     - name: "gundeck-config"
       configMap:
         name: "gundeck"
-    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    {{- if eq (include "gundeck.useCassandraTLS" .Values.gundeck.config) "true" }}
     - name: "gundeck-cassandra"
       secret:
-        secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+        secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
     {{- end}}
-    {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+    {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
     - name: "redis-ca"
       secret:
-        secretName: {{ include "redisTlsSecretName" .Values.config }}
+        secretName: {{ include "gundeck.redisTlsSecretName" .Values.gundeck.config }}
     {{- end }}
-    {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+    {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       secret:
-        secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+        secretName: {{ .Values.gundeck.config.rabbitmq.tlsCaSecretRef.name }}
     {{- end }}
   containers:
   - name: integration
@@ -44,7 +44,7 @@ spec:
         exit_code=$?
       fi
 
-      {{- if .Values.tests.config.uploadXml }}
+      {{- if .Values.gundeck.tests.config.uploadXml }}
       # In case a different S3 compliant storage is used to upload test result.
       if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
         export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
@@ -59,25 +59,25 @@ spec:
       {{- end }}
 
       exit $exit_code
-    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    image: "{{ .Values.gundeck.image.repository }}-integration:{{ .Values.gundeck.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
     securityContext:
-      {{- toYaml .Values.podSecurityContext | nindent 6 }}
+      {{- toYaml .Values.gundeck.podSecurityContext | nindent 6 }}
         {{- end }}
     volumeMounts:
     - name: "gundeck-integration"
       mountPath: "/etc/wire/integration"
     - name: "gundeck-config"
       mountPath: "/etc/wire/gundeck/conf"
-    {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+    {{- if eq (include "gundeck.useCassandraTLS" .Values.gundeck.config) "true" }}
     - name: "gundeck-cassandra"
       mountPath: "/etc/wire/gundeck/cassandra"
     {{- end }}
-    {{- if eq (include "configureRedisCa" .Values.config) "true" }}
+    {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
     - name: "redis-ca"
       mountPath: "/etc/wire/gundeck/redis-ca/"
     {{- end }}
-    {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+    {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       mountPath: "/etc/wire/gundeck/rabbitmq-ca/"
     {{- end }}
@@ -96,38 +96,38 @@ spec:
       value: "guest"
     - name: RABBITMQ_PASSWORD
       value: "guest"
-    {{- if hasKey .Values.secrets "redisUsername" }}
+    {{- if hasKey .Values.gundeck.secrets "redisUsername" }}
     - name: REDIS_USERNAME
       valueFrom:
         secretKeyRef:
           name: gundeck
           key: redisUsername
     {{- end }}
-    {{- if hasKey .Values.secrets "redisPassword" }}
+    {{- if hasKey .Values.gundeck.secrets "redisPassword" }}
     - name: REDIS_PASSWORD
       valueFrom:
         secretKeyRef:
           name: gundeck
           key: redisPassword
     {{- end }}
-    {{- if and (hasKey .Values.tests "secrets") (hasKey .Values.tests.secrets "redisAdditionalWriteUsername") }}
+    {{- if and (hasKey .Values.gundeck.tests "secrets") (hasKey .Values.gundeck.tests.secrets "redisAdditionalWriteUsername") }}
     - name: REDIS_ADDITIONAL_WRITE_USERNAME
       valueFrom:
         secretKeyRef:
           name: gundeck-integration
           key: redisAdditionalWriteUsername
     {{- end }}
-    {{- if and (hasKey .Values.tests "secrets") (hasKey .Values.tests.secrets "redisAdditionalWritePassword") }}
+    {{- if and (hasKey .Values.gundeck.tests "secrets") (hasKey .Values.gundeck.tests.secrets "redisAdditionalWritePassword") }}
     - name: REDIS_ADDITIONAL_WRITE_PASSWORD
       valueFrom:
         secretKeyRef:
           name: gundeck-integration
           key: redisAdditionalWritePassword
     {{- end }}
-    {{- if .Values.tests.config.uploadXml }}
+    {{- if .Values.gundeck.tests.config.uploadXml }}
     - name: UPLOAD_XML_S3_BASE_URL
-      value: {{ .Values.tests.config.uploadXml.baseUrl }}
-    {{- if .Values.tests.secrets.uploadXmlAwsAccessKeyId }}
+      value: {{ .Values.gundeck.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.gundeck.tests.secrets.uploadXmlAwsAccessKeyId }}
     - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:

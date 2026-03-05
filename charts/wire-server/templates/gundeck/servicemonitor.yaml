@@ -1,6 +1,6 @@
-{{- if gt (int .Values.replicaCount) 1 }}
-apiVersion: policy/v1
-kind: PodDisruptionBudget
+{{- if .Values.gundeck.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
 metadata:
   name: gundeck
   labels:
@@ -9,8 +9,11 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  maxUnavailable: {{ sub (int .Values.replicaCount) 1 }}
+  endpoints:
+    - port: http
+      path: /i/metrics
   selector:
     matchLabels:
       app: gundeck
+      release: {{ .Release.Name }}
 {{- end }}

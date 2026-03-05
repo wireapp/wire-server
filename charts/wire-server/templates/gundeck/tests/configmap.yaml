@@ -9,7 +9,7 @@ data:
   integration.yaml: |
     gundeck:
       host: gundeck
-      port: {{ .Values.service.internalPort }}
+      port: {{ .Values.gundeck.service.internalPort }}
 
     cannon:
       host: cannon

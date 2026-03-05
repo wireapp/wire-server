@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "gundeck"
 data:
-  {{- with .Values.config }}
+  {{- with .Values.gundeck.config }}
   gundeck.yaml: |
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
@@ -11,7 +11,7 @@ data:
 
     gundeck:
       host: 0.0.0.0
-      port: {{ $.Values.service.internalPort }}
+      port: {{ $.Values.gundeck.service.internalPort }}
 
     brig:
       host: brig
@@ -25,8 +25,8 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useCassandraTLS" .) "true" }}
-      tlsCa: /etc/wire/gundeck/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- if eq (include "gundeck.useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/gundeck/cassandra/{{- (include "gundeck.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     {{- with .rabbitmq }}
@@ -47,8 +47,8 @@ data:
       connectionMode: {{ .redis.connectionMode }}
       enableTls: {{ .redis.enableTls }}
       insecureSkipVerifyTls: {{ .redis.insecureSkipVerifyTls }}
-      {{- if eq (include "configureRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "redisTlsSecretKey" .}}
+      {{- if eq (include "gundeck.configureRedisCa" .) "true" }}
+      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "gundeck.redisTlsSecretKey" .}}
       {{- end }}
 
     {{- if .redisAdditionalWrite }}
@@ -58,8 +58,8 @@ data:
       connectionMode: {{ .redisAdditionalWrite.connectionMode }}
       enableTls: {{ .redisAdditionalWrite.enableTls }}
       insecureSkipVerifyTls: {{ .redisAdditionalWrite.insecureSkipVerifyTls }}
-      {{- if eq (include "configureAdditionalRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "additionalRedisTlsSecretKey" .}}
+      {{- if eq (include "gundeck.configureAdditionalRedisCa" .) "true" }}
+      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "gundeck.additionalRedisTlsSecretKey" .}}
       {{- end }}
     {{- end }}
 
