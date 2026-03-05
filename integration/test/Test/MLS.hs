@@ -1183,3 +1183,23 @@ testAddUsersDirectlyShouldFail = do
   addMembers alice conv def {users = [bob]} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
+
+testGroupIdParseError :: (HasCallStack) => App ()
+testGroupIdParseError = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  conv <- postConversation alice1 defMLS >>= getJSON 201
+  convId0 <- objConvId conv
+
+  -- break group ID
+  let convId = convId0 {groupId = fmap (\gid -> "k" <> tail gid) convId0.groupId} :: ConvId
+
+  createGroup def alice1 convId
+
+  mp <- createAddCommit alice1 convId [alice, bob]
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
+    msg <- resp.json %. "message" & asString
+    assertBool "unexpected error message" $ "Could not parse group ID:" `isPrefixOf` msg

@@ -133,5 +133,5 @@ getConvFromGroupId ::
   GroupId ->
   Sem r (ConvType, Qualified ConvOrSubConvId)
 getConvFromGroupId gid = case groupIdToConv gid of
-  Left e -> throw (mlsProtocolError (T.pack e))
+  Left e -> throw (mlsProtocolError ("Could not parse group ID: " <> T.pack e))
   Right (_, parts) -> pure (parts.convType, parts.qConvId)
