@@ -16,7 +16,7 @@ storageSize: 10G
 #  https://cassandra.apache.org/doc/stable/cassandra/configuration/cass_yaml_file.html#client_encryption_options
 client_encryption_options:
   enabled: false
-  optional: true
+  optional: false
   # The password could be secured better. However, this chart is meant to be
   # used as test setup. And, protecting a self-signed certificate isn't very
   # useful.

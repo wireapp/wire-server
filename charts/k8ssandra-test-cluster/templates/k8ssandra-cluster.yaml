@@ -7,6 +7,7 @@ spec:
   auth: false
   cassandra:
     serverVersion: "4.1.10"
+    serverImage: "docker.io/k8ssandra/cass-management-api:4.1.10-ubi"
     telemetry:
       prometheus:
         enabled: {{ .Values.prometheus.enabled }}
@@ -30,6 +31,9 @@ spec:
         client_encryption_options:
           enabled: {{ .Values.client_encryption_options.enabled }}
           optional: {{ .Values.client_encryption_options.optional }}
+        server_encryption_options:
+          internode_encryption: none
+
     datacenters:
         - metadata:
             name: datacenter-1
