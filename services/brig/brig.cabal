@@ -350,7 +350,6 @@ executable brig-integration
   other-modules:
     API.Calling
     API.Federation
-    API.Internal
     API.Metrics
     API.MLS.Util
     API.OAuth
@@ -371,7 +370,6 @@ executable brig-integration
     API.User.Handles
     API.User.RichInfo
     API.User.Util
-    API.UserPendingActivation
     Federation.End2end
     Federation.Util
     Index.Create

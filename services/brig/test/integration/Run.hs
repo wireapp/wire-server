@@ -22,7 +22,6 @@ where
 
 import API.Calling qualified as Calling
 import API.Federation qualified
-import API.Internal qualified
 import API.Metrics qualified as Metrics
 import API.OAuth qualified
 import API.Provider qualified as Provider
@@ -32,7 +31,6 @@ import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
 import API.Template qualified
 import API.User qualified as User
-import API.UserPendingActivation qualified as UserPendingActivation
 import Bilge hiding (header, host, port)
 import Bilge qualified
 import Brig.AWS qualified as AWS
@@ -115,11 +113,9 @@ runTests :: Config -> Opts.Opts -> [String] -> IO ()
 runTests iConf brigOpts otherArgs = do
   let b = mkVersionedRequest $ brig iConf
       c = mkVersionedRequest $ cannon iConf
-      gd = mkVersionedRequest $ gundeck iConf
       ch = mkVersionedRequest $ cargohold iConf
       g = mkVersionedRequest $ galley iConf
       n = mkVersionedRequest $ nginz iConf
-      s = mkVersionedRequest $ spar iConf
       f = federatorInternal iConf
       brigTwo = mkVersionedRequest $ remoteBrig (backendTwo iConf)
       cannonTwo = mkVersionedRequest $ remoteCannon (backendTwo iConf)
@@ -147,10 +143,8 @@ runTests iConf brigOpts otherArgs = do
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
-  userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationEnd2End <- Federation.End2end.spec brigOpts mg b g ch c f brigTwo galleyTwo ch2 cannonTwo
   federationEndpoints <- API.Federation.tests mg brigOpts b fedBrigClient
-  internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
   emailTemplates <- API.Template.tests brigOpts mg
 
   let smtp = SMTP.tests mg lg
@@ -167,10 +161,8 @@ runTests iConf brigOpts otherArgs = do
         metricsApi,
         settingsApi,
         createIndex,
-        userPendingActivation,
         browseTeam,
         federationEndpoints,
-        internalApi,
         smtp,
         oauthAPI,
         federationEnd2End,
