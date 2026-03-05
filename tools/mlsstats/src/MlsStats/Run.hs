@@ -69,7 +69,7 @@ run o = do
         $ Log.defSettings
     initCas casHost casPort casKeyspace l =
       C.init
-        . C.setLogger (C.mkLogger l)
+        . C.setLogger (C.mkLogger Nothing l)
         . C.setContacts casHost []
         . C.setPortNumber (fromIntegral casPort)
         . C.setProtocolVersion C.V4

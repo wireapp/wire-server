@@ -85,7 +85,7 @@ main = do
         $ Log.defSettings
     initCas cas l =
       C.init
-        . C.setLogger (C.mkLogger l)
+        . C.setLogger (C.mkLogger Nothing l)
         . C.setContacts (cHosts cas) []
         . C.setPortNumber (fromIntegral $ cPort cas)
         . C.setKeyspace (cKeyspace cas)

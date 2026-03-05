@@ -169,7 +169,7 @@ main = do
         $ Log.defSettings
     initCas settings l =
       C.init
-        . C.setLogger (C.mkLogger l)
+        . C.setLogger (C.mkLogger Nothing l)
         . C.setContacts settings.host []
         . C.setPortNumber (fromIntegral settings.port)
         . C.setKeyspace settings.keyspace
