@@ -95,7 +95,6 @@ import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem.Interpreter (TeamSubsystemConfig (..), interpretTeamSubsystem)
 import Wire.UserClientIndexStore.Cassandra
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
-import Wire.UserStore.Cassandra (interpretUserStoreCassandra)
 
 -- Helper functions for LegalHoldEnv
 -- Adapted from Galley.External.LegalHoldService.Internal
@@ -213,7 +212,6 @@ dispatchJob job = do
         . runInputConst legalHoldEnv
         . runInputConst (ExposeInvitationURLsAllowlist [])
         . interpretServiceStoreToCassandra env.cassandraBrig
-        . interpretUserStoreCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
         . interpretTeamFeatureStoreToCassandra
         . interpretUserClientIndexStoreToCassandra env.cassandraGalley
