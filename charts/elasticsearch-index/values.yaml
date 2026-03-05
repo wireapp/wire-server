@@ -67,7 +67,7 @@ podSecurityContext:
     type: RuntimeDefault
 
 migrateData:
-  addtionalVolumes: []
+  additionalVolumes: []
   additionalVolumeMounts: []
 
 secrets: {}
