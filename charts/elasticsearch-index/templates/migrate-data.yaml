@@ -58,13 +58,13 @@ spec:
             - --elasticsearch-insecure-skip-tls-verify
             {{- end }}
             - --pg-pool-size
-            - {{ .Values.postgresqlPool.size }}
+            - {{ .Values.postgresqlPool.size | quote }}
             - --pg-pool-acquisition-timeout
-            - {{ .Values.postgresqlPool.acquisitionTimeout }}
+            - {{ .Values.postgresqlPool.acquisitionTimeout | quote }}
             - --pg-pool-aging-timeout
-            - {{ .Values.postgresqlPool.agingTimeout }}
+            - {{ .Values.postgresqlPool.agingTimeout | quote }}
             - --pg-pool-idleness-timeout
-            - {{ .Values.postgresqlPool.idlenessTimeout }}
+            - {{ .Values.postgresqlPool.idlenessTimeout | quote }}
             {{- if hasKey $.Values.secrets  "pgPassword" }}
             - --pg-password-file
             - /etc/wire/elasticsearch-index/secrets/pgPassword
