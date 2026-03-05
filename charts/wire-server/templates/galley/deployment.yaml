@@ -59,7 +59,7 @@ spec:
       containers:
         - name: galley
           image: "{{ .Values.galley.image.repository }}:{{ .Values.galley.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          imagePullPolicy: {{ default "" .Values.galley.imagePullPolicy | quote }}
         {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
             {{- toYaml .Values.galley.podSecurityContext | nindent 12 }}
