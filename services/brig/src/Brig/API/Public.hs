@@ -1519,7 +1519,8 @@ activate ::
     Member UserSubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1535,7 +1536,8 @@ activateKey ::
     Member Events r,
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus

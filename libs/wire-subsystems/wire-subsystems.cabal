@@ -393,6 +393,7 @@ library
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.IndexUser
+    Wire.UserStore.Postgres
     Wire.UserStore.Unique
     Wire.UserSubsystem
     Wire.UserSubsystem.Error

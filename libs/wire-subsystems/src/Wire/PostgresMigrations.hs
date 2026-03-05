@@ -41,7 +41,8 @@ instance Exception PostgresMigrationError
 runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
-        Log.info logger $ Log.msg (Log.val "Running migrations")
+        Log.info logger $
+          Log.msg (Log.val "Running migrations")
         transaction Serializable Write $ do
           forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
             mErr <- runMigration migrationCmd

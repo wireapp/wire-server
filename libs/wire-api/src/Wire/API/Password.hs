@@ -74,11 +74,15 @@ instance Cql Password where
   fromCql (CqlBlob lbs) = parsePassword . Text.decodeUtf8 . toStrict $ lbs
   fromCql _ = Left "password: expected blob"
 
-  toCql pw = CqlBlob . fromStrict $ Text.encodeUtf8 encoded
-    where
-      encoded = case pw of
-        Argon2Password argon2pw -> encodeArgon2HashedPassword argon2pw
-        ScryptPassword scryptpw -> encodeScryptPassword scryptpw
+  toCql = CqlBlob . fromStrict . Text.encodeUtf8 . postgresMarshall
+
+instance PostgresMarshall Text Password where
+  postgresMarshall = \case
+    Argon2Password argon2pw -> encodeArgon2HashedPassword argon2pw
+    ScryptPassword scryptpw -> encodeScryptPassword scryptpw
+
+instance PostgresUnmarshall Text Password where
+  postgresUnmarshall = mapLeft Text.pack . parsePassword
 
 -------------------------------------------------------------------------------
 

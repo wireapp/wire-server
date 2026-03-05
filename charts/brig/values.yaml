@@ -104,6 +104,12 @@ config:
     agingTimeout: 1d
     idlenessTimeout: 10m
 
+  postgresMigration:
+    conversation: cassandra
+    conversationCodes: cassandra
+    teamFeatures: cassandra
+    user: cassandra
+
   emailSMS:
     general:
       templateBranding:

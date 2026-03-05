@@ -26,7 +26,7 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (AppT, adhocUserKeyStoreInterpreter, liftSem, qualifyLocal, wrapClientE)
+import Brig.App (AppT, liftSem, qualifyLocal, wrapClientE)
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
@@ -73,7 +73,8 @@ activateKey ::
   forall r.
   ( Member UserSubsystem r,
     Member PasswordResetCodeStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   ActivationKey ->
   ActivationCode ->
@@ -122,7 +123,7 @@ activateKey k c u = do
           lift . liftSem $ Password.codeDelete (mkPasswordResetKey uid)
           claim key uid
           lift $ updateEmailAndDeleteEmailUnvalidated uid (emailKeyOrig key)
-          for_ oldKey $ lift . adhocUserKeyStoreInterpreter . deleteKey
+          for_ oldKey $ lift . liftSem . deleteKey
           pure . Just $ EmailActivated uid (emailKeyOrig key)
       where
         updateEmailAndDeleteEmailUnvalidated :: UserId -> EmailAddress -> AppT r ()
@@ -131,7 +132,7 @@ activateKey k c u = do
 
     claim :: EmailKey -> UserId -> ExceptT ActivationError (AppT r) ()
     claim key uid = do
-      ok <- lift $ adhocUserKeyStoreInterpreter (claimKey key uid)
+      ok <- lift $ liftSem (claimKey key uid)
       unless ok $
         throwE . UserKeyExists . LT.fromStrict $
           fromEmail (emailKeyOrig key)

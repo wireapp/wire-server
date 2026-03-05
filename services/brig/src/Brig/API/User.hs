@@ -687,7 +687,8 @@ activate ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -702,7 +703,8 @@ activateNoVerifyEmailDomain ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -717,7 +719,8 @@ activateWithCurrency ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   Bool ->
   ActivationTarget ->

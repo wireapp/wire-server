@@ -371,7 +371,6 @@ executable brig-integration
     API.User.Handles
     API.User.RichInfo
     API.User.Util
-    API.UserPendingActivation
     Federation.End2end
     Federation.Util
     Index.Create
