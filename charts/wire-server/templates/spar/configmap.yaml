@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "spar"
 data:
-{{- with .Values.config }}
+{{- with .Values.spar.config }}
   spar.yaml: |
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
@@ -25,8 +25,8 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useCassandraTLS" .) "true" }}
-      tlsCa: /etc/wire/spar/cassandra/{{- (include "tlsSecretRef" . | fromYaml).key }}
+      {{- if eq (include "spar.useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/spar/cassandra/{{- (include "spar.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
     maxttlAuthreq: {{ .maxttlAuthreq }}
@@ -45,7 +45,7 @@ data:
       logLevel:    {{ .logLevel }}
 
       spHost: 0.0.0.0
-      spPort: {{ $.Values.service.externalPort }}
+      spPort: {{ $.Values.spar.service.externalPort }}
       {{- if .domainConfigs }}
       spDomainConfigs:
         {{- range $key, $value := .domainConfigs }}
@@ -62,5 +62,5 @@ data:
         {{- required "No multi-ingress: config.contacts required" .contacts | toYaml  | nindent 8 }}
       {{- end }}
 
-    scimBaseUri: {{ include "computeScimBaseUri" . | quote }}
+    scimBaseUri: {{ include "spar.computeScimBaseUri" . | quote }}
 {{- end }}

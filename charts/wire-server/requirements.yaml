@@ -22,13 +22,6 @@ dependencies:
     - backoffice
     - haskellServices
     - services
-- name: spar
-  version: "0.0.42"
-  repository: "file://../spar"
-  tags:
-    - spar
-    - haskellServices
-    - services
 - name: nginz
   version: "0.0.42"
   repository: "file://../nginz"

@@ -17,8 +17,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.spar.service.externalPort }}
+      targetPort: {{ .Values.spar.service.internalPort }}
   selector:
     app: spar
     release: {{ .Release.Name }}
