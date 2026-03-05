@@ -320,8 +320,6 @@ releases:
       - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/values-domain1.yaml.gotmpl'
     set:
-      - name: global.federationDomain
-        value: {{ .Values.federationDomain1 }}
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain1 }}
       - name: galley.config.settings.federationDomain
@@ -344,8 +342,6 @@ releases:
       - './helm_vars/wire-server/values.yaml.gotmpl'
       - './helm_vars/wire-server/values-domain2.yaml.gotmpl'
     set:
-      - name: global.federationDomain
-        value: {{ .Values.federationDomain2 }}
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain2 }}
       - name: galley.config.settings.federationDomain

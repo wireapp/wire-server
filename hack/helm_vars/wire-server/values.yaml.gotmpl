@@ -13,12 +13,6 @@ tags:
   sftd: false
   integration: true
 
-global:
-  # keep in sync with tags.federation
-  enableFederation: true
-  # See helmfile for the real value
-  federationDomain: integration.example.com
-
 cassandra-migrations:
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   cassandra:
