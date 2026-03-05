@@ -1,4 +1,4 @@
-{{- if .Values.service.nginz.enabled }}
+{{- if .Values.cannon.service.nginz.enabled }}
 # This service has to be exposed using type `LoadBalancer` to ensure that there
 # is no other pod between the load balancer and this service. This ensures that
 # only thing which disrupts the websocket connection is when a cannon pod gets
@@ -11,7 +11,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.service.nginz.name }}
+  name: {{ .Values.cannon.service.nginz.name }}
   labels:
     app: cannon
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -23,11 +23,11 @@ metadata:
     {{- else }}
     service.kubernetes.io/topology-aware-hints: auto
     {{- end }}
-    {{- if .Values.service.nginz.externalDNS.enabled }}
-    external-dns.alpha.kubernetes.io/ttl: {{ .Values.service.nginz.externalDNS.ttl | quote }}
-    external-dns.alpha.kubernetes.io/hostname: {{ required "Please provide .service.nginz.hostname when .service.nginz.enabled and .service.nginz.externalDNS.enabled are True" .Values.service.nginz.hostname | quote }}
+    {{- if .Values.cannon.service.nginz.externalDNS.enabled }}
+    external-dns.alpha.kubernetes.io/ttl: {{ .Values.cannon.service.nginz.externalDNS.ttl | quote }}
+    external-dns.alpha.kubernetes.io/hostname: {{ required "Please provide .service.nginz.hostname when .service.nginz.enabled and .service.nginz.externalDNS.enabled are True" .Values.cannon.service.nginz.hostname | quote }}
     {{- end }}
-{{ toYaml .Values.service.nginz.annotations | indent 4 }}
+{{ toYaml .Values.cannon.service.nginz.annotations | indent 4 }}
 spec:
   type: LoadBalancer
   # This ensures websocket traffic does not go from one kubernetes node to
@@ -36,8 +36,8 @@ spec:
   externalTrafficPolicy: "Local"
   ports:
     - name: http
-      port: {{ .Values.service.nginz.externalPort }}
-      targetPort: {{ .Values.service.nginz.internalPort }}
+      port: {{ .Values.cannon.service.nginz.externalPort }}
+      targetPort: {{ .Values.cannon.service.nginz.internalPort }}
       protocol: TCP
   selector:
     app: cannon

@@ -14,11 +14,11 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  serviceName: {{ .Values.service.name }}
+  serviceName: {{ .Values.cannon.service.name }}
   selector:
     matchLabels:
       app: cannon
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.cannon.replicaCount }}
   updateStrategy:
     type: RollingUpdate
   podManagementPolicy: Parallel
@@ -28,13 +28,13 @@ spec:
         app: cannon
         release: {{ .Release.Name }}
       annotations:
-        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- if .Values.service.nginz.enabled }}
-        checksum/nginz-configmap: {{ include (print .Template.BasePath "/nginz-configmap.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print .Template.BasePath "/cannon/configmap.yaml") . | sha256sum }}
+        {{- if .Values.cannon.service.nginz.enabled }}
+        checksum/nginz-configmap: {{ include (print .Template.BasePath "/cannon/nginz-configmap.yaml") . | sha256sum }}
         {{- end }}
-        checksum/cassandra-secret: {{ include (print .Template.BasePath "/cassandra-secret.yaml") . | sha256sum }}
+        checksum/cassandra-secret: {{ include (print .Template.BasePath "/cannon/cassandra-secret.yaml") . | sha256sum }}
     spec:
-      terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
+      terminationGracePeriodSeconds: {{ add .Values.cannon.config.drainOpts.gracePeriodSeconds 5 }}
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"
@@ -43,13 +43,13 @@ spec:
             matchLabels:
               app: cannon
       containers:
-      {{- if .Values.service.nginz.enabled }}
+      {{- if .Values.cannon.service.nginz.enabled }}
       - name: nginz
-        image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
-        imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
+        image: "{{ .Values.cannon.nginzImage.repository }}:{{ .Values.cannon.nginzImage.tag }}"
+        imagePullPolicy: "{{ .Values.cannon.nginzImage.pullPolicy }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 10 }}
+          {{- toYaml .Values.cannon.podSecurityContext | nindent 10 }}
         {{- end }}
         env:
           # Any file changes to this path causes nginx to reload configs without
@@ -68,18 +68,18 @@ spec:
             readOnly: true
         ports:
           - name: https
-            containerPort: {{ .Values.service.nginz.internalPort }}
+            containerPort: {{ .Values.cannon.service.nginz.internalPort }}
         readinessProbe:
           httpGet:
             path: /status
-            port: {{ .Values.service.nginz.internalPort }}
+            port: {{ .Values.cannon.service.nginz.internalPort }}
             scheme: HTTPS
         livenessProbe:
           initialDelaySeconds: 30
           timeoutSeconds: 1
           httpGet:
             path: /status
-            port: {{ .Values.service.nginz.internalPort }}
+            port: {{ .Values.cannon.service.nginz.internalPort }}
             scheme: HTTPS
         lifecycle:
           preStop:
@@ -88,9 +88,9 @@ spec:
               # which would cause nginz to exit, breaking existing websocket connections.
               # Instead we terminate gracefully and sleep given grace period + 5 seconds.
               # (SIGTERM is still sent, but afterwards)
-              command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}"]
+              command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep {{ add .Values.cannon.config.drainOpts.gracePeriodSeconds 5 }}"]
         resources:
-          {{- toYaml .Values.resources | nindent 10 }}
+          {{- toYaml .Values.cannon.resources | nindent 10 }}
       {{- end }}
       - name: cannon
         env:
@@ -104,49 +104,49 @@ spec:
               secretKeyRef:
                 name: cannon
                 key: rabbitmqPassword
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.cannon.image.repository }}:{{ .Values.cannon.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 10 }}
+          {{- toYaml .Values.cannon.podSecurityContext | nindent 10 }}
         {{- end }}
         args:
-          {{- toYaml .Values.cannonArgs | nindent 10 }}
+          {{- toYaml .Values.cannon.cannonArgs | nindent 10 }}
         volumeMounts:
           - name: empty
             mountPath: /etc/wire/cannon/externalHost
           - name: cannon-config
             mountPath: /etc/wire/cannon/conf
-        {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+        {{- if .Values.cannon.config.rabbitmq.tlsCaSecretRef }}
           - name: rabbitmq-ca
             mountPath: "/etc/wire/cannon/rabbitmq-ca/"
         {{- end }}
-        {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+        {{- if eq (include "cannon.useCassandraTLS" .Values.cannon.config) "true" }}
           - name: "cannon-cassandra"
             mountPath: "/etc/wire/cannon/cassandra"
         {{- end }}
         ports:
           - name: http
-            containerPort: {{ .Values.service.internalPort }}
+            containerPort: {{ .Values.cannon.service.internalPort }}
         readinessProbe:
           httpGet:
             path: /i/status
-            port: {{ .Values.service.internalPort }}
+            port: {{ .Values.cannon.service.internalPort }}
             scheme: HTTP
         livenessProbe:
           initialDelaySeconds: 30
           timeoutSeconds: 1
           httpGet:
             path: /i/status
-            port: {{ .Values.service.internalPort }}
+            port: {{ .Values.cannon.service.internalPort }}
             scheme: HTTP
         resources:
-          {{- toYaml .Values.resources | nindent 10 }}
+          {{- toYaml .Values.cannon.resources | nindent 10 }}
       initContainers:
       - name: cannon-configurator
         image: alpine:3.21.3
         {{- if eq (include "includeSecurityContext" .) "true" }}
         securityContext:
-          {{- toYaml .Values.podSecurityContext | nindent 10 }}
+          {{- toYaml .Values.cannon.podSecurityContext | nindent 10 }}
           runAsUser: 65534
         {{- end }}
         command:
@@ -154,7 +154,7 @@ spec:
         args:
         - -c
         # e.g. cannon-0.cannon.production
-        - echo "${HOSTNAME}.{{ .Values.service.name }}.{{ .Release.Namespace }}" > /etc/wire/cannon/externalHost/host.txt
+        - echo "${HOSTNAME}.{{ .Values.cannon.service.name }}.{{ .Release.Namespace }}" > /etc/wire/cannon/externalHost/host.txt
         volumeMounts:
         - name: empty
           mountPath: /etc/wire/cannon/externalHost
@@ -166,7 +166,7 @@ spec:
           name: cannon
       - name: empty
         emptyDir: {}
-      {{- if .Values.service.nginz.enabled }}
+      {{- if .Values.cannon.service.nginz.enabled }}
       - name: nginz-config
         configMap:
           name: cannon-nginz
@@ -175,27 +175,27 @@ spec:
           secretName: cannon-nginz
       - name: certificate
         secret:
-          secretName: {{ .Values.service.nginz.tls.secretName }}
+          secretName: {{ .Values.cannon.service.nginz.tls.secretName }}
       {{- end }}
-      {{- if .Values.config.rabbitmq.tlsCaSecretRef }}
+      {{- if .Values.cannon.config.rabbitmq.tlsCaSecretRef }}
       - name: rabbitmq-ca
         secret:
-          secretName: {{ .Values.config.rabbitmq.tlsCaSecretRef.name }}
+          secretName: {{ .Values.cannon.config.rabbitmq.tlsCaSecretRef.name }}
       {{- end }}
-      {{- if eq (include "useCassandraTLS" .Values.config) "true" }}
+      {{- if eq (include "cannon.useCassandraTLS" .Values.cannon.config) "true" }}
       - name: "cannon-cassandra"
         secret:
-          secretName: {{ (include "tlsSecretRef" .Values.config | fromYaml).name }}
+          secretName: {{ (include "cannon.tlsSecretRef" .Values.cannon.config | fromYaml).name }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.cannon.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.cannon.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.cannon.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -1,6 +1,6 @@
 apiVersion: v1
 data:
-  {{- with .Values }}
+  {{- with .Values.cannon }}
   cannon.yaml: |
     logFormat: {{ .config.logFormat }}
     logLevel: {{ .config.logLevel }}
@@ -20,8 +20,8 @@ data:
         host: {{ .config.cassandra.host }}
         port: 9042
       keyspace: gundeck
-      {{- if eq (include "useCassandraTLS" .config) "true" }}
-      tlsCa: /etc/wire/cannon/cassandra/{{- (include "tlsSecretRef" .config | fromYaml).key }}
+      {{- if eq (include "cannon.useCassandraTLS" .config) "true" }}
+      tlsCa: /etc/wire/cannon/cassandra/{{- (include "cannon.tlsSecretRef" .config | fromYaml).key }}
       {{- end }}
 
     {{- with .config.rabbitmq }}

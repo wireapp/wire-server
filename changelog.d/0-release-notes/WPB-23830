@@ -3,9 +3,10 @@ Helm chart refactoring: several core services were migrated from wire-server sub
 Moved as core services:
 - `background-worker`
 - `brig`
+- `cannon`
 - `cargohold`
 - `galley`
 
-As a result, dependency tags for moved services are obsolete for the current wire-server chart, because these services are no longer resolved through `requirements.yaml` dependencies. In particular, `tags.brig`, `tags.galley`, and `tags.cargohold` are no longer needed for wire-server deployments.
+As a result, dependency tags for moved services are obsolete for the current wire-server chart, because these services are no longer resolved through `requirements.yaml` dependencies. In particular, `tags.brig`, `tags.galley`, `tags.cannon`, and `tags.cargohold` are no longer needed for wire-server deployments.
 
 Operator note: during upgrade, rendered manifests will show metadata/source changes (for example chart labels and template source paths). This is expected from the inlining refactor and may trigger a one-time rollout due to checksum annotation changes.

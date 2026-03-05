@@ -1,6 +1,6 @@
 {{- define "cannon_nginz_nginx.conf" }}
-worker_processes {{ .Values.nginx_conf.worker_processes }};
-worker_rlimit_nofile {{ .Values.nginx_conf.worker_rlimit_nofile | default 1024 }};
+worker_processes {{ .Values.cannon.nginx_conf.worker_processes }};
+worker_rlimit_nofile {{ .Values.cannon.nginx_conf.worker_rlimit_nofile | default 1024 }};
 pid /var/run/nginz.pid;
 
 # nb. start up errors (eg. misconfiguration) may still end up in
@@ -8,7 +8,7 @@ pid /var/run/nginz.pid;
 error_log stderr warn;
 
 events {
-  worker_connections {{ .Values.nginx_conf.worker_connections | default 1024 }};
+  worker_connections {{ .Values.cannon.nginx_conf.worker_connections | default 1024 }};
   multi_accept off;
   use epoll;
 }
@@ -95,15 +95,15 @@ http {
   geo $rate_limit {
       default 1;
 
-  # IPs to exempt can be added in the .Values.nginx_conf.rate_limit and .Values.nginx_conf.simulators helm values
-  {{ if (hasKey .Values.nginx_conf "rate_limit_exemptions") }}
-    {{ range $ip := .Values.nginx_conf.rate_limit_exemptions }}
+  # IPs to exempt can be added in the .Values.cannon.nginx_conf.rate_limit and .Values.cannon.nginx_conf.simulators helm values
+  {{ if (hasKey .Values.cannon.nginx_conf "rate_limit_exemptions") }}
+    {{ range $ip := .Values.cannon.nginx_conf.rate_limit_exemptions }}
         {{ $ip }} 0;
     {{ end }}
   {{ end }}
 
-  {{ if (hasKey .Values.nginx_conf "simulators") }}
-    {{ range $ip := .Values.nginx_conf.simulators }}
+  {{ if (hasKey .Values.cannon.nginx_conf "simulators") }}
+    {{ range $ip := .Values.cannon.nginx_conf.simulators }}
         {{ $ip }} 0;
     {{ end }}
   {{ end }}
@@ -125,10 +125,10 @@ http {
 
   map $http_origin $cors_header {
       default "";
-    {{ range $origin := .Values.nginx_conf.allowlisted_origins }}
+    {{ range $origin := .Values.cannon.nginx_conf.allowlisted_origins }}
     {{- range $domain := (prepend
-                            $.Values.nginx_conf.additional_external_env_domains
-                            $.Values.nginx_conf.external_env_domain)
+                            $.Values.cannon.nginx_conf.additional_external_env_domains
+                            $.Values.cannon.nginx_conf.external_env_domain)
     -}}
       "https://{{ $origin }}.{{ $domain }}" "$http_origin";
     {{ end }}
@@ -136,7 +136,7 @@ http {
 
     # Allow additional origins at random ports. This is useful for testing with an HTTP proxy.
     # It should not be used in production.
-    {{ range $origin := .Values.nginx_conf.randomport_allowlisted_origins }}
+    {{ range $origin := .Values.cannon.nginx_conf.randomport_allowlisted_origins }}
       "~^https?://{{ $origin }}(:[0-9]{2,5})?$" "$http_origin";
     {{ end }}
    }
@@ -146,10 +146,10 @@ http {
   # Rate Limiting
   #
 
-  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_user }};
-  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_addr }};
+  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate={{ .Values.cannon.nginx_conf.rate_limit_reqs_per_user }};
+  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate={{ .Values.cannon.nginx_conf.rate_limit_reqs_per_addr }};
 
-{{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
+{{- range $limit := .Values.cannon.nginx_conf.user_rate_limit_request_zones }}
   {{ $limit }}
 {{- end }}
 
@@ -175,7 +175,7 @@ http {
   upstream cannon {
       least_conn;
       keepalive 32;
-      server localhost:{{ .Values.service.internalPort }};
+      server localhost:{{ .Values.cannon.service.internalPort }};
   }
 
   #
@@ -194,22 +194,22 @@ http {
   #
 
   server {
-    listen {{ .Values.service.nginz.internalPort }} ssl;
+    listen {{ .Values.cannon.service.nginz.internalPort }} ssl;
 
     ssl_certificate /etc/wire/nginz/tls/tls.crt;
     ssl_certificate_key /etc/wire/nginz/tls/tls.key;
 
-    ssl_protocols {{ .Values.nginx_conf.tls.protocols }};
-    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers_tls12 }}; # this only sets TLS 1.2 ciphers (and has no effect if TLS 1.2 is not enabled)
-    ssl_conf_command Ciphersuites {{ .Values.nginx_conf.tls.ciphers_tls13 }}; # needed to override TLS 1.3 ciphers.
+    ssl_protocols {{ .Values.cannon.nginx_conf.tls.protocols }};
+    ssl_ciphers {{ .Values.cannon.nginx_conf.tls.ciphers_tls12 }}; # this only sets TLS 1.2 ciphers (and has no effect if TLS 1.2 is not enabled)
+    ssl_conf_command Ciphersuites {{ .Values.cannon.nginx_conf.tls.ciphers_tls13 }}; # needed to override TLS 1.3 ciphers.
 
     # Disable session resumption. See comments in SQPIT-226 for more context and
     # discussion.
     ssl_session_tickets off;
     ssl_session_cache off;
 
-    zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
-    zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    zauth_keystore {{ .Values.cannon.nginx_conf.zauth_keystore }};
+    zauth_acl      {{ .Values.cannon.nginx_conf.zauth_acl }};
 
     add_header Strict-Transport-Security 'max-age=31536000; includeSubdomains; preload' always;
 
@@ -248,7 +248,7 @@ http {
         return 403;
     }
 
-    {{ range $path := .Values.nginx_conf.disabled_paths }}
+    {{ range $path := .Values.cannon.nginx_conf.disabled_paths }}
       location ~* ^(/v[0-9]+)?{{ $path }} {
 
         return 404;
@@ -259,11 +259,11 @@ http {
     # Service Routing
     #
 
-  {{ range $name, $locations := .Values.nginx_conf.upstreams -}}
+  {{ range $name, $locations := .Values.cannon.nginx_conf.upstreams -}}
     {{- range $location := $locations -}}
       {{- if hasKey $location "envs" -}}
         {{- range $env := $location.envs -}}
-          {{- if or (eq $env $.Values.nginx_conf.env) (eq $env "all") -}}
+          {{- if or (eq $env $.Values.cannon.nginx_conf.env) (eq $env "all") -}}
 
             {{- if $location.strip_version }}
 
@@ -306,7 +306,7 @@ http {
             return 204;
         }
 
-        proxy_pass         http://{{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}};
+        proxy_pass         http://{{ $name }}{{ if hasKey $.Values.cannon.nginx_conf.upstream_namespace $name }}.{{ get $.Values.cannon.nginx_conf.upstream_namespace $name }}{{end}};
         proxy_http_version 1.1;
 
             {{- if ($location.disable_request_buffering) }}

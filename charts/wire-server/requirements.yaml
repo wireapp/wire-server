@@ -22,13 +22,6 @@ dependencies:
     - backoffice
     - haskellServices
     - services
-- name: cannon
-  version: "0.0.42"
-  repository: "file://../cannon"
-  tags:
-    - cannon
-    - haskellServices
-    - services
 - name: proxy
   version: "0.0.42"
   repository: "file://../proxy"

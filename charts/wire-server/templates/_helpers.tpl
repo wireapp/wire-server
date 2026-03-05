@@ -120,3 +120,20 @@ created one (in case the CA is provided as PEM string.)
 {{- print "ca.pem" -}}
 {{- end -}}
 {{- end -}}
+
+{{/* CANNON */}}
+{{- define "cannon.useCassandraTLS" -}}
+{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
+{{- end -}}
+
+{{/* Return a Dict of TLS CA secret name and key
+This is used to switch between provided secret (e.g. by cert-manager) and
+created one (in case the CA is provided as PEM string.)
+*/}}
+{{- define "cannon.tlsSecretRef" -}}
+{{- if .cassandra.tlsCaSecretRef -}}
+{{ .cassandra.tlsCaSecretRef | toYaml }}
+{{- else }}
+{{- dict "name" "cannon-cassandra" "key" "ca.pem" | toYaml -}}
+{{- end -}}
+{{- end -}}

@@ -7,7 +7,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.service.name }}
+  name: {{ .Values.cannon.service.name }}
   labels:
     app: cannon
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -25,8 +25,8 @@ spec:
   clusterIP: None
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.cannon.service.externalPort }}
+      targetPort: {{ .Values.cannon.service.internalPort }}
       protocol: TCP
   selector:
     app: cannon
