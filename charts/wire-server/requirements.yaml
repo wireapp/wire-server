@@ -22,13 +22,6 @@ dependencies:
     - backoffice
     - haskellServices
     - services
-- name: proxy
-  version: "0.0.42"
-  repository: "file://../proxy"
-  tags:
-    - proxy
-    - haskellServices
-    - services
 - name: gundeck
   version: "0.0.42"
   repository: "file://../gundeck"

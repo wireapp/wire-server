@@ -17,8 +17,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+      port: {{ .Values.proxy.service.externalPort }}
+      targetPort: {{ .Values.proxy.service.internalPort }}
   selector:
     app: proxy
     release: {{ .Release.Name }}

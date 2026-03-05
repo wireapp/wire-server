@@ -660,6 +660,43 @@ cannon:
   #   effect: "NoSchedule"
   tolerations: []
 
+proxy:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/proxy
+    tag: do-not-use
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  imagePullPolicy: ""
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "25Mi"
+      cpu: "50m"
+    limits:
+      memory: "50Mi"
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    proxy: {}
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    disabledAPIVersions: [development]
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  secrets: {}
+
 backgroundWorker:
   replicaCount: 1
   image:

@@ -1,6 +1,6 @@
-{{- if .Values.metrics.serviceMonitor.enabled }}
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+{{- if gt (int .Values.proxy.replicaCount) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
 metadata:
   name: proxy
   labels:
@@ -9,11 +9,8 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  endpoints:
-    - port: http
-      path: /i/metrics
+  maxUnavailable: {{ sub (int .Values.proxy.replicaCount) 1 }}
   selector:
     matchLabels:
       app: proxy
-      release: {{ .Release.Name }}
 {{- end }}
