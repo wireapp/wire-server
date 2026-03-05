@@ -47,22 +47,45 @@ import Testlib.Prelude
 
 testSparUserCreationInvitationTimeout :: (HasCallStack) => App ()
 testSparUserCreationInvitationTimeout = do
-  (owner, _tid, _) <- createTeam OwnDomain 1
+  (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimTokenV6 owner def >>= \resp -> resp.json %. "token" >>= asString
-  scimUser <- randomScimUser
-  bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
+
+  email <- randomEmail
+  extId <- randomExternalId
+  scimUserToAcceptInvitation <- randomScimUserWithEmail extId email
+  scimUserToExpire <- randomScimUser
+
+  uidToExpire <- bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
     res.status `shouldMatchInt` 201
+    res.json %. "id" >>= asString
+
+  uidToAcceptInvitation <- bindResponse (createScimUser OwnDomain tok scimUserToAcceptInvitation) $ \res -> do
+    res.status `shouldMatchInt` 201
+    res.json %. "id" >>= asString
+
+  -- Accept the invitation for one user
+  registerInvitedUser OwnDomain tid email
+
+  -- Getting both users immediately succeeds
+  getScimUser owner tok uidToExpire >>= assertSuccess
+  getScimUser owner tok uidToAcceptInvitation >>= assertSuccess
 
   -- Trying to create the same user again right away should fail
-  bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
+  bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
+    res.status `shouldMatchInt` 409
+
+  bindResponse (createScimUser OwnDomain tok scimUserToAcceptInvitation) $ \res -> do
     res.status `shouldMatchInt` 409
 
   -- However, if we wait until the invitation timeout has passed
   -- It's currently configured to 1s local/CI.
-  liftIO $ threadDelay (2_000_000)
+  liftIO $ threadDelay (3_000_000)
 
-  -- ...we should be able to create the user again
-  retryT $ bindResponse (createScimUser OwnDomain tok scimUser) $ \res -> do
+  getScimUser owner tok uidToExpire >>= assertStatus 404
+  getScimUser owner tok uidToAcceptInvitation >>= assertSuccess
+
+  -- We should be able to create the user again
+  retryT $ bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
     res.status `shouldMatchInt` 201
 
 testSparExternalIdDifferentFromEmailWithIdp :: (HasCallStack) => App ()

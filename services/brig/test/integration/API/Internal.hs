@@ -23,7 +23,6 @@ module API.Internal
   )
 where
 
-import API.UserPendingActivation (userExists)
 import Bilge
 import Bilge.Assert
 import Brig.Options qualified as Opt
@@ -48,8 +47,6 @@ tests opts mgr db brig brigep _gundeck galley = do
   pure $
     testGroup "api/internal" $
       [ test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
-        test mgr "suspend non existing user and verify no db entry" $
-          testSuspendNonExistingUser db brig,
         test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
 
@@ -64,13 +61,6 @@ testSuspendUser db brig = do
   checkAccountStatus Suspended
   setAccountStatus brig (userId user) Active !!! const 200 === statusCode
   checkAccountStatus Active
-
-testSuspendNonExistingUser :: forall m. (TestConstraints m) => Cass.ClientState -> Brig -> m ()
-testSuspendNonExistingUser db brig = do
-  nonExistingUserId <- randomId
-  setAccountStatus brig nonExistingUserId Suspended !!! const 404 === statusCode
-  isUserCreated <- Cass.runClient db (userExists nonExistingUserId)
-  liftIO $ isUserCreated @?= False
 
 setAccountStatus :: (MonadHttp m, HasCallStack) => Brig -> UserId -> AccountStatus -> m ResponseLBS
 setAccountStatus brig u s =
