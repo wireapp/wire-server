@@ -169,6 +169,13 @@ class IsConversationAction (tag :: ConversationActionTag) where
     ActorContext mem ->
     Sem r ()
 
+  skipConversationRoleCheck :: StoredConversation -> Maybe TeamMember -> Bool
+
+  -- channelAdminOverride is necessary to let team admins act as "channel admins" even if their conversation_role isn't wire_admin,
+  -- but only for the intended actions. It’s placed here so we bypass only the generic role check and still enforce
+  -- all channel- and protocol-specific rules afterwards.
+  channelAdminOverride :: Bool
+
 instance IsConversationAction 'ConversationJoinTag where
   type
     HasConversationActionEffects 'ConversationJoinTag r =
@@ -235,6 +242,10 @@ instance IsConversationAction 'ConversationJoinTag where
       checkGroupIdSupport loc conv action
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
+
 instance IsConversationAction 'ConversationLeaveTag where
   type
     HasConversationActionEffects 'ConversationLeaveTag r =
@@ -266,6 +277,10 @@ instance IsConversationAction 'ConversationLeaveTag where
   ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = False
 
 instance IsConversationAction 'ConversationRemoveMembersTag where
   type
@@ -304,6 +319,10 @@ instance IsConversationAction 'ConversationRemoveMembersTag where
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
+
 instance IsConversationAction 'ConversationMemberUpdateTag where
   type
     HasConversationActionEffects 'ConversationMemberUpdateTag r =
@@ -331,6 +350,10 @@ instance IsConversationAction 'ConversationMemberUpdateTag where
   ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
 
 instance IsConversationAction 'ConversationDeleteTag where
   type
@@ -381,6 +404,10 @@ instance IsConversationAction 'ConversationDeleteTag where
       void $ TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= noteS @'NotATeamMember
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
+
 instance IsConversationAction 'ConversationRenameTag where
   type
     HasConversationActionEffects 'ConversationRenameTag r =
@@ -411,6 +438,10 @@ instance IsConversationAction 'ConversationRenameTag where
   ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
 
 instance IsConversationAction 'ConversationAccessDataTag where
   type
@@ -474,6 +505,10 @@ instance IsConversationAction 'ConversationAccessDataTag where
           throwS @'InvalidTargetAccess
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
+
 instance IsConversationAction 'ConversationHistoryUpdateTag where
   type
     HasConversationActionEffects 'ConversationHistoryUpdateTag r =
@@ -503,6 +538,10 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = False
+
 instance IsConversationAction 'ConversationMessageTimerUpdateTag where
   type
     HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
@@ -529,6 +568,10 @@ instance IsConversationAction 'ConversationMessageTimerUpdateTag where
   ensureAllowed _loc _action _conv (ActorContext (Just _) _) =
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
 
 instance IsConversationAction 'ConversationReceiptModeUpdateTag where
   type
@@ -560,6 +603,10 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
     when (convProtocolTag conv == ProtocolMLSTag) $
       throwS @MLSReadReceiptsNotAllowed
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = False
 
 instance IsConversationAction 'ConversationUpdateProtocolTag where
   type
@@ -623,6 +670,10 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = False
+
 instance IsConversationAction 'ConversationUpdateAddPermissionTag where
   type
     HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
@@ -651,6 +702,10 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
   ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
     unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = True
 
 instance IsConversationAction 'ConversationResetTag where
   type
@@ -695,6 +750,10 @@ instance IsConversationAction 'ConversationResetTag where
   ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
     pure ()
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck _ _ = False
+
+  channelAdminOverride = False
 
 noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
@@ -1395,32 +1454,13 @@ updateLocalConversationUnchecked lconv qusr con action = do
       -- permission unless we intentionally skip it (channel overrides or
       -- special join case).
       unless
-        (skipConversationRoleCheck tag conv mTeamMember || (hasChannelManagePerm && channelAdminOverride tag))
+        (skipConversationRoleCheck @tag conv mTeamMember || (hasChannelManagePerm && channelAdminOverride @tag))
         (for_ mMem (ensureActionAllowed (sConversationActionPermission tag)))
 
       checkConversationType (fromSing tag) conv
 
       -- extra action-specific checks
       ensureAllowed @tag loc action conv (ActorContext mMem mTeamMember)
-
-    skipConversationRoleCheck :: Sing tag -> StoredConversation -> Maybe TeamMember -> Bool
-    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
-    skipConversationRoleCheck _ _ _ = False
-
-    -- channelAdminOverride is necessary to let team admins act as "channel admins" even if their conversation_role isn't wire_admin,
-    -- but only for the intended actions. It’s placed here so we bypass only the generic role check and still enforce
-    -- all channel- and protocol-specific rules afterwards.
-    channelAdminOverride :: Sing tag -> Bool
-    channelAdminOverride = \case
-      SConversationJoinTag -> True
-      SConversationRemoveMembersTag -> True
-      SConversationMemberUpdateTag -> True
-      SConversationRenameTag -> True
-      SConversationMessageTimerUpdateTag -> True
-      SConversationAccessDataTag -> True
-      SConversationUpdateAddPermissionTag -> True
-      SConversationDeleteTag -> True
-      _ -> False
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
