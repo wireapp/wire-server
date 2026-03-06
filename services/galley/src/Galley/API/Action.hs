@@ -141,7 +141,9 @@ import Wire.UserList
 
 class IsConversationAction (tag :: ConversationActionTag) where
   type HasConversationActionEffects tag (r :: EffectRow) :: Constraint
+
   type HasConversationActionGalleyErrors tag :: EffectRow
+
   performAction ::
     forall r.
     ( HasConversationActionEffects tag r,
@@ -152,6 +154,20 @@ class IsConversationAction (tag :: ConversationActionTag) where
     Maybe ConnId ->
     ConversationAction tag ->
     Sem r (PerformActionResult tag)
+
+  ensureAllowed ::
+    forall mem r x.
+    ( IsConvMember mem,
+      HasConversationActionEffects tag r,
+      Member (ErrorS ConvNotFound) r,
+      Member (Error FederationError) r,
+      Member TeamSubsystem r
+    ) =>
+    Local x ->
+    ConversationAction tag ->
+    StoredConversation ->
+    ActorContext mem ->
+    Sem r ()
 
 instance IsConversationAction 'ConversationJoinTag where
   type
@@ -186,6 +202,7 @@ instance IsConversationAction 'ConversationJoinTag where
         Member ConversationStore r,
         Member (Error NoChanges) r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationJoinTag =
       '[ ErrorS ('ActionDenied 'AddConversationMember),
@@ -198,6 +215,7 @@ instance IsConversationAction 'ConversationJoinTag where
          ErrorS 'TooManyMembers,
          ErrorS 'MissingLegalholdConsent
        ]
+
   performAction lconv qusr _conId action = do
     (extraTargets, action') <- performConversationJoin qusr lconv action
     pure
@@ -206,6 +224,16 @@ instance IsConversationAction 'ConversationJoinTag where
           action = action',
           extraConversationData = def
         }
+
+  ensureAllowed _ action conv (ActorContext Nothing (Just tm)) =
+    case action of
+      ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
+      ConversationJoin _ _ ExternalAdd -> ensureManageChannelsPermission conv tm
+  ensureAllowed loc action conv (ActorContext (Just origUser) _mTm) =
+    mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
+      ensureConvRoleNotElevated origUser (role action)
+      checkGroupIdSupport loc conv action
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationLeaveTag where
   type
@@ -221,15 +249,23 @@ instance IsConversationAction 'ConversationLeaveTag where
         Member (Error FederationError) r,
         Member TinyLog r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationLeaveTag =
       '[ ErrorS ('ActionDenied 'LeaveConversation),
          ErrorS 'InvalidOperation,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv qusr _conId () = do
     leaveConversation qusr lconv
     pure $ mkPerformActionResult ()
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationRemoveMembersTag where
   type
@@ -246,12 +282,14 @@ instance IsConversationAction 'ConversationRemoveMembersTag where
         Member Random r,
         Member NotificationSubsystem r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationRemoveMembersTag =
       '[ ErrorS ('ActionDenied 'RemoveConversationMember),
          ErrorS 'InvalidOperation,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv _qusr _conId action = do
     let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
     when (null presentVictims) noChanges
@@ -260,12 +298,19 @@ instance IsConversationAction 'ConversationRemoveMembersTag where
     traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
     pure $ mkPerformActionResult action -- FUTUREWORK: should we return the filtered action here?
 
+  ensureAllowed _ _action conv (ActorContext Nothing (Just tm)) =
+    ensureManageChannelsPermission conv tm
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
 instance IsConversationAction 'ConversationMemberUpdateTag where
   type
     HasConversationActionEffects 'ConversationMemberUpdateTag r =
       ( Member (ErrorS 'ConvMemberNotFound) r,
         Member ConversationStore r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationMemberUpdateTag =
       '[ ErrorS ('ActionDenied 'ModifyOtherConversationMember),
@@ -273,12 +318,19 @@ instance IsConversationAction 'ConversationMemberUpdateTag where
          ErrorS 'ConvNotFound,
          ErrorS 'ConvMemberNotFound
        ]
+
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
     void $ ensureOtherMember lconv (cmuTarget action) storedConv
     E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
     pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationDeleteTag where
   type
@@ -288,6 +340,7 @@ instance IsConversationAction 'ConversationDeleteTag where
         Member ProposalStore r,
         Member CodeStore r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationDeleteTag =
       '[ ErrorS ('ActionDenied 'DeleteConversation),
@@ -295,6 +348,7 @@ instance IsConversationAction 'ConversationDeleteTag where
          ErrorS 'InvalidOperation,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv _qusr _conId () = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -319,6 +373,14 @@ instance IsConversationAction 'ConversationDeleteTag where
 
     pure $ mkPerformActionResult ()
 
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed loc _action conv (ActorContext (Just origUser) _mTm) =
+    for_ (convTeam conv) $ \tid -> do
+      lusr <- ensureLocal loc (convMemberId loc origUser)
+      void $ TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= noteS @'NotATeamMember
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
 instance IsConversationAction 'ConversationRenameTag where
   type
     HasConversationActionEffects 'ConversationRenameTag r =
@@ -327,12 +389,14 @@ instance IsConversationAction 'ConversationRenameTag where
         Member (Error InvalidInput) r,
         Member ConversationStore r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationRenameTag =
       '[ ErrorS ('ActionDenied 'ModifyConversationName),
          ErrorS 'InvalidOperation,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -341,6 +405,12 @@ instance IsConversationAction 'ConversationRenameTag where
     cn <- rangeChecked (cupName action)
     E.setConversationName (tUnqualified lcnv) cn
     pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action conv (ActorContext Nothing (Just tm)) =
+    ensureManageChannelsPermission conv tm
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationAccessDataTag where
   type
@@ -364,6 +434,7 @@ instance IsConversationAction 'ConversationAccessDataTag where
         Member ConversationSubsystem r,
         Member TeamSubsystem r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationAccessDataTag =
       '[ ErrorS ('ActionDenied 'RemoveConversationMember),
@@ -372,6 +443,7 @@ instance IsConversationAction 'ConversationAccessDataTag where
          ErrorS 'InvalidTargetAccess,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv qusr _conId action = do
     (bm, act) <- performConversationAccessData qusr lconv action
     pure
@@ -381,12 +453,34 @@ instance IsConversationAction 'ConversationAccessDataTag where
           extraConversationData = def
         }
 
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc action conv (ActorContext (Just origUser) mTm) = do
+    -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
+    -- so on; users not supposed to be able to make other conversations
+    -- have 'PrivateAccessRole'
+    when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
+      throwS @'InvalidTargetAccess
+    -- Team conversations incur another round of checks
+    case convTeam conv of
+      Just _ -> do
+        -- Access mode change might result in members being removed from the
+        -- conversation, so the user must have the necessary permission flag,
+        -- unless the actor is a team member with ManageChannels on a channel.
+        unless (maybe False (hasManageChannelsPermission conv) mTm) $ ensureActionAllowed SRemoveConversationMember origUser
+      Nothing ->
+        -- not a team conv, so one of the other access roles has to allow this.
+        when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
+          throwS @'InvalidTargetAccess
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
 instance IsConversationAction 'ConversationHistoryUpdateTag where
   type
     HasConversationActionEffects 'ConversationHistoryUpdateTag r =
       ( Member ConversationStore r,
         Member (ErrorS HistoryNotSupported) r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
       '[ ErrorS (ActionDenied ModifyConversationAccess),
@@ -394,6 +488,7 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
          ErrorS InvalidOperation,
          ErrorS ConvNotFound
        ]
+
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -402,24 +497,38 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
     E.setConversationHistory (tUnqualified lcnv) action
     pure $ mkPerformActionResult action
 
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
 instance IsConversationAction 'ConversationMessageTimerUpdateTag where
   type
     HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
       ( Member ConversationStore r,
         Member (Error NoChanges) r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag =
       '[ ErrorS ('ActionDenied 'ModifyConversationMessageTimer),
          ErrorS 'InvalidOperation,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
     when (Data.convMessageTimer storedConv == cupMessageTimer action) noChanges
     E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
     pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _) _) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationReceiptModeUpdateTag where
   type
@@ -428,6 +537,7 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
         Member ConversationStore r,
         Member (Error NoChanges) r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
       '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
@@ -435,12 +545,21 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
          ErrorS 'MLSReadReceiptsNotAllowed,
          ErrorS 'ConvNotFound
        ]
+
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
     when (Data.convReceiptMode storedConv == Just (cruReceiptMode action)) noChanges
     E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
     pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
+    -- cannot update receipt mode of MLS conversations
+    when (convProtocolTag conv == ProtocolMLSTag) $
+      throwS @MLSReadReceiptsNotAllowed
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationUpdateProtocolTag where
   type
@@ -462,6 +581,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         Member (ErrorS MLSMigrationCriteriaNotSatisfied) r,
         Member (Error FederationError) r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
       '[ ErrorS ('ActionDenied 'LeaveConversation),
@@ -470,6 +590,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
          ErrorS 'ConvInvalidProtocolTransition,
          ErrorS 'MLSMigrationCriteriaNotSatisfied
        ]
+
   performAction lconv qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
@@ -496,6 +617,12 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         noChanges
       (_, _, _) -> throwS @'ConvInvalidProtocolTransition
 
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
 instance IsConversationAction 'ConversationUpdateAddPermissionTag where
   type
     HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
@@ -503,6 +630,7 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
         Member (Error NoChanges) r,
         Member ConversationStore r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
       '[ ErrorS ('ActionDenied 'ModifyAddPermission),
@@ -510,12 +638,19 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
          ErrorS 'ConvNotFound,
          ErrorS 'InvalidTargetAccess
        ]
+
   performAction lconv _qusr _conId action = do
     let lcnv = fmap (.id_) lconv
         storedConv = tUnqualified lconv
     when (storedConv.metadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
     E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
     pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
+    unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 instance IsConversationAction 'ConversationResetTag where
   type
@@ -537,6 +672,7 @@ instance IsConversationAction 'ConversationResetTag where
         Member Now r,
         Member TinyLog r
       )
+
   type
     HasConversationActionGalleyErrors 'ConversationResetTag =
       '[ ErrorS (ActionDenied LeaveConversation),
@@ -544,6 +680,7 @@ instance IsConversationAction 'ConversationResetTag where
          ErrorS InvalidOperation,
          ErrorS ConvNotFound
        ]
+
   performAction lconv qusr _conId action = do
     newGroupId <- resetLocalMLSMainConversation qusr lconv action
     pure
@@ -553,67 +690,14 @@ instance IsConversationAction 'ConversationResetTag where
           extraConversationData = ExtraConversationData (Just newGroupId)
         }
 
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
 noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
-
-ensureAllowed ::
-  forall tag mem r x.
-  ( IsConvMember mem,
-    HasConversationActionEffects tag r,
-    Member (ErrorS ConvNotFound) r,
-    Member (Error FederationError) r,
-    Member TeamSubsystem r
-  ) =>
-  Sing tag ->
-  Local x ->
-  ConversationAction tag ->
-  StoredConversation ->
-  ActorContext mem ->
-  Sem r ()
-ensureAllowed tag _ action conv (ActorContext Nothing (Just tm)) = do
-  case tag of
-    SConversationRenameTag -> ensureManageChannelsPermission conv tm
-    SConversationJoinTag -> do
-      case action of
-        ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
-        ConversationJoin _ _ ExternalAdd -> ensureManageChannelsPermission conv tm
-    SConversationRemoveMembersTag -> ensureManageChannelsPermission conv tm
-    _ -> throwS @'ConvNotFound
-ensureAllowed tag loc action conv (ActorContext (Just origUser) mTm) = do
-  case tag of
-    SConversationJoinTag ->
-      mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
-        ensureConvRoleNotElevated origUser (role action)
-        checkGroupIdSupport loc conv action
-    SConversationDeleteTag ->
-      for_ (convTeam conv) $ \tid -> do
-        lusr <- ensureLocal loc (convMemberId loc origUser)
-        void $ TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= noteS @'NotATeamMember
-    SConversationAccessDataTag -> do
-      -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
-      -- so on; users not supposed to be able to make other conversations
-      -- have 'PrivateAccessRole'
-      when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
-        throwS @'InvalidTargetAccess
-      -- Team conversations incur another round of checks
-      case convTeam conv of
-        Just _ -> do
-          -- Access mode change might result in members being removed from the
-          -- conversation, so the user must have the necessary permission flag,
-          -- unless the actor is a team member with ManageChannels on a channel.
-          unless (maybe False (hasManageChannelsPermission conv) mTm) $ ensureActionAllowed SRemoveConversationMember origUser
-        Nothing ->
-          -- not a team conv, so one of the other access roles has to allow this.
-          when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
-            throwS @'InvalidTargetAccess
-    SConversationUpdateAddPermissionTag -> do
-      unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
-    SConversationReceiptModeUpdateTag -> do
-      -- cannot update receipt mode of MLS conversations
-      when (convProtocolTag conv == ProtocolMLSTag) $
-        throwS @MLSReadReceiptsNotAllowed
-    _ -> pure ()
-ensureAllowed _ _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 data PerformActionResult tag
   = PerformActionResult
@@ -1317,7 +1401,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
       checkConversationType (fromSing tag) conv
 
       -- extra action-specific checks
-      ensureAllowed tag loc action conv (ActorContext mMem mTeamMember)
+      ensureAllowed @tag loc action conv (ActorContext mMem mTeamMember)
 
     skipConversationRoleCheck :: Sing tag -> StoredConversation -> Maybe TeamMember -> Bool
     skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone

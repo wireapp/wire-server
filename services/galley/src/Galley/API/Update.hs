@@ -1436,7 +1436,7 @@ removeMemberFromChannel qusr lconv victim = do
   teamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr >>= noteS @'ConvNotFound
   let action = ConversationRemoveMembers {crmTargets = pure victim, crmReason = EdReasonRemoved}
   let actorContext = ActorContext (Nothing :: Maybe LocalMember) (Just teamMember)
-  ensureAllowed @'ConversationRemoveMembersTag (sing @'ConversationRemoveMembersTag) lconv action conv actorContext
+  ensureAllowed @'ConversationRemoveMembersTag lconv action conv actorContext
   let notificationTargets = convBotsAndMembers conv
   kickMember qusr lconv notificationTargets victim
   where
