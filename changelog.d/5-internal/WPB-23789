@@ -1,0 +1,1 @@
+Progressively move away from singletons to type class to allow progressive migration to `wire-subsystems` of Galley's actions. (#5075, #5081, #5086)
