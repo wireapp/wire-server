@@ -1,1 +1,0 @@
-Emit new event `user.session-refresh-suggested` on cookie revocation

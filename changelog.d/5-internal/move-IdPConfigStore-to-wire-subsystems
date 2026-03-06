@@ -1,1 +1,0 @@
-Move `IdPConfigStore` to `wire-subsystems`. This will enable using it in other effects.

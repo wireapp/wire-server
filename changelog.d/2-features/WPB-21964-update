@@ -1,8 +1,0 @@
-`PUT /meetings/:domain/:meetingId` for updating meetings.
-
-Supported fields:
-- `startTime`, `endTime` - update meeting time (must be valid: start < end)
-- `title` - update meeting title
-- `recurrence` - update recurrence pattern
-
-Authorization: only the meeting creator can update the meeting.
