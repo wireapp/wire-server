@@ -76,6 +76,7 @@ library
   build-depends:
       aeson                 >=2.0.1.0
     , base                  >=4.6     && <5.0
+    , bytestring
     , conduit
     , cql                   >=3.0.0
     , cql-io                >=0.14

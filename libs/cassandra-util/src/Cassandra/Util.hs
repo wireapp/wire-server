@@ -27,7 +27,8 @@ where
 import Cassandra.CQL
 import Cassandra.Options
 import Cassandra.Schema
-import Cassandra.Settings (dcFilterPolicyIfConfigured, initialContactsDisco, initialContactsPlain, mkLogger)
+import Cassandra.Settings (dcFilterPolicyIfConfigured, initialContactsDisco, initialContactsPlain)
+import Cassandra.Settings qualified as CS
 import Data.Aeson
 import Data.Fixed
 import Data.List.NonEmpty qualified as NE
@@ -36,7 +37,6 @@ import Data.Time (UTCTime, nominalDiffTimeToSeconds)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
 import Database.CQL.IO
-import Database.CQL.IO.Tinylog qualified as CT
 import Imports hiding (init)
 import OpenSSL.Session qualified as OpenSSL
 import System.Logger qualified as Log
@@ -44,7 +44,7 @@ import System.Logger qualified as Log
 defInitCassandra :: CassandraOpts -> Log.Logger -> IO ClientState
 defInitCassandra opts logger = do
   let basicCasSettings =
-        setLogger (CT.mkLogger logger)
+        setLogger (CS.mkLogger Nothing logger)
           . setPortNumber (fromIntegral opts.endpoint.port)
           . setContacts (unpack opts.endpoint.host) []
           . setKeyspace (Keyspace opts.keyspace)
@@ -67,7 +67,7 @@ initCassandraForService opts serviceName discoUrl mbSchemaVersion logger = do
       (initialContactsDisco ("cassandra_" ++ serviceName) . unpack)
       discoUrl
   let basicCasSettings =
-        setLogger (mkLogger (Log.clone (Just (pack ("cassandra." ++ serviceName))) logger))
+        setLogger (CS.mkLogger (Just (pack ("cassandra." ++ serviceName))) logger)
           . setContacts (NE.head c) (NE.tail c)
           . setPortNumber (fromIntegral opts.endpoint.port)
           . setKeyspace (Keyspace opts.keyspace)

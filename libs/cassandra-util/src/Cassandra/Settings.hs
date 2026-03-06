@@ -25,17 +25,22 @@ module Cassandra.Settings
     initialContactsPlain,
     dcAwareRandomPolicy,
     dcFilterPolicyIfConfigured,
+    mkLogger,
   )
 where
 
 import Control.Lens
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Lens
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder
+import Data.ByteString.Char8 qualified as BS8
+import Data.ByteString.Lazy qualified as LBS
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (pack, stripSuffix, unpack)
 import Database.CQL.IO as C hiding (values)
-import Database.CQL.IO.Tinylog as C (mkLogger)
+import Database.CQL.IO.Tinylog qualified as CT
 import Imports
 import Network.Wreq
 import System.Logger qualified as Log
@@ -90,3 +95,21 @@ dcAwareRandomPolicy dc = do
   where
     dcAcceptable :: Host -> IO Bool
     dcAcceptable host = pure $ (host ^. dataCentre) == dc
+
+mkLogger :: Maybe Text -> Log.Logger -> Logger
+mkLogger mName logger = base {logMessage = suppressUseKeyspaceWarning}
+  where
+    base = CT.mkLogger (maybe logger (\n -> Log.clone (Just n) logger) mName)
+    isUseKeyspaceWarning msg = all (\needle -> needle `BS.isInfixOf` msg) useKeyspaceNeedles
+    suppressUseKeyspaceWarning level builder = do
+      let msg = LBS.toStrict $ toLazyByteString builder
+      case (level, isUseKeyspaceWarning msg) of
+        (LogWarn, True) -> pure ()
+        _ -> logMessage base level builder
+
+-- This is a top-level constant to avoid repeated `pack` allocation on every log line
+useKeyspaceNeedles :: [BS.ByteString]
+useKeyspaceNeedles =
+  [ BS8.pack "non-qualified table names",
+    BS8.pack "Server warning: `USE <keyspace>`"
+  ]

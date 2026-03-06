@@ -85,7 +85,7 @@ main = do
     initLogger = Log.new . Log.setOutput Log.StdOut . Log.setFormat Nothing . Log.setBufSize 0 $ Log.defSettings
     initCas Opts {..} l =
       C.init
-        . C.setLogger (C.mkLogger l)
+        . C.setLogger (C.mkLogger Nothing l)
         . C.setContacts cHost []
         . C.setPortNumber (fromIntegral cPort)
         . C.setKeyspace cKeyspace
