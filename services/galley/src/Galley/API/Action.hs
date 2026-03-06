@@ -177,7 +177,6 @@ instance IsConversationAction 'ConversationJoinTag where
         Member ExternalAccess r,
         Member (FederationAPIAccess FederatorClient) r,
         Member NotificationSubsystem r,
-        Member (Input ConversationSubsystemConfig) r,
         Member Now r,
         Member LegalHoldStore r,
         Member ProposalStore r,
