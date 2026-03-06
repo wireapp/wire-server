@@ -174,6 +174,7 @@ storedUserToIndexUser storedUser =
   let defaultTime = UTCTime (YearDay 0 1) 0
    in IndexUser
         { userId = storedUser.id,
+          userType = inferUserType storedUser.serviceId storedUser.userType,
           teamId = storedUser.teamId,
           name = storedUser.name,
           accountStatus = storedUser.status,

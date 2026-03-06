@@ -104,7 +104,6 @@ spec = describe "UserSubsystem.Interpreter" do
               mkExpectedProfiles domain users =
                 [ mkUserProfileWithEmail
                     Nothing
-                    (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                     (mkUserFromStored domain miniLocale targetUser)
                     defUserLegalHoldStatus
                 | targetUser <- users
@@ -164,7 +163,6 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
-                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -181,7 +179,6 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfile
                 === [ mkUserProfile
                         (fmap (const Nothing) config.emailVisibilityConfig)
-                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                         (mkUserFromStored domain config.defaultLocale targetUser)
                         defUserLegalHoldStatus
                     ]
@@ -1100,10 +1097,7 @@ spec = describe "UserSubsystem.Interpreter" do
             searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
 
             storedUserToDoc :: StoredUser -> UserDoc
-            storedUserToDoc user =
-              let indexUser = storedUserToIndexUser user
-                  userType = if isJust user.serviceId then UserTypeBot else UserTypeRegular
-               in indexUserToDoc defaultSearchVisibilityInbound (Just userType) Nothing indexUser
+            storedUserToDoc user = indexUserToDoc defaultSearchVisibilityInbound Nothing (storedUserToIndexUser user)
 
             indexFromStoredUsers :: [StoredUser] -> UserIndex
             indexFromStoredUsers storedUsers = do
@@ -1133,6 +1127,6 @@ spec = describe "UserSubsystem.Interpreter" do
                         contactName = fromName searchee.name,
                         contactHandle = fromHandle <$> searchee.handle,
                         contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId,
-                        contactType = UserTypeRegular
+                        contactType = fromMaybe UserTypeRegular searchee.userType
                       }
               pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]

@@ -101,7 +101,7 @@ mkUserFromStored domain defaultLocale storedUser =
       svc = newServiceRef <$> storedUser.serviceId <*> storedUser.providerId
    in User
         { userQualifiedId = (Qualified storedUser.id domain),
-          userType = inferUserType (isJust svc) storedUser.userType,
+          userType = inferUserType svc storedUser.userType,
           userIdentity = storedUser.identity,
           userEmailUnvalidated = storedUser.emailUnvalidated,
           userDisplayName = storedUser.name,
@@ -127,10 +127,13 @@ mkUserFromStored domain defaultLocale storedUser =
 -- The type is inferred as "bot" if there is a serviceId, and
 -- "regular" otherwise.  For newly created apps, the second argument
 -- will always be `Just`.
-inferUserType :: Bool {- is service -} -> Maybe UserType -> UserType
-inferUserType True _ = UserTypeBot
-inferUserType False Nothing = UserTypeRegular
-inferUserType False (Just t) = t
+--
+-- NB: The polymorphism is necessary because different caller have
+-- different types of service ids in the `Maybe`.
+inferUserType :: forall serviceId. Maybe serviceId -> Maybe UserType -> UserType
+inferUserType _ (Just t) = t
+inferUserType (Just _) Nothing = UserTypeBot
+inferUserType Nothing Nothing = UserTypeRegular
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
