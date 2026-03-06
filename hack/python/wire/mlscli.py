@@ -12,9 +12,13 @@ import uuid
 
 
 def cid2str(client_identity):
-    u = client_identity["user"]
-    c = client_identity["client"]
-    d = client_identity["domain"]
+    # Sanitize path components to prevent path injection
+    def sanitize_path_component(s):
+        # Replace dangerous characters that could be used for path traversal
+        return str(s).replace('/', '_').replace('\\', '_').replace('..', '__').replace(':', '_')
+    u = sanitize_path_component(client_identity["user"])
+    c = sanitize_path_component(client_identity["client"])
+    d = sanitize_path_component(client_identity["domain"])
     return f"{u}:{c}@{d}"
 
 

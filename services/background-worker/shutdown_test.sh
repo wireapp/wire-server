@@ -36,7 +36,7 @@ progress-bar 30
 echo ""
 echo "Sending SIGKILL"
 pkill -SIGKILL background-work
-if [ $? -eq 1 ]
+if [[ $? -eq 1 ]]
 then
   echo "Graceful shutdown, background-worker had already shutdown"
 else

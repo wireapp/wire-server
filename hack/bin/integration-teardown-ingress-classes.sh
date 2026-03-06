@@ -20,7 +20,7 @@ kubectl get ingressclasses -o json | jq -r --argjson now "$now" '
   | if ($now - $created > 86400) then $meta.name else empty end
 ' > "$tmpfile"
 
-if [ ! -s "$tmpfile" ]; then
+if [[ ! -s "$tmpfile" ]]; then
   echo "No IngressClasses older than 24 hours found for deletion."
   rm "$tmpfile"
   exit 0

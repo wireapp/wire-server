@@ -19,7 +19,7 @@ helmDepUp () {
     cd "$path"
     # remove previous bundled versions of helm charts, if any
     find . -name "*\.tgz" -delete
-    if [ -f requirements.yaml ]; then
+    if [[ -f requirements.yaml ]]; then
       echo "Updating dependencies in $path ..."
       # very hacky bash, I'm sorry
       for subpath in $(grep "file://" requirements.yaml | awk '{ print $2 }' | xargs -n 1 | cut -c 8-)

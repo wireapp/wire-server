@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_FILE="$SCRIPT_DIR/docker-compose.yaml"
 FED_VERSIONS=(0 1 2)
 
-if [ -e "${SCRIPT_DIR}/run.before.hook.local" ]; then
+if [[ -e "${SCRIPT_DIR}/run.before.hook.local" ]]; then
   # shellcheck disable=SC1091
   . "${SCRIPT_DIR}/run.before.hook.local"
 fi
@@ -31,9 +31,9 @@ cleanup() {
   dc down
 }
 
-if [ -z "$1" ]; then
+if [[ -z "$1" ]]; then
   dc up -d
-  if [ -e "${SCRIPT_DIR}/run.after.hook.local" ]; then
+  if [[ -e "${SCRIPT_DIR}/run.after.hook.local" ]]; then
     # shellcheck disable=SC1091
     . "${SCRIPT_DIR}/run.after.hook.local"
   fi

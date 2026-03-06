@@ -21,7 +21,7 @@ echo -e "\nHINT: when prompted for an integration config, consider trying 'z-con
 
 # Ensure that we have a file named integration-aws.yaml in the current
 # dir. If not, fetch it from a known location on S3
-if [ ! -f "${DIR}/integration-aws.yaml" ]
+if [[ ! -f "${DIR}/integration-aws.yaml" ]]
 then
     echo "Could not find AWS config file to override settings, specify a location on S3 to download the file or add one at ${DIR}/integration-aws.yaml and retry: "
     read -r location
@@ -32,7 +32,7 @@ services=( brig cargohold galley gundeck cannon proxy spar )
 for service in "${services[@]}"; do
     yq r "${DIR}/integration-aws.yaml" "${service}" > "/tmp/${service}-aws.yaml"
     yq m -a "/tmp/${service}-aws.yaml" "${DIR}/${service}/${service}.integration.yaml" > "${DIR}/${service}/${service}.integration-aws.yaml"
-    if [ -e "${DIR}/${service}/${service}2.integration.yaml" ]; then
+    if [[ -e "${DIR}/${service}/${service}2.integration.yaml" ]]; then
         yq m -a "/tmp/${service}-aws.yaml" "${DIR}/${service}/${service}2.integration.yaml" > "${DIR}/${service}/${service}2.integration-aws.yaml"
     fi
 done

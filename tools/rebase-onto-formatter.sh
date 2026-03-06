@@ -36,7 +36,7 @@ INSTRUCTIONS:
 
 "
 
-if [ -z "$BASE_COMMIT" ] || [ -z "$TARGET_COMMIT" ] || [ -z "$FORMATTING_COMMAND" ]
+if [[ -z "$BASE_COMMIT" ]] || [[ -z "$TARGET_COMMIT" ]] || [[ -z "$FORMATTING_COMMAND" ]]
 then
   echo "$USAGE" 1>&2
   exit 1

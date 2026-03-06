@@ -61,7 +61,11 @@ def save_json_file(ob, path):
 
 
 def load_json_file(path):
-    with open(path, "r") as f:
+    # Validate path to prevent path injection attacks
+    normalized_path = os.path.normpath(path)
+    if '..' in normalized_path or normalized_path.startswith('/') or ':' in normalized_path:
+        raise ValueError(f"Invalid path: {path}")
+    with open(normalized_path, "r") as f:
         return json.load(f)
 
 

@@ -16,18 +16,18 @@ set -e
 #
 
 metadata_file=$1
-if [ ! -e "$metadata_file" ]; then
+if [[ ! -e "$metadata_file" ]]; then
     echo "*** no metadata: '$1'"
     exit 80
 fi
 
-if [ -n "$WIRE_BACKEND" ]; then
+if [[ -n "$WIRE_BACKEND" ]]; then
     backend="$WIRE_BACKEND"
 else
     backend="localhost:8080"
 fi
 
-if [ "$WIRE_TRACE" == "1" ]; then
+if [[ "$WIRE_TRACE" == "1" ]]; then
     trace="1"
 fi
 
@@ -38,14 +38,14 @@ command -v jq >/dev/null || ( echo "*** please install https://stedolan.github.i
 jq_exe=$(command -v jq)
 
 # login
-if [ -n "$WIRE_LOGIN" ]; then
+if [[ -n "$WIRE_LOGIN" ]]; then
     login="$WIRE_LOGIN"
 else
     echo -n "login email: "
     read -r login
 fi
 
-if [ -n "$WIRE_PASSWORD" ]; then
+if [[ -n "$WIRE_PASSWORD" ]]; then
     password="$WIRE_PASSWORD"
 else
     echo -n "password: "

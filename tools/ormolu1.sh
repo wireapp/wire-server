@@ -36,9 +36,9 @@ while getopts ":f:ch" opt; do
   case ${opt} in
   f)
     f=${OPTARG}
-    if [ "$f" = "pr" ]; then
+    if [[ "$f" = "pr" ]]; then
       ALLOW_DIRTY_WC=1
-    elif [ "$f" = "all" ]; then
+    elif [[ "$f" = "all" ]]; then
       ALLOW_DIRTY_WC=1
     else
       usage
@@ -56,13 +56,13 @@ while getopts ":f:ch" opt; do
 done
 shift $((OPTIND - 1))
 
-if [ "$#" -ne 0 ]; then
+if [[ "$#" -ne 0 ]]; then
   echo "$USAGE" 1>&2
   exit 1
 fi
 
-if [ "$(git status -s | grep -v \?\?)" != "" ]; then
-  if [ "$ALLOW_DIRTY_WC" == "1" ]; then
+if [[ "$(git status -s | grep -v \?\?)" != "" ]]; then
+  if [[ "$ALLOW_DIRTY_WC" == "1" ]]; then
     :
   else
     echo "Working copy is not clean."
@@ -76,13 +76,13 @@ echo "language extensions are taken from the resp. cabal files"
 
 FAILURES=0
 
-if [ -t 1 ]; then
+if [[ -t 1 ]]; then
   : "${ORMOLU_CONDENSE_OUTPUT:=1}"
 fi
 
-if [ "$f" = "all" ] || [ "$f" = "" ]; then
+if [[ "$f" = "all" ]] || [[ "$f" = "" ]]; then
   files=$(git ls-files | grep '\.hsc\?$')
-elif [ "$f" = "pr" ]; then
+elif [[ "$f" = "pr" ]]; then
   files=$(
     git diff --diff-filter=ACMR --name-only "$PR_BASE"... | { grep '\.hsc\?$' || true; }
     git diff --diff-filter=ACMR --name-only HEAD | { grep \.hs\$ || true; }
@@ -97,21 +97,21 @@ for hsfile in $files; do
   ormolu --mode $ARG_ORMOLU_MODE --check-idempotence "$hsfile" &
   wait $! && err=0 || err=$?
 
-  if [ "$err" == "100" ]; then
+  if [[ "$err" == "100" ]]; then
     ((++FAILURES))
     echo "$hsfile...  *** FAILED"
     clear=""
-  elif [ "$err" == "0" ]; then
+  elif [[ "$err" == "0" ]]; then
     echo -e "$clear$hsfile...  ok"
-    [ "$ORMOLU_CONDENSE_OUTPUT" == "1" ] && clear="\033[A\r\033[K"
+    [[ "$ORMOLU_CONDENSE_OUTPUT" == "1" ]] && clear="\033[A\r\033[K"
   else
     exit "$err"
   fi
 done
 
-if [ "$FAILURES" != 0 ]; then
+if [[ "$FAILURES" != 0 ]]; then
   echo "ormolu failed on $FAILURES files."
-  if [ "$ARG_ORMOLU_MODE" == "check" ]; then
+  if [[ "$ARG_ORMOLU_MODE" == "check" ]]; then
     echo -en "\n\nyou can fix this by running 'make format' from the git repo root.\n\n"
   fi
   exit 1
