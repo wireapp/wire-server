@@ -31,7 +31,7 @@ Options:
 
 exit_usage() {
     echo "$USAGE"
-    exit 1
+    return 1
 }
 
 # To be somewhat backwards-compatible, transform long options to short ones

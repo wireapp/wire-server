@@ -28,26 +28,26 @@ fi
 # Also, skopeo's retry logic doesn't properly work, look here if you want to see very badly written go code:
 # https://github.com/containers/skopeo/blob/869d496f185cc086f22d6bbb79bb57ac3a415617/vendor/github.com/containers/common/pkg/retry/retry.go#L52-L113
 function retry {
-    local maxAttempts=$1
-    local secondsDelay=1
-    local attemptCount=1
+    local max_attempts=$1
+    local seconds_delay=1
+    local attempt_count=1
     shift 1
 
-    while [[ $attemptCount -le "$maxAttempts" ]]; do
+    while [[ $attempt_count -le "$max_attempts" ]]; do
         if "$@"; then
             break
         else
             local status=$?
-            if [[ $attemptCount -lt "$maxAttempts" ]]; then
-                echo "Command [$*] failed after attempt $attemptCount of $maxAttempts. Retrying in $secondsDelay second(s)." >&2
-                sleep $secondsDelay
-            elif [[ $attemptCount -eq "$maxAttempts" ]]; then
-                echo "Command [$*] failed after $attemptCount attempt(s)" >&2
+            if [[ $attempt_count -lt "$max_attempts" ]]; then
+                echo "Command [$*] failed after attempt $attempt_count of $max_attempts. Retrying in $seconds_delay second(s)." >&2
+                sleep $seconds_delay
+            elif [[ $attempt_count -eq "$max_attempts" ]]; then
+                echo "Command [$*] failed after $attempt_count attempt(s)" >&2
                 return $status
             fi
         fi
-        attemptCount=$((attemptCount + 1))
-        secondsDelay=$((secondsDelay * 2))
+        attempt_count=$((attempt_count + 1))
+        seconds_delay=$((seconds_delay * 2))
     done
 }
 

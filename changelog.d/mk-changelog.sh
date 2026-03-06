@@ -5,9 +5,12 @@ shopt -s nullglob
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-getPRNumber() {
-    git log --reverse --format=%s -- "$1" | sed -rn '1 { /\((#.*)\)$/ s|^.*\((#.*)\)$|\1|p; }' | grep "" ||
+get_pr_number() {
+    file="$1"
+    git log --reverse --format=%s -- "$file" | sed -rn '1 { /\((#.*)\)$/ s|^.*\((#.*)\)$|\1|p; }' | grep "" ||
       echo "#PR_NOT_FOUND"
+
+    return 0
 }
 
 for d in "$DIR"/*; do
@@ -23,7 +26,7 @@ for d in "$DIR"/*; do
     echo ""
     # shellcheck disable=SC2094
     for f in "${entries[@]}"; do
-        pr=$(getPRNumber "$f")
+        pr=$(get_pr_number "$f")
         # shellcheck disable=SC1003
         < "$f" sed -r '
           # create a bullet point on the first line
