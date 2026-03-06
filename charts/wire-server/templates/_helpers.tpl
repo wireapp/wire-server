@@ -176,7 +176,7 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{- define "gundeck.configureAdditionalRedisCa" -}}
-{{ and (hasKey . "redisAdditionalWrite") (or (hasKey .redisAdditionalWrite "additionalTlsCa") (hasKey .redis "additionalTlsCaSecretRef")) }}
+{{ and (hasKey . "redisAdditionalWrite") (or (hasKey .redis "additionalTlsCa") (hasKey .redis "additionalTlsCaSecretRef")) }}
 {{- end -}}
 
 {{- define "gundeck.additionalRedisTlsSecretName" -}}
