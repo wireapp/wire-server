@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "background-worker"
+  labels:
+    app: background-worker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  {{- with .Values.backgroundWorker.config }}
+  background-worker.yaml: |
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    backgroundWorker:
+      host: 0.0.0.0
+      port: {{ $.Values.backgroundWorker.service.internalPort }}
+
+    federatorInternal:
+      host: {{ .federatorInternal.host }}
+      port: {{ .federatorInternal.port }}
+
+    brig:
+      host: {{ .brig.host }}
+      port: {{ .brig.port }}
+    galley:
+      host: {{ .galley.host }}
+      port: {{ .galley.port }}
+
+    gundeck:
+      host: {{ .gundeck.host }}
+      port: {{ .gundeck.port }}
+    spar:
+      host: {{ .spar.host }}
+      port: {{ .spar.port }}
+
+    cassandra:
+      endpoint:
+        host: {{ .cassandra.host }}
+        port: 9042
+      keyspace: gundeck
+      {{- if hasKey .cassandra "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "useGundeckCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-gundeck/{{- (include "gundeckTlsSecretRef" . | fromYaml).key }}
+      {{- end }}
+
+    cassandraBrig:
+      endpoint:
+        host: {{ .cassandraBrig.host }}
+        port: 9042
+      keyspace: brig
+      {{- if hasKey .cassandraBrig "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandraBrig.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "useBrigCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-brig/{{- (include "brigTlsSecretRef" . | fromYaml).key }}
+      {{- end }}
+
+    cassandraGalley:
+      endpoint:
+        host: {{ .cassandraGalley.host }}
+        port: 9042
+      keyspace: galley
+      {{- if hasKey .cassandraGalley "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandraGalley.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "useGalleyCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "galleyTlsSecretRef" . | fromYaml).key }}
+      {{- end }}
+
+    postgresql: {{ toYaml .postgresql | nindent 6 }}
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+    {{- if hasKey $.Values.backgroundWorker.secrets "pgPassword" }}
+    postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
+    {{- end }}
+
+    federationDomain: {{ $.Values.backgroundWorker.config.federationDomain }}
+
+    {{- with .rabbitmq }}
+    rabbitmq:
+      host: {{ .host }}
+      port: {{ .port }}
+      vHost: {{ .vHost }}
+      {{- if $.Values.backgroundWorker.config.enableFederation }}
+      adminHost: {{ default .host .adminHost }}
+      adminPort: {{ .adminPort }}
+      {{- end }}
+      enableTls: {{ .enableTls }}
+      insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
+      {{- if .tlsCaSecretRef }}
+      caCert: /etc/wire/background-worker/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- end }}
+    {{- end }}
+
+    migrateConversations: {{ .migrateConversations }}
+    migrateConversationCodes: {{ .migrateConversationCodes }}
+    migrateTeamFeatures: {{ .migrateTeamFeatures }}
+    migrateConversationsOptions:
+{{toYaml .migrateConversationsOptions | indent 6 }}
+
+    backendNotificationPusher:
+{{toYaml .backendNotificationPusher | indent 6 }}
+    {{- with .backgroundJobs }}
+    backgroundJobs:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+    {{- if .postgresMigration }}
+    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+    {{- end }}
+  {{- end }}

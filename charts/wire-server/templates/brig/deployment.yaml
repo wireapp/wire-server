@@ -1,0 +1,198 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brig
+  labels:
+    app: brig
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.brig.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.brig.replicaCount }}
+  selector:
+    matchLabels:
+      app: brig
+  template:
+    metadata:
+      labels:
+        app: brig
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/brig/configmap.yaml") . | sha256sum }}
+        checksum/turnconfigmap: {{ include (print .Template.BasePath "/brig/turnconfigmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/brig/secret.yaml") . | sha256sum }}
+        fluentbit.io/parser: json
+    spec:
+      serviceAccountName: {{ .Values.brig.serviceAccount.name }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: brig
+      volumes:
+        - name: "brig-config"
+          configMap:
+            name: "brig"
+        - name: "brig-secrets"
+          secret:
+            secretName: "brig"
+        {{- if eq $.Values.brig.turn.serversSource "files" }}
+        - name: "turn-servers"
+          configMap:
+            name: "turn"
+        {{- end }}
+        {{- if eq (include "brig.useCassandraTLS" .Values.brig.config) "true" }}
+        - name: "brig-cassandra"
+          secret:
+            secretName: {{ (include "brig.tlsSecretRef" .Values.brig.config | fromYaml).name }}
+        {{- end}}
+        {{- if eq (include "brig.configureElasticSearchCa" .Values.brig.config) "true" }}
+        - name: "elasticsearch-ca"
+          secret:
+            secretName: {{ include "brig.elasticsearchTlsSecretName" .Values.brig.config }}
+        {{- end }}
+        {{- if eq (include "brig.configureAdditionalElasticSearchCa" .Values.brig.config) "true" }}
+        - name: "additional-elasticsearch-ca"
+          secret:
+            secretName: {{ include "brig.additionalElasticsearchTlsSecretName" .Values.brig.config }}
+        {{- end }}
+        {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
+        - name: "rabbitmq-ca"
+          secret:
+            secretName: {{ .Values.brig.config.rabbitmq.tlsCaSecretRef.name }}
+        {{- end }}
+        {{- if .Values.brig.additionalVolumes }}
+        {{ toYaml .Values.brig.additionalVolumes | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: brig
+          image: "{{ .Values.brig.image.repository }}:{{ .Values.brig.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.brig.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+          securityContext:
+            {{- toYaml .Values.brig.podSecurityContext | nindent 12 }}
+        {{- end }}
+          volumeMounts:
+          - name: "brig-secrets"
+            mountPath: "/etc/wire/brig/secrets"
+          - name: "brig-config"
+            mountPath: "/etc/wire/brig/conf"
+          {{- if eq $.Values.brig.turn.serversSource "files" }}
+          - name: "turn-servers"
+            mountPath: "/etc/wire/brig/turn"
+          {{- end }}
+          {{- if eq (include "brig.useCassandraTLS" .Values.brig.config) "true" }}
+          - name: "brig-cassandra"
+            mountPath: "/etc/wire/brig/cassandra"
+          {{- end }}
+          {{- if eq (include "brig.configureElasticSearchCa" .Values.brig.config) "true" }}
+          - name: "elasticsearch-ca"
+            mountPath: "/etc/wire/brig/elasticsearch-ca/"
+          {{- end }}
+          {{- if eq (include "brig.configureAdditionalElasticSearchCa" .Values.brig.config) "true" }}
+          - name: "additional-elasticsearch-ca"
+            mountPath: "/etc/wire/brig/additional-elasticsearch-ca/"
+          {{- end }}
+          {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
+          - name: "rabbitmq-ca"
+            mountPath: "/etc/wire/brig/rabbitmq-ca/"
+          {{- end }}
+          {{- if .Values.brig.additionalVolumeMounts }}
+          {{ toYaml .Values.brig.additionalVolumeMounts | nindent 10 }}
+          {{- end }}
+          env:
+          - name: LOG_LEVEL
+            value: {{ .Values.brig.config.logLevel }}
+          {{- if hasKey .Values.brig.secrets "awsKeyId" }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: awsKeyId
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: awsSecretKey
+          {{- end }}
+          # TODO: Is this the best way to do this?
+          - name: AWS_REGION
+            value: "{{ .Values.brig.config.aws.region }}"
+          {{- with .Values.brig.config.proxy }}
+          {{- if .httpProxy }}
+          - name: http_proxy
+            value: {{ .httpProxy | quote }}
+          - name: HTTP_PROXY
+            value: {{ .httpProxy | quote }}
+          {{- end }}
+          {{- if .httpsProxy }}
+          - name: https_proxy
+            value: {{ .httpsProxy | quote }}
+          - name: HTTPS_PROXY
+            value: {{ .httpsProxy | quote }}
+          {{- end }}
+          {{- if .noProxyList }}
+          - name: no_proxy
+            value: {{ join "," .noProxyList | quote }}
+          - name: NO_PROXY
+            value: {{ join "," .noProxyList | quote }}
+          {{- end }}
+          {{- end }}
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: rabbitmqUsername
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: rabbitmqPassword
+          ports:
+            - containerPort: {{ .Values.brig.service.internalPort }}
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.brig.service.internalPort }}
+            failureThreshold: 6
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+              - bash
+              - -c
+              - |
+                set -e
+                curl -f http://localhost:{{ .Values.brig.service.internalPort }}/i/status 2>/dev/null
+                
+                metrics=$(curl -f http://localhost:{{ .Values.brig.service.internalPort }}/i/metrics 2>/dev/null)
+                net_connections=$(echo "$metrics" | grep -o "net_connections [0-9]*" | grep -o "[0-9]*")
+                
+                if [ "$net_connections" -gt "{{ .Values.brig.livenessProbe.maxConnections }}" ]; then
+                    echo "ERROR: net_connections ($net_connections) exceeds MAX_CONNECTIONS ({{ .Values.brig.livenessProbe.maxConnections }})"
+                    exit 1
+                fi
+            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.brig.service.internalPort }}
+          {{- if .Values.brig.preStop }}
+          lifecycle:
+            preStop:
+{{ toYaml .Values.brig.preStop | indent 14 }}
+          {{- end }}
+          resources:
+{{ toYaml .Values.brig.resources | indent 12 }}

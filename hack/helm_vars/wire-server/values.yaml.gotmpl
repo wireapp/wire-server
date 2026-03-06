@@ -1,14 +1,7 @@
 tags:
   nginz: true
-  brig: true
-  galley: true
-  gundeck: true
-  cannon: true
-  cargohold: true
-  spar: true
-  federation: true # also see {background-worker,brig,cargohold,galley}.config.enableFederation
+  federation: true 
   backoffice: true
-  proxy: true
   legalhold: false
   sftd: false
   integration: true
@@ -53,6 +46,7 @@ brig:
     limits:
       memory: 1Gi
   config:
+    enableFederation: true
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
       teamCreatorWelcome: https://teams.wire.com/login
@@ -93,7 +87,6 @@ brig:
       sessionTokenTimeout: 20
       accessTokenTimeout: 30
       providerTokenTimeout: 60
-    enableFederation: true # keep in sync with galley.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     multiSFT:
       enabled: false # keep multiSFT default in sync with brig and sft chart's config.multiSFT
     optSettings:
@@ -120,8 +113,6 @@ brig:
       setMaxConvAndTeamSize: 16
       setMaxTeamSize: 32
       setMaxConvSize: 16
-      # See helmfile for the real value
-      setFederationDomain: integration.example.com
       setFeatureFlags:
         conferenceCalling:
           defaultForNew:
@@ -129,6 +120,8 @@ brig:
           defaultForNull:
             status: disabled
       setFederationStrategy: allowAll
+      # See helmfile for the real value
+      setFederationDomain: integration.example.com
       setFederationDomainConfigsUpdateFreq: 10
       setDisabledAPIVersions: []
       set2FACodeGenerationDelaySecs: 5
@@ -257,14 +250,14 @@ cargohold:
     limits:
       memory: 512Mi
   config:
+    enableFederation: true
     aws:
       s3Bucket: dummy-bucket
       s3Endpoint: http://fake-aws-s3:9000
-    enableFederation: true # keep in sync with brig.config.enableFederation, galley.config.enableFederation and tags.federator!
     settings:
+      assetAuditLogEnabled: false
       # See helmfile for the real value
       federationDomain: integration.example.com
-      assetAuditLogEnabled: false
       disabledAPIVersions: []
   secrets:
     awsKeyId: dummykey
@@ -283,6 +276,7 @@ galley:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
+    enableFederation: true
     cassandra:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -303,7 +297,6 @@ galley:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
         key: "ca.crt"
-    enableFederation: true # keep in sync with brig.config.enableFederation, cargohold.config.enableFederation and tags.federator!
     postgresMigration:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
@@ -554,11 +547,12 @@ proxy:
   secrets:
     proxy_config: |-
       secrets {
-              youtube    = "..."
-              googlemaps = "..."
-              soundcloud = "..."
-              giphy      = "..."
-              spotify    = "Basic ..."
+          youtube    = "my-youtube-secret"
+          googlemaps = "my-googlemaps-secret"
+          soundcloud = "my-soundcloud-secret"
+          giphy      = "my-giphy-secret"
+          # Base64 encoded client ID and secret: `Bearer id:secret`:
+          spotify    = "my-spotify-secret"
        }
   config:
     disabledAPIVersions: []
@@ -627,13 +621,15 @@ federator:
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
   {{- end }}
 
-background-worker:
+backgroundWorker:
   replicaCount: 1
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
   config:
     enableFederation: true
+    # See helmfile for the real value
+    federationDomain: integration.example.com
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
@@ -672,7 +668,6 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
-    federationDomain: integration.example.com
     postgresMigration:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
@@ -690,7 +685,6 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
-    pgPassword: "posty-the-gres"
 
 integration:
   ingress:
@@ -741,16 +735,3 @@ backoffice:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
 {{- end }}
-
-proxy:
-  replicaCount: 1
-  secrets:
-    proxy_config: |
-      secrets {
-          youtube    = "my-youtube-secret"
-          googlemaps = "my-googlemaps-secret"
-          soundcloud = "my-soundcloud-secret"
-          giphy      = "my-giphy-secret"
-          # Base64 encoded client ID and secret: `Bearer id:secret`:
-          spotify    = "my-spotify-secret"
-      }

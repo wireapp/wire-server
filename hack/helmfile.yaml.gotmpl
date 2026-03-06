@@ -324,9 +324,9 @@ releases:
         value: {{ .Values.federationDomain1 }}
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
-      - name: cargohold.config.settings.federationDomain
+      - name: backgroundWorker.config.federationDomain
         value: {{ .Values.federationDomain1 }}
-      - name: background-worker.config.federationDomain
+      - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain1 }}
       - name: brig.config.wireServerEnterprise.enabled
         value: true
@@ -346,9 +346,9 @@ releases:
         value: {{ .Values.federationDomain2 }}
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
-      - name: cargohold.config.settings.federationDomain
+      - name: backgroundWorker.config.federationDomain
         value: {{ .Values.federationDomain2 }}
-      - name: background-worker.config.federationDomain
+      - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain2 }}
     needs:
       - 'cassandra-ephemeral'

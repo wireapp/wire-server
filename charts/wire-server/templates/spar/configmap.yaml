@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "spar"
+data:
+{{- with .Values.spar.config }}
+  spar.yaml: |
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+    logNetStrings: {{ .logNetStrings }}
+
+    brig:
+      host: brig
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    cassandra:
+      endpoint:
+        host: {{ .cassandra.host }}
+        port: 9042
+      keyspace: spar
+      {{- if hasKey .cassandra "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
+      {{- end }}
+      {{- if eq (include "spar.useCassandraTLS" .) "true" }}
+      tlsCa: /etc/wire/spar/cassandra/{{- (include "spar.tlsSecretRef" . | fromYaml).key }}
+      {{- end }}
+
+    maxttlAuthreq: {{ .maxttlAuthreq }}
+    maxttlAuthresp: {{ .maxttlAuthresp }}
+
+    richInfoLimit: {{ .richInfoLimit }}
+
+    maxScimTokens: {{ .maxScimTokens }}
+
+    enableIdPByEmailDiscovery: {{ .enableIdPByEmailDiscovery }}
+
+    disabledAPIVersions: {{ toJson .disabledAPIVersions }}
+
+    saml:
+      version:     SAML2.0
+      logLevel:    {{ .logLevel }}
+
+      spHost: 0.0.0.0
+      spPort: {{ $.Values.spar.service.externalPort }}
+      {{- if .domainConfigs }}
+      spDomainConfigs:
+        {{- range $key, $value := .domainConfigs }}
+        {{ $key }}:
+          spAppUri: {{ required (printf "Multi-ingress: config.appUri required for %s" $key) $value.appUri }}
+          spSsoUri: {{ required (printf "Multi-ingress: config.ssoUri required for %s" $key) $value.ssoUri }}
+          contacts:
+            {{- required (printf "Multi-ingress: config.contacts required for %s" $key) $value.contacts | toYaml  | nindent 10 }}
+        {{- end }}
+      {{- else }}
+      spAppUri: {{ required "No multi-ingress: config.appUri required" .appUri }}
+      spSsoUri: {{ required "No multi-ingress: config.ssoUri required" .ssoUri }}
+      contacts:
+        {{- required "No multi-ingress: config.contacts required" .contacts | toYaml  | nindent 8 }}
+      {{- end }}
+
+    scimBaseUri: {{ include "spar.computeScimBaseUri" . | quote }}
+{{- end }}

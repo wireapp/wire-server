@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "cargohold"
+data:
+  cargohold.yaml: |
+    logFormat: {{ .Values.cargohold.config.logFormat }}
+    logLevel: {{ .Values.cargohold.config.logLevel }}
+    logNetStrings: {{ .Values.cargohold.config.logNetStrings }}
+
+    cargohold:
+      host: 0.0.0.0
+      port: {{ .Values.cargohold.service.internalPort }}
+
+    {{- if $.Values.cargohold.config.enableFederation }}
+    federator:
+      host: federator
+      port: 8080
+    {{- end }}
+
+    brig:
+      host: brig
+      port: 8080
+
+    aws:
+      {{- with .Values.cargohold.config.aws }}
+      s3Bucket: {{ .s3Bucket }}
+      s3Endpoint: {{ .s3Endpoint }}
+      {{- if .s3DownloadEndpoint }}
+      s3DownloadEndpoint: {{ .s3DownloadEndpoint }}
+      {{- end }}
+      {{- if .s3Compatibility }}
+      s3Compatibility: {{ .s3Compatibility }}
+      {{- end }}
+      {{- if .s3AddressingStyle }}
+      s3AddressingStyle: {{ .s3AddressingStyle }}
+      {{- end }}
+      {{ if .cloudFront }}
+      cloudFront:
+        domain: {{ .cloudFront.domain }}
+        keyPairId: {{ .cloudFront.keyPairId }}
+        privateKey: {{ .cloudFront.privateKeyPath }}
+      {{ end }}
+      {{- if .multiIngress }}
+      multiIngress:
+        {{- toYaml .multiIngress | nindent 8 }}
+      {{- end }}
+      {{- end }}
+
+    settings:
+      {{- with .Values.cargohold.config.settings }}
+      {{- if .maxTotalBytes }}
+      maxTotalBytes: {{ .maxTotalBytes }}
+      {{- end }}
+      {{- if .maxTotalBytesStrict }}
+      maxTotalBytesStrict: {{ .maxTotalBytesStrict }}
+      {{- end }}
+      {{- if .downloadLinkTTL }}
+      downloadLinkTTL: {{ .downloadLinkTTL }}
+      {{- end }}
+      assetAuditLogEnabled: {{ .assetAuditLogEnabled }}
+      federationDomain: {{ $.Values.cargohold.config.settings.federationDomain }}
+      disabledAPIVersions: {{ toJson .disabledAPIVersions }}
+      {{- end }}
