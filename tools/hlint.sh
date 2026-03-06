@@ -40,7 +40,7 @@ if [[ -z "${f}" ]] || [[ -z "${m}" ]]; then
 fi
 
 if [[ "${k}" ]]; then
-  echo "Will fail on the first error"
+  echo "Will fail on the first error" >&2
   set -euo pipefail
 fi
 

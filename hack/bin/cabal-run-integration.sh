@@ -62,6 +62,8 @@ run_integration_tests() {
       -i "$TOP_LEVEL/services/integration.yaml" \
       "${@:2}"
   fi
+  
+  return 0
 }
 
 run_all_integration_tests() {
@@ -73,6 +75,7 @@ run_all_integration_tests() {
     fi
   done
   run_integration_tests "stern"
+  return 0
 }
 
 if [[ "$package" == "all" ]]; then

@@ -1,14 +1,15 @@
 #!/usr/bin/env sh
 
 exec_until_ready() {
-  until $1; do
-    echo 'service not ready yet'
-    sleep 1
-  done
+    cmd=$1
+    until $cmd; do echo 'service not ready yet'; sleep 1; done
+    return 0
 }
 
 create_vhost() {
-  exec_until_ready "curl --cacert /etc/rabbitmq-ca.pem -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT https://rabbitmq:15671/api/vhosts/$1"
+  vhost="$1"
+  exec_until_ready "curl --cacert /etc/rabbitmq-ca.pem -u $RABBITMQ_USERNAME:$RABBITMQ_PASSWORD -X PUT https://rabbitmq:15671/api/vhosts/$vhost"
+  return 0
 }
 
 echo 'Creating RabbitMQ resources'

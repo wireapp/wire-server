@@ -11,12 +11,13 @@ tempfile=$(mktemp)
 # (sed usage should be portable for both GNU sed and BSD (Mac OS) sed)
 
 function update_chart(){
-    chart_file=$1
+    local chart_file="$1"
     sed -e "s/^version: .*/version: $target_version/g" "$chart_file" > "$tempfile" && mv "$tempfile" "$chart_file"
+    return 0
 }
 
 function write_versions() {
-    target_version=$1
+    local target_version="$1"
 
     # update chart version
     update_chart Chart.yaml
@@ -30,6 +31,7 @@ function write_versions() {
             fi
         done
     fi
+    return 0
 }
 
 cd "$CHARTS_DIR/$chart" && write_versions "$version"

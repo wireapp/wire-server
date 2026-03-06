@@ -25,10 +25,12 @@ done
 
 dc() {
   docker-compose "${opts[@]}" "$@"
+  return 0
 }
 
 cleanup() {
   dc down
+  return 0
 }
 
 if [[ -z "$1" ]]; then

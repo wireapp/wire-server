@@ -11,6 +11,7 @@ function lookup() {
     curl -sSL "https://quay.io/api/v1/repository/wire/$image/tag/?limit=50&page=1&onlyActiveTags=true" \
         | jq -r '.tags[].name' \
         | sort --version-sort | uniq | grep -v latest | grep -v 'pr\.' | tail -1
+    return 0
 }
 
 lookup brig

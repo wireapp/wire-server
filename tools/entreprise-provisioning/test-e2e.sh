@@ -30,23 +30,30 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 log() {
+  local message="$*"
   if [[ "$VERBOSE" -eq 1 ]]; then
-    echo -e "${GREEN}[INFO]${NC} $*" >&2
+    echo -e "${GREEN}[INFO]${NC} $message" >&2
   fi
+  return 0
 }
 
 log_error() {
-  echo -e "${RED}[ERROR]${NC} $*" >&2
+  local message="$*"
+  echo -e "${RED}[ERROR]${NC} $message" >&2
+  return 0
 }
 
 log_warn() {
-  echo -e "${YELLOW}[WARN]${NC} $*" >&2
+  local message="$*"
+  echo -e "${YELLOW}[WARN]${NC} $message" >&2
+  return 0
 }
 
 # Generate random string
 random_string() {
-  local length=${1:-8}
+  local length="${1:-8}"
   env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c "$length"
+  return 0
 }
 
 # Create a team admin user via Brig internal API
@@ -136,6 +143,7 @@ login() {
 
   log "Logged in successfully"
   echo "$access_token"
+  return 0
 }
 
 # Enable channels feature for a team
@@ -180,6 +188,7 @@ enable_channels() {
   local verify_response
   verify_response=$(curl -s -X GET "$GALLEY_INTERNAL/i/teams/$team_id/features/channels")
   log "Feature status: $verify_response"
+  return 0
 }
 
 # Create a user group
@@ -222,6 +231,7 @@ create_user_group() {
 
   log "Created user group: $group_id"
   echo "$group_id"
+  return 0
 }
 
 # Main test flow
@@ -440,6 +450,7 @@ EOF
 
   # Cleanup
   rm -f "$input_file" "$output_file"
+  return 0
 }
 
 # Run main
