@@ -461,8 +461,7 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
         Member (ErrorS ConvInvalidProtocolTransition) r,
         Member (FederationAPIAccess FederatorClient) r,
         Member (ErrorS MLSMigrationCriteriaNotSatisfied) r,
-        Member (Error FederationError) r,
-        Member (Error NoChanges) r
+        Member (Error FederationError) r
       )
   type
     HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
