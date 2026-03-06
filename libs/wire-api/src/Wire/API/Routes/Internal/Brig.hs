@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -43,10 +45,13 @@ module Wire.API.Routes.Internal.Brig
     module Wire.API.Routes.Internal.Brig.EJPD,
     FoundInvitationCode (..),
     EnterpriseLoginApi,
+    SAMLIdPAPI,
+    DeleteApp,
+    IdpChangedNotification (..),
   )
 where
 
-import Control.Lens ((.~), (?~))
+import Control.Lens (makePrisms, (.~), (?~), _1)
 import Data.Aeson (FromJSON, ToJSON, Value (Null))
 import Data.Code qualified as Code
 import Data.CommaSeparatedList
@@ -60,10 +65,12 @@ import Data.OpenApi (HasInfo (info), HasTitle (title), OpenApi)
 import Data.OpenApi qualified as S
 import Data.Qualified (Qualified, qualifiedSchema)
 import Data.Schema hiding (swaggerDoc)
+import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import GHC.TypeLits
 import Imports hiding (head)
 import Network.HTTP.Client qualified as HTTP
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Servant hiding (Handler, addHeader, respond)
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
@@ -96,6 +103,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.API.User.IdentityProvider
+import Wire.API.User.Orphans ()
 import Wire.API.User.RichInfo
 import Wire.API.UserGroup
 import Wire.API.UserGroup.Pagination
@@ -713,7 +722,30 @@ type API =
            :<|> FederationRemotesAPI
            :<|> ProviderAPI
            :<|> EnterpriseLoginApi
+           :<|> SAMLIdPAPI
+           :<|> DeleteApp
        )
+
+type SAMLIdPAPI =
+  "idp"
+    :> ( Named
+           "send-idp-changed-email"
+           ( Summary "Send an email about IdP creation, deletion or update to all team admins and owners"
+               :> "send-idp-changed-email"
+               :> ReqBody '[Servant.JSON] IdpChangedNotification
+               :> Post '[Servant.JSON] ()
+           )
+       )
+
+type DeleteApp =
+  Named
+    "i-delete-app"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "apps"
+        :> Capture "uid" UserId
+        :> Delete '[Servant.JSON] NoContent
+    )
 
 type IStatusAPI =
   Named
@@ -985,6 +1017,73 @@ instance S.ToSchema GetRichInfoMultiResponse where
       S.NamedSchema (Just $ "GetRichInfoMultiResponse") $
         mempty & S.description ?~ "List of pairs of UserId and RichInfo"
 
+data IdpChangedNotificationTag = IdPCreatedTag | IdPDeletedTag | IdPUpdatedTag
+  deriving (Eq, Enum, Bounded)
+
+data IdpChangedNotification = IdPCreated (Maybe UserId) IdP | IdPDeleted UserId IdP | IdPUpdated UserId IdP IdP
+  deriving (Eq, Show, Generic)
+
+makePrisms ''IdpChangedNotification
+
+instance Data.Schema.ToSchema IdpChangedNotification where
+  schema =
+    object "IdpChangedNotification" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: IdpChangedNotification -> (IdpChangedNotificationTag, IdpChangedNotification)
+      toTagged d@(IdPCreated {}) = (IdPCreatedTag, d)
+      toTagged d@(IdPDeleted {}) = (IdPDeletedTag, d)
+      toTagged d@(IdPUpdated {}) = (IdPUpdatedTag, d)
+
+      fromTagged :: (IdpChangedNotificationTag, IdpChangedNotification) -> IdpChangedNotification
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        IdPCreatedTag -> tag _IdPCreated (Data.Schema.unnamed createdSchema)
+        IdPDeletedTag -> tag _IdPDeleted (Data.Schema.unnamed deletedSchema)
+        IdPUpdatedTag -> tag _IdPUpdated (Data.Schema.unnamed updatedSchema)
+
+      tagSchema :: ValueSchema NamedSwaggerDoc IdpChangedNotificationTag
+      tagSchema =
+        enum @Text "Detail Tag" $
+          mconcat [element "created" IdPCreatedTag, element "deleted" IdPDeletedTag, element "updated" IdPUpdatedTag]
+
+      createdSchema :: ValueSchema NamedSwaggerDoc (Maybe UserId, IdP)
+      createdSchema =
+        object "IdPCreated" $
+          (,)
+            <$> fst .= maybe_ (optField "user" schema)
+            <*> snd .= field "idp" schema
+
+      deletedSchema :: ValueSchema NamedSwaggerDoc (UserId, IdP)
+      deletedSchema =
+        object "IdPDeleted" $
+          (,)
+            <$> fst .= field "user" schema
+            <*> snd .= field "idp" schema
+
+      updatedSchema :: ValueSchema NamedSwaggerDoc (UserId, IdP, IdP)
+      updatedSchema =
+        object "IdPUpdated" $
+          (,,)
+            <$> fst3 .= field "user" schema
+            <*> snd3 .= field "old" schema
+            <*> thd3 .= field "new" schema
+
+      fst3 (a, _, _) = a
+      snd3 (_, b, _) = b
+      thd3 (_, _, c) = c
+
+deriving via (Schema IdpChangedNotification) instance FromJSON IdpChangedNotification
+
+deriving via (Schema IdpChangedNotification) instance ToJSON IdpChangedNotification
+
+deriving via (Schema IdpChangedNotification) instance S.ToSchema IdpChangedNotification
+
 swaggerDoc :: OpenApi
 swaggerDoc = brigSwaggerDoc
 
@@ -1000,8 +1099,11 @@ newtype BrigInternalClient a = BrigInternalClient (Servant.ClientM a)
 brigInternalClient :: forall (name :: Symbol) endpoint. (HasEndpoint API endpoint name, Servant.HasClient BrigInternalClient endpoint) => Servant.Client BrigInternalClient endpoint
 brigInternalClient = namedClient @API @name @BrigInternalClient
 
-runBrigInternalClient :: HTTP.Manager -> Endpoint -> BrigInternalClient a -> IO (Either Servant.ClientError a)
-runBrigInternalClient httpMgr (Endpoint brigHost brigPort) (BrigInternalClient action) = do
+runBrigInternalClient :: HTTP.Manager -> Endpoint -> RequestId -> BrigInternalClient a -> IO (Either Servant.ClientError a)
+runBrigInternalClient httpMgr (Endpoint brigHost brigPort) reqId (BrigInternalClient action) = do
   let baseUrl = Servant.BaseUrl Servant.Http (Text.unpack brigHost) (fromIntegral brigPort) ""
-      clientEnv = Servant.mkClientEnv httpMgr baseUrl
+      clientEnv =
+        (Servant.mkClientEnv httpMgr baseUrl)
+          { Servant.middleware = \app req -> app req {Servant.requestHeaders = (defaultRequestIdHeaderName, unRequestId reqId) Seq.<| Servant.requestHeaders req}
+          }
   Servant.runClientM action clientEnv

@@ -122,6 +122,9 @@ config:
 
     checkGroupInfo: false
 
+    meetings:
+      validityPeriod: "48h"
+
     # To disable proteus for new federated conversations:
     # federationProtocols: ["mls"]
 

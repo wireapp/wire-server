@@ -18,16 +18,22 @@ data:
       port: {{ $.Values.service.internalPort }}
 
     federatorInternal:
-      host: federator
-      port: 8080
+      host: {{ .federatorInternal.host }}
+      port: {{ .federatorInternal.port }}
 
     brig:
-      host: brig
-      port: 8080
+      host: {{ .brig.host }}
+      port: {{ .brig.port }}
+    galley:
+      host: {{ .galley.host }}
+      port: {{ .galley.port }}
 
     gundeck:
-      host: gundeck
-      port: 8080
+      host: {{ .gundeck.host }}
+      port: {{ .gundeck.port }}
+    spar:
+      host: {{ .spar.host }}
+      port: {{ .spar.port }}
 
     cassandra:
       endpoint:

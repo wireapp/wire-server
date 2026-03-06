@@ -601,9 +601,7 @@ newProvider user provider = do
   req <-
     baseRequest user Brig Versioned $
       joinHttpPath ["provider", "register"]
-  submit "POST" (req & addJSON p & addClientIP) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  submit "POST" (req & addJSON p & addClientIP) >>= getJSON 201
 
 getProvider ::
   (HasCallStack, MakesValue domain) =>
@@ -708,9 +706,7 @@ newService dom providerId service = do
   let addHdrs =
         addHeader "Z-Type" "provider"
           . addHeader "Z-Provider" providerId
-  submit "POST" (addJSON s . addHdrs $ req) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
-    resp.json
+  submit "POST" (addJSON s . addHdrs $ req) >>= getJSON 201
 
 getService :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App Response
 getService domain pid sid = do
@@ -1273,6 +1269,12 @@ getApps self tid = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
   submit "GET" req
 
+putAppMetadata :: (HasCallStack, MakesValue user) => String -> user -> String -> Value -> App Response
+putAppMetadata tid owner appId appMetadata = do
+  let path = joinHttpPath ["teams", tid, "apps", appId]
+  req <- baseRequest owner Brig Versioned path
+  submit "PUT" (req & addJSON appMetadata)
+
 refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
 refreshAppCookie u tid appId = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
@@ -1289,3 +1291,19 @@ checkHandles :: (MakesValue user) => user -> [String] -> App Response
 checkHandles self handles = do
   req <- baseRequest self Brig Versioned (joinHttpPath ["handles"]) <&> addJSONObject ["handles" .= handles]
   submit "POST" req
+
+getCookies :: (MakesValue user) => user -> [String] -> App Response
+getCookies user labels = do
+  let param = intercalate "," labels
+  req <- baseRequest user Brig Versioned "cookies"
+  submit "GET" (req & addQueryParams [("labels", param)])
+
+getSystemSettingsPublic :: (MakesValue domain) => domain -> App Response
+getSystemSettingsPublic domain = do
+  req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["system", "settings", "unauthorized"]
+  submit "GET" req
+
+getSystemSettingsInternal :: (MakesValue user) => user -> App Response
+getSystemSettingsInternal user = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["system", "settings"]
+  submit "GET" req

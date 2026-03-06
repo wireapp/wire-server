@@ -1,0 +1,41 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+CHANGE IN YOUR IDENTITY PROVIDER CONFIGURATION
+Something has changed in the IdP configuration for your team.
+
+Team ID:
+${team_id}
+
+User ID:
+${user_id}
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP ID:
+${idp_id}
+
+New IdP Issuer:
+${new_idp_issuer}
+
+New IdP Endpoint:
+${new_idp_endpoint}
+
+Old IdP Issuer:
+${old_idp_issuer}
+
+Old IdP Endpoint:
+${old_idp_endpoint}
+
+
+--------------------------------------------------------------------------------
+
+${certificates_details}If you did not initiate this change, please reach out to the Wire support.
+[${support}]
+
+Privacy Policy and Terms of Use [${legal}]· Report misuse [${misuse}]
+${copyright}. All rights reserved.

@@ -74,6 +74,8 @@ import Wire.API.UserEvent
 import Wire.AppStore
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
+import Wire.ClientSubsystem (ClientSubsystem)
+import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.Events
@@ -128,7 +130,8 @@ runUserSubsystem ::
     Member TinyLog r,
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
-    Member UserGroupStore r
+    Member UserGroupStore r,
+    Member ClientSubsystem r
   ) =>
   InterpreterFor AuthenticationSubsystem r ->
   Sem (UserSubsystem ': r) a ->
@@ -728,10 +731,10 @@ syncUserIndex uid =
       vis <-
         maybe
           (pure defaultSearchVisibilityInbound)
-          (teamSearchVisibilityInbound . value)
+          teamSearchVisibilityInbound
           indexUser.teamId
-      tm <- maybe (pure Nothing) (selectTeamMember . value) indexUser.teamId
-      userType <- getUserType indexUser.userId (indexUser.teamId <&> (.value)) (indexUser.serviceId <&> (.value))
+      tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
+      userType <- getUserType indexUser.userId indexUser.teamId indexUser.serviceId
       let mRole = tm >>= mkRoleWithWriteTime
           userDoc = indexUserToDoc vis (Just userType) (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
@@ -1002,18 +1005,22 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
       then pure accsByIds
       else garbageCollect accsByIds
 
-  pure $ filter (\u -> filterPendingInvitations u && filterNoIdentity u) afterGC
+  pure $ filter weWant afterGC
   where
-    filterPendingInvitations :: User -> Bool
-    filterPendingInvitations user =
+    weWant :: User -> Bool
+    weWant user = applyPendingInvitationsFilter user && applyIdentityFilter user
+
+    applyPendingInvitationsFilter :: User -> Bool
+    applyPendingInvitationsFilter user =
       case (includePendingInvitations, user.userStatus) of
         (NoPendingInvitations, PendingInvitation) -> False
         _ -> True
 
-    filterNoIdentity :: User -> Bool
-    filterNoIdentity user =
-      case (includeUsersWithoutIdentity, user.userIdentity) of
-        (False, Nothing) -> False
+    applyIdentityFilter :: User -> Bool
+    applyIdentityFilter user =
+      case (user.userType, includeUsersWithoutIdentity, user.userIdentity) of
+        (UserTypeApp, _, _) -> True
+        (_, False, Nothing) -> False
         _ -> True
 
     -- user invited via scim expires together with its invitation. the UserSubsystem interface
@@ -1081,11 +1088,11 @@ acceptTeamInvitationImpl luid pw code = do
   syncUserIndex uid
   generateUserEvent uid Nothing (teamUpdated uid tid)
 
-getUserExportDataImpl :: (Member UserStore r) => UserId -> Sem r (Maybe TeamExportUser)
+getUserExportDataImpl :: (Member UserStore r, Member ClientSubsystem r) => UserId -> Sem r (Maybe TeamExportUser)
 getUserExportDataImpl uid = fmap hush . runError @() $ do
   su <- UserStore.getUser uid >>= note ()
   mRichInfo <- UserStore.getRichInfo uid
-  timestamps <- UserStore.getActivityTimestamps uid
+  timestamps <- ClientSubsystem.internalGetActivityTimestamps uid
   -- Make sure the list of timestamps is non-empty so that 'maximum' is
   -- well-defined and returns 'Nothing' when no valid timestamps are present.
   let lastActive = maximum (Nothing : timestamps)

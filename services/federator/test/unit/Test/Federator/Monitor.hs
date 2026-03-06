@@ -348,11 +348,18 @@ testMergeWatchedPaths =
   testGroup
     "merged paths"
     [ testProperty "contain the same files" $ \(wpaths :: [WatchedPath]) ->
-        let f (WatchedFile path) = [path]
+        let f (WatchedFile path) = [normalise path]
+            f (WatchedDir dir paths) | normalise dir == "." = normalise <$> Set.toList paths
             f (WatchedDir _ _) = []
             mergedFiles = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
             origFiles = Set.fromList (wpaths >>= f)
-         in mergedFiles == origFiles,
+         in counterexample
+              ( "mergedFiles: "
+                  <> show mergedFiles
+                  <> "\norigFiles: "
+                  <> show origFiles
+              )
+              $ mergedFiles == origFiles,
       testProperty "contain the same directories" $ \(wpaths :: [WatchedPath]) ->
         let f (WatchedFile _) = []
             f (WatchedDir dir _) = [dir]
@@ -372,8 +379,8 @@ testMergeWatchedPaths =
             origCount = sum (map f wpaths)
          in mergedCount <= origCount,
       testProperty "has the same paths" $ \(wpaths :: [WatchedPath]) ->
-        let f (WatchedFile path) = [path]
-            f (WatchedDir dir files) = map (dir </>) (Set.toList files)
+        let f (WatchedFile path) = [normalise path]
+            f (WatchedDir dir files) = map (normalise . (dir </>)) (Set.toList files)
             mergedPaths = Set.fromList (Set.toList (mergePaths wpaths) >>= f)
             origPaths = Set.fromList (wpaths >>= f)
          in mergedPaths == origPaths

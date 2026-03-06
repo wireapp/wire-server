@@ -41,7 +41,6 @@ import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.LegalHold.Get (getUserStatus)
 import Galley.API.MLS.Commit.Core (getCommitData)
 import Galley.API.MLS.Commit.ExternalCommit
@@ -56,8 +55,8 @@ import Galley.API.MLS.Propagate
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
-import Galley.API.Util
 import Galley.Effects
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -67,6 +66,7 @@ import Polysemy.Output
 import Polysemy.Resource (Resource)
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -88,9 +88,10 @@ import Wire.API.Team.LegalHold
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -185,6 +186,7 @@ postMLSCommitBundle ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -216,6 +218,7 @@ postMLSCommitBundleFromLocalUser ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -251,6 +254,7 @@ postMLSCommitBundleToLocalConv ::
     HasProposalEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r

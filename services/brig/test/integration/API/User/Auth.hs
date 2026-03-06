@@ -310,7 +310,7 @@ testNginzMultipleCookies o b n = do
   u <- randomUser b
   let Just email = userEmail u
       dologin :: (HasCallStack) => Http ResponseLBS
-      dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+      dologin = login n (defEmailLogin email) {lLabel = Nothing} PersistentCookie <!! const 200 === statusCode
   unparseableCookie <- (\c -> c {cookie_value = "ThisIsNotAZauthCookie"}) . decodeCookie <$> dologin
   badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAB==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
   goodCookie <- decodeCookie <$> dologin

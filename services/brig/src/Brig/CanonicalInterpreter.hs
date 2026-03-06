@@ -17,7 +17,7 @@
 
 module Brig.CanonicalInterpreter where
 
-import Brig.AWS (amazonkaEnv)
+import Brig.AWS (amazonkaEnv, prekeyTable)
 import Brig.App as App
 import Brig.DeleteQueue.Interpreter as DQ
 import Brig.Effects.ConnectionStore (ConnectionStore)
@@ -66,6 +66,11 @@ import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore.Cassandra
+import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
@@ -109,6 +114,8 @@ import Wire.PropertySubsystem.Interpreter
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.SAMLEmailSubsystem
+import Wire.SAMLEmailSubsystem.Interpreter
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
@@ -163,7 +170,9 @@ type BrigCanonicalEffects =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ TeamSubsystem,
+  '[ ClientSubsystem,
+     SAMLEmailSubsystem,
+     TeamSubsystem,
      TeamCollaboratorsStore,
      AppStore,
      EmailSubsystem,
@@ -193,6 +202,7 @@ type BrigLowerLevelEffects =
      DomainRegistrationStore,
      CryptoSign,
      HashPassword,
+     ClientStore,
      UserKeyStore,
      UserStore,
      IndexedUserStore,
@@ -306,6 +316,20 @@ runBrigToIO e (AppT ma) = do
                     indexName = additionalIndexName
                   }
           }
+      clientStoreCassandraEnv =
+        ClientStoreCassandraEnv
+          { prekeyLocking =
+              maybe
+                ( Right $
+                    OptimisticLockEnv
+                      { awsEnv = e.awsEnv ^. amazonkaEnv,
+                        prekeyTable = e.awsEnv ^. Brig.AWS.prekeyTable
+                      }
+                )
+                Left
+                e.randomPrekeyLocalLock,
+            casClient = e.casClient
+          }
 
       -- These interpreters depend on each other, we use let recursion to solve that.
       --
@@ -363,6 +387,7 @@ runBrigToIO e (AppT ma) = do
               . interpretIndexedUserStoreES indexedUserStoreConfig
               . interpretUserStoreCassandra e.casClient
               . interpretUserKeyStoreCassandra e.casClient
+              . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
               . interpretDomainRegistrationStoreToCassandra e.casClient
@@ -393,6 +418,8 @@ runBrigToIO e (AppT ma) = do
               . interpretAppStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
+              . samlEmailSubsystemInterpreter
+              . runClientSubsystem
               . interpretTeamCollaboratorsSubsystem
               . userSubsystemInterpreter
               . interpretUserGroupSubsystem

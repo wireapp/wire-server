@@ -57,3 +57,4 @@ noopEmailSubsystemInterpreter = interpret \case
   SendTeamInvitationMailPersonalUser {} -> pure ""
   SendMemberWelcomeEmail {} -> pure ()
   SendNewTeamOwnerWelcomeEmail {} -> pure ()
+  SendSAMLIdPChanged {} -> pure ()

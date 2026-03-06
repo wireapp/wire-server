@@ -60,6 +60,8 @@ module Galley.Options
     passwordHashingOptions,
     passwordHashingRateLimit,
     checkGroupInfo,
+    meetings,
+    validityPeriod,
     postgresMigration,
     GuestLinkTTLSeconds (..),
     PostgresMigrationOpts (..),
@@ -75,7 +77,6 @@ import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
 import Galley.Keys
-import Galley.Types.Teams
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
@@ -84,6 +85,7 @@ import Util.Options hiding (endpoint)
 import Util.Options.Common
 import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)
@@ -161,13 +163,23 @@ data Settings = Settings
     -- | Rate limiting options for hashing passwords (used for conversation codes)
     _passwordHashingRateLimit :: RateLimitConfig,
     -- | Check group info
-    _checkGroupInfo :: !(Maybe Bool)
+    _checkGroupInfo :: !(Maybe Bool),
+    -- | Configuration for meetings
+    _meetings :: !(Maybe MeetingsConfig)
   }
   deriving (Show, Generic)
 
+data MeetingsConfig = MeetingsConfig
+  { -- | Validity period of a meeting. After this time, the meeting is considered expired.
+    _validityPeriod :: !(Maybe Duration)
+  }
+  deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''MeetingsConfig
 deriveFromJSON toOptionFieldName ''Settings
 
 makeLenses ''Settings
+makeLenses ''MeetingsConfig
 
 defConcurrentDeletionEvents :: Int
 defConcurrentDeletionEvents = 128

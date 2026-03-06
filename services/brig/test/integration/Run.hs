@@ -28,7 +28,6 @@ import API.OAuth qualified
 import API.Provider qualified as Provider
 import API.Search qualified as Search
 import API.Settings qualified as Settings
-import API.SystemSettings qualified as SystemSettings
 import API.Team qualified as Team
 import API.TeamUserSearch qualified as TeamUserSearch
 import API.Template qualified
@@ -145,7 +144,6 @@ runTests iConf brigOpts otherArgs = do
   teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
   metricsApi <- Metrics.tests mg brigOpts b
-  systemSettingsApi <- SystemSettings.tests brigOpts mg
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
@@ -167,7 +165,6 @@ runTests iConf brigOpts otherArgs = do
         teamApis,
         turnApi,
         metricsApi,
-        systemSettingsApi,
         settingsApi,
         createIndex,
         userPendingActivation,

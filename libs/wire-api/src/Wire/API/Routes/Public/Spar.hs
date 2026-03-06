@@ -20,12 +20,17 @@
 module Wire.API.Routes.Public.Spar where
 
 import Control.Lens ((^.))
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain
 import Data.Id
 import Data.Kind (Type)
+import Data.OpenApi qualified as Swagger
 import Data.Proxy
 import Data.Range
+import Data.SOP (I (..), pattern S, pattern Z)
+import Data.Schema
 import Imports
+import SAML2.WebSSO (IdPId (..))
 import SAML2.WebSSO qualified as SAML
 import Servant
 import Servant.API.Extended
@@ -41,11 +46,14 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Spar
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.SwaggerServant
+import Wire.API.User (EmailAddress)
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
@@ -80,6 +88,52 @@ type APISSO =
     :<|> APIAuthRespLegacy
     :<|> APIAuthResp
     :<|> "settings" :> SsoSettingsGet
+    :<|> Named
+           "sso-get-by-email"
+           ( "get-by-email"
+               :> From 'V15
+               :> ZHostOpt
+               :> ReqBody '[JSON] GetByEmailReq
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ Respond 200 "SSO code found" GetByEmailResp,
+                       Respond 404 "SSO code not found or feature disabled" GetByEmailResp
+                     ]
+                    (Maybe SAML.IdPId)
+           )
+
+newtype GetByEmailReq = GetByEmailReq {email :: EmailAddress}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema GetByEmailReq
+
+instance ToSchema GetByEmailReq where
+  schema =
+    object "GetByEmailReq" $
+      GetByEmailReq <$> email .= field "email" schema
+
+newtype GetByEmailResp = GetByEmailResp {ssoCode :: Maybe SAML.IdPId}
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema GetByEmailResp
+
+instance ToSchema GetByEmailResp where
+  schema =
+    object "GetByEmailResp" $
+      GetByEmailResp
+        <$> (fmap fromIdPId . ssoCode) .= maybe_ (optField "sso_code" (IdPId <$> uuidSchema))
+
+instance
+  AsUnion
+    '[ Respond 200 "SSO code found" GetByEmailResp,
+       Respond 404 "SSO code not found or feature disabled" GetByEmailResp
+     ]
+    (Maybe SAML.IdPId)
+  where
+  toUnion (Just idpId) = Z (I (GetByEmailResp (Just idpId)))
+  toUnion Nothing = S (Z (I (GetByEmailResp Nothing)))
+  fromUnion (Z (I (GetByEmailResp mbIdpId))) = mbIdpId
+  fromUnion (S (Z (I (GetByEmailResp mbIdpId)))) = mbIdpId
+  fromUnion (S (S x)) = case x of {}
 
 type CheckOK = Verb 'HEAD 200
 
@@ -88,6 +142,7 @@ type APIAuthReqPrecheck =
     "auth-req-precheck"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" CookieLabel
         :> Capture "idp" SAML.IdPId
         :> CheckOK '[PlainText] NoContent
     )
@@ -97,6 +152,7 @@ type APIAuthReq =
     "auth-req"
     ( QueryParam "success_redirect" URI.URI
         :> QueryParam "error_redirect" URI.URI
+        :> QueryParam "label" CookieLabel
         -- (SAML.APIAuthReq from here on, except for the cookies)
         :> Capture "idp" SAML.IdPId
         :> ZHostOpt

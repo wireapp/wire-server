@@ -22,8 +22,12 @@ import API.BrigInternal
 import API.Common
 import API.GalleyInternal
 import qualified API.Nginz as Nginz
+import API.Spar
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as BSChar8
+import qualified Data.Text as T
 import SetupHelpers
+import Testlib.JSON
 import Testlib.Prelude
 import Text.Read
 import UnliftIO.Async
@@ -241,3 +245,84 @@ testInvalidCookie = do
           resp.json %. "message" `shouldMatch` "Zauth token expired"
 
 -- @END
+
+testSetCookieLabelOnSsoFlow :: (HasCallStack) => App ()
+testSetCookieLabelOnSsoFlow = do
+  let sharedDeviceMarker = "shared-device"
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLEmails" "enabled"
+  idp@(samlId, _) <- do
+    (resp, (meta, creds)) <- registerTestIdPWithMetaWithPrivateCreds owner
+    resp.status `shouldMatchInt` 201
+    (,(meta, creds)) <$> (resp.json %. "id" >>= asString)
+  scimToken <- do
+    let p = def {name = Just "my-idp", idp = Just samlId}
+    createScimToken owner p >>= getJSON 200 >>= (%. "token") >>= asString
+
+  [(email, user), (email2, user2)] <- replicateM 2 do
+    scimUser <- randomScimUser
+    email <- scimUser %. "externalId" >>= asString
+    uid <- bindResponse (createScimUser owner scimToken scimUser) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "id" >>= asString
+    let user = object ["id" .= uid, "qualified_id" .= object ["id" .= uid, "domain" .= domain]]
+    pure (email, user)
+
+  let getJust = maybe (assertFailure "Expected a cookie, but got no cookie") pure
+
+  -- labeled cookie
+  cookie1 <- getCookieWithSaml tid email idp (Just sharedDeviceMarker) >>= getJust
+  checkCookies user [] [cookie1] [sharedDeviceMarker]
+
+  withWebSocket user \userWs -> do
+    -- same label
+    cookie2 <- getCookieWithSaml tid email idp (Just sharedDeviceMarker) >>= getJust
+    checkCookies user [cookie1] [cookie2] [sharedDeviceMarker]
+
+    void $ awaitMatch isUserSessionRefreshSuggested userWs
+
+    -- other label
+    let otherLabel = "funky device"
+    cookie3 <- getCookieWithSaml tid email idp (Just otherLabel) >>= getJust
+
+    -- unlabeled cookie
+    cookie4 <- getCookieWithSaml tid email idp Nothing >>= getJust
+    checkCookies user [cookie1] [cookie2, cookie3, cookie4] [sharedDeviceMarker, otherLabel]
+
+    -- other user with same label
+    cookie5 <- getCookieWithSaml tid email2 idp (Just sharedDeviceMarker) >>= getJust
+    checkCookies user [cookie1] [cookie2, cookie3, cookie4] [sharedDeviceMarker, otherLabel]
+    checkCookies user2 [] [cookie5] [sharedDeviceMarker]
+
+    -- another login with the same label
+    cookie6 <- getCookieWithSaml tid email idp (Just sharedDeviceMarker) >>= getJust
+    checkCookies user [cookie1, cookie2] [cookie3, cookie4, cookie6] [sharedDeviceMarker, otherLabel]
+
+    void $ awaitMatch isUserSessionRefreshSuggested userWs
+  where
+    isUserSessionRefreshSuggested :: (HasCallStack, MakesValue a) => a -> App Bool
+    isUserSessionRefreshSuggested n = fieldEquals n "payload.0.type" "user.session-refresh-suggested"
+
+    checkCookies user expectedInvalid expectedValid expectedLabels = do
+      checkCookiesValid user expectedValid expectedLabels
+      checkCookiesInvalid expectedInvalid
+
+    checkCookiesInvalid cookies =
+      for_ cookies \cookie ->
+        Nginz.access OwnDomain ("zuid=" <> cookie) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 403
+          resp.json %. "label" `shouldMatch` "invalid-credentials"
+          resp.json %. "message" `shouldMatch` "Invalid zauth token"
+
+    checkCookiesValid user expectedCookies expectedLabels = do
+      for_ expectedCookies $ \cookie -> Nginz.access OwnDomain ("zuid=" <> cookie) >>= assertSuccess
+      getCookies user [] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        cookies <- resp.json %. "cookies" >>= asList
+        length cookies `shouldMatchInt` length expectedCookies
+        cookieLabels <- traverse (\c -> c %. "label") cookies
+        let expected = sort $ (A.String . T.pack <$> expectedLabels)
+        let actual = sort $ filter ((/=) A.Null) cookieLabels
+        actual `shouldMatch` expected

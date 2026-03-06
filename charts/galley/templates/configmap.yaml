@@ -112,6 +112,8 @@ data:
       {{- if .settings.checkGroupInfo }}
       checkGroupInfo: {{ .settings.checkGroupInfo }}
       {{- end }}
+      meetings:
+        {{- toYaml .settings.meetings | nindent 8 }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
         legalhold: {{ .settings.featureFlags.legalhold }}

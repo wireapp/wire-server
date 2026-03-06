@@ -20,13 +20,15 @@
 module Wire.AppStore where
 
 import Data.Aeson
+import Data.Default
 import Data.Id
 import Data.Range
 import Data.UUID
 import Imports
 import Polysemy
-import Wire.API.App
+import Wire.API.App as App
 import Wire.API.PostgresMarshall
+import Wire.Arbitrary
 
 data StoredApp = StoredApp
   { id :: UserId,
@@ -37,6 +39,16 @@ data StoredApp = StoredApp
     creator :: UserId
   }
   deriving (Eq, Ord, Show)
+
+data StoredAppUpdate = MkStoredAppUpdate
+  { category :: Maybe Category,
+    description :: Maybe (Range 0 300 Text)
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform StoredAppUpdate
+
+instance Default StoredAppUpdate where
+  def = MkStoredAppUpdate Nothing Nothing
 
 -- The `PostgresMarshall` instances are here in this module -- as
 -- having them elsewhere would make them orphan instances of
@@ -61,9 +73,14 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp wher
       <*> (maybe (Left "description out of bounds") Right . checked @0 @300 =<< postgresUnmarshall description)
       <*> postgresUnmarshall creator
 
+data AppStoreError = NotFound
+  deriving (Eq, Show)
+
 data AppStore m a where
   CreateApp :: StoredApp -> AppStore m ()
   GetApp :: UserId -> TeamId -> AppStore m (Maybe StoredApp)
   GetApps :: TeamId -> AppStore m [StoredApp]
+  UpdateApp :: TeamId -> UserId -> StoredAppUpdate -> AppStore m (Either AppStoreError ())
+  DeleteApp :: UserId -> TeamId -> AppStore m ()
 
 makeSem ''AppStore

@@ -45,10 +45,25 @@ import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Password (PasswordResetCode, PasswordResetIdentity)
+import Wire.Arbitrary
 import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.HashPassword
 import Wire.UserKeyStore
+
+-- | Policy for handling existing cookies with the same label when issuing a new cookie.
+-- The default policy is 'RevokeSameLabel': for a given account and label, only one active
+-- cookie should remain. This keeps label semantics deterministic and prevents stale parallel
+-- sessions under the same logical device label.
+--
+-- 'KeepSameLabel' is a narrowly scoped relaxation used during cookie renewal. In that case
+-- the predecessor cookie may temporarily coexist with its successor for the same device:
+-- it is linked via 'cookieSucc' and written with a TTL, so it will be garbage-collected.
+-- This is accepted to bridge in-flight requests during rotation while preserving eventual
+-- single-cookie-per-(account,label) behavior.
+data SameLabelPolicy = RevokeSameLabel | KeepSameLabel
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform SameLabelPolicy)
 
 data AuthenticationSubsystem m a where
   -- Password Management
@@ -67,6 +82,7 @@ data AuthenticationSubsystem m a where
     Maybe ClientId ->
     CookieType ->
     Maybe CookieLabel ->
+    SameLabelPolicy ->
     AuthenticationSubsystem m (Cookie (ZAuth.Token t))
   NewCookieLimited ::
     (UserTokenLike t) =>
@@ -74,6 +90,7 @@ data AuthenticationSubsystem m a where
     Maybe ClientId ->
     CookieType ->
     Maybe CookieLabel ->
+    SameLabelPolicy ->
     AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
   RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
   -- For testing

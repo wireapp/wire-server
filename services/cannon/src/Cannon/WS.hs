@@ -43,6 +43,7 @@ module Cannon.WS
     mkKey,
     key2bytes,
     client,
+    logKey,
     sendMsg,
   )
 where
@@ -360,6 +361,10 @@ regInfo k c = do
 
 client :: ByteString -> Msg -> Msg
 client = field "client"
+
+logKey :: Key -> Msg -> Msg
+logKey k =
+  field "user" (keyUserBytes k) . field "conn" (keyConnBytes k)
 
 retry3x :: RetryPolicy
 retry3x = limitRetries 3 <> exponentialBackoff 100000

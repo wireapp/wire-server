@@ -33,10 +33,8 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.API.Util
 import Galley.Effects
 import Galley.Options
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -44,11 +42,13 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.User.Client as Client
 import Wire.BrigAPIAccess
+import Wire.ConversationSubsystem.Util
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 

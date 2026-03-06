@@ -390,5 +390,8 @@ data:
       {{- end }}
       setChallengeTTL: {{ or .setChallengeTTL 604800 }}
       setEphemeralUserCreationEnabled: {{ .setEphemeralUserCreationEnabled }}
+      {{- if hasKey . "setNomadProfiles" }}
+      setNomadProfiles: {{ index . "setNomadProfiles" }}
+      {{- end }}
     {{- end }}
   {{- end }}

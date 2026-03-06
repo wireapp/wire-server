@@ -28,16 +28,17 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time (UTCTime)
 import Data.UUID.Tagged qualified as U
-import Galley.Types.Teams (isTeamMember)
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation qualified as MLS
 import Wire.API.MLS.SubConversation
 import Wire.API.Provider.Service
+import Wire.API.Team.FeatureFlags (isTeamMember)
 import Wire.API.Team.Member
 import Wire.API.User
 import Wire.UserList
@@ -52,7 +53,7 @@ data StoredConversation = StoredConversation
     metadata :: ConversationMetadata,
     protocol :: Protocol
   }
-  deriving (Show)
+  deriving stock (Eq, Show)
 
 instance HasCellsState StoredConversation where
   getCellsState = getCellsState . (.metadata)
@@ -75,7 +76,8 @@ type ConvRowWithId =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe Int64
   )
 
 type ConvRow =
@@ -95,12 +97,13 @@ type ConvRow =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe Int64
   )
 
 splitIdFromRow :: ConvRowWithId -> (ConvId, ConvRow)
-splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent) =
-  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent))
+splitIdFromRow (convId, cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth) =
+  (convId, (cty, muid, acc, roleV2, nme, ti, timer, rm, ptag, mgid, mep, mts, mcs, mgct, mAp, mcells, mparent, mhdepth))
 
 toProtocol ::
   Maybe ProtocolTag ->
@@ -132,7 +135,7 @@ toConv ::
   Maybe ConvRow ->
   Maybe StoredConversation
 toConv cid ms remoteMems mconv = do
-  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _) <- mconv
+  row@(_, _, _, _, _, _, _, _, ptag, mgid, mep, mts, mcs, _, _, _, _, _) <- mconv
   proto <- toProtocol ptag mgid mep mts mcs
   pure
     StoredConversation
@@ -144,7 +147,7 @@ toConv cid ms remoteMems mconv = do
       }
 
 toConvMeta :: ConvRow -> ConversationMetadata
-toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent) =
+toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent, mhdepth) =
   let accessRoles = maybeRole cty roleV2
    in ConversationMetadata
         { cnvmType = cty,
@@ -158,7 +161,12 @@ toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp
           cnvmGroupConvType = mgct,
           cnvmCellsState = fromMaybe def mcells,
           cnvmChannelAddPermission = mAp,
-          cnvmParent = mparent
+          cnvmParent = mparent,
+          cnvmHistory =
+            maybe
+              HistoryPrivate
+              (HistoryShared . HistorySharingConfig . historyDurationFromSecs)
+              mhdepth
         }
 
 newStoredConversation :: Local ConvId -> NewConversation -> StoredConversation
@@ -290,7 +298,7 @@ data LocalMember = LocalMember
     service :: Maybe ServiceRef,
     convRoleName :: RoleName
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 newMember :: UserId -> LocalMember
 newMember u = newMemberWithRole (u, roleNameWireAdmin)
@@ -320,7 +328,7 @@ data MemberStatus = MemberStatus
     msHidden :: Bool,
     msHiddenRef :: Maybe Text
   }
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 defMemberStatus :: MemberStatus
 defMemberStatus =

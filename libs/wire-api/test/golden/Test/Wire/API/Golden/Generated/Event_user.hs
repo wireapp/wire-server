@@ -37,6 +37,7 @@ import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Event.LeaveReason
+import Wire.API.History
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
 domain :: Domain
@@ -170,7 +171,8 @@ testObject_Event_user_8 =
                     cnvmGroupConvType = Just GroupConversation,
                     cnvmChannelAddPermission = Nothing,
                     cnvmCellsState = CellsDisabled,
-                    cnvmParent = Nothing
+                    cnvmParent = Nothing,
+                    cnvmHistory = HistoryPrivate
                   },
               cnvProtocol = ProtocolProteus,
               cnvMembers =

@@ -41,7 +41,7 @@ getAssetAvailable isPublicAsset = do
   uid2 <- randomUser OtherDomain def
   r1 <- uploadSimpleV3 uid1 settings bdy
   r1.status `shouldMatchInt` 201
-  ast <- maybe (error "No JSON in the response") pure r1.jsonBody
+  ast <- maybe (error "No JSON in the response") pure r1.json
 
   -- Call get-asset federation API
   -- Public assets don't have tokens, so don't explode if we can't get one.
@@ -49,7 +49,7 @@ getAssetAvailable isPublicAsset = do
     if isPublicAsset
       then pure $ Right ()
       else Left <$> (ast %. "token" & asString)
-  res <- downloadAsset' uid2 r1.jsonBody tok
+  res <- downloadAsset' uid2 r1.json tok
   res.status `shouldMatchInt` 200
 
 testGetAssetNotAvailable :: (HasCallStack) => App ()
@@ -65,7 +65,7 @@ testGetAssetNotAvailable = do
   r <- downloadAsset' uid ga ga
   -- check that asset is not available
   r.status `shouldMatchInt` 404
-  r.jsonBody %. "message" `shouldMatch` "Asset not found"
+  r.json %. "message" `shouldMatch` "Asset not found"
 
 testGetAssetWrongToken :: (HasCallStack) => App ()
 testGetAssetWrongToken = do
@@ -78,7 +78,7 @@ testGetAssetWrongToken = do
   domain <- uid1 %. "qualified_id" %. "domain" & asString
   r1 <- uploadSimpleV3 uid1 settings bdy
   r1.status `shouldMatchInt` 201
-  key <- r1.jsonBody %. "key" & asString
+  key <- r1.json %. "key" & asString
 
   -- Call get-asset federation API with wrong (random) token
   -- Use uid2 so that this will go via federation
@@ -92,7 +92,7 @@ testGetAssetWrongToken = do
           ]
   r2 <- downloadAsset' uid2 ga ga
   r2.status `shouldMatchInt` 404
-  r2.jsonBody %. "message" `shouldMatch` "Asset not found"
+  r2.json %. "message" `shouldMatch` "Asset not found"
 
 testLargeAsset :: (HasCallStack) => App ()
 testLargeAsset = do
@@ -108,8 +108,8 @@ testLargeAsset = do
   let body = toLazyByteString $ buildMultipartBody' settings applicationOctetStream' (cs bs)
   r1 <- uploadRawV3 uid body
   r1.status `shouldMatchInt` 201
-  tok <- r1.jsonBody %. "token" & asString
-  key <- r1.jsonBody %. "key" & asString
+  tok <- r1.json %. "token" & asString
+  key <- r1.json %. "key" & asString
   -- Call get-asset federation API
   let ga =
         object
@@ -132,8 +132,8 @@ testStreamAsset = do
   r1.status `shouldMatchInt` 201
 
   -- Call get-asset federation API
-  tok <- r1.jsonBody %. "token" & asString
-  key <- r1.jsonBody %. "key" & asString
+  tok <- r1.json %. "token" & asString
+  key <- r1.json %. "key" & asString
   let ga = object ["user" .= userId, "token" .= tok, "key" .= key, "domain" .= domain]
   r2 <- downloadAsset' uid2 ga ga
   r2.status `shouldMatchInt` 200
@@ -155,7 +155,7 @@ testStreamAssetNotAvailable = do
       ga = object ["user" .= userId, "token" .= token, "key" .= key, "domain" .= domain]
   r <- downloadAsset' uid2 ga ga
   r.status `shouldMatchInt` 404
-  r.jsonBody %. "message" `shouldMatch` "Asset not found"
+  r.json %. "message" `shouldMatch` "Asset not found"
 
 testStreamAssetWrongToken :: (HasCallStack) => App ()
 testStreamAssetWrongToken = do
@@ -169,11 +169,11 @@ testStreamAssetWrongToken = do
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randomToken
-  key <- r1.jsonBody %. "key" & asString
+  key <- r1.json %. "key" & asString
   let ga = object ["user" .= userId2, "token" .= tok, "key" .= key, "domain" .= domain]
   r2 <- downloadAsset' uid2 ga ga
   r2.status `shouldMatchInt` 404
-  r2.jsonBody %. "message" `shouldMatch` "Asset not found"
+  r2.json %. "message" `shouldMatch` "Asset not found"
   where
     bdy :: (ConvertibleStrings String a) => (MIME.MIMEType, a)
     bdy = (applicationOctetStream, cs "Hello World")

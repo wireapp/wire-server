@@ -31,7 +31,7 @@ module Galley.Effects
     FireAndForget,
 
     -- * Store effects
-    ClientStore,
+    UserClientIndexStore,
     ConversationStore,
     CustomBackendStore,
     LegalHoldStore,
@@ -64,7 +64,6 @@ import Data.Map (Map)
 import Data.Misc (HttpsUrl)
 import Data.Qualified
 import Data.Text (Text)
-import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
@@ -72,7 +71,6 @@ import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.Options
-import Galley.Types.Teams
 import Imports (Either)
 import Polysemy
 import Polysemy.Error
@@ -81,6 +79,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.CodeStore
@@ -90,12 +89,16 @@ import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess
+import Wire.FederationSubsystem
 import Wire.FireAndForget
 import Wire.GundeckAPIAccess
 import Wire.HashPassword
 import Wire.LegalHoldStore
 import Wire.LegalHoldStore.Env (LegalHoldEnv)
 import Wire.ListItems
+import Wire.MeetingsStore (MeetingsStore)
+import Wire.MeetingsSubsystem (MeetingsSubsystem)
+import Wire.MeetingsSubsystem.Interpreter qualified as Meeting
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.RateLimit
@@ -111,12 +114,15 @@ import Wire.TeamFeatureStore
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserClientIndexStore
 import Wire.UserGroupStore
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
-  '[ TeamCollaboratorsSubsystem,
+  '[ MeetingsSubsystem,
      ConversationSubsystem,
+     FederationSubsystem,
+     TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
      FeaturesConfigSubsystem,
      TeamSubsystem,
@@ -130,7 +136,8 @@ type GalleyEffects1 =
      BackendNotificationQueueAccess,
      FireAndForget,
      TeamCollaboratorsStore,
-     ClientStore,
+     MeetingsStore,
+     UserClientIndexStore,
      CodeStore,
      ProposalStore,
      RateLimit,
@@ -161,8 +168,25 @@ type GalleyEffects1 =
      Input (Either HttpsUrl (Map Text HttpsUrl)),
      Now,
      Queue DeleteItem,
+     Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
      ErrorS OperationDenied,
-     ErrorS 'NotATeamMember
+     ErrorS 'HistoryNotSupported,
+     ErrorS 'NotATeamMember,
+     ErrorS 'ConvAccessDenied,
+     ErrorS 'NotConnected,
+     ErrorS 'MLSNotEnabled,
+     ErrorS 'MLSNonEmptyMemberList,
+     ErrorS 'MissingLegalholdConsent,
+     ErrorS 'NonBindingTeam,
+     ErrorS 'NoBindingTeamMembers,
+     ErrorS 'TeamNotFound,
+     ErrorS 'InvalidOperation,
+     ErrorS 'ConvNotFound,
+     ErrorS 'ChannelsNotEnabled,
+     ErrorS 'NotAnMlsConversation,
+     ErrorS 'NotATeamMember,
+     ErrorS 'MeetingNotFound,
+     ErrorS 'InvalidOperation
    ]

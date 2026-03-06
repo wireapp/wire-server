@@ -108,6 +108,7 @@ data GalleyError
   | ConvNotFound
   | ConvAccessDenied
   | ConvInvalidProtocolTransition
+  | HistoryNotSupported
   | -- MLS Errors
     MLSNotEnabled
   | MLSNonEmptyMemberList
@@ -177,6 +178,7 @@ data GalleyError
   | NotAnMlsConversation
   | MLSReadReceiptsNotAllowed
   | MLSInvalidLeafNodeSignature
+  | MeetingNotFound
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -243,6 +245,8 @@ type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conve
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
 
 type instance MapError 'ConvInvalidProtocolTransition = 'StaticError 403 "invalid-protocol-transition" "Protocol transition is invalid"
+
+type instance MapError 'HistoryNotSupported = 'StaticError 400 "history-not-supported" "Shared history is not supported on this conversation"
 
 type instance MapError 'InvalidTeamNotificationId = 'StaticError 400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 
@@ -374,6 +378,11 @@ type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-convers
 type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
 
 type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
+
+--------------------------------------------------------------------------------
+-- Meeting errors
+
+type instance MapError 'MeetingNotFound = 'StaticError 404 "meeting-not-found" "Meeting not found"
 
 --------------------------------------------------------------------------------
 -- Team Member errors

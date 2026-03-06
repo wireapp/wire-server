@@ -31,12 +31,192 @@ import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as T
 import GHC.Stack
+import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import Test.MLS.History (channelsConfig)
 import Testlib.One2One (generateRemoteAndConvIdWithDomain)
 import Testlib.Prelude
 import Testlib.ResourcePool
 import Testlib.VersionedFed
+
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeProteus :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeProteus = do
+  (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
+
+  let newApp :: NewApp
+      newApp =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          }
+  app <- bindResponse (createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  conv <- postConversation mem1 defProteus >>= getJSON 201
+  addMembers mem1 conv (def {users = [mem2]}) >>= assertSuccess
+  -- apps don't support proteus, but the error only occurs during MLS
+  -- handshake by the client.  (the backend could also check protocols
+  -- here, but that would require additional database access, so we've
+  -- avoided it thus far.)
+  -- see also: https://wearezeta.atlassian.net/browse/WPB-18413
+  addMembers mem1 conv (def {users = [app]}) >>= assertSuccess
+
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeOne2One :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeOne2One = do
+  (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
+
+  let newApp :: NewApp
+      newApp =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          }
+  app <- bindResponse (createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
+  traverse_ (uploadNewKeyPackage def) [mem1c, mem2c, mem2c, appc]
+
+  let runCheck :: (HasCallStack) => Value -> ClientIdentity -> Value -> App ()
+      runCheck from fromc to = do
+        conv <- getMLSOne2OneConversation from to >>= getJSON 200
+        convId <- objConvId $ conv %. "conversation"
+
+        createGroup def fromc convId -- set up state / context and store in `App`
+        -- this alternative to createGroup also works, not sure why: resetOne2OneGroup def fromc conv
+        msg1 <-
+          -- fetch key packages for all clients of users `from`, `to`
+          -- create add commit for `from` (implicit)
+          -- create add commit for `to` (explicit)
+          createAddCommit fromc convId [to]
+        events1 <- sendAndConsumeCommitBundle msg1
+        do
+          (events1 %. "events.0.conversation" & asString)
+            `shouldMatch` (convId %. "id" & asString)
+
+          (events1 %. "events.0.data.add_type" & asString)
+            `shouldMatch` "internal_add"
+
+          (events1 %. "events.0.data.user_ids" & asList)
+            `shouldMatchSet` sequence [from %. "id", to %. "id"]
+
+        msg2 <- createApplicationMessage convId fromc "everybody welcome new guy!"
+        events2 <- sendAndConsumeMessage msg2
+        events2 %. "events" `shouldMatchSet` ([] :: [Value])
+
+  -- regular to regular
+  runCheck mem1 mem1c mem2
+
+  -- regular to app
+  runCheck mem1 mem1c app
+
+  -- app to regular
+  runCheck app appc mem2
+
+-- prior art: `testMigrationToPostgresMLS`
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeTeam :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeTeam = do
+  (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
+
+  let newApp :: NewApp
+      newApp =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          }
+  app <- bindResponse (createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
+  traverse_ (uploadNewKeyPackage def) [mem1c, mem1c, mem2c, mem2c, appc, appc]
+
+  let runCheck :: (HasCallStack) => ClientIdentity -> Value -> App ()
+      runCheck fromc to = do
+        convId <- createNewGroupWith def fromc defMLS {team = Just tid}
+        toId <- to %. "qualified_id"
+
+        events1 <-
+          createAddCommit fromc convId [toId]
+            >>= sendAndConsumeCommitBundle
+        (events1 %. "events.0.conversation" & asString)
+          `shouldMatch` (convId %. "id" & asString)
+        (events1 %. "events.0.data.add_type" & asString)
+          `shouldMatch` "internal_add"
+        (events1 %. "events.0.data.user_ids" & asList)
+          `shouldMatchSet` sequence [to %. "id"]
+
+        events2 <-
+          createApplicationMessage convId fromc "everybody welcome new guy!"
+            >>= sendAndConsumeMessage
+        events2 %. "events" `shouldMatchSet` ([] :: [Value])
+
+  -- regular to regular
+  runCheck mem1c mem2
+
+  -- app to regular
+  runCheck appc mem2
+
+  -- regular to app
+  runCheck mem1c app
+
+-- FUTUREWORK: what about federation?
+testConversationWithAppOwnTeamConvTypeChannel :: (HasCallStack) => App ()
+testConversationWithAppOwnTeamConvTypeChannel = do
+  -- prior art: `testSetHistory`
+  (owner, tid, [mem1, mem2]) <- createTeam OwnDomain 3
+
+  I.setTeamFeatureLockStatus owner tid "channels" "unlocked"
+  API.GalleyInternal.setTeamFeatureConfig owner tid "channels" channelsConfig >>= assertSuccess
+
+  let newApp :: NewApp
+      newApp =
+        def
+          { name = "chappie",
+            description = "some description of this app",
+            category = "ai"
+          }
+  app <- bindResponse (createApp owner tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  [mem1c, mem2c, appc] <- traverse (createMLSClient def) [mem1, mem2, app]
+
+  traverse_ (uploadNewKeyPackage def) [mem1c, mem1c, mem2c, mem2c, appc, appc]
+
+  let runCheck :: (HasCallStack) => ClientIdentity -> Value -> App ()
+      runCheck fromc to = do
+        convId <- createNewGroupWith def fromc defMLS {team = Just tid, groupConvType = Just "channel"}
+        events1 <-
+          createAddCommit fromc convId [to]
+            >>= sendAndConsumeCommitBundle
+        (events1 %. "events.0.conversation" & asString)
+          `shouldMatch` (convId %. "id" & asString)
+        (events1 %. "events.0.data.add_type" & asString)
+          `shouldMatch` "internal_add"
+        (events1 %. "events.0.data.user_ids" & asList)
+          `shouldMatchSet` sequence [to %. "id"]
+
+        events2 <- createApplicationMessage convId fromc "everybody welcome new guy!" >>= sendAndConsumeMessage
+        events2 %. "events" `shouldMatchSet` ([] :: [Value])
+
+  -- regular to regular
+  runCheck mem1c mem2
+
+  -- app to regular
+  runCheck appc mem2
+
+  -- regular to app
+  runCheck mem1c app
 
 testFederatedConversation :: (HasCallStack) => App ()
 testFederatedConversation = do
@@ -322,7 +502,7 @@ testAddUserWithUnreachableRemoteUsers domain = do
 
     bindResponse (addMembers alex conv def {users = [bobId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
     runCodensity (startDynamicBackend cDom mempty) $ \_ ->
       void $ addMembers alex conv def {users = [bobId]} >>= getBody 200
@@ -335,7 +515,7 @@ testAddUserWithUnreachableRemoteUsers domain = do
     -- assert an unreachable user cannot be added
     bindResponse (addMembers alex conv def {users = [chrisId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: (HasCallStack) => StaticDomain -> App ()
 testAddUnreachableUserFromFederatingBackend domain = do
@@ -358,7 +538,7 @@ testAddUnreachableUserFromFederatingBackend domain = do
 
     bindResponse (addMembers alice conv def {users = [chadId]}) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachable :: (HasCallStack) => App ()
 testAddUnreachable = do
@@ -625,7 +805,7 @@ testDeleteLocalMember = do
   -- Now that Alex is gone, try removing her once again
   bindResponse (removeMember alice conv alex) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteRemoteMember :: (HasCallStack) => App ()
 testDeleteRemoteMember = do
@@ -644,7 +824,7 @@ testDeleteRemoteMember = do
   -- Now that Bob is gone, try removing him once again
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteRemoteMemberRemoteUnreachable :: (HasCallStack) => App ()
 testDeleteRemoteMemberRemoteUnreachable = do
@@ -668,7 +848,7 @@ testDeleteRemoteMemberRemoteUnreachable = do
   -- Now that Bob is gone, try removing him once again
   bindResponse (removeMember alice conv bob) $ \r -> do
     r.status `shouldMatchInt` 204
-    r.jsonBody `shouldMatch` (Nothing @Aeson.Value)
+    r.json `shouldMatch` (Nothing @Aeson.Value)
 
 testDeleteTeamConversationWithRemoteMembers :: (HasCallStack) => App ()
 testDeleteTeamConversationWithRemoteMembers = do

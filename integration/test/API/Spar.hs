@@ -225,9 +225,13 @@ initiateSamlLogin = (flip initiateSamlLoginWithZHost) Nothing
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-req
 initiateSamlLoginWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> App Response
-initiateSamlLoginWithZHost domain mbZHost idpId = do
+initiateSamlLoginWithZHost domain mbZHost idpId = initiateSamlLoginWithZHostAndLabel domain mbZHost Nothing idpId --
+
+-- | https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/auth-req
+initiateSamlLoginWithZHostAndLabel :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> Maybe String -> String -> App Response
+initiateSamlLoginWithZHostAndLabel domain mbZHost mLabel idpId = do
   req <- baseRequest domain Spar Versioned $ joinHttpPath ["sso", "initiate-login", idpId]
-  submit "GET" (req & maybe id zHost mbZHost)
+  submit "GET" (req & maybe id zHost mbZHost & maybe id (\l -> addQueryParams [("label", l)]) mLabel)
 
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/auth-resp
 finalizeSamlLogin :: (HasCallStack, MakesValue domain) => domain -> String -> SAML.SignedAuthnResponse -> App Response
@@ -239,3 +243,11 @@ finalizeSamlLoginWithZHost domain mbZHost tid (SAML.SignedAuthnResponse authnres
   baseRequest domain Spar Versioned (joinHttpPath ["sso", "finalize-login", tid])
     >>= formDataBody [partLBS (cs "SAMLResponse") . EL.encode . XML.renderLBS XML.def $ authnresp]
     >>= \req -> submit "POST" (req & maybe id zHost mbZHost)
+
+getSsoCodeByEmail :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
+getSsoCodeByEmail = flip getSsoCodeByEmailWithZHost Nothing
+
+getSsoCodeByEmailWithZHost :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> App Response
+getSsoCodeByEmailWithZHost domain mbZHost email = do
+  req <- baseRequest domain Spar Versioned "/sso/get-by-email"
+  submit "POST" ((req & addJSONObject ["email" .= email]) & maybe id zHost mbZHost)

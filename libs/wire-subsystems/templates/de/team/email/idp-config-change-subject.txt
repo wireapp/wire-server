@@ -1,0 +1,1 @@
+Die Konfiguration des Identity Providers Ihres Teams hat sich geändert

@@ -72,7 +72,7 @@ testAddUserWithUnreachableRemoteUsers = do
       mp <- createAddCommit alice1 convId [bob]
       bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
         resp.status `shouldMatchInt` 533
-        resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+        resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
       runCodensity (startDynamicBackend cDom mempty) $ \_ ->
         void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getBody 201
@@ -86,7 +86,7 @@ testAddUserWithUnreachableRemoteUsers = do
         createAddCommit alice1 convId [chris]
       bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
         resp.status `shouldMatchInt` 533
-        resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+        resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
 
 testAddUnreachableUserFromFederatingBackend :: (HasCallStack) => App ()
 testAddUnreachableUserFromFederatingBackend = do
@@ -108,4 +108,4 @@ testAddUnreachableUserFromFederatingBackend = do
 
     bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
       resp.status `shouldMatchInt` 533
-      resp.jsonBody %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]
+      resp.json %. "unreachable_backends" `shouldMatchSet` [cDom.berDomain]

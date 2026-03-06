@@ -25,8 +25,8 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.API.Error (InternalError)
 import Galley.API.Mapping
+import Galley.Types.Error (InternalError)
 import Imports
 import Polysemy (Sem)
 import Polysemy qualified as P
@@ -140,6 +140,7 @@ genConversationMetadata =
     <*> pure Nothing
     <*> pure Nothing
     <*> pure Nothing
+    <*> arbitrary
     <*> arbitrary
     <*> arbitrary
     <*> arbitrary

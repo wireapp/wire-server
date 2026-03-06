@@ -40,6 +40,7 @@ module Galley.API.Update
     updateConversationMessageTimer,
     updateConversationAccessUnqualified,
     updateConversationAccess,
+    updateConversationHistory,
     updateChannelAddPermission,
     deleteLocalConversation,
     updateRemoteConversation,
@@ -91,17 +92,14 @@ import Data.Singletons
 import Data.Vector qualified as V
 import Galley.API.Action
 import Galley.API.Action.Kick (kickMember)
-import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Message
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ClientStore qualified as E
-import Galley.Env
 import Galley.Options
+import Galley.Types.Error
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -112,6 +110,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol qualified as P
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -129,6 +128,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
@@ -137,10 +137,11 @@ import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
+import Wire.FederationSubsystem
 import Wire.HashPassword as HashPassword
 import Wire.NotificationSubsystem
 import Wire.RateLimit
@@ -150,6 +151,7 @@ import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
 
@@ -295,6 +297,7 @@ updateConversationAccess ::
     Member Now r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -307,11 +310,42 @@ updateConversationAccess lusr con qcnv update = do
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
 
+updateConversationHistory ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS (ActionDenied ModifyConversationAccess)) r,
+    Member (ErrorS InvalidOperation) r,
+    Member (ErrorS ConvNotFound) r,
+    Member (ErrorS HistoryNotSupported) r,
+    Member BackendNotificationQueueAccess r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ConversationStore r,
+    Member ConversationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  ConversationHistoryUpdate ->
+  Sem r (UpdateResult Event)
+updateConversationHistory lusr con qcnv update = do
+  lcnv <- ensureLocal lusr qcnv
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation
+      @'ConversationHistoryUpdateTag
+      lcnv
+      (tUntagged lusr)
+      (Just con)
+      update.history
+
 updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,
     Member Now r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -345,6 +379,7 @@ updateConversationReceiptMode ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -427,6 +462,7 @@ updateConversationReceiptModeUnqualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -447,6 +483,7 @@ updateConversationMessageTimer ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -481,6 +518,7 @@ updateConversationMessageTimerUnqualified ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -507,6 +545,7 @@ deleteLocalConversation ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -751,6 +790,7 @@ updateConversationProtocolWithLocalUser ::
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -798,6 +838,7 @@ updateChannelAddPermission ::
     Member (ErrorS 'InvalidTargetAccess) r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -951,6 +992,7 @@ addMembers ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1006,6 +1048,7 @@ addMembersUnqualifiedV2 ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1049,6 +1092,7 @@ addMembersUnqualified ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
+    Member FederationSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -1099,6 +1143,7 @@ replaceMembers ::
     Member E.MLSCommitLockStore r,
     Member UserGroupStore r,
     Member ConversationSubsystem r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1229,6 +1274,7 @@ updateOtherMemberLocalConv ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1256,6 +1302,7 @@ updateOtherMemberUnqualified ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1282,6 +1329,7 @@ updateOtherMember ::
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1324,6 +1372,7 @@ removeMemberUnqualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1356,6 +1405,7 @@ removeMemberQualified ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1436,6 +1486,7 @@ removeMemberFromLocalConv ::
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1508,7 +1559,7 @@ removeMemberFromChannel qusr lconv victim = do
 
 postProteusMessage ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
@@ -1534,7 +1585,6 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
 
 postProteusBroadcast ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -1545,7 +1595,8 @@ postProteusBroadcast ::
     Member TeamStore r,
     Member TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member ConversationSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1586,7 +1637,7 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
 
 postBotMessageUnqualified ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -1616,7 +1667,6 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
 
 postOtrBroadcastUnqualified ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
@@ -1627,7 +1677,8 @@ postOtrBroadcastUnqualified ::
     Member TeamStore r,
     Member TinyLog r,
     Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member ConversationSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1642,7 +1693,7 @@ postOtrBroadcastUnqualified sender zcon =
 
 postOtrMessageUnqualified ::
   ( Member BrigAPIAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -1678,6 +1729,7 @@ updateConversationName ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1706,6 +1758,7 @@ updateUnqualifiedConversationName ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1731,6 +1784,7 @@ updateLocalConversationName ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
+    Member FederationSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
@@ -1802,7 +1856,7 @@ memberTypingUnqualified lusr zcon cnv ts = do
 
 addBot ::
   forall r.
-  ( Member ClientStore r,
+  ( Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1869,7 +1923,7 @@ addBot lusr zcon b = do
       pure (bots, users)
 
 rmBot ::
-  ( Member ClientStore r,
+  ( Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,

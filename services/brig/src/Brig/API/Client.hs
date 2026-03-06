@@ -31,8 +31,6 @@ module Brig.API.Client
     lookupPubClients,
     lookupPubClientsBulk,
     lookupLocalPubClientsBulk,
-    Data.lookupPrekeyIds,
-    Data.lookupUsersClientIds,
     createAccessToken,
 
     -- * Prekeys
@@ -43,7 +41,6 @@ module Brig.API.Client
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
     claimMultiPrekeyBundlesV3,
-    Data.lookupClientIds,
   )
 where
 
@@ -107,6 +104,8 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
+import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
 import Wire.Events (Events)
@@ -121,18 +120,18 @@ import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
-lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
-lookupLocalClient uid = wrapClient . Data.lookupClient uid
+lookupLocalClient :: (Member ClientStore r) => UserId -> ClientId -> AppT r (Maybe Client)
+lookupLocalClient uid = liftSem . ClientStore.lookupClient uid
 
-lookupLocalClients :: UserId -> (AppT r) [Client]
-lookupLocalClients = wrapClient . Data.lookupClients
+lookupLocalClients :: (Member ClientStore r) => UserId -> AppT r [Client]
+lookupLocalClients = liftSem . ClientStore.lookupClients
 
-lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError (AppT r) (Maybe PubClient)
+lookupPubClient :: (Member ClientStore r) => Qualified UserId -> ClientId -> ExceptT ClientError (AppT r) (Maybe PubClient)
 lookupPubClient qid cid = do
   clients <- lookupPubClients qid
   pure $ find ((== cid) . pubClientId) clients
 
-lookupPubClients :: Qualified UserId -> ExceptT ClientError (AppT r) [PubClient]
+lookupPubClients :: (Member ClientStore r) => Qualified UserId -> ExceptT ClientError (AppT r) [PubClient]
 lookupPubClients qid@(Qualified uid domain) = do
   getForUser <$> lookupPubClientsBulk [qid]
   where
@@ -141,7 +140,7 @@ lookupPubClients qid@(Qualified uid domain) = do
       um <- userMap <$> Map.lookup domain (qualifiedUserMap qmap)
       Set.toList <$> Map.lookup uid um
 
-lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError (AppT r) (QualifiedUserMap (Set PubClient))
+lookupPubClientsBulk :: (Member ClientStore r) => [Qualified UserId] -> ExceptT ClientError (AppT r) (QualifiedUserMap (Set PubClient))
 lookupPubClientsBulk qualifiedUids = do
   loc <- qualifyLocal ()
   let (localUsers, remoteUsers) = partitionQualified loc qualifiedUids
@@ -161,8 +160,8 @@ lookupPubClientsBulk qualifiedUids = do
             ~~ msg (val "Failed to fetch clients for domain")
       pure $ Map.fromList (rights results)
 
-lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
-lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
+lookupLocalPubClientsBulk :: (Member ClientStore r) => [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
+lookupLocalPubClientsBulk = lift . liftSem . ClientStore.lookupPubClientsBulk
 
 addClient ::
   ( Member GalleyAPIAccess r,
@@ -172,7 +171,8 @@ addClient ::
     Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member Events r
+    Member Events r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -191,7 +191,8 @@ addClientWithReAuthPolicy ::
     Member Events r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r
+    Member VerificationCodeSubsystem r,
+    Member ClientStore r
   ) =>
   Data.ReAuthPolicy ->
   Local UserId ->
@@ -245,14 +246,14 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
         VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
 updateClient ::
-  (Member NotificationSubsystem r) =>
+  (Member NotificationSubsystem r, Member ClientStore r) =>
   UserId ->
   ClientId ->
   UpdateClient ->
   (Handler r) ()
 updateClient uid cid req = do
-  client <- wrapClientE (lift (Data.lookupClient uid cid) >>= maybe (throwE ClientNotFound) pure) !>> clientError
-  wrapClientE $ for_ req.updateClientLabel $ lift . Data.updateClientLabel uid cid . Just
+  client <- (lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientError
+  lift . liftSem $ for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
   for_ req.updateClientCapabilities $ \caps -> do
     if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
       then do
@@ -260,13 +261,18 @@ updateClient uid cid req = do
         let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
         when (ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
           setupConsumableNotifications uid cid
-        wrapClientE $ lift . Data.updateClientCapabilities uid cid . Just $ caps
+        lift . liftSem . ClientStore.updateCapabilities uid cid . Just $ caps
       else throwE $ clientError ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
-  wrapClientE
-    ( do
-        Data.updatePrekeys uid cid (lk ++ req.updateClientPrekeys)
-        Data.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
+      prekeys = lk ++ req.updateClientPrekeys
+  ( do
+      unless (all checkPrekeyBundle prekeys) $
+        throwE MalformedPrekeys
+      lift . liftSem $ ClientStore.updatePrekeys uid cid prekeys
+      mErr <- lift . liftSem $ ClientStore.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
+      case mErr of
+        Just DuplicateMLSPublicKey -> throwE MLSPublicKeyDuplicate
+        Nothing -> pure ()
     )
     !>> ClientDataError
     !>> clientError
@@ -275,7 +281,8 @@ updateClient uid cid req = do
 -- a superset of the clients known to galley.
 rmClient ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   ConnId ->
@@ -283,7 +290,7 @@ rmClient ::
   Maybe PlainTextPassword6 ->
   ExceptT ClientError (AppT r) ()
 rmClient u con clt pw =
-  maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
+  maybe (throwE ClientNotFound) fn =<< lift (liftSem $ ClientStore.lookupClient u clt)
   where
     fn client = do
       case clientType client of
@@ -299,7 +306,8 @@ rmClient u con clt pw =
 
 claimPrekey ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   UserId ->
@@ -314,7 +322,8 @@ claimPrekey protectee u d c = do
 
 claimLocalPrekey ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   UserId ->
@@ -323,7 +332,7 @@ claimLocalPrekey ::
 claimLocalPrekey protectee user client = do
   guardLegalhold protectee (mkUserClients [(user, [client])])
   lift $ do
-    prekey <- wrapHttpClient $ Data.claimPrekey user client
+    prekey <- liftSem $ ClientStore.claimPrekey user client
     when (isNothing prekey) (noPrekeys user client)
     pure prekey
 
@@ -337,18 +346,18 @@ claimRemotePrekey ::
   ExceptT ClientError m (Maybe ClientPrekey)
 claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
-claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
+claimPrekeyBundle :: (Member ClientStore r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
     else claimRemotePrekeyBundle (Qualified uid domain)
 
-claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
+claimLocalPrekeyBundle :: (Member ClientStore r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
-  clients <- map (.clientId) <$> lift (wrapClient (Data.lookupClients u))
+  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients u))
   guardLegalhold protectee (mkUserClients [(u, clients)])
-  PrekeyBundle u . catMaybes <$> lift (mapM (wrapHttp . Data.claimPrekey u) clients)
+  PrekeyBundle u . catMaybes <$> lift (mapM (liftSem . ClientStore.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimRemotePrekeyBundle quser = do
@@ -358,7 +367,8 @@ claimMultiPrekeyBundlesInternal ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -388,7 +398,8 @@ claimMultiPrekeyBundlesInternal protectee quc = do
 claimMultiPrekeyBundlesV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -424,7 +435,8 @@ claimMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -454,7 +466,8 @@ claimLocalMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   LegalholdProtectee ->
   UserClients ->
@@ -490,7 +503,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
       ClientId ->
       (AppT r) (Maybe UncheckedPrekeyBundle)
     getClientKeys u c = do
-      key <- fmap prekeyData <$> wrapHttpClient (Data.claimPrekey u c)
+      key <- fmap prekeyData <$> liftSem (ClientStore.claimPrekey u c)
       when (isNothing key) $ noPrekeys u c
       pure key
 
@@ -499,7 +512,8 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- | Enqueue an orderly deletion of an existing client.
 execDelete ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -508,7 +522,7 @@ execDelete ::
 execDelete u con c = do
   for_ (clientCookie c) $ \l -> liftSem $ Auth.revokeCookies u [] [l]
   liftSem $ enqueueClientDeletion c.clientId u con
-  wrapClient $ Data.rmClient u c.clientId
+  liftSem $ ClientStore.delete u c.clientId
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed
@@ -517,13 +531,14 @@ execDelete u con c = do
 -- (and possibly duplicated) client data.
 noPrekeys ::
   ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   ClientId ->
   (AppT r) ()
 noPrekeys u c = do
-  mclient <- wrapClient $ Data.lookupClient u c
+  mclient <- liftSem $ ClientStore.lookupClient u c
   case mclient of
     Nothing -> do
       Log.warn $
@@ -558,12 +573,13 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 removeLegalHoldClient ::
   ( Member DeleteQueue r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   AppT r ()
 removeLegalHoldClient uid = do
-  clients <- wrapClient $ Data.lookupClients uid
+  clients <- liftSem $ ClientStore.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case

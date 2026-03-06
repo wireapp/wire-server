@@ -2,11 +2,11 @@
 
 module Wire.FeaturesConfigSubsystem.Utils where
 
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Input
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 
 resolveServerFeature ::
   forall cfg r.

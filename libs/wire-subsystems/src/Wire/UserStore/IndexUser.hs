@@ -28,6 +28,7 @@ import Data.Json.Util
 import Data.Text.Encoding qualified as Text
 import Data.Text.Encoding.Error qualified as Text
 import Data.Text.ICU.Translit
+import Data.Time
 import Database.CQL.Protocol
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -44,19 +45,20 @@ data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
 
 data IndexUser = IndexUser
   { userId :: UserId,
-    teamId :: Maybe (WithWritetime TeamId),
-    name :: WithWritetime Name,
-    accountStatus :: Maybe (WithWritetime AccountStatus),
-    handle :: Maybe (WithWritetime Handle),
-    email :: Maybe (WithWritetime EmailAddress),
-    colourId :: WithWritetime ColourId,
-    activated :: WithWritetime Activated,
-    serviceId :: Maybe (WithWritetime ServiceId),
-    managedBy :: Maybe (WithWritetime ManagedBy),
-    ssoId :: Maybe (WithWritetime UserSSOId),
-    unverifiedEmail :: Maybe (WithWritetime EmailAddress),
-    searchable :: Maybe (WithWritetime Bool),
-    writeTimeBumper :: Maybe (Writetime WriteTimeBumper)
+    teamId :: Maybe TeamId,
+    name :: Name,
+    accountStatus :: Maybe AccountStatus,
+    handle :: Maybe Handle,
+    email :: Maybe EmailAddress,
+    colourId :: ColourId,
+    activated :: Activated,
+    serviceId :: Maybe ServiceId,
+    managedBy :: Maybe ManagedBy,
+    ssoId :: Maybe UserSSOId,
+    unverifiedEmail :: Maybe EmailAddress,
+    searchable :: Maybe Bool,
+    createdAt :: UTCTime,
+    updatedAt :: UTCTime
   }
   deriving (Eq, Show)
 
@@ -79,75 +81,45 @@ type instance
       Maybe (Writetime WriteTimeBumper)
     )
 
-instance Record IndexUser where
-  asTuple (IndexUser {..}) =
+indexUserFromTuple :: TupleType IndexUser -> IndexUser
+indexUserFromTuple
     ( userId,
-      value <$> teamId, writetime <$> teamId,
-      name.value, name.writetime,
-      value <$> accountStatus, writetime <$> accountStatus,
-      value <$> handle, writetime <$> handle,
-      value <$> email, writetime <$> email,
-      colourId.value, colourId.writetime,
-      activated.value, activated.writetime,
-      value <$> serviceId, writetime <$> serviceId,
-      value <$> managedBy, writetime <$> managedBy,
-      value <$> ssoId, writetime <$> ssoId,
-      value <$> unverifiedEmail, writetime <$> unverifiedEmail,
-      value <$> searchable, writetime <$> searchable,
-      writeTimeBumper
-    )
-
-  asRecord
-    ( u,
-      mTeam, tTeam,
+      teamId, tTeam,
       name, tName,
-      status, tStatus,
+      accountStatus, tStatus,
       handle, tHandle,
       email, tEmail,
-      colour, tColour,
+      colourId, tColour,
       activated, tActivated,
-      service, tService,
+      serviceId, tService,
       managedBy, tManagedBy,
       ssoId, tSsoId,
-      emailUnvalidated, tEmailUnvalidated,
+      unverifiedEmail, tEmailUnvalidated,
       searchable, tSearchable,
       tWriteTimeBumper
     ) = IndexUser {
-          userId = u,
-          teamId =  WithWriteTime <$> mTeam <*> tTeam,
-          name = WithWriteTime name tName,
-          accountStatus = WithWriteTime <$> status <*> tStatus,
-          handle = WithWriteTime <$> handle <*> tHandle,
-          email = WithWriteTime <$> email <*> tEmail,
-          colourId = WithWriteTime colour tColour,
-          activated = WithWriteTime activated tActivated,
-          serviceId = WithWriteTime <$> service <*> tService,
-          managedBy = WithWriteTime <$> managedBy <*> tManagedBy,
-          ssoId = WithWriteTime <$> ssoId <*> tSsoId,
-          unverifiedEmail = WithWriteTime <$> emailUnvalidated <*> tEmailUnvalidated,
-          searchable = WithWriteTime <$> searchable <*> tSearchable,
-          writeTimeBumper = tWriteTimeBumper
+          createdAt = writetimeToUTC tActivated,
+          updatedAt = maximum $ catMaybes [writetimeToUTC <$> tTeam,
+                                           Just $ writetimeToUTC  tName,
+                                           writetimeToUTC <$> tStatus,
+                                           writetimeToUTC <$> tHandle,
+                                           writetimeToUTC <$> tEmail,
+                                           Just $ writetimeToUTC tColour,
+                                           Just $ writetimeToUTC tActivated,
+                                           writetimeToUTC <$> tService,
+                                           writetimeToUTC <$> tManagedBy,
+                                           writetimeToUTC <$> tSsoId,
+                                           writetimeToUTC <$> tEmailUnvalidated,
+                                           writetimeToUTC <$> tSearchable,
+                                           writetimeToUTC <$> tWriteTimeBumper
+                                          ],
+            ..
         }
 {- ORMOLU_ENABLE -}
 
 indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
-indexUserToVersion role IndexUser {..} =
-  mkIndexVersion
-    [ const () <$$> Just name.writetime,
-      const () <$$> fmap writetime teamId,
-      const () <$$> fmap writetime accountStatus,
-      const () <$$> fmap writetime handle,
-      const () <$$> fmap writetime email,
-      const () <$$> Just colourId.writetime,
-      const () <$$> Just activated.writetime,
-      const () <$$> fmap writetime serviceId,
-      const () <$$> fmap writetime managedBy,
-      const () <$$> fmap writetime ssoId,
-      const () <$$> fmap writetime unverifiedEmail,
-      const () <$$> fmap writetime role,
-      const () <$$> fmap writetime searchable,
-      const () <$$> writeTimeBumper
-    ]
+indexUserToVersion role iu =
+  mkIndexVersion [Just $ Writetime iu.updatedAt, const () <$$> fmap writetime role]
 
 indexUserToDoc :: SearchVisibilityInbound -> Maybe UserType -> Maybe Role -> IndexUser -> UserDoc
 indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
@@ -156,22 +128,22 @@ indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
       UserDoc
         { udId = userId,
           udType = mUserType,
-          udSearchable = value <$> searchable,
-          udEmailUnvalidated = value <$> unverifiedEmail,
-          udSso = sso . value =<< ssoId,
-          udScimExternalId = join $ scimExternalId <$> (value <$> managedBy) <*> (value <$> ssoId),
+          udSearchable = searchable,
+          udEmailUnvalidated = unverifiedEmail,
+          udSso = sso =<< ssoId,
+          udScimExternalId = join $ scimExternalId <$> (managedBy) <*> (ssoId),
           udSearchVisibilityInbound = Just searchVisInbound,
           udRole = mRole,
-          udCreatedAt = Just . toUTCTimeMillis $ writetimeToUTC activated.writetime,
-          udManagedBy = value <$> managedBy,
-          udSAMLIdP = idpUrl . value =<< ssoId,
-          udAccountStatus = value <$> accountStatus,
-          udColourId = Just colourId.value,
-          udEmail = value <$> email,
-          udHandle = value <$> handle,
-          udNormalized = Just $ normalized name.value.fromName,
-          udName = Just name.value,
-          udTeam = value <$> teamId
+          udCreatedAt = Just . toUTCTimeMillis $ createdAt,
+          udManagedBy = managedBy,
+          udSAMLIdP = idpUrl =<< ssoId,
+          udAccountStatus = accountStatus,
+          udColourId = Just colourId,
+          udEmail = email,
+          udHandle = handle,
+          udNormalized = Just $ normalized name.fromName,
+          udName = Just name,
+          udTeam = teamId
         }
     else -- We insert a tombstone-style user here, as it's easier than
     -- deleting the old one. It's mostly empty, but having the status here
@@ -179,7 +151,7 @@ indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
       emptyUserDoc userId
   where
     shouldIndex =
-      ( case value <$> accountStatus of
+      ( case accountStatus of
           Nothing -> True
           Just Active -> True
           Just Suspended -> True
@@ -187,7 +159,7 @@ indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
           Just Ephemeral -> False
           Just PendingInvitation -> False
       )
-        && activated.value -- FUTUREWORK: how is this adding to the first case?
+        && activated -- FUTUREWORK: how is this adding to the first case?
         && isNothing serviceId
 
     idpUrl :: UserSSOId -> Maybe Text

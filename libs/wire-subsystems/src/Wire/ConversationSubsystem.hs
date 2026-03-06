@@ -22,9 +22,10 @@ module Wire.ConversationSubsystem where
 import Data.Id
 import Data.Qualified
 import Data.Singletons (Sing)
+import Galley.Types.Clients (Clients)
 import Imports
 import Polysemy
-import Wire.API.Conversation (ExtraConversationData)
+import Wire.API.Conversation (ExtraConversationData, NewConv, NewOne2OneConv)
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import Wire.NotificationSubsystem (LocalConversationUpdate)
@@ -43,5 +44,28 @@ data ConversationSubsystem m a where
     ConversationAction (tag :: ConversationActionTag) ->
     ExtraConversationData ->
     ConversationSubsystem r LocalConversationUpdate
+  CreateGroupConversation ::
+    Local UserId ->
+    Maybe ConnId ->
+    NewConv ->
+    ConversationSubsystem m StoredConversation
+  CreateOne2OneConversation ::
+    Local UserId ->
+    ConnId ->
+    NewOne2OneConv ->
+    ConversationSubsystem m (StoredConversation, Bool)
+  CreateProteusSelfConversation ::
+    Local UserId ->
+    ConversationSubsystem m (StoredConversation, Bool)
+  CreateConnectConversation ::
+    Local UserId ->
+    Maybe ConnId ->
+    Connect ->
+    ConversationSubsystem m (StoredConversation, Bool)
+  InternalGetClientIds :: [UserId] -> ConversationSubsystem m Clients
+  InternalGetLocalMember ::
+    ConvId ->
+    UserId ->
+    ConversationSubsystem m (Maybe LocalMember)
 
 makeSem ''ConversationSubsystem

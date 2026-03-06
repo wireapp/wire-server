@@ -95,6 +95,7 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-access-unqualified" updateConversationAccessUnqualified
     <@> mkNamedAPI @"update-conversation-access@v2" updateConversationAccess
     <@> mkNamedAPI @"update-conversation-access" updateConversationAccess
+    <@> mkNamedAPI @"update-conversation-history" updateConversationHistory
     <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
     <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
     <@> mkNamedAPI @"get-conversation-self" getSelfMember

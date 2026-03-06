@@ -67,7 +67,6 @@ import Brig.API.Util
 import Brig.App as App
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import Brig.Data.Activation qualified as Data
-import Brig.Data.Client qualified as Data
 import Brig.Data.Connection (countConnections)
 import Brig.Data.Connection qualified as Data
 import Brig.Data.User
@@ -124,6 +123,8 @@ import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
 import Wire.BlockListStore as BlockListStore
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
 import Wire.EmailSubsystem
 import Wire.Error
@@ -176,19 +177,34 @@ identityErrorToBrigError = \case
 
 verifyUniquenessAndCheckBlacklist ::
   ( Member BlockListStore r,
-    Member UserKeyStore r
+    Member UserKeyStore r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   EmailKey ->
   ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
-  checkKey Nothing uk
+  muid <- lift $ liftSem $ lookupKey uk
+  case muid of
+    Just uid -> do
+      luid <- lift $ liftSem $ qualifyLocal' uid
+      muser <- lift $ liftSem $ getLocalAccountBy WithPendingInvitations luid
+
+      let deleted = maybe True (\u -> userStatus u == Deleted) muser
+      let activated = maybe False (isJust . userIdentity) muser
+
+      case (deleted, activated) of
+        (True, _) -> do
+          -- if the user does not exist or is deleted, repair inconsistency and
+          -- allow registration to proceed
+          lift $ liftSem $ deleteKeyForUser uid uk
+        -- if the user is not activated, allow registration to proceed
+        (False, False) -> pure ()
+        -- fail otherwise
+        (False, True) -> throwE IdentityErrorUserKeyExists
+    Nothing -> pure ()
   blacklisted <- lift $ liftSem $ BlockListStore.exists uk
   when blacklisted $ throwE IdentityErrorBlacklistedEmail
-  where
-    checkKey u k = do
-      av <- lift $ liftSem $ keyAvailable k u
-      unless av $
-        throwE IdentityErrorUserKeyExists
 
 createUserSpar ::
   forall r.
@@ -352,7 +368,9 @@ createUser rateLimitKey new = do
       Just (NewTeamMemberSSO tid) ->
         pure (Nothing, Nothing, Just tid)
       Nothing -> do
-        for_ (emailIdentity =<< new.newUserIdentity) (lift . liftSem . guardRegisterActivateUserEmailDomain)
+        for_
+          (emailIdentity =<< new.newUserIdentity)
+          (lift . liftSem . guardRegisterActivateUserEmailDomain)
         pure (Nothing, Nothing, Nothing)
   let mbInv = (.invitationId) <$> teamInvitation
   mbExistingAccount <-
@@ -452,6 +470,9 @@ createUser rateLimitKey new = do
       User ->
       StoredInvitation ->
       EmailKey ->
+      -- if you are surprised because apps don't even have a
+      -- UserIdentity: we're in createUser here, so apps are not in
+      -- the picture.
       UserIdentity ->
       ExceptT RegisterError (AppT r) ()
     acceptInvitationToTeam account inv uk ident = do
@@ -478,7 +499,14 @@ createUser rateLimitKey new = do
           UserPendingActivationStore.remove uid
           InvitationStore.deleteInvitation inv.teamId inv.invitationId
 
-    addUserToTeamSSO :: User -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO ::
+      User ->
+      TeamId ->
+      -- if you are surprised because apps don't even have a
+      -- UserIdentity: we're in createUser here, so apps are not in
+      -- the picture
+      UserIdentity ->
+      ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId account
       added <- lift $ liftSem $ GalleyAPIAccess.addTeamMember uid tid Nothing defaultRole
@@ -531,8 +559,10 @@ createUserInviteViaScim ::
   ( Member BlockListStore r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member (UserPendingActivationStore p) r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Input (Local ())) r
   ) =>
   NewUserScimInvitation ->
   ExceptT HttpError (AppT r) User
@@ -746,6 +776,8 @@ onActivated (AccountActivated account) = liftSem $ do
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing $ UserActivated account
+  -- userIdentity is always Just at the time of writing this comment,
+  -- since account has been activated already.
   pure (uid, userIdentity account, True)
 onActivated (EmailActivated uid email) = liftSem $ do
   User.internalUpdateSearchIndex uid
@@ -911,7 +943,8 @@ deleteSelfUser ::
     Member HashPassword r,
     Member RateLimit r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   Maybe PlainTextPassword6 ->
@@ -984,7 +1017,8 @@ verifyDeleteUser ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
@@ -1013,7 +1047,8 @@ ensureAccountDeleted ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   AppT r DeleteUserResult
@@ -1024,7 +1059,7 @@ ensureAccountDeleted luid@(tUnqualified -> uid) = do
     Just acc -> do
       probs <- liftSem $ getPropertyKeys uid
 
-      clients <- wrapClient $ Data.lookupClients uid
+      clients <- liftSem $ ClientStore.lookupClients uid
 
       localUid <- qualifyLocal uid
       conCount <- wrapClient $ countConnections localUid [(minBound @Relation) .. maxBound]
@@ -1063,7 +1098,8 @@ deleteAccount ::
     Member UserSubsystem r,
     Member Events r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   User ->
   Sem r ()
@@ -1080,7 +1116,7 @@ deleteAccount user = do
   traverse_ (removeUserFromAllGroups uid) user.userTeam
 
   Intra.rmUser uid (userAssets user)
-  embed $ Data.lookupClients uid >>= mapM_ (Data.rmClient uid . (.clientId))
+  ClientStore.lookupClients uid >>= mapM_ (ClientStore.delete uid . (.clientId))
   luid <- embed $ qualifyLocal uid
   User.internalUpdateSearchIndex uid
   Events.generateUserEvent uid Nothing (UserDeleted (tUntagged luid))

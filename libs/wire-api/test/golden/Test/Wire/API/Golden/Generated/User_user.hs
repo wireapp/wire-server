@@ -54,6 +54,7 @@ testObject_User_user_1 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002")),
             qDomain = Domain {_domainText = "s-f4.s"}
           },
+      userType = UserTypeRegular,
       userIdentity = Nothing,
       userEmailUnvalidated = Nothing,
       userDisplayName = Name {fromName = "\NULuv\996028su\28209lRi"},
@@ -80,6 +81,7 @@ testObject_User_user_2 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
             qDomain = Domain {_domainText = "k.vbg.p"}
           },
+      userType = UserTypeBot,
       userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       userEmailUnvalidated = Nothing,
       userDisplayName =
@@ -120,6 +122,7 @@ testObject_User_user_3 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002")),
             qDomain = Domain {_domainText = "dt.n"}
           },
+      userType = UserTypeRegular,
       userIdentity = Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       userEmailUnvalidated = Nothing,
       userDisplayName =
@@ -153,6 +156,7 @@ testObject_User_user_4 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
             qDomain = Domain {_domainText = "28b.cqb"}
           },
+      userType = UserTypeRegular,
       userIdentity =
         Just (SSOIdentity (UserScimExternalId "") (Just (unsafeEmailAddress "some" "example"))),
       userEmailUnvalidated = Nothing,
@@ -191,6 +195,7 @@ testObject_User_user_5 =
           { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
             qDomain = Domain {_domainText = "28b.cqb"}
           },
+      userType = UserTypeRegular,
       userIdentity =
         Just (EmailIdentity (unsafeEmailAddress "some" "example")),
       userEmailUnvalidated = Nothing,

@@ -250,6 +250,7 @@ dispatchNotifications orig conn e = case e of
     -- If done asynchronously, the connections may already have been deleted.
     notifyUserDeletionLocals orig conn event
     notifyUserDeletionRemotes orig
+  UserSessionRefreshSuggested -> notifySelf event orig V2.RouteDirect conn
   where
     event = UserEvent e
 
@@ -439,7 +440,7 @@ toApsData _ = Nothing
 -------------------------------------------------------------------------------
 -- Conversation Management
 
--- | Calls 'Galley.API.Create.createConnectConversation'.
+-- | Calls 'Wire.ConversationSubsystem.createConnectConversation'.
 createLocalConnectConv ::
   ( Member (Embed HttpClientIO) r,
     Member TinyLog r

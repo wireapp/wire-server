@@ -1290,7 +1290,7 @@ type ClientAPI =
 -- - MemberJoin event to self and other, if joining an existing connect conversation (via galley)
 -- - ConvCreate event to self, if creating a connect conversation (via galley)
 -- - ConvConnect event to self, in some cases (via galley),
---   for details see 'Galley.API.Create.createConnectConversation'
+--   for details see 'Wire.ConversationSubsystem.Interpreter.createConnectConversationLogic'
 type ConnectionAPI =
   Named
     "create-connection-unqualified"
@@ -2111,6 +2111,7 @@ type AppsAPI =
   Named
     "create-app"
     ( Summary "Create a new app"
+        :> From 'V12
         :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -2121,6 +2122,7 @@ type AppsAPI =
     :<|> Named
            "get-app"
            ( Summary "Get app"
+               :> From 'V14
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -2131,15 +2133,29 @@ type AppsAPI =
     :<|> Named
            "get-apps"
            ( Summary "Get all apps in a team"
+               :> From 'V15
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Get '[JSON] [GetApp]
+               :> Get '[JSON] GetAppList
+           )
+    :<|> Named
+           "put-app"
+           ( Summary "Update metadata of an existing app"
+               :> From 'V15
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Capture "app" UserId
+               :> ReqBody '[JSON] PutApp
+               :> Put '[JSON] ()
            )
     :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
+               :> From 'V12
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

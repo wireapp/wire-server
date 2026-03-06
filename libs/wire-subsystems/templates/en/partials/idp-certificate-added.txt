@@ -1,0 +1,13 @@
+Added:
+
+${algorithm} fingerprint:
+${fingerprint}
+
+Subject:
+${subject}
+
+Issuer:
+${issuer}
+
+
+--------------------------------------------------------------------------------

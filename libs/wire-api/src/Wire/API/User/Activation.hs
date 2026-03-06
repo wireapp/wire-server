@@ -168,6 +168,10 @@ instance ToSchema Activate where
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
+    --
+    -- FUTUREWORK(fisx): this is from the times when UserIdentity was
+    -- user or phone.  since SSO has been added to the type, we should
+    -- either use a different type here or change UserIdentity back.
     activatedIdentity :: UserIdentity,
     -- | Whether this is the first verified identity of the account.
     activatedFirst :: Bool

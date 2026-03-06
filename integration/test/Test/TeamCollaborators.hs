@@ -54,7 +54,7 @@ testCreateTeamCollaborator = do
 
   bindResponse (getAllTeamCollaborators owner team) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    res <- (resp.jsonBody & asList) <&> assertOne
+    res <- (resp.json & asList) <&> assertOne
     res %. "user" `shouldMatch` userId
     res %. "team" `shouldMatch` team
     res %. "permissions" `shouldMatch` ["create_team_conversation", "implicit_connection"]

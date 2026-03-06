@@ -51,7 +51,7 @@ testWhitelistUpdatePermissions = do
           ]
     bindResponse (postServiceWhitelist uid tid np) $ \resp -> do
       resp.status `shouldMatchInt` 403
-      (resp.jsonBody %. "label") `shouldMatch` Just "insufficient-permissions"
+      (resp.json %. "label") `shouldMatch` Just "insufficient-permissions"
 
   do
     -- Check that an admin can add the service to the whitelist
@@ -95,7 +95,7 @@ testWhitelistUpdatePermissions = do
           ]
     bindResponse (postServiceWhitelist uid tid np) $ \resp -> do
       resp.status `shouldMatchInt` 409
-      (resp.jsonBody %. "label") `shouldMatch` Just "mls-services-not-allowed"
+      (resp.json %. "label") `shouldMatch` Just "mls-services-not-allowed"
 
   do
     -- Check that an admin can't add the service to the whitelist
@@ -109,4 +109,4 @@ testWhitelistUpdatePermissions = do
           ]
     postServiceWhitelist admin tid np >>= \resp -> do
       resp.status `shouldMatchInt` 409
-      (resp.jsonBody %. "label") `shouldMatch` Just "mls-services-not-allowed"
+      (resp.json %. "label") `shouldMatch` Just "mls-services-not-allowed"

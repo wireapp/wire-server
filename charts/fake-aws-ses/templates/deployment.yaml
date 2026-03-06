@@ -44,7 +44,7 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       - name: initiate-fake-aws-ses
-        image: mesosphere/aws-cli:1.14.5
+        image: "{{ .Values.awsCliImage.repository }}:{{ .Values.awsCliImage.tag }}"
         command: [/bin/sh]
         args:
         - -c

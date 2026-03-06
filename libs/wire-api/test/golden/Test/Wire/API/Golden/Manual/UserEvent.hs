@@ -34,6 +34,7 @@ module Test.Wire.API.Golden.Manual.UserEvent
     testObject_UserEvent_16,
     testObject_UserEvent_17,
     testObject_UserEvent_18,
+    testObject_UserEvent_19,
   )
 where
 
@@ -212,6 +213,9 @@ testObject_UserEvent_18 =
         )
     )
 
+testObject_UserEvent_19 :: Event
+testObject_UserEvent_19 = UserEvent UserSessionRefreshSuggested
+
 --------------------------------------------------------------------------------
 
 alice :: User
@@ -222,6 +226,7 @@ alice =
           { qUnqualified = Id (fromJust (UUID.fromString "539d9183-32a5-4fc4-ba5c-4634454e7585")),
             qDomain = Domain {_domainText = "foo.example.com"}
           },
+      userType = UserTypeRegular,
       userIdentity = Nothing,
       userEmailUnvalidated = Nothing,
       userDisplayName = Name "alice",
@@ -252,6 +257,7 @@ bob =
           { qUnqualified = Id (fromJust (UUID.fromString "284d1c86-5117-4c58-aa18-c0068f3f7d8c")),
             qDomain = Domain {_domainText = "baz.example.com"}
           },
+      userType = UserTypeRegular,
       userIdentity = Nothing,
       userEmailUnvalidated = Nothing,
       userDisplayName = Name "bob",

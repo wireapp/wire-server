@@ -17,13 +17,18 @@ self: super: {
     };
   };
 
-  nginz = super.nginx.override {
+  nginz = super.nginx.override ({
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders
       self.nginxModules.zauth
     ];
-  };
+  } // self.lib.optionalAttrs self.stdenv.isDarwin {
+    # The zauth nginx module uses GCC nested functions, which are not
+    # supported by Clang (the default compiler on macOS). Use gccStdenv
+    # to ensure GCC is used for the build.
+    stdenv = self.gccStdenv;
+  });
 
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 

@@ -6,6 +6,7 @@
 , aeson
 , amqp
 , base
+, bilge
 , bytestring
 , bytestring-conversion
 , cassandra-util
@@ -16,6 +17,7 @@
 , extended
 , extra
 , federator
+, galley-types
 , gitignoreSource
 , hasql-pool
 , HsOpenSSL
@@ -38,12 +40,15 @@
 , servant-client
 , servant-client-core
 , servant-server
+, ssl-util
+, tagged
 , text
 , tinylog
 , transformers
 , transformers-base
 , types-common
 , unliftio
+, uri-bytestring
 , wai
 , wai-utilities
 , wire-api
@@ -60,6 +65,7 @@ mkDerivation {
     aeson
     amqp
     base
+    bilge
     bytestring
     bytestring-conversion
     cassandra-util
@@ -68,6 +74,7 @@ mkDerivation {
     exceptions
     extended
     extra
+    galley-types
     hasql-pool
     HsOpenSSL
     http-client
@@ -82,12 +89,15 @@ mkDerivation {
     retry
     servant-client
     servant-server
+    ssl-util
+    tagged
     text
     tinylog
     transformers
     transformers-base
     types-common
     unliftio
+    uri-bytestring
     wai-utilities
     wire-api
     wire-api-federation

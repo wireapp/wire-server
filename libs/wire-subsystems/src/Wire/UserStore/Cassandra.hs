@@ -22,7 +22,6 @@ import Cassandra.Exec (prepared)
 import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
-import Data.Time.Clock
 import Database.CQL.Protocol
 import Imports
 import Polysemy
@@ -47,7 +46,7 @@ interpretUserStoreCassandra casClient =
       GetUsers uids -> getUsersImpl uids
       DoesUserExist uid -> doesUserExistImpl uid
       GetIndexUser uid -> getIndexUserImpl uid
-      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize mPagingState
+      GetIndexUsersPaginated pageSize mPagingState -> getIndexUserPaginatedImpl pageSize (paginationStateCassandra =<< mPagingState)
       UpdateUser uid update -> updateUserImpl uid update
       UpdateEmail uid email -> updateEmailImpl uid email
       UpdateEmailUnvalidated uid email -> updateEmailUnvalidatedImpl uid email
@@ -70,15 +69,14 @@ interpretUserStoreCassandra casClient =
       LookupLocale uid -> lookupLocaleImpl uid
       GetUserTeam uid -> getUserTeamImpl uid
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
-      GetActivityTimestamps uid -> getActivityTimestampsImpl uid
       GetRichInfo uid -> getRichInfoImpl uid
       LookupRichInfos uids -> lookupRichInfosImpl uids
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
       SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
       DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
-      LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid mPagingState
-      LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid mPagingState
+      LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStateCassandra =<< mPagingState)
+      LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStateCassandra =<< mPagingState)
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -117,14 +115,14 @@ doesUserExistImpl uid =
 getIndexUserImpl :: UserId -> Client (Maybe IndexUser)
 getIndexUserImpl u = do
   mIndexUserTuple <- retry x1 $ query1 cql (params LocalQuorum (Identity u))
-  pure $ asRecord <$> mIndexUserTuple
+  pure $ indexUserFromTuple <$> mIndexUserTuple
   where
     cql :: PrepQuery R (Identity UserId) (TupleType IndexUser)
     cql = prepared . QueryString $ getIndexUserBaseQuery <> " WHERE id = ?"
 
-getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState IndexUser)
+getIndexUserPaginatedImpl :: Int32 -> Maybe PagingState -> Client (PageWithState x IndexUser)
 getIndexUserPaginatedImpl pageSize mPagingState =
-  asRecord <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
+  indexUserFromTuple <$$> paginateWithState cql (paramsPagingState LocalQuorum () pageSize mPagingState) x1
   where
     cql :: PrepQuery R () (TupleType IndexUser)
     cql = prepared $ QueryString getIndexUserBaseQuery
@@ -353,13 +351,6 @@ updateUserTeamImpl u t = retry x5 $ write userTeamUpdate (params LocalQuorum (t,
     userTeamUpdate :: PrepQuery W (TeamId, UserId) ()
     userTeamUpdate = "UPDATE user SET team = ? WHERE id = ?"
 
-getActivityTimestampsImpl :: UserId -> Client [Maybe UTCTime]
-getActivityTimestampsImpl uid = do
-  runIdentity <$$> retry x1 (query q (params LocalQuorum (Identity uid)))
-  where
-    q :: PrepQuery R (Identity UserId) (Identity (Maybe UTCTime))
-    q = "SELECT last_active from clients where user = ?"
-
 getRichInfoImpl :: UserId -> Client (Maybe RichInfoAssocList)
 getRichInfoImpl uid =
   fmap runIdentity
@@ -414,7 +405,7 @@ lookupServiceUsersImpl ::
   ProviderId ->
   ServiceId ->
   Maybe PagingState ->
-  Client (PageWithState (BotId, ConvId, Maybe TeamId))
+  Client (PageWithState Void (BotId, ConvId, Maybe TeamId))
 lookupServiceUsersImpl pid sid mPagingState =
   paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState) x1
   where
@@ -428,7 +419,7 @@ lookupServiceUsersForTeamImpl ::
   ServiceId ->
   TeamId ->
   Maybe PagingState ->
-  Client (PageWithState (BotId, ConvId))
+  Client (PageWithState Void (BotId, ConvId))
 lookupServiceUsersForTeamImpl pid sid tid mPagingState =
   paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState) x1
   where
@@ -442,10 +433,10 @@ lookupServiceUsersForTeamImpl pid sid tid mPagingState =
 
 insertUser :: PrepQuery W (TupleType NewStoredUser) ()
 insertUser =
-  "INSERT INTO user (id, name, text_status, picture, assets, email, sso_id, \
+  "INSERT INTO user (id, user_type, name, text_status, picture, assets, email, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by, supported_protocols, searchable) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
 insertServiceUser =
@@ -460,7 +451,7 @@ insertServiceTeam =
 selectUsers :: PrepQuery R (Identity [UserId]) (TupleType StoredUser)
 selectUsers =
   [sql|
-  SELECT id, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
+  SELECT id, user_type, name, text_status, picture, email, email_unvalidated, sso_id, accent_id, assets,
   activated, status, expires, language, country, provider,
   service, handle, team, managed_by, supported_protocols, searchable
   FROM user WHERE id IN ?

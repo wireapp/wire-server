@@ -27,6 +27,7 @@ where
 
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
+import Data.Aeson qualified as A
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id as Id
@@ -39,11 +40,9 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Clients qualified as Clients
 import Galley.API.Create qualified as Create
-import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.MLS.Removal
-import Galley.API.One2One
 import Galley.API.Public.Servant
 import Galley.API.Query qualified as Query
 import Galley.API.Teams
@@ -51,15 +50,13 @@ import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
-import Galley.Effects.ClientStore
 import Galley.Effects.CustomBackendStore
-import Galley.Env (FanoutLimit)
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
+import Galley.Types.Error
 import Imports hiding (head)
 import Network.AMQP qualified as Q
 import Polysemy
@@ -71,6 +68,7 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -86,6 +84,7 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
@@ -93,8 +92,10 @@ import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.One2One
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
@@ -108,6 +109,7 @@ import Wire.TeamStore
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserClientIndexStore
 import Wire.UserList
 
 internalAPI :: API InternalAPI GalleyEffects
@@ -127,6 +129,12 @@ internalAPI =
       <@> conversationAPI
       <@> iEJPDAPI
       <@> cellsAPI
+      <@> mkNamedAPI @"get-conversation-config" getConversationConfigH
+
+getConversationConfigH ::
+  (Member (Input ConversationSubsystemConfig) r) =>
+  Sem r ConversationSubsystemConfig
+getConversationConfigH = input
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
@@ -323,15 +331,25 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", MeetingsPremiumConfig) (updateLockStatus @MeetingsPremiumConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
+    <@> mkNamedAPI @"get-configured-feature-flags" getConfiguredFeatureFlags
 
 cellsAPI :: API ICellsAPI GalleyEffects
 cellsAPI = mkNamedAPI @"set-cells-state" Update.updateCellsState
+
+getConfiguredFeatureFlags ::
+  forall r.
+  (Member (Input Env) r) =>
+  Sem r ConfiguredFeatureFlags
+getConfiguredFeatureFlags = do
+  env <- input @Env
+  let flags = (env ^. Galley.App.options . Galley.Options.settings . Galley.Options.featureFlags)
+  pure $ ConfiguredFeatureFlags $ A.toJSON flags
 
 rmUser ::
   forall p2 r.
   ( p2 ~ InternalPaging,
     Member BackendNotificationQueueAccess r,
-    Member ClientStore r,
+    Member UserClientIndexStore r,
     Member ConversationStore r,
     Member (Error DynError) r,
     Member (Error FederationError) r,

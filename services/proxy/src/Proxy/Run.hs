@@ -20,7 +20,6 @@ module Proxy.Run
   )
 where
 
-import Bilge.Request (requestIdName)
 import Cassandra.Options (host, port)
 import Control.Error
 import Control.Lens hiding ((.=))
@@ -32,7 +31,7 @@ import Data.Text qualified as T
 import Imports hiding (head)
 import Network.Wai (Middleware, Request, requestHeaders)
 import Network.Wai.Middleware.Gunzip qualified as GZip
-import Network.Wai.Utilities.Server hiding (serverPort)
+import Network.Wai.Utilities.Server
 import Proxy.API.Internal as I
 import Proxy.API.Public as P
 import Proxy.Env
@@ -78,4 +77,4 @@ mkApp env req = Servant.serve (Servant.Proxy @CombinedAPI) toServantSitemap req
     injectReqId :: Request -> Env -> Env
     injectReqId r = reqId .~ lookupReqId r
       where
-        lookupReqId = RequestId . fromMaybe defRequestId . lookup requestIdName . requestHeaders
+        lookupReqId = RequestId . fromMaybe defRequestId . lookup defaultRequestIdHeaderName . requestHeaders

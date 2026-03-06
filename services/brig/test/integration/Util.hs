@@ -752,6 +752,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           False
           Nothing
+          def
   post $
     galley
       . path "/conversations"

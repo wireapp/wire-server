@@ -58,6 +58,7 @@ import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.EmailSending.SMTP (SMTPConnType (..))
+import Wire.EmailSubsystem.Template (TeamOpts)
 import Wire.RateLimit.Interpreter
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -221,22 +222,6 @@ data ProviderOpts = ProviderOpts
   deriving (Show, Generic)
 
 instance FromJSON ProviderOpts
-
-data TeamOpts = TeamOpts
-  { -- | Team Invitation URL template
-    tInvitationUrl :: !Text,
-    -- | Existing User Invitation URL template
-    tExistingUserInvitationUrl :: !Text,
-    -- | Team Activation URL template
-    tActivationUrl :: !Text,
-    -- | Team Creator Welcome URL
-    tCreatorWelcomeUrl :: !Text,
-    -- | Team Member Welcome URL
-    tMemberWelcomeUrl :: !Text
-  }
-  deriving (Show, Generic)
-
-instance FromJSON TeamOpts
 
 data EmailOpts
   = EmailAWS EmailAWSOpts
@@ -604,7 +589,9 @@ data Settings = Settings
     -- | Time-to-live for new domain verification challenges, in seconds
     challengeTTL :: !Timeout,
     -- | Whether to allow ephemeral user creation
-    ephemeralUserCreationEnabled :: !Bool
+    ephemeralUserCreationEnabled :: !Bool,
+    -- | Determines if this backend supports nomad profiles.
+    nomadProfiles :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 

@@ -36,6 +36,7 @@ import Polysemy.TinyLog as Log
 import System.Logger.Class (field, msg, val, (~~))
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem
+import Wire.ClientStore (ClientStore)
 import Wire.Events (Events)
 import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
@@ -63,7 +64,8 @@ onEvent ::
     Member Events r,
     Member AuthenticationSubsystem r,
     Member UserGroupSubsystem r,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member ClientStore r
   ) =>
   InternalNotification ->
   Sem r ()

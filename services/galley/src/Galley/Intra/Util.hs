@@ -40,6 +40,7 @@ import Galley.Monad
 import Galley.Options
 import Imports hiding (log)
 import Network.HTTP.Types (statusIsServerError)
+import Network.Wai.Utilities.Server
 import Servant.Client qualified as Servant
 import Servant.Client.Core qualified as Servant
 import Wire.OpenTelemetry.Servant (otelClientMiddleware)
@@ -68,7 +69,7 @@ componentServantClient comp = do
   RequestId rId <- view reqId
   let baseurl = Servant.BaseUrl Servant.Http (Text.unpack brigep.host) (fromIntegral brigep.port) ""
       addRequestIdHeader app req = do
-        let reqWithId = req {Servant.requestHeaders = (requestIdName, rId) :<| req.requestHeaders}
+        let reqWithId = req {Servant.requestHeaders = (defaultRequestIdHeaderName, rId) :<| req.requestHeaders}
         app reqWithId
       traceInfo = "intra-call-to-" <> Text.pack (componentName comp)
 

@@ -36,7 +36,6 @@ import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.MLS.Util
 import Brig.API.Types
 import Brig.App
-import Brig.Data.Client qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Federation.Client
 import Brig.IO.Intra
@@ -57,11 +56,13 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
 import Wire.StoredUser
 import Wire.UserStore (UserStore, getUser)
 
-uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
+uploadKeyPackages :: (Member ClientStore r) => Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid kps = do
   assertMLSEnabled
   let identity = mkClientIdentity (tUntagged lusr) cid
@@ -70,7 +71,8 @@ uploadKeyPackages lusr cid kps = do
 
 claimKeyPackages ::
   ( Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -81,7 +83,8 @@ claimKeyPackages lusr mClient target = claimKeyPackagesV7 lusr mClient target . 
 
 claimKeyPackagesV7 ::
   ( Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -101,7 +104,8 @@ claimKeyPackagesV7 lusr mClient target mSuite = do
 claimLocalKeyPackages ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    Member ClientStore r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -119,7 +123,7 @@ claimLocalKeyPackages qusr skipOwn suite target = do
 
   -- skip own client when the target is the requesting user itself
   let own = guard (qusr == tUntagged target) *> skipOwn
-  clients <- map (.clientId) <$> wrapClientE (Data.lookupClients (tUnqualified target))
+  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients (tUnqualified target)))
   foldQualified
     target
     ( \lusr ->
@@ -139,6 +143,7 @@ claimLocalKeyPackages qusr skipOwn suite target = do
         uncurry (KeyPackageBundleEntry (tUntagged target) c)
           <$> wrapClientM (Data.claimKeyPackage target c suite)
 
+    -- FUTUREWORK: shouldn't this be defined elsewhere for general use?
     assertUserNotUnderLegalHold :: ExceptT ClientError (AppT r) ()
     assertUserNotUnderLegalHold = do
       -- this is okay because there can only be one StoredUser per UserId
@@ -158,6 +163,7 @@ claimLocalKeyPackages qusr skipOwn suite target = do
               UserLegalHoldNoConsent -> pure ()
 
 claimRemoteKeyPackages ::
+  (Member ClientStore r) =>
   Local UserId ->
   CipherSuite ->
   Remote UserId ->
@@ -226,6 +232,7 @@ deleteKeyPackagesV7 lusr c mSuite (unDeleteKeyPackages -> refs) = do
   lift $ wrapClient (Data.deleteKeyPackages (tUnqualified lusr) c suite refs)
 
 replaceKeyPackages ::
+  (Member ClientStore r) =>
   Local UserId ->
   ClientId ->
   CommaSeparatedList CipherSuite ->
@@ -234,6 +241,7 @@ replaceKeyPackages ::
 replaceKeyPackages lusr c = replaceKeyPackagesV7 lusr c . Just
 
 replaceKeyPackagesV7 ::
+  (Member ClientStore r) =>
   Local UserId ->
   ClientId ->
   Maybe (CommaSeparatedList CipherSuite) ->

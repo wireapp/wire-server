@@ -52,6 +52,9 @@ data:
       {{- if .maxTotalBytes }}
       maxTotalBytes: {{ .maxTotalBytes }}
       {{- end }}
+      {{- if .maxTotalBytesStrict }}
+      maxTotalBytesStrict: {{ .maxTotalBytesStrict }}
+      {{- end }}
       {{- if .downloadLinkTTL }}
       downloadLinkTTL: {{ .downloadLinkTTL }}
       {{- end }}

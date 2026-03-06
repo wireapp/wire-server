@@ -27,6 +27,7 @@ import Data.ByteArray (ByteArray)
 import Data.ByteArray qualified as BA
 import Data.Default
 import Data.Json.Util
+import Data.OpenApi qualified as OpenApi
 import Data.OpenApi qualified as S
 import Data.Proxy
 import Data.Schema hiding (HasField)
@@ -70,6 +71,18 @@ data MLSPrivateKeys = MLSPrivateKeys
     mlsKeyPair_ecdsa_secp384r1_sha384 :: KeyPair Ecdsa_secp384r1_sha384,
     mlsKeyPair_ecdsa_secp521r1_sha512 :: KeyPair Ecdsa_secp521r1_sha512
   }
+
+instance ToSchema MLSPrivateKeys where
+  schema =
+    object "MLSPrivateKeys" $
+      MLSPrivateKeys
+        <$> (.mlsKeyPair_ed25519) .= field @NamedSwaggerDoc "ed25519" (opaqueSchema "KeyPair Ed25519")
+        <*> (.mlsKeyPair_ecdsa_secp256r1_sha256) .= field @NamedSwaggerDoc "ecdsa_secp256r1_sha256" (opaqueSchema "KeyPair Ecdsa_secp256r1_sha256")
+        <*> (.mlsKeyPair_ecdsa_secp384r1_sha384) .= field @NamedSwaggerDoc "ecdsa_secp384r1_sha384" (opaqueSchema "KeyPair Ecdsa_secp384r1_sha384")
+        <*> (.mlsKeyPair_ecdsa_secp521r1_sha512) .= field @NamedSwaggerDoc "ecdsa_secp521r1_sha512" (opaqueSchema "KeyPair Ecdsa_secp521r1_sha512")
+
+opaqueSchema :: Text -> ValueSchema NamedSwaggerDoc a
+opaqueSchema name = mkSchema (pure $ OpenApi.NamedSchema (Just name) (OpenApi.binarySchema & OpenApi.format ?~ "password")) (error "not implemented") (const Nothing)
 
 type MLSPublicKeys = MLSKeys MLSPublicKey
 

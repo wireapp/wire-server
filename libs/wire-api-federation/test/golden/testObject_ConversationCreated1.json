@@ -12,6 +12,9 @@
     "cnv_name": "gossip",
     "cnv_type": 0,
     "group_conv_type": "group_conversation",
+    "history": {
+        "depth": "infinite"
+    },
     "message_timer": 1000,
     "non_creator_members": [
         {

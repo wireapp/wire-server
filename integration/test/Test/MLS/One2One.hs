@@ -54,9 +54,7 @@ testGetMLSOne2OneLocalV5 = withVersion5 Version5 $ do
       conv %. "qualified_id"
 
   -- check that the conversation has the same ID on the other side
-  conv2 <- bindResponse (getMLSOne2OneConversationLegacy bob alice) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  conv2 <- getMLSOne2OneConversationLegacy bob alice >>= getJSON 200
 
   conv2 %. "type" `shouldMatchInt` 2
   conv2 %. "qualified_id" `shouldMatch` convId
@@ -67,11 +65,11 @@ testGetMLSOne2OneRemoteV5 = withVersion5 Version5 $ do
   [alice, bob] <- createAndConnectUsers [OwnDomain, OtherDomain]
   getMLSOne2OneConversationLegacy alice bob `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
-    resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
+    resp.json %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
 
   getMLSOne2OneConversationLegacy bob alice `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
-    resp.jsonBody %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
+    resp.json %. "label" `shouldMatch` "mls-federated-one2one-not-supported"
 
 testGetMLSOne2One :: (HasCallStack) => Domain -> App ()
 testGetMLSOne2One bobDomain = do
@@ -100,9 +98,7 @@ testGetMLSOne2One bobDomain = do
       pure one2oneConv
 
   -- check that the conversation has the same ID on the other side
-  mlsOne2OneConv2 <- bindResponse (getMLSOne2OneConversation bob alice) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json
+  mlsOne2OneConv2 <- getMLSOne2OneConversation bob alice >>= getJSON 200
 
   conv2 <- mlsOne2OneConv2 %. "conversation"
   conv2 %. "type" `shouldMatchInt` 2

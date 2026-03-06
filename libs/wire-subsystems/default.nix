@@ -7,6 +7,7 @@
 , aeson-pretty
 , amazonka
 , amazonka-core
+, amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
 , amqp
@@ -28,6 +29,8 @@
 , contravariant
 , cql
 , crypton
+, crypton-x509
+, crypton-x509-store
 , currency-codes
 , data-default
 , data-timeout
@@ -37,6 +40,7 @@
 , extended
 , extra
 , file-embed
+, filepath
 , galley-types
 , generics-sop
 , gitignoreSource
@@ -68,6 +72,8 @@
 , memory
 , mime
 , mime-mail
+, MonadRandom
+, mtl
 , network
 , network-conduit-tls
 , network-uri
@@ -100,6 +106,7 @@
 , statistics
 , stomp-queue
 , string-conversions
+, tagged
 , template
 , text
 , text-icu-translit
@@ -135,6 +142,7 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
     amqp
@@ -156,6 +164,7 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-x509
     currency-codes
     data-default
     data-timeout
@@ -193,6 +202,8 @@ mkDerivation {
     memory
     mime
     mime-mail
+    MonadRandom
+    mtl
     network
     network-conduit-tls
     network-uri
@@ -221,6 +232,7 @@ mkDerivation {
     ssl-util
     statistics
     stomp-queue
+    tagged
     template
     text
     text-icu-translit
@@ -252,6 +264,7 @@ mkDerivation {
     aeson-pretty
     amazonka
     amazonka-core
+    amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
     amqp
@@ -272,6 +285,8 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-x509
+    crypton-x509-store
     currency-codes
     data-default
     data-timeout
@@ -281,6 +296,7 @@ mkDerivation {
     extended
     extra
     file-embed
+    filepath
     galley-types
     generics-sop
     hashable
@@ -308,6 +324,7 @@ mkDerivation {
     memory
     mime
     mime-mail
+    MonadRandom
     network
     network-conduit-tls
     network-uri
@@ -339,6 +356,7 @@ mkDerivation {
     statistics
     stomp-queue
     string-conversions
+    tagged
     template
     text
     text-icu-translit

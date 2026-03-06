@@ -7,11 +7,11 @@ module Wire.FeaturesConfigSubsystem.Types where
 import Data.Default
 import Data.Id (TeamId, UserId)
 import Data.SOP.Sing (SListI)
-import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Input
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.BrigAPIAccess (BrigAPIAccess, getAccountConferenceCallingConfigClient)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.LegalHold

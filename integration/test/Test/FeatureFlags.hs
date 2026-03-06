@@ -82,10 +82,9 @@ testFeatureConfigConsistency = do
     $ assertFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
   where
     parseObjectKeys :: Response -> App (Set.Set String)
-    parseObjectKeys res = do
-      val <- res.json
-      case val of
-        (A.Object hm) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
+    parseObjectKeys res =
+      case res.json of
+        (Just (A.Object hm)) -> pure (Set.fromList . map (show . A.toText) . KM.keys $ hm)
         x -> assertFailure ("JSON was not an object, but " <> show x)
 
 testNonMemberAccess :: (HasCallStack) => Feature -> App ()
@@ -94,3 +93,9 @@ testNonMemberAccess (Feature featureName) = do
   nonMember <- randomUser OwnDomain def
   Public.getTeamFeature nonMember tid featureName
     >>= assertForbidden
+
+testInternalGetConfiguredFeatureFlags :: (HasCallStack) => App ()
+testInternalGetConfiguredFeatureFlags = do
+  bindResponse Internal.getConfiguredFeatureFlags $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatch` defAllConfiguredFeatures

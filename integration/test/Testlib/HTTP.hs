@@ -140,7 +140,9 @@ getBody status = flip withResponse \resp -> do
 getJSON :: (HasCallStack) => Int -> Response -> App Aeson.Value
 getJSON status = flip withResponse \resp -> do
   resp.status `shouldMatch` status
-  resp.json
+  case resp.json of
+    Nothing -> assertFailure "Response has no JSON body"
+    Just json -> pure json
 
 -- | assert a response code in the 2** range
 assertSuccess :: (HasCallStack) => Response -> App ()
@@ -230,11 +232,13 @@ zHost = addHeader "Z-Host"
 submit :: String -> HTTP.Request -> App Response
 submit method req0 = do
   let req = req0 {HTTP.method = T.encodeUtf8 (T.pack method)}
+  -- uncomment this for more debugging noise:
+  -- liftIO $ putStrLn $ requestToCurl req
   manager <- asks (.manager)
   res <- liftIO $ HTTP.httpLbs req manager
   pure $
     Response
-      { jsonBody = Aeson.decode (HTTP.responseBody res),
+      { json = Aeson.decode (HTTP.responseBody res),
         body = L.toStrict (HTTP.responseBody res),
         status = HTTP.statusCode (HTTP.responseStatus res),
         headers = HTTP.responseHeaders res,

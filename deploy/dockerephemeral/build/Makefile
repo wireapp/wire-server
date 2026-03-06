@@ -250,7 +250,7 @@ minio/Dockerfile:
 cassandra/Dockerfile:
 	git clone https://github.com/docker-library/cassandra.git cassandra-all
 	cd cassandra-all && git reset --hard $(CASSANDRA_COMMIT)
-	cp -R cassandra-all/3.11 cassandra
+	cp -R cassandra-all/4.0 cassandra
 	 # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
 	${SED} -i.bak  "s/GOSU_VERSION .*/GOSU_VERSION 1.11/" $@
 	 # add a block to the entrypoint script to interpret CS_JVM_OPTIONS, modifying the jvm.options before launching cassandra.

@@ -18,7 +18,9 @@
 module Wire.AppSubsystem.Interpreter where
 
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
+import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
@@ -35,6 +37,7 @@ import System.Logger.Message qualified as Log
 import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
+import Wire.API.Team.Role qualified as R
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.AppStore (AppStore, StoredApp (..))
@@ -72,7 +75,9 @@ runAppSubsystem = interpret \case
   CreateApp lusr tid new -> createAppImpl lusr tid new
   GetApp lusr tid uid -> getAppImpl lusr tid uid
   GetApps lusr tid -> getAppsImpl lusr tid
+  UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
   RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+  DeleteApp tid appId -> deleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,
@@ -116,12 +121,14 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
   -- create app and user entries
   Store.createApp app
   Store.createUser u Nothing
+  now <- toUTCTimeMillis <$> get
+  void $ addTeamMember u.id tid (Just (tUnqualified lusr, now)) R.RoleMember
   internalUpdateSearchIndex u.id
 
   -- generate a team event
   generateTeamEvents creator.id tid [EdAppCreate u.id]
 
-  c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie (Just "app")
+  c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
     Apps.CreatedApp
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
@@ -175,28 +182,52 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r [Apps.GetApp]
+  Sem r Apps.GetAppList
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
   storedApps <- Store.getApps tid
   us <- Store.getUsers ((.id) <$> storedApps)
   let mkApp (storedApp, u) =
-        Apps.GetApp
-          { name = u.name,
-            pict = fromMaybe (Pict []) u.pict,
-            assets = fromMaybe [] u.assets,
-            accentId = u.accentId,
-            meta = storedApp.meta,
-            category = storedApp.category,
-            description = storedApp.description
-          }
-  pure $ mkApp <$> matchAndZip storedApps us
+        ( u.id,
+          Apps.GetApp
+            { name = u.name,
+              pict = fromMaybe (Pict []) u.pict,
+              assets = fromMaybe [] u.assets,
+              accentId = u.accentId,
+              meta = storedApp.meta,
+              category = storedApp.category,
+              description = storedApp.description
+            }
+        )
+  pure . Apps.GetAppList $ mkApp <$> matchAndZip storedApps us
   where
     matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
     matchAndZip as us = mapMaybe f as
       where
         f a = (a,) <$> Map.lookup a.id umap
         umap = Map.fromList $ (\u -> (u.id, u)) <$> us
+
+updateAppImpl ::
+  ( Member AppStore r,
+    Member (Error AppSubsystemError) r,
+    Member GalleyAPIAccess r,
+    Member UserStore r
+  ) =>
+  Local UserId ->
+  TeamId ->
+  UserId ->
+  Apps.PutApp ->
+  Sem r ()
+updateAppImpl lusr tid appid upd = do
+  (_updater, umem) <- ensureTeamMember lusr tid
+  note AppSubsystemErrorNoPerm $ guard (T.hasPermission umem T.CreateApp)
+  Store.updateApp tid appid (Store.MkStoredAppUpdate {category = upd.category, description = upd.description}) >>= \case
+    Right () -> pure ()
+    Left Store.NotFound -> throw AppSubsystemErrorNoApp
+  Store.updateUser appid (def {Store.name = upd.name, Store.assets = upd.assets, Store.accentId = upd.accentId})
+  -- FUTUREWORK(WPB-21287): internalUpdateSearchIndex appid
+  -- FUTUREWORK(WPB-21287): create event `app.updated`
+  pure ()
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,
@@ -215,7 +246,7 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
 
   c :: Cookie (Token U) <-
-    newCookieLimited appId Nothing PersistentCookie (Just "app")
+    newCookieLimited appId Nothing PersistentCookie Nothing RevokeSameLabel
       >>= either throw pure
   pure $ mkSomeToken c.cookieValue
 
@@ -233,6 +264,7 @@ appNewStoredUser creator new = do
   pure
     NewStoredUser
       { id = Id uid,
+        userType = UserTypeApp,
         email = Nothing,
         ssoId = Nothing,
         name = new.name,
@@ -257,3 +289,11 @@ appNewStoredUser creator new = do
 
 defAppSupportedProtocols :: Set BaseProtocolTag
 defAppSupportedProtocols = Set.singleton BaseProtocolMLSTag
+
+deleteAppImpl ::
+  (Member AppStore r) =>
+  TeamId ->
+  UserId ->
+  Sem r ()
+deleteAppImpl teamId appId =
+  Store.deleteApp appId teamId

@@ -81,7 +81,6 @@ library
     Galley.API.Clients
     Galley.API.Create
     Galley.API.CustomBackend
-    Galley.API.Error
     Galley.API.Federation
     Galley.API.Internal
     Galley.API.LegalHold
@@ -89,6 +88,7 @@ library
     Galley.API.LegalHold.Get
     Galley.API.LegalHold.Team
     Galley.API.Mapping
+    Galley.API.Meetings
     Galley.API.Message
     Galley.API.MLS
     Galley.API.MLS.CheckClients
@@ -113,12 +113,12 @@ library
     Galley.API.MLS.SubConversation
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
-    Galley.API.One2One
     Galley.API.Public.Bot
     Galley.API.Public.Conversation
     Galley.API.Public.CustomBackend
     Galley.API.Public.Feature
     Galley.API.Public.LegalHold
+    Galley.API.Public.Meetings
     Galley.API.Public.Messaging
     Galley.API.Public.MLS
     Galley.API.Public.Servant
@@ -134,10 +134,8 @@ library
     Galley.API.Teams.Features.Get
     Galley.API.Teams.Notifications
     Galley.API.Update
-    Galley.API.Util
     Galley.App
     Galley.Cassandra
-    Galley.Cassandra.Client
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.Queries
     Galley.Cassandra.SearchVisibility
@@ -147,7 +145,6 @@ library
     Galley.Cassandra.Util
     Galley.Data.TeamNotifications
     Galley.Effects
-    Galley.Effects.ClientStore
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore
@@ -165,6 +162,7 @@ library
     Galley.Schema.Run
     Galley.Schema.V100_OutOfSync
     Galley.Schema.V101_ConversationLowerGCGracePeriod
+    Galley.Schema.V102_ConversationHistory
     Galley.Schema.V20
     Galley.Schema.V21
     Galley.Schema.V22
@@ -245,8 +243,6 @@ library
     Galley.Schema.V97_CellsConversation
     Galley.Schema.V98_ChannelAddPermission
     Galley.Schema.V99_ConversationAddParent
-    Galley.Types.Clients
-    Galley.Validation
 
   ghc-options:     -fplugin=Polysemy.Plugin
   other-modules:   Paths_galley
@@ -313,7 +309,6 @@ library
     , text                                  >=0.11
     , time                                  >=1.4
     , tinylog                               >=0.10
-    , transformers
     , types-common                          >=0.16
     , types-common-aws
     , unliftio                              >=0.2
@@ -559,7 +554,6 @@ test-suite galley-tests
   other-modules:
     Paths_galley
     Run
-    Test.Galley.API.Action
     Test.Galley.API.Message
     Test.Galley.API.One2One
     Test.Galley.Mapping
@@ -571,6 +565,7 @@ test-suite galley-tests
     , containers
     , extra                >=1.3
     , galley
+    , galley-types
     , imports
     , lens
     , polysemy

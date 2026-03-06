@@ -62,7 +62,7 @@ testSwagger = do
       cs resp.body `shouldContainString` "<!DOCTYPE html>"
     bindResponse (BrigP.getSwaggerPublicAllJson v) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      void resp.json
+      void $ assertJust "Response has no JSON body" resp.json
 
   -- !
   -- FUTUREWORK: Implement BrigP.getSwaggerInternalTOC (including the end-point); make sure
@@ -74,7 +74,7 @@ testSwagger = do
       cs resp.body `shouldContainString` "<!DOCTYPE html>"
     bindResponse (BrigP.getSwaggerInternalJson api) $ \resp -> do
       resp.status `shouldMatchInt` 200
-      void resp.json
+      void $ assertJust "Response has no JSON body" resp.json
 
 testSwaggerInternalVersionedNotFound :: (HasCallStack) => App ()
 testSwaggerInternalVersionedNotFound = do

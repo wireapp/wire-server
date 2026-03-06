@@ -8,9 +8,6 @@ hself: hsuper: {
   # FUTUREWORK: investigate whether all of these tests need to fail
   # ----------------
 
-  # tests don't work, but only in a flake
-  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
-
   # test suite doesn't compile and needs network access
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
@@ -30,6 +27,9 @@ hself: hsuper: {
   hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
   hasql-transaction = hlib.dontCheck hsuper.hasql-transaction; # users 1.2.1 from nixpkgs
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
+
+  # Test fixtures don't seem to be bundled for Hackage
+  hsaml2 = hlib.dontCheck (hsuper.hsaml2);
 
   # ---------------------
   # need to be jailbroken
@@ -71,7 +71,9 @@ hself: hsuper: {
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
   template = hlib.markUnbroken hsuper.template;
-  system-linux-proc = hlib.markUnbroken hsuper.system-linux-proc;
+  # /proc doesn't exist on macOS, so skip tests there
+  system-linux-proc = (if stdenv.isDarwin then hlib.dontCheck else (x: x))
+    (hlib.markUnbroken hsuper.system-linux-proc);
   # FSEvents doesn't work in nix sandbox on macOS; on Linux inotify works fine
   fsnotify = (if stdenv.isDarwin then hlib.dontCheck else (x: x))
     (hlib.markUnbroken hsuper.fsnotify);
@@ -85,6 +87,10 @@ hself: hsuper: {
   # -----------------
   # warp requires curl in its testsuite
   warp = hlib.addTestToolDepends hsuper.warp [ curl ];
+
+  http-semantics = hsuper.http-semantics_0_4_0;
+  network-run = hsuper.network-run_0_5_0;
+  http2 = hsuper.http2_5_4_0;
 
   # -----------------
   # flags and patches

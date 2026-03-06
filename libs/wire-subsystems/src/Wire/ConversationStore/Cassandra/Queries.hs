@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -38,6 +40,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.SubConversation (SubConvId)
@@ -80,11 +83,12 @@ type ConvRow =
     Maybe GroupConvType,
     Maybe AddPermission,
     Maybe CellsState,
-    Maybe ConvId
+    Maybe ConvId,
+    Maybe HistoryDuration
   )
 
 selectConv :: PrepQuery R (Identity ConvId) ConvRow
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state, parent_conv from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite, group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
@@ -92,27 +96,31 @@ isConvDeleted = "select deleted from conversation where conv = ?"
 selectConvParent :: PrepQuery R (Identity ConvId) (Identity (Maybe ConvId))
 selectConvParent = "select parent_conv from conversation where conv = ?"
 
-insertConv ::
-  PrepQuery
-    W
-    ( ConvId,
-      ConvType,
-      Maybe UserId,
-      C.Set Access,
-      C.Set AccessRole,
-      Maybe Text,
-      Maybe TeamId,
-      Maybe Milliseconds,
-      Maybe ReceiptMode,
-      ProtocolTag,
-      Maybe GroupId,
-      Maybe GroupConvType,
-      Maybe AddPermission,
-      CellsState,
-      Maybe ConvId
-    )
-    ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, channel_add_permission, cells_state, parent_conv) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+type ConvWriteRow =
+  ( ConvId,
+    ConvType,
+    Maybe UserId,
+    C.Set Access,
+    C.Set AccessRole,
+    Maybe Text,
+    Maybe TeamId,
+    Maybe Milliseconds,
+    Maybe ReceiptMode,
+    ProtocolTag,
+    Maybe GroupId,
+    Maybe GroupConvType,
+    Maybe AddPermission,
+    CellsState,
+    Maybe ConvId,
+    Maybe HistoryDuration
+  )
+
+-- needed by cql
+instance Show ConvWriteRow where
+  show _ = "(...)"
+
+insertConv :: PrepQuery W ConvWriteRow ()
+insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
   PrepQuery
@@ -166,6 +174,9 @@ getConvEpoch = "select epoch from conversation where conv = ?"
 
 updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
 updateConvEpoch = {- `IF EXISTS`, but that requires benchmarking -} "update conversation set epoch = ? where conv = ?"
+
+updateConvHistory :: PrepQuery W (Maybe HistoryDuration, ConvId) ()
+updateConvHistory = "update conversation set history_depth = ? where conv = ?"
 
 updateConvCipherSuite :: PrepQuery W (CipherSuiteTag, ConvId) ()
 updateConvCipherSuite = "update conversation set cipher_suite = ? where conv = ?"

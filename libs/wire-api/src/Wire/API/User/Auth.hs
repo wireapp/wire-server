@@ -276,11 +276,20 @@ newtype CookieLabel = CookieLabel
       ToSchema
     )
 
+instance S.ToParamSchema CookieLabel where
+  toParamSchema _ = mempty & S.type_ ?~ S.OpenApiString
+
+instance FromHttpApiData CookieLabel where
+  parseUrlPiece = Right . CookieLabel
+
+instance ToHttpApiData CookieLabel where
+  toUrlPiece = cookieLabelText
+
 deriving instance Cql CookieLabel
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving newtype (ToSchema, FromJSON, ToJSON, Arbitrary)
 
 instance Cql CookieId where

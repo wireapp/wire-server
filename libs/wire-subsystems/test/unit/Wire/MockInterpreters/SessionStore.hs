@@ -36,5 +36,5 @@ inMemorySessionStoreInterpreter = interpret $ \case
   InsertCookie uid cookie _ttl -> modify $ Map.insertWith (<>) uid [cookie]
   ListCookies uid -> gets (Map.findWithDefault [] uid)
   DeleteAllCookies uid -> modify $ Map.delete uid
-  DeleteCookies uid cc -> (error "implement on demand") uid cc
+  DeleteCookies uid cc -> modify $ Map.adjust (filter (`notElem` cc)) uid
   LookupCookie uid time cid -> (error "implement on demand") uid time cid

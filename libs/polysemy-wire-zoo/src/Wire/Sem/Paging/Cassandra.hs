@@ -43,7 +43,7 @@ data CassandraPaging
 
 type instance E.PagingState CassandraPaging a = PagingState
 
-type instance E.Page CassandraPaging a = PageWithState a
+type instance E.Page CassandraPaging a = PageWithState Void a
 
 type instance E.PagingBounds CassandraPaging TeamId = Range 1 100 Int32
 

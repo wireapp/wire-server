@@ -78,7 +78,8 @@ runTeamInvitationSubsystem ::
     Member Now r,
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserKeyStore r
   ) =>
   TeamInvitationSubsystemConfig ->
   InterpreterFor TeamInvitationSubsystem r
@@ -98,7 +99,8 @@ inviteUserImpl ::
     Member Now r,
     Member EmailSubsystem r,
     Member EnterpriseLoginSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member UserKeyStore r
   ) =>
   Local UserId ->
   TeamId ->
@@ -139,7 +141,8 @@ createInvitation' ::
     Member (Input TeamInvitationSubsystemConfig) r,
     Member Now r,
     Member EmailSubsystem r,
-    Member EnterpriseLoginSubsystem r
+    Member EnterpriseLoginSubsystem r,
+    Member UserKeyStore r
   ) =>
   TeamId ->
   Maybe InvitationId ->
@@ -165,6 +168,11 @@ createInvitation' tid mExpectedInvId inviteeRole mbInviterUid inviterEmail invRe
           && user.userStatus == Active
           && isNothing user.userTeam ->
           pure InviteExistingUser
+      | user.userStatus == Deleted -> do
+          -- user key is present but the user is deleted
+          -- repair inconsistency here, and allow invitation to proceed
+          deleteKeyForUser (qUnqualified user.userQualifiedId) (tUnqualified uke)
+          pure InviteNewUser
       | otherwise -> throw TeamInvitationEmailTaken
   guardEmailDomainRegistration invitationFlow tid email
 

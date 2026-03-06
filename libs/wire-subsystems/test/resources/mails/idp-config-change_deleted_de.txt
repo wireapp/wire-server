@@ -1,0 +1,56 @@
+[https://wire.example.com/p/img/email/logo-email-black.png]
+
+wire.example.com [https://wire.example.com]
+
+ÄNDERUNG IN DER KONFIGURATION IHRES IDENTITY PROVIDERS
+Etwas hat sich in der IdP-Konfiguration für Ihr Team geändert.
+
+Team-ID:
+99f552d8-9dad-60c1-4be9-c88fb532893a
+
+Benutzer-ID:
+4a1ce4ea-5c99-d01e-018f-4dc9d08f787a
+
+
+--------------------------------------------------------------------------------
+
+Details:
+
+IdP-ID:
+574ddfb0-4e50-2bff-e924-33ee2b9f7064
+
+Neuer IdP-Aussteller:
+None
+
+Neuer IdP-Endpunkt:
+None
+
+Alter IdP-Aussteller:
+https://issuer.example.com/realm
+
+Alter IdP-Endpunkt:
+https://saml-endpoint.example.com/auth
+
+
+--------------------------------------------------------------------------------
+
+Entfernt:
+
+SHA1 Fingerabdruck:
+15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37
+
+Betreff:
+CN=accounts.accesscontrol.windows.net
+
+Aussteller:
+CN=accounts.accesscontrol.windows.net
+
+
+--------------------------------------------------------------------------------
+
+Wenn Sie diese Änderung nicht veranlasst haben, wenden Sie sich bitte an den
+Wire Support. [https://support.wire.com/]
+
+Datenschutzerklärung und Nutzungsbedingungen [https://wire.example.com/legal/]· Missbrauch melden
+[misuse@wire.example.com]
+© WIRE SWISS GmbH. Alle Rechte vorbehalten.

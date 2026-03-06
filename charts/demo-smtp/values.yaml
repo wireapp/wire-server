@@ -1,6 +1,8 @@
 fullnameOverride: demo-smtp
 replicaCount: 1
-image: "quay.io/wire/ixdotai-smtp:v0.5.2"
+image:
+  repository: quay.io/wire/ixdotai-smtp
+  tag: v0.5.2
 
 service:
   port: 25

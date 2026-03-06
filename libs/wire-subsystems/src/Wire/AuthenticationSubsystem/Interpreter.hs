@@ -44,6 +44,7 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
+import Wire.Events
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore (PasswordStore, upsertHashedPassword)
@@ -72,7 +73,8 @@ interpretAuthenticationSubsystem ::
     Member UserStore r,
     Member RateLimit r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member Events r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
@@ -90,8 +92,8 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         VerifyUserPasswordError luid plaintext -> verifyUserPasswordErrorImpl luid plaintext
         VerifyProviderPassword pid plaintext -> verifyProviderPasswordImpl pid plaintext
         -- Cookie Management
-        NewCookie uid mcid typ mLabel -> newCookieImpl uid mcid typ mLabel
-        NewCookieLimited uid mcid typ mLabel -> runError $ newCookieLimitedImpl uid mcid typ mLabel
+        NewCookie uid mcid typ mLabel policy -> newCookieImpl uid mcid typ mLabel policy
+        NewCookieLimited uid mcid typ mLabel policy -> runError $ newCookieLimitedImpl uid mcid typ mLabel policy
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
         -- Testing
         InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey

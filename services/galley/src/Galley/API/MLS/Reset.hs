@@ -20,18 +20,19 @@ module Galley.API.MLS.Reset (resetMLSConversation) where
 import Data.Id
 import Data.Qualified
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Update
 import Galley.Effects
 import Galley.Env
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
 import Polysemy.TinyLog qualified as P
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -41,7 +42,7 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.FederationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
@@ -74,6 +75,7 @@ resetMLSConversation ::
     Member P.TinyLog r,
     Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

@@ -46,7 +46,6 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
-import Cassandra qualified as Cas
 import Control.Error hiding (bool)
 import Control.Lens (preview, to, _Just)
 import Control.Lens.Extras (is)
@@ -74,7 +73,6 @@ import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
 import System.Logger.Class qualified as Log
-import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Connection
 import Wire.API.EnterpriseLogin hiding (domain)
 import Wire.API.Error
@@ -95,10 +93,15 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.API.UserGroup (UserGroup)
 import Wire.API.UserGroup.Pagination
+import Wire.API.UserMap
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AppSubsystem (AppSubsystem)
+import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
@@ -122,6 +125,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Rpc
+import Wire.SAMLEmailSubsystem (SAMLEmailSubsystem, sendSAMLIdPChanged)
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -180,7 +184,10 @@ servantSitemap ::
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
-    Member Random r
+    Member Random r,
+    Member SAMLEmailSubsystem r,
+    Member AppSubsystem r,
+    Member ClientStore r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -198,6 +205,8 @@ servantSitemap =
     :<|> federationRemotesAPI
     :<|> Provider.internalProviderAPI
     :<|> enterpriseLoginApi
+    :<|> samlIdPApi
+    :<|> Named @"i-delete-app" deleteAppH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -213,7 +222,7 @@ ejpdAPI ::
   ServerT BrigIRoutes.EJPDRequest (Handler r)
 ejpdAPI = Named @"ejpd-request" Brig.User.EJPD.ejpdRequest
 
-mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
+mlsAPI :: (Member ClientStore r) => ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   Named @"get-mls-clients" getMLSClientsH
     :<|> Named @"get-mls-client" getMLSClientH
@@ -247,7 +256,8 @@ accountAPI ::
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
-    Member (Concurrency Unsafe) r
+    Member (Concurrency Unsafe) r,
+    Member ClientStore r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -328,7 +338,7 @@ userAPI =
     :<|> Named @"get-user-export-data" getUserExportDataH
     :<|> Named @"i-check-admin-get-team-id" checkAdminGetTeamId
 
-clientAPI :: ServerT BrigIRoutes.ClientAPI (Handler r)
+clientAPI :: (Member ClientStore r) => ServerT BrigIRoutes.ClientAPI (Handler r)
 clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI ::
@@ -450,36 +460,29 @@ deleteAccountConferenceCallingConfig :: (Member UserStore r) => UserId -> Handle
 deleteAccountConferenceCallingConfig uid =
   lift . liftSem $ UserStore.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-getMLSClientH :: UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
+getMLSClientH :: (Member ClientStore r) => UserId -> ClientId -> CipherSuite -> Handler r ClientInfo
 getMLSClientH usr cid suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
-  lift . wrapClient $ getMLSClient lusr cid suiteTag
+  lift $ getMLSClient lusr cid suiteTag
 
-getMLSClientsH :: UserId -> CipherSuite -> Handler r (Set ClientInfo)
+getMLSClientsH :: (Member ClientStore r) => UserId -> CipherSuite -> Handler r (Set ClientInfo)
 getMLSClientsH usr suite = do
   lusr <- qualifyLocal usr
   suiteTag <- maybe (mlsProtocolError "Unknown ciphersuite") pure (cipherSuiteTag suite)
-  allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  clientInfos <- lift . wrapClient $ UnliftIO.Async.pooledMapConcurrentlyN 16 (\c -> getMLSClient lusr c suiteTag) (toList allClients)
+  allClients <- lift (liftSem (ClientStore.lookupClientIds usr))
+  clientInfos <- lift $ traverse (\c -> getMLSClient lusr c suiteTag) (toList allClients)
   pure $ Set.fromList clientInfos
-  where
-    getResult [] = pure mempty
-    getResult ((u, cs') : rs)
-      | u == usr = pure cs'
-      | otherwise = getResult rs
 
 getMLSClient ::
-  ( MonadReader Env m,
-    Cas.MonadClient m
-  ) =>
+  (Member ClientStore r) =>
   Local UserId ->
   ClientId ->
   CipherSuiteTag ->
-  m ClientInfo
+  AppT r ClientInfo
 getMLSClient lusr cid suiteTag = do
-  numKeyPackages <- Data.countKeyPackages lusr cid suiteTag
-  mc <- Data.lookupClient (tUnqualified lusr) cid
+  numKeyPackages <- wrapClient $ Data.countKeyPackages lusr cid suiteTag
+  mc <- liftSem $ ClientStore.lookupClient (tUnqualified lusr) cid
   let keys = foldMap (.clientMLSPublicKeys) mc
       ss = csSignatureScheme suiteTag
   pure
@@ -517,6 +520,9 @@ enterpriseLoginApi =
     :<|> Named @"domain-registration-delete" (fmap (const NoContent) . lift . liftSem . deleteDomain)
     :<|> Named @"domain-registration-get" getDomainRegistrationH
 
+samlIdPApi :: (Member SAMLEmailSubsystem r) => ServerT SAMLIdPAPI (Handler r)
+samlIdPApi = Named @"send-idp-changed-email" (lift . liftSem . sendSAMLIdPChanged)
+
 ---------------------------------------------------------------------------
 -- Handlers
 
@@ -540,7 +546,8 @@ addClientInternalH ::
     Member Events r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   Maybe Bool ->
@@ -561,21 +568,22 @@ legalHoldClientRequestedH targetUser clientRequest = do
 removeLegalHoldClientH ::
   ( Member DeleteQueue r,
     Member Events r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   (Handler r) NoContent
 removeLegalHoldClientH uid = do
   lift $ NoContent <$ API.removeLegalHoldClient uid
 
-internalListClientsH :: UserSet -> (Handler r) UserClients
-internalListClientsH (UserSet usrs) = lift $ do
-  UserClients . Map.fromList
-    <$> wrapClient (API.lookupUsersClientIds (Set.toList usrs))
+internalListClientsH :: (Member ClientStore r) => UserSet -> (Handler r) UserClients
+internalListClientsH (UserSet usrs) =
+  lift . liftSem $ ClientStore.lookupClientIdsBulk (Set.toList usrs)
 
-internalListFullClientsH :: UserSet -> (Handler r) UserClientsFull
-internalListFullClientsH (UserSet usrs) = lift $ do
-  UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
+internalListFullClientsH :: (Member ClientStore r) => UserSet -> (Handler r) UserClientsFull
+internalListFullClientsH (UserSet usrs) =
+  lift . liftSem $
+    UserClientsFull . userMap <$> ClientStore.lookupClientsBulk (Set.toList usrs)
 
 createUserNoVerify ::
   ( Member BlockListStore r,
@@ -638,7 +646,8 @@ deleteUserNoAuthH ::
     Member UserSubsystem r,
     Member PropertySubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserGroupSubsystem r
+    Member UserGroupSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   (Handler r) DeleteUserResponse
@@ -733,7 +742,7 @@ changeSelfEmailMaybeSend u activation email allowScim = do
 -- Historically, this end-point was two end-points with distinct matching routes
 -- (distinguished by query params), and it was only allowed to pass one param per call.  This
 -- handler allows up to 4 lists of various user keys, and returns the union of the lookups.
--- Empty list is forbidden for backwards compatibility.
+-- Empty lists are forbidden for backwards compatibility.
 listActivatedAccountsH ::
   ( Member (Input (Local ())) r,
     Member UserSubsystem r
@@ -761,7 +770,7 @@ listActivatedAccountsH
                 getByUserId = uids,
                 getByHandle = handles
               }
-      pure $ others <> byEmails
+      pure $ filter (\u -> u.userStatus /= Deleted) $ others <> byEmails
 
 getActivationCode ::
   ( Member ActivationCodeStore r,
@@ -934,7 +943,7 @@ getDefaultUserLocale = do
 checkAdminGetTeamId :: (Member UserSubsystem r) => UserId -> Handler r TeamId
 checkAdminGetTeamId uid = lift . liftSem $ UserSubsystem.checkUserIsAdmin uid
 
-updateClientLastActive :: UserId -> ClientId -> Handler r ()
+updateClientLastActive :: (Member ClientStore r) => UserId -> ClientId -> Handler r ()
 updateClientLastActive u c = do
   sysTime <- liftIO getSystemTime
   -- round up to the next multiple of a week
@@ -945,7 +954,7 @@ updateClientLastActive u c = do
             { systemSeconds = systemSeconds sysTime + (week - systemSeconds sysTime `mod` week),
               systemNanoseconds = 0
             }
-  lift . wrapClient $ Data.updateClientLastActive u c now
+  lift . liftSem $ ClientStore.updateLastActive u c now
 
 getRichInfoH :: (Member UserStore r) => UserId -> Handler r RichInfo
 getRichInfoH uid =
@@ -1052,3 +1061,6 @@ deleteGroupManagedInternalH ::
 deleteGroupManagedInternalH tid gid managedBy = do
   lift . liftSem $ deleteGroupManaged managedBy tid gid
   pure NoContent
+
+deleteAppH :: (Member AppSubsystem r) => TeamId -> UserId -> Handler r NoContent
+deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoContent

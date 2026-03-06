@@ -52,6 +52,7 @@ library
     Spar.Schema.V2
     Spar.Schema.V20
     Spar.Schema.V21
+    Spar.Schema.V22
     Spar.Schema.V3
     Spar.Schema.V4
     Spar.Schema.V5
@@ -78,9 +79,6 @@ library
     Spar.Sem.DefaultSsoCode.Spec
     Spar.Sem.GalleyAccess
     Spar.Sem.GalleyAccess.Http
-    Spar.Sem.IdPConfigStore
-    Spar.Sem.IdPConfigStore.Cassandra
-    Spar.Sem.IdPConfigStore.Mem
     Spar.Sem.IdPRawMetadataStore
     Spar.Sem.IdPRawMetadataStore.Cassandra
     Spar.Sem.IdPRawMetadataStore.Mem
@@ -409,6 +407,7 @@ executable spar-integration
     , wai-extra
     , wai-utilities
     , wire-api
+    , wire-subsystems
     , xml-conduit
     , yaml
     , zauth
@@ -491,6 +490,7 @@ executable spar-migrate-data
     , types-common
     , uri-bytestring
     , utf8-string
+    , wire-subsystems
 
   default-language:   Haskell2010
 
@@ -661,5 +661,6 @@ test-suite spec
     , uri-bytestring
     , uuid
     , wire-api
+    , wire-subsystems
 
   default-language:   Haskell2010

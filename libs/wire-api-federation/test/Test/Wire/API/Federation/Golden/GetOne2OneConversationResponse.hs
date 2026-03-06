@@ -29,6 +29,7 @@ import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
+import Wire.API.History
 import Wire.API.MLS.Keys
 import Wire.API.Routes.Versioned qualified as ClientAPI
 
@@ -90,7 +91,8 @@ remoteConversation =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsDisabled,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryPrivate
           },
       members =
         RemoteConvMembers
@@ -131,7 +133,8 @@ remoteConversationV2 =
             cnvmGroupConvType = Nothing,
             cnvmChannelAddPermission = Nothing,
             cnvmCellsState = CellsPending,
-            cnvmParent = Nothing
+            cnvmParent = Nothing,
+            cnvmHistory = HistoryPrivate
           },
       members =
         RemoteConvMembers

@@ -190,6 +190,7 @@ library
     Brig.Schema.V89_UpdateDomainRegistrationSchema
     Brig.Schema.V90_DomainRegistrationTeamIndex
     Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
+    Brig.Schema.V92_AddUserType
     Brig.Team.API
     Brig.Team.Template
     Brig.Template
@@ -210,7 +211,6 @@ library
   build-depends:
     , aeson                                 >=2.0.1.0
     , amazonka                              >=2
-    , amazonka-core                         >=2
     , amazonka-dynamodb                     >=2
     , amazonka-ses                          >=2
     , amazonka-sqs                          >=2
@@ -308,7 +308,6 @@ library
     , types-common-aws
     , types-common-journal                  >=0.1
     , unliftio                              >=0.2
-    , unordered-containers                  >=0.2
     , uri-bytestring                        >=0.2
     , utf8-string
     , uuid                                  >=1.3.5
@@ -360,7 +359,6 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
-    API.SystemSettings
     API.Team
     API.Team.Util
     API.TeamUserSearch

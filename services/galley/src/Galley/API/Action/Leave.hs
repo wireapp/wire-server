@@ -21,15 +21,15 @@ import Control.Lens
 import Data.Id
 import Data.Qualified
 import Galley.API.MLS.Removal
-import Galley.API.Util
 import Galley.Effects
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Federation.Error
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.StoredConversation

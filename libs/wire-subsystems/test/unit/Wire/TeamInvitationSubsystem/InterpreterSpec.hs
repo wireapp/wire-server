@@ -55,6 +55,7 @@ import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserKeyStore
 import Wire.UserSubsystem
 import Wire.Util
 
@@ -67,6 +68,7 @@ type AllEffects =
     Random,
     State StdGen,
     InvitationStore,
+    UserKeyStore,
     State (Map (TeamId, InvitationId) StoredInvitation),
     State (Map (InvitationCode) StoredInvitation),
     Now,
@@ -93,6 +95,7 @@ runAllEffects args =
     . interpretNowAsState
     . evalState mempty
     . evalState mempty
+    . (evalState mempty . inMemoryUserKeyStoreInterpreter . raiseUnder)
     . inMemoryInvitationStoreInterpreter
     . evalState (mkStdGen 3)
     . randomToStatefulStdGen

@@ -30,7 +30,7 @@ where
 import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Types (PasswordResetError (..))
+import Brig.API.Types (ClientDataError (..), PasswordResetError (..))
 import Brig.App
 import Brig.Data.Client qualified as User
 import Brig.Options (Settings (..))
@@ -117,10 +117,13 @@ import Wire.API.User qualified as Public (UserProfile, mkUserProfile)
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
+import Wire.API.User.Client.Prekey (checkPrekeyBundle)
 import Wire.API.User.Client.Prekey qualified as Public (PrekeyId)
 import Wire.AuthenticationSubsystem as Authentication
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
+import Wire.ClientStore (ClientStore)
+import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -154,7 +157,8 @@ botAPI ::
     Member UserStore r,
     Member (Embed HttpClientIO) r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member ClientStore r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -183,7 +187,8 @@ servicesAPI ::
     Member (Embed HttpClientIO) r,
     Member UserStore r,
     Member (Input (Local ())) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member ClientStore r
   ) =>
   ServerT ServicesAPI (Handler r)
 servicesAPI =
@@ -584,7 +589,8 @@ finishDeleteService ::
     Member (Embed HttpClientIO) r,
     Member (Concurrency Unsafe) r,
     Member (Input (Local ())) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member ClientStore r
   ) =>
   ProviderId ->
   ServiceId ->
@@ -698,7 +704,8 @@ updateServiceWhitelist ::
     Member (Embed HttpClientIO) r,
     Member UserStore r,
     Member (Input (Local ())) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member ClientStore r
   ) =>
   UserId ->
   ConnId ->
@@ -754,7 +761,8 @@ addBot ::
     Member CryptoSign r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member ClientStore r
   ) =>
   UserId ->
   ConnId ->
@@ -820,6 +828,7 @@ addBot zuid zcon cid add = do
   let usr =
         NewStoredUser
           { id = botUserId bid,
+            userType = UserTypeBot,
             name,
             textStatus = Nothing,
             email = Nothing,
@@ -880,7 +889,8 @@ removeBot ::
     Member (Embed HttpClientIO) r,
     Member UserStore r,
     Member (Input (Local ())) r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member ClientStore r
   ) =>
   UserId -> ConnId -> ConvId -> BotId -> Handler r (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
@@ -916,34 +926,37 @@ botGetSelf bot = do
   p <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
   maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf UserTypeBot u UserLegalHoldNoConsent) p
 
-botGetClient :: (Member GalleyAPIAccess r) => BotId -> (Handler r) (Maybe Public.Client)
+botGetClient :: (Member GalleyAPIAccess r, Member ClientStore r) => BotId -> (Handler r) (Maybe Public.Client)
 botGetClient bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
-  lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
+  lift $ listToMaybe <$> liftSem (ClientStore.lookupClients (botUserId bot))
 
-botListPrekeys :: (Member GalleyAPIAccess r) => BotId -> (Handler r) [Public.PrekeyId]
+botListPrekeys :: (Member GalleyAPIAccess r, Member ClientStore r) => BotId -> (Handler r) [Public.PrekeyId]
 botListPrekeys bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
-  clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
+  clt <- lift $ listToMaybe <$> liftSem (ClientStore.lookupClients (botUserId bot))
   case (.clientId) <$> clt of
     Nothing -> pure []
-    Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
+    Just ci -> lift . liftSem $ ClientStore.lookupPrekeyIds (botUserId bot) ci
 
-botUpdatePrekeys :: (Member GalleyAPIAccess r) => BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
+botUpdatePrekeys :: (Member GalleyAPIAccess r, Member ClientStore r) => BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
 botUpdatePrekeys bot upd = do
   guardSecondFactorDisabled (Just (botUserId bot))
-  clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
+  clt <- lift $ listToMaybe <$> liftSem (ClientStore.lookupClients (botUserId bot))
   case clt of
     Nothing -> throwStd (errorToWai @'E.ClientNotFound)
     Just c -> do
       let pks = updateBotPrekeyList upd
-      wrapClientE (User.updatePrekeys (botUserId bot) c.clientId pks) !>> clientDataError
+      unless (all checkPrekeyBundle pks) $
+        throwE (clientDataError MalformedPrekeys)
+      lift . liftSem $ ClientStore.updatePrekeys (botUserId bot) c.clientId pks
 
 botClaimUsersPrekeys ::
   ( Member (Concurrency 'Unsafe) r,
     Member GalleyAPIAccess r,
     Member DeleteQueue r,
-    Member AuthenticationSubsystem r
+    Member AuthenticationSubsystem r,
+    Member ClientStore r
   ) =>
   BotId ->
   Public.UserClients ->
@@ -969,10 +982,10 @@ botListUserProfiles _ uids = do
             }
   pure (map mkBotUserView us)
 
-botGetUserClients :: (Member GalleyAPIAccess r) => BotId -> UserId -> (Handler r) [Public.PubClient]
+botGetUserClients :: (Member GalleyAPIAccess r, Member ClientStore r) => BotId -> UserId -> (Handler r) [Public.PubClient]
 botGetUserClients _ uid = do
   guardSecondFactorDisabled (Just uid)
-  lift $ pubClient <$$> wrapClient (User.lookupClients uid)
+  lift $ pubClient <$$> liftSem (ClientStore.lookupClients uid)
   where
     pubClient c = Public.PubClient c.clientId c.clientClass
 
@@ -981,7 +994,8 @@ botDeleteSelf ::
     Member (Embed HttpClientIO) r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member ClientStore r
   ) =>
   BotId -> ConvId -> Handler r ()
 botDeleteSelf bid cid = do
@@ -1021,7 +1035,7 @@ activate pid old new = do
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot ::
-  (Member (Embed HttpClientIO) r, Member UserStore r, Member (Input (Local ())) r, Member UserSubsystem r) =>
+  (Member (Embed HttpClientIO) r, Member UserStore r, Member (Input (Local ())) r, Member UserSubsystem r, Member ClientStore.ClientStore r) =>
   UserId ->
   Maybe ConnId ->
   BotId ->
@@ -1034,7 +1048,7 @@ deleteBot zusr zcon bid cid = do
   let buid = botUserId bid
   getBy <- qualifyLocal' $ getByNoFilters {getByUserId = [buid], includePendingInvitations = NoPendingInvitations}
   mbUser <- listToMaybe <$> User.getAccountsBy getBy
-  embed $ User.lookupClients buid >>= mapM_ (User.rmClient buid . (.clientId))
+  ClientStore.lookupClients buid >>= mapM_ (ClientStore.delete buid . (.clientId))
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId

@@ -77,20 +77,17 @@ import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock (UTCTime)
 import Galley.API.Action
-import Galley.API.Error as Galley
 import Galley.API.LegalHold.Team
 import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
-import Galley.API.Util
 import Galley.App
 import Galley.Effects
 import Galley.Effects.Queue qualified as E
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore qualified as E
-import Galley.Env
 import Galley.Options
-import Galley.Types.Teams
+import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
@@ -99,6 +96,7 @@ import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Conversation (ConvType (..), ConversationRemoveMembers (..))
 import Wire.API.Conversation qualified
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
@@ -118,6 +116,7 @@ import Wire.API.Team.Collaborator qualified as TeamCollaborator
 import Wire.API.Team.Conversation
 import Wire.API.Team.Conversation qualified as Public
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as M
 import Wire.API.Team.Member qualified as Public
@@ -131,8 +130,9 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationSubsystem
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -418,7 +418,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
   let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
   if member `hasPermission` SearchContacts
     then do
-      pws :: PageWithState TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
+      pws :: PageWithState Void TeamMember <- E.listTeamMembers @CassandraPaging tid mState mLimit
       -- FUTUREWORK: Remove this via-Brig filtering when user and
       -- team_member tables are migrated to Postgres. We currently
       -- can't filter in the database because Cassandra doesn't
@@ -448,7 +448,7 @@ getTeamMembers lzusr tid mbMaxResults mbPagingState = do
       let uids = uid : maybeToList invitee
       TeamSubsystem.internalSelectTeamMembers tid uids <&> toTeamSingleMembersPage member
   where
-    toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
+    toTeamMembersPage :: TeamMember -> C.PageWithState Void TeamMember -> TeamMembersPage
     toTeamMembersPage member p =
       let withPerms = (member `canSeePermsOf`)
        in TeamMembersPage $
@@ -806,6 +806,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       E.deleteUser remove
+      E.deleteApp tid remove
       owners <- E.getBillingTeamMembers tid
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
@@ -976,6 +977,7 @@ deleteTeamConversation ::
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

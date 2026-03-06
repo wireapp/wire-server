@@ -88,6 +88,7 @@ newStoredUser u inv tid mbHandle = do
     user uid l e mPassword =
       NewStoredUser
         { id = uid,
+          userType = UserTypeRegular,
           email = ident >>= emailIdentity,
           ssoId = ident >>= ssoIdentity,
           name,
@@ -117,6 +118,7 @@ newStoredUserViaScim uid externalId tid locale name email = do
   pure $
     NewStoredUser
       { id = uid,
+        userType = UserTypeRegular,
         email = Just email,
         ssoId = Just (UserScimExternalId externalId),
         name,

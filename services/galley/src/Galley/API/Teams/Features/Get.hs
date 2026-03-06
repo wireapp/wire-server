@@ -37,7 +37,6 @@ import Control.Error (hush)
 import Data.Id
 import Data.SOP
 import Data.Tagged
-import Galley.API.Util
 import Galley.Effects
 import Imports
 import Polysemy
@@ -48,6 +47,7 @@ import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.ConversationStore as ConversationStore
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Types
 import Wire.TeamStore qualified as TeamStore

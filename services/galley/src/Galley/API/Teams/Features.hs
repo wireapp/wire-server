@@ -41,23 +41,21 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Qualified (Local)
-import Galley.API.Error (InternalError)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
-import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Galley.App
 import Galley.Effects
 import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
-import Galley.Env (FanoutLimit)
 import Galley.Options
-import Galley.Types.Teams
+import Galley.Types.Error (InternalError)
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley
@@ -65,15 +63,17 @@ import Wire.API.Event.FeatureConfig
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (MLSCommitLockStore)
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
-import Wire.FeaturesConfigSubsystem
+import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
+import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
@@ -357,6 +357,7 @@ instance SetFeatureConfig LegalholdConfig where
         Member TeamCollaboratorsSubsystem r,
         Member MLSCommitLockStore r,
         Member (Input FanoutLimit) r,
+        Member FederationSubsystem r,
         Member TeamSubsystem r,
         Member (Input ConversationSubsystemConfig) r
       )

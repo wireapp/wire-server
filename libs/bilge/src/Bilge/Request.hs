@@ -57,7 +57,6 @@ module Bilge.Request
     cookie,
     cookieRaw,
     requestId,
-    requestIdName,
     extHost,
     extPort,
 
@@ -89,6 +88,7 @@ import Network.HTTP.Client qualified as Rq
 import Network.HTTP.Client.Internal (CookieJar (..), brReadSome, throwHttp)
 import Network.HTTP.Types
 import Network.HTTP.Types qualified as HTTP
+import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import URI.ByteString qualified as URI
 
 -- Builders
@@ -186,12 +186,9 @@ cookie c r =
     Just (CJ cc) -> r {Rq.cookieJar = Just (CJ (c : cc))}
 
 requestId :: RequestId -> Request -> Request
-requestId (RequestId rId) = header requestIdName rId
+requestId (RequestId rId) = header defaultRequestIdHeaderName rId
 
 -- Convenience:
-
-requestIdName :: HeaderName
-requestIdName = "Request-Id"
 
 bytes :: ByteString -> Request -> Request
 bytes = body . RequestBodyBS

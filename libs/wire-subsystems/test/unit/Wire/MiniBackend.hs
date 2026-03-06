@@ -94,6 +94,9 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BlockListStore
+import Wire.ClientStore
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -138,16 +141,15 @@ newtype PendingNotEmptyIdentityStoredUser = PendingNotEmptyIdentityStoredUser St
 
 instance Arbitrary PendingNotEmptyIdentityStoredUser where
   arbitrary = do
-    user <- arbitrary `suchThat` \user -> isJust user.identity
+    user <- arbitrary `suchThat` \user -> isJust user.identity && user.userType /= Just UserTypeApp
     pure $ PendingNotEmptyIdentityStoredUser (user {status = Just PendingInvitation})
 
 newtype NotPendingEmptyIdentityStoredUser = NotPendingEmptyIdentityStoredUser StoredUser
   deriving (Show, Eq)
 
--- TODO: make sure this is a valid state
 instance Arbitrary NotPendingEmptyIdentityStoredUser where
   arbitrary = do
-    user <- arbitrary `suchThat` \user -> isNothing user.identity
+    user <- arbitrary `suchThat` \user -> isNothing user.identity && user.userType /= Just UserTypeApp
     notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
     pure $ NotPendingEmptyIdentityStoredUser (user {status = notPendingStatus})
 
@@ -164,7 +166,7 @@ newtype NotPendingStoredUser = NotPendingStoredUser StoredUser
 
 instance Arbitrary NotPendingStoredUser where
   arbitrary = do
-    user <- arbitrary `suchThat` \user -> isJust user.identity
+    user <- arbitrary `suchThat` \user -> isJust user.identity && user.userType /= Just UserTypeApp
     notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
     pure $ NotPendingStoredUser (user {status = notPendingStatus})
 
@@ -173,7 +175,7 @@ newtype NotPendingSSOIdWithEmailStoredUser = NotPendingSSOIdWithEmailStoredUser 
 
 instance Arbitrary NotPendingSSOIdWithEmailStoredUser where
   arbitrary = do
-    user <- arbitrary `suchThat` \user -> fmap isUserSSOId user.ssoId == Just True
+    user <- arbitrary `suchThat` isSsoIsNotApp
     notPendingStatus <- elements (Nothing : map Just [Active, Suspended, Ephemeral])
     e <- arbitrary
     pure $
@@ -184,6 +186,10 @@ instance Arbitrary NotPendingSSOIdWithEmailStoredUser where
               email = Just e
             }
         )
+    where
+      isSsoIsNotApp user =
+        fmap isUserSSOId user.ssoId == Just True
+          && user.userType /= Just UserTypeApp
 
 newtype ActiveStoredUser = ActiveStoredUser StoredUser
   deriving (Show, Eq)
@@ -232,11 +238,13 @@ data MiniBackendParams r = MiniBackendParams
 -- organize along effect types ("all `State`s"), but the domain ("everything about block
 -- lists").
 type MiniBackendLowerEffects =
-  '[ TeamSubsystem,
+  '[ ClientSubsystem,
+     TeamSubsystem,
      EmailSubsystem,
      NotificationSubsystem,
      GalleyAPIAccess,
      SparAPIAccess,
+     ClientStore,
      InvitationStore,
      PasswordStore,
      ActivationCodeStore,
@@ -301,11 +309,13 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryActivationCodeStoreInterpreter
     . runInMemoryPasswordStoreInterpreter
     . inMemoryInvitationStoreInterpreter
+    . runInMemoryClientStoreInterpreter
     . miniSparAPIAccess
     . miniGalleyAPIAccess teams galleyConfigs
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
     . interpretTeamSubsystemToGalleyAPI
+    . runClientSubsystem
 
 type StateEffects =
   '[ State [Push],

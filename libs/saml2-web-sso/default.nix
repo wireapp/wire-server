@@ -48,6 +48,7 @@
 , memory
 , mtl
 , network-uri
+, openapi3
 , pretty-show
 , process
 , QuickCheck
@@ -127,6 +128,7 @@ mkDerivation {
     memory
     mtl
     network-uri
+    openapi3
     pretty-show
     process
     QuickCheck
@@ -206,6 +208,7 @@ mkDerivation {
     QuickCheck
     quickcheck-instances
     random
+    schema-profunctor
     servant
     servant-multipart
     servant-server

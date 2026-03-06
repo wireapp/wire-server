@@ -18,14 +18,20 @@
 module CargoHold.API.Util
   ( ensureLocal,
     qualifyLocal,
+    getUser,
   )
 where
 
+import CargoHold.API.Error (userNotFound)
 import CargoHold.App
 import Control.Error
+import Data.Default
+import Data.Id
 import Data.Qualified
 import Imports
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Brig
+import Wire.API.User
 
 ensureLocal :: Qualified a -> Handler (Local a)
 ensureLocal value = do
@@ -36,3 +42,8 @@ qualifyLocal :: a -> Handler (Local a)
 qualifyLocal x = do
   loc <- asks (.localUnit)
   pure (qualifyAs loc x)
+
+getUser :: UserId -> Handler User
+getUser uid = do
+  result <- lift $ executeBrigInteral $ brigInternalClient @"i-get-accounts-by" def {includeUsersWithoutIdentity = True, getByUserId = [uid]}
+  either (const $ throwE userNotFound) (maybe (throwE userNotFound) pure . listToMaybe) result

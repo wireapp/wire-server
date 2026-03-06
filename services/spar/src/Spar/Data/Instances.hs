@@ -37,44 +37,14 @@ import Data.ByteString.Conversion (fromByteString, toByteString)
 import Data.Functor.Alt (Alt ((<!>)))
 import qualified Data.Text.Encoding as T
 import Data.Text.Encoding.Error
-import qualified Data.Text.Lazy as LT
-import Data.Text.Lazy.Encoding as LT
-import Data.X509 (SignedCertificate)
 import Imports
-import SAML2.Util (parseURI')
-import qualified SAML2.WebSSO as SAML
 import Spar.Scim.Types (ScimUserCreationStatus (..))
-import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString
+import Wire.API.User.Auth
 import Wire.API.User.Saml
 import Wire.API.User.Scim
 
-instance Cql SignedCertificate where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . LT.encodeUtf8 . renderKeyInfo
-
-  fromCql (CqlBlob t) = parseKeyInfo False (LT.decodeUtf8With lenientDecode t)
-  fromCql _ = Left "SignedCertificate: expected CqlBlob"
-
-instance Cql (URIRef Absolute) where
-  ctype = Tagged TextColumn
-  toCql = CqlText . SAML.renderURI
-
-  fromCql (CqlText t) = parseURI' t
-  fromCql _ = Left "URI: expected CqlText"
-
-instance Cql SAML.NameID where
-  ctype = Tagged TextColumn
-  toCql = CqlText . LT.toStrict . SAML.encodeElem
-
-  fromCql (CqlText t) = SAML.decodeElem (LT.fromStrict t)
-  fromCql _ = Left "NameID: expected CqlText"
-
-deriving instance Cql SAML.Issuer
-
-deriving instance Cql (SAML.ID SAML.AuthnRequest)
-
-type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI)
+type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI, Maybe CookieLabel)
 
 data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
 
@@ -91,12 +61,12 @@ instance Cql VerdictFormatCon where
   fromCql _ = Left "member-status: int expected"
 
 fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
-fromVerdictFormat VerdictFormatWeb = (VerdictFormatConWeb, Nothing, Nothing)
-fromVerdictFormat (VerdictFormatMobile succredir errredir) = (VerdictFormatConMobile, Just succredir, Just errredir)
+fromVerdictFormat (VerdictFormatWeb mlabel) = (VerdictFormatConWeb, Nothing, Nothing, mlabel)
+fromVerdictFormat (VerdictFormatMobile succredir errredir mlabel) = (VerdictFormatConMobile, Just succredir, Just errredir, mlabel)
 
 toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
-toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing) = Just VerdictFormatWeb
-toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
+toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing, mlabel) = Just $ VerdictFormatWeb mlabel
+toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir, mlabel) = Just $ VerdictFormatMobile succredir errredir mlabel
 toVerdictFormat _ = Nothing
 
 deriving instance Cql ScimToken

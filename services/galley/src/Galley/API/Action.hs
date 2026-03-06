@@ -37,20 +37,14 @@ module Galley.API.Action
     updateLocalStateOfRemoteConv,
     addLocalUsersToRemoteConv,
     ConversationUpdate,
-    getFederationStatus,
-    enforceFederationProtocol,
-    checkFederationStatus,
-    firstConflictOrFullyConnected,
     ensureAllowed,
   )
 where
 
 import Control.Arrow ((&&&))
-import Control.Error (headMay)
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Default
-import Data.Domain (Domain (..))
 import Data.Id
 import Data.Json.Util
 import Data.Kind
@@ -61,24 +55,24 @@ import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
+import Data.Range (Range, Within, checkedEither)
 import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Time.Clock
+import GHC.TypeLits (KnownNat)
 import Galley.API.Action.Kick
 import Galley.API.Action.Leave
 import Galley.API.Action.Notify
 import Galley.API.Action.Reset
-import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
-import Galley.API.Util
 import Galley.Effects
 import Galley.Env (Env)
 import Galley.Options (Opts)
-import Galley.Validation
+import Galley.Types.Error
 import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
@@ -91,6 +85,7 @@ import Wire.API.Connection (Relation (Accepted))
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation qualified as AddPermission
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -98,7 +93,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
-import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Client (FederatorClient)
@@ -117,9 +111,10 @@ import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig (..))
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
+import Wire.FederationSubsystem
 import Wire.FireAndForget qualified as E
 import Wire.NotificationSubsystem
 import Wire.ProposalStore qualified as E
@@ -233,6 +228,10 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       Member Now r,
       Member ConversationStore r,
       Member Random r
+    )
+  HasConversationActionEffects 'ConversationHistoryUpdateTag r =
+    ( Member ConversationStore r,
+      Member (ErrorS HistoryNotSupported) r
     )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
     ( Member ConversationStore r,
@@ -366,62 +365,14 @@ type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: 
        ErrorS InvalidOperation,
        ErrorS ConvNotFound
      ]
-
-enforceFederationProtocol ::
-  ( Member (Error FederationError) r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
-  ProtocolTag ->
-  [Remote ()] ->
-  Sem r ()
-enforceFederationProtocol proto domains = do
-  unless (null domains) $ do
-    mAllowedProtos <- federationProtocols <$> input
-    unless (maybe True (elem proto) mAllowedProtos) $
-      throw FederationDisabledForProtocol
-
-checkFederationStatus ::
-  ( Member (Error UnreachableBackends) r,
-    Member (Error NonFederatingBackends) r,
-    Member (FederationAPIAccess FederatorClient) r
-  ) =>
-  RemoteDomains ->
-  Sem r ()
-checkFederationStatus req = do
-  status <- getFederationStatus req
-  case status of
-    FullyConnected -> pure ()
-    NotConnectedDomains dom1 dom2 -> throw (NonFederatingBackends dom1 dom2)
-
-getFederationStatus ::
-  ( Member (Error UnreachableBackends) r,
-    Member (FederationAPIAccess FederatorClient) r
-  ) =>
-  RemoteDomains ->
-  Sem r FederationStatus
-getFederationStatus req = do
-  fmap firstConflictOrFullyConnected
-    . (ensureNoUnreachableBackends =<<)
-    $ E.runFederatedConcurrentlyEither
-      (Set.toList req.rdDomains)
-      ( \qds ->
-          fedClient @'Brig @"get-not-fully-connected-backends"
-            (DomainSet . Set.map tDomain $ void qds `Set.delete` req.rdDomains)
-      )
-
--- | "conflict" here means two remote domains that we are connected to
--- but are not connected to each other.
-firstConflictOrFullyConnected :: [Remote NonConnectedBackends] -> FederationStatus
-firstConflictOrFullyConnected =
-  maybe
-    FullyConnected
-    (uncurry NotConnectedDomains)
-    . headMay
-    . mapMaybe toMaybeConflict
-  where
-    toMaybeConflict :: Remote NonConnectedBackends -> Maybe (Domain, Domain)
-    toMaybeConflict r =
-      headMay (Set.toList (nonConnectedBackends (tUnqualified r))) <&> (tDomain r,)
+  HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
+    '[ ErrorS (ActionDenied ModifyConversationAccess),
+       ErrorS GroupIdVersionNotSupported,
+       ErrorS HistoryNotSupported,
+       ErrorS MLSStaleMessage,
+       ErrorS InvalidOperation,
+       ErrorS ConvNotFound
+     ]
 
 noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
@@ -511,6 +462,7 @@ performAction ::
     Member ConversationSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
+    Member FederationSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Sing tag ->
@@ -622,6 +574,11 @@ performAction tag origUser lconv action = do
             action = action,
             extraConversationData = ExtraConversationData (Just newGroupId)
           }
+    SConversationHistoryUpdateTag -> do
+      when (storedConv.metadata.cnvmGroupConvType /= Just Channel) $ do
+        throwS @HistoryNotSupported
+      E.setConversationHistory (tUnqualified lcnv) action
+      pure $ mkPerformActionResult action
 
 performConversationJoin ::
   forall r.
@@ -629,6 +586,7 @@ performConversationJoin ::
     Member BackendNotificationQueueAccess r,
     Member ConversationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -873,6 +831,7 @@ updateLocalConversation ::
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     SingI tag,
+    Member FederationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
@@ -910,6 +869,7 @@ updateLocalConversationUnchecked ::
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
     Member TeamCollaboratorsSubsystem r,
+    Member FederationSubsystem r,
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -1072,6 +1032,7 @@ updateLocalStateOfRemoteConv rcu con = do
     SomeConversationAction SConversationUpdateProtocolTag _ -> pure (Just sca, [])
     SomeConversationAction SConversationUpdateAddPermissionTag _ -> pure (Just sca, [])
     SomeConversationAction SConversationResetTag _ -> pure (Just sca, [])
+    SomeConversationAction SConversationHistoryUpdateTag _ -> pure (Just sca, [])
 
   -- On conversation join, the member(s) joining are not included in the presentUsers,
   -- however they are included in the alreadyPresentUsers from the incoming request.
@@ -1194,3 +1155,7 @@ pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
           transient = True
         }
     ]
+
+rangeChecked :: (KnownNat n, KnownNat m, Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
+rangeChecked = either (throw . InvalidRange . fromString) pure . checkedEither
+{-# INLINE rangeChecked #-}

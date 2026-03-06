@@ -85,6 +85,7 @@ library
     Wire.API.Conversation.Bot
     Wire.API.Conversation.CellsState
     Wire.API.Conversation.Code
+    Wire.API.Conversation.Config
     Wire.API.Conversation.Member
     Wire.API.Conversation.Pagination
     Wire.API.Conversation.Protocol
@@ -109,9 +110,11 @@ library
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
     Wire.API.FederationUpdate
+    Wire.API.History
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
     Wire.API.Locale
+    Wire.API.Meeting
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.AuthenticatedContent
@@ -205,6 +208,7 @@ library
     Wire.API.Routes.Public.Galley.CustomBackend
     Wire.API.Routes.Public.Galley.Feature
     Wire.API.Routes.Public.Galley.LegalHold
+    Wire.API.Routes.Public.Galley.Meetings
     Wire.API.Routes.Public.Galley.Messaging
     Wire.API.Routes.Public.Galley.MLS
     Wire.API.Routes.Public.Galley.Team
@@ -232,6 +236,7 @@ library
     Wire.API.Team.Feature
     Wire.API.Team.Feature.Profunctor
     Wire.API.Team.Feature.TH
+    Wire.API.Team.FeatureFlags
     Wire.API.Team.HardTruncationLimit
     Wire.API.Team.Invitation
     Wire.API.Team.LegalHold

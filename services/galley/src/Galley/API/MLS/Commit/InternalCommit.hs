@@ -30,7 +30,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Galley.API.Action
-import Galley.API.Error
 import Galley.API.MLS.CheckClients
 import Galley.API.MLS.Commit.Core
 import Galley.API.MLS.Conversation
@@ -38,8 +37,8 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
-import Galley.API.Util
 import Galley.Effects
+import Galley.Types.Error
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -47,6 +46,7 @@ import Polysemy.Input (Input)
 import Polysemy.Resource (Resource)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -55,13 +55,15 @@ import Wire.API.Event.LeaveReason
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Proposal qualified as Proposal
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemConfig)
+import Wire.ConversationSubsystem.Util
+import Wire.FederationSubsystem
 import Wire.ProposalStore
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -81,6 +83,7 @@ processInternalCommit ::
     Member Random r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -99,14 +102,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       cm = convOrSub.members
       newUserClients = Map.assocs (unClientMap (paAdd action))
 
-  -- check that all pending proposals are referenced in the commit
-  allPendingProposals <-
-    lift $
-      getAllPendingProposalRefs (cnvmlsGroupId convOrSub.mlsMeta) epoch
-  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) commit.proposals
-  unless (all (`Set.member` referencedProposals) allPendingProposals) $
-    lift $
-      throwS @'MLSCommitMissingReferences
+  lift $ checkReferences convOrSub epoch commit
 
   -- check update path
   lift $ traverse_ (checkUpdatePath lConvOrSub senderIdentity ciphersuite) commit.path
@@ -264,6 +260,7 @@ addMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -292,6 +289,7 @@ removeMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
     Member MLSCommitLockStore r,
+    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -329,3 +327,29 @@ existingRemoteMembers lconv =
 
 existingMembers :: Local StoredConversation -> Set (Qualified UserId)
 existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
+
+checkReferences ::
+  ( Member ProposalStore r,
+    Member (ErrorS MLSCommitMissingReferences) r
+  ) =>
+  ConvOrSubConv -> Epoch -> Commit -> Sem r ()
+checkReferences convOrSub epoch commit = do
+  allPendingProposals <- getAllPendingProposals (cnvmlsGroupId convOrSub.mlsMeta) epoch
+  let referencedProposals = Set.fromList $ mapMaybe (\x -> preview _Ref x) commit.proposals
+  let (includedProposals, missingProposals) =
+        partition
+          (\prop -> Set.member prop.ref referencedProposals)
+          allPendingProposals
+  -- If there are missing proposals, check if they refer to clients that are
+  -- deleted by other proposals. This ensures that even in the edge case where
+  -- the backend has issued duplicated remove proposals, commits are not
+  -- rejected unnecessarily.
+  unless (null missingProposals) $ do
+    let getDeletedIndex prop = case (prop.origin, prop.proposal.value) of
+          (Just ProposalOriginBackend, RemoveProposal i) -> Just i
+          _ -> Nothing
+    let deletedIndices = Set.fromList $ foldMap (toList . getDeletedIndex) includedProposals
+    for_ missingProposals $ \prop -> do
+      case getDeletedIndex prop of
+        Just i | Set.member i deletedIndices -> pure ()
+        _ -> throwS @'MLSCommitMissingReferences

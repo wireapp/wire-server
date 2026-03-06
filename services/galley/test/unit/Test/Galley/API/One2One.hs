@@ -21,12 +21,12 @@ module Test.Galley.API.One2One where
 import Data.Id
 import Data.List.Extra
 import Data.Qualified
-import Galley.API.One2One (one2OneConvId)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (Assertion, testCase, (@?=))
 import Test.Tasty.QuickCheck
 import Wire.API.User
+import Wire.ConversationSubsystem.One2One (one2OneConvId)
 
 tests :: TestTree
 tests =

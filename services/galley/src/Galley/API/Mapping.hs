@@ -21,22 +21,21 @@ module Galley.API.Mapping
     conversationViewWithCachedOthers,
     remoteConversationView,
     conversationToRemote,
-    localMemberToSelf,
   )
 where
 
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
-import Galley.API.Error
+import Galley.Types.Error (InternalError (BadMemberState))
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog qualified as P
 import System.Logger.Message (msg, val, (+++))
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation qualified as Conversation
 import Wire.API.Federation.API.Galley
+import Wire.ConversationSubsystem.Util (localMemberToPublic)
 import Wire.StoredConversation
 
 -- | View for a given user of a stored conversation.
@@ -63,7 +62,7 @@ conversationView l luid conv =
   let remoteMembers = map remoteMemberToOther $ conv.remoteMembers
       localMembers = map (localMemberToOther (tDomain l)) $ conv.localMembers
       selfs = filter (\m -> fmap tUnqualified luid == Just m.id_) (conv.localMembers)
-      mSelf = localMemberToSelf l <$> listToMaybe selfs
+      mSelf = localMemberToPublic l <$> listToMaybe selfs
       others = filter (\oth -> (tUntagged <$> luid) /= Just (omQualifiedId oth)) localMembers <> remoteMembers
    in Conversation
         { members = ConvMembers mSelf others,
@@ -102,7 +101,7 @@ conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
 conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe OwnConversation
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
-  self <- localMemberToSelf luid <$> listToMaybe selfs
+  self <- localMemberToPublic luid <$> listToMaybe selfs
   let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
   pure $
     OwnConversation
@@ -121,7 +120,7 @@ remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
       others = mems.others
       self =
-        localMemberToSelf
+        localMemberToPublic
           uid
           LocalMember
             { id_ = tUnqualified uid,
@@ -162,21 +161,3 @@ conversationToRemote localDomain ruid conv = do
             },
         protocol = conv.protocol
       }
-
--- | Convert a local conversation member (as stored in the DB) to a publicly
--- facing 'Member' structure.
-localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
-localMemberToSelf loc lm =
-  Conversation.Member
-    { memId = tUntagged . qualifyAs loc $ lm.id_,
-      memService = lm.service,
-      memOtrMutedStatus = msOtrMutedStatus st,
-      memOtrMutedRef = msOtrMutedRef st,
-      memOtrArchived = msOtrArchived st,
-      memOtrArchivedRef = msOtrArchivedRef st,
-      memHidden = msHidden st,
-      memHiddenRef = msHiddenRef st,
-      memConvRoleName = lm.convRoleName
-    }
-  where
-    st = lm.status

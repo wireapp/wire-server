@@ -61,6 +61,7 @@ import Network.AMQP
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities.Error
+import Network.Wai.Utilities.Server
 import Prometheus
 import System.Logger (Logger)
 import System.Logger qualified as Logger
@@ -190,7 +191,7 @@ runDirect e m =
             )
 
 lookupReqId :: Logger -> Request -> IO RequestId
-lookupReqId l r = case lookup requestIdName (requestHeaders r) of
+lookupReqId l r = case lookup defaultRequestIdHeaderName (requestHeaders r) of
   Just rid -> pure $ RequestId rid
   Nothing -> do
     localRid <- RequestId . UUID.toASCIIBytes <$> UUID.nextRandom

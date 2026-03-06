@@ -1,4 +1,4 @@
-{-# OPTIONS -Wno-ambiguous-fields #-}
+{-# OPTIONS -Wno-incomplete-patterns -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,11 +21,14 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Galley
+import Data.Aeson.QQ.Simple
 import SetupHelpers
 import Testlib.Prelude
 
 testCreateApp :: (HasCallStack) => App ()
 testCreateApp = do
+  -- FUTUREWORK: what about federation?
   domain <- make OwnDomain
   (owner, tid, [regularMember]) <- createTeam domain 2
   let new =
@@ -59,13 +62,15 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    void $ resp.json >>= asList >>= assertOne
+    void $ resp.json & asList >>= assertOne
   bindResponse (createApp owner tid (new {name = "fmappie"})) $ \resp -> do
     resp.status `shouldMatchInt` 200
   bindResponse (getApps owner tid) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    apps <- resp.json >>= asList
-    (sort <$> ((%. "name") `mapM` apps)) `shouldMatch` ["chappie", "fmappie"]
+    apps <- resp.json & asList
+    name1 <- apps %. "0.name"
+    name2 <- apps %. "1.name"
+    [name1, name2] `shouldMatchSet` ["chappie", "fmappie"]
 
   -- Creator should have type "regular"
   bindResponse (getUser owner owner) $ \resp -> do
@@ -105,8 +110,18 @@ testCreateApp = do
       foundUserType searcher exactMatchTerm aTypes =
         searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
-          foundDoc <- resp.json %. "documents" >>= asList
-          (%. "type") `mapM` foundDoc `shouldMatch` aTypes
+          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+          docsInTeam :: [Value] <- do
+            -- make sure that matches from previous test runs don't get in the way.
+            catMaybes
+              <$> forM
+                foundDocs
+                ( \doc -> do
+                    tidActual <- doc %. "team" & asString
+                    pure $ if tidActual == tid then Just doc else Nothing
+                )
+
+          (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
 
   -- App's user is findable from /search/contacts
   BrigI.refreshIndex domain
@@ -152,3 +167,204 @@ testRefreshAppCookie = do
       resp.json %. "user" `shouldMatch` appId
       resp.json %. "token_type" `shouldMatch` "Bearer"
       resp.json %. "access_token" & asString
+
+testDeleteAppFromTeam :: (HasCallStack) => App ()
+testDeleteAppFromTeam = do
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam domain 1
+  let new = def {name = "chappie"} :: NewApp
+  appId <- bindResponse (createApp owner tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user.id" & asString
+
+  let appIdObject = object ["domain" .= domain, "id" .= appId]
+
+  bindResponse (deleteTeamMember tid owner appIdObject) $ \resp -> do
+    resp.status `shouldMatchInt` 202
+
+  eventually $ do
+    -- Check StoredApp is gone
+    bindResponse (getApp owner tid appId) $ \resp -> do
+      resp.status `shouldMatchInt` 404
+
+    -- Check StoredUser is deleted (via public API)
+    bindResponse (getUser owner appIdObject) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "deleted" `shouldMatch` True
+
+    -- Check StoredUser is gone (via internal API)
+    bindResponse (BrigI.getUsersId domain [appId]) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json `shouldMatch` ([] :: [Value])
+
+testPutApp :: (HasCallStack) => App ()
+testPutApp = do
+  domain <- make OwnDomain
+  (owner, tid, _) <- createTeam domain 1
+  let new = def {name = "choppie"} :: NewApp
+  appId <- bindResponse (createApp owner tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user.id" & asString
+
+  let Object appMetadata =
+        [aesonQQ|
+        {
+          "accent_id": 2147483647,
+          "assets": [
+            {
+              "key": "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac",
+              "size": "preview",
+              "type": "image"
+            }
+          ],
+          "name": "Appy McApp",
+          "category": "security",
+          "description": "This is the best app ever."
+        }|]
+
+  bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (getApp owner tid appId) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+      `shouldMatchShape` SObject
+        [ ("accent_id", SNumber),
+          ("assets", SArray (SObject [("key", SString), ("size", SString), ("type", SString)])),
+          ("name", SString),
+          ("category", SString),
+          ("description", SString),
+          ("metadata", SObject []),
+          ("picture", SArray SAny)
+        ]
+
+  let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
+  bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
+    resp.status `shouldMatchInt` 404
+
+testRetrieveUsersIncludingApps :: (HasCallStack) => App ()
+testRetrieveUsersIncludingApps = do
+  let userShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("assets", SArray SAny),
+            ("id", SString),
+            ("locale", SString),
+            ("managed_by", SString),
+            ("name", SString),
+            ("picture", SArray SAny),
+            ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("searchable", SBool),
+            ("status", SString),
+            ("supported_protocols", SArray SString),
+            ("team", SString),
+            ("type", SString)
+          ]
+      memberShape =
+        SObject
+          [ ("created_at", SString),
+            ("created_by", SString),
+            ("legalhold_status", SString),
+            ("permissions", SObject [("copy", SNumber), ("self", SNumber)]),
+            ("user", SString)
+          ]
+      appShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("assets", SArray SAny),
+            ("category", SString),
+            ("description", SString),
+            ("metadata", SObject []),
+            ("name", SString),
+            ("picture", SArray SAny)
+          ]
+      appWithIdShape = case appShape of
+        SObject attrs ->
+          SObject (("id", SString) : attrs)
+      searchResultShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("handle", SAny), -- sometimes "string", but always "null" for apps
+            ("id", SString),
+            ("name", SString),
+            ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("team", SString),
+            ("type", SString)
+          ]
+
+  domain <- make OwnDomain
+  (owner, tid, [regular]) <- createTeam domain 2
+
+  -- [`POST /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/create-app) (route id: "create-app")
+  let new = def {name = "chippie"} :: NewApp
+  appCreated <- bindResponse (createApp owner tid new) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    pure resp.json
+  appCreated
+    `shouldMatchShape` SObject
+      [ ("cookie", SString),
+        ("user", userShape)
+      ]
+  appId <- appCreated %. "user.id" & asString
+
+  -- [`GET /teams/:tid/members`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-members) (route id: "get-team-members")
+  getTeamMembers owner tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "hasMore" `shouldMatch` False
+    mems <- resp.json %. "members" >>= asList
+    memIds <- (asString . (%. "user")) `mapM` mems
+    memIds
+      `shouldMatchSet` sequence
+        [ pure appId,
+          asString $ regular %. "qualified_id.id",
+          asString $ owner %. "qualified_id.id"
+        ]
+
+  -- [`GET /teams/:tid/members/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-team-member) (route id: "get-team-member")
+  getTeamMember owner tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user" `shouldMatch` appId
+    resp.json `shouldMatchShape` memberShape
+
+  -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
+  getApps owner tid `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    apps <- resp.json & maybe (error "this shouldn't happen") pure
+    apps `shouldMatchShape` SArray appWithIdShape
+
+  -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
+  getApp owner tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json `shouldMatchShape` appShape
+
+  -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
+  listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json
+      %. "found.0"
+      `shouldMatchShape` SObject
+        [ ("accent_id", SNumber),
+          ("assets", SArray SAny),
+          ("id", SString),
+          ("legalhold_status", SString),
+          ("name", SString),
+          ("picture", SArray SAny),
+          ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+          ("searchable", SBool),
+          ("supported_protocols", SArray SString),
+          ("team", SString),
+          ("type", SString)
+          -- TODO: [("user", ...), ("app", ...)] ?
+        ]
+
+  -- [`GET /search/contacts`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/search-contacts) (route id: "search-contacts")
+  putSelf owner (def {name = Just "name-A1"}) >>= assertSuccess
+  putSelf regular (def {name = Just "name-A2"}) >>= assertSuccess
+  putSelf (appCreated %. "user") (def {name = Just "name-A3"}) >>= assertSuccess
+  eventually
+    $ searchContacts owner "name" domain
+    `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      hits :: [Value] <- resp.json %. "documents" & asList
+      length hits `shouldMatchInt` 2 -- owner doesn't find itself
+      (`shouldMatchShape` searchResultShape) `mapM_` hits

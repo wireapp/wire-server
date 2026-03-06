@@ -27,7 +27,7 @@ spec:
       restartPolicy: Always
       containers:
         - name: hold
-          image: quay.io/wire/legalhold:1.0.2
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: IfNotPresent
 
           resources:

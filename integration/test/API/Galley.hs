@@ -51,7 +51,8 @@ data CreateConv = CreateConv
     cells :: Bool,
     addPermission :: Maybe String,
     skipCreator :: Maybe Bool,
-    parent :: Maybe String
+    parent :: Maybe String,
+    history :: Maybe Value
   }
 
 defProteus :: CreateConv
@@ -70,7 +71,8 @@ defProteus =
       cells = False,
       addPermission = Nothing,
       skipCreator = Nothing,
-      parent = Nothing
+      parent = Nothing,
+      history = Nothing
     }
 
 defMLS :: CreateConv
@@ -107,7 +109,8 @@ instance MakesValue CreateConv where
                 "group_conv_type" .=? cc.groupConvType,
                 "add_permission" .=? cc.addPermission,
                 "skip_creator" .=? cc.skipCreator,
-                "parent" .=? cc.parent
+                "parent" .=? cc.parent,
+                "history" .=? cc.history
               ]
         )
 
@@ -646,6 +649,21 @@ updateMessageTimer user qcnv update = do
   req <- baseRequest user Galley Versioned path
   submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)
 
+updateHistory ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue conv
+  ) =>
+  user ->
+  conv ->
+  Value ->
+  App Response
+updateHistory user qcnv history = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  let path = joinHttpPath ["conversations", cnvDomain, cnvId, "history"]
+  req <- baseRequest user Galley Versioned path
+  submit "PUT" (addJSONObject ["history" .= history] req)
+
 getTeam :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid -> App Response
 getTeam user tid = do
   tidStr <- asString tid
@@ -656,6 +674,15 @@ getTeamMembers :: (HasCallStack, MakesValue user, MakesValue tid) => user -> tid
 getTeamMembers user tid = do
   tidStr <- asString tid
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members"])
+  submit "GET" req
+
+getTeamMember ::
+  (HasCallStack, MakesValue user, MakesValue tid, MakesValue mid) =>
+  user -> tid -> mid -> App Response
+getTeamMember user tid mid = do
+  tidStr <- asString tid
+  midStr <- asString mid
+  req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members", midStr])
   submit "GET" req
 
 data AppLockSettings = AppLockSettings
@@ -961,3 +988,18 @@ searchChannels user tid args = do
             [("discoverable", "true") | args.discoverable]
           ]
       )
+
+postMeetings :: (HasCallStack, MakesValue user) => user -> Value -> App Response
+postMeetings user newMeeting = do
+  req <- baseRequest user Galley Versioned "/meetings"
+  submit "POST" $ req & addJSON newMeeting
+
+putMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+putMeeting user domain meetingId updatedMeeting = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "PUT" $ req & addJSON updatedMeeting
+
+getMeeting :: (HasCallStack, MakesValue user) => user -> String -> String -> App Response
+getMeeting user domain meetingId = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId])
+  submit "GET" req

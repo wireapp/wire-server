@@ -18,13 +18,16 @@
 module Wire.MockInterpreters.GalleyAPIAccess where
 
 import Control.Lens (to, (^.))
+import Data.Default (def)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
 import Imports
 import Polysemy
-import Wire.API.Team.Feature
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
+import Wire.API.Team.Feature (AllTeamFeatures, IsFeatureConfig (..), LockableFeature (..), npProject')
+import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
 import Wire.API.Team.SearchVisibility
@@ -47,7 +50,11 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
   GetTeamMembersWithLimit tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
-  GetTeamId _ -> error "GetTeamId not implemented in miniGalleyAPIAccess"
+  GetTeamId uid ->
+    pure . listToMaybe . Map.keys $
+      Map.filter
+        (\members -> any (\member -> member ^. userId == uid) members)
+        teams
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
@@ -60,6 +67,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
     pure $ memberIsTeamOwnerImpl teams tid uid
   GetAllTeamFeaturesForUser _ -> pure configs
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
+  GetConfiguredFeatureFlags ->
+    pure def
   GetVerificationCodeEnabled _ -> error "GetVerificationCodeEnabled not implemented in miniGalleyAPIAccess"
   GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
@@ -70,6 +79,15 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
   GetTeamContacts _ -> pure Nothing
   SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
+  GetConversationConfig ->
+    pure
+      ConversationSubsystemConfig
+        { mlsKeys = Nothing,
+          federationProtocols = Nothing,
+          legalholdDefaults = FeatureLegalHoldDisabledPermanently,
+          maxConvSize = 500,
+          listClientsUsingBrig = False
+        }
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList
