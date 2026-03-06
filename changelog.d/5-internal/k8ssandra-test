@@ -1,0 +1,1 @@
+The defaults in k8ssandra-test-cluster should now work for both a fresh cassandra 4.1 pod as well as an upgrade of an existing previous k8ssandra-test-cluster deployment. We assume k8ssandra-operator helm chart version 1.20.2.
