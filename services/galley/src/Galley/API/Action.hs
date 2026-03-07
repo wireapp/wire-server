@@ -242,7 +242,10 @@ instance IsConversationAction 'ConversationJoinTag where
       checkGroupIdSupport loc conv action
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
-  skipConversationRoleCheck _ _ = False
+  skipConversationRoleCheck conv =
+    \case
+      Nothing -> False
+      Just _ -> conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
 
   channelAdminOverride = True
 
