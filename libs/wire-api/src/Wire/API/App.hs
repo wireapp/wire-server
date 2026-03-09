@@ -31,7 +31,7 @@ import Wire.Arbitrary as Arbitrary
 
 data NewApp = NewApp
   { app :: GetApp,
-    -- admin password for additional access control
+    -- | admin password for additional access control
     password :: PlainTextPassword6
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
