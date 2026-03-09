@@ -13,10 +13,6 @@
 {{- end -}}
 
 {{/* GALLEY */}}
-{{/* Return a Dict of TLS CA secret name and key
-This is used to switch between provided secret (e.g. by cert-manager) and
-created one (in case the CA is provided as PEM string.)
-*/}}
 {{- define "galley.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
@@ -43,10 +39,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 {{- end -}}
 
-{{/* Return a Dict of TLS CA secret name and key
-This is used to switch between provided secret (e.g. by cert-manager) and
-created one (in case the CA is provided as PEM string.)
-*/}}
 {{- define "galleyTlsSecretRef" -}}
 {{- if and .cassandraGalley .cassandraGalley.tlsCaSecretRef -}}
 {{ .cassandraGalley.tlsCaSecretRef | toYaml }}
@@ -105,10 +97,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* CANNON */}}
-{{/* Return a Dict of TLS CA secret name and key
-This is used to switch between provided secret (e.g. by cert-manager) and
-created one (in case the CA is provided as PEM string.)
-*/}}
 {{- define "cannon.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
@@ -118,10 +106,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* GUNDECK */}}
-{{/* Return a Dict of TLS CA secret name and key
-This is used to switch between provided secret (e.g. by cert-manager) and
-created one (in case the CA is provided as PEM string.)
-*/}}
 {{- define "gundeck.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
@@ -171,10 +155,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* SPAR */}}
-{{/* Return a Dict of TLS CA secret name and key
-This is used to switch between provided secret (e.g. by cert-manager) and
-created one (in case the CA is provided as PEM string.)
-*/}}
 {{- define "spar.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
