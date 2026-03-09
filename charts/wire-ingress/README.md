@@ -191,7 +191,7 @@ Use `helm create` for an initial scaffolding.
 
 **Review:** `helm lint ./wire-ingress` passes with empty values.
 
-- [ ] Done
+- [x] Done
 
 ---
 
