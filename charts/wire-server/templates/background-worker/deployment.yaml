@@ -40,17 +40,17 @@ spec:
         - name: "background-worker-secrets"
           secret:
             secretName: "background-worker"
-        {{- if eq (include "useGundeckCassandraTLS" $backgroundWorker.config) "true" }}
+        {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandra) "true" }}
         - name: "background-worker-cassandra-gundeck"
           secret:
             secretName: {{ (include "gundeckTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
         {{- end }}
-        {{- if eq (include "useBrigCassandraTLS" $backgroundWorker.config) "true" }}
+        {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraBrig) "true" }}
         - name: "background-worker-cassandra-brig"
           secret:
             secretName: {{ (include "brigTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
         {{- end }}
-        {{- if eq (include "useGalleyCassandraTLS" $backgroundWorker.config) "true" }}
+        {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraGalley) "true" }}
         - name: "background-worker-cassandra-galley"
           secret:
             secretName: {{ (include "galleyTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
@@ -76,15 +76,15 @@ spec:
             mountPath: "/etc/wire/background-worker/secrets"
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"
-          {{- if eq (include "useGundeckCassandraTLS" $backgroundWorker.config) "true" }}
+          {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandra) "true" }}
           - name: "background-worker-cassandra-gundeck"
             mountPath: "/etc/wire/background-worker/cassandra-gundeck"
           {{- end }}
-          {{- if eq (include "useBrigCassandraTLS" $backgroundWorker.config) "true" }}
+          {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraBrig) "true" }}
           - name: "background-worker-cassandra-brig"
             mountPath: "/etc/wire/background-worker/cassandra-brig"
           {{- end }}
-          {{- if eq (include "useGalleyCassandraTLS" $backgroundWorker.config) "true" }}
+          {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraGalley) "true" }}
           - name: "background-worker-cassandra-galley"
             mountPath: "/etc/wire/background-worker/cassandra-galley"
           {{- end }}

@@ -43,7 +43,7 @@ spec:
         - name: "galley-secrets"
           secret:
             secretName: "galley"
-        {{- if eq (include "galley.useCassandraTLS" .Values.galley.config) "true" }}
+        {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
         - name: "galley-cassandra"
           secret:
             secretName: {{ (include "galley.tlsSecretRef" .Values.galley.config | fromYaml).name }}
@@ -69,7 +69,7 @@ spec:
             mountPath: "/etc/wire/galley/conf"
           - name: "galley-secrets"
             mountPath: "/etc/wire/galley/secrets"
-          {{- if eq (include "galley.useCassandraTLS" .Values.galley.config) "true" }}
+          {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
           - name: "galley-cassandra"
             mountPath: "/etc/wire/galley/cassandra"
           {{- end }}

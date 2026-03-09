@@ -120,7 +120,7 @@ spec:
           - name: rabbitmq-ca
             mountPath: "/etc/wire/cannon/rabbitmq-ca/"
         {{- end }}
-        {{- if eq (include "cannon.useCassandraTLS" .Values.cannon.config) "true" }}
+        {{- if eq (include "useCassandraTLS" .Values.cannon.config.cassandra) "true" }}
           - name: "cannon-cassandra"
             mountPath: "/etc/wire/cannon/cassandra"
         {{- end }}
@@ -182,7 +182,7 @@ spec:
         secret:
           secretName: {{ .Values.cannon.config.rabbitmq.tlsCaSecretRef.name }}
       {{- end }}
-      {{- if eq (include "cannon.useCassandraTLS" .Values.cannon.config) "true" }}
+      {{- if eq (include "useCassandraTLS" .Values.cannon.config.cassandra) "true" }}
       - name: "cannon-cassandra"
         secret:
           secretName: {{ (include "cannon.tlsSecretRef" .Values.cannon.config | fromYaml).name }}

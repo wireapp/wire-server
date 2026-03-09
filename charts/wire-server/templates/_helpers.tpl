@@ -8,12 +8,11 @@
   {{- (semverCompare ">= 1.24-0" (include "kubeVersion" .)) -}}
 {{- end -}}
 
-
-{{/* GALLEY */}}
-{{- define "galley.useCassandraTLS" -}}
-{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
+{{- define "useCassandraTLS" -}}
+{{ or (hasKey . "tlsCa") (hasKey . "tlsCaSecretRef") }}
 {{- end -}}
 
+{{/* GALLEY */}}
 {{/* Return a Dict of TLS CA secret name and key
 This is used to switch between provided secret (e.g. by cert-manager) and
 created one (in case the CA is provided as PEM string.)
@@ -28,18 +27,6 @@ created one (in case the CA is provided as PEM string.)
 
 
 {{/* BACKGROUND-WORKER */}}
-{{- define "useGundeckCassandraTLS" -}}
-{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
-{{- end -}}
-
-{{- define "useBrigCassandraTLS" -}}
-{{ or (hasKey .cassandraBrig "tlsCa") (hasKey .cassandraBrig "tlsCaSecretRef") }}
-{{- end -}}
-
-{{- define "useGalleyCassandraTLS" -}}
-{{ or (hasKey .cassandraGalley "tlsCa") (hasKey .cassandraGalley "tlsCaSecretRef") }}
-{{- end -}}
-
 {{- define "gundeckTlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
@@ -69,10 +56,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* BRIG */}}
-{{- define "brig.useCassandraTLS" -}}
-{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
-{{- end -}}
-
 {{- define "brig.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}
 {{ .cassandra.tlsCaSecretRef | toYaml }}
@@ -122,10 +105,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* CANNON */}}
-{{- define "cannon.useCassandraTLS" -}}
-{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
-{{- end -}}
-
 {{/* Return a Dict of TLS CA secret name and key
 This is used to switch between provided secret (e.g. by cert-manager) and
 created one (in case the CA is provided as PEM string.)
@@ -139,10 +118,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* GUNDECK */}}
-{{- define "gundeck.useCassandraTLS" -}}
-{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
-{{- end -}}
-
 {{/* Return a Dict of TLS CA secret name and key
 This is used to switch between provided secret (e.g. by cert-manager) and
 created one (in case the CA is provided as PEM string.)
@@ -196,10 +171,6 @@ created one (in case the CA is provided as PEM string.)
 {{- end -}}
 
 {{/* SPAR */}}
-{{- define "spar.useCassandraTLS" -}}
-{{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
-{{- end -}}
-
 {{/* Return a Dict of TLS CA secret name and key
 This is used to switch between provided secret (e.g. by cert-manager) and
 created one (in case the CA is provided as PEM string.)

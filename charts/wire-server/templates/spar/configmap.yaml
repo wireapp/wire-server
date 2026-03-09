@@ -25,7 +25,7 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "spar.useCassandraTLS" .) "true" }}
+      {{- if eq (include "useCassandraTLS" .cassandra) "true" }}
       tlsCa: /etc/wire/spar/cassandra/{{- (include "spar.tlsSecretRef" . | fromYaml).key }}
       {{- end }}
 

@@ -44,7 +44,7 @@ data:
       {{- if hasKey .cassandra "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useGundeckCassandraTLS" .) "true" }}
+      {{- if eq (include "useCassandraTLS" .cassandra) "true" }}
       tlsCa: /etc/wire/background-worker/cassandra-gundeck/{{- (include "gundeckTlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
@@ -56,7 +56,7 @@ data:
       {{- if hasKey .cassandraBrig "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandraBrig.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useBrigCassandraTLS" .) "true" }}
+      {{- if eq (include "useCassandraTLS" .cassandraBrig) "true" }}
       tlsCa: /etc/wire/background-worker/cassandra-brig/{{- (include "brigTlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
@@ -68,7 +68,7 @@ data:
       {{- if hasKey .cassandraGalley "filterNodesByDatacentre" }}
       filterNodesByDatacentre: {{ .cassandraGalley.filterNodesByDatacentre }}
       {{- end }}
-      {{- if eq (include "useGalleyCassandraTLS" .) "true" }}
+      {{- if eq (include "useCassandraTLS" .cassandraGalley) "true" }}
       tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "galleyTlsSecretRef" . | fromYaml).key }}
       {{- end }}
 

@@ -49,7 +49,7 @@ spec:
       secret:
         secretName: {{ include "brig.elasticsearchTlsSecretName" .Values.brig.config }}
     {{- end}}
-    {{- if eq (include "brig.useCassandraTLS" .Values.brig.config) "true" }}
+    {{- if eq (include "useCassandraTLS" .Values.brig.config.cassandra) "true" }}
     - name: "brig-cassandra"
       secret:
         secretName: {{ (include "brig.tlsSecretRef" .Values.brig.config | fromYaml).name }}
@@ -120,7 +120,7 @@ spec:
     - name: elasticsearch-ca
       mountPath: "/etc/wire/brig/elasticsearch-ca"
     {{- end}}
-    {{- if eq (include "brig.useCassandraTLS" .Values.brig.config) "true" }}
+    {{- if eq (include "useCassandraTLS" .Values.brig.config.cassandra) "true" }}
     - name: "brig-cassandra"
       mountPath: "/etc/wire/brig/cassandra"
     {{- end }}
