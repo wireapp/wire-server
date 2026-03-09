@@ -422,7 +422,7 @@ lookupServiceUsersImpl ::
   ProviderId ->
   ServiceId ->
   Maybe PagingState ->
-  Client (PageWithState Void (BotId, ConvId, Maybe TeamId))
+  Client (PageWithState x (BotId, ConvId, Maybe TeamId))
 lookupServiceUsersImpl pid sid mPagingState =
   paginateWithState cql (paramsPagingState LocalQuorum (pid, sid) 100 mPagingState) x1
   where
@@ -436,7 +436,7 @@ lookupServiceUsersForTeamImpl ::
   ServiceId ->
   TeamId ->
   Maybe PagingState ->
-  Client (PageWithState Void (BotId, ConvId))
+  Client (PageWithState x (BotId, ConvId))
 lookupServiceUsersForTeamImpl pid sid tid mPagingState =
   paginateWithState cql (paramsPagingState LocalQuorum (pid, sid, tid) 100 mPagingState) x1
   where
