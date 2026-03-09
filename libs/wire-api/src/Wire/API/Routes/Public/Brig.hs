@@ -2132,7 +2132,7 @@ type AppsAPI =
            )
     :<|> Named
            "get-apps"
-           ( Summary "Get all apps owned by own team (not including collaborators)"
+           ( Summary "Get all apps owned by the given team (not including collaborators)"
                :> From 'V15
                :> ZLocalUser
                :> "teams"
