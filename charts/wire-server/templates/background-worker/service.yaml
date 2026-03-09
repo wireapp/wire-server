@@ -1,3 +1,4 @@
+{{- $backgroundWorker := index .Values "background-worker" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,8 +18,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.backgroundWorker.service.externalPort }}
-      targetPort: {{ .Values.backgroundWorker.service.internalPort }}
+      port: {{ $backgroundWorker.service.externalPort }}
+      targetPort: {{ $backgroundWorker.service.internalPort }}
   selector:
     app: background-worker
     release: {{ .Release.Name }}

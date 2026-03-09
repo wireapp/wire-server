@@ -1,3 +1,4 @@
+{{- $backgroundWorker := index .Values "background-worker" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,14 +9,14 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-  {{- with .Values.backgroundWorker.config }}
+  {{- with $backgroundWorker.config }}
   background-worker.yaml: |
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
     backgroundWorker:
       host: 0.0.0.0
-      port: {{ $.Values.backgroundWorker.service.internalPort }}
+      port: {{ $backgroundWorker.service.internalPort }}
 
     federatorInternal:
       host: {{ .federatorInternal.host }}
@@ -73,18 +74,18 @@ data:
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if hasKey $.Values.backgroundWorker.secrets "pgPassword" }}
+    {{- if hasKey $backgroundWorker.secrets "pgPassword" }}
     postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
     {{- end }}
 
-    federationDomain: {{ $.Values.backgroundWorker.config.federationDomain }}
+    federationDomain: {{ $backgroundWorker.config.federationDomain }}
 
     {{- with .rabbitmq }}
     rabbitmq:
       host: {{ .host }}
       port: {{ .port }}
       vHost: {{ .vHost }}
-      {{- if $.Values.backgroundWorker.config.enableFederation }}
+      {{- if $backgroundWorker.config.enableFederation }}
       adminHost: {{ default .host .adminHost }}
       adminPort: {{ .adminPort }}
       {{- end }}

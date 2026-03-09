@@ -1,4 +1,5 @@
-{{- if .Values.backgroundWorker.metrics.serviceMonitor.enabled }}
+{{- $backgroundWorker := index .Values "background-worker" }}
+{{- if $backgroundWorker.metrics.serviceMonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
