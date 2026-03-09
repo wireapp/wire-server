@@ -58,6 +58,7 @@ import Data.Schema
 import Data.Text qualified as Text
 import Imports
 import Test.QuickCheck qualified as QC
+import Wire.API.PostgresMarshall
 import Wire.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------
@@ -271,6 +272,7 @@ richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 newtype RichInfoAssocList = RichInfoAssocList {unRichInfoAssocList :: [RichField]}
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RichInfoAssocList)
+  deriving (PostgresMarshall A.Value, PostgresUnmarshall A.Value) via (StoreAsJSON RichInfoAssocList)
 
 -- | Uses 'normalizeRichInfoAssocList'.
 mkRichInfoAssocList :: [RichField] -> RichInfoAssocList
