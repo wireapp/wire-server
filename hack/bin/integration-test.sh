@@ -20,11 +20,13 @@ cleanup() {
             rm -f "logs-$t"
         done
     fi
+    return 0
 }
 
 # Copy to the concourse output (indetified by $OUTPUT_DIR) for propagation to
 # following steps.
 copyToAwsS3() {
+    local build_ts
     build_ts=$(date +%s)
     if ((UPLOAD_LOGS > 0)); then
         for t in "${tests[@]}"; do
@@ -32,6 +34,7 @@ copyToAwsS3() {
             aws s3 cp "logs-$t" "s3://wire-server-test-logs/test-logs-$VERSION/$t-$VERSION-$build_ts.log"
         done
     fi
+    return 0
 }
 
 summary() {
@@ -48,6 +51,7 @@ summary() {
             echo "$t-integration passed ✅."
         fi
     done
+    return 0
 }
 
 # Copy the secrets from the wire-federation-v0 namespace to the current namespace to be able to delete RabbitMQ queues that are created by the integration tests to avoid overflows

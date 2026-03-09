@@ -90,7 +90,7 @@ sleep 1
 
 if ( ( echo "$INVITATION_ID" | grep -q '"code"' ) &&
          ( echo "$INVITATION_ID" | grep -q '"label"' ) ) ; then
-    echo "Got an error while creating $REGULAR_USER_EMAIL, aborting: $INVITATION_ID"
+    echo "Got an error while creating $REGULAR_USER_EMAIL, aborting: $INVITATION_ID" 1>&2
     exit 1
 fi
 
@@ -98,7 +98,7 @@ sleep 1
 
 if ( ( echo "$INVITATION_ID" | grep -q '"code"' ) &&
             ( echo "$INVITATION_ID" | grep -q '"label"' ) ) ; then
-    echo "Got an error while creating $REGULAR_USER_EMAIL, aborting: $INVITATION_ID"
+    echo "Got an error while creating $REGULAR_USER_EMAIL, aborting: $INVITATION_ID" 1>&2
     exit 1
 fi
 
@@ -181,7 +181,7 @@ CURL_OUT=$(curl \
 SCIM_USER_REGISTER_TEAM=$(echo "$CURL_OUT" | jq -r .team)
 
 if [[ "$SCIM_USER_REGISTER_TEAM" != "$TEAM_UUID" ]]; then
-    echo "unexpected error: user got assigned to no / the wrong team?!"
+    echo "unexpected error: user got assigned to no / the wrong team?!" 1>&2
     echo "${CURL_OUT}"
     exit 1
 fi

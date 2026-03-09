@@ -13,6 +13,7 @@ from .conversions import obj_qid, obj_id, obj_path
 
 DEFAULT_PASSWORD = "hunter2!"
 
+MESSAGE_MLS_CONTENT_TYPE = "message/mls"
 
 def random_letters(n=10):
     return "".join(random.choices(string.ascii_letters, k=n))
@@ -36,7 +37,7 @@ def create_user(ctx, email=None, password=None, name=None, create_team=False, **
     if create_team:
         body["team"] = {"name": "Wire team 2", "icon": "default"}
 
-    for k, v in kwargs:
+    for k, v in kwargs.items():
         body[k] = v
 
     url = ctx.mkurl("brig", "/i/users", internal=True)
@@ -80,7 +81,7 @@ def put_client_mls_public_keys(ctx, client_id, mls_public_keys):
     return ctx.request("PUT", url, json=body)
 
 
-def delete_client(ctx, user, client_id, password=DEFAULT_PASSWORD):
+def delete_client(ctx, user, password=DEFAULT_PASSWORD):
     url = ctx.mkurl("brig", f"/clients/{obj_id(user)}")
     return ctx.request("DELETE", url, user=user, json={"password": password})
 
@@ -116,30 +117,30 @@ def get_conversation(ctx, user, conv):
     return ctx.request("GET", url, user=user)
 
 
-def mls_get_public_keys(ctx, **additional_args):
+def mls_get_public_keys(ctx):
     url = ctx.mkurl("galley", "/mls/public-keys")
     return ctx.request("GET", url)
 
 
 def mls_message(ctx, user, message):
-    headers = {"Content-Type": "message/mls"}
+    headers = {"Content-Type": MESSAGE_MLS_CONTENT_TYPE}
     url = ctx.mkurl("galley", "/mls/messages")
     return ctx.request("POST", url, user=user, data=message, headers=headers)
 
 
 def mls_welcome(ctx, user, welcome):
-    headers = {"Content-Type": "message/mls"}
+    headers = {"Content-Type": MESSAGE_MLS_CONTENT_TYPE}
     url = ctx.mkurl("galley", "/mls/welcome")
     return ctx.request("POST", url, user=user, data=welcome, headers=headers)
 
 
 def mls_post_commit_bundle(ctx, client, commit_bundle):
-    url = ctx.mkurl("galley", f"/mls/commit-bundles")
+    url = ctx.mkurl("galley", "/mls/commit-bundles")
     tbefore = time.time()
     res = ctx.request(
         "POST",
         url,
-        headers={"Content-Type": "message/mls"},
+        headers={"Content-Type": MESSAGE_MLS_CONTENT_TYPE},
         client=client,
         data=commit_bundle,
     )
@@ -149,8 +150,8 @@ def mls_post_commit_bundle(ctx, client, commit_bundle):
 
 
 def mls_send_message(ctx, msg, **kwargs):
-    headers = {"Content-Type": "message/mls"}
-    url = ctx.mkurl("galley", f"/mls/messages")
+    headers = {"Content-Type": MESSAGE_MLS_CONTENT_TYPE}
+    url = ctx.mkurl("galley", "/mls/messages")
     return ctx.request("POST", url, headers=headers, data=msg, **kwargs)
 
 
@@ -172,7 +173,7 @@ def remove_member(ctx, user, conv, target, **kwargs):
     return ctx.request("DELETE", url, user=user)
 
 
-def login(ctx, email, password=DEFAULT_PASSWORD, **additional_args):
+def login(ctx, email, password=DEFAULT_PASSWORD):
     body = {"email": email, "password": password}
     url = ctx.mkurl("brig", "/login")
     return ctx.request("POST", url, json=body)
@@ -189,7 +190,7 @@ def create_access_token(ctx, client_id=None):
     return ctx.request("POST", url, params=params)
 
 
-def create_team_invitation(ctx, team, email_invite=None, user=None, **additional_args):
+def create_team_invitation(ctx, team, email_invite=None, user=None):
     if email_invite is None:
         email_invite = random_email()
     url = ctx.mkurl("brig", f"/teams/{team}/invitations")

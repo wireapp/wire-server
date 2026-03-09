@@ -14,8 +14,7 @@ dir=${1:?$USAGE}
 # hacky workaround for helm's lack of recursive dependency update
 # See https://github.com/helm/helm/issues/2247
 helmDepUp () {
-    local path
-    path=$1
+    local path="$1"
     cd "$path"
     # remove previous bundled versions of helm charts, if any
     find . -name "*\.tgz" -delete
@@ -35,6 +34,7 @@ helmDepUp () {
       helm dep up
       echo "... updating in $path done."
     fi
+    return 0
 }
 
 helmDepUp "$dir"

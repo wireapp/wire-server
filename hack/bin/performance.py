@@ -54,6 +54,9 @@ LATEST_BASEDIR='/tmp/mls-large-groups-latest'
 
 LAST_PREKEY = "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
 
+RES_CREATION_JSON = "res_creation.json"
+
+RES_REGISTER_JSON = "res_register.json"
 
 def save_json_file(ob, path):
     with open(path, "w") as f:
@@ -146,10 +149,7 @@ class Context:
         self.users_zuid_cookie = {}
         self.last_switched_user = None
 
-    def mkurl(self, service, relative_url, internal=False):
-        # if not internal:
-        #     service = "nginz"
-
+    def mkurl(self, service, relative_url):
         name = "WIREAPI_BASEURL_" + service.upper()
         baseurl = os.environ[name]
         if (not relative_url.startswith("/access")) and (not relative_url.startswith('/register')) and (not relative_url.startswith('/i'))  and (not relative_url.startswith("/login")):
@@ -190,7 +190,6 @@ class Context:
         if res.status_code == 401:
             res_refresh = api.create_access_token(self)
             if res_refresh.status_code != 200:
-                msg = "Refreshing the access token failed: \n"
                 msg = pretty_response(res_refresh)
                 raise ValueError(msg)
             else:
@@ -336,7 +335,7 @@ def create_admin(ctx, basedir):
     os.makedirs(ud_temp, exist_ok=True)
 
     res_creation = save(
-        api.create_user(ctx, create_team=True), j(ud_temp, "res_creation.json")
+        api.create_user(ctx, create_team=True), j(ud_temp, RES_CREATION_JSON)
     )
     simple_expect_status(201, res_creation)
 
@@ -344,8 +343,8 @@ def create_admin(ctx, basedir):
     ud = user_dir(basedir, user_id)
     os.makedirs(ud, exist_ok=True)
 
-    dest = j(ud, "res_creation.json")
-    shutil.move(j(ud_temp, "res_creation.json"), dest)
+    dest = j(ud, RES_CREATION_JSON)
+    shutil.move(j(ud_temp, RES_CREATION_JSON), dest)
     print(f"Moving to {dest}")
 
     res_login = save(
@@ -411,7 +410,7 @@ def admin_user_dir(basedir):
 def create_user(ctx, basedir):
     admin_dir = admin_user_dir(basedir)
 
-    admin = load_json_file(j(admin_dir, "res_creation.json"))
+    admin = load_json_file(j(admin_dir, RES_CREATION_JSON))
     admin_user = admin["response"]["content"]["id"]
     team = admin["response"]["content"]["team"]
 
@@ -435,7 +434,7 @@ def create_user(ctx, basedir):
 
     res_register = save(
         api.register_user(ctx, email=email_invitee, code=code),
-        j(ud_temp, "res_register.json"),
+        j(ud_temp, RES_REGISTER_JSON),
     )
     simple_expect_status(201, res_register)
     assert res_register["response"]["content"]["team"] == team
@@ -444,8 +443,8 @@ def create_user(ctx, basedir):
     ud = user_dir(basedir, user_id)
     os.makedirs(ud, exist_ok=True)
 
-    dest = j(ud, "res_register.json")
-    shutil.move(j(ud_temp, "res_register.json"), dest)
+    dest = j(ud, RES_REGISTER_JSON)
+    shutil.move(j(ud_temp, RES_REGISTER_JSON), dest)
     print("Moving to", dest)
 
     res_login = save(api.login(ctx, email_invitee), j(ud, "res_login.json"))
@@ -465,11 +464,11 @@ def create_mls_client(ctx, basedir, user_id):
 
     # is there an easier way to get the domain of the user?
     ud = user_dir(basedir, user_id)
-    res_creation_file = j(ud, "res_creation.json")
+    res_creation_file = j(ud, RES_CREATION_JSON)
     if os.path.exists(res_creation_file):
         user_file = res_creation_file
     else:
-        user_file = j(ud, "res_register.json")
+        user_file = j(ud, RES_REGISTER_JSON)
     res_user = load_json_file(user_file)
     quid = res_user["response"]["content"]["qualified_id"]
     domain = quid["domain"]
@@ -523,7 +522,7 @@ def list_clients(user_dir):
     return os.listdir(j(user_dir, "clients"))
 
 
-def defNewConvMLS(client_id):
+def def_new_conv_mls(client_id):
     return {
         "name": "conv default name",
         "access": [],
@@ -551,12 +550,11 @@ def create_mls_conv(ctx, basedir):
     Assumes admin is logged in
     """
     ud = admin_user_dir(basedir)
-    admin = load_json_file(j(ud, "res_creation.json"))['response']['content']
 
     # create conv
     client_id = list_clients(ud)[0]
 
-    admin = load_json_file(j(ud, "res_creation.json"))['response']['content']
+    admin = load_json_file(j(ud, RES_CREATION_JSON))['response']['content']
 
     cdir = client_dir(ud, client_id)
 
@@ -568,7 +566,7 @@ def create_mls_conv(ctx, basedir):
         conv_id = res_post_conv['response']['content']['qualified_id']['id']
     else:
         res_post_conv = save(
-            api.create_conversation(ctx, user=admin, **defNewConvMLS(client_id)),
+            api.create_conversation(ctx, user=admin, **def_new_conv_mls(client_id)),
             j(basedir, "res_post_conv.json"),
         )
         simple_expect_status(201, res_post_conv)
@@ -653,7 +651,7 @@ def main_setup_team(basedir=None, n_users=5000):
             cid = create_mls_client(ctx, basedir, user_id)
 
             ud = user_dir(basedir, user_id)
-            res_register = load_json_file(j(ud, "res_register.json"))
+            res_register = load_json_file(j(ud, RES_REGISTER_JSON))
             quid = res_register["response"]["content"]["qualified_id"]
             res_kp_claim = save(
                 api.claim_key_packages(ctx, user=quid, target=quid),
@@ -690,16 +688,13 @@ def main_setup_add_participants(basedir, batchsize=500):
 
     admin_dir = user_dir(basedir, admin_id)
 
-    res_creation = load_json_file(j(admin_dir, "res_creation.json"))
+    res_creation = load_json_file(j(admin_dir, RES_CREATION_JSON))
     admin = res_creation['response']['content']
     res_login = save(
         api.login(ctx_admin, res_creation["request"]["body"]["email"]),
         j(admin_dir, "res_login.json"),
     )
     simple_expect_status(200, res_login)
-
-    # admin_res_login = load_json_file(j(admin_dir, "res_login.json"))
-    # ctx_admin.load_cookies_from_response(admin_res_login)
 
     client_id = list_clients(admin_dir)[0]
 
@@ -782,8 +777,6 @@ def main_setup_add_participants(basedir, batchsize=500):
 
 
             try:
-                # if i > 0:
-                #     raise ValueError("intentional")
                 simple_expect_status(201, res_post_commit_bundle)
             except:
                 print("Restoring admin's client state")

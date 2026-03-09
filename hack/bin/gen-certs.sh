@@ -18,9 +18,11 @@ trap cleanup EXIT
 # Generate self-signed CA certificate and key at root/ca.pem and
 # root/ca-key.pem respectively.
 gen_ca() {
-  echo "generating CA: $2"
-  openssl req -x509 -newkey rsa:2048 -keyout "$1/ca-key.pem" -out "$1/ca.pem" -sha256 -days 3650 -nodes -subj "/CN=$2" 2>/dev/null
-
+  local root="$1"
+  local name="$2"
+  echo "generating CA: $name"
+  openssl req -x509 -newkey rsa:2048 -keyout "$root/ca-key.pem" -out "$root/ca.pem" -sha256 -days 3650 -nodes -subj "/CN=$name" 2>/dev/null
+  return 0
 }
 
 # usage: gen_cert root san name
@@ -29,12 +31,16 @@ gen_ca() {
 # and ca-key.pem exist in the same directory. The generated certificate and
 # private key will end up in root/cert.pem and root/key.pem.
 gen_cert() {
-  echo "generating certificate: $2"
+  local root="$1"
+  local san="$2"
+  local name="$3"
+  echo "generating certificate: $name"
   subj=()
-  if [[ -n "$3" ]]; then
-    subj=(-subj "/CN=$3")
+  if [[ -n "$name" ]]; then
+    subj=(-subj "/CN=$name")
   fi
-  openssl x509 -req -in <(openssl req -nodes -newkey rsa:2048 -keyout "$1/key.pem" -out /dev/stdout -subj "/" 2>/dev/null) -CA "$1/ca.pem" -CAkey "$1/ca-key.pem" "${subj[@]}" -out "$1/cert.pem" -set_serial 0 -days 3650 -extfile <( echo "extendedKeyUsage = serverAuth, clientAuth"; echo "subjectAltName = critical, $2" ) 2>/dev/null
+  openssl x509 -req -in <(openssl req -nodes -newkey rsa:2048 -keyout "$root/key.pem" -out /dev/stdout -subj "/" 2>/dev/null) -CA "$root/ca.pem" -CAkey "$root/ca-key.pem" "${subj[@]}" -out "$root/cert.pem" -set_serial 0 -days 3650 -extfile <( echo "extendedKeyUsage = serverAuth, clientAuth"; echo "subjectAltName = critical, $san" ) 2>/dev/null
+  return 0
 }
 
 # usage: install_certs source_dir target_dir ca ca-key cert key
@@ -42,10 +48,17 @@ gen_cert() {
 # Copy certificates into the target directory, using the given file names. If a
 # name is empty, the corresponding certificate is skipped.
 install_certs() {
-  if [[ -n "$3" ]]; then cp "$1/ca.pem" "$2/$3.pem"; fi
-  if [[ -n "$4" ]]; then cp "$1/ca-key.pem" "$2/$4.pem"; fi
-  if [[ -n "$5" ]]; then cp "$1/cert.pem" "$2/$5.pem"; fi
-  if [[ -n "$6" ]]; then cp "$1/key.pem" "$2/$6.pem"; fi
+  local source_dir="$1"
+  local target_dir="$2"
+  local ca="$3"
+  local ca_key="$4"
+  local cert="$5"
+  local key="$6"
+  if [[ -n "$ca" ]]; then cp "$source_dir/ca.pem" "$target_dir/$ca.pem"; fi
+  if [[ -n "$ca_key" ]]; then cp "$source_dir/ca-key.pem" "$target_dir/$ca_key.pem"; fi
+  if [[ -n "$cert" ]]; then cp "$source_dir/cert.pem" "$target_dir/$cert.pem"; fi
+  if [[ -n "$key" ]]; then cp "$source_dir/key.pem" "$target_dir/$key.pem"; fi
+  return 0
 }
 
 # federation

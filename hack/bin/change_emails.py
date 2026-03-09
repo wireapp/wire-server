@@ -67,12 +67,12 @@ def put_scim_user(ctx, user_id, body):
     url = ctx.mkurl("spar", f"scim/v2/Users/{user_id}")
     return ctx.request('PUT', url, headers=({'Authorization': f'Bearer {scim_token}'}), json=body)
 
-def get_activation_code(ctx, user_id, email):
-    url = ctx.mkurl("brig", f"i/users/activation-code", internal=True)
+def get_activation_code(ctx, email):
+    url = ctx.mkurl("brig", "i/users/activation-code", internal=True)
     return ctx.request('GET', url, params=({'email': email}))
 
 def confirm_new_email(ctx, user_id, key, code):
-    url = ctx.mkurl("brig", f"/activate")
+    url = ctx.mkurl("brig", "/activate")
     return ctx.request('GET', url, headers=({'Z-User': user_id}), params=({'key': key, 'code': code}))
 
 def assert_resp(resp, status_want):
@@ -89,7 +89,7 @@ def assert_resp(resp, status_want):
 ### idioms
 
 def confirm_email(user_id, email):
-    r = get_activation_code(ctx, user_id, email)
+    r = get_activation_code(ctx, email)
     assert_resp(r, 200)
     r2 = confirm_new_email(ctx, user_id, r.json()['key'], r.json()['code'])
     assert_resp(r2, 200)

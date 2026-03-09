@@ -1,7 +1,9 @@
 #!/usr/bin/env sh
 
 exec_until_ready() {
-        until $1; do echo 'service not ready yet'; sleep 1; done
+    cmd=$1
+    until $cmd; do echo 'service not ready yet'; sleep 1; done
+    return 0
 }
 
 # Assumes this to be run in an environment with `aws` installed
