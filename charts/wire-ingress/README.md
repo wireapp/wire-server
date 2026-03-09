@@ -1,7 +1,6 @@
 # wire-ingress
 
-A replacement for [`nginx-ingress-services`](../nginx-ingress-services/README.md) that uses the
-**Kubernetes Gateway API** instead of the classic `networking.k8s.io/v1 Ingress` API.
+A Helm chart for Wire server ingress using the **Kubernetes Gateway API**.
 
 The chart targets **Envoy Gateway** as the Gateway API controller.
 
@@ -38,13 +37,11 @@ references it by name via `gateway.className`.
 
 ### Multi-ingress is out of scope
 
-The `ingressName` / `isAdditionalIngress` pattern from `nginx-ingress-services` is not implemented.
 Single-domain deployments are the only supported topology. Multi-domain support can be added later.
 
 ### Federator mTLS uses Envoy Gateway policies
 
-The old chart used nginx annotations (`auth-tls-verify-client`, `auth-tls-verify-depth`, and a
-`configuration-snippet` to forward `X-SSL-Certificate`). The new chart uses:
+Federator mTLS is implemented using:
 
 - `ClientTrafficPolicy` to configure TLS settings on the federator `Gateway` listener (client
   certificate validation, verify depth)
@@ -76,6 +73,7 @@ Operators should be able to reuse most of their existing values files with minim
 | `config.isAdditionalIngress` | Multi-ingress out of scope |
 | `config.renderCSPInIngress` | Multi-ingress out of scope |
 | `config.dns.base` | Only used for CSP header rendering, which is a multi-ingress feature |
+| `kubeVersionOverride` | Deprecated; the federation-test-helper label selector no longer needs a version override |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
 
 ### Fully backwards compatible values
@@ -86,7 +84,6 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | Key | Notes |
 |---|---|
 | `nameOverride` | |
-| `kubeVersionOverride` | |
 | `teamSettings.enabled` | |
 | `accountPages.enabled` | |
 | `websockets.enabled` | |
@@ -145,16 +142,14 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 
 ### Rendering diff
 
-For each implementation step, render both charts with the same values and compare:
+For each implementation step, render the chart and inspect the output:
 
 ```bash
-helm template release-name ../nginx-ingress-services -f test-values.yaml > /tmp/old.yaml
-helm template release-name ./wire-ingress           -f test-values.yaml > /tmp/new.yaml
-diff /tmp/old.yaml /tmp/new.yaml
+helm template release-name ./wire-ingress -f test-values.yaml
 ```
 
-The goal is not an identical diff (the API objects are different) but to confirm that every
-resource in the old chart has a counterpart and that no routing rule is silently dropped.
+To verify routing coverage against the previous deployment, render both and compare (see the
+migration guide for details).
 
 ### Schema validation
 
@@ -187,11 +182,10 @@ concern and can be reviewed by running `helm template` / `helm lint` on the part
 
 ### Phase 1 — Chart scaffolding
 
-#### Step 1: Chart.yaml, .helmignore, empty values.yaml, _helpers.tpl
+#### Chart.yaml, .helmignore, empty values.yaml, _helpers.tpl
 
-Create the chart skeleton. Helpers replicate the naming helpers from `nginx-ingress-services`
-(`fullname`, `zone`, `getCertificateSecretName`, `getIssuerName`) plus new helpers for Gateway
-naming (`getGatewayName`).
+Create the chart skeleton with helpers for naming (`fullname`, `zone`, `getCertificateSecretName`,
+`getIssuerName`, `getGatewayName`).
 
 Use `helm create` for an initial scaffolding.
 
@@ -201,22 +195,9 @@ Use `helm create` for an initial scaffolding.
 
 ---
 
-#### Step 2: values.schema.json
-
-Define a JSON Schema that validates the same top-level structure as `nginx-ingress-services` plus
-the new `gateway.*` keys. This is written before any templates so that schema gaps are caught
-early.
-
-**Review:** `helm lint` with each `ci/values-*.yaml` file passes or produces only expected
-validation errors.
-
-- [ ] Done
-
----
-
 ### Phase 2 — Gateway
 
-#### Step 3: Optional Gateway resource
+#### Optional Gateway resource
 
 Template: `templates/gateway.yaml`
 
@@ -225,7 +206,7 @@ Creates a `gateway.networking.k8s.io/v1 Gateway` when `gateway.create: true`. Th
 - An HTTP listener on port 80 (for ACME HTTP-01 challenges and optional redirect)
 - An HTTPS listener on port 443 with TLS termination, referencing the TLS secret
 
-The federator listener is added in Step 12 (not here) to keep federator concerns separate.
+The federator listener is added in the federator phase (not here) to keep federator concerns separate.
 
 New values:
 
@@ -252,14 +233,13 @@ gateway:
 
 Each step adds one `HTTPRoute` (or one group of closely related routes).
 
-#### Step 4: HTTPRoute — nginz (HTTPS endpoint)
+#### HTTPRoute — nginz (HTTPS endpoint)
 
 Template: `templates/httproute-nginz.yaml`
 
 Routes `config.dns.https` → `nginz` service port `http`.
 
-Gateway API equivalent of the `nginz-https` rule in the old `Ingress`. The route attaches to the
-HTTPS listener of the Gateway via `parentRefs`.
+The route attaches to the HTTPS listener of the Gateway via `parentRefs`.
 
 **Review:** Renders correctly with and without TLS; `helm lint` passes.
 
@@ -267,7 +247,7 @@ HTTPS listener of the Gateway via `parentRefs`.
 
 ---
 
-#### Step 5: HTTPRoute — websockets
+#### HTTPRoute — websockets
 
 Template: `templates/httproute-websockets.yaml`
 Condition: `websockets.enabled`
@@ -281,7 +261,7 @@ annotation in Envoy — they are transparent at the HTTP layer.
 
 ---
 
-#### Step 6: HTTPRoute — webapp
+#### HTTPRoute — webapp
 
 Template: `templates/httproute-webapp.yaml`
 Condition: `webapp.enabled`
@@ -294,7 +274,7 @@ Routes `config.dns.webapp` → `webapp-http` service port `externalPort`.
 
 ---
 
-#### Step 7: HTTPRoute — team-settings
+#### HTTPRoute — team-settings
 
 Template: `templates/httproute-team-settings.yaml`
 Condition: `teamSettings.enabled`
@@ -305,7 +285,7 @@ Routes `config.dns.teamSettings` → `team-settings-http` service port `external
 
 ---
 
-#### Step 8: HTTPRoute — account-pages
+#### HTTPRoute — account-pages
 
 Template: `templates/httproute-account-pages.yaml`
 Condition: `accountPages.enabled`
@@ -316,16 +296,15 @@ Routes `config.dns.accountPages` → `account-pages-http` service port `external
 
 ---
 
-#### Step 9: HTTPRoute — fakeS3 / minio
+#### HTTPRoute — fakeS3 / minio
 
 Template: `templates/httproute-minio.yaml`
 Condition: `fakeS3.enabled`
 
 Routes `config.dns.fakeS3` → `fake-aws-s3` service.
 
-The old chart used a nginx `server-snippet` to return 403 for `/minio/` paths. This chart uses an
-Envoy Gateway `HTTPRouteFilter` with `type: DirectResponse` and `statusCode: 403` for a
-`/minio/` prefix match rule, placed before the catch-all rule.
+Access to `/minio/` paths is blocked with a 403 using an Envoy Gateway `HTTPRouteFilter` with
+`type: DirectResponse` and `statusCode: 403`, placed as a prefix match rule before the catch-all.
 
 > **Incompatibility note:** `DirectResponse` is an Envoy Gateway extension
 > (`gateway.envoyproxy.io/v1alpha1`). It is not part of the standard Gateway API spec.
@@ -338,25 +317,25 @@ Envoy Gateway `HTTPRouteFilter` with `type: DirectResponse` and `statusCode: 403
 
 ### Phase 4 — TLS
 
-#### Step 10: TLS Secret (manual mode)
+#### TLS Secret (manual mode)
 
 Template: `templates/secret.yaml`
 Condition: `!tls.useCertManager`
 
-Identical in structure to the old chart. Encodes `secrets.tlsWildcardCert` and
-`secrets.tlsWildcardKey` into a `kubernetes.io/tls` Secret referenced by the Gateway listener.
+Encodes `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` into a `kubernetes.io/tls` Secret
+referenced by the Gateway listener.
 
 - [ ] Done
 
 ---
 
-#### Step 11: cert-manager Certificate + Issuer
+#### cert-manager Certificate + Issuer
 
 Templates: `templates/certificate.yaml`, `templates/issuer.yaml`
 Condition: `tls.useCertManager`
 
-Identical in structure and values to the old chart. The cert-manager `Certificate` spec is
-unchanged; the `secretName` it produces is referenced by the Gateway listener (Step 3).
+A cert-manager `Certificate` and `Issuer`/`ClusterIssuer` for ACME HTTP-01 certificate issuance.
+The `secretName` produced by the `Certificate` is referenced by the Gateway listener.
 
 - [ ] Done
 
@@ -364,15 +343,14 @@ unchanged; the `secretName` it produces is referenced by the Gateway listener (S
 
 ### Phase 5 — Services
 
-#### Step 12: ClusterIP Services
+#### ClusterIP Services
 
 Template: `templates/service.yaml`
 
-Identical to the old chart. Creates `webapp-http`, `s3-http`, `team-settings-http`,
-`account-pages-http` ClusterIP services. The selectors and ports are unchanged.
+Creates `webapp-http`, `s3-http`, `team-settings-http`, and `account-pages-http` ClusterIP
+services with their respective selectors and ports.
 
-**Review:** `helm template` output for this file should be byte-for-byte identical to the old
-chart's `service.yaml` output (same values → same services).
+**Review:** `helm template` produces the expected set of ClusterIP services for the enabled features.
 
 - [ ] Done
 
@@ -380,7 +358,7 @@ chart's `service.yaml` output (same values → same services).
 
 ### Phase 6 — Federator
 
-#### Step 13: Gateway listener for federator
+#### Gateway listener for federator
 
 Extend `templates/gateway.yaml` to add a separate TLS listener for `config.dns.federator` when
 `federator.enabled: true`.
@@ -392,7 +370,7 @@ that listener, not on the main HTTPS listener.
 
 ---
 
-#### Step 14: HTTPRoute for federator
+#### HTTPRoute for federator
 
 Template: `templates/httproute-federator.yaml`
 Condition: `federator.enabled`
@@ -400,14 +378,14 @@ Condition: `federator.enabled`
 Routes `config.dns.federator` → `federator` service port `federator-ext`, attaching to the
 federator listener.
 
-Blocks combination with `config.isAdditionalIngress` (same guard as the old chart, kept for
-documentation purposes even though multi-ingress is out of scope).
+Fails with an error if `config.isAdditionalIngress` is set, since federation and multi-ingress
+cannot be combined.
 
 - [ ] Done
 
 ---
 
-#### Step 15: ClientTrafficPolicy for federator mTLS
+#### ClientTrafficPolicy for federator mTLS
 
 Template: `templates/clienttrafficpolicy-federator.yaml`
 Condition: `federator.enabled`
@@ -418,10 +396,8 @@ Envoy Gateway-specific (`gateway.envoyproxy.io/v1alpha1`). Configures:
 - Forwards the client certificate as `X-SSL-Certificate` request header (implementation-specific
   header injection)
 
-Maps to the old nginx annotations:
-- `nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"`
-- `nginx.ingress.kubernetes.io/auth-tls-secret`
-- `nginx.ingress.kubernetes.io/configuration-snippet` (X-SSL-Certificate)
+Enforces mTLS client certificate validation and forwards the client certificate as the
+`X-SSL-Certificate` request header to the federator backend.
 
 > **Incompatibility note:** The `tls.verify_depth` value is not directly mapped. Envoy Gateway's
 > `ClientTrafficPolicy` does not expose a depth knob; validation depth is implicitly controlled by
@@ -431,14 +407,14 @@ Maps to the old nginx annotations:
 
 ---
 
-#### Step 16: Federator TLS secrets + CA secret
+#### Federator TLS secrets + CA secret
 
 Templates: `templates/secret-federator.yaml`, `templates/ca-federator.yaml`
 Condition: `federator.enabled`
 
-Identical in structure to the old chart (`federator-certificate-secret`,
-`federator-ca-secret`). cert-manager `Certificate` for federator is also kept in
-`templates/certificate-federator.yaml` with the same spec as the old chart.
+Creates `federator-certificate-secret` and `federator-ca-secret`. When `tls.useCertManager` is
+enabled, a cert-manager `Certificate` with both `server auth` and `client auth` EKUs is created
+in `templates/certificate-federator.yaml`.
 
 - [ ] Done
 
@@ -446,11 +422,13 @@ Identical in structure to the old chart (`federator-certificate-secret`,
 
 ### Phase 7 — Integration test helper
 
-#### Step 17: federation-test-helper Service
+#### federation-test-helper Service
 
 Template: `templates/federation-test-helper.yaml`
 
-Identical to the old chart. The Kubernetes version label selector switch (>= 1.23) is kept.
+A ClusterIP service targeting the ingress controller pod, used for SRV-based discovery in
+integration tests. Uses `app.kubernetes.io/` labels on Kubernetes >= 1.23, legacy labels
+otherwise.
 
 - [ ] Done
 
@@ -458,11 +436,12 @@ Identical to the old chart. The Kubernetes version label selector switch (>= 1.2
 
 ### Phase 8 — custom solver secret
 
-#### Step 18: Custom ACME solver secret
+#### Custom ACME solver secret
 
 Template: `templates/custom-solvers-secret.yaml`
 
-Identical to the old chart.
+An opaque Secret containing credentials for custom ACME challenge solvers, referenced by
+`certManager.customSolvers`.
 
 - [ ] Done
 
@@ -470,7 +449,7 @@ Identical to the old chart.
 
 ### Phase 9 — Documentation and CI values
 
-#### Step 19: Finalize README, migration guide, and ci/ values files
+#### Finalize README, migration guide, and ci/ values files
 
 - Write the migration guide section of this README
 - Create `ci/values-minimal.yaml`, `ci/values-full.yaml`, etc.
