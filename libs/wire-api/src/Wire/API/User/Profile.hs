@@ -284,7 +284,7 @@ newtype Pict = Pict {fromPict :: [A.Object]}
 
 instance ToSchema Pict where
   schema =
-    named "Pict" $
+    named "Pict_DEPRECATED_USE_ASSETS_INSTEAD" $
       Pict <$> fromPict .= untypedRangedSchema 0 10 (array jsonObject)
 
 instance Arbitrary Pict where
