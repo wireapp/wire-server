@@ -193,7 +193,11 @@ Create the chart skeleton. Helpers replicate the naming helpers from `nginx-ingr
 (`fullname`, `zone`, `getCertificateSecretName`, `getIssuerName`) plus new helpers for Gateway
 naming (`getGatewayName`).
 
+Use `helm create` for an initial scaffolding.
+
 **Review:** `helm lint ./wire-ingress` passes with empty values.
+
+- [ ] Done
 
 ---
 
@@ -205,6 +209,8 @@ early.
 
 **Review:** `helm lint` with each `ci/values-*.yaml` file passes or produces only expected
 validation errors.
+
+- [ ] Done
 
 ---
 
@@ -238,6 +244,8 @@ gateway:
 **Review:** `helm template` produces a valid `Gateway` manifest. Diff against old chart shows no
 `Ingress` equivalent yet — that is expected.
 
+- [ ] Done
+
 ---
 
 ### Phase 3 — Core HTTPRoutes
@@ -255,6 +263,8 @@ HTTPS listener of the Gateway via `parentRefs`.
 
 **Review:** Renders correctly with and without TLS; `helm lint` passes.
 
+- [ ] Done
+
 ---
 
 #### Step 5: HTTPRoute — websockets
@@ -267,6 +277,8 @@ annotation in Envoy — they are transparent at the HTTP layer.
 
 **Review:** Rendered only when `websockets.enabled: true`. Hostname differs from nginz route.
 
+- [ ] Done
+
 ---
 
 #### Step 6: HTTPRoute — webapp
@@ -278,6 +290,8 @@ Routes `config.dns.webapp` → `webapp-http` service port `externalPort`.
 
 **Review:** Absent from rendered output when `webapp.enabled: false`.
 
+- [ ] Done
+
 ---
 
 #### Step 7: HTTPRoute — team-settings
@@ -287,6 +301,8 @@ Condition: `teamSettings.enabled`
 
 Routes `config.dns.teamSettings` → `team-settings-http` service port `externalPort`.
 
+- [ ] Done
+
 ---
 
 #### Step 8: HTTPRoute — account-pages
@@ -295,6 +311,8 @@ Template: `templates/httproute-account-pages.yaml`
 Condition: `accountPages.enabled`
 
 Routes `config.dns.accountPages` → `account-pages-http` service port `externalPort`.
+
+- [ ] Done
 
 ---
 
@@ -314,6 +332,8 @@ Envoy Gateway `HTTPRouteFilter` with `type: DirectResponse` and `statusCode: 403
 
 **Review:** Two rules rendered: one 403 rule for `/minio/` prefix, one catch-all for `/`.
 
+- [ ] Done
+
 ---
 
 ### Phase 4 — TLS
@@ -326,6 +346,8 @@ Condition: `!tls.useCertManager`
 Identical in structure to the old chart. Encodes `secrets.tlsWildcardCert` and
 `secrets.tlsWildcardKey` into a `kubernetes.io/tls` Secret referenced by the Gateway listener.
 
+- [ ] Done
+
 ---
 
 #### Step 11: cert-manager Certificate + Issuer
@@ -335,6 +357,8 @@ Condition: `tls.useCertManager`
 
 Identical in structure and values to the old chart. The cert-manager `Certificate` spec is
 unchanged; the `secretName` it produces is referenced by the Gateway listener (Step 3).
+
+- [ ] Done
 
 ---
 
@@ -350,6 +374,8 @@ Identical to the old chart. Creates `webapp-http`, `s3-http`, `team-settings-htt
 **Review:** `helm template` output for this file should be byte-for-byte identical to the old
 chart's `service.yaml` output (same values → same services).
 
+- [ ] Done
+
 ---
 
 ### Phase 6 — Federator
@@ -361,6 +387,8 @@ Extend `templates/gateway.yaml` to add a separate TLS listener for `config.dns.f
 
 The federator requires its own listener so that `ClientTrafficPolicy` can enforce mTLS only on
 that listener, not on the main HTTPS listener.
+
+- [ ] Done
 
 ---
 
@@ -374,6 +402,8 @@ federator listener.
 
 Blocks combination with `config.isAdditionalIngress` (same guard as the old chart, kept for
 documentation purposes even though multi-ingress is out of scope).
+
+- [ ] Done
 
 ---
 
@@ -397,6 +427,8 @@ Maps to the old nginx annotations:
 > `ClientTrafficPolicy` does not expose a depth knob; validation depth is implicitly controlled by
 > the CA chain provided in `federator-ca-secret`.
 
+- [ ] Done
+
 ---
 
 #### Step 16: Federator TLS secrets + CA secret
@@ -408,6 +440,8 @@ Identical in structure to the old chart (`federator-certificate-secret`,
 `federator-ca-secret`). cert-manager `Certificate` for federator is also kept in
 `templates/certificate-federator.yaml` with the same spec as the old chart.
 
+- [ ] Done
+
 ---
 
 ### Phase 7 — Integration test helper
@@ -417,6 +451,8 @@ Identical in structure to the old chart (`federator-certificate-secret`,
 Template: `templates/federation-test-helper.yaml`
 
 Identical to the old chart. The Kubernetes version label selector switch (>= 1.23) is kept.
+
+- [ ] Done
 
 ---
 
@@ -428,6 +464,8 @@ Template: `templates/custom-solvers-secret.yaml`
 
 Identical to the old chart.
 
+- [ ] Done
+
 ---
 
 ### Phase 9 — Documentation and CI values
@@ -437,6 +475,8 @@ Identical to the old chart.
 - Write the migration guide section of this README
 - Create `ci/values-minimal.yaml`, `ci/values-full.yaml`, etc.
 - Ensure `helm lint` and `helm template` pass for all CI values files
+
+- [ ] Done
 
 ---
 
