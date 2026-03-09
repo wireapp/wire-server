@@ -78,6 +78,8 @@ EOF
     return 0
 }
 
+create_env_file
+
 newman run \
        --environment /tmp/scim_test_suite_env.json \
         /tmp/scim_test_suite.json \
