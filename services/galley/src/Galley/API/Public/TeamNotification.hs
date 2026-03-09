@@ -22,7 +22,7 @@ import Data.Range
 import Data.UUID.Util qualified as UUID
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.App
-import Galley.Effects
+import Galley.Effects.TeamNotificationStore (TeamNotificationStore)
 import Imports
 import Polysemy
 import Wire.API.Error
@@ -30,6 +30,7 @@ import Wire.API.Error.Galley
 import Wire.API.Internal.Notification
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamNotification
+import Wire.BrigAPIAccess (BrigAPIAccess)
 
 teamNotificationAPI :: API TeamNotificationAPI GalleyEffects
 teamNotificationAPI =

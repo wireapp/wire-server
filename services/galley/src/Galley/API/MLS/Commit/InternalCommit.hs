@@ -37,7 +37,6 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
-import Galley.Effects
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -65,6 +64,7 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.FederationSubsystem
 import Wire.ProposalStore
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 

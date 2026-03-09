@@ -25,7 +25,6 @@ import Control.Lens (view)
 import Data.Bifunctor
 import Data.Id
 import Galley.API.Teams.Features.Get
-import Galley.Effects
 import Galley.Options
 import Imports
 import Polysemy

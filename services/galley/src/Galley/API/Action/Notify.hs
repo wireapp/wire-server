@@ -20,7 +20,6 @@ module Galley.API.Action.Notify where
 import Data.Id
 import Data.Qualified
 import Data.Singletons
-import Galley.Effects
 import Imports hiding ((\\))
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)

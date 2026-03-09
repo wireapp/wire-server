@@ -34,7 +34,6 @@ import Data.Set qualified as Set
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Propagate
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -52,8 +51,10 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ExternalAccess
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Now (Now)

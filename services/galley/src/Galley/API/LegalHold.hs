@@ -45,7 +45,6 @@ import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
-import Galley.Effects
 import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Error
@@ -74,16 +73,21 @@ import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamStore
@@ -97,7 +101,7 @@ createSettings ::
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceInvalidKey) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
@@ -127,7 +131,7 @@ createSettings lzusr tid newService = do
 getSettings ::
   forall r.
   ( Member (ErrorS 'NotATeamMember) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r
@@ -168,7 +172,7 @@ removeSettingsInternalPaging ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -212,7 +216,7 @@ removeSettings ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -267,7 +271,7 @@ removeSettings' ::
     Member ConversationSubsystem r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member ProposalStore r,
@@ -316,7 +320,7 @@ grantConsent ::
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -363,7 +367,7 @@ requestDevice ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -456,7 +460,7 @@ approveDevice ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -533,7 +537,7 @@ disableForUser ::
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
@@ -596,7 +600,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member TeamStore r,
     Member ProposalStore r,
     Member Random r,
@@ -679,7 +683,7 @@ blockNonConsentingConnections uid = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-unsetTeamLegalholdWhitelistedH :: (Member LegalHoldStore r) => TeamId -> Sem r ()
+unsetTeamLegalholdWhitelistedH :: (Member LegalHoldData.LegalHoldStore r) => TeamId -> Sem r ()
 unsetTeamLegalholdWhitelistedH tid = do
   () <-
     error

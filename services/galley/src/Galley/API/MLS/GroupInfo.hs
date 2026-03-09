@@ -22,7 +22,6 @@ import Data.Json.Util
 import Data.Qualified
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
-import Galley.Effects
 import Galley.Env
 import Imports
 import Polysemy
@@ -47,9 +46,9 @@ type MLSGroupInfoStaticErrors =
    ]
 
 getGroupInfo ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Error FederationError) r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member (Input Env) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
@@ -65,7 +64,7 @@ getGroupInfo lusr qcnvId = do
     qcnvId
 
 getGroupInfoFromLocalConv ::
-  (Member ConversationStore r) =>
+  (Member E.ConversationStore r) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Qualified UserId ->
   Local ConvId ->
@@ -77,7 +76,7 @@ getGroupInfoFromLocalConv qusr lcnvId = do
 
 getGroupInfoFromRemoteConv ::
   ( Member (Error FederationError) r,
-    Member (FederationAPIAccess FederatorClient) r
+    Member (E.FederationAPIAccess FederatorClient) r
   ) =>
   (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->

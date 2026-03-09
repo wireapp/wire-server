@@ -39,7 +39,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.MLS.IncomingMessage
-import Galley.Effects
 import Galley.Env
 import Galley.Options
 import Galley.Types.Error
@@ -66,13 +65,19 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation
 import Wire.API.MLS.Validation.Error (toText)
 import Wire.API.Message
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess
+import Wire.FederationAPIAccess (FederationAPIAccess)
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),

@@ -30,7 +30,6 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tuple.Extra
 import Galley.API.MLS.Commit.Core
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -42,7 +41,9 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.User.Client
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore.MLS.Types
+import Wire.FederationAPIAccess (FederationAPIAccess)
 
 checkClients ::
   ( Member BrigAPIAccess r,
