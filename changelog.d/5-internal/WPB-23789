@@ -1,1 +1,2 @@
-Progressively move away from singletons to type class to allow progressive migration to `wire-subsystems` of Galley's actions. (#5075, #5081, #5086, #5087, #5098)
+Progressively move away from singletons to type class to allow progressive migration to `wire-subsystems` of Galley's actions.
+Drop `Galley.Intra.Util`. (#5075, #5081, #5086, #5087, #5098, #5101)
