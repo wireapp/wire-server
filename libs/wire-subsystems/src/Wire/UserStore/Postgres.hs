@@ -534,7 +534,6 @@ lookupStatusImpl uid = do
       dimapPG
         [singletonStatement|SELECT EXISTS (SELECT 1 FROM deleted_user where id = $1 :: uuid) :: bool|]
 
--- TODO: This probably needs to work for deleted users
 isActivatedImpl :: (PGConstraints r) => UserId -> Sem r Bool
 isActivatedImpl uid =
   fromMaybe False <$> runStatement uid select
