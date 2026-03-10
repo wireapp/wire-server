@@ -682,6 +682,13 @@ helm-template-%: clean-charts charts-integration
 render-manifest: clean-charts charts-integration
 	./hack/bin/render-manifest.sh $(VALUES_FILE)
 
+# Render wire-server from live values and compare it with the live manifest.
+# Usage:
+#   make diff-live-manifest LIVE_VALUES_FILE=/tmp/staging/live-values.yaml LIVE_MANIFEST_FILE=/tmp/staging/live-manifest.yaml
+diff-live-manifest: clean-charts charts-integration
+	./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
+	./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
+
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \
 	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
