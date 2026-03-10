@@ -1,0 +1,34 @@
+{{- if .Values.gateway.create }}
+{{- if not .Values.gateway.className }}
+{{- fail "gateway.className must be set when gateway.create is true (set it to the name of your GatewayClass, e.g. 'envoy')" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "wire-ingress.getGatewayName" . | quote }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  gatewayClassName: {{ .Values.gateway.className | quote }}
+  {{- if .Values.gateway.infrastructure.annotations }}
+  infrastructure:
+    annotations:
+      {{- toYaml .Values.gateway.infrastructure.annotations | nindent 6 }}
+  {{- end }}
+  listeners:
+    - name: https
+      port: {{ .Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
+            kind: Secret
+    {{- if .Values.gateway.listeners.http.enabled }}
+    - name: http
+      port: {{ .Values.gateway.listeners.http.port }}
+      protocol: HTTP
+    {{- end }}
+{{- end }}

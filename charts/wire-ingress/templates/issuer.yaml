@@ -1,0 +1,38 @@
+{{- if and .Values.tls.useCertManager .Values.tls.createIssuer -}}
+apiVersion: cert-manager.io/v1
+{{- if or (eq .Values.tls.issuer.kind "Issuer") (eq .Values.tls.issuer.kind "ClusterIssuer") }}
+kind: "{{ .Values.tls.issuer.kind }}"
+{{- else }}
+{{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .Values.tls.issuer.kind) }}
+{{- end }}
+metadata:
+  name: {{ include "wire-ingress.getIssuerName" . | quote }}
+  {{- if eq .Values.tls.issuer.kind "Issuer" }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  acme:
+    server: {{ include "wire-ingress.certManagerAPIServerURL" . | quote }}
+    email: {{ required "Missing value: certmasterEmail" .Values.certManager.certmasterEmail | quote }}
+    # NOTE: this secret doesn't need to be created manually, cert-manager manages it
+    privateKeySecretRef:
+      name: {{ include "wire-ingress.getIssuerName" . -}}-account-key
+    solvers:
+{{- if .Values.certManager.customSolvers }}
+{{ toYaml .Values.certManager.customSolvers | indent 6 }}
+{{- else }}
+{{- if not .Values.gateway.listeners.http.enabled }}
+{{- fail "The default HTTP01 solver requires gateway.listeners.http.enabled=true. Either enable the HTTP listener or supply certManager.customSolvers with a DNS01 solver." }}
+{{- end }}
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: {{ include "wire-ingress.getGatewayName" . | quote }}
+                namespace: {{ .Release.Namespace | quote }}
+                kind: Gateway
+{{- end }}
+{{- end -}}
