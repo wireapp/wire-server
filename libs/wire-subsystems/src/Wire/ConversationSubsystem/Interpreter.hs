@@ -147,8 +147,6 @@ interpretConversationSubsystem = interpret $ \case
     createConnectConversationLogic lusr conn j
   ConversationSubsystem.GetConversations convIds ->
     ConvStore.getConversations convIds
-  ConversationSubsystem.GetConversationIdsResultSet lusr maxIds mLastId ->
-    getConversationIdsResultSetImpl lusr maxIds mLastId
   ConversationSubsystem.GetConversationIds lusr maxIds pagingState ->
     getConversationIdsImpl lusr maxIds pagingState
   InternalGetClientIds uids ->

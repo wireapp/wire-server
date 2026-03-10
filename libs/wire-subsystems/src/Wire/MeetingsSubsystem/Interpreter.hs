@@ -36,6 +36,7 @@ import Polysemy.Error
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
+import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsPremiumConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
 import Wire.ConversationSubsystem (ConversationSubsystem)
@@ -45,7 +46,6 @@ import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
-import Wire.Sem.Paging.Cassandra (ResultSet (..), ResultSetType (..))
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -250,32 +250,32 @@ getAllMemberMeetings zUser cutoff = do
       ( Member Store.MeetingsStore r,
         Member ConversationSubsystem r
       ) =>
-      Maybe (Qualified ConvId) ->
-      Sem r [API.Meeting]
-    processPage lastId = do
+      Maybe ConversationPagingState -> Sem r [API.Meeting]
+    processPage pagingState = do
       let range = unsafeRange 1000 :: Range 1 1000 Int32
-      resultSet <- ConversationSubsystem.getConversationIdsResultSet zUser range lastId
-      let qConvIds = resultSet.resultSetResult
-          uConvIds = map qUnqualified qConvIds
-      if null uConvIds
-        then pure []
-        else do
-          convs <- ConversationSubsystem.getConversations uConvIds
-          let meetingConvs = filter isMeetingConv convs
-              meetingConvIds = Set.fromList $ map (.id_) meetingConvs
-          -- Identify which Qualified ConvIds correspond to meeting conversations
-          -- We use the original Qualified IDs to query the meeting store
-          let targetQConvIds = filter (\qId -> qUnqualified qId `Set.member` meetingConvIds) qConvIds
-          -- Fetch meetings for these conversations
-          pageMeetings <- forM targetQConvIds $ \qConvId -> do
-            Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
-          let currentMeetings = storedMeetingToMeeting (tDomain zUser) <$> concat pageMeetings
-          -- Check if there are more pages
-          case resultSet.resultSetType of
-            ResultSetTruncated -> do
-              -- Recurse with last ID
-              rest <- processPage (Just (last qConvIds))
-              pure (currentMeetings <> rest)
-            ResultSetComplete -> pure currentMeetings
+      page <- ConversationSubsystem.getConversationIds zUser range pagingState
+      case page of
+        MultiTablePaging.MultiTablePage uConvIds hasMore _ ->
+          if null uConvIds
+            then pure []
+            else do
+              convs <- ConversationSubsystem.getConversations (map qUnqualified uConvIds)
+              let meetingConvs = filter isMeetingConv convs
+                  meetingConvIds = Set.fromList $ map (.id_) meetingConvs
+              -- Identify which Qualified ConvIds correspond to meeting conversations
+              -- We use the original Qualified IDs to query the meeting store
+              let targetQConvIds = filter (\qId -> qUnqualified qId `Set.member` meetingConvIds) uConvIds
+              -- Fetch meetings for these conversations
+              pageMeetings <- forM targetQConvIds $ \qConvId -> do
+                Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
+              let currentMeetings = storedMeetingToMeeting (tDomain zUser) <$> concat pageMeetings
+              -- Check if there are more pages
+              if hasMore
+                then do
+                  -- Recurse with paging state from the page
+                  let nextPageState = Just page.mtpPagingState
+                  rest <- processPage nextPageState
+                  pure (currentMeetings <> rest)
+                else pure currentMeetings
     isMeetingConv :: StoredConversation -> Bool
     isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation

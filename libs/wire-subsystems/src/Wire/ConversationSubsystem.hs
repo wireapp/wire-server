@@ -30,7 +30,6 @@ import Wire.API.Conversation (ConvIdsPage, ConversationPagingState, ExtraConvers
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import Wire.NotificationSubsystem (LocalConversationUpdate)
-import Wire.Sem.Paging.Cassandra (ResultSet)
 import Wire.StoredConversation
 
 data ConversationSubsystem m a where
@@ -67,11 +66,6 @@ data ConversationSubsystem m a where
   GetConversations ::
     [ConvId] ->
     ConversationSubsystem m [StoredConversation]
-  GetConversationIdsResultSet ::
-    Local UserId ->
-    Range 1 1000 Int32 ->
-    Maybe (Qualified ConvId) ->
-    ConversationSubsystem r (ResultSet (Qualified ConvId))
   GetConversationIds ::
     Local UserId ->
     Range 1 1000 Int32 ->

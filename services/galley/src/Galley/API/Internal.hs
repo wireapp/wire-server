@@ -90,7 +90,7 @@ import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
-import Wire.ConversationStore qualified as E
+import Wire.ConversationStore qualified as ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
@@ -180,7 +180,7 @@ ejpdGetConvInfo uid = do
               One2OneConv -> Nothing
               SelfConv -> Nothing
               ConnectConv -> Nothing
-      renderedPage <- mapMaybe mk <$> E.getConversations (fst $ partitionQualified luid convids)
+      renderedPage <- mapMaybe mk <$> ConversationStore.getConversations (fst $ partitionQualified luid convids)
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
@@ -202,7 +202,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
     <@> mkNamedAPI @"get-conversation-by-id" Query.getLocalConversationInternal
-    <@> mkNamedAPI @"is-conversation-out-of-sync" E.isConversationOutOfSync
+    <@> mkNamedAPI @"is-conversation-out-of-sync" ConversationStore.isConversationOutOfSync
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -430,18 +430,18 @@ rmUser lusr conn = do
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
       let qUser = tUntagged lusr
-      cc <- E.getConversations ids
+      cc <- ConversationStore.getConversations ids
       now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
-        One2OneConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        One2OneConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` c.localMembers -> do
               runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
-              E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
+              ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
               let e =
                     Event
                       { evtConv = tUntagged (qualifyAs lusr c.id_),
@@ -541,5 +541,5 @@ iGetMLSClientListForConv ::
   GroupId ->
   Sem r ClientList
 iGetMLSClientListForConv gid = do
-  cm <- E.lookupMLSClients gid
+  cm <- ConversationStore.lookupMLSClients gid
   pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs (unClientMap cm)))

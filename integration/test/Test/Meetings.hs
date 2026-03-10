@@ -198,15 +198,53 @@ testMeetingUpdateUnauthorized = do
 
   putMeeting otherUser domain meetingId update >>= assertStatus 404
 
-testMeetingLists :: (HasCallStack) => App ()
-testMeetingLists = do
+testMeetingListEmpty :: (HasCallStack) => App ()
+testMeetingListEmpty = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
-  now <- liftIO getCurrentTime
-  let startTime = addUTCTime 3600 now
-      endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
-  postMeetings owner newMeeting >>= assertStatus 201
   resp <- getMeetingsList owner
   assertSuccess resp
   meetings <- resp.json & asList
-  length (meetings :: [Value]) `shouldMatchInt` 1
+  length (meetings :: [Value]) `shouldMatchInt` 0
+
+testMeetingListNoMeetings :: (HasCallStack) => App ()
+testMeetingListNoMeetings = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  _ <- createTeam OwnDomain 1
+  resp <- getMeetingsList owner
+  assertSuccess resp
+  meetings <- resp.json & asList
+  length (meetings :: [Value]) `shouldMatchInt` 0
+
+testMeetingListMultiple :: (HasCallStack) => App ()
+testMeetingListMultiple = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let firstMeeting = defaultMeetingJson "First Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      secondMeeting = defaultMeetingJson "Second Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      thirdMeeting = defaultMeetingJson "Third Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+  postMeetings owner firstMeeting >>= assertStatus 201
+  postMeetings owner secondMeeting >>= assertStatus 201
+  postMeetings owner thirdMeeting >>= assertStatus 201
+  resp <- getMeetingsList owner
+  assertSuccess resp
+  meetings <- resp.json & asList
+  length (meetings :: [Value]) `shouldMatchInt` 3
+
+testMeetingListPagination :: (HasCallStack) => App ()
+testMeetingListPagination = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let firstMeeting = defaultMeetingJson "Meeting 1" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      secondMeeting = defaultMeetingJson "Meeting 2" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      thirdMeeting = defaultMeetingJson "Meeting 3" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      fourthMeeting = defaultMeetingJson "Meeting 4" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+      fifthMeeting = defaultMeetingJson "Meeting 5" (addUTCTime 3600 now) (addUTCTime 7200 now) []
+  postMeetings owner firstMeeting >>= assertStatus 201
+  postMeetings owner secondMeeting >>= assertStatus 201
+  postMeetings owner thirdMeeting >>= assertStatus 201
+  postMeetings owner fourthMeeting >>= assertStatus 201
+  postMeetings owner fifthMeeting >>= assertStatus 201
+  resp <- getMeetingsList owner
+  assertSuccess resp
+  meetings <- resp.json & asList
+  length (meetings :: [Value]) `shouldMatchInt` 5
