@@ -687,6 +687,41 @@ upload-bombon: sbom.json
 		--auto-create \
 		--bom-file ./sbom.json
 
+# Generate SBOMs for Helm charts
+.PHONY: sboms-helm
+sboms-helm:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-helm-sboms.sh ./sboms/helm $(HELM_SEMVER)
+
+# Generate SBOMs for Docker Compose
+.PHONY: sboms-docker-compose
+sboms-docker-compose:
+	./hack/bin/create-docker-compose-sboms.sh ./sboms/docker-compose
+
+# Generate SBOMs for Helmfile
+.PHONY: sboms-helmfile
+sboms-helmfile:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-helmfile-sboms.sh ./sboms/helmfile $(HELM_SEMVER)
+
+# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+.PHONY: sboms
+sboms: sboms-helm sboms-docker-compose sboms-helmfile
+
+# Upload all SBOMs to Dependency Track
+# Requires DEPENDENCY_TRACK_API_KEY environment variable
+.PHONY: upload-sboms
+upload-sboms:
+	@find ./sboms -name '*.json' -type f | while read sbom; do \
+		./hack/bin/upload-sbom.sh "$$sbom" "sven-bom-test" "$(HELM_SEMVER)"; \
+	done
+
 .PHONY: openapi-validate
 openapi-validate:
 	@echo -e "Make sure you are running the backend in another terminal (make cr)\n"

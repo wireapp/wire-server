@@ -12,8 +12,7 @@ CHARTS_DIR="$GIT_ROOT/charts"
 if [[ -z "$VERSION_OVERRIDE" ]]; then
   echo "Usage: $0 <output-dir> <version>"
   echo "  output-dir: Directory to write SBOM files"
-  # TODO: This should be a more recent version
-  echo "  version: Version to use for images (e.g., 2.125.0)"
+  echo "  version: Version to use for images (e.g., 5.28.9)"
   exit 1
 fi
 
@@ -61,9 +60,21 @@ extract_images_from_chart() {
   local output
   output=$(helm template test-release "$chart_path" --set-string 'global.placeholder=placeholder' 2>/dev/null) || true
 
-  # Extract image values from the output
-  # TODO: This should be done with yq or jq. A regex is too fragile.
-  echo "$output" | grep -oP '^\s*image:\s*["\x27]?\K[^"\x27[:space:]]+(?=["\x27]?\s*$)' || true
+  # Extract image values from the output using yq (jq wrapper)
+  # Recursively find all .image fields in objects and output unique values
+  echo "$output" | yq -r '.. | objects | .image? // empty' - 2>/dev/null | sort -u || true
+}
+
+# Generate SBOM for an image using syft
+generate_sbom() {
+  local canonical_img="$1"
+  local temp_filename="$2"
+
+  SYFT_FORMAT_PRETTY=true \
+  SYFT_ENRICH=all \
+  SYFT_NIX_CAPTURE_OWNED_FILES=true \
+  SYFT_SCOPE="all-layers" \
+    syft -v "docker:$canonical_img" -o cyclonedx-json > "$temp_filename"
 }
 
 mkdir -p "$OUTPUT_DIR"
@@ -71,9 +82,8 @@ mkdir -p "$OUTPUT_DIR"
 # Get current git commit hash for linking to source
 GIT_COMMIT=$(git rev-parse HEAD)
 
-# Track images we've already processed to avoid duplicates
-# TODO: We still want to have a relation of Helm chart to Image (Container). Thus, even if an image shows up in multiple Helm charts, we want multiple result files with metadata referring to the originating chart.
-declare -A processed_images
+# Track errors during processing
+error_count=0
 
 # Loop through each chart directory
 for chart_dir in "$CHARTS_DIR"/*/; do
@@ -84,15 +94,16 @@ for chart_dir in "$CHARTS_DIR"/*/; do
     continue
   fi
 
+  # Skip charts that will be deleted or have issues
+  if [[ "$chart_name" == "metallb" ]] || [[ "$chart_name" == "mlsstats" ]]; then
+    echo "Skipping chart: $chart_name (excluded)"
+    continue
+  fi
+
   echo "Processing chart: $chart_name"
 
   # Get chart version from Chart.yaml
   chart_version=$(yq -r '.version // "unknown"' "$chart_dir/Chart.yaml")
-
-  # Relative path for GitHub URL
-  # TODO: Move this close its first usage
-  chart_relative_path="charts/$chart_name"
-  chart_url="https://github.com/wireapp/wire-server/tree/${GIT_COMMIT}/${chart_relative_path}"
 
   # Extract images using helm template
   images=$(extract_images_from_chart "$chart_dir" "$chart_name")
@@ -107,10 +118,6 @@ for chart_dir in "$CHARTS_DIR"/*/; do
       img="${img%:*}:${VERSION_OVERRIDE}"
     fi
 
-    # Skip if we've already processed this image
-    [[ -n "${processed_images[$img]:-}" ]] && continue
-    processed_images[$img]=1
-
     canonical_img=$(canonicalize_image_name "$img")
     safe_name=$(echo "$canonical_img" | tr '/:' '-')
     filename="$OUTPUT_DIR/sbom-helm-${chart_name}-${safe_name}.cyclonedx.json"
@@ -118,50 +125,61 @@ for chart_dir in "$CHARTS_DIR"/*/; do
 
     echo "  Creating SBOM for $img -> $canonical_img: $filename"
 
-    # Try to generate SBOM with syft directly first
-    # Let stderr show to user, only capture stdout (JSON) to temp file
-    # TODO: This is duplicated code: The syft call should be extracted to a function
-    if ! SYFT_FORMAT_PRETTY=true \
-         SYFT_ENRICH=all \
-         SYFT_NIX_CAPTURE_OWNED_FILES=true \
-         SYFT_SCOPE="all-layers" \
-           syft -v "docker:$canonical_img" -o cyclonedx-json > "$temp_filename"; then
+    # Check manifest version with skopeo to determine if conversion is needed
+    manifest_info=$(skopeo inspect --raw "docker://$canonical_img" 2>/dev/null || echo "")
 
-      echo "  Initial scan failed, pulling image with Docker to handle old format..." >&2
-      rm -f "$temp_filename"
+    if echo "$manifest_info" | grep -q '"schemaVersion":\s*1'; then
+      # Old schema 1 format - need to convert with skopeo
+      echo "  Detected schema 1 manifest, converting to OCI format with skopeo..." >&2
 
-      # Pull the image with Docker to convert old image formats
-      if ! docker pull "$canonical_img"; then
-        echo "  WARNING: Failed to pull image $canonical_img, skipping..." >&2
+      oci_dir="$OUTPUT_DIR/.oci-cache/$(echo "$canonical_img" | tr '/:' '-')"
+      mkdir -p "$oci_dir"
+
+      if ! skopeo copy --insecure-policy "docker://$canonical_img" "oci:$oci_dir"; then
+        echo "  ERROR: Failed to convert image $canonical_img with skopeo" >&2
+        rm -rf "$oci_dir"
+        ((error_count++))
         continue
       fi
 
-      # Retry syft scan on the locally pulled image
+      # Scan the OCI format image
       if ! SYFT_FORMAT_PRETTY=true \
            SYFT_ENRICH=all \
            SYFT_NIX_CAPTURE_OWNED_FILES=true \
            SYFT_SCOPE="all-layers" \
-             syft -v "docker:$canonical_img" -o cyclonedx-json > "$temp_filename"; then
-        echo "  WARNING: Failed to generate SBOM for $canonical_img even after Docker pull, skipping..." >&2
+             syft -v "oci-dir:$oci_dir" -o cyclonedx-json > "$temp_filename"; then
+        echo "  ERROR: Failed to scan OCI image for $canonical_img" >&2
+        rm -rf "$oci_dir"
         rm -f "$temp_filename"
-        # TODO: We want to fail (exit 1) in case things go south
+        ((error_count++))
+        continue
+      fi
+
+      # Clean up OCI cache
+      rm -rf "$oci_dir"
+    else
+      # Modern format - scan directly with syft
+      if ! generate_sbom "$canonical_img" "$temp_filename"; then
+        echo "  ERROR: Failed to generate SBOM for $canonical_img" >&2
+        rm -f "$temp_filename"
+        ((error_count++))
         continue
       fi
     fi
 
     # Validate that we have a valid JSON file
     if [[ ! -s "$temp_filename" ]]; then
-      echo "  WARNING: Empty SBOM output for $canonical_img, skipping..." >&2
+      echo "  ERROR: Empty SBOM output for $canonical_img" >&2
       rm -f "$temp_filename"
-        # TODO: We want to fail (exit 1) in case things go south
+      ((error_count++))
       continue
     fi
 
     if ! jq empty "$temp_filename" 2>/dev/null; then
-      echo "  WARNING: Invalid JSON in SBOM output for $canonical_img:" >&2
+      echo "  ERROR: Invalid JSON in SBOM output for $canonical_img:" >&2
       head -5 "$temp_filename" >&2
       rm -f "$temp_filename"
-        # TODO: We want to fail (exit 1) in case things go south
+      ((error_count++))
       continue
     fi
 
@@ -174,24 +192,21 @@ for chart_dir in "$CHARTS_DIR"/*/; do
 
     oci_purl="pkg:oci/${image_name}@${image_tag}?repository_url=${registry}"
 
-    # Create helm purl to indicate this image is used by a helm chart
-    # Format: pkg:helm/chart-name@chart-version
+    # Create helm purl
+    # Format: pkg:helm/name@version
     helm_purl="pkg:helm/${chart_name}@${chart_version}"
 
-    # Add purl, scope tag, and helm chart source reference using jq
-    # We add both the OCI purl (for the container image) and helm purl (for the chart context)
-    # TODO: `metadata.component.properties` add nothing - some information is even wrong. Remove it and its variables.
-    jq --arg oci_purl "$oci_purl" \
-       --arg helm_purl "$helm_purl" \
+    # Relative path for GitHub URL
+    chart_relative_path="charts/$chart_name"
+    chart_url="https://github.com/wireapp/wire-server/tree/${GIT_COMMIT}/${chart_relative_path}"
+
+    # Set helm purl as component purl and add references in externalReferences
+    jq --arg helm_purl "$helm_purl" \
+       --arg oci_purl "$oci_purl" \
        --arg chart_url "$chart_url" \
-       --arg chart_name "$chart_name" \
-       '.metadata.component.purl = $oci_purl |
-        .metadata.component.properties += [
-          {"name": "scope", "value": "test"},
-          {"name": "helm.chart.name", "value": $chart_name},
-          {"name": "helm.chart.purl", "value": $helm_purl}
-        ] |
+       '.metadata.component.purl = $helm_purl |
         .metadata.component.externalReferences += [
+          {"type": "distribution", "url": $helm_purl, "comment": "Helm chart"},
           {"type": "build-meta", "url": $chart_url, "comment": "Source Helm chart"}
         ]' \
        "$temp_filename" > "$filename"
@@ -200,3 +215,8 @@ for chart_dir in "$CHARTS_DIR"/*/; do
 done
 
 echo "SBOM generation complete. Output directory: $OUTPUT_DIR"
+
+if [[ $error_count -gt 0 ]]; then
+  echo "WARNING: $error_count error(s) occurred during SBOM generation" >&2
+  exit 1
+fi
