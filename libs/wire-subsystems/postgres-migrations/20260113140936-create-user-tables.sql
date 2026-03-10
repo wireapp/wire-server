@@ -59,5 +59,6 @@ CREATE INDEX bot_conv_conv_idx ON bot_conv (conv);
 CREATE INDEX bot_conv_team_idx ON bot_conv (conv_team);
 
 CREATE TABLE deleted_user (
-  id uuid PRIMARY KEY
+  id uuid PRIMARY KEY,
+  team uuid
 );
