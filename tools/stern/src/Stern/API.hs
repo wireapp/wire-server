@@ -36,6 +36,7 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString (fromStrict)
 import Data.ByteString.Conversion
+import Data.CommaSeparatedList (CommaSeparatedList (..))
 import Data.Handle (Handle)
 import Data.Id
 import Data.Proxy (Proxy (..))
@@ -256,20 +257,20 @@ unsuspendUser uid = NoContent <$ Intra.putUserStatus Active uid
 usersByEmail :: EmailAddress -> Handler [User]
 usersByEmail = Intra.getUserProfilesByIdentity
 
-usersByIds :: [UserId] -> Handler [User]
-usersByIds = Intra.getUserProfiles . Left
+usersByIds :: CommaSeparatedList UserId -> Handler [User]
+usersByIds = Intra.getUserProfiles . Left . fromCommaSeparatedList
 
-usersByHandles :: [Handle] -> Handler [User]
-usersByHandles = Intra.getUserProfiles . Right
+usersByHandles :: CommaSeparatedList Handle -> Handler [User]
+usersByHandles = Intra.getUserProfiles . Right . fromCommaSeparatedList
 
-ejpdInfoByHandles :: Maybe Bool -> [Handle] -> Handler EJPD.EJPDResponseBody
-ejpdInfoByHandles (fromMaybe False -> includeContacts) handles = Intra.getEjpdInfo handles includeContacts
+ejpdInfoByHandles :: Maybe Bool -> CommaSeparatedList Handle -> Handler EJPD.EJPDResponseBody
+ejpdInfoByHandles (fromMaybe False -> includeContacts) = (`Intra.getEjpdInfo` includeContacts) . fromCommaSeparatedList
 
 userConnections :: UserId -> Handler UserConnectionGroups
 userConnections = fmap groupByStatus . Intra.getUserConnections
 
-usersConnections :: [UserId] -> Handler [ConnectionStatus]
-usersConnections = Intra.getUsersConnections . List
+usersConnections :: CommaSeparatedList UserId -> Handler [ConnectionStatus]
+usersConnections = Intra.getUsersConnections . List . fromCommaSeparatedList
 
 searchOnBehalf :: UserId -> Maybe T.Text -> Maybe Int32 -> Handler (SearchResult Contact)
 searchOnBehalf
