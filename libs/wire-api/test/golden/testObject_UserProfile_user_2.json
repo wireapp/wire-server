@@ -1,5 +1,14 @@
 {
     "accent_id": -1,
+    "app": {
+        "accent_id": 0,
+        "assets": [],
+        "category": "other",
+        "description": "bloob",
+        "metadata": {},
+        "name": "alsoUser2",
+        "picture": []
+    },
     "assets": [],
     "deleted": true,
     "email": "some@example",
