@@ -29,7 +29,6 @@ import Data.Json.Util
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.Time
-import Galley.API.Push
 import Imports
 import Network.Wai.Utilities.JSONResponse
 import Polysemy

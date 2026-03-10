@@ -24,16 +24,24 @@ import Control.Lens (view)
 import Data.Aeson
 import Data.Default
 import Data.Id
+import Data.Json.Util
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map qualified as Map
+import Data.Qualified
 import Imports
 import Polysemy
+import Polysemy.TinyLog
+import System.Logger.Class qualified as Log
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley.Notifications (ConversationUpdate)
+import Wire.API.Message
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
 import Wire.Arbitrary
-import Wire.StoredConversation (LocalMember (..))
+import Wire.ExternalAccess
+import Wire.StoredConversation (BotMember, LocalMember (..))
 
 data Recipient = Recipient
   { recipientUserId :: UserId,
@@ -107,3 +115,63 @@ instance Default Push where
 
 newPushLocal :: UserId -> Push
 newPushLocal uid = def {origin = Just uid}
+
+-- * Message-related
+
+data MessagePush
+  = MessagePush (Maybe ConnId) MessageMetadata [Recipient] [BotMember] Event
+
+type BotMap = Map UserId BotMember
+
+class ToRecipient a where
+  toRecipient :: a -> Recipient
+
+instance ToRecipient (UserId, ClientId) where
+  toRecipient (u, c) = Recipient u (RecipientClientsSome (NonEmpty.singleton c))
+
+instance ToRecipient Recipient where
+  toRecipient = id
+
+newMessagePush ::
+  (ToRecipient r) =>
+  BotMap ->
+  Maybe ConnId ->
+  MessageMetadata ->
+  [r] ->
+  Event ->
+  MessagePush
+newMessagePush botMap mconn mm userOrBots event =
+  let toPair r = case Map.lookup (recipientUserId r) botMap of
+        Just botMember -> ([], [botMember])
+        Nothing -> ([r], [])
+      (recipients, botMembers) = foldMap (toPair . toRecipient) userOrBots
+   in MessagePush mconn mm recipients botMembers event
+
+runMessagePush ::
+  forall x r.
+  ( Member ExternalAccess r,
+    Member TinyLog r,
+    Member NotificationSubsystem r
+  ) =>
+  Local x ->
+  Maybe (Qualified ConvId) ->
+  MessagePush ->
+  Sem r ()
+runMessagePush loc mqcnv mp@(MessagePush _ _ _ botMembers event) = do
+  pushNotifications [toPush mp]
+  for_ mqcnv $ \qcnv ->
+    if tDomain loc /= qDomain qcnv
+      then unless (null botMembers) $ do
+        warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
+      else deliverAndDeleteAsync (qUnqualified qcnv) (map (,event) botMembers)
+
+toPush :: MessagePush -> Push
+toPush (MessagePush mconn mm rs _ event) =
+  def
+    { origin = Just (qUnqualified (eventFromUserId (evtFrom event))),
+      conn = mconn,
+      json = toJSONObject event,
+      recipients = rs,
+      route = bool RouteDirect RouteAny (mmNativePush mm),
+      transient = mmTransient mm
+    }

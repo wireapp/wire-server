@@ -49,7 +49,6 @@ import Galley.API.MLS.Welcome
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
-import Galley.API.Push
 import Galley.App
 import Galley.Options
 import Galley.Types.Conversations.One2One
