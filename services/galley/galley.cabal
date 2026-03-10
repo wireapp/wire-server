@@ -125,7 +125,6 @@ library
     Galley.API.Public.TeamConversation
     Galley.API.Public.TeamMember
     Galley.API.Public.TeamNotification
-    Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Export

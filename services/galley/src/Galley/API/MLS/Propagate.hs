@@ -23,7 +23,6 @@ import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
 import Data.Qualified
-import Galley.API.Push
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
