@@ -55,6 +55,7 @@ else
   cleanup_output_dir=false
 fi
 
+# shellcheck disable=SC2329
 cleanup() {
   if [[ "${cleanup_output_dir}" == "true" ]]; then
     rm -rf "$output_dir"
