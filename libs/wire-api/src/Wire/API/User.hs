@@ -539,6 +539,7 @@ data UserProfile = UserProfile
     profileLegalholdStatus :: UserLegalHoldStatus,
     profileSupportedProtocols :: Set BaseProtocolTag,
     profileType :: UserType,
+    profileApp :: Maybe GetApp,
     profileSearchable :: Bool
   }
   deriving stock (Eq, Show, Generic)
@@ -581,6 +582,7 @@ userProfileObjectSchema =
       .= field "legalhold_status" schema
     <*> profileSupportedProtocols .= supportedProtocolsObjectSchema
     <*> profileType .= fmap (fromMaybe UserTypeRegular) (optField "type" schema)
+    <*> profileApp .= maybe_ (optField "app" schema)
     <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
 
 --------------------------------------------------------------------------------
@@ -769,6 +771,7 @@ mkUserProfileWithEmail memail u legalHoldStatus =
       profileLegalholdStatus = legalHoldStatus,
       profileSupportedProtocols = userSupportedProtocols u,
       profileType = u.userType,
+      profileApp = Nothing, -- TODO
       profileSearchable = userSearchable u
     }
 

@@ -134,6 +134,7 @@ testUserProfile = do
             profileLegalholdStatus = UserLegalHoldNoConsent,
             profileSupportedProtocols = defSupportedProtocols,
             profileType = UserTypeRegular,
+            profileApp = Nothing,
             profileSearchable = True
           }
   let profileJSONAsText = show $ Aeson.encode userProfile
