@@ -688,8 +688,8 @@ render-manifest: clean-charts charts-integration
 #   helm get manifest wire-server -n wire > /tmp/staging/live-manifest.yaml
 #   make diff-live-manifest LIVE_VALUES_FILE=/tmp/staging/live-values.yaml LIVE_MANIFEST_FILE=/tmp/staging/live-manifest.yaml
 diff-live-manifest: clean-charts charts-integration
-	./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
-	./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
+	OUTPUT_FILE="/tmp/wire-server.yaml" ./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
+	DIFF_OUTPUT_FILE="$(DIFF_OUTPUT_FILE)" ./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
 
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \

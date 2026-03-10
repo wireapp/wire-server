@@ -11,15 +11,18 @@ Examples:
   ./hack/bin/diff-wire-server-manifests.sh /tmp/before.yaml /tmp/after.yaml
   ./hack/bin/diff-wire-server-manifests.sh /tmp/before.yaml /tmp/after.yaml /tmp/wire-server-diff
 
-Compares two rendered wire-server manifest files and highlights:
-  - resource inventory changes
-  - workload image changes
-  - workload pod template changes
-  - service spec changes
-  - secret payload/spec changes
-  - per-service ConfigMap payload changes for core wire services
+Splits each manifest into one file per YAML document and compares the resulting
+directories with `git diff --no-index`.
+
+Generated file names are based on:
+  <namespace>-<kind>-<metadata.name>.yaml
+
+If multiple documents resolve to the same base name, a numeric suffix is added.
 
 If OUTPUT_DIR is omitted, a temporary directory is used.
+
+Optional environment variables:
+  DIFF_OUTPUT_FILE=/tmp/wire-server-manifest.diff
 EOF
 }
 
@@ -31,6 +34,7 @@ fi
 before_manifest=$1
 after_manifest=$2
 output_dir=${3:-}
+diff_output_file=${DIFF_OUTPUT_FILE:-}
 
 if [[ ! -f "$before_manifest" ]]; then
   echo "Missing before manifest: $before_manifest" >&2
@@ -44,6 +48,11 @@ fi
 
 if ! command -v yq >/dev/null 2>&1; then
   echo "Missing dependency: yq" >&2
+  exit 2
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "Missing dependency: git" >&2
   exit 2
 fi
 
@@ -63,137 +72,113 @@ cleanup() {
 }
 trap cleanup EXIT
 
-overall_status=0
+before_dir="$output_dir/before"
+after_dir="$output_dir/after"
 
-compare_files() {
-  local title=$1
-  local before_file=$2
-  local after_file=$3
+rm -rf "$before_dir" "$after_dir"
+mkdir -p "$before_dir" "$after_dir"
 
-  echo
-  echo "== $title =="
-  if diff -u "$before_file" "$after_file"; then
-    echo "No changes"
-  else
-    overall_status=1
-  fi
+sanitize_filename_part() {
+  local value=$1
+  value=${value// /_}
+  value=${value//\//_}
+  value=${value//:/_}
+  value=${value//[^[:alnum:]._-]/-}
+  printf '%s\n' "$value"
 }
 
-write_or_missing() {
-  local expr=$1
-  local input_file=$2
-  local output_file=$3
+render_manifest_dir() {
+  local manifest=$1
+  local target_dir=$2
+  local count=0
 
-  yq -r "$expr" "$input_file" >"$output_file"
-  if [[ ! -s "$output_file" ]]; then
-    printf '__MISSING__\n' >"$output_file"
-  fi
+  declare -A seen=()
+
+  while IFS= read -r -d '' doc; do
+    [[ -z "$doc" ]] && continue
+
+    local kind
+    local name
+    local namespace
+    local base_name
+    local suffix
+    local file_name
+
+    kind=$(yq -r '.kind // ""' <<<"$doc" 2>/dev/null || true)
+    name=$(yq -r '.metadata.name // ""' <<<"$doc" 2>/dev/null || true)
+    namespace=$(yq -r '.metadata.namespace // "default"' <<<"$doc" 2>/dev/null || true)
+
+    # Skip empty/comment-only or otherwise unparsable YAML documents.
+    if [[ -z "$kind" || -z "$name" ]]; then
+      continue
+    fi
+
+    base_name="$(sanitize_filename_part "$namespace")-$(sanitize_filename_part "$kind")-$(sanitize_filename_part "$name")"
+    suffix=${seen["$base_name"]:-0}
+
+    if [[ "$suffix" -eq 0 ]]; then
+      file_name="$base_name.yaml"
+    else
+      file_name="$base_name-$suffix.yaml"
+    fi
+    seen["$base_name"]=$((suffix + 1))
+
+    printf '%s' "$doc" >"$target_dir/$file_name"
+    count=$((count + 1))
+  done < <(
+    awk '
+      BEGIN { doc = "" }
+      /^---[[:space:]]*$/ {
+        if (doc != "") {
+          printf "%s%c", doc, 0
+          doc = ""
+        }
+        next
+      }
+      { doc = doc $0 ORS }
+      END {
+        if (doc != "") {
+          printf "%s%c", doc, 0
+        }
+      }
+    ' "$manifest"
+  )
+
+  echo "$count"
 }
 
-services=(
-  background-worker
-  brig
-  cannon
-  cargohold
-  galley
-  gundeck
-  proxy
-  spar
-)
+before_count=$(render_manifest_dir "$before_manifest" "$before_dir")
+after_count=$(render_manifest_dir "$after_manifest" "$after_dir")
 
-yq -r '.kind + " " + (.metadata.namespace // "default") + "/" + .metadata.name' "$before_manifest" \
-  | sort >"$output_dir/before.ids"
-yq -r '.kind + " " + (.metadata.namespace // "default") + "/" + .metadata.name' "$after_manifest" \
-  | sort >"$output_dir/after.ids"
-compare_files "Resource Inventory" "$output_dir/before.ids" "$output_dir/after.ids"
+echo "Before manifest resources: $before_count"
+echo "After manifest resources: $after_count"
+echo "Before directory: $before_dir"
+echo "After directory: $after_dir"
+if [[ -n "$diff_output_file" ]]; then
+  echo "Diff output file: $diff_output_file"
+fi
+echo
 
-yq -r '
-  select(.kind == "Deployment" or .kind == "StatefulSet") |
-  .kind + " " + .metadata.name + " -> " + ([.spec.template.spec.containers[].image] | join(", "))
-' "$before_manifest" | sort >"$output_dir/before.images"
-yq -r '
-  select(.kind == "Deployment" or .kind == "StatefulSet") |
-  .kind + " " + .metadata.name + " -> " + ([.spec.template.spec.containers[].image] | join(", "))
-' "$after_manifest" | sort >"$output_dir/after.images"
-compare_files "Workload Images" "$output_dir/before.images" "$output_dir/after.images"
-
-yq -c '
-  select(.kind == "Deployment" or .kind == "StatefulSet") |
-  {
-    kind: .kind,
-    name: .metadata.name,
-    podSpec: .spec.template.spec
-  }
-' "$before_manifest" | sort >"$output_dir/before.workloads"
-yq -c '
-  select(.kind == "Deployment" or .kind == "StatefulSet") |
-  {
-    kind: .kind,
-    name: .metadata.name,
-    podSpec: .spec.template.spec
-  }
-' "$after_manifest" | sort >"$output_dir/after.workloads"
-compare_files "Workload Pod Specs" "$output_dir/before.workloads" "$output_dir/after.workloads"
-
-yq -c '
-  select(.kind == "Service") |
-  {
-    name: .metadata.name,
-    type: .spec.type,
-    ports: .spec.ports,
-    selector: .spec.selector
-  }
-' "$before_manifest" | sort >"$output_dir/before.services"
-yq -c '
-  select(.kind == "Service") |
-  {
-    name: .metadata.name,
-    type: .spec.type,
-    ports: .spec.ports,
-    selector: .spec.selector
-  }
-' "$after_manifest" | sort >"$output_dir/after.services"
-compare_files "Service Specs" "$output_dir/before.services" "$output_dir/after.services"
-
-yq -c '
-  select(.kind == "Secret") |
-  {
-    name: .metadata.name,
-    type: .type,
-    data: .data,
-    stringData: .stringData
-  }
-' "$before_manifest" | sort >"$output_dir/before.secrets"
-yq -c '
-  select(.kind == "Secret") |
-  {
-    name: .metadata.name,
-    type: .type,
-    data: .data,
-    stringData: .stringData
-  }
-' "$after_manifest" | sort >"$output_dir/after.secrets"
-compare_files "Secret Payloads" "$output_dir/before.secrets" "$output_dir/after.secrets"
-
-for service in "${services[@]}"; do
-  config_key="${service}.yaml"
-  write_or_missing \
-    "select(.kind == \"ConfigMap\" and .metadata.name == \"$service\") | .data[\"$config_key\"]" \
-    "$before_manifest" \
-    "$output_dir/before.${service}.config"
-  write_or_missing \
-    "select(.kind == \"ConfigMap\" and .metadata.name == \"$service\") | .data[\"$config_key\"]" \
-    "$after_manifest" \
-    "$output_dir/after.${service}.config"
-  compare_files "ConfigMap ${service}" "$output_dir/before.${service}.config" "$output_dir/after.${service}.config"
-done
-
-if [[ $overall_status -eq 0 ]]; then
-  echo
-  echo "No differences found in the checked sections."
+set +e
+if [[ -n "$diff_output_file" ]]; then
+  mkdir -p "$(dirname "$diff_output_file")"
+  git diff --no-index -- "$before_dir" "$after_dir" >"$diff_output_file"
 else
-  echo
-  echo "Differences found. Review the sections above."
+  git diff --no-index -- "$before_dir" "$after_dir"
+fi
+diff_exit=$?
+set -e
+
+if [[ $diff_exit -eq 0 ]]; then
+  echo "No differences found."
+  exit 0
 fi
 
-exit "$overall_status"
+if [[ $diff_exit -eq 1 ]]; then
+  echo
+  echo "Differences found."
+  exit 1
+fi
+
+echo "git diff failed with exit code $diff_exit" >&2
+exit "$diff_exit"
