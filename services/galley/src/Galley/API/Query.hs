@@ -72,7 +72,6 @@ import Galley.API.MLS.One2One
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.Teams.Features.Get
-import Galley.Env
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -437,7 +436,7 @@ conversationIdsPageFrom ::
   forall r.
   ( Member E.ConversationStore r,
     Member (Error InternalError) r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -711,7 +710,7 @@ getMLSSelfConversationWithError ::
   ( Member E.ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -768,7 +767,7 @@ createMLSSelfConversation lusr = do
 getMLSOne2OneConversationV5 ::
   ( Member BrigAPIAccess r,
     Member E.ConversationStore r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -792,7 +791,7 @@ getMLSOne2OneConversationInternal ::
   forall r.
   ( Member BrigAPIAccess r,
     Member E.ConversationStore r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -813,7 +812,7 @@ getMLSOne2OneConversationV6 ::
   forall r.
   ( Member BrigAPIAccess r,
     Member E.ConversationStore r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -840,7 +839,7 @@ getMLSOne2OneConversationV6 lself qother = do
 getMLSOne2OneConversation ::
   ( Member BrigAPIAccess r,
     Member E.ConversationStore r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
@@ -864,7 +863,7 @@ getLocalMLSOne2OneConversation ::
   ( Member E.ConversationStore r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS MLSNotEnabled) r
   ) =>
   Local UserId ->
@@ -939,7 +938,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
 -- two is responsible for hosting the conversation.
 isMLSOne2OneEstablished ::
   ( Member E.ConversationStore r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,

@@ -52,6 +52,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
+import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
 import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
@@ -105,6 +106,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley (GalleyError (..), NonFederatingBackends, OperationDenied, UnreachableBackends)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
@@ -232,6 +234,8 @@ type GalleyEffects =
      Input FanoutLimit,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
+     Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
+     Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
      Input (Either HttpsUrl (Map Text HttpsUrl)),
      Now,
@@ -506,6 +510,8 @@ evalGalley e =
         . nowToIO
         . runInputConst (e ^. convCodeURI)
         . runInputConst (e ^. options)
+        . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
+        . runInputConst e._mlsKeys
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
         . runInputConst (currentFanoutLimit (e ^. options))

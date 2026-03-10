@@ -29,7 +29,6 @@ where
 import Data.Default
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
-import Galley.Env
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -40,7 +39,7 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.Keys
 
 getMLSPublicKeys ::
-  ( Member (Input Env) r,
+  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Error InternalError) r
   ) =>

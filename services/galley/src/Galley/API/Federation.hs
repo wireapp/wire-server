@@ -40,6 +40,7 @@ import Galley.API.Action
 import Galley.API.MLS
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.GroupInfo
+import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled)
 import Galley.API.MLS.Message
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Removal
@@ -152,7 +153,7 @@ onClientRemoved ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Input (Local ())) r,
     Member Now r,
     Member ProposalStore r,
@@ -638,8 +639,8 @@ sendMLSCommitBundle ::
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member LegalHoldStore r,
     Member Resource r,
@@ -700,8 +701,7 @@ sendMLSMessage ::
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
@@ -822,7 +822,7 @@ getOne2OneConversation ::
     Member (Input (Local ())) r,
     Member (Error InternalError) r,
     Member BrigAPIAccess r,
-    Member (Input Env) r
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
   ) =>
   Domain ->
   GetOne2OneConversationRequest ->
@@ -884,7 +884,7 @@ onMLSMessageSent ::
   ( Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
@@ -939,7 +939,7 @@ mlsSendWelcome ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member P.TinyLog r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Input (Local ())) r,
     Member Now r
   ) =>
@@ -961,7 +961,7 @@ mlsSendWelcome origDomain req = do
 queryGroupInfo ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Input Env) r
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
   ) =>
   Domain ->
   GetGroupInfoRequest ->

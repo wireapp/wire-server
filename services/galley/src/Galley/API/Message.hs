@@ -23,7 +23,6 @@ module Galley.API.Message
     postRemoteOtrMessage,
     legacyClientMismatchStrategy,
     Unqualify (..),
-    userToProtectee,
     MessageMetadata (..),
 
     -- * Only exported for tests

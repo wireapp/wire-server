@@ -39,8 +39,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.MLS.IncomingMessage
-import Galley.Env
-import Galley.Options
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -134,9 +132,7 @@ type HasProposalEffects r =
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,

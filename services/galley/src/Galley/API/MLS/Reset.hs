@@ -23,7 +23,6 @@ import Galley.API.Action
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Update
-import Galley.Env
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -37,6 +36,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.BackendNotificationQueueAccess
@@ -52,7 +52,7 @@ import Wire.Sem.Random (Random)
 import Wire.TeamSubsystem (TeamSubsystem)
 
 resetMLSConversation ::
-  ( Member (Input Env) r,
+  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member (Input (Local ())) r,
     Member (ErrorS MLSNotEnabled) r,

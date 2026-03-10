@@ -27,7 +27,6 @@ import Data.Qualified
 import Data.Range
 import Galley.API.MLS.Removal
 import Galley.API.Query qualified as Query
-import Galley.Env
 import Galley.Types.Clients (clientIds)
 import Galley.Types.Error
 import Imports
@@ -42,6 +41,7 @@ import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore (ConversationStore, getConversation)
@@ -71,7 +71,7 @@ rmClient ::
     Member ExternalAccess r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Input (Local ())) r,
     Member Now r,
     Member (Error InternalError) r,
