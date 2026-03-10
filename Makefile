@@ -680,7 +680,7 @@ helm-template-%: clean-charts charts-integration
 #   make render-manifest VALUES_FILE=/tmp/values.yaml OUTPUT_FILE=/tmp/rendered.yaml
 # (you can get the live values e.g. like this: helm get values wire-server -n wire -a)
 render-manifest: clean-charts charts-integration
-	./hack/bin/render-manifest.sh $(VALUES_FILE)
+	./hack/bin/render-manifest.sh "$(VALUES_FILE)"
 
 # Render wire-server from live values and compare it with the live manifest.
 # Usage:
