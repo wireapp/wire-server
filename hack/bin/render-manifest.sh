@@ -18,6 +18,10 @@ if [[ ! -f "$VALUES_FILE" ]]; then
 fi
 
 helm dependency build --skip-refresh ./.local/charts/wire-server
-helm template wire-server ./.local/charts/wire-server -f "$VALUES_FILE" > "$OUTPUT_FILE"
+helm template wire-server ./.local/charts/wire-server \
+  --namespace wire \
+  --no-hooks \
+  -f "$VALUES_FILE" \
+  > "$OUTPUT_FILE"
 
 echo "Rendered manifest: $OUTPUT_FILE"
