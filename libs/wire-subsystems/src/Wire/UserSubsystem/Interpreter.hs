@@ -138,8 +138,8 @@ runUserSubsystem authInterpreter = interpret $
   \case
     GetUserProfiles self others ->
       getUserProfilesImpl self others
-    GetLocalUserProfiles others ->
-      getLocalUserProfilesImpl others
+    GetLocalUserProfilesFiltered upf others ->
+      getLocalUserProfilesFilteredImpl upf others
     GetAccountsBy getBy ->
       getAccountsByImpl getBy
     GetAccountsByEmailNoFilter emails ->
@@ -340,7 +340,7 @@ getUserProfilesImpl self others =
       (getUserProfilesFromDomain self)
       (bucketQualified others)
 
-getLocalUserProfilesImpl ::
+getLocalUserProfilesFilteredImpl ::
   forall r.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -349,9 +349,10 @@ getLocalUserProfilesImpl ::
     Member (Concurrency Unsafe) r,
     Member TeamSubsystem r
   ) =>
+  UserProfileFilter ->
   Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
+getLocalUserProfilesFilteredImpl upf = getUserProfilesLocalPart upf Nothing
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,
@@ -372,8 +373,8 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self =
   foldQualified
     self
-    (getUserProfilesLocalPart (Just self))
-    getUserProfilesRemotePart
+    (getUserProfilesLocalPart Everything (Just self))
+    getUserProfilesRemotePart -- TODO: integration test: can we retrieve apps from other instances?  (we shouldn't!)
 
 getUserProfilesRemotePart ::
   ( Member (FederationAPIAccess fedM) r,
@@ -396,10 +397,11 @@ getUserProfilesLocalPart ::
     Member (Concurrency Unsafe) r,
     Member TeamSubsystem r
   ) =>
+  UserProfileFilter ->
   Maybe (Local UserId) ->
   Local [UserId] ->
   Sem r [UserProfile]
-getUserProfilesLocalPart requestingUser luids = do
+getUserProfilesLocalPart upf requestingUser luids = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
   requestingUserInfo <- join <$> traverse getRequestingUserInfo requestingUser
   let canSeeEmails = maybe False (isAdminOrOwner . view (newTeamMember . nPermissions) . snd) requestingUserInfo
@@ -410,7 +412,8 @@ getUserProfilesLocalPart requestingUser luids = do
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
-  catMaybes <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
+  filter goUpf . catMaybes
+    <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
   where
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
@@ -426,6 +429,14 @@ getUserProfilesLocalPart requestingUser luids = do
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> internalGetTeamMember (tUnqualified self) tid
 
+    goUpf :: UserProfile -> Bool
+    goUpf prof = case upf of
+      Everything -> True
+      AppsOnly -> prof.profileType == UserTypeApp
+      RegularOnly -> prof.profileType == UserTypeRegular
+
+-- FUTUREWORK: this shouldn't be called '...Impl' because it is not
+-- exposed as an effect.
 getLocalUserProfileImpl ::
   forall r.
   ( Member UserStore r,
