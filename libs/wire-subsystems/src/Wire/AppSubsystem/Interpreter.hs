@@ -25,7 +25,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
-import Data.UUID.V4
 import Data.ZAuth.Token
 import Imports
 import Polysemy
@@ -47,6 +46,7 @@ import Wire.AuthenticationSubsystem.ZAuth
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
+import Wire.Sem.Random
 import Wire.StoredUser
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
@@ -57,7 +57,6 @@ import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
 runAppSubsystem ::
   ( Member UserStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
@@ -66,7 +65,8 @@ runAppSubsystem ::
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member Random r
   ) =>
   Sem (AppSubsystem ': r) a ->
   Sem r a
@@ -82,16 +82,15 @@ createAppImpl ::
   ( Member UserStore r,
     Member AppStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
-    Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   TeamId ->
@@ -251,19 +250,17 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   pure $ mkSomeToken c.cookieValue
 
 appNewStoredUser ::
-  ( Member (Embed IO) r,
-    Member (Input AppSubsystemConfig) r
-  ) =>
+  (Member (Input AppSubsystemConfig) r, Member Random r) =>
   StoredUser ->
   GetApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
-  uid <- liftIO nextRandom
+  uid <- newId
   defLoc <- inputs defaultLocale
   let loc = toLocale defLoc (creator.language, creator.country)
   pure
     NewStoredUser
-      { id = Id uid,
+      { id = uid,
         userType = UserTypeApp,
         email = Nothing,
         ssoId = Nothing,
