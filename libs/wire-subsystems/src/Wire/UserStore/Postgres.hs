@@ -574,7 +574,6 @@ updateUserTeamImpl uid tid =
       dimapPG
         [resultlessStatement|UPDATE wire_user SET team = $2 :: uuid WHERE id = $1 :: uuid|]
 
--- TODO: This used to work for deleted users, see what breaks if it doesn't, because it really shouldn't.
 getRichInfoImpl :: (PGConstraints r) => UserId -> Sem r (Maybe RichInfoAssocList)
 getRichInfoImpl uid =
   join <$> runStatement (uid) select
@@ -621,7 +620,6 @@ lookupHashedPasswordImpl uid = join <$> runStatement uid select
       dimapPG
         [maybeStatement|SELECT password :: text? from wire_user where id = $1 :: uuid|]
 
--- TODO: This used to work for deleted users, see what breaks if it doesn't, because it really shouldn't.
 getUserAuthenticationInfoImpl :: (PGConstraints r) => UserId -> Sem r (Maybe (Maybe Password, AccountStatus))
 getUserAuthenticationInfoImpl uid =
   withDefaultAccountStatus <$$> runStatement (uid) select
@@ -634,7 +632,6 @@ getUserAuthenticationInfoImpl uid =
       dimapPG
         [maybeStatement|SELECT password :: bytea?, account_status :: integer? FROM wire_user WHERE id = $1 :: uuid|]
 
--- TODO: This used to work for deleted users, see what breaks if it doesn't, because it really shouldn't.
 setUserSearchableImpl :: (PGConstraints r) => UserId -> SetSearchable -> Sem r ()
 setUserSearchableImpl uid (SetSearchable searchable) =
   runStatement (uid, searchable) update
