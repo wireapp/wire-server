@@ -51,7 +51,7 @@ Name of the cert-manager Issuer / ClusterIssuer.
 Name of the Gateway resource. Uses gateway.name if set, otherwise derives one from the release name.
 */}}
 {{- define "wire-ingress.getGatewayName" -}}
-{{- if and .Values.gateway .Values.gateway.name (not (eq .Values.gateway.name "")) -}}
+{{- if .Values.gateway.name -}}
 {{ .Values.gateway.name }}
 {{- else -}}
 {{ include "wire-ingress.fullname" . }}-gateway

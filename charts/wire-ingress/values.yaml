@@ -1,1 +1,16 @@
 # Default values for wire-ingress
+
+gateway:
+  # If true, a Gateway resource is created by this chart.
+  # If false, set gateway.name to reference an existing Gateway.
+  create: true
+  # Name of the Gateway. Defaults to <release-name>-wire-ingress-gateway if empty.
+  name: ""
+  # Name of the GatewayClass installed by the Envoy Gateway controller.
+  className: envoy
+  listeners:
+    https:
+      port: 443
+
+tls:
+  useCertManager: false
