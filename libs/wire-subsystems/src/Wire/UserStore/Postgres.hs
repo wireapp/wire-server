@@ -513,15 +513,26 @@ deleteUserImpl user =
           ON CONFLICT (id) DO NOTHING
         |]
 
--- TODO: This probably needs to work for deleted users
 lookupStatusImpl :: (PGConstraints r) => UserId -> Sem r (Maybe AccountStatus)
-lookupStatusImpl uid =
-  join <$> runStatement uid select
+lookupStatusImpl uid = do
+  (status, isDeleted) <-
+    runPipeline $
+      (,)
+        <$> Pipeline.statement uid select
+        <*> Pipeline.statement uid selectDeleted
+  pure $
+    if isDeleted
+      then Just Deleted
+      else join status
   where
     select :: Hasql.Statement UserId (Maybe (Maybe AccountStatus))
     select =
       dimapPG
         [maybeStatement|SELECT account_status :: integer? FROM wire_user WHERE id = $1 :: uuid|]
+    selectDeleted :: Hasql.Statement UserId Bool
+    selectDeleted =
+      dimapPG
+        [singletonStatement|SELECT EXISTS (SELECT 1 FROM deleted_user where id = $1 :: uuid) :: bool|]
 
 -- TODO: This probably needs to work for deleted users
 isActivatedImpl :: (PGConstraints r) => UserId -> Sem r Bool
