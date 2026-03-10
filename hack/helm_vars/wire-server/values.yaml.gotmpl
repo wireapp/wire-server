@@ -1,14 +1,7 @@
 tags:
   nginz: true
-  brig: true
-  galley: true
-  gundeck: true
-  cannon: true
-  cargohold: true
-  spar: true
-  federation: true # also see {background-worker,brig,cargohold,galley}.config.enableFederation
+  federation: true 
   backoffice: true
-  proxy: true
   legalhold: false
   sftd: false
   integration: true
@@ -554,11 +547,12 @@ proxy:
   secrets:
     proxy_config: |-
       secrets {
-              youtube    = "..."
-              googlemaps = "..."
-              soundcloud = "..."
-              giphy      = "..."
-              spotify    = "Basic ..."
+          youtube    = "my-youtube-secret"
+          googlemaps = "my-googlemaps-secret"
+          soundcloud = "my-soundcloud-secret"
+          giphy      = "my-giphy-secret"
+          # Base64 encoded client ID and secret: `Bearer id:secret`:
+          spotify    = "my-spotify-secret"
        }
   config:
     disabledAPIVersions: []
@@ -672,6 +666,7 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
+    # See helmfile for the real value
     federationDomain: integration.example.com
     postgresMigration:
       conversation: {{ .Values.conversationStore }}
@@ -690,7 +685,6 @@ background-worker:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
-    pgPassword: "posty-the-gres"
 
 integration:
   ingress:
@@ -741,16 +735,3 @@ backoffice:
       uploadXmlAwsAccessKeyId: {{ .Values.uploadXml.awsAccessKeyId }}
       uploadXmlAwsSecretAccessKey: {{ .Values.uploadXml.awsSecretAccessKey }}
 {{- end }}
-
-proxy:
-  replicaCount: 1
-  secrets:
-    proxy_config: |
-      secrets {
-          youtube    = "my-youtube-secret"
-          googlemaps = "my-googlemaps-secret"
-          soundcloud = "my-soundcloud-secret"
-          giphy      = "my-giphy-secret"
-          # Base64 encoded client ID and secret: `Bearer id:secret`:
-          spotify    = "my-spotify-secret"
-      }

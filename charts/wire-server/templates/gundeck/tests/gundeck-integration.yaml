@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-gundeck-integration"
+  annotations:
+    "helm.sh/hook": test
+spec:
+  volumes:
+    - name: "gundeck-integration"
+      configMap:
+        name: "gundeck-integration"
+    # Used to read some values from the gundeck service
+    - name: "gundeck-config"
+      configMap:
+        name: "gundeck"
+    {{- if eq (include "useCassandraTLS" .Values.gundeck.config.cassandra) "true" }}
+    - name: "gundeck-cassandra"
+      secret:
+        secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
+    {{- end}}
+    {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
+    - name: "redis-ca"
+      secret:
+        secretName: {{ include "gundeck.redisTlsSecretName" .Values.gundeck.config }}
+    {{- end }}
+    {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
+    - name: "rabbitmq-ca"
+      secret:
+        secretName: {{ .Values.gundeck.config.rabbitmq.tlsCaSecretRef.name }}
+    {{- end }}
+  containers:
+  - name: integration
+    # TODO: When deployed to staging (or real AWS env), _all_ tests should be run
+    command: ["gundeck-integration", "--pattern", "!/RealAWS/"]
+    command:
+    - /bin/bash
+    - -c
+    - |
+      set -euo pipefail
+
+      if gundeck-integration --xml "$TEST_XML" --pattern "!/RealAWS/"; then
+        exit_code=$?
+      else
+        exit_code=$?
+      fi
+
+      {{- if .Values.gundeck.tests.config.uploadXml }}
+      # In case a different S3 compliant storage is used to upload test result.
+      if ! [[ -z "${UPLOAD_XML_AWS_ACCESS_KEY_ID+x}" ]]; then
+        export AWS_ACCESS_KEY_ID="$UPLOAD_XML_AWS_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$UPLOAD_XML_AWS_SECRET_ACCESS_KEY"
+      fi
+
+      # The `|| echo ..` ensures that the test isn't seen as failed even if the upload fails.
+      ts=$(date --utc '+%Y%m%d%H%M%S%N')
+      uploadUrl="$UPLOAD_XML_S3_BASE_URL/gundeck-integration/${ts}.xml"
+      echo "Uploading xml result to: $uploadUrl"
+      aws s3 cp "$TEST_XML" "$uploadUrl" || echo "failed to upload result"
+      {{- end }}
+
+      exit $exit_code
+    image: "{{ .Values.gundeck.image.repository }}-integration:{{ .Values.gundeck.image.tag }}"
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+    securityContext:
+      {{- toYaml .Values.gundeck.podSecurityContext | nindent 6 }}
+        {{- end }}
+    volumeMounts:
+    - name: "gundeck-integration"
+      mountPath: "/etc/wire/integration"
+    - name: "gundeck-config"
+      mountPath: "/etc/wire/gundeck/conf"
+    {{- if eq (include "useCassandraTLS" .Values.gundeck.config.cassandra) "true" }}
+    - name: "gundeck-cassandra"
+      mountPath: "/etc/wire/gundeck/cassandra"
+    {{- end }}
+    {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
+    - name: "redis-ca"
+      mountPath: "/etc/wire/gundeck/redis-ca/"
+    {{- end }}
+    {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
+    - name: "rabbitmq-ca"
+      mountPath: "/etc/wire/gundeck/rabbitmq-ca/"
+    {{- end }}
+    env:
+    # these dummy values are necessary for Amazonka's "Discover"
+    - name: AWS_ACCESS_KEY_ID
+      value: "dummy"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "dummy"
+    - name: AWS_REGION
+      value: "eu-west-1"
+    - name: TEST_XML
+      value: /tmp/result.xml
+    # RabbitMQ needs dummy credentials for the tests to run
+    - name: RABBITMQ_USERNAME
+      value: "guest"
+    - name: RABBITMQ_PASSWORD
+      value: "guest"
+    {{- if hasKey .Values.gundeck.secrets "redisUsername" }}
+    - name: REDIS_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: gundeck
+          key: redisUsername
+    {{- end }}
+    {{- if hasKey .Values.gundeck.secrets "redisPassword" }}
+    - name: REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: gundeck
+          key: redisPassword
+    {{- end }}
+    {{- if and (hasKey .Values.gundeck.tests "secrets") (hasKey .Values.gundeck.tests.secrets "redisAdditionalWriteUsername") }}
+    - name: REDIS_ADDITIONAL_WRITE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: gundeck-integration
+          key: redisAdditionalWriteUsername
+    {{- end }}
+    {{- if and (hasKey .Values.gundeck.tests "secrets") (hasKey .Values.gundeck.tests.secrets "redisAdditionalWritePassword") }}
+    - name: REDIS_ADDITIONAL_WRITE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: gundeck-integration
+          key: redisAdditionalWritePassword
+    {{- end }}
+    {{- if .Values.gundeck.tests.config.uploadXml }}
+    - name: UPLOAD_XML_S3_BASE_URL
+      value: {{ .Values.gundeck.tests.config.uploadXml.baseUrl }}
+    {{- if .Values.gundeck.tests.secrets.uploadXmlAwsAccessKeyId }}
+    - name: UPLOAD_XML_AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: gundeck-integration
+          key: uploadXmlAwsAccessKeyId
+    - name: UPLOAD_XML_AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: gundeck-integration
+          key: uploadXmlAwsSecretAccessKey
+    {{- end }}
+    {{- end }}
+  restartPolicy: Never

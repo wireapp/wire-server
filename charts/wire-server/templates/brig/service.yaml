@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: brig
+  labels:
+    app: brig
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    {{- if ge (.Capabilities.KubeVersion.Minor|int) 26 }}
+    service.kubernetes.io/topology-mode: Auto
+    {{- else }}
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.brig.service.externalPort }}
+      targetPort: {{ .Values.brig.service.internalPort }}
+  selector:
+    app: brig
+    release: {{ .Release.Name }}

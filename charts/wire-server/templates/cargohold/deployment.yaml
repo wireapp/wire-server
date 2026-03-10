@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cargohold
+  labels:
+    app: cargohold
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.cargohold.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.cargohold.replicaCount }}
+  selector:
+    matchLabels:
+      app: cargohold
+  template:
+    metadata:
+      labels:
+        app: cargohold
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/cargohold/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/cargohold/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.cargohold.serviceAccount.name }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: cargohold
+      volumes:
+        - name: "cargohold-config"
+          configMap:
+            name: "cargohold"
+        - name: "cargohold-secrets"
+          secret:
+            secretName: "cargohold"
+      containers:
+        - name: cargohold
+          image: "{{ .Values.cargohold.image.repository }}:{{ .Values.cargohold.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.cargohold.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+          securityContext:
+            {{- toYaml .Values.cargohold.podSecurityContext | nindent 12 }}
+        {{- end }}
+          volumeMounts:
+          - name: "cargohold-secrets"
+            mountPath: "/etc/wire/cargohold/secrets"
+          - name: "cargohold-config"
+            mountPath: "/etc/wire/cargohold/conf"
+          env:
+          {{- if hasKey .Values.cargohold.secrets "awsKeyId" }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: cargohold
+                key: awsKeyId
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: cargohold
+                key: awsSecretKey
+          {{- end }}
+          - name: AWS_REGION
+            value: "{{ .Values.cargohold.config.aws.region }}"
+          {{- with .Values.cargohold.config.proxy }}
+          {{- if .httpProxy }}
+          - name: http_proxy
+            value: {{ .httpProxy | quote }}
+          - name: HTTP_PROXY
+            value: {{ .httpProxy | quote }}
+          {{- end }}
+          {{- if .httpsProxy }}
+          - name: https_proxy
+            value: {{ .httpsProxy | quote }}
+          - name: HTTPS_PROXY
+            value: {{ .httpsProxy | quote }}
+          {{- end }}
+          {{- if .noProxyList }}
+          - name: no_proxy
+            value: {{ join "," .noProxyList | quote }}
+          - name: NO_PROXY
+            value: {{ join "," .noProxyList | quote }}
+          {{- end }}
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.cargohold.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.cargohold.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.cargohold.service.internalPort }}
+          resources:
+{{ toYaml .Values.cargohold.resources | indent 12 }}

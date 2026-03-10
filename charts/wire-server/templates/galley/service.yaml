@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: galley
+  labels:
+    app: galley
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    {{- if ge (.Capabilities.KubeVersion.Minor|int) 26 }}
+    service.kubernetes.io/topology-mode: Auto
+    {{- else }}
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.galley.service.externalPort }}
+      targetPort: {{ .Values.galley.service.internalPort }}
+  selector:
+    app: galley
+    release: {{ .Release.Name }}

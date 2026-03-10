@@ -7,7 +7,1360 @@
 
 tags:
   legalhold: false
-  federation: false # see also {background-worker, brig, cargohold, galley}.config.enableFederation
+  federation: false 
   backoffice: false
   mlsstats: false
   integration: false
+
+galley:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/galley
+    tag: do-not-use
+    schemaRepository: quay.io/wire/galley-schema
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "100Mi"
+      cpu: "100m"
+    limits:
+      memory: "500Mi"
+  # This is not supported for production use, only here for testing:
+  # preStop:
+  #  exec:
+  #   command: ["sh", "-c", "curl http://acme.example"]
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    enableFederation: false # keep in sync with background-worker, brig and cargohold charts' config.enableFederation as well as wire-server chart's tags.federation
+    cassandra:
+      host: aws-cassandra
+      replicaCount: 3
+    #   To enable TLS provide a CA:
+    #   tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    #   Or refer to an existing secret (containing the CA):
+    #   tlsCaSecretRef:
+    #     name: <secret-name>
+    #     key: <ca-attribute>
+
+    # Postgres connection settings
+    #
+    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    # To set the password via a brig secret see `secrets.pgPassword`.
+    #
+    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+    # additional files (e.g. certificates) into the galley container. This way
+    # does not work for password files (parameter `passfile`), because
+    # libpq-connect requires access rights (mask 0600) for them that we cannot
+    # provide for random uids.
+    #
+    # Below is an example configuration we're using for our CI tests.
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
+
+    # Not used if enableFederation is false
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+      enableTls: false
+      insecureSkipVerifyTls: false
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+
+    postgresMigration:
+      conversation: cassandra
+      conversationCodes: cassandra
+      teamFeatures: cassandra
+    settings:
+      httpPoolSize: 128
+      maxTeamSize: 10000
+      exposeInvitationURLsTeamAllowlist: []
+      maxConvSize: 500
+      intraListing: true
+      # Either `conversationCodeURI` or `multiIngress` must be set
+      #
+      # `conversationCodeURI` is the URI prefix for conversation invitation links
+      # It should be of form https://{ACCOUNT_PAGES}/conversation-join/
+      conversationCodeURI: null
+      #
+      # `multiIngress` is a `Z-Host` depended setting of conversationCodeURI.
+      # Use this only if you want to expose the instance on multiple ingresses.
+      # If set it must a map from `Z-Host` to URI prefix
+      # Example:
+      # multiIngress:
+      #    wire.example: https://accounts.wire.example/conversation-join/
+      #    example.net: https://accounts.example.net/conversation-join/
+      multiIngress: null
+      # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+      # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+      disabledAPIVersions: [development]
+      # The lifetime of a conversation guest link in seconds. Must be a value 0 < x <= 31536000 (365 days)
+      # Default is 31536000 (365 days) if not set
+      guestLinkTTLSeconds: 31536000
+      passwordHashingOptions:
+        algorithm: scrypt # or argon2id
+        # When algorithm is argon2id, these can be configured:
+        # iterations: <iterations>
+        # parallelism: <paralellism>
+        # memory: <memory used in KiB>
+      passwordHashingRateLimit:
+        ipAddrLimit:
+          burst: 5
+          inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+        userLimit:
+          burst: 5
+          inverseRate: 60000000 # 1 min, makes it 60 req/hour
+        internalLimit:
+          burst: 10
+          inverseRate: 0 # No rate limiting for internal use
+        ipv4CidrBlock: 32 # Only block individual IP addresses
+        ipv6CidrBlock: 64 # Block /64 range at a time.
+        ipAddressExceptions: []
+        maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+
+      checkGroupInfo: false
+
+      meetings:
+        validityPeriod: "48h"
+
+      # To disable proteus for new federated conversations:
+      # federationProtocols: ["mls"]
+
+      featureFlags: # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
+        appLock:
+          defaults:
+            config:
+              enforceAppLock: false
+              inactivityTimeoutSecs: 60
+            status: enabled
+        classifiedDomains:
+          config:
+            domains: []
+          status: disabled
+        conferenceCalling:
+          defaults:
+            status: enabled
+            lockStatus: locked
+        conversationGuestLinks:
+          defaults:
+            lockStatus: unlocked
+            status: enabled
+        fileSharing:
+          defaults:
+            lockStatus: unlocked
+            status: enabled
+        enforceFileDownloadLocation:
+          defaults:
+            lockStatus: locked
+            status: disabled
+            config: {}
+        legalhold: disabled-by-default
+        mls:
+          defaults:
+            status: disabled
+            config:
+              protocolToggleUsers: []
+              defaultProtocol: proteus
+              allowedCipherSuites: [2]
+              defaultCipherSuite: 2
+              supportedProtocols: [proteus, mls] # must contain defaultProtocol
+              groupInfoDiagnostics: false
+            lockStatus: unlocked
+        searchVisibilityInbound:
+          defaults:
+            status: disabled
+        selfDeletingMessages:
+          defaults:
+            config:
+              enforcedTimeoutSeconds: 0
+            lockStatus: unlocked
+            status: enabled
+        sndFactorPasswordChallenge:
+          defaults:
+            lockStatus: locked
+            status: disabled
+        sso: disabled-by-default
+        teamSearchVisibility: disabled-by-default
+        validateSAMLEmails:
+          defaults:
+            status: enabled
+        outlookCalIntegration:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        mlsE2EId:
+          defaults:
+            status: disabled
+            config:
+              verificationExpiration: 86400
+              acmeDiscoveryUrl: null
+            lockStatus: unlocked
+        mlsMigration:
+          defaults:
+            status: disabled
+            config:
+              startTime: null # "2029-05-16T10:11:12.123Z"
+              finaliseRegardlessAfter: null # "2029-10-17T00:00:00.000Z"
+              usersThreshold: 100
+              clientsThreshold: 100
+            lockStatus: locked
+        limitedEventFanout:
+          defaults:
+            status: disabled
+        domainRegistration:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        channels:
+          defaults:
+            status: disabled
+            config:
+              allowed_to_create_channels: team-members
+              allowed_to_open_channels: team-members
+            lockStatus: locked
+        cells:
+          defaults:
+            status: disabled
+            lockStatus: locked
+            config:
+              channels:
+                enabled: true
+                default: enabled
+              groups:
+                enabled: true
+                default: enabled
+              one2one:
+                enabled: true
+                default: enabled
+              users:
+                externals: true
+                guests: false
+              collabora:
+                enabled: false
+              publicLinks:
+                enableFiles: true
+                enableFolders: true
+                enforcePassword: false
+                enforceExpirationMax: 0
+                enforceExpirationDefault: 0
+              storage:
+                perFileQuotaBytes: "100000000"
+                recycle:
+                  autoPurgeDays: 30
+                  disable: false
+                  allowSkip: false
+              metadata:
+                namespaces:
+                  usermetaTags:
+                    defaultValues: []
+                    allowFreeValues: true
+        cellsInternal:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+            config:
+              backend:
+                url: https://cells-beta.wire.com
+              collabora:
+                edition: COOL
+              storage:
+                perUserQuotaBytes: "1000000000000"
+        allowedGlobalOperations:
+          status: enabled
+          config:
+            mlsConversationReset: false
+        assetAuditLog:
+          status: disabled
+        consumableNotifications:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        chatBubbles:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        apps:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        simplifiedUserConnectionRequestQRCode:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+        stealthUsers:
+          defaults:
+            status: disabled
+            lockStatus: locked
+        meetings:
+          defaults:
+            status: enabled
+            lockStatus: unlocked
+        meetingsPremium:
+          defaults:
+            status: disabled
+            lockStatus: locked
+    aws:
+      region: "eu-west-1"
+    proxy: {}
+  serviceAccount:
+    # When setting this to 'false', either make sure that a service account named
+    # 'galley' exists or change the 'name' field to 'default'
+    create: true
+    name: galley
+    annotations: {}
+    automountServiceAccountToken: true
+
+  secrets: {}
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  tests:
+    config:
+      {}
+      # uploadXml:
+      #   baseUrl: s3://bucket/path/
+
+    secrets:
+      # uploadXmlAwsAccessKeyId: <key-id>
+      # uploadXmlAwsSecretAccessKey: <secret>
+
+      # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
+      providerPrivateKey: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw
+        /feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o
+        dmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKVVPOaOzgtAB21XKRiQ4ermqgi3/nj
+        r03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiSbUKr/BeArYRcjzr/h5m1In6fG/if
+        9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg87X883H+LA/d6X5CTiPv1VMxXdBUi
+        GPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7lanQIDAQABAoIBAQC0doVy7zgpLsBv
+        Sz0AnbPe1pjxEwRlntRbJSfSULySALqJvs5s4adSVGUBHX3z/LousAP1SRpCppuU
+        8wrLBFgjQVlaAzyQB84EEl+lNtrG8Jrvd2es9R/4sJDkqy50+yuPN5wnzWPFIjhg
+        3jP5CHDu29y0LMzsY5yjkzDe9B0bueXEZVU+guRjhpwHHKOFeAr9J9bugFUwgeAr
+        jF0TztzFAb0fsUNPiQAho1J5PyjSVgItaPfAPv/p30ROG+rz+Rd5NSSvBC5F+yOo
+        azb84zzwCg/knAfIz7SOMRrmBh2qhGZFZ8gXdq65UaYv+cpT/qo28mpAT2vOkyeD
+        aPZp0ysBAoGBAOQROoDipe/5BTHBcXYuUE1qa4RIj3wgql5I8igXr4K6ppYBmaOg
+        DL2rrnqD86chv0P4l/XOomKFwYhVGXtqRkeYnk6mQXwNVkgqcGbY5PSNyMg5+ekq
+        jSOOPHGzzTWKzYuUDUpB/Lf6jbTv8fq2GYW3ZYiqQ/xiugOvglZrTE7NAoGBANLl
+        irjByfxAWGhzCrDx0x5MBpsetadI9wUA8u1BDdymsRg73FDn3z7NipVUAMDXMGVj
+        lqbCRlHESO2yP4GaPEA4FM+MbTZSuhAYV+SY07mEPLHF64/nJas83Zp91r5rhaqJ
+        L9rWCl3KJ5OUnr3YizCnHIW72FxjwtpjxHJLupsRAoGAGIbhy8qUHeKh9F/hW9xP
+        NoQjW+6Rv7+jktA1eqpRbbW1BJzXcQldVWiJMxPNuEOg1iZ98SlvvTi1P3wnaWZc
+        eIapP7wRfs3QYaJuxCC/Pq2g0ieqALFazGAXkALOJtvujvw1Ea9XBlIjuzmyxEuh
+        Iwg+Gxx0g0f6yTquwax4YGECgYEAnpAK3qKFNO1ECzQDo8oNy0ep59MNDPtlDhQK
+        katJus5xdCD9oq7TQKrVOTTxZAvmzTQ1PqfuqueDVYOhD9Zg2n/P1cRlEGTek99Z
+        pfvppB/yak6+r3FA9yBKFS/r1zuMQg3nNweav62QV/tz5pT7AdeDMGFtaPlwtTYx
+        qyWY5aECgYBPySbPccNj+xxQzxcti2y/UXjC04RgOA/Hm1D0exa0vBqS9uxlOdG8
+        F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc
+        Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==
+        -----END RSA PRIVATE KEY-----
+      providerPublicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0
+        G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH
+        WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV
+        VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS
+        bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8
+        7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
+        nQIDAQAB
+        -----END PUBLIC KEY-----
+      providerPublicCert: |
+        -----BEGIN CERTIFICATE-----
+        MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
+        RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
+        cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW
+        EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy
+        WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs
+        aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x
+        HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB
+        AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A
+        QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP
+        wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua
+        qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi
+        fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU
+        zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN
+        AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog
+        BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v
+        OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY
+        XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+
+        hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
+        T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
+        -----END CERTIFICATE-----
+
+cargohold:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/cargohold
+    tag: do-not-use
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  imagePullPolicy: ""
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "80Mi"
+      cpu: "100m"
+    limits:
+      memory: "200Mi"
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    enableFederation: false # keep in sync with background-worker, brig and galley charts' config.enableFederation as well as wire-server chart's tags.federation
+    aws:
+      region: "eu-west-1"
+      s3Bucket: assets
+      # Multi-ingress configuration:
+      # multiIngress:
+      #   - nginz-https.red.wire.example: assets.red.wire.example
+      #   - nginz-https.green.wire.example: assets.green.wire.example
+    proxy: {}
+    settings:
+      maxTotalBytes: 104857632 # limit to 100 MiB + 32 bytes
+      maxTotalBytesStrict: 26214432 # limit to 25 MiB + 32 bytes
+      downloadLinkTTL: 300 # Seconds
+      assetAuditLogEnabled: false
+      # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+      # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+      disabledAPIVersions: [development]
+  serviceAccount:
+    # When setting this to 'false', either make sure that a service account named
+    # 'cargohold' exists or change the 'name' field to 'default'
+    create: true
+    name: cargohold
+    annotations: {}
+    automountServiceAccountToken: true
+  secrets: {}
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  tests:
+    config: {}
+    # config:
+    #   uploadXml:
+    #     baseUrl: s3://bucket/path/
+    # secrets:
+    #   uploadXmlAwsAccessKeyId: <key-id>
+    #   uploadXmlAwsSecretAccessKey: <secret>
+
+cannon:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/cannon
+    tag: do-not-use
+    pullPolicy: IfNotPresent
+  # Optional extra arguments passed to cannon (e.g. ["+RTS", "-M2g", "-RTS"])
+  cannonArgs: []
+  nginzImage:
+    repository: quay.io/wire/nginz
+    tag: do-not-use
+    pullPolicy: IfNotPresent
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+      enableTls: false
+      insecureSkipVerifyTls: false
+    rabbitMqMaxConnections: 1000
+    rabbitMqMaxChannels: 300
+    cassandra:
+      host: aws-cassandra
+      # To enable TLS provide a CA:
+      # tlsCa: <CA in PEM format (can be self-signed)>
+      #
+      # Or refer to an existing secret (containing the CA):
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+
+    # See also the section 'Controlling the speed of websocket draining during
+    # cannon pod replacement' in docs/how-to/install/configuration-options.rst
+    drainOpts:
+      # The following drains a minimum of 400 connections/second
+      # for a total of 10000 over 25 seconds
+      # (if cannon holds more connections, draining will happen at a faster pace)
+      gracePeriodSeconds: 25
+      millisecondsBetweenBatches: 50
+      minBatchSize: 20
+
+    # TTL of stored notifications in Seconds. After this period, notifications
+    # will be deleted and thus not delivered.
+    # The default is 28 days.
+    notificationTTL: 2419200
+
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    disabledAPIVersions: [development]
+
+  metrics:
+    serviceMonitor:
+      enabled: false
+
+  nginx_conf:
+    zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
+    zauth_acl: /etc/wire/nginz/conf/zauth.acl
+    worker_processes: auto
+    worker_rlimit_nofile: 131072
+    worker_connections: 65536
+    disabled_paths: []
+    rate_limit_reqs_per_user: "10r/s"
+    rate_limit_reqs_per_addr: "5r/m"
+    user_rate_limit_request_zones: []
+
+    tls:
+      protocols: TLSv1.2 TLSv1.3
+      # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
+      # For TR-02102-2 see https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+      # As a Wire employee, for Wire-internal discussions and context see
+      # * https://wearezeta.atlassian.net/browse/FS-33
+      # * https://wearezeta.atlassian.net/browse/FS-444
+      ciphers_tls12: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+      ciphers_tls13: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
+
+    # The origins from which we allow CORS requests. These are combined with
+    # 'external_env_domain' and 'additional_external_env_domains' to form a full
+    # url.
+    allowlisted_origins:
+      - webapp
+      - teams
+      - account
+
+    # The origins from which we allow CORS requests at random ports. This is
+    # useful for testing with HTTP proxies and should not be used in production.
+    # The list entries must be full hostnames (they are **not** combined with
+    # 'external_env_domain'). http and https URLs are allow listed.
+    randomport_allowlisted_origins: [] # default is empty by intention
+
+    # Configure multiple root domains for one backend. This is only advised in
+    # very specicial cases. Usually, this list should be empty.
+    additional_external_env_domains: []
+
+    # Setting this value does nothing as the only upstream recongnized here is
+    # 'cannon' and is forwarded to localhost. This is here only to make sure that
+    # nginx.conf templating doesn't differ too much with the one in nginz helm
+    # chart.
+    upstream_namespace: {}
+
+    # Only upstream recognized by the generated nginx config is 'cannon', the
+    # server for this will be cannon running on localhost. This setting is like
+    # this so that templating for nginx.conf doesn't differ too much from the one
+    # in the nginz helm chart.
+    upstreams:
+      cannon:
+        - path: /await
+          envs:
+            - all
+          use_websockets: true
+        - path: /websocket
+          envs:
+            - all
+          use_websockets: true
+        - path: /events
+          envs:
+            - all
+          use_websockets: true
+
+  # FUTUREWORK: allow resources for cannon and nginz to be different
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1024Mi"
+  service:
+    name: cannon
+    internalPort: 8080
+    externalPort: 8080
+    nginz:
+      # Enable this only if service of `type: LoadBalancer` can work in your K8s
+      # cluster.
+      enabled: false
+      # hostname: # Needed when using either externalDNS or certManager
+      name: cannon-nginz
+      internalPort: 8443
+      externalPort: 443
+      annotations: {}
+      tls:
+        secretName: cannon-nginz-cert
+      externalDNS:
+        enabled: false
+        ttl: "10m"
+      certManager:
+        # When certManager is not enabled, certificates must be provided at
+        # .secrets.nginz.tls.crt and .secrets.nginz.tls.key.
+        enabled: false
+        certificate:
+          name: cannon-nginz
+        issuer:
+          name: letsencrypt
+          kind: ClusterIssuer
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  # nodeSelector:
+  #   wire.com/role: cannon
+  nodeSelector: {}
+
+  # affinity:
+  #   nodeAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       nodeSelectorTerms:
+  #       - matchExpressions:
+  #         - key: wire.com/role
+  #           operator: In
+  #           values:
+  #           - cannon
+  affinity: {}
+
+  # tolerations:
+  # - key: "wire.com/role"
+  #   operator: "Equal"
+  #   value: "cannon"
+  #   effect: "NoSchedule"
+  tolerations: []
+
+proxy:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/proxy
+    tag: do-not-use
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  imagePullPolicy: ""
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "25Mi"
+      cpu: "50m"
+    limits:
+      memory: "50Mi"
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    proxy: {}
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    disabledAPIVersions: [development]
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  secrets: {}
+
+gundeck:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/gundeck
+    tag: do-not-use
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  imagePullPolicy: ""
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "300Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+
+  # Should be greater than Warp's graceful shutdown (default 30s).
+  terminationGracePeriodSeconds: 40
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+      enableTls: false
+      insecureSkipVerifyTls: false
+    cassandra:
+      host: aws-cassandra
+      # To enable TLS provide a CA:
+      # tlsCa: <CA in PEM format (can be self-signed)>
+      #
+      # Or refer to an existing secret (containing the CA):
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+    redis:
+      host: redis-ephemeral
+      port: 6379
+      connectionMode: "master" # master | cluster
+      enableTls: false
+      insecureSkipVerifyTls: false
+      # To configure custom TLS CA, please provide one of these:
+      # tlsCa: <CA in PEM format (can be self-signed)>
+      #
+      # Or refer to an existing secret (containing the CA):
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+
+    # To enable additional writes during a migration:
+    # redisAdditionalWrite:
+    #   host: redis-two
+    #   port: 6379
+    #   connectionMode: master
+    #   enableTls: false
+    #   insecureSkipVerifyTls: false
+    #
+    # # To configure custom TLS CA, please provide one of these:
+    # # tlsCa: <CA in PEM format (can be self-signed)>
+    # #
+    # # Or refer to an existing secret (containing the CA):
+    # # tlsCaSecretRef:
+    # #   name: <secret-name>
+    # #   key: <ca-attribute>
+    aws:
+      region: "eu-west-1"
+    proxy: {}
+    # perNativePushConcurrency: 32
+    maxConcurrentNativePushes:
+      soft: 1000
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    disabledAPIVersions: [development]
+
+    # Maximum number of bytes loaded into memory when fetching (referenced) payloads.
+    # Gundeck will return a truncated page if the whole page's payload sizes would exceed this limit in total.
+    # Inlined payloads can cause greater payload sizes to be loaded into memory regardless of this setting.
+    # Tune this to trade off memory usage VS number of requests for gundeck workers.
+    maxPayloadLoadSize: 5242880
+    # Cassandra page size for fetching notifications. Does not directly effect the
+    # page size request in the client API. A lower number will reduce the amount
+    # by which setMaxPayloadLoadSize is exceeded when loading notifications from
+    # the database if notifications have inlined payloads.
+    internalPageSize: 100
+
+    # TTL of stored notifications in Seconds. After this period, notifications
+    # will be deleted and thus not delivered.
+    # The default is 28 days.
+    notificationTTL: 2419200
+
+    # To enable cells notifications
+    # cellsEventQueue: cells_events
+
+  serviceAccount:
+    # When setting this to 'false', either make sure that a service account named
+    # 'gundeck' exists or change the 'name' field to 'default'
+    create: true
+    name: gundeck
+    annotations: {}
+    automountServiceAccountToken: true
+
+  secrets: {}
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  tests:
+    config: {}
+    # config:
+    #   uploadXml:
+    #     baseUrl: s3://bucket/path/
+    # secrets:
+    #   uploadXmlAwsAccessKeyId: <key-id>
+    #   uploadXmlAwsSecretAccessKey: <secret>
+
+spar:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/spar
+    tag: do-not-use
+  imagePullPolicy: ""
+  metrics:
+    serviceMonitor:
+      enabled: false
+  resources:
+    requests:
+      memory: "100Mi"
+      cpu: "50m"
+    limits:
+      memory: "200Mi"
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  config:
+    cassandra:
+      host: aws-cassandra
+      # To enable TLS provide a CA:
+      # tlsCa: <CA in PEM format (can be self-signed)>
+      #
+      # Or refer to an existing secret (containing the CA):
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+    richInfoLimit: 5000
+    maxScimTokens: 0
+
+    # Enables the `/sso/get-by-email` endpoint which returns the matching IdP for
+    # an email address of a team member.
+    enableIdPByEmailDiscovery: false
+
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    maxttlAuthreq: 7200
+    maxttlAuthresp: 7200
+    proxy: {}
+
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    disabledAPIVersions: [development]
+
+    # SAML - ServiceProvider configuration
+    # Usually, one would configure one set of options for a single domain. For
+    # multi-ingress setups (one backend is available through multiple domains),
+    # configure a map with the nginz domain as key.
+    #
+    # Single domain configuration
+    # appUri: <webapp-uri> # E.g. https://webapp.<domain>
+    # ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+    # contacts:
+    #   - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+    #     company: <company-name> # Optional
+    #     email: <contact-email-address> # Optional
+    #     givenName: <name> # Optional
+    #     surname: <name> # Optional
+    #     phone: <phone-number-string> # Optional
+    #
+    # Multi-ingress configuration
+    # domainConfigs:
+    #   <domain1>: # The domain of the incoming nginz-https host. E.g. nginz-https.<domain>
+    #     appUri: <webapp-uri> # E.g. https://webapp.<domain>
+    #     ssoUri: <service-provider-uri> # E.g. https://nginz-https.<domain>/sso
+    #     contacts:
+    #       - type: <contact-type> # One of ContactTechnical, ContactSupport, ContactAdministrative, ContactBilling, ContactOther
+    #         company: <company-name> # Optional
+    #         email: <contact-email-address> # Optional
+    #         givenName: <name> # Optional
+    #         surname: <name> # Optional
+    #         phone: <phone-number-string> # Optional
+    #   <domain2>:
+    #     ...
+
+    # SCIM base URI (by default deduced from single-domain spSsoUri, must be set
+    # for multi-ingress)
+    # scimBaseUri: <uri>
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  tests:
+    config: {}
+    # config:
+    #   uploadXml:
+    #     baseUrl: s3://bucket/path/
+    # secrets:
+    #   uploadXmlAwsAccessKeyId: <key-id>
+    #   uploadXmlAwsSecretAccessKey: <secret>
+
+background-worker:
+  replicaCount: 1
+  image:
+    repository: quay.io/wire/background-worker
+    tag: do-not-use
+  service:
+    internalPort: 8080
+    externalPort: 8080
+  # FUTUREWORK: Review these values when we have some experience
+  resources:
+    requests:
+      memory: "200Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+  metrics:
+    serviceMonitor:
+      enabled: false
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    enableFederation: false # keep in sync with brig, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
+    brig:
+      host: brig
+      port: 8080
+    galley:
+      host: galley
+      port: 8080
+    gundeck:
+      host: gundeck
+      port: 8080
+    federatorInternal:
+      host: federator
+      port: 8080
+    spar:
+      host: spar
+      port: 8080
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+      adminPort: 15672
+      enableTls: false
+      insecureSkipVerifyTls: false
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+    # Cassandra clusters used by background-worker
+    cassandra:
+      host: aws-cassandra
+    cassandraGalley:
+      host: aws-cassandra
+    cassandraBrig:
+      host: aws-cassandra
+
+    # Postgres connection settings
+    #
+    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    # To set the password via a brig secret see `secrets.pgPassword`.
+    #
+    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+    # additional files (e.g. certificates) into the brig container. This way
+    # does not work for password files (parameter `passfile`), because
+    # libpq-connect requires access rights (mask 0600) for them that we cannot
+    # provide for random uids.
+    #
+    # Below is an example configuration we're using for our CI tests.
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 5
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
+
+    # Setting this to `true` will start conversation migration to postgresql.
+    #
+    # NOTE: It is very important that galley be configured to with
+    # `settings.postgresMigration.conversation` with `migration-to-postgresql`
+    # before setting this to `true`.
+    migrateConversations: false
+    migrateConversationsOptions:
+      pageSize: 10000
+      parallelism: 2
+    # This will start the migration of conversation codes.
+    # It's important to set `settings.postgresMigration.conversationCodes` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateConversationCodes: false
+    # This will start the migration of team features.
+    # It's important to set `settings.postgresMigration.teamFeatures` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateTeamFeatures: false
+
+    backendNotificationPusher:
+      pushBackoffMinWait: 10000 # in microseconds, so 10ms
+      pushBackoffMaxWait: 300000000 # microseconds, so 300s
+      remotesRefreshInterval: 300000000 # microseconds, so 300s
+
+    # Background jobs consumer configuration
+    backgroundJobs:
+      # Maximum number of in-flight jobs per process
+      concurrency: 8
+      # Per-attempt timeout in seconds
+      jobTimeout: 60s
+      # Total attempts, including the first try
+      maxAttempts: 3
+
+    # Controls where conversation data is stored/accessed
+    postgresMigration:
+      conversation: cassandra
+      conversationCodes: cassandra
+      teamFeatures: cassandra
+
+  secrets:
+    {}
+    # pgPassword: <postgres-password>
+
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+brig:
+  replicaCount: 3
+  image:
+    repository: quay.io/wire/brig
+    tag: do-not-use
+  service:
+    externalPort: 8080
+    internalPort: 8080
+  resources:
+    requests:
+      memory: "200Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+  metrics:
+    serviceMonitor:
+      enabled: false
+  livenessProbe:
+    # Maximum allowed network connections before forcing restart (mitigates connection/memory leaks)
+    maxConnections: 500
+  # This is not supported for production use, only here for testing:
+  # preStop:
+  #  exec:
+  #   command: ["sh", "-c", "curl http://acme.example"]
+  config:
+    logLevel: Info
+    logFormat: StructuredJSON
+    logNetStrings: false
+    cassandra:
+      host: aws-cassandra
+    #   To enable TLS provide a CA:
+    #   tlsCa: <CA in PEM format (can be self-signed)>
+    #
+    #   Or refer to an existing secret (containing the CA):
+    #   tlsCaSecretRef:
+    #     name: <secret-name>
+    #     key: <ca-attribute>
+  
+    elasticsearch:
+      scheme: http
+      host: elasticsearch-client
+      port: 9200
+      index: directory
+      insecureSkipVerifyTls: false
+      #   To configure custom TLS CA, please provide one of these:
+      #   tlsCa: <CA in PEM format (can be self-signed)>
+      #
+      #   Or refer to an existing secret (containing the CA):
+      #   tlsCaSecretRef:
+      #     name: <secret-name>
+      #     key: <ca-attribute>
+      additionalWriteScheme: http
+      # additionalWriteHost: <host>
+      additionalWritePort: 9200
+      # additionalWriteIndex: <index>
+      additionalInsecureSkipVerifyTls: false
+    #   To configure custom TLS CA, please provide one of these:
+    #   additionalTlsCa: <CA in PEM format (can be self-signed)>
+    #
+    #   Or refer to an existing secret (containing the CA):
+    #   additionalTlsCaSecretRef:
+    #     name: <secret-name>
+    #     key: <ca-attribute>
+    aws:
+      region: "eu-west-1"
+      sesEndpoint: https://email.eu-west-1.amazonaws.com
+      sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
+      # dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
+    # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
+    randomPrekeys: true
+    useSES: true
+    multiSFT:
+      enabled: false # keep multiSFT default in sync with sft chart's multiSFT.enabled
+    enableFederation: false # keep in sync with background-worker, cargohold and galley charts' config.enableFederation as well as wire-server chart's tags.federation
+    rabbitmq:
+      host: rabbitmq
+      port: 5672
+      vHost: /
+      enableTls: false
+      insecureSkipVerifyTls: false
+      # tlsCaSecretRef:
+      #   name: <secret-name>
+      #   key: <ca-attribute>
+  
+    # Postgres connection settings
+    #
+    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    # To set the password via a brig secret see `secrets.pgPassword`.
+    #
+    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+    # additional files (e.g. certificates) into the brig container. This way
+    # does not work for password files (parameter `passfile`), because
+    # libpq-connect requires access rights (mask 0600) for them that we cannot
+    # provide for random uids.
+    #
+    # Below is an example configuration we're using for our CI tests.
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
+  
+    emailSMS:
+      general:
+        templateBranding:
+          brand: Wire
+          brandUrl: https://wire.com
+          brandLabelUrl: wire.com
+          brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+          brandService: Wire Service Provider
+          copyright: © WIRE SWISS GmbH
+          misuse: misuse@wire.com
+          legal: https://wire.com/legal/
+          forgot: https://wire.com/forgot/
+          support: https://support.wire.com/
+    authSettings:
+      keyIndex: 1
+      userTokenTimeout: 4838400
+      sessionTokenTimeout: 86400
+      accessTokenTimeout: 900
+      providerTokenTimeout: 900
+      legalholdUserTokenTimeout: 4838400
+      legalholdAccessTokenTimeout: 900
+    # sft:
+    #   sftBaseDomain: sft.wire.example.com
+    #   sftSRVServiceName: sft
+    #   sftDiscoveryIntervalSeconds: 10
+    #   sftListLength: 20
+    #   sftToken:
+    #     ttl: 120
+    #     secret: /etc/wire/brig/secrets/sftTokenSecret # this is the default path for secret.sftTokenSecret
+    optSettings:
+      setActivationTimeout: 1209600
+      setTeamInvitationTimeout: 1814400
+      setUserMaxConnections: 1000
+      setCookieInsecure: false
+      setUserCookieRenewAge: 1209600
+      setUserCookieLimit: 32
+      setUserCookieThrottle:
+        stdDev: 3000
+        retryAfter: 86400
+      setRichInfoLimit: 5000
+      setDefaultUserLocale: en
+      setMaxTeamSize: 10000
+      setMaxConvSize: 500
+      # Allowed values: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306
+      # Description: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299
+      setEmailVisibility: visible_to_self
+      setPropertyMaxKeyLen: 1024
+      setPropertyMaxValueLen: 524288
+      setDeleteThrottleMillis: 100
+      # Allow search within same team only. Default: false
+      # setSearchSameTeamOnly: false|true
+      # Set max number of user clients. Default: 7
+      # setUserMaxPermClients: <int>
+      # Customer extensions.  If this is not part of your contract with wire, use at your own risk!
+      # Details: https://github.com/wireapp/wire-server/blob/3d5684023c54fe580ab27c11d7dae8f19a29ddbc/services/brig/src/Brig/Options.hs#L465-L503
+      # setCustomerExtensions:
+      #   domainsBlockedForRegistration:
+      #   - wire.example
+      set2FACodeGenerationDelaySecs: 300 # 5 minutes
+      setNonceTtlSecs: 300 # 5 minutes
+      setDpopMaxSkewSecs: 1
+      setDpopTokenExpirationTimeSecs: 300 # 5 minutes
+      setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+      setOAuthAccessTokenExpirationTimeSecs: 900 # 15 minutes
+      setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+      setOAuthEnabled: true
+      setOAuthMaxActiveRefreshTokens: 10
+      # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+      # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+      setDisabledAPIVersions: [development]
+      setFederationStrategy: allowNone
+      setFederationDomainConfigsUpdateFreq: 10
+      setPasswordHashingOptions:
+        algorithm: scrypt # or argon2id
+        # When algorithm is argon2id, these can be configured:
+        # iterations: <iterations>
+        # parallelism: <paralellism>
+        # memory: <memory used in KiB>
+      setPasswordHashingRateLimit:
+        ipAddrLimit:
+          burst: 5
+          inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+        userLimit:
+          burst: 5
+          inverseRate: 60000000 # 1 min, makes it 60 req/hour
+        internalLimit:
+          burst: 10
+          inverseRate: 0 # No rate limiting for internal use
+        ipv4CidrBlock: 32 # Only block individual IP addresses
+        ipv6CidrBlock: 64 # Block /64 range at a time.
+        ipAddressExceptions: []
+        maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+      # setAuditLogEmailRecipient: security@wire.com
+      setEphemeralUserCreationEnabled: true
+  
+    smtp:
+      passwordFile: /etc/wire/brig/secrets/smtp-password.txt
+    proxy: {}
+    wireServerEnterprise:
+      enabled: false
+  
+  turnStatic:
+    v1:
+      - turn:localhost:3478
+    v2:
+      - turn:localhost:3478
+      - turn:localhost:3478?transport=tcp
+  
+  turn:
+    serversSource: files # files | dns
+    # baseDomain: turn.wire.example # Must be configured if serversSource is dns
+    discoveryIntervalSeconds: 10 # Used only if serversSource is dns
+  
+  serviceAccount:
+    # When setting this to 'false', either make sure that a service account named
+    # 'brig' exists or change the 'name' field to 'default'
+    create: true
+    name: brig
+    annotations: {}
+    automountServiceAccountToken: true
+  
+  secrets: {}
+  
+  podSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  tests:
+    config:
+      {}
+      # uploadXml:
+      #   baseUrl: s3://bucket/path/
+  
+    secrets:
+      # uploadXmlAwsAccessKeyId: <key-id>
+      # uploadXmlAwsSecretAccessKey: <secret>
+  
+      # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
+      providerPrivateKey: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpAIBAAKCAQEAu+Kg/PHHU3atXrUbKnw0G06FliXcNt3lMwl2os5twEDcPPFw
+        /feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPHWvUBdiLfGrZqJO223DB6D8K2Su/o
+        dmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKVVPOaOzgtAB21XKRiQ4ermqgi3/nj
+        r03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiSbUKr/BeArYRcjzr/h5m1In6fG/if
+        9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg87X883H+LA/d6X5CTiPv1VMxXdBUi
+        GPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7lanQIDAQABAoIBAQC0doVy7zgpLsBv
+        Sz0AnbPe1pjxEwRlntRbJSfSULySALqJvs5s4adSVGUBHX3z/LousAP1SRpCppuU
+        8wrLBFgjQVlaAzyQB84EEl+lNtrG8Jrvd2es9R/4sJDkqy50+yuPN5wnzWPFIjhg
+        3jP5CHDu29y0LMzsY5yjkzDe9B0bueXEZVU+guRjhpwHHKOFeAr9J9bugFUwgeAr
+        jF0TztzFAb0fsUNPiQAho1J5PyjSVgItaPfAPv/p30ROG+rz+Rd5NSSvBC5F+yOo
+        azb84zzwCg/knAfIz7SOMRrmBh2qhGZFZ8gXdq65UaYv+cpT/qo28mpAT2vOkyeD
+        aPZp0ysBAoGBAOQROoDipe/5BTHBcXYuUE1qa4RIj3wgql5I8igXr4K6ppYBmaOg
+        DL2rrnqD86chv0P4l/XOomKFwYhVGXtqRkeYnk6mQXwNVkgqcGbY5PSNyMg5+ekq
+        jSOOPHGzzTWKzYuUDUpB/Lf6jbTv8fq2GYW3ZYiqQ/xiugOvglZrTE7NAoGBANLl
+        irjByfxAWGhzCrDx0x5MBpsetadI9wUA8u1BDdymsRg73FDn3z7NipVUAMDXMGVj
+        lqbCRlHESO2yP4GaPEA4FM+MbTZSuhAYV+SY07mEPLHF64/nJas83Zp91r5rhaqJ
+        L9rWCl3KJ5OUnr3YizCnHIW72FxjwtpjxHJLupsRAoGAGIbhy8qUHeKh9F/hW9xP
+        NoQjW+6Rv7+jktA1eqpRbbW1BJzXcQldVWiJMxPNuEOg1iZ98SlvvTi1P3wnaWZc
+        eIapP7wRfs3QYaJuxCC/Pq2g0ieqALFazGAXkALOJtvujvw1Ea9XBlIjuzmyxEuh
+        Iwg+Gxx0g0f6yTquwax4YGECgYEAnpAK3qKFNO1ECzQDo8oNy0ep59MNDPtlDhQK
+        katJus5xdCD9oq7TQKrVOTTxZAvmzTQ1PqfuqueDVYOhD9Zg2n/P1cRlEGTek99Z
+        pfvppB/yak6+r3FA9yBKFS/r1zuMQg3nNweav62QV/tz5pT7AdeDMGFtaPlwtTYx
+        qyWY5aECgYBPySbPccNj+xxQzxcti2y/UXjC04RgOA/Hm1D0exa0vBqS9uxlOdG8
+        F47rKenpBrslvdfTVsCDB1xyP2ebWVzp6EqMycw6OLPxgo3fBfZ4pi6P+rByh0Cc
+        Lhfh+ET0CPnKCxtop3lUrn4ZvqchS0j3J+M0pDuqoWF5hfKxFhkEIw==
+        -----END RSA PRIVATE KEY-----
+      providerPublicKey: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0
+        G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH
+        WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV
+        VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS
+        bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8
+        7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la
+        nQIDAQAB
+        -----END PUBLIC KEY-----
+      providerPublicCert: |
+        -----BEGIN CERTIFICATE-----
+        MIIDdjCCAl4CCQCm0AiwERR/qjANBgkqhkiG9w0BAQsFADB9MQswCQYDVQQGEwJE
+        RTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJsaW4xGDAWBgNVBAoMD1dp
+        cmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20xHzAdBgkqhkiG9w0BCQEW
+        EGJhY2tlbmRAd2lyZS5jb20wHhcNMTYwODA0MTMxNDQyWhcNMzYwNzMwMTMxNDQy
+        WjB9MQswCQYDVQQGEwJERTEPMA0GA1UECAwGQmVybGluMQ8wDQYDVQQHDAZCZXJs
+        aW4xGDAWBgNVBAoMD1dpcmUgU3dpc3MgR21iSDERMA8GA1UEAwwId2lyZS5jb20x
+        HzAdBgkqhkiG9w0BCQEWEGJhY2tlbmRAd2lyZS5jb20wggEiMA0GCSqGSIb3DQEB
+        AQUAA4IBDwAwggEKAoIBAQC74qD88cdTdq1etRsqfDQbToWWJdw23eUzCXaizm3A
+        QNw88XD994aIArKbGn7smpkOux5LkP1Mcatb45BEg8da9QF2It8atmok7bbcMHoP
+        wrZK7+h2aeNknbPbeuFegQCtOmW74OD0r5zYtV5dMpVU85o7OC0AHbVcpGJDh6ua
+        qCLf+eOvTetfKr+o2S413q01yD4cB8bF8a+8JJgF+JJtQqv8F4CthFyPOv+HmbUi
+        fp8b+J/0YQjqbx3EdP0ltjnfCKSyjDLpqMK6qyQgWDztfzzcf4sD93pfkJOI+/VU
+        zFd0FSIY+4L0hP/oI1DX8sW3Q/ftrHnz4sZiVoWjuVqdAgMBAAEwDQYJKoZIhvcN
+        AQELBQADggEBAEuwlHElIGR56KVC1dJiw238mDGjMfQzSP76Wi4zWS6/zZwJUuog
+        BkC+vacfju8UAMvL+vdqkjOVUHor84/2wuq0qn91AjOITD7tRAZB+XLXxsikKv/v
+        OXE3A/lCiNi882NegPyXAfFPp/71CIiTQZps1eQkAvhD5t5WiFYPESxDlvEJrHFY
+        XP4+pp8fL8YPS7iZNIq+z+P8yVIw+B/Hs0ht7wFIYN0xACbU8m9+Rs08JMoT16c+
+        hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
+        T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
+        -----END CERTIFICATE-----
+  
+      # pgPassword: <postgres-password>
+  test:
+    elasticsearch:
+      additionalHost: elasticsearch-ephemeral
