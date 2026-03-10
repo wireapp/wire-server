@@ -8,7 +8,7 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ## Status
 
-**This chart is in planning. No implementation exists yet.**
+**This chart is in development. Dont use it in production yet!**
 
 ---
 
@@ -75,6 +75,7 @@ Operators should be able to reuse most of their existing values files with minim
 | `config.dns.base` | Only used for CSP header rendering, which is a multi-ingress feature |
 | `kubeVersionOverride` | Deprecated; the federation-test-helper label selector no longer needs a version override |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
+| `tls.enabled` | This is removed since it didnt ahve any effect. All ingresses are always defined with TLS. |
 
 ### Fully backwards compatible values
 
@@ -97,7 +98,6 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | `federator.tls.issuer.name` | |
 | `federator.tls.issuer.kind` | |
 | `federator.tls.issuer.group` | |
-| `tls.enabled` | |
 | `tls.useCertManager` | |
 | `tls.createIssuer` | |
 | `tls.privateKey.rotationPolicy` | |
@@ -195,7 +195,31 @@ Use `helm create` for an initial scaffolding.
 
 ---
 
-### Phase 2 — Gateway
+### Phase 2 — TLS
+
+#### TLS Secret (manual mode)
+
+Template: `templates/secret.yaml`
+Condition: `!tls.useCertManager`
+
+Encodes `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` into a `kubernetes.io/tls` Secret
+referenced by the Gateway listener.
+
+- [ ] Done
+
+---
+
+#### cert-manager Certificate + Issuer
+
+Templates: `templates/certificate.yaml`, `templates/issuer.yaml`
+Condition: `tls.useCertManager`
+
+A cert-manager `Certificate` and `Issuer`/`ClusterIssuer` for ACME HTTP-01 certificate issuance.
+The `secretName` produced by the `Certificate` is referenced by the Gateway listener.
+
+- [ ] Done
+
+### Phase 3 — Gateway
 
 #### Optional Gateway resource
 
@@ -203,7 +227,6 @@ Template: `templates/gateway.yaml`
 
 Creates a `gateway.networking.k8s.io/v1 Gateway` when `gateway.create: true`. The Gateway has:
 
-- An HTTP listener on port 80 (for ACME HTTP-01 challenges and optional redirect)
 - An HTTPS listener on port 443 with TLS termination, referencing the TLS secret
 
 The federator listener is added in the federator phase (not here) to keep federator concerns separate.
@@ -229,7 +252,7 @@ gateway:
 
 ---
 
-### Phase 3 — Core HTTPRoutes
+### Phase 4 — Core HTTPRoutes
 
 Each step adds one `HTTPRoute` (or one group of closely related routes).
 
@@ -313,31 +336,6 @@ Access to `/minio/` paths is blocked with a 403 using an Envoy Gateway `HTTPRout
 
 - [ ] Done
 
----
-
-### Phase 4 — TLS
-
-#### TLS Secret (manual mode)
-
-Template: `templates/secret.yaml`
-Condition: `!tls.useCertManager`
-
-Encodes `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` into a `kubernetes.io/tls` Secret
-referenced by the Gateway listener.
-
-- [ ] Done
-
----
-
-#### cert-manager Certificate + Issuer
-
-Templates: `templates/certificate.yaml`, `templates/issuer.yaml`
-Condition: `tls.useCertManager`
-
-A cert-manager `Certificate` and `Issuer`/`ClusterIssuer` for ACME HTTP-01 certificate issuance.
-The `secretName` produced by the `Certificate` is referenced by the Gateway listener.
-
-- [ ] Done
 
 ---
 
