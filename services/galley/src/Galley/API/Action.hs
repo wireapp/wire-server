@@ -81,7 +81,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
-import Galley.Effects
 import Galley.Types.Error
 import Imports hiding ((\\))
 import Polysemy
@@ -118,23 +117,29 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
 import Wire.FireAndForget qualified as E
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore qualified as E
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
@@ -188,7 +193,7 @@ instance IsConversationAction 'ConversationJoinTag where
         Member FederationSubsystem r,
         Member TeamSubsystem r,
         Member (Input ConversationSubsystemConfig) r,
-        Member BrigAPIAccess r,
+        Member E.BrigAPIAccess r,
         Member (Error FederationError) r,
         Member (ErrorS 'NotATeamMember) r,
         Member (ErrorS 'NotConnected) r,
@@ -200,7 +205,7 @@ instance IsConversationAction 'ConversationJoinTag where
         Member (ErrorS 'GroupIdVersionNotSupported) r,
         Member (Error UnreachableBackends) r,
         Member ExternalAccess r,
-        Member (FederationAPIAccess FederatorClient) r,
+        Member (E.FederationAPIAccess FederatorClient) r,
         Member NotificationSubsystem r,
         Member Now r,
         Member LegalHoldStore r,
@@ -208,7 +213,7 @@ instance IsConversationAction 'ConversationJoinTag where
         Member Random r,
         Member TeamStore r,
         Member TinyLog r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member (Error NoChanges) r
       )
 
@@ -257,7 +262,7 @@ instance IsConversationAction 'ConversationLeaveTag where
       ( Member (Input ConversationSubsystemConfig) r,
         Member BackendNotificationQueueAccess r,
         Member ExternalAccess r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member NotificationSubsystem r,
         Member ProposalStore r,
         Member Random r,
@@ -287,7 +292,7 @@ instance IsConversationAction 'ConversationRemoveMembersTag where
   type
     HasConversationActionEffects 'ConversationRemoveMembersTag r =
       ( Member (Error NoChanges) r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member (Input ConversationSubsystemConfig) r,
         Member (Error FederationError) r,
         Member TinyLog r,
@@ -326,7 +331,7 @@ instance IsConversationAction 'ConversationMemberUpdateTag where
   type
     HasConversationActionEffects 'ConversationMemberUpdateTag r =
       ( Member (ErrorS 'ConvMemberNotFound) r,
-        Member ConversationStore r
+        Member E.ConversationStore r
       )
 
   type
@@ -356,7 +361,7 @@ instance IsConversationAction 'ConversationDeleteTag where
   type
     HasConversationActionEffects 'ConversationDeleteTag r =
       ( Member (ErrorS 'NotATeamMember) r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member ProposalStore r,
         Member CodeStore r
       )
@@ -409,7 +414,7 @@ instance IsConversationAction 'ConversationRenameTag where
       ( Member TeamSubsystem r,
         Member (ErrorS InvalidOperation) r,
         Member (Error InvalidInput) r,
-        Member ConversationStore r
+        Member E.ConversationStore r
       )
 
   type
@@ -439,19 +444,19 @@ instance IsConversationAction 'ConversationRenameTag where
 instance IsConversationAction 'ConversationAccessDataTag where
   type
     HasConversationActionEffects 'ConversationAccessDataTag r =
-      ( Member BrigAPIAccess r,
+      ( Member E.BrigAPIAccess r,
         Member CodeStore r,
         Member (Error NoChanges) r,
         Member (ErrorS 'InvalidTargetAccess) r,
         Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
         Member ExternalAccess r,
-        Member FireAndForget r,
+        Member E.FireAndForget r,
         Member NotificationSubsystem r,
         Member (Input ConversationSubsystemConfig) r,
         Member ProposalStore r,
         Member TinyLog r,
         Member Now r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member Random r,
         Member (Error FederationError) r,
         Member BackendNotificationQueueAccess r,
@@ -503,7 +508,7 @@ instance IsConversationAction 'ConversationAccessDataTag where
 instance IsConversationAction 'ConversationHistoryUpdateTag where
   type
     HasConversationActionEffects 'ConversationHistoryUpdateTag r =
-      ( Member ConversationStore r,
+      ( Member E.ConversationStore r,
         Member (ErrorS HistoryNotSupported) r
       )
 
@@ -532,7 +537,7 @@ instance IsConversationAction 'ConversationHistoryUpdateTag where
 instance IsConversationAction 'ConversationMessageTimerUpdateTag where
   type
     HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
-      ( Member ConversationStore r,
+      ( Member E.ConversationStore r,
         Member (Error NoChanges) r
       )
 
@@ -562,7 +567,7 @@ instance IsConversationAction 'ConversationReceiptModeUpdateTag where
   type
     HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
       ( Member (ErrorS MLSReadReceiptsNotAllowed) r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member (Error NoChanges) r
       )
 
@@ -595,17 +600,17 @@ instance IsConversationAction 'ConversationUpdateProtocolTag where
       ( Member FeaturesConfigSubsystem r,
         Member BackendNotificationQueueAccess r,
         Member NotificationSubsystem r,
-        Member BrigAPIAccess r,
+        Member E.BrigAPIAccess r,
         Member ExternalAccess r,
         Member TinyLog r,
         Member (Error NoChanges) r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member Now r,
         Member Random r,
         Member (Input ConversationSubsystemConfig) r,
         Member ProposalStore r,
         Member (ErrorS ConvInvalidProtocolTransition) r,
-        Member (FederationAPIAccess FederatorClient) r,
+        Member (E.FederationAPIAccess FederatorClient) r,
         Member (ErrorS MLSMigrationCriteriaNotSatisfied) r,
         Member (Error FederationError) r
       )
@@ -656,7 +661,7 @@ instance IsConversationAction 'ConversationUpdateAddPermissionTag where
     HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
       ( Member (ErrorS 'InvalidTargetAccess) r,
         Member (Error NoChanges) r,
-        Member ConversationStore r
+        Member E.ConversationStore r
       )
 
   type
@@ -686,10 +691,10 @@ instance IsConversationAction 'ConversationResetTag where
   type
     HasConversationActionEffects 'ConversationResetTag r =
       ( Member BackendNotificationQueueAccess r,
-        Member (FederationAPIAccess FederatorClient) r,
+        Member (E.FederationAPIAccess FederatorClient) r,
         Member ExternalAccess r,
         Member ConversationSubsystem r,
-        Member ConversationStore r,
+        Member E.ConversationStore r,
         Member NotificationSubsystem r,
         Member ProposalStore r,
         Member E.MLSCommitLockStore r,
@@ -944,7 +949,7 @@ performConversationAccessData qusr lconv action = do
         then pure bm
         else pure $ bm {bmBots = mempty}
 
-    maybeRemoveGuests :: (Member BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveGuests :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
       if Set.member GuestAccessRole (cupAccessRoles action)
         then pure bm
@@ -984,7 +989,7 @@ updateLocalConversationJoin ::
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member BrigAPIAccess r,
+    Member E.BrigAPIAccess r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -993,7 +998,7 @@ updateLocalConversationJoin ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member LegalHoldStore r,
@@ -1001,7 +1006,7 @@ updateLocalConversationJoin ::
     Member Random r,
     Member TeamStore r,
     Member TinyLog r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error NoChanges) r
   ) =>
   Local ConvId ->
@@ -1025,7 +1030,7 @@ updateLocalConversationLeave ::
     Member NotificationSubsystem r,
     Member Now r,
     Member ProposalStore r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member Random r,
     Member TinyLog r
   ) =>
@@ -1044,7 +1049,7 @@ updateLocalConversationMemberUpdate ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member (ErrorS ConvMemberNotFound) r,
-    Member ConversationStore r
+    Member E.ConversationStore r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -1061,7 +1066,7 @@ updateLocalConversationDelete ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member CodeStore r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'NotATeamMember) r,
     Member ProposalStore r
@@ -1080,7 +1085,7 @@ updateLocalConversationRename ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member (Error InvalidInput) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (ErrorS InvalidOperation) r
   ) =>
   Local ConvId ->
@@ -1098,7 +1103,7 @@ updateLocalConversationMessageTimerUpdate ::
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error NoChanges) r
   ) =>
   Local ConvId ->
@@ -1116,7 +1121,7 @@ updateLocalConversationReceiptModeUpdate ::
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error NoChanges) r,
     Member (ErrorS MLSReadReceiptsNotAllowed) r
   ) =>
@@ -1136,15 +1141,15 @@ updateLocalConversationAccessData ::
     Member ConversationSubsystem r,
     Member (Error NoChanges) r,
     Member TinyLog r,
-    Member ConversationStore r,
-    Member BrigAPIAccess r,
+    Member E.ConversationStore r,
+    Member E.BrigAPIAccess r,
     Member CodeStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
     Member Now r,
     Member Random r,
-    Member FireAndForget r,
+    Member E.FireAndForget r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -1166,7 +1171,7 @@ updateLocalConversationRemoveMembers ::
     Member ConversationSubsystem r,
     Member (Error NoChanges) r,
     Member TinyLog r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
@@ -1193,10 +1198,10 @@ updateLocalConversationUpdateProtocol ::
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
     Member (Error NoChanges) r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member TinyLog r,
-    Member ConversationStore r,
-    Member BrigAPIAccess r,
+    Member E.ConversationStore r,
+    Member E.BrigAPIAccess r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
@@ -1223,7 +1228,7 @@ updateLocalConversationUpdateAddPermission ::
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
     Member (Error NoChanges) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member TeamSubsystem r,
     Member (ErrorS 'InvalidTargetAccess) r
   ) =>
@@ -1242,9 +1247,9 @@ updateLocalConversationReset ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member TinyLog r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ProposalStore r,
@@ -1270,7 +1275,7 @@ updateLocalConversationHistoryUpdate ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member TeamSubsystem r,
     Member (ErrorS HistoryNotSupported) r
   ) =>
@@ -1293,7 +1298,7 @@ updateLocalConversationUncheckedJoin ::
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member BrigAPIAccess r,
+    Member E.BrigAPIAccess r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -1302,7 +1307,7 @@ updateLocalConversationUncheckedJoin ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error UnreachableBackends) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member LegalHoldStore r,
@@ -1310,7 +1315,7 @@ updateLocalConversationUncheckedJoin ::
     Member Random r,
     Member TeamStore r,
     Member TinyLog r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error NoChanges) r
   ) =>
   Local StoredConversation ->
@@ -1331,7 +1336,7 @@ updateLocalConversationUncheckedRemoveMembers ::
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member (Error NoChanges) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member ProposalStore r,
     Member Now r,
     Member ExternalAccess r,
@@ -1349,7 +1354,7 @@ updateLocalConversationUncheckedRemoveMembers =
 
 updateLocalConversation ::
   forall tag r.
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -1440,7 +1445,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
   ( Member (Error NoChanges) r,
-    Member ConversationStore r
+    Member E.ConversationStore r
   ) =>
   Local ConvId ->
   UserList UserId ->
@@ -1453,7 +1458,7 @@ addMembersToLocalConversation lcnv users role joinType = do
   let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)
 
-setOutOfSyncFlag :: (Member ConversationStore r) => Local StoredConversation -> UserList UserId -> Sem r ()
+setOutOfSyncFlag :: (Member E.ConversationStore r) => Local StoredConversation -> UserList UserId -> Sem r ()
 setOutOfSyncFlag (tUnqualified -> conv) newMembers =
   let goingOutOfSync
         | ulNull newMembers = False
@@ -1468,11 +1473,11 @@ setOutOfSyncFlag (tUnqualified -> conv) newMembers =
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 updateLocalStateOfRemoteConv ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Remote F.ConversationUpdate ->
@@ -1557,8 +1562,8 @@ updateLocalStateOfRemoteConv rcu con = do
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
-  ( Member BrigAPIAccess r,
-    Member ConversationStore r,
+  ( Member E.BrigAPIAccess r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Remote ConvId ->
@@ -1597,7 +1602,7 @@ notifyTypingIndicator ::
   ( Member Now r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member (FederationAPIAccess FederatorClient) r
+    Member (E.FederationAPIAccess FederatorClient) r
   ) =>
   StoredConversation ->
   Qualified UserId ->

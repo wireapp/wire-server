@@ -61,7 +61,11 @@ import Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandraWithPaging,
   )
 import Galley.Cassandra.TeamNotifications
-import Galley.Effects
+import Galley.Effects.CustomBackendStore
+import Galley.Effects.Queue qualified as GE
+import Galley.Effects.SearchVisibilityStore
+import Galley.Effects.TeamMemberStore
+import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Keys
@@ -86,7 +90,6 @@ import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Fail
 import Polysemy.Input
-import Polysemy.Internal (Append)
 import Polysemy.Resource
 import Polysemy.TinyLog (TinyLog, logErrors)
 import Polysemy.TinyLog qualified as P
@@ -99,38 +102,54 @@ import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
-import Wire.API.Error.Galley (GalleyError (InvalidOperation), NonFederatingBackends, UnreachableBackends)
+import Wire.API.Error.Galley (GalleyError (..), NonFederatingBackends, OperationDenied, UnreachableBackends)
+import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.AWS qualified as Aws
+import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc
+import Wire.CodeStore (CodeStore)
 import Wire.CodeStore.Cassandra
 import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
+import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
+import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
 import Wire.Error
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Interpreter
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationAPIAccess.Interpreter
+import Wire.FederationSubsystem
 import Wire.FederationSubsystem.Interpreter (runFederationSubsystem)
 import Wire.FireAndForget
-import Wire.GundeckAPIAccess (runGundeckAPIAccess)
+import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
+import Wire.HashPassword
 import Wire.HashPassword.Interpreter
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.ListItems (ListItems)
+import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
+import Wire.MeetingsSubsystem (MeetingsSubsystem)
 import Wire.MeetingsSubsystem.Interpreter qualified as Meeting
 import Wire.MigrationLock
+import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
 import Wire.ParseException
 import Wire.Postgres (PGConstraints)
+import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
@@ -138,25 +157,107 @@ import Wire.Rpc
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
+import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
+import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.Sem.Random.IO
+import Wire.ServiceStore (ServiceStore)
 import Wire.ServiceStore.Cassandra (interpretServiceStoreToCassandra)
+import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.SparAPIAccess.Rpc
+import Wire.TeamCollaboratorsStore (TeamCollaboratorsStore)
 import Wire.TeamCollaboratorsStore.Postgres (interpretTeamCollaboratorsStoreToPostgres)
+import Wire.TeamCollaboratorsSubsystem (TeamCollaboratorsSubsystem)
 import Wire.TeamCollaboratorsSubsystem.Interpreter
+import Wire.TeamFeatureStore (TeamFeatureStore)
 import Wire.TeamFeatureStore.Cassandra
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError (..))
 import Wire.TeamFeatureStore.Migrating
 import Wire.TeamFeatureStore.Postgres
+import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws
+import Wire.TeamStore (TeamStore)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
+import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.Interpreter
+import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserClientIndexStore.Cassandra (interpretUserClientIndexStoreToCassandra)
+import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 
--- Effects needed by the interpretation of other effects
-type GalleyEffects0 =
-  '[ Input ClientState,
+type GalleyEffects =
+  '[ MeetingsSubsystem,
+     ConversationSubsystem,
+     FederationSubsystem,
+     TeamCollaboratorsSubsystem,
+     Input AllTeamFeatures,
+     FeaturesConfigSubsystem,
+     TeamSubsystem,
+     SparAPIAccess,
+     NotificationSubsystem,
+     ExternalAccess,
+     BrigAPIAccess,
+     GundeckAPIAccess,
+     Rpc,
+     FederationAPIAccess FederatorClient,
+     BackendNotificationQueueAccess,
+     FireAndForget,
+     TeamCollaboratorsStore,
+     MeetingsStore,
+     UserClientIndexStore,
+     CodeStore,
+     ProposalStore,
+     RateLimit,
+     HashPassword,
+     Random,
+     CustomBackendStore,
+     SearchVisibilityStore,
+     TeamStore,
+     TeamJournal,
+     LegalHoldStore,
+     Input LegalHoldEnv,
+     UserGroupStore,
+     ServiceStore,
+     TeamNotificationStore,
+     ConversationStore,
+     MLSCommitLockStore,
+     TeamFeatureStore,
+     TeamMemberStore InternalPaging,
+     TeamMemberStore CassandraPaging,
+     ListItems LegacyPaging TeamId,
+     ListItems InternalPaging TeamId,
+     Input ExposeInvitationURLsAllowlist,
+     Input FeatureFlags,
+     Input FanoutLimit,
+     Input (FeatureDefaults LegalholdConfig),
+     Input (Local ()),
+     Input Opts,
+     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Now,
+     GE.Queue DeleteItem,
+     Error Meeting.MeetingError,
+     Error DynError,
+     Error RateLimitExceeded,
+     ErrorS OperationDenied,
+     ErrorS 'HistoryNotSupported,
+     ErrorS 'NotATeamMember,
+     ErrorS 'ConvAccessDenied,
+     ErrorS 'NotConnected,
+     ErrorS 'MLSNotEnabled,
+     ErrorS 'MLSNonEmptyMemberList,
+     ErrorS 'MissingLegalholdConsent,
+     ErrorS 'NonBindingTeam,
+     ErrorS 'NoBindingTeamMembers,
+     ErrorS 'TeamNotFound,
+     ErrorS 'InvalidOperation,
+     ErrorS 'ConvNotFound,
+     ErrorS 'ChannelsNotEnabled,
+     ErrorS 'NotAnMlsConversation,
+     ErrorS 'NotATeamMember,
+     ErrorS 'MeetingNotFound,
+     ErrorS 'InvalidOperation,
+     Input ClientState,
      Input Hasql.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
@@ -183,8 +284,6 @@ type GalleyEffects0 =
      Concurrency 'Unsafe,
      Final IO
    ]
-
-type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
 -- Define some invariants for the options used
 validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))

@@ -37,7 +37,6 @@ import Control.Error (hush)
 import Data.Id
 import Data.SOP
 import Data.Tagged
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -60,7 +59,7 @@ data DoAuth = DoAuth UserId | DontDoAuth
 getFeatureInternal ::
   ( GetFeatureConfig cfg,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
@@ -73,7 +72,7 @@ toTeamStatus :: TeamId -> LockableFeature cfg -> Multi.TeamStatus cfg
 toTeamStatus tid feat = Multi.TeamStatus tid feat.status
 
 getTeamAndCheckMembership ::
-  ( Member TeamStore r,
+  ( Member TeamStore.TeamStore r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamSubsystem r
@@ -99,7 +98,7 @@ getAllTeamFeaturesForUser ::
   forall r.
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     GetFeatureConfigEffects r
@@ -117,7 +116,7 @@ getSingleFeatureForUser ::
   ( GetFeatureConfig cfg,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r
   ) =>
@@ -135,7 +134,7 @@ getSingleFeatureForUser uid = do
 guardSecondFactorDisabled ::
   forall r.
   ( Member (ErrorS 'AccessDenied) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member ConversationStore r,
     Member FeaturesConfigSubsystem r
   ) =>
@@ -158,7 +157,7 @@ featureEnabledForTeam ::
   forall cfg r.
   ( GetFeatureConfig cfg,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
+    Member TeamStore.TeamStore r,
     Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->

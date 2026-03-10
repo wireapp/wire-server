@@ -24,7 +24,6 @@ import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error

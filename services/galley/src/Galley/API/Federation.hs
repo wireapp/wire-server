@@ -51,7 +51,6 @@ import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
 import Galley.API.Push
 import Galley.App
-import Galley.Effects
 import Galley.Options
 import Galley.Types.Conversations.One2One
 import Galley.Types.Error
@@ -93,20 +92,29 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.ServantProto
 import Wire.API.User (BaseProtocolTag (..))
+import Wire.BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget qualified as E
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserList (UserList (UserList))
 
 type FederationAPI = "federation" :> FedApi 'Galley
@@ -141,7 +149,7 @@ federationSitemap =
 
 onClientRemoved ::
   ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member NotificationSubsystem r,
@@ -171,7 +179,7 @@ onConversationCreated ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -213,7 +221,7 @@ onConversationCreated domain rc = do
   pure EmptyResponse
 
 getConversationsV1 ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
@@ -223,7 +231,7 @@ getConversationsV1 domain req =
   getConversationsResponseFromV2 <$> getConversations domain req
 
 getConversations ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
@@ -243,7 +251,7 @@ onConversationUpdated ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -259,7 +267,7 @@ onConversationUpdatedV0 ::
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -271,7 +279,7 @@ onConversationUpdatedV0 domain cu =
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
   ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error InternalError) r,
     Member ExternalAccess r,
     Member ConversationSubsystem r,
@@ -345,7 +353,7 @@ leaveConversation requestingDomain lc = do
 onMessageSent ::
   ( Member NotificationSubsystem r,
     Member ExternalAccess r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member P.TinyLog r
   ) =>
@@ -393,7 +401,7 @@ onMessageSent domain rmUnqualified = do
 sendMessage ::
   ( Member BrigAPIAccess r,
     Member UserClientIndexStore r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member (Error InvalidInput) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -418,8 +426,8 @@ sendMessage originDomain msr = do
 
 onUserDeleted ::
   ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member FireAndForget r,
+    Member E.ConversationStore r,
+    Member E.FireAndForget r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member ConversationSubsystem r,
@@ -479,7 +487,7 @@ updateConversation ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member CodeStore r,
-    Member FireAndForget r,
+    Member E.FireAndForget r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
     Member ExternalAccess r,
@@ -492,7 +500,7 @@ updateConversation ::
     Member TeamSubsystem r,
     Member TinyLog r,
     Member Resource r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member Random r,
     Member FederationSubsystem r,
     Member (Input (Local ())) r,
@@ -623,7 +631,7 @@ handleMLSMessageErrors =
 sendMLSCommitBundle ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -686,7 +694,7 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
 sendMLSMessage ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -725,7 +733,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
         msg
 
 getSubConversationForRemoteUser ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member TeamSubsystem r
   ) =>
@@ -766,7 +774,7 @@ leaveSubConversation domain lscr = do
       $> LeaveSubConversationResponseOk
 
 deleteSubConversationForRemoteUser ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
@@ -811,7 +819,7 @@ getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
         (one2OneConvId BaseProtocolMLSTag (tUntagged lother) (tUntagged rself))
 
 getOne2OneConversation ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member (Error InternalError) r,
     Member BrigAPIAccess r,
@@ -878,7 +886,7 @@ onMLSMessageSent ::
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input Env) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Domain ->
@@ -952,7 +960,7 @@ mlsSendWelcome origDomain req = do
       sendLocalWelcomes req.qualifiedConvId (Qualified req.originatingUser origDomain) Nothing now welcome (qualifyAs loc req.recipients)
 
 queryGroupInfo ::
-  ( Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member (Input Env) r
   ) =>
@@ -981,7 +989,7 @@ queryGroupInfo origDomain req =
 updateTypingIndicator ::
   ( Member NotificationSubsystem r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member Now r,
     Member (Input (Local ())) r,
     Member TeamSubsystem r

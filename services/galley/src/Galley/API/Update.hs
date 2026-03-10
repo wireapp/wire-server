@@ -97,7 +97,6 @@ import Galley.API.Message
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Effects
 import Galley.Options
 import Galley.Types.Error
 import Imports hiding (forkIO)
@@ -132,9 +131,12 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserGroup
+import Wire.BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
@@ -142,13 +144,18 @@ import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
+import Wire.FireAndForget
 import Wire.HashPassword as HashPassword
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore qualified as E
@@ -279,8 +286,8 @@ type UpdateConversationAccessEffects =
      ErrorS 'ConvNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'InvalidTargetAccess,
-     ExternalAccess,
-     FederationAPIAccess FederatorClient,
+     E.ExternalAccess,
+     E.FederationAPIAccess FederatorClient,
      FireAndForget,
      NotificationSubsystem,
      ConversationSubsystem,
@@ -358,8 +365,8 @@ updateConversationReceiptMode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -390,8 +397,8 @@ updateConversationReceiptMode lusr zcon qcnv update =
 updateRemoteConversation ::
   forall tag r.
   ( Member BrigAPIAccess r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member ConversationStore r,
@@ -435,8 +442,8 @@ updateConversationReceiptModeUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -523,7 +530,7 @@ addCodeUnqualifiedWithReqBody ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -549,7 +556,7 @@ addCodeUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -578,7 +585,7 @@ addCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'CreateConversationCodeConflict) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member HashPassword r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -631,7 +638,7 @@ rmCodeUnqualified ::
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member Now r,
@@ -650,7 +657,7 @@ rmCode ::
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
     Member TeamSubsystem r
@@ -735,8 +742,8 @@ updateConversationProtocolWithLocalUser ::
     Member TinyLog r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member Random r,
     Member ProposalStore r,
     Member FeaturesConfigSubsystem r,
@@ -771,7 +778,7 @@ updateChannelAddPermission ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (Error FederationError) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
@@ -779,7 +786,7 @@ updateChannelAddPermission ::
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member BrigAPIAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member (ErrorS 'InvalidTargetAccess) r,
     Member TeamSubsystem r
   ) =>
@@ -917,8 +924,8 @@ addMembers ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -969,8 +976,8 @@ addMembersUnqualifiedV2 ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error UnreachableBackends) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -1010,8 +1017,8 @@ addMembersUnqualified ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error UnreachableBackends) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member Now r,
@@ -1054,8 +1061,8 @@ replaceMembers ::
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member LegalHoldStore r,
@@ -1126,7 +1133,7 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
 updateSelfMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r
   ) =>
@@ -1172,7 +1179,7 @@ updateSelfMember lusr zcon qcnv update = do
 updateUnqualifiedSelfMember ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r
   ) =>
@@ -1268,8 +1275,8 @@ removeMemberUnqualified ::
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
@@ -1296,8 +1303,8 @@ removeMemberQualified ::
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
@@ -1327,7 +1334,7 @@ pattern EdMembersLeaveRemoved :: QualifiedUserIdList -> EventData
 pattern EdMembersLeaveRemoved l = EdMembersLeave EdReasonRemoved l
 
 removeMemberFromRemoteConv ::
-  ( Member (FederationAPIAccess FederatorClient) r,
+  ( Member (E.FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1372,7 +1379,7 @@ removeMemberFromLocalConv ::
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
@@ -1415,7 +1422,7 @@ removeMemberFromChannel ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member ProposalStore r,
     Member Now r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Random r,
@@ -1447,13 +1454,13 @@ removeMemberFromChannel qusr lconv victim = do
 
 postProteusMessage ::
   ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r,
+    Member E.UserClientIndexStore r,
     Member ConversationStore r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
     Member TinyLog r,
@@ -1477,7 +1484,7 @@ postProteusBroadcast ::
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
     Member NotificationSubsystem r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
     Member TeamStore r,
@@ -1525,10 +1532,10 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
 
 postBotMessageUnqualified ::
   ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r,
+    Member E.UserClientIndexStore r,
     Member ConversationStore r,
-    Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member E.ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -1559,7 +1566,7 @@ postOtrBroadcastUnqualified ::
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
     Member NotificationSubsystem r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member (Input Opts) r,
     Member Now r,
     Member TeamStore r,
@@ -1581,11 +1588,11 @@ postOtrBroadcastUnqualified sender zcon =
 
 postOtrMessageUnqualified ::
   ( Member BrigAPIAccess r,
-    Member UserClientIndexStore r,
+    Member E.UserClientIndexStore r,
     Member ConversationStore r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member Now r,
@@ -1672,7 +1679,7 @@ memberTyping ::
     Member (Input (Local ())) r,
     Member Now r,
     Member ConversationStore r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
     Member TeamSubsystem r
   ) =>
@@ -1711,7 +1718,7 @@ memberTypingUnqualified ::
     Member (Input (Local ())) r,
     Member Now r,
     Member ConversationStore r,
-    Member (FederationAPIAccess FederatorClient) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
     Member TeamSubsystem r
   ) =>
@@ -1726,13 +1733,13 @@ memberTypingUnqualified lusr zcon cnv ts = do
 
 addBot ::
   forall r.
-  ( Member UserClientIndexStore r,
+  ( Member E.UserClientIndexStore r,
     Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'TooManyMembers) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member Now r
@@ -1793,10 +1800,10 @@ addBot lusr zcon b = do
       pure (bots, users)
 
 rmBot ::
-  ( Member UserClientIndexStore r,
+  ( Member E.UserClientIndexStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
-    Member ExternalAccess r,
+    Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member Now r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r

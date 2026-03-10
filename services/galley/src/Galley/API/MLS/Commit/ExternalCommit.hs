@@ -33,7 +33,6 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Util
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error

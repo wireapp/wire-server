@@ -27,7 +27,6 @@ import Data.Qualified
 import Data.Range
 import Galley.API.MLS.Removal
 import Galley.API.Query qualified as Query
-import Galley.Effects
 import Galley.Env
 import Galley.Types.Clients (clientIds)
 import Galley.Types.Error
@@ -45,11 +44,14 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
-import Wire.ConversationStore (getConversation)
+import Wire.ConversationStore (ConversationStore, getConversation)
 import Wire.ConversationSubsystem qualified as ConvSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 import Wire.UserClientIndexStore qualified as E
 
 getClients ::
@@ -63,7 +65,7 @@ getClients usr = clientIds usr <$> ConvSubsystem.internalGetClientIds [usr]
 -- the "clients" table in Galley.
 rmClient ::
   forall r.
-  ( Member UserClientIndexStore r,
+  ( Member E.UserClientIndexStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member ExternalAccess r,

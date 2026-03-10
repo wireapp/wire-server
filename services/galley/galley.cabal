@@ -144,7 +144,6 @@ library
     Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
     Galley.Data.TeamNotifications
-    Galley.Effects
     Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
     Galley.Effects.SearchVisibilityStore

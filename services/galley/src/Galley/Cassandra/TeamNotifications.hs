@@ -40,7 +40,6 @@ import Data.UUID.V1 qualified as UUID
 import Galley.Cassandra.Store
 import Galley.Cassandra.Util
 import Galley.Data.TeamNotifications
-import Galley.Effects
 import Galley.Effects.TeamNotificationStore (TeamNotificationStore (..))
 import Imports
 import Network.HTTP.Types

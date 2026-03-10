@@ -51,7 +51,6 @@ import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.App
-import Galley.Effects
 import Galley.Effects.CustomBackendStore
 import Galley.Monad
 import Galley.Options hiding (brig)
@@ -88,20 +87,25 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
+import Wire.ListItems
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data

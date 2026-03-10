@@ -26,7 +26,6 @@ where
 
 import Data.Id
 import Data.Range
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
@@ -38,6 +37,7 @@ import Wire.API.Team.Size
 import Wire.BrigAPIAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.LegalHold
+import Wire.LegalHoldStore (LegalHoldStore)
 
 assertLegalHoldEnabledForTeam ::
   forall r.
