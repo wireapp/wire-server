@@ -684,6 +684,8 @@ render-manifest: clean-charts charts-integration
 
 # Render wire-server from live values and compare it with the live manifest.
 # Usage:
+#   helm get values wire-server -n wire -a > /tmp/staging/live-values.yaml
+#   helm get manifest wire-server -n wire > /tmp/staging/live-manifest.yaml
 #   make diff-live-manifest LIVE_VALUES_FILE=/tmp/staging/live-values.yaml LIVE_MANIFEST_FILE=/tmp/staging/live-manifest.yaml
 diff-live-manifest: clean-charts charts-integration
 	./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
