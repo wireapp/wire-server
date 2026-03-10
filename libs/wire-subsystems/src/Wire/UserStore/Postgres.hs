@@ -232,18 +232,19 @@ getUsersImpl uids = do
           (\(uid, _, key, size) -> Map.insertWith (<>) uid [ImageAsset key size])
           Map.empty
           assetRows
-      mkDeletedUser deletedUserId =
+      mkDeletedUser deletedUserId mTid =
         StoredUser
           { id = deletedUserId,
             name = Name "default",
             status = Just Deleted,
             userType = Just UserTypeRegular,
+            teamId = mTid,
+            accentId = defaultAccentId,
             textStatus = Nothing,
             pict = Nothing,
             email = Nothing,
             emailUnvalidated = Nothing,
             ssoId = Nothing,
-            accentId = defaultAccentId,
             assets = Nothing,
             activated = False,
             expires = Nothing,
@@ -252,7 +253,6 @@ getUsersImpl uids = do
             providerId = Nothing,
             serviceId = Nothing,
             handle = Nothing,
-            teamId = Nothing,
             managedBy = Nothing,
             supportedProtocols = Nothing,
             searchable = Nothing
@@ -262,7 +262,7 @@ getUsersImpl uids = do
          in storedUser {assets = Map.lookup storedUser.id assetMap} :: StoredUser
       deletedUsersMap =
         foldr
-          (\uid -> Map.insert uid (mkDeletedUser uid))
+          (\(uid, mTid) -> Map.insert uid (mkDeletedUser uid mTid))
           mempty
           deletedUserIds
       foundUsersMap =
@@ -288,11 +288,11 @@ getUsersImpl uids = do
           WHERE id = ANY($1 :: uuid[])
         |]
 
-    selectDeletedUsers :: Hasql.Statement [UserId] [UserId]
+    selectDeletedUsers :: Hasql.Statement [UserId] [(UserId, Maybe TeamId)]
     selectDeletedUsers =
       dimapPG @(Vector _)
         [vectorStatement|
-          SELECT id :: uuid
+          SELECT id :: uuid, team :: uuid?
           FROM deleted_user
           WHERE id = ANY ($1 :: uuid[])
         |]
@@ -493,7 +493,7 @@ deleteUserImpl user =
   runTransaction ReadCommitted Write $ do
     let uid = user.userQualifiedId.qUnqualified
     Transaction.statement uid delete
-    Transaction.statement uid noteDeleted
+    Transaction.statement (uid, user.userTeam) noteDeleted
   where
     delete :: Hasql.Statement UserId ()
     delete =
@@ -503,13 +503,13 @@ deleteUserImpl user =
           WHERE id = $1 :: uuid
         |]
 
-    noteDeleted :: Hasql.Statement (UserId) ()
+    noteDeleted :: Hasql.Statement (UserId, Maybe TeamId) ()
     noteDeleted =
       lmapPG
         [resultlessStatement|
           INSERT INTO deleted_user
-          (id)
-          VALUES ($1 :: uuid)
+          (id, team)
+          VALUES ($1 :: uuid, $2 :: uuid?)
           ON CONFLICT (id) DO NOTHING
         |]
 
@@ -552,7 +552,6 @@ lookupLocaleImpl uid =
       dimapPG
         [maybeStatement|SELECT language :: text?, country :: text? FROM wire_user WHERE id = $1 :: uuid|]
 
--- TODO: This probably needs to work for deleted users
 getUserTeamImpl :: (PGConstraints r) => UserId -> Sem r (Maybe TeamId)
 getUserTeamImpl uid =
   join <$> runStatement uid select
@@ -560,7 +559,11 @@ getUserTeamImpl uid =
     select :: Hasql.Statement UserId (Maybe (Maybe TeamId))
     select =
       dimapPG
-        [maybeStatement|SELECT team :: uuid? FROM wire_user WHERE id = $1 :: uuid|]
+        [maybeStatement|
+          SELECT team :: uuid? FROM wire_user WHERE id = $1 :: uuid
+          UNION ALL
+          SELECT team :: uuid? FROM deleted_user WHERE id = $1 :: uuid
+        |]
 
 updateUserTeamImpl :: (PGConstraints r) => UserId -> TeamId -> Sem r ()
 updateUserTeamImpl uid tid =
