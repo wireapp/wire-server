@@ -39,6 +39,23 @@ references it by name via `gateway.className`.
 
 Single-domain deployments are the only supported topology. Multi-domain support can be added later.
 
+### HTTP01 certificate challenges
+
+cert-manager can complete ACME HTTP01 challenges through the Gateway using the `gatewayHTTPRoute`
+solver (cert-manager >= 1.14). The **default solver** in this chart uses `gatewayHTTPRoute` — it
+requires the HTTP listener to be enabled:
+
+```yaml
+gateway:
+  listeners:
+    http:
+      enabled: true  # required for HTTP01 challenges
+```
+
+If you cannot or do not want to open port 80, use a DNS01 solver instead by setting
+`certManager.customSolvers`. DNS01 requires credentials for your DNS provider but does not need
+port 80 to be open.
+
 ### Federator mTLS uses Envoy Gateway policies
 
 Federator mTLS is implemented using:
@@ -64,6 +81,8 @@ Operators should be able to reuse most of their existing values files with minim
 | `config.ingressClass` | `gateway.className` | Different concept: GatewayClass name, not IngressClass |
 | _(not present)_ | `gateway.create` | `true` = chart creates the Gateway; `false` = BYO |
 | _(not present)_ | `gateway.name` | Name of the Gateway to attach routes to |
+| _(not present)_ | `gateway.infrastructure.annotations` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure) |
+| _(not present)_ | `gateway.proxyProtocol.enabled` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all Gateway listeners — required when the load balancer is configured to send PROXY protocol headers |
 
 ### Dropped values (not applicable to Gateway API)
 
@@ -132,6 +151,7 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 
 | Feature | Old behaviour | New behaviour |
 |---|---|---|
+| Default ACME solver | `http01.ingress.class: nginx` | `http01.gatewayHTTPRoute` targeting this chart's Gateway — requires `gateway.listeners.http.enabled: true` |
 | `/minio/` path blocking | nginx `server-snippet` returning 403 | Envoy Gateway `HTTPRouteFilter` `directResponse` (implementation-specific, non-standard) |
 | Federator client cert header | `nginx.ingress.kubernetes.io/configuration-snippet` setting `X-SSL-Certificate` | Envoy Gateway `ClientTrafficPolicy` + `HTTPRouteFilter` header injection |
 | Websocket routing | Separate host with port name `ws` | Same `HTTPRoute` — WebSocket upgrades are handled transparently by Envoy |
@@ -206,6 +226,7 @@ Encodes `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` into a `kubernete
 referenced by the Gateway listener.
 
 - [ ] Done
+- [ ] Manually tested
 
 ---
 
@@ -218,6 +239,8 @@ A cert-manager `Certificate` and `Issuer`/`ClusterIssuer` for ACME HTTP-01 certi
 The `secretName` produced by the `Certificate` is referenced by the Gateway listener.
 
 - [ ] Done
+- [x] Manually tested tested http01 challenge
+- [ ] Manually tested tested dns01 challenge
 
 ### Phase 3 — Gateway
 

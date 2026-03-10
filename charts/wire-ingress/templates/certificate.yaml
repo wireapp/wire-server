@@ -1,0 +1,45 @@
+{{- if .Values.tls.useCertManager -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "{{ include "wire-ingress.zone" . | replace "." "-" }}-csr"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  issuerRef:
+    name: {{ include "wire-ingress.getIssuerName" . | quote }}
+    kind: {{ .Values.tls.issuer.kind }}
+  usages:
+    - server auth
+  duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
+  renewBefore: 360h   # 15d
+  isCA: false
+  secretName: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
+
+  privateKey:
+    algorithm: {{ .Values.tls.privateKey.algorithm }}
+    size: {{ .Values.tls.privateKey.size }}
+    encoding: PKCS1
+    rotationPolicy: {{ .Values.tls.privateKey.rotationPolicy }}
+
+  dnsNames:
+    - {{ .Values.config.dns.https }}
+    {{- if .Values.websockets.enabled }}
+    - {{ .Values.config.dns.ssl }}
+    {{- end }}
+    {{- if .Values.webapp.enabled }}
+    - {{ .Values.config.dns.webapp }}
+    {{- end }}
+    {{- if .Values.fakeS3.enabled }}
+    - {{ .Values.config.dns.fakeS3 }}
+    {{- end }}
+    {{- if .Values.teamSettings.enabled }}
+    - {{ .Values.config.dns.teamSettings }}
+    {{- end }}
+    {{- if .Values.accountPages.enabled }}
+    - {{ .Values.config.dns.accountPages }}
+    {{- end }}
+{{- end -}}
