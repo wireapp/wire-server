@@ -221,23 +221,58 @@ deleteAssetsStatement =
 
 getUsersImpl :: (PGConstraints r) => [UserId] -> Sem r [StoredUser]
 getUsersImpl uids = do
-  (userRows, assetRows) <-
+  (userRows, deletedUserIds, assetRows) <-
     runPipeline $
-      (,)
+      (,,)
         <$> Pipeline.statement uids selectUsers
+        <*> Pipeline.statement uids selectDeletedUsers
         <*> Pipeline.statement uids selectAssets
   let assetMap =
         foldr
           (\(uid, _, key, size) -> Map.insertWith (<>) uid [ImageAsset key size])
           Map.empty
           assetRows
-  pure $
-    map
-      ( \row ->
-          let storedUser = storedUserFromRow row
-           in storedUser {assets = Map.lookup storedUser.id assetMap} :: StoredUser
-      )
-      userRows
+      mkDeletedUser deletedUserId =
+        StoredUser
+          { id = deletedUserId,
+            name = Name "default",
+            status = Just Deleted,
+            userType = Just UserTypeRegular,
+            textStatus = Nothing,
+            pict = Nothing,
+            email = Nothing,
+            emailUnvalidated = Nothing,
+            ssoId = Nothing,
+            accentId = defaultAccentId,
+            assets = Nothing,
+            activated = False,
+            expires = Nothing,
+            language = Nothing,
+            country = Nothing,
+            providerId = Nothing,
+            serviceId = Nothing,
+            handle = Nothing,
+            teamId = Nothing,
+            managedBy = Nothing,
+            supportedProtocols = Nothing,
+            searchable = Nothing
+          }
+      mkUser row =
+        let storedUser = storedUserFromRow row
+         in storedUser {assets = Map.lookup storedUser.id assetMap} :: StoredUser
+      deletedUsersMap =
+        foldr
+          (\uid -> Map.insert uid (mkDeletedUser uid))
+          mempty
+          deletedUserIds
+      foundUsersMap =
+        foldr
+          (\userRow -> let user = mkUser userRow in Map.insert user.id user)
+          mempty
+          userRows
+  -- If a user is found in deletedUsers and normal users, prefer the deleted
+  -- user.
+  pure $ Map.elems $ Map.union deletedUsersMap foundUsersMap
   where
     selectUsers :: Hasql.Statement [UserId] [SelectUserRow]
     selectUsers =
@@ -253,9 +288,14 @@ getUsersImpl uids = do
           WHERE id = ANY($1 :: uuid[])
         |]
 
-    -- TODO: Implement this, but make some test fail before implementing
-    -- selectDeletedUsers :: Hasql.Statement [UserId] [UserId]
-    -- selectDeletedUsers = pure []
+    selectDeletedUsers :: Hasql.Statement [UserId] [UserId]
+    selectDeletedUsers =
+      dimapPG @(Vector _)
+        [vectorStatement|
+          SELECT id :: uuid
+          FROM deleted_user
+          WHERE id = ANY ($1 :: uuid[])
+        |]
 
     selectAssets :: Hasql.Statement [UserId] [(UserId, Int32, AssetKey, Maybe AssetSize)]
     selectAssets =
