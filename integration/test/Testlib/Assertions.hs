@@ -279,7 +279,7 @@ shouldNotMatchOneOf ::
 shouldNotMatchOneOf a b = do
   lb <- asList b
   xa <- make a
-  unless (xa `notElem` lb) $ do
+  when (xa `elem` lb) $ do
     pa <- prettyJSON a
     pb <- prettyJSON b
     assertFailure $ "Expected:\n" <> pa <> "\n to not match any of:\n" <> pb
