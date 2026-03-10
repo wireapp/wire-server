@@ -41,6 +41,18 @@ Name of the custom ACME solver secret.
 {{- end -}}
 
 {{/*
+Returns the Letsencrypt ACME API server URL.
+*/}}
+{{- define "wire-ingress.certManagerAPIServerURL" -}}
+{{- $hostnameParts := list "acme" -}}
+{{- if .Values.certManager.inTestMode -}}
+    {{- $hostnameParts = append $hostnameParts "staging" -}}
+{{- end -}}
+{{- $hostnameParts = append $hostnameParts "v02" -}}
+{{- join "-" $hostnameParts | printf "https://%s.api.letsencrypt.org/directory" -}}
+{{- end -}}
+
+{{/*
 Name of the cert-manager Issuer / ClusterIssuer.
 */}}
 {{- define "wire-ingress.getIssuerName" -}}

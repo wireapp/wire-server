@@ -11,6 +11,68 @@ gateway:
   listeners:
     https:
       port: 443
+    # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
+    # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
+    # See the README for configuration details.
+    http:
+      enabled: false
+      port: 80
+
+teamSettings:
+  enabled: false
+accountPages:
+  enabled: false
+websockets:
+  enabled: true
+webapp:
+  enabled: true
+fakeS3:
+  enabled: true
 
 tls:
   useCertManager: false
+  createIssuer: true
+  privateKey:
+    rotationPolicy: Always
+    algorithm: ECDSA
+    size: 384  # 521 is not supported by Let's Encrypt
+  issuer:
+    name: letsencrypt-http01
+    kind: Issuer  # Issuer | ClusterIssuer
+  # caNamespace: wire-federation-v0
+
+certManager:
+  # If true, uses the Let's Encrypt staging API (certificates are NOT trusted):
+  #   https://acme-staging-v02.api.letsencrypt.org/directory
+  # If false (default), uses the production API (certificates are trusted):
+  #   https://acme-v02.api.letsencrypt.org/directory
+  inTestMode: false
+  certmasterEmail:
+  customSolvers:
+
+# You will need to supply DNS names:
+# config:
+#   dns:
+#     https: nginz-https.<domain>
+#     ssl: nginz-ssl.<domain>       # ignored if websockets.enabled == false
+#     webapp: webapp.<domain>       # ignored if webapp.enabled == false
+#     fakeS3: assets.<domain>       # ignored if fakeS3.enabled == false
+#     federator: federator.<domain> # ignored unless federator.enabled == true
+#     certificateDomain: federator.<domain>  # domain to use in the federator CSR
+#     teamSettings: teams.<domain>  # ignored unless teamSettings.enabled == true
+#     accountPages: account.<domain> # ignored unless accountPages.enabled == true
+#
+# For TLS (manual mode, tls.useCertManager: false):
+# secrets:
+#   tlsWildcardCert: |
+#     -----BEGIN CERTIFICATE-----
+#     ...
+#     -----END CERTIFICATE-----
+#   tlsWildcardKey: |
+#     -----BEGIN PRIVATE KEY-----
+#     ...
+#     -----END PRIVATE KEY-----
+#   tlsClientCA: |
+#     -----BEGIN CERTIFICATE-----
+#     ...
+#     -----END CERTIFICATE-----

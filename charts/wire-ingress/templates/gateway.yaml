@@ -18,4 +18,9 @@ spec:
         certificateRefs:
           - name: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
             kind: Secret
+    {{- if .Values.gateway.listeners.http.enabled }}
+    - name: http
+      port: {{ .Values.gateway.listeners.http.port }}
+      protocol: HTTP
+    {{- end }}
 {{- end }}
