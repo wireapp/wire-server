@@ -25,7 +25,6 @@ import API.Common (defPassword, randomDomain, randomEmail, randomExternalId, ran
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
 import API.SparInternal
-import Control.Concurrent (threadDelay)
 import Control.Lens (to, (^.))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -59,34 +58,43 @@ testSparUserCreationInvitationTimeout = do
     res.status `shouldMatchInt` 201
     res.json %. "id" >>= asString
 
+  dom <- asString OwnDomain
+  let quidToExpire = object ["id" .= uidToExpire, "domain" .= dom]
+
   uidToAcceptInvitation <- bindResponse (createScimUser OwnDomain tok scimUserToAcceptInvitation) $ \res -> do
     res.status `shouldMatchInt` 201
     res.json %. "id" >>= asString
 
-  -- Accept the invitation for one user
-  registerInvitedUser OwnDomain tid email
+  withWebSocket quidToExpire $ \expireWs -> do
+    -- Accept the invitation for one user
+    registerInvitedUser OwnDomain tid email
 
-  -- Getting both users immediately succeeds
-  getScimUser owner tok uidToExpire >>= assertSuccess
-  getScimUser owner tok uidToAcceptInvitation >>= assertSuccess
+    -- Getting both users immediately succeeds
+    getScimUser owner tok uidToExpire >>= assertSuccess
+    getScimUser owner tok uidToAcceptInvitation >>= assertSuccess
 
-  -- Trying to create the same user again right away should fail
-  bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
-    res.status `shouldMatchInt` 409
+    -- Trying to create the same user again right away should fail
+    bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
+      res.status `shouldMatchInt` 409
 
-  bindResponse (createScimUser OwnDomain tok scimUserToAcceptInvitation) $ \res -> do
-    res.status `shouldMatchInt` 409
+    bindResponse (createScimUser OwnDomain tok scimUserToAcceptInvitation) $ \res -> do
+      res.status `shouldMatchInt` 409
 
-  -- However, if we wait until the invitation timeout has passed
-  -- It's currently configured to 1s local/CI.
-  liftIO $ threadDelay (3_000_000)
+    -- However, if we wait until the invitation timeout has passed. It's
+    -- currently configured to 1s local/CI, however we rely on the user actually
+    -- being deleted which happens in yet another background job, so we wait
+    -- until the user receives the delete event.
+    --
+    -- Here we await any event because this user shouldn't receive any other
+    -- events.
+    void $ awaitAnyEvent 10 expireWs
 
-  getScimUser owner tok uidToExpire >>= assertStatus 404
-  getScimUser owner tok uidToAcceptInvitation >>= assertSuccess
+    getScimUser owner tok uidToExpire >>= assertStatus 404
+    getScimUser owner tok uidToAcceptInvitation >>= assertSuccess
 
-  -- We should be able to create the user again
-  retryT $ bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
-    res.status `shouldMatchInt` 201
+    -- We should be able to create the user again
+    retryT $ bindResponse (createScimUser OwnDomain tok scimUserToExpire) $ \res -> do
+      res.status `shouldMatchInt` 201
 
 testSparExternalIdDifferentFromEmailWithIdp :: (HasCallStack) => App ()
 testSparExternalIdDifferentFromEmailWithIdp = do
