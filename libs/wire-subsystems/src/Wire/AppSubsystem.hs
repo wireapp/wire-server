@@ -51,7 +51,7 @@ appSubsystemErrorToHttpError =
 data AppSubsystem m a where
   CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m CreatedApp
   GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m GetApp
-  GetApps :: Local UserId -> TeamId -> AppSubsystem m GetAppList
+  GetApps :: Local UserId -> TeamId -> AppSubsystem m [(UserId, GetApp)]
   UpdateApp :: Local UserId -> TeamId -> UserId -> PutApp -> AppSubsystem m ()
   RefreshAppCookie ::
     Local UserId ->
@@ -64,3 +64,6 @@ data AppSubsystem m a where
     AppSubsystem m ()
 
 makeSem ''AppSubsystem
+
+getAppIds :: (Member AppSubsystem r) => Local UserId -> TeamId -> Sem r [UserId]
+getAppIds self tid = fst <$$> getApps self tid

@@ -2127,7 +2127,7 @@ type AppsAPI =
                :> Capture "tid" TeamId
                :> "apps"
                :> Capture "uid" UserId
-               :> Get '[JSON] GetApp
+               :> Get '[JSON] UserProfile
            )
     :<|> Named
            "get-apps"
@@ -2137,7 +2137,7 @@ type AppsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Get '[JSON] GetAppList
+               :> Get '[JSON] [UserProfile]
            )
     :<|> Named
            "put-app"

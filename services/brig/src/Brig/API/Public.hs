@@ -139,7 +139,7 @@ import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
-import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
+import Wire.API.User (RegisterError (RegisterErrorAllowlistError), UserProfile)
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Auth qualified as Public
@@ -1769,11 +1769,15 @@ checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r Public.CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
-getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r Public.GetApp
-getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r UserProfile
+getApp lusr _tid uid =
+  lift . liftSem $ getLocalUserProfileFiltered404 AppsOnly (qualifyAs lusr uid)
 
-getApps :: (_) => Local UserId -> TeamId -> Handler r Public.GetAppList
-getApps lusr tid = lift . liftSem $ AppSubsystem.getApps lusr tid
+getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
+getApps lusr tid =
+  lift . liftSem $ do
+    appIds <- AppSubsystem.getAppIds lusr tid
+    getLocalUserProfilesFiltered AppsOnly (qualifyAs lusr appIds)
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

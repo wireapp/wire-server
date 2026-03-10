@@ -181,7 +181,7 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r GetAppList
+  Sem r [(UserId, GetApp)]
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
   storedApps <- Store.getApps tid
@@ -198,7 +198,7 @@ getAppsImpl lusr tid = do
               description = storedApp.description
             }
         )
-  pure . GetAppList $ mkApp <$> matchAndZip storedApps us
+  pure $ mkApp <$> matchAndZip storedApps us
   where
     matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
     matchAndZip as us = mapMaybe f as

@@ -50,7 +50,6 @@ module Wire.API.User
     -- * Apps
     NewApp (..),
     GetApp (..),
-    GetAppList (..),
     PutApp (..),
     Category (..),
     categoryTextMapping,
@@ -2099,18 +2098,17 @@ data NewApp = NewApp
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
 data GetApp = GetApp -- TODO: rename to AppInfo?  something better?  also rename profileAppProfile to something else.
-  { name :: Name,
-    pict :: Pict,
-    assets :: [Asset],
-    accentId :: ColourId,
-    meta :: A.Object,
+  { name :: Name, -- TODO: remove
+    pict :: Pict, -- TODO: remove
+    assets :: [Asset], -- TODO: remove
+    accentId :: ColourId, -- TODO: remove
+    meta :: A.Object, -- TODO: remove
     category :: Category,
     description :: Range 0 300 Text
   }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
-
-newtype GetAppList = GetAppList {fromGetAppList :: [(UserId, GetApp)]}
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetAppList
 
 data PutApp = PutApp
   { name :: Maybe Name,
@@ -2204,16 +2202,6 @@ getAppObjectSchema =
     <*> (.meta) .= field "metadata" jsonObject
     <*> (.category) .= field "category" schema
     <*> (.description) .= field "description" schema
-
-instance ToSchema GetAppList where
-  schema = GetAppList <$> fromGetAppList .= named "GetAppList" (array getAppWithIdSchema)
-    where
-      getAppWithIdSchema :: ValueSchema NamedSwaggerDoc (UserId, GetApp)
-      getAppWithIdSchema =
-        object "GetAppWithId" $
-          (,)
-            <$> fst .= field "id" schema
-            <*> snd .= getAppObjectSchema
 
 instance ToSchema PutApp where
   schema =
