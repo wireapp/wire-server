@@ -150,6 +150,7 @@ iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 ejpdGetConvInfo ::
   forall r.
   ( Member ConversationStore r,
+    Member ConversationSubsystem r,
     Member (Error InternalError) r,
     Member (Input (Local ())) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -179,7 +180,7 @@ ejpdGetConvInfo uid = do
               One2OneConv -> Nothing
               SelfConv -> Nothing
               ConnectConv -> Nothing
-      renderedPage <- mapMaybe mk <$> getConversations (fst $ partitionQualified luid convids)
+      renderedPage <- mapMaybe mk <$> E.getConversations (fst $ partitionQualified luid convids)
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
@@ -429,7 +430,7 @@ rmUser lusr conn = do
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
       let qUser = tUntagged lusr
-      cc <- getConversations ids
+      cc <- E.getConversations ids
       now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing

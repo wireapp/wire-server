@@ -197,3 +197,16 @@ testMeetingUpdateUnauthorized = do
           ]
 
   putMeeting otherUser domain meetingId update >>= assertStatus 404
+
+testMeetingLists :: (HasCallStack) => App ()
+testMeetingLists = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
+  postMeetings owner newMeeting >>= assertStatus 201
+  resp <- getMeetingsList owner
+  assertSuccess resp
+  meetings <- resp.json & asList
+  length (meetings :: [Value]) `shouldMatchInt` 1

@@ -67,6 +67,7 @@ rmClient ::
   forall r.
   ( Member E.UserClientIndexStore r,
     Member ConversationStore r,
+    Member ConvSubsystem.ConversationSubsystem r,
     Member (Error FederationError) r,
     Member ExternalAccess r,
     Member BackendNotificationQueueAccess r,

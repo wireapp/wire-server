@@ -21,14 +21,16 @@ module Wire.ConversationSubsystem where
 
 import Data.Id
 import Data.Qualified
+import Data.Range (Range)
 import Data.Singletons (Sing)
 import Galley.Types.Clients (Clients)
 import Imports
 import Polysemy
-import Wire.API.Conversation (ExtraConversationData, NewConv, NewOne2OneConv)
+import Wire.API.Conversation (ConvIdsPage, ConversationPagingState, ExtraConversationData, NewConv, NewOne2OneConv)
 import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import Wire.NotificationSubsystem (LocalConversationUpdate)
+import Wire.Sem.Paging.Cassandra (ResultSet)
 import Wire.StoredConversation
 
 data ConversationSubsystem m a where
@@ -62,6 +64,19 @@ data ConversationSubsystem m a where
     Maybe ConnId ->
     Connect ->
     ConversationSubsystem m (StoredConversation, Bool)
+  GetConversations ::
+    [ConvId] ->
+    ConversationSubsystem m [StoredConversation]
+  GetConversationIdsResultSet ::
+    Local UserId ->
+    Range 1 1000 Int32 ->
+    Maybe (Qualified ConvId) ->
+    ConversationSubsystem r (ResultSet (Qualified ConvId))
+  GetConversationIds ::
+    Local UserId ->
+    Range 1 1000 Int32 ->
+    Maybe ConversationPagingState ->
+    ConversationSubsystem r ConvIdsPage
   InternalGetClientIds :: [UserId] -> ConversationSubsystem m Clients
   InternalGetLocalMember ::
     ConvId ->

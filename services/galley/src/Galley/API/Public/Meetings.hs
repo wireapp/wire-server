@@ -27,3 +27,4 @@ meetingsAPI =
   mkNamedAPI @"create-meeting" Meetings.createMeeting
     <@> mkNamedAPI @"update-meeting" Meetings.updateMeeting
     <@> mkNamedAPI @"get-meeting" Meetings.getMeeting
+    <@> mkNamedAPI @"list-meetings" Meetings.listMeetings

@@ -29,6 +29,7 @@ import Data.Profunctor (dimap)
 import Data.Range (Range, fromRange)
 import Data.Time.Clock
 import Data.UUID (UUID, nil)
+import Data.Vector qualified as V
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
@@ -54,6 +55,10 @@ interpretMeetingsStoreToPostgres =
       updateMeetingImpl meetingId title startDate endDate schedule
     GetMeeting meetingId ->
       getMeetingImpl meetingId
+    ListMeetingsByUser userId cutoffTime ->
+      listMeetingsByUserImpl userId cutoffTime
+    ListMeetingsByConversation convId cutoffTime ->
+      listMeetingsByConversationImpl convId cutoffTime
 
 -- * Create
 
@@ -263,3 +268,67 @@ getMeetingStatement =
       FROM meetings
       WHERE id = $1 :: uuid
     |]
+
+-- * List
+
+listMeetingsByUserImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UserId ->
+  UTCTime ->
+  Sem r [StoredMeeting]
+listMeetingsByUserImpl userId cutoffTime = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [StoredMeeting]
+    session = statement (toUUID userId, cutoffTime) $ V.toList <$> listStatement
+    listStatement :: Statement (UUID, UTCTime) (V.Vector StoredMeeting)
+    listStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+          WHERE creator = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
+          ORDER BY start_time ASC
+        |]
+
+listMeetingsByConversationImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  ConvId ->
+  UTCTime ->
+  Sem r [StoredMeeting]
+listMeetingsByConversationImpl convId cutoffTime = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [StoredMeeting]
+    session = statement (toUUID convId, cutoffTime) $ V.toList <$> listStatement
+    listStatement :: Statement (UUID, UTCTime) (V.Vector StoredMeeting)
+    listStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+          WHERE conversation_id = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
+          ORDER BY start_time ASC
+        |]

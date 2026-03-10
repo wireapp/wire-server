@@ -20,8 +20,10 @@ module Wire.ConversationSubsystem.Interpreter
   )
 where
 
-import Control.Error (headMay)
+import Control.Error (headMay, lastMay)
 import Control.Lens hiding ((??))
+import Data.Aeson qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.Default
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject))
@@ -54,6 +56,7 @@ import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.History (History (HistoryPrivate))
 import Wire.API.Push.V2 qualified as PushV2
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission
 import Wire.API.Team.Feature
@@ -78,6 +81,7 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem as NS
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Paging.Cassandra (ResultSet (..), ResultSetType (..))
 import Wire.Sem.Random (Random)
 import Wire.Sem.Random qualified as Random
 import Wire.StoredConversation hiding (convTeam, id_, localOne2OneConvId)
@@ -141,6 +145,12 @@ interpretConversationSubsystem = interpret $ \case
     createProteusSelfConversationLogic lusr
   ConversationSubsystem.CreateConnectConversation lusr conn j ->
     createConnectConversationLogic lusr conn j
+  ConversationSubsystem.GetConversations convIds ->
+    ConvStore.getConversations convIds
+  ConversationSubsystem.GetConversationIdsResultSet lusr maxIds mLastId ->
+    getConversationIdsResultSetImpl lusr maxIds mLastId
+  ConversationSubsystem.GetConversationIds lusr maxIds pagingState ->
+    getConversationIdsImpl lusr maxIds pagingState
   InternalGetClientIds uids ->
     internalGetClientIdsImpl uids
   ConversationSubsystem.InternalGetLocalMember cid uid ->
@@ -820,3 +830,65 @@ internalGetClientIdsImpl users = do
   if isInternal
     then fromUserClients <$> lookupClients users
     else UserClientIndexStore.getClients users
+
+getConversationIdsResultSetImpl ::
+  forall r.
+  (Member ConversationStore r) =>
+  Local UserId ->
+  Range 1 1000 Int32 ->
+  Maybe (Qualified ConvId) ->
+  Sem r (ResultSet (Qualified ConvId))
+getConversationIdsResultSetImpl lusr maxIds mLastId = do
+  case fmap (flip relativeTo lusr) mLastId of
+    Nothing -> getLocals Nothing
+    Just (Local (tUnqualified -> lastId)) -> getLocals (Just lastId)
+    Just (Remote lastId) -> getRemotes (Just lastId) maxIds
+  where
+    localDomain = tDomain lusr
+    usr = tUnqualified lusr
+
+    getLocals :: Maybe ConvId -> Sem r (ResultSet (Qualified ConvId))
+    getLocals lastId = do
+      localPage <- flip Qualified localDomain <$$> ConvStore.getLocalConversationIds usr lastId maxIds
+      let remainingSize = fromRange maxIds - fromIntegral (length localPage.resultSetResult)
+      case checked remainingSize of
+        Nothing -> pure localPage {resultSetType = ResultSetTruncated}
+        Just checkedRemaining -> do
+          remotePage <- getRemotes Nothing checkedRemaining
+          pure
+            remotePage
+              { resultSetResult = localPage.resultSetResult <> remotePage.resultSetResult
+              }
+
+    getRemotes :: Maybe (Remote ConvId) -> Range 1 1000 Int32 -> Sem r (ResultSet (Qualified ConvId))
+    getRemotes lastRemote maxRemotes = tUntagged <$$> ConvStore.getRemoteConversationIds usr lastRemote maxRemotes
+
+-- | This function only exists because we use the 'MultiTablePage' type for the
+-- endpoint. Since now the pagination is based on the qualified ids, we can
+-- remove the use of this type in future API versions.
+getConversationIdsImpl ::
+  forall r.
+  (Member ConversationStore r) =>
+  Local UserId ->
+  Range 1 1000 Int32 ->
+  Maybe ConversationPagingState ->
+  Sem r ConvIdsPage
+getConversationIdsImpl lusr maxIds pagingState = do
+  let mLastId = Aeson.decode . BS.fromStrict =<< (.mtpsState) =<< pagingState
+  resultSet <- getConversationIdsResultSetImpl lusr maxIds mLastId
+  let mLastResult = lastMay resultSet.resultSetResult
+  pure
+    MultiTablePage
+      { mtpResults = resultSet.resultSetResult,
+        mtpHasMore = case resultSet.resultSetType of
+          ResultSetTruncated -> True
+          ResultSetComplete -> False,
+        mtpPagingState =
+          MultiTablePagingState
+            { mtpsTable = case fmap (flip relativeTo lusr) mLastResult of
+                Just (Local _) -> PagingLocals
+                Just (Remote _) -> PagingRemotes
+                Nothing -> PagingRemotes,
+              mtpsState = BS.toStrict . Aeson.encode <$> mLastResult
+            }
+      }
