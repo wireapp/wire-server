@@ -1169,7 +1169,7 @@ type CreateAccessToken =
     ( Summary "Create a JWT DPoP access token"
         :> Description
              ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
-               \The access token will be returned as JWT DPoP token in the `DPoP` header."
+               \The access token will be returned in the JSON response body as a JWT DPoP token."
              )
         :> ZLocalUser
         :> "clients"
