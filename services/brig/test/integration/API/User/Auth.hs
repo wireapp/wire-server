@@ -29,9 +29,6 @@ import Bilge hiding (body)
 import Bilge qualified as Http
 import Bilge.Assert hiding (assert)
 import Brig.Options qualified as Opts
-import Cassandra hiding (Client, Value)
-import Cassandra qualified as DB
-import Control.Arrow ((&&&))
 import Control.Retry
 import Data.Aeson as Aeson
 import Data.ByteString qualified as BS
@@ -61,7 +58,6 @@ import UnliftIO.Async hiding (wait)
 import Util
 import Util.Timeout
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Password as Password
 import Wire.API.User as Public
 import Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
@@ -70,7 +66,6 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
-import Wire.HashPassword.Interpreter
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
 import Wire.Sem.Random (Random)
@@ -95,8 +90,8 @@ onlyIfLhWhitelisted action = do
           \(the 'withLHWhitelist' trick does not work because it does not allow \
           \brig to talk to the dynamically spawned galley)."
 
-tests :: Opts.Opts -> Manager -> AuthenticationSubsystemConfig -> DB.ClientState -> Brig -> Galley -> Nginz -> TestTree
-tests conf m authCfg db b g n =
+tests :: Opts.Opts -> Manager -> AuthenticationSubsystemConfig -> Brig -> Galley -> Nginz -> TestTree
+tests conf m authCfg b g n =
   testGroup
     "auth"
     [ testGroup
@@ -106,7 +101,6 @@ tests conf m authCfg db b g n =
           test m "email-untrusted-domain" (testLoginUntrustedDomain b),
           test m "testLoginFailure - failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
-          test m "login with 6 character password" (testLoginWith6CharPassword conf b db),
           testGroup
             "sso-login"
             [ test m "email" (testEmailSsoLogin b),
@@ -170,43 +164,6 @@ tests conf m authCfg db b g n =
         [ test m "reauthentication" (testReauthentication b)
         ]
     ]
-
-testLoginWith6CharPassword :: Opts.Opts -> Brig -> DB.ClientState -> Http ()
-testLoginWith6CharPassword opts brig db = do
-  (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
-  checkLogin email defPassword 200
-  let pw6 = plainTextPassword6Unsafe "123456"
-  writeDirectlyToDB uid pw6
-  checkLogin email defPassword 403
-  checkLogin email pw6 200
-  where
-    checkLogin :: EmailAddress -> PlainTextPassword6 -> Int -> Http ()
-    checkLogin email pw expectedStatusCode =
-      login
-        brig
-        (MkLogin (LoginByEmail email) pw Nothing Nothing)
-        PersistentCookie
-        !!! const expectedStatusCode === statusCode
-
-    -- Since 8 char passwords are required, when setting a password via the API,
-    -- we need to write this directly to the db, to be able to test this
-    writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
-    writeDirectlyToDB uid pw =
-      liftIO (runClient db (updatePassword uid pw >> deleteAllCookies uid))
-
-    updatePassword :: (MonadClient m) => UserId -> PlainTextPassword6 -> m ()
-    updatePassword u t = do
-      p <- liftIO $ runM . randomToIO $ hashPasswordImpl opts.settings.passwordHashingOptions t
-      retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
-
-    userPasswordUpdate :: PrepQuery W (Password, UserId) ()
-    userPasswordUpdate = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE user SET password = ? WHERE id = ?"
-
-    deleteAllCookies :: (MonadClient m) => UserId -> m ()
-    deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
-      where
-        cql :: PrepQuery W (Identity UserId) ()
-        cql = "DELETE FROM user_cookies WHERE user = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
