@@ -674,12 +674,22 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
-# Render wire-server manifests using helmfile-rendered values from
-# hack/helm_vars/wire-server/*.gotmpl. Useful for before/after diff checks.
+# Render the wire-server manifest from an explicit values file.
 # Usage:
-#   OUTPUT_FILE=/tmp/wire-server-before.yaml make helm-render-wire-server-resources
-helm-render-wire-server-resources: clean-charts charts-integration
-	./hack/bin/helm-render-wire-server-resources.sh
+#   make render-manifest VALUES_FILE=/tmp/values.yaml
+#   make render-manifest VALUES_FILE=/tmp/values.yaml OUTPUT_FILE=/tmp/rendered.yaml
+# (you can get the live values e.g. like this: helm get values wire-server -n wire -a)
+render-manifest: clean-charts charts-integration
+	./hack/bin/render-manifest.sh "$(VALUES_FILE)"
+
+# Render wire-server from live values and compare it with the live manifest.
+# Usage:
+#   helm get values wire-server -n wire -a > /tmp/staging/live-values.yaml
+#   helm get manifest wire-server -n wire > /tmp/staging/live-manifest.yaml
+#   make diff-live-manifest LIVE_VALUES_FILE=/tmp/staging/live-values.yaml LIVE_MANIFEST_FILE=/tmp/staging/live-manifest.yaml
+diff-live-manifest: clean-charts charts-integration
+	OUTPUT_FILE="/tmp/wire-server.yaml" ./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
+	DIFF_OUTPUT_FILE="$(DIFF_OUTPUT_FILE)" ./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
 
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \
