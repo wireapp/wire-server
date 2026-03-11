@@ -19,6 +19,7 @@
 
 module Wire.AppSubsystem where
 
+import Data.Default
 import Data.Id
 import Data.Qualified
 import Data.RetryAfter
@@ -34,11 +35,17 @@ data AppSubsystemConfig = AppSubsystemConfig
   { defaultLocale :: Locale
   }
 
+instance Default AppSubsystemConfig where
+  def = AppSubsystemConfig def
+
 data AppSubsystemError
   = AppSubsystemErrorNoPerm
   | AppSubsystemErrorNoUser -- The user having created the app not found
   | AppSubsystemErrorAppUserNotFound -- The user used to "enact" the app not found
   | AppSubsystemErrorNoApp
+  deriving (Eq, Show)
+
+instance Exception AppSubsystemError
 
 appSubsystemErrorToHttpError :: AppSubsystemError -> HttpError
 appSubsystemErrorToHttpError =
