@@ -395,15 +395,6 @@ getUserProfilesRemotePart ::
   Remote [UserId] ->
   Sem r [UserProfile]
 getUserProfilesRemotePart ruids = do
-  {-
-  -- TODO: integration test: can we retrieve apps from other
-  -- teams/instances?  (should we?  if not, how will
-  -- cross-team/instance convs with apps work?)
-  -- apps from outside teams and instances should work in convs where i'm member.  no need for a way to change this for the admin.
-  -- only users from inside the team should be able to "install" the app.  maybe we need a third user type `UserTypeForeignApp`?
-  -- TODO: what does "install app" mean?
-  -- => make this a ticket
-  -}
   runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getUserProfilesLocalPart ::
