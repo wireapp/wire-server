@@ -211,6 +211,7 @@ instance Arbitrary ActiveStoredUser where
 
 type AllErrors =
   [ Error UserSubsystemError,
+    Error AppSubsystemError,
     Error FederationError,
     Error AuthenticationSubsystemError,
     Error RateLimitExceeded,
@@ -230,7 +231,8 @@ data MiniBackendParams r = MiniBackendParams
     localBackend :: MiniBackend,
     teams :: Map TeamId [TeamMember],
     galleyConfigs :: AllTeamFeatures,
-    cfg :: UserSubsystemConfig
+    usrCfg :: UserSubsystemConfig,
+    appCfg :: AppSubsystemConfig
   }
 
 -- | `MiniBackendLowerEffects` is not a long, flat list, but a tree of effects.  This way we
@@ -254,8 +256,6 @@ type MiniBackendLowerEffects =
      BlockListStore,
      UserStore,
      AppStore,
-     Error AppSubsystemError,
-     Input AppSubsystemConfig,
      TeamCollaboratorsStore,
      UserKeyStore,
      IndexedUserStore,
@@ -292,7 +292,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . maybeFederationAPIAccess
     . stateEffectsInterpreters mb
     . ignoreMetrics
-    . inputEffectsInterpreters cfg localBackend.teamIdps
+    . inputEffectsInterpreters usrCfg appCfg localBackend.teamIdps
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . runRandomPure
     . runCryptoSignUnsafe
@@ -308,8 +308,6 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryIndexedUserStoreInterpreter
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
-    . todo -- config
-    . todo -- error
     . inMemoryAppStoreInterpreter
     . inMemoryUserStoreInterpreter
     . inMemoryBlockListStoreInterpreter
@@ -366,6 +364,7 @@ stateEffectsInterpreters MiniBackendParams {..} =
 
 type InputEffects =
   '[ Input UserSubsystemConfig,
+     Input AppSubsystemConfig,
      Input (Maybe AllowlistEmailDomains),
      Input (Map TeamId IdPList),
      Input AuthenticationSubsystemConfig,
@@ -409,13 +408,20 @@ defaultAuthenticationSubsystemConfig =
 defaultLocalDomain :: Local ()
 defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
 
-inputEffectsInterpreters :: forall r a. UserSubsystemConfig -> Map TeamId IdPList -> Sem (InputEffects `Append` r) a -> Sem r a
-inputEffectsInterpreters cfg teamIdps =
+inputEffectsInterpreters ::
+  forall r a.
+  UserSubsystemConfig ->
+  AppSubsystemConfig ->
+  Map TeamId IdPList ->
+  Sem (InputEffects `Append` r) a ->
+  Sem r a
+inputEffectsInterpreters usrCfg appCfg teamIdps =
   runInputConst defaultLocalDomain
     . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst teamIdps
     . runInputConst Nothing
-    . runInputConst cfg
+    . runInputConst appCfg
+    . runInputConst usrCfg
 
 ----------------------------------------------------------------------
 
@@ -606,14 +612,14 @@ interpretFederationStackState ::
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
-interpretFederationStackState localBackend backends teams cfg =
+interpretFederationStackState localBackend backends teams usrCfg =
   interpretMaybeFederationStackState
     MiniBackendParams
       { maybeFederationAPIAccess = (miniFederationAPIAccess backends),
         localBackend = localBackend,
-        teams = teams,
         galleyConfigs = def,
-        cfg = cfg
+        appCfg = def,
+        ..
       }
 
 runNoFederationStack ::
@@ -639,7 +645,7 @@ runNoFederationStackUserSubsystemErrorEither localBackend teams cfg =
   run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 userSubsystemErrorEitherUnsafe :: Sem AllErrors a -> Sem '[] (Either UserSubsystemError a)
-userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
+userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
@@ -660,14 +666,14 @@ interpretNoFederationStackState ::
   UserSubsystemConfig ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
-interpretNoFederationStackState localBackend teams galleyConfigs cfg =
+interpretNoFederationStackState localBackend teams galleyConfigs usrCfg =
   interpretMaybeFederationStackState
     MiniBackendParams
       { maybeFederationAPIAccess = emptyFederationAPIAcesss,
         localBackend = localBackend,
-        teams = teams,
         galleyConfigs = galleyConfigs,
-        cfg = cfg
+        appCfg = def,
+        ..
       }
 
 interpretMaybeFederationStackState ::
@@ -755,7 +761,7 @@ liftIndexedUserStoreState = interpret $ \case
   Put newUserIndex -> modify $ \b -> (b :: MiniBackend) {userIndex = newUserIndex}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

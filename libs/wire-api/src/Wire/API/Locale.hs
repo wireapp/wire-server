@@ -37,8 +37,9 @@ import Control.Applicative (optional)
 import Control.Error.Util (hush, note)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Attoparsec.Text
+import Data.Default
 import Data.ISO3166_CountryCodes (CountryCode)
-import Data.LanguageCodes (ISO639_1 (DE, FR))
+import Data.LanguageCodes (ISO639_1 (DE, EN, FR))
 import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Text qualified as Text
@@ -144,6 +145,9 @@ data Locale = Locale
   deriving stock (Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Locale)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Locale
+
+instance Default Locale where
+  def = Locale (Language EN) Nothing
 
 instance ToSchema Locale where
   schema = locToText .= parsedText "Locale" (note err . parseLocale)

@@ -331,7 +331,6 @@ getUserProfilesImpl ::
     FederationMonad fedM,
     Typeable fedM,
     Member AppSubsystem r,
-    Member AuthenticationSubsystem r,
     Member TeamSubsystem r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
@@ -354,7 +353,8 @@ getLocalUserProfilesFilteredImpl ::
     Member Now r,
     Member (Concurrency Unsafe) r,
     Member (Input (Local any)) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppSubsystem r
   ) =>
   UserProfileFilter ->
   Local [UserId] ->
@@ -373,7 +373,8 @@ getUserProfilesFromDomain ::
     Typeable fedM,
     Member (Input (Local any)) r,
     Member (Concurrency Unsafe) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppSubsystem r
   ) =>
   Local UserId ->
   Qualified [UserId] ->
@@ -413,6 +414,7 @@ getUserProfilesLocalPart ::
     Member Now r,
     Member (Concurrency Unsafe) r,
     Member (Input (Local any)) r,
+    Member AppSubsystem r,
     Member TeamSubsystem r
   ) =>
   UserProfileFilter ->
@@ -531,7 +533,8 @@ getUserProfilesWithErrorsImpl ::
     FederationMonad fedM,
     Typeable fedM,
     Member TeamSubsystem r,
-    Member (Input (Local any)) r
+    Member (Input (Local any)) r,
+    Member AppSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
@@ -569,7 +572,7 @@ getUserProfilesWithErrorsImpl self others = do
 -- trade-off between memory usage and database IO, and we should
 -- measure this before we make a change.
 injectAppsIntoUserProfiles ::
-  ({- TODO: Member AppSubsystem r, -} Member (Input (Local x0)) r) =>
+  (Member AppSubsystem r, Member (Input (Local x0)) r) =>
   [UserProfile] -> Sem r [UserProfile]
 injectAppsIntoUserProfiles = mapM \uprof -> do
   mbluid :: Maybe (Local UserId) <- do
@@ -577,7 +580,7 @@ injectAppsIntoUserProfiles = mapM \uprof -> do
     pure $ foldQualified localDom Just (const Nothing) uprof.profileQualifiedId
 
   mbApp :: Maybe GetApp <- case (uprof.profileType, mbluid, uprof.profileTeam) of
-    -- TODO: (UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
+    (UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
     _ -> pure Nothing
 
   pure (uprof {profileApp = mbApp})
