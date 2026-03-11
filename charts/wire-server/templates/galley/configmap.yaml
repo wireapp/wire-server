@@ -136,6 +136,7 @@ data:
         searchVisibilityInbound:
           {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
         {{- end }}
+        {{- /* Accept the legacy typo in Helm values, but always render the canonical Galley key. */}}
         {{- $validateSAMLemails := .settings.featureFlags.validateSAMLemails | default .settings.featureFlags.validateSAMLEmails }}
         {{- if $validateSAMLemails }}
         validateSAMLemails:

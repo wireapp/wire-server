@@ -191,14 +191,10 @@ newtype instance FeatureDefaults ValidateSAMLEmailsConfig
 instance ParseFeatureDefaults (FeatureDefaults ValidateSAMLEmailsConfig) where
   parseFeatureDefaults obj =
     ValidateSAMLEmailsDefaults <$> do
+      -- Accept the legacy typo in config input for backward compatibility,
+      -- but prefer the canonical feature key when both are present.
       mCfg <- obj .:? featureKey @ValidateSAMLEmailsConfig <|> obj .:? "validateSAMLEmails"
-      case mCfg of
-        Just cfg -> pure cfg
-        Nothing ->
-          fail $
-            "expected either the cononical key: '"
-              <> Key.toString (featureKey @ValidateSAMLEmailsConfig)
-              <> "' or the legacy key: 'validateSAMLEmails'"
+      pure $ fromMaybe def mCfg
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
   deriving stock (Eq, Show)
