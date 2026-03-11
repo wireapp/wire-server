@@ -2122,7 +2122,7 @@ data PutApp = PutApp
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
 
-data Category -- TODO: make this a string.
+data Category
   = Security
   | Collaboration
   | Productivity
