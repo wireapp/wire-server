@@ -1,1 +1,1 @@
-Add `"app"` attribute to `GET /list-users`, `GET /teams/:tid/apps`, `GET /teams/:tid/apps/:uid`.
+Add `"app"` attribute to `GET /list-users`; make `GET /teams/:tid/apps`, `GET /teams/:tid/apps/:uid` return same schema as `GET /list-users`.
