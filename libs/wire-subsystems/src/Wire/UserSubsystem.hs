@@ -209,9 +209,8 @@ getLocalUserProfileFiltered upf targetUser =
 getLocalUserProfileFiltered404 ::
   (Member (Error UserSubsystemError) r, Member UserSubsystem r) =>
   UserProfileFilter -> Local UserId -> Sem r UserProfile
-getLocalUserProfileFiltered404 upf targetUser = do
-  let err = throw UserSubsystemProfileNotFound
-  maybe err pure =<< getLocalUserProfileFiltered upf targetUser
+getLocalUserProfileFiltered404 upf targetUser =
+  getLocalUserProfileFiltered upf targetUser >>= maybe (throw UserSubsystemProfileNotFound) pure
 
 getLocalUserProfiles ::
   (Member UserSubsystem r) =>
