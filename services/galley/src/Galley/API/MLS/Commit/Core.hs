@@ -34,8 +34,6 @@ import Data.Qualified
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.Proposal
-import Galley.Env
-import Galley.Options
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -96,8 +94,6 @@ type HasProposalActionEffects r =
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
     Member ProposalStore r,

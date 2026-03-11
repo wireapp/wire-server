@@ -18,14 +18,13 @@
 module Galley.API.MLS.GroupInfoCheck
   ( checkGroupState,
     GroupInfoMismatch (..),
+    GroupInfoCheckEnabled (..),
   )
 where
 
-import Control.Lens (view)
 import Data.Bifunctor
 import Data.Id
 import Galley.API.Teams.Features.Get
-import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -50,10 +49,14 @@ data GroupInfoMismatch = GroupInfoMismatch
   {clients :: [(Int, ClientIdentity)]}
   deriving (Show)
 
+newtype GroupInfoCheckEnabled
+  = GroupInfoCheckEnabled Bool
+  deriving stock (Eq, Ord, Show)
+
 checkGroupState ::
   forall r.
   ( Member (Error GroupInfoMismatch) r,
-    Member (Input Opts) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member (Error MLSProtocolError) r,
     Member ConversationStore r,
     Member FeaturesConfigSubsystem r
@@ -103,13 +106,13 @@ existingGroupStateMismatch convOrSub =
 
 isGroupInfoCheckEnabled ::
   ( Member FeaturesConfigSubsystem r,
-    Member (Input Opts) r
+    Member (Input (Maybe GroupInfoCheckEnabled)) r
   ) =>
   Maybe TeamId ->
   Sem r Bool
 isGroupInfoCheckEnabled Nothing = pure False
 isGroupInfoCheckEnabled (Just tid) = fmap isJust . runNonDetMaybe $ do
-  global <- inputs (view $ settings . checkGroupInfo)
-  guard (global == Just True)
+  global <- input
+  guard (global == Just (GroupInfoCheckEnabled True))
   mls <- getFeatureForTeam @_ @MLSConfig tid
   guard (getAny mls.config.mlsGroupInfoDiagnostics)

@@ -78,6 +78,7 @@ import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.Message
 import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.Serialisation
@@ -141,6 +142,7 @@ enableOutOfSyncCheckFromVersion v
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -182,6 +184,7 @@ postMLSCommitBundle ::
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -214,6 +217,8 @@ postMLSCommitBundleFromLocalUser ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -250,6 +255,7 @@ postMLSCommitBundleToLocalConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,

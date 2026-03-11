@@ -15,14 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.GroupInfo where
+module Galley.API.MLS.GroupInfo
+  ( MLSGroupInfoStaticErrors,
+    getGroupInfo,
+    getGroupInfoFromLocalConv,
+    getGroupInfoFromRemoteConv,
+  )
+where
 
 import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
-import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -34,6 +39,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Util
@@ -46,12 +52,12 @@ type MLSGroupInfoStaticErrors =
    ]
 
 getGroupInfo ::
-  ( Member E.ConversationStore r,
+  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member E.ConversationStore r,
     Member (Error FederationError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
-    Member (Input Env) r
+    Members MLSGroupInfoStaticErrors r
   ) =>
-  (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
   Qualified ConvId ->
   Sem r GroupInfoData

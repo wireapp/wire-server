@@ -75,6 +75,7 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -151,7 +152,7 @@ ejpdGetConvInfo ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member P.TinyLog r
   ) =>
   UserId ->
@@ -361,7 +362,7 @@ rmUser ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member (ListItems p2 TeamId) r,
     Member ProposalStore r,

@@ -40,7 +40,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Util
-import Galley.App (Env)
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -60,6 +59,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Group.Serialisation
 import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.BackendNotificationQueueAccess
@@ -169,7 +169,7 @@ getSubConversationGroupInfo ::
       '[ Conversation.ConversationStore,
          Error FederationError,
          FederationAPIAccess FederatorClient,
-         Input Env
+         Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))
        ]
       r,
     Members MLSGroupInfoStaticErrors r
@@ -213,7 +213,7 @@ deleteSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Resource r,
     Member Conversation.MLSCommitLockStore r,
     Member TeamSubsystem r
@@ -267,7 +267,7 @@ type HasLeaveSubConversationEffects r =
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member ProposalStore r,
     Member Random r,

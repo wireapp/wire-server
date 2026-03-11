@@ -1,2 +1,3 @@
 Progressively move away from singletons to type class to allow progressive migration to `wire-subsystems` of Galley's actions.
-Drop `Galley.Intra.Util`,`Galley.Effects`,  `Galley.API.MLS.Commit`, and `Galley.API.Push`. (#5075, #5081, #5086, #5087, #5098, #5101, #5102, #5103, #5104)
+Drop `Galley.Intra.Util`,`Galley.Effects`,  `Galley.API.MLS.Commit`, and `Galley.API.Push`.
+Break dependencies to `Opts`/`Env`. (#5075, #5081, #5086, #5087, #5098, #5101, #5102, #5103, #5104, #5110)
