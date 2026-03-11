@@ -129,7 +129,8 @@ runUserSubsystem ::
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
     Member UserGroupStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (Input (Local any)) r
   ) =>
   InterpreterFor AuthenticationSubsystem r ->
   Sem (UserSubsystem ': r) a ->
@@ -374,7 +375,7 @@ getUserProfilesFromDomain self =
   foldQualified
     self
     (getUserProfilesLocalPart Everything (Just self))
-    getUserProfilesRemotePart -- TODO: integration test: can we retrieve apps from other instances?  (we shouldn't!)
+    getUserProfilesRemotePart
 
 getUserProfilesRemotePart ::
   ( Member (FederationAPIAccess fedM) r,
@@ -386,6 +387,15 @@ getUserProfilesRemotePart ::
   Remote [UserId] ->
   Sem r [UserProfile]
 getUserProfilesRemotePart ruids = do
+  {-
+  -- TODO: integration test: can we retrieve apps from other
+  -- teams/instances?  (should we?  if not, how will
+  -- cross-team/instance convs with apps work?)
+  -- apps from outside teams and instances should work in convs where i'm member.  no need for a way to change this for the admin.
+  -- only users from inside the team should be able to "install" the app.  maybe we need a third user type `UserTypeForeignApp`?
+  -- TODO: what does "install app" mean?
+  -- => make this a ticket
+  -}
   runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getUserProfilesLocalPart ::
@@ -412,8 +422,10 @@ getUserProfilesLocalPart upf requestingUser luids = do
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
   -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
   -- not just single rows.
-  filter goUpf . catMaybes
-    <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
+  injectAppsIntoUserProfiles
+    =<< ( filter goUpf . catMaybes
+            <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)
+        )
   where
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
@@ -435,9 +447,7 @@ getUserProfilesLocalPart upf requestingUser luids = do
       AppsOnly -> prof.profileType == UserTypeApp
       RegularOnly -> prof.profileType == UserTypeRegular
 
--- FUTUREWORK: this shouldn't be called '...Impl' because it is not
--- exposed as an effect.
-getLocalUserProfileImpl ::
+getLocalUserProfileInternal ::
   forall r.
   ( Member UserStore r,
     Member DeleteQueue r,
@@ -448,7 +458,7 @@ getLocalUserProfileImpl ::
   EmailVisibilityConfigWithViewer ->
   Local UserId ->
   Sem r (Maybe UserProfile)
-getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
+getLocalUserProfileInternal emailVisibilityConfigWithViewer luid = do
   let domain = tDomain luid
   locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   runMaybeT $ do
@@ -512,13 +522,16 @@ getUserProfilesWithErrorsImpl ::
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local any)) r,
+    Member AppSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
   Sem r ([(Qualified UserId, FederationError)], [UserProfile])
 getUserProfilesWithErrorsImpl self others = do
-  aggregate ([], []) <$> unsafePooledMapConcurrentlyN 8 go (bucketQualified others)
+  (errs, profs_) <- aggregate ([], []) <$> unsafePooledMapConcurrentlyN 8 go (bucketQualified others)
+  (errs,) <$> injectAppsIntoUserProfiles profs_
   where
     go :: Qualified [UserId] -> Sem r (Either (FederationError, Qualified [UserId]) [UserProfile])
     go bucket = runError (getUserProfilesFromDomain self bucket) <&> mapLeft (,bucket)
@@ -539,6 +552,28 @@ getUserProfilesWithErrorsImpl self others = do
 
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
     renderBucketError (e, qlist) = (,e) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
+
+-- | Consult `AppSubsystem` to get `GetApp`s info for `UserProfile`'s
+-- `app` attribute.
+--
+-- NOTE ON PERFORMANCE: this function calls `getApp` once per user
+-- profile.  we could call `getApps` once instead, build a map from
+-- that, and look up `GetApp` for all profiles in memory.  There is a
+-- trade-off between memory usage and database IO, and we should
+-- measure this before we make a change.
+injectAppsIntoUserProfiles ::
+  ({- TODO: Member AppSubsystem r, -} Member (Input (Local x0)) r) =>
+  [UserProfile] -> Sem r [UserProfile]
+injectAppsIntoUserProfiles = mapM \uprof -> do
+  mbluid :: Maybe (Local UserId) <- do
+    localDom <- input
+    pure $ foldQualified localDom Just (const Nothing) uprof.profileQualifiedId
+
+  mbApp :: Maybe GetApp <- case (uprof.profileType, mbluid, uprof.profileTeam) of
+    -- TODO: (UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
+    _ -> pure Nothing
+
+  pure (uprof {profileApp = mbApp})
 
 -- | Some fields cannot be overwritten by clients for scim-managed users; some others if e2eid
 -- is used.  If a client attempts to overwrite any of these, throw `UserSubsystem*ManagedByScim`.
