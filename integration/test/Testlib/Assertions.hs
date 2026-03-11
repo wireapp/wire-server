@@ -271,6 +271,19 @@ shouldMatchOneOf a b = do
     pb <- prettyJSON b
     assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
 
+shouldNotMatchOneOf ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldNotMatchOneOf a b = do
+  lb <- asList b
+  xa <- make a
+  when (xa `elem` lb) $ do
+    pa <- prettyJSON a
+    pb <- prettyJSON b
+    assertFailure $ "Expected:\n" <> pa <> "\n to not match any of:\n" <> pb
+
 ----------------------------------------------------------------------
 -- Shape DSL
 

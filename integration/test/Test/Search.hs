@@ -32,8 +32,7 @@ import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
 
---------------------------------------------------------------------------------
--- LOCAL SEARCH
+-- * Local Search
 
 testSearchContactForExternalUsers :: (HasCallStack) => App ()
 testSearchContactForExternalUsers = do
@@ -96,8 +95,7 @@ testEphemeralUsersSearch = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "insufficient-permissions"
 
---------------------------------------------------------------------------------
--- FEDERATION SEARCH
+-- * Federation Search
 
 -- | Enumeration of the possible restrictions that can be applied to a federated user search
 data Restriction = AllowAll | TeamAllowed | TeamNotAllowed
@@ -305,8 +303,7 @@ testFederatedUserSearchForNonTeamUser = do
         doc : _ ->
           assertFailure $ "Expected an empty result, but got " <> show doc <> " for test case "
 
---------------------------------------------------------------------------------
--- TEAM SEARCH
+-- * Team Search
 
 testSearchForTeamMembersWithRoles :: (HasCallStack) => App ()
 testSearchForTeamMembersWithRoles = do
@@ -424,6 +421,8 @@ testTeamSearchUserIncludesUserGroups = do
       let expectedUgs = fromMaybe [] (lookup uid expected)
       actualUgs <- for ugs asString
       actualUgs `shouldMatchSet` expectedUgs
+
+-- * Contacts Search
 
 testUserSearchable :: App ()
 testUserSearchable = do
@@ -543,3 +542,50 @@ testUserSearchable = do
         resp.status `shouldMatchInt` 200
         docs <- resp.json %. "documents" >>= asList
         f docs
+
+testSuspendedUserSearch :: (HasCallStack) => App ()
+testSuspendedUserSearch = do
+  [searcher, searchee] <- replicateM 2 $ randomUser OwnDomain def
+  BrigI.refreshIndex OwnDomain
+  searcheeQid <- objQidObject searchee
+
+  -- The searcher can find the searchee by default
+  assertCanFind searcher searcheeQid (searchee %. "name") OwnDomain
+
+  -- The searcher cannot find the searchee because the searchee is suspended
+  BrigI.setAccountStatus searchee "suspended" >>= assertSuccess
+  BrigI.getAccountStatus searchee `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "suspended"
+  BrigI.refreshIndex OwnDomain
+  assertCannotFind searcher searcheeQid (searchee %. "name") OwnDomain
+
+  -- The searcher can find the searchee once the searchee is unsuspended
+  BrigI.setAccountStatus searchee "active" >>= assertSuccess
+  BrigI.getAccountStatus searchee `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "active"
+  BrigI.refreshIndex OwnDomain
+  assertCanFind searcher searcheeQid (searchee %. "name") OwnDomain
+
+-- * Assertion Helpers
+
+assertCanFind ::
+  (HasCallStack, MakesValue searcher, MakesValue domain, MakesValue searcheeQid, MakesValue searchTerm) =>
+  searcher -> searcheeQid -> searchTerm -> domain -> App ()
+assertCanFind searcher searcheeQid q domain =
+  BrigP.searchContacts searcher q domain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+    foundIds <- objQidObject `mapM` foundDocs
+    searcheeQid `shouldMatchOneOf` foundIds
+
+assertCannotFind ::
+  (HasCallStack, MakesValue searcher, MakesValue domain, MakesValue searcheeQid, MakesValue searchTerm) =>
+  searcher -> searcheeQid -> searchTerm -> domain -> App ()
+assertCannotFind searcher searcheeQid q domain =
+  BrigP.searchContacts searcher q domain `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+    foundIds <- objQid `mapM` foundDocs
+    searcheeQid `shouldNotMatchOneOf` foundIds

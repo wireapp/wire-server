@@ -418,3 +418,12 @@ testEphemeralUserCreation (TaggedBool enabled) = do
   where
     registerEphemeralUser domain = addUser domain def
     registerUserWithEmail domain = addUser domain def {email = Just ("user@" <> domain)}
+
+testSuspendNonExistingUser :: (HasCallStack) => App ()
+testSuspendNonExistingUser = do
+  existingUser <- randomUser OwnDomain def
+  uid <- randomId
+  dom <- asString OwnDomain
+  let quid = object ["domain" .= dom, "id" .= uid]
+  I.setAccountStatus quid "suspended" >>= assertStatus 404
+  getUser existingUser quid >>= assertStatus 404

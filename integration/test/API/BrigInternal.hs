@@ -414,3 +414,15 @@ getMLSClients user ciphersuite = do
   userId <- objId user
   req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "mls", "clients", userId]
   submit "GET" $ req & addQueryParams [("ciphersuite", ciphersuite.code)]
+
+setAccountStatus :: (HasCallStack, MakesValue user) => user -> String -> App Response
+setAccountStatus user status = do
+  userId <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", userId, "status"]
+  submit "PUT" $ req & addJSONObject ["status" .= status]
+
+getAccountStatus :: (HasCallStack, MakesValue user) => user -> App Response
+getAccountStatus user = do
+  userId <- objId user
+  req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "users", userId, "status"]
+  submit "GET" req
