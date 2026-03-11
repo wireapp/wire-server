@@ -25,6 +25,15 @@ testDeleteKeyPackages = do
     resp.status `shouldMatchInt` 200
     resp.json %. "count" `shouldMatchInt` 0
 
+testClaimKeyPackagesUserDeleted :: App ()
+testClaimKeyPackagesUserDeleted = do
+  (_, _, [alice]) <- createTeam OwnDomain 2
+  alice1 <- createMLSClient def alice
+  API.Brig.deleteUser alice >>= assertSuccess
+  bindResponse (claimKeyPackages def alice1 alice) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-user"
+
 testKeyPackageMultipleCiphersuites :: App ()
 testKeyPackageMultipleCiphersuites = do
   let suite = def
