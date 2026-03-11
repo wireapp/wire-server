@@ -157,14 +157,22 @@ import Wire.VerificationCodeStore.Cassandra
 import Wire.VerificationCodeSubsystem
 import Wire.VerificationCodeSubsystem.Interpreter
 
-type BrigCanonicalEffects =
-  '[ AppSubsystem,
-     AuthenticationSubsystem,
-     TeamInvitationSubsystem,
+type BrigCanonicalEffects = NonRecursiveEffects1 `Append` RecursiveEffects `Append` NonRecursiveEffects2
+
+type NonRecursiveEffects1 =
+  '[ TeamInvitationSubsystem,
      EnterpriseLoginSubsystem,
-     UserGroupSubsystem,
+     UserGroupSubsystem
+   ]
+
+type RecursiveEffects =
+  '[ AuthenticationSubsystem,
      UserSubsystem,
-     TeamCollaboratorsSubsystem
+     AppSubsystem
+   ]
+
+type NonRecursiveEffects2 =
+  '[ TeamCollaboratorsSubsystem
    ]
     `Append` BrigLowerLevelEffects
 
@@ -250,6 +258,27 @@ type BrigLowerLevelEffects =
      Final IO
    ]
 
+-- These interpreters depend on each other, we use let recursion to solve that.
+--
+-- This terminates if and only if we do not create an action sequence at
+-- runtime such that interpretation of actions results in a call cycle.
+--
+-- Cloned from "Wire.MiniBackend".
+runRecursiveEffects ::
+  (Members NonRecursiveEffects2 r) =>
+  Sem (RecursiveEffects `Append` r) a ->
+  Sem r a
+runRecursiveEffects = runApp . runUser . runAuth
+  where
+    runAuth :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor AuthenticationSubsystem r
+    runAuth = interpretAuthenticationSubsystem runUser
+
+    runUser :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor UserSubsystem r
+    runUser = runUserSubsystem runAuth runApp
+
+    runApp :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor AppSubsystem r
+    runApp = runAppSubsystem runUser runAuth
+
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
   let blockedDomains =
@@ -331,16 +360,6 @@ runBrigToIO e (AppT ma) = do
             casClient = e.casClient
           }
 
-      -- These interpreters depend on each other, we use let recursion to solve that.
-      --
-      -- This terminates if and only if we do not create an action sequence at
-      -- runtime such that interpretation of actions results in a call cycle.
-      userSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor UserSubsystem r
-      userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-
-      authSubsystemInterpreter :: (Members BrigLowerLevelEffects r) => InterpreterFor AuthenticationSubsystem r
-      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
-
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -421,15 +440,13 @@ runBrigToIO e (AppT ma) = do
               . samlEmailSubsystemInterpreter
               . runClientSubsystem
               . interpretTeamCollaboratorsSubsystem
-              . userSubsystemInterpreter
+              . runRecursiveEffects
               . interpretUserGroupSubsystem
               . maybe
                 runEnterpriseLoginSubsystemNoConfig
                 runEnterpriseLoginSubsystemWithConfig
                 (mkEnterpriseLoginSubsystemConfig e)
               . runTeamInvitationSubsystem teamInvitationSubsystemConfig
-              . authSubsystemInterpreter
-              . runAppSubsystem
           )
     )
     $ runReaderT ma e
