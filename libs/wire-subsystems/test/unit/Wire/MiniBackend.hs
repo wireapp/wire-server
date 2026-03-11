@@ -218,7 +218,12 @@ type AllErrors =
     Error TeamCollaboratorsError
   ]
 
-type MiniBackendEffects = AuthenticationSubsystem ': UserSubsystem ': AppSubsystem ': TeamCollaboratorsSubsystem ': MiniBackendLowerEffects
+type MiniBackendEffects =
+  AuthUserAppRecursiveEffects
+    `Append` '[TeamCollaboratorsSubsystem]
+    `Append` MiniBackendLowerEffects
+
+type AuthUserAppRecursiveEffects = '[AuthenticationSubsystem, UserSubsystem, AppSubsystem]
 
 ----------------------------------------------------------------------
 -- lower effect interpreters (hierarchically)
@@ -684,7 +689,12 @@ interpretMaybeFederationStackState ::
 interpretMaybeFederationStackState mb =
   miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . runRecursiveAuthUserApp
 
--- TODO: move this to something like "Wire.Subsystems.Recursion"
+-- FUTUREWORK(fisx): it would be nice to have a definition of an
+-- interpreter of all the subsystems combined, but since the
+-- individual effect interpreters will have different needs for
+-- lower-level effects, and since our effect stacks are generally
+-- rather ad hoc, this is not a trivial task.  So for now we just
+-- diplicate this function whenever we need it.
 runRecursiveAuthUserApp ::
   (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) =>
   Sem (AuthenticationSubsystem ': UserSubsystem ': AppSubsystem ': r) a ->
