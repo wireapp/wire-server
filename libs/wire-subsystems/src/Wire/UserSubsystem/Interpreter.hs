@@ -430,12 +430,10 @@ getUserProfilesLocalPart upf requestingUser luids = do
         EmailVisibleToSelf -> EmailVisibleToSelf
         EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
-  -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
-  -- not just single rows.
-  injectAppsIntoUserProfiles
-    =<< ( filter goUpf . catMaybes
-            <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)
-        )
+  injectAppsIntoUserProfiles . filter goUpf . catMaybes
+    -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
+    -- not just single rows.
+    =<< unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)
   where
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
