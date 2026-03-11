@@ -112,16 +112,19 @@ getUserLegalholdStatus ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem (Input Endpoint : r) UserLegalHoldStatusResponse
+  Sem (Input Endpoint : r) (Maybe UserLegalHoldStatusResponse)
 getUserLegalholdStatus luid tid = do
   debug $
     remote "galley"
       . msg (val "get legalhold user status")
-  decodeBodyOrThrow "galley" =<< galleyRequest do
+  rs <- galleyRequest do
     method GET
       . paths ["teams", toByteString' tid, "legalhold", toByteString' (tUnqualified luid)]
       . zUser (tUnqualified luid)
-      . expect2xx
+      . expect2xxOr404
+  case Bilge.statusCode rs of
+    200 -> Just <$> decodeBodyOrThrow "galley" rs
+    _ -> pure Nothing
 
 galleyRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 galleyRequest req = do

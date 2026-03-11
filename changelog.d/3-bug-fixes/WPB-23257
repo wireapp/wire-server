@@ -1,0 +1,1 @@
+Claiming key packages for a deleted user now returns a client error instead of a server error
