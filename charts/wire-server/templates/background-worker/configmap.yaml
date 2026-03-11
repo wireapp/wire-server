@@ -48,6 +48,7 @@ data:
       tlsCa: /etc/wire/background-worker/cassandra-gundeck/{{- (include "gundeckTlsSecretRef" . | fromYaml).key }}
       {{- end }}
 
+    {{- if .cassandraBrig }}
     cassandraBrig:
       endpoint:
         host: {{ .cassandraBrig.host }}
@@ -59,7 +60,9 @@ data:
       {{- if eq (include "useCassandraTLS" .cassandraBrig) "true" }}
       tlsCa: /etc/wire/background-worker/cassandra-brig/{{- (include "brigTlsSecretRef" . | fromYaml).key }}
       {{- end }}
+    {{- end }}
 
+    {{- if .cassandraGalley }}
     cassandraGalley:
       endpoint:
         host: {{ .cassandraGalley.host }}
@@ -71,6 +74,7 @@ data:
       {{- if eq (include "useCassandraTLS" .cassandraGalley) "true" }}
       tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "galleyTlsSecretRef" . | fromYaml).key }}
       {{- end }}
+    {{- end }}
 
     postgresql: {{ toYaml .postgresql | nindent 6 }}
     postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}

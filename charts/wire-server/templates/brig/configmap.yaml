@@ -225,17 +225,18 @@ data:
         legalHoldAccessTokenTimeout: {{ .legalholdAccessTokenTimeout }}
       {{- end }}
 
+    {{- $turn := $.Values.brig.turn | default dict }}
     turn:
-      {{- if eq $.Values.brig.turn.serversSource "dns" }}
+      {{- if eq ($turn.serversSource | default "files") "dns" }}
       serversSource: dns
-      baseDomain: {{ required ".turn.baseDomain must be configured if .turn.serversSource is set to dns" $.Values.brig.turn.baseDomain  }}
-      discoveryIntervalSeconds: {{ $.Values.brig.turn.discoveryIntervalSeconds }}
-      {{- else if eq $.Values.brig.turn.serversSource "files" }}
+      baseDomain: {{ required ".turn.baseDomain must be configured if .turn.serversSource is set to dns" $turn.baseDomain  }}
+      discoveryIntervalSeconds: {{ $turn.discoveryIntervalSeconds }}
+      {{- else if eq ($turn.serversSource | default "files") "files" }}
       serversSource: files
       servers: /etc/wire/brig/turn/turn-servers.txt
       serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
       {{- else }}
-      {{- fail (cat "Invalid value for .turn.serversSource, expected dns or files, got: " $.Values.brig.turn.serversSource) }}
+      {{- fail (cat "Invalid value for .turn.serversSource, expected dns or files, got: " $turn.serversSource) }}
       {{- end }}
       secret: /etc/wire/brig/secrets/turn-secret.txt
       configTTL: 3600 # 1 hour

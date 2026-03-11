@@ -40,7 +40,7 @@ spec:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
-        {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
+        {{- if and .Values.gundeck.config.rabbitmq .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
             secretName: {{ .Values.gundeck.config.rabbitmq.tlsCaSecretRef.name }}
@@ -83,7 +83,7 @@ spec:
           - name: "additional-redis-ca"
             mountPath: "/etc/wire/gundeck/additional-redis-ca/"
           {{- end }}
-          {{- if .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
+          {{- if and .Values.gundeck.config.rabbitmq .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/gundeck/rabbitmq-ca/"
           {{- end }}

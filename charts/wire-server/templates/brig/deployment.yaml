@@ -44,7 +44,8 @@ spec:
         - name: "brig-secrets"
           secret:
             secretName: "brig"
-        {{- if eq $.Values.brig.turn.serversSource "files" }}
+        {{- $turn := $.Values.brig.turn | default dict }}
+        {{- if eq ($turn.serversSource | default "files") "files" }}
         - name: "turn-servers"
           configMap:
             name: "turn"
@@ -64,7 +65,7 @@ spec:
           secret:
             secretName: {{ include "brig.additionalElasticsearchTlsSecretName" .Values.brig.config }}
         {{- end }}
-        {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
+        {{- if and .Values.brig.config.rabbitmq .Values.brig.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
             secretName: {{ .Values.brig.config.rabbitmq.tlsCaSecretRef.name }}
@@ -85,7 +86,7 @@ spec:
             mountPath: "/etc/wire/brig/secrets"
           - name: "brig-config"
             mountPath: "/etc/wire/brig/conf"
-          {{- if eq $.Values.brig.turn.serversSource "files" }}
+          {{- if eq ($turn.serversSource | default "files") "files" }}
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
           {{- end }}
@@ -101,7 +102,7 @@ spec:
           - name: "additional-elasticsearch-ca"
             mountPath: "/etc/wire/brig/additional-elasticsearch-ca/"
           {{- end }}
-          {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
+          {{- if and .Values.brig.config.rabbitmq .Values.brig.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/brig/rabbitmq-ca/"
           {{- end }}
