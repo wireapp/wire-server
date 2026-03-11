@@ -115,7 +115,7 @@ claimLocalKeyPackages ::
   ExceptT ClientError (AppT r) KeyPackageBundle
 claimLocalKeyPackages qusr skipOwn suite qTarget = do
   let target = tUnqualified qTarget
-  su <- (lift $ liftSem $ getUser target) >>= maybe (throwE (ClientUserNotFound target)) pure
+  su <- lift (liftSem $ getUser target) >>= maybe (throwE (ClientUserNotFound target)) pure
   when (not su.activated || maybe True ((/=) Active) su.status) $ throwE (ClientUserNotFound target)
   -- while we do not support federation + MLS together with legalhold, to make sure that
   -- the remote backend is complicit with our legalhold policies, we disallow anyone
