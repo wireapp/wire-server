@@ -112,7 +112,7 @@ runSteps :: (HasCallStack) => [Step] -> App ()
 runSteps steps = do
   (owner, tid, []) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  void $ setTeamFeatureStatus owner tid "validateSAMLEmails" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "enabled"
   go owner tid emptyState steps
   where
     go :: Value -> String -> State -> [Step] -> App ()

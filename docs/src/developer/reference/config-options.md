@@ -300,7 +300,7 @@ Validate SAML emails is enabled by default.  To disable, use the following synta
 
 ```yaml
 # galley.yaml
-validateSAMLEmails:
+validateSAMLemails:
   defaults:
     status: disabled
 ```

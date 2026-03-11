@@ -187,7 +187,18 @@ newtype instance FeatureDefaults ValidateSAMLEmailsConfig
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
   deriving (FromJSON, ToJSON) via Defaults (Feature ValidateSAMLEmailsConfig)
-  deriving (ParseFeatureDefaults) via OptionalField ValidateSAMLEmailsConfig
+
+instance ParseFeatureDefaults (FeatureDefaults ValidateSAMLEmailsConfig) where
+  parseFeatureDefaults obj =
+    ValidateSAMLEmailsDefaults <$> do
+      mCfg <- obj .:? featureKey @ValidateSAMLEmailsConfig <|> obj .:? "validateSAMLEmails"
+      case mCfg of
+        Just cfg -> pure cfg
+        Nothing ->
+          fail $
+            "expected either the cononical key: '"
+              <> Key.toString (featureKey @ValidateSAMLEmailsConfig)
+              <> "' or the legacy key: 'validateSAMLEmails'"
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
   deriving stock (Eq, Show)
