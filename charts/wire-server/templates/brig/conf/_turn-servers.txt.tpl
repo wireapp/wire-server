@@ -1,5 +1,9 @@
 {{ define "brig.turn-servers.txt" }}
-{{- if eq $.Values.brig.turn.serversSource "files" }}
+{{- $turn := $.Values.brig.turn | default dict }}
+{{- if eq ($turn.serversSource | default "files") "files" }}
+{{- if not $.Values.brig.turnStatic }}
+{{- fail "brig.turnStatic must be configured when turn.serversSource is 'files'" }}
+{{- end }}
 {{ range .Values.brig.turnStatic.v1 }}{{ . }}
 {{ end -}}
 {{- end }}

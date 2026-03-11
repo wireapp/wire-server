@@ -1,4 +1,5 @@
-{{- if eq $.Values.brig.turn.serversSource "files" }}
+{{- $turn := $.Values.brig.turn | default dict }}
+{{- if eq ($turn.serversSource | default "files") "files" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
