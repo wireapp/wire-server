@@ -64,19 +64,21 @@ runAppSubsystem ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member UserSubsystem r,
     Member Random r
   ) =>
+  InterpreterFor UserSubsystem (AuthenticationSubsystem ': r) ->
+  InterpreterFor AuthenticationSubsystem r ->
   Sem (AppSubsystem ': r) a ->
   Sem r a
-runAppSubsystem = interpret \case
-  CreateApp lusr tid new -> createAppImpl lusr tid new
-  Wire.AppSubsystem.GetApp lusr tid uid -> getAppImpl lusr tid uid
-  GetApps lusr tid -> getAppsImpl lusr tid
-  UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
-  RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
-  DeleteApp tid appId -> deleteAppImpl tid appId
+runAppSubsystem runUser runAuth =
+  interpret $
+    runAuth . runUser . \case
+      CreateApp lusr tid new -> createAppImpl lusr tid new
+      Wire.AppSubsystem.GetApp lusr tid uid -> getAppImpl lusr tid uid
+      GetApps lusr tid -> getAppsImpl lusr tid
+      UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
+      RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+      DeleteApp tid appId -> deleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,

@@ -71,6 +71,7 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -132,61 +133,62 @@ runUserSubsystem ::
     Member ClientSubsystem r,
     Member (Input (Local any)) r
   ) =>
-  InterpreterFor AuthenticationSubsystem r ->
+  InterpreterFor AuthenticationSubsystem (AppSubsystem ': r) ->
+  InterpreterFor AppSubsystem r ->
   Sem (UserSubsystem ': r) a ->
   Sem r a
-runUserSubsystem authInterpreter = interpret $
-  \case
-    GetUserProfiles self others ->
-      getUserProfilesImpl self others
-    GetLocalUserProfilesFiltered upf others ->
-      getLocalUserProfilesFilteredImpl upf others
-    GetAccountsBy getBy ->
-      getAccountsByImpl getBy
-    GetAccountsByEmailNoFilter emails ->
-      getAccountsByEmailNoFilterImpl emails
-    GetSelfProfile self ->
-      getSelfProfileImpl self
-    GetUserProfilesWithErrors self others ->
-      getUserProfilesWithErrorsImpl self others
-    UpdateUserProfile self mconn mb update ->
-      updateUserProfileImpl self mconn mb update
-    CheckHandle uhandle ->
-      checkHandleImpl uhandle
-    CheckHandles hdls cnt ->
-      checkHandlesImpl hdls cnt
-    UpdateHandle uid mconn mb uhandle ->
-      updateHandleImpl uid mconn mb uhandle
-    LookupLocaleWithDefault luid ->
-      lookupLocaleOrDefaultImpl luid
-    GuardRegisterActivateUserEmailDomain email ->
-      guardRegisterActivateUserEmailDomainImpl email
-    GuardUpgradePersonalUserToTeamEmailDomain email ->
-      guardUpgradePersonalUserToTeamEmailDomainImpl email
-    IsBlocked email ->
-      isBlockedImpl email
-    BlockListDelete email ->
-      blockListDeleteImpl email
-    BlockListInsert email ->
-      blockListInsertImpl email
-    UpdateTeamSearchVisibilityInbound status ->
-      updateTeamSearchVisibilityInboundImpl status
-    SearchUsers luid query mDomain mMaxResults mTypes ->
-      searchUsersImpl luid query mDomain mMaxResults mTypes
-    BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
-      browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-    InternalUpdateSearchIndex uid ->
-      syncUserIndex uid
-    AcceptTeamInvitation luid pwd code ->
-      authInterpreter $
+runUserSubsystem authInterpreter appInterpreter =
+  interpret $
+    appInterpreter . authInterpreter . \case
+      GetUserProfiles self others ->
+        getUserProfilesImpl self others
+      GetLocalUserProfilesFiltered upf others ->
+        getLocalUserProfilesFilteredImpl upf others
+      GetAccountsBy getBy ->
+        getAccountsByImpl getBy
+      GetAccountsByEmailNoFilter emails ->
+        getAccountsByEmailNoFilterImpl emails
+      GetSelfProfile self ->
+        getSelfProfileImpl self
+      GetUserProfilesWithErrors self others ->
+        getUserProfilesWithErrorsImpl self others
+      UpdateUserProfile self mconn mb update ->
+        updateUserProfileImpl self mconn mb update
+      CheckHandle uhandle ->
+        checkHandleImpl uhandle
+      CheckHandles hdls cnt ->
+        checkHandlesImpl hdls cnt
+      UpdateHandle uid mconn mb uhandle ->
+        updateHandleImpl uid mconn mb uhandle
+      LookupLocaleWithDefault luid ->
+        lookupLocaleOrDefaultImpl luid
+      GuardRegisterActivateUserEmailDomain email ->
+        guardRegisterActivateUserEmailDomainImpl email
+      GuardUpgradePersonalUserToTeamEmailDomain email ->
+        guardUpgradePersonalUserToTeamEmailDomainImpl email
+      IsBlocked email ->
+        isBlockedImpl email
+      BlockListDelete email ->
+        blockListDeleteImpl email
+      BlockListInsert email ->
+        blockListInsertImpl email
+      UpdateTeamSearchVisibilityInbound status ->
+        updateTeamSearchVisibilityInboundImpl status
+      SearchUsers luid query mDomain mMaxResults mTypes ->
+        searchUsersImpl luid query mDomain mMaxResults mTypes
+      BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+        browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+      InternalUpdateSearchIndex uid ->
+        syncUserIndex uid
+      AcceptTeamInvitation luid pwd code ->
         acceptTeamInvitationImpl luid pwd code
-    InternalFindTeamInvitation mEmailKey code ->
-      internalFindTeamInvitationImpl mEmailKey code
-    GetUserExportData uid -> getUserExportDataImpl uid
-    RemoveEmailEither luid -> removeEmailEitherImpl luid
-    UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
-    CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
-    UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+      InternalFindTeamInvitation mEmailKey code ->
+        internalFindTeamInvitationImpl mEmailKey code
+      GetUserExportData uid -> getUserExportDataImpl uid
+      RemoveEmailEither luid -> removeEmailEitherImpl luid
+      UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
+      CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
+      UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -324,9 +326,12 @@ getUserProfilesImpl ::
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
     Member Now r,
+    Member (Input (Local any)) r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
+    Member AppSubsystem r,
+    Member AuthenticationSubsystem r,
     Member TeamSubsystem r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
@@ -342,12 +347,13 @@ getUserProfilesImpl self others =
       (bucketQualified others)
 
 getLocalUserProfilesFilteredImpl ::
-  forall r.
+  forall r any.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
     Member (Concurrency Unsafe) r,
+    Member (Input (Local any)) r,
     Member TeamSubsystem r
   ) =>
   UserProfileFilter ->
@@ -365,6 +371,7 @@ getUserProfilesFromDomain ::
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
+    Member (Input (Local any)) r,
     Member (Concurrency Unsafe) r,
     Member TeamSubsystem r
   ) =>
@@ -399,12 +406,13 @@ getUserProfilesRemotePart ruids = do
   runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getUserProfilesLocalPart ::
-  forall r.
+  forall r any.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
     Member (Concurrency Unsafe) r,
+    Member (Input (Local any)) r,
     Member TeamSubsystem r
   ) =>
   UserProfileFilter ->
@@ -512,7 +520,7 @@ deleteLocalIfExpired user =
         enqueueUserDeletion (qUnqualified user.userQualifiedId)
 
 getUserProfilesWithErrorsImpl ::
-  forall r fedM.
+  forall r fedM any.
   ( Member UserStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
@@ -523,8 +531,7 @@ getUserProfilesWithErrorsImpl ::
     FederationMonad fedM,
     Typeable fedM,
     Member TeamSubsystem r,
-    Member (Input (Local any)) r,
-    Member AppSubsystem r
+    Member (Input (Local any)) r
   ) =>
   Local UserId ->
   [Qualified UserId] ->

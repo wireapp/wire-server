@@ -90,6 +90,8 @@ import Wire.API.User.IdentityProvider
 import Wire.API.User.Password
 import Wire.ActivationCodeStore
 import Wire.AppStore
+import Wire.AppSubsystem
+import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
@@ -215,7 +217,7 @@ type AllErrors =
     Error TeamCollaboratorsError
   ]
 
-type MiniBackendEffects = UserSubsystem ': TeamCollaboratorsSubsystem ': MiniBackendLowerEffects
+type MiniBackendEffects = AuthenticationSubsystem ': UserSubsystem ': AppSubsystem ': TeamCollaboratorsSubsystem ': MiniBackendLowerEffects
 
 ----------------------------------------------------------------------
 -- lower effect interpreters (hierarchically)
@@ -252,6 +254,8 @@ type MiniBackendLowerEffects =
      BlockListStore,
      UserStore,
      AppStore,
+     Error AppSubsystemError,
+     Input AppSubsystemConfig,
      TeamCollaboratorsStore,
      UserKeyStore,
      IndexedUserStore,
@@ -304,6 +308,8 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryIndexedUserStoreInterpreter
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
+    . todo -- config
+    . todo -- error
     . inMemoryAppStoreInterpreter
     . inMemoryUserStoreInterpreter
     . inMemoryBlockListStoreInterpreter
@@ -665,18 +671,28 @@ interpretNoFederationStackState localBackend teams galleyConfigs cfg =
       }
 
 interpretMaybeFederationStackState ::
-  forall r a.
   (Members AllErrors r) =>
   MiniBackendParams r ->
   Sem (MiniBackendEffects `Append` r) a ->
   Sem r (MiniBackend, a)
 interpretMaybeFederationStackState mb =
-  let authSubsystemInterpreter :: InterpreterFor AuthenticationSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
-      authSubsystemInterpreter = interpretAuthenticationSubsystem userSubsystemInterpreter
+  miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . runRecursiveAuthUserApp
 
-      userSubsystemInterpreter :: InterpreterFor UserSubsystem (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects `Append` r)
-      userSubsystemInterpreter = runUserSubsystem authSubsystemInterpreter
-   in miniBackendLowerEffectsInterpreters mb . interpretTeamCollaboratorsSubsystem . userSubsystemInterpreter
+-- TODO: move this to something like "Wire.Subsystems.Recursion"
+runRecursiveAuthUserApp ::
+  (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) =>
+  Sem (AuthenticationSubsystem ': UserSubsystem ': AppSubsystem ': r) a ->
+  Sem r a
+runRecursiveAuthUserApp = runApp . runUser . runAuth
+  where
+    runAuth :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor AuthenticationSubsystem r
+    runAuth = interpretAuthenticationSubsystem runUser
+
+    runUser :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor UserSubsystem r
+    runUser = runUserSubsystem runAuth runApp
+
+    runApp :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor AppSubsystem r
+    runApp = runAppSubsystem runUser runAuth
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
