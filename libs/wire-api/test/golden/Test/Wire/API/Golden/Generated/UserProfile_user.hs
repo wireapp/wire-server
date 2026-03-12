@@ -90,7 +90,6 @@ testObject_UserProfile_user_2 =
         Just $
           GetApp
             { name = Name "alsoUser2",
-              pict = Pict [],
               assets = [],
               accentId = ColourId 0,
               meta = mempty,
