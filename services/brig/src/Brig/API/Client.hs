@@ -218,7 +218,8 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
     (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients mCaps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
-  when (supportsConsumableNotifications clt) $ lift $ liftSem $ do
+  consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
+  when (consumableNotificationsEnabled && supportsConsumableNotifications clt) $ lift $ liftSem $ do
     setupConsumableNotifications u clt.clientId
   lift $ do
     for_ old $ execDelete u con
@@ -253,13 +254,14 @@ updateClient ::
   (Handler r) ()
 updateClient uid cid req = do
   client <- (lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientError
+  consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
   lift . liftSem $ for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
   for_ req.updateClientCapabilities $ \caps -> do
     if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
       then do
         -- first set up the notification queues then save the data is more robust than the other way around
         let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
-        when (ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
+        when (consumableNotificationsEnabled && ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
           setupConsumableNotifications uid cid
         lift . liftSem . ClientStore.updateCapabilities uid cid . Just $ caps
       else throwE $ clientError ClientCapabilitiesCannotBeRemoved

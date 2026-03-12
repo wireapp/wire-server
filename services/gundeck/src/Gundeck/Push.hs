@@ -104,6 +104,7 @@ push ps = do
 
 -- | Abstract over all effects in 'pushAll' (for unit testing).
 class (MonadThrow m) => MonadPushAll m where
+  mpaConsumableNotificationsEnabled :: m Bool
   mpaNotificationTTL :: m NotificationTTL
   mpaCellsEventQueue :: m (Maybe Text)
   mpaMkNotificationId :: m NotificationId
@@ -117,6 +118,7 @@ class (MonadThrow m) => MonadPushAll m where
   mpaPublishToRabbitMq :: Text -> Text -> Q.Message -> m ()
 
 instance MonadPushAll Gundeck where
+  mpaConsumableNotificationsEnabled = view (options . settings . consumableNotifications)
   mpaNotificationTTL = view (options . settings . notificationTTL)
   mpaCellsEventQueue = view (options . settings . cellsEventQueue)
   mpaMkNotificationId = mkNotificationId
@@ -241,7 +243,13 @@ getClients uids = do
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m, Log.MonadLogger m) => [Push] -> m ()
 pushAll pushes = do
   Log.debug $ msg (val "pushing") . Log.field "pushes" (Aeson.encode pushes)
-  (rabbitmqPushes, legacyPushes, allUserClients) <- splitPushes pushes
+  consumableNotificationsEnabled <- mpaConsumableNotificationsEnabled
+  (rabbitmqPushes, legacyPushes, allUserClients) <-
+    if consumableNotificationsEnabled
+      then splitPushes pushes
+      else do
+        allUserClients <- mpaGetClients (Set.unions $ map (\p -> Set.map (._recipientId) $ p._pushRecipients) pushes)
+        pure ([], pushes, allUserClients)
 
   legacyNotifs <- mapM mkNewNotification legacyPushes
   pushAllLegacy legacyNotifs allUserClients
