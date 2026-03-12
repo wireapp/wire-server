@@ -193,8 +193,9 @@ instance ParseFeatureDefaults (FeatureDefaults ValidateSAMLEmailsConfig) where
     ValidateSAMLEmailsDefaults <$> do
       -- Accept the legacy typo in config input for backward compatibility,
       -- but prefer the canonical feature key when both are present.
-      mCfg <- obj .:? featureKey @ValidateSAMLEmailsConfig <|> obj .:? "validateSAMLEmails"
-      pure $ fromMaybe def mCfg
+      mCanonical <- obj .:? featureKey @ValidateSAMLEmailsConfig
+      mLegacy <- obj .:? "validateSAMLEmails"
+      pure $ fromMaybe def (mCanonical <|> mLegacy)
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
   deriving stock (Eq, Show)
