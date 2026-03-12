@@ -92,4 +92,4 @@ inMemoryUserSubsystemInterpreter =
     SetUserSearchable {} -> error "SetUserSearchable: implement on demand (userSubsystemInterpreter)"
 
 toProfile :: User -> UserProfile
-toProfile u = mkUserProfileWithEmail (userEmail u) u UserLegalHoldDisabled
+toProfile u = mkUserProfileWithEmail (userEmail u) u Nothing UserLegalHoldDisabled

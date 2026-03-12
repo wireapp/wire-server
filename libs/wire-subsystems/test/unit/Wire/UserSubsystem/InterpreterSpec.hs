@@ -106,6 +106,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 [ mkUserProfileWithEmail
                     Nothing
                     (mkUserFromStored domain miniLocale targetUser)
+                    Nothing
                     defUserLegalHoldStatus
                 | targetUser <- users
                 ]
@@ -166,6 +167,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
                         (mkUserFromStored domain config.defaultLocale targetUser)
+                        Nothing
                         defUserLegalHoldStatus
                     ]
 
@@ -182,6 +184,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 === [ mkUserProfile
                         (fmap (const Nothing) config.emailVisibilityConfig)
                         (mkUserFromStored domain config.defaultLocale targetUser)
+                        Nothing
                         defUserLegalHoldStatus
                     ]
 
