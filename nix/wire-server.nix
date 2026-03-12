@@ -43,7 +43,7 @@
 # components and the required dependencies. We then use this package set along
 # with nixpkgs' dockerTools to make derivations for docker images that we need.
 
-{ pkgs, pkgs_24_11, bomDependenciesDrv, inputs, }:
+{ pkgs, pkgs_24_11, pkgs_unstable, bomDependenciesDrv, inputs, }:
 let
   inherit (pkgs) lib;
   hlib = pkgs.haskell.lib;
@@ -540,7 +540,8 @@ in
       pkgs.lsof
       pkgs.haskellPackages.headroom
       profileEnv
-      pkgs.syft
+      pkgs_unstable.syft
+      pkgs.cyclonedx-cli
     ]
     ++ ghcWithPackages
     ++ pkgs.lib.optionals pkgs.stdenv.isLinux [

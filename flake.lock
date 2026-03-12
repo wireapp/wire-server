@@ -153,6 +153,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-unstable": {
+      "locked": {
+        "lastModified": 1772963539,
+        "narHash": "sha256-9jVDGZnvCckTGdYT53d/EfznygLskyLQXYwJLKMPsZs=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "9dcb002ca1690658be4a04645215baea8b95f31d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs_24_11": {
       "locked": {
         "lastModified": 1751274312,
@@ -197,6 +213,7 @@
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",
         "nixpkgs": "nixpkgs",
+        "nixpkgs-unstable": "nixpkgs-unstable",
         "nixpkgs_24_11": "nixpkgs_24_11",
         "postie": "postie",
         "servant-openapi3": "servant-openapi3",
