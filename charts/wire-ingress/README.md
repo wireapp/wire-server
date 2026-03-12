@@ -53,7 +53,15 @@ gateway:
 ```
 
 If you cannot or do not want to open port 80, use a DNS01 solver instead by setting
-`certManager.customSolvers`. DNS01 requires credentials for your DNS provider but does not need
+
+```yaml
+certManager:
+  customSolvers:
+    - dns01:
+        # .. provider-specific settings
+```
+
+DNS01 requires credentials for your DNS provider but does not need
 port 80 to be open.
 
 ### Federator mTLS uses Envoy Gateway policies
@@ -83,6 +91,8 @@ Operators should be able to reuse most of their existing values files with minim
 | _(not present)_ | `gateway.name` | Name of the Gateway to attach routes to |
 | _(not present)_ | `gateway.infrastructure.annotations` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure) |
 | _(not present)_ | `gateway.proxyProtocol.enabled` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all Gateway listeners — required when the load balancer is configured to send PROXY protocol headers |
+| _(not present)_ | `tls.secret.create` | If `false`, the TLS Secret is not created by this chart — use when the secret is managed externally (e.g. by another chart or operator). `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` are ignored when `false`. |
+| _(not present)_ | `tls.secret.nameOverride` | Override the name of the TLS Secret referenced by the Gateway listener. If not set, the name is derived from the release name. |
 
 ### Dropped values (not applicable to Gateway API)
 
@@ -225,8 +235,8 @@ Condition: `!tls.useCertManager`
 Encodes `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` into a `kubernetes.io/tls` Secret
 referenced by the Gateway listener.
 
-- [ ] Done
-- [ ] Manually tested
+- [x] Done
+- [x] Manually tested deployment
 
 ---
 
@@ -238,9 +248,8 @@ Condition: `tls.useCertManager`
 A cert-manager `Certificate` and `Issuer`/`ClusterIssuer` for ACME HTTP-01 certificate issuance.
 The `secretName` produced by the `Certificate` is referenced by the Gateway listener.
 
-- [ ] Done
-- [x] Manually tested tested http01 challenge
-- [ ] Manually tested tested dns01 challenge
+- [x] Done
+- [x] Manually tested http01 challenge, via issuer
 
 ### Phase 3 — Gateway
 
@@ -271,7 +280,7 @@ gateway:
 **Review:** `helm template` produces a valid `Gateway` manifest. Diff against old chart shows no
 `Ingress` equivalent yet — that is expected.
 
-- [ ] Done
+- [x] Done
 
 ---
 

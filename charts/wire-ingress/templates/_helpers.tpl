@@ -21,14 +21,18 @@ Determine DNS zone based on the HTTPS FQDN (e.g. "nginz-https.example.com" → "
 Name of the TLS certificate secret. Differs based on whether cert-manager is used.
 */}}
 {{- define "wire-ingress.getCertificateSecretName" -}}
-{{- $nameParts := list (include "wire-ingress.fullname" .) -}}
-{{- if .Values.tls.useCertManager -}}
-    {{- $nameParts = append $nameParts "managed" -}}
+{{- if .Values.tls.secret.nameOverride -}}
+    {{- .Values.tls.secret.nameOverride -}}
 {{- else -}}
-    {{- $nameParts = append $nameParts "wildcard" -}}
+    {{- $nameParts := list (include "wire-ingress.fullname" .) -}}
+    {{- if .Values.tls.useCertManager -}}
+        {{- $nameParts = append $nameParts "managed" -}}
+    {{- else -}}
+        {{- $nameParts = append $nameParts "wildcard" -}}
+    {{- end -}}
+    {{- $nameParts = append $nameParts "tls-certificate" -}}
+    {{- join "-" $nameParts -}}
 {{- end -}}
-{{- $nameParts = append $nameParts "tls-certificate" -}}
-{{- join "-" $nameParts -}}
 {{- end -}}
 
 {{/*

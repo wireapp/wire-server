@@ -48,6 +48,12 @@ fakeS3:
   enabled: true
 
 tls:
+  secret:
+    # If true, a kubernetes.io/tls Secret is created from secrets.tlsWildcardCert
+    # and secrets.tlsWildcardKey. Set to false if the secret is managed externally.
+    create: true
+    # Override the name of the Secret. If not set, the name is derived from the release name.
+    nameOverride: ""
   useCertManager: false
   createIssuer: true
   privateKey:
