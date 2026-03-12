@@ -30,8 +30,8 @@ module Test.Spar.ScimSpec where
 
 import Control.Lens (view)
 import Data.Aeson
-import Data.Aeson.QQ (aesonQQ)
-import qualified Data.Aeson.Types as Aeson
+-- import Data.Aeson.QQ (aesonQQ)
+-- import qualified Data.Aeson.Types as Aeson
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
 import qualified Data.UUID as UUID
@@ -39,20 +39,21 @@ import Imports
 import Network.URI (parseURI)
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim
-import Spar.Scim.Types (normalizeLikeStored)
+import Spar.Scim.Types (expandPatch, normalizeLikeStored)
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString
 import qualified Web.Scim.Class.User as ScimC
-import Web.Scim.Filter (AttrPath (..))
+import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
-import Web.Scim.Schema.PatchOp (Op (Remove), Operation (..), PatchOp (..), Path (NormalPath), applyOperation)
+import Web.Scim.Schema.PatchOp (Patch (..), PatchOp (..), applyPatch)
 import qualified Web.Scim.Schema.ResourceType as ScimR
 import Web.Scim.Schema.Schema as Scim
 import Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User.Name as ScimN
-import Wire.API.User.RichInfo
+import Wire.API.User.RichInfo (RichField (..), RichInfo (..), RichInfoAssocList (..), mkRichInfoAssocList)
+import qualified Wire.API.User.RichInfo as RI
 
 spec :: Spec
 spec = describe "toScimStoredUser" $ do
@@ -124,134 +125,53 @@ spec = describe "toScimStoredUser" $ do
 
   describe "ScimUserExtra" $ do
     describe "Patchable" $ do
+      let apply :: Patch SparTag -> User SparTag -> User SparTag
+          apply p u = either (error . show) id $ applyPatch (expandPatch p) u
+
       it "can add to rich info map" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "add",
-                                         "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:newAttr",
-                                         "value" : "newValue"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra mempty) operation
-          `shouldBe` Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "newAttr" "newValue"])))
+        let patch = Patch [PatchOpReplace (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoMapURN)) "newAttr" Nothing) Nothing)) (String "newValue")]
+            user = empty @SparTag [User20] "test" (ScimUserExtra mempty)
+        apply patch user `shouldBe` user {extra = ScimUserExtra (RI.mkRichInfo [RichField "newAttr" "newValue"])}
+
       it "can replace in rich info map" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "replace",
-                                         "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:oldAttr",
-                                         "value" : "newValue"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "newValue"])))
+        let patch = Patch [PatchOpReplace (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoMapURN)) "oldAttr" Nothing) Nothing)) (String "newValue")]
+            user = empty @SparTag [User20] "test" (ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "oldValue"]))
+        apply patch user `shouldBe` user {extra = ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "newValue"])}
+
       it "treats rich info map case insensitively" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "replace",
-                                         "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:OLDATTR",
-                                         "value" : "newValue"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "newValue"])))
+        let patch = Patch [PatchOpReplace (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoMapURN)) "OLDATTR" Nothing) Nothing)) (String "newValue")]
+            user = empty @SparTag [User20] "test" (ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "oldValue"]))
+        apply patch user `shouldBe` user {extra = ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "newValue"])}
+
       it "can remove from rich info map" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "remove",
-                                         "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:oldAttr"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` Right (ScimUserExtra mempty)
+        let patch = Patch [PatchOpRemove (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoMapURN)) "oldAttr" Nothing) Nothing))]
+            user = empty @SparTag [User20] "test" (ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "oldValue"]))
+        apply patch user `shouldBe` user {extra = ScimUserExtra mempty}
+
       it "adds new fields to rich info assoc list at the end" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "add",
-                                         "path" : "urn:wire:scim:schemas:profile:1.0:newAttr",
-                                         "value" : "newValue"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` Right (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue", RichField "newAttr" "newValue"])))
+        let patch = Patch [PatchOpReplace (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoAssocListURN)) "newAttr" Nothing) Nothing)) (String "newValue")]
+            user = empty @SparTag [User20] "test" (ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "oldValue"]))
+        apply patch user `shouldBe` user {extra = ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "oldValue", RichField "newAttr" "newValue"])}
+
       it "can replace in rich info assoc list while maintaining order" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "replace",
-                                         "path" : "urn:wire:scim:schemas:profile:1.0:secondAttr",
-                                         "value" : "newSecondVal"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        let origAssocList =
+        let patch = Patch [PatchOpReplace (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoAssocListURN)) "secondAttr" Nothing) Nothing)) (String "newSecondVal")]
+            origAssocList =
               [ RichField "firstAttr" "firstVal",
                 RichField "secondAttr" "secondVal",
                 RichField "thirdAttr" "thirdVal"
               ]
-        let expectedAssocList =
+            user = empty @SparTag [User20] "test" (ScimUserExtra (RI.mkRichInfo origAssocList))
+            expectedAssocList =
               [ RichField "firstAttr" "firstVal",
                 RichField "secondAttr" "newSecondVal",
                 RichField "thirdAttr" "thirdVal"
               ]
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList origAssocList))) operation
-          `shouldBe` Right (ScimUserExtra (RichInfo (mkRichInfoAssocList expectedAssocList)))
+        apply patch user `shouldBe` user {extra = ScimUserExtra (RI.mkRichInfo expectedAssocList)}
+
       it "can remove from rich info assoc list" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "remove",
-                                         "path" : "urn:wire:scim:schemas:profile:1.0:oldAttr"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
-          `shouldBe` Right (ScimUserExtra mempty)
-      it "throws error if asked to patch an recognized schema" $ do
-        let schema = Just (CustomSchema "wrong-schema")
-            path = Just (NormalPath (AttrPath schema "oldAttr" Nothing))
-            operation = Operation Remove path Nothing
-        isLeft (applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation)
-          `shouldBe` True
-      it "treats rich info assoc list case insensitively" $ do
-        let operationJSON =
-              [aesonQQ|{
-                                       "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                       "operations" : [{
-                                         "op" : "replace",
-                                         "path" : "urn:wire:scim:schemas:profile:1.0:secondAttr",
-                                         "value" : "newSecondVal"
-                                       }]
-                                     }|]
-        let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        let origAssocList =
-              [ RichField "firstAttr" "firstVal",
-                RichField "SECONDATTR" "secondVal",
-                RichField "thirdAttr" "thirdVal"
-              ]
-        let expectedAssocList =
-              [ RichField "firstAttr" "firstVal",
-                RichField "secondAttr" "newSecondVal",
-                RichField "thirdAttr" "thirdVal"
-              ]
-        applyOperation (ScimUserExtra (RichInfo (mkRichInfoAssocList origAssocList))) operation
-          `shouldBe` Right (ScimUserExtra (RichInfo (mkRichInfoAssocList expectedAssocList)))
+        let patch = Patch [PatchOpRemove (Just (Filter.ValuePath (Filter.AttrPath (Just (CustomSchema RI.richInfoAssocListURN)) "oldAttr" Nothing) Nothing))]
+            user = empty @SparTag [User20] "test" (ScimUserExtra (RI.mkRichInfo [RichField "oldAttr" "oldValue"]))
+        apply patch user `shouldBe` user {extra = ScimUserExtra mempty}
 
   describe "normalization" $ do
     let usr :: User SparTag

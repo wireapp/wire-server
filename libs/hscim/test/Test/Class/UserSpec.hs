@@ -353,7 +353,8 @@ spec = with app $ do
           "Operations": [{ "op": "Remove", "path": "userName"}]
         }|]
           `shouldRespondWith` [scim|{
-          "scimType":"mutability","status":"400","schemas":["urn:ietf:params:scim:api:messages:2.0:Error"]
+            "detail":"Cannot remove attribute: userName","scimType":"mutability","status":"400","schemas":["urn:ietf:params:scim:api:messages:2.0:Error"]
+
         }|]
             { matchStatus = 400
             }

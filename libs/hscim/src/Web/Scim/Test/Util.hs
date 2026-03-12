@@ -76,7 +76,6 @@ import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
 import Test.Hspec.Wai.Matcher (bodyEquals, match)
 import Web.Scim.Class.Auth (AuthTypes (..))
 import Web.Scim.Class.Group (GroupTypes (..))
-import Web.Scim.Schema.Schema (Schema (CustomSchema, User20))
 import Web.Scim.Schema.User (UserTypes (..))
 
 -- | re-implementation of 'shouldRespondWith' with better error reporting.
@@ -254,7 +253,6 @@ data TestTag id authData authInfo userExtra
 instance UserTypes (TestTag id authData authInfo userExtra) where
   type UserId (TestTag id authData authInfo userExtra) = id
   type UserExtra (TestTag id authData authInfo userExtra) = userExtra
-  supportedSchemas = [User20, CustomSchema "urn:hscim:test"]
 
 instance GroupTypes (TestTag id authData authInfo userExtra) where
   type GroupId (TestTag id authData authInfo userExtra) = id

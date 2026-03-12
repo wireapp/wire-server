@@ -39,7 +39,7 @@ data Schema
   | Error20
   | PatchOp20
   | CustomSchema Text
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 -- | 'Schema' is *almost* a straight-forward enum type, except for 'CustomSchema'.
 -- Enumerations are nice because they let you write quickcheck generators as @elements

@@ -22,9 +22,11 @@
 
 module Web.Scim.Schema.Common where
 
+import Control.Monad.Error.Class
 import Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.Types (Parser)
 import qualified Data.CaseInsensitive as CI
 import Data.List (nub, (\\))
 import Data.String.Conversions (cs)
@@ -104,9 +106,10 @@ parseOptions =
 -- 'Data.CaseInsensitive.foldCase'.  They're not all the same thing!
 -- https://github.com/basvandijk/case-insensitive/issues/31
 --
--- (FUTUREWORK: The "recursively" part is a bit of a waste and could be dropped, but we would
--- have to spend more effort in making sure it is always called manually in nested parsers.)
-jsonLower :: forall m. (m ~ Either [Text]) => Value -> m Value
+-- NB: The "recursively" part is at least partially redundant because
+-- we call `jsonLower` in all `FromJSON` instances, but we don't care
+-- about the overhead because scim objects are never that deep.
+jsonLower :: forall m. (MonadError String m) => Value -> m Value
 jsonLower (Object (KeyMap.toList -> olist)) =
   Object . KeyMap.fromList <$> (nubCI >> mapM lowerPair olist)
   where
@@ -115,14 +118,15 @@ jsonLower (Object (KeyMap.toList -> olist)) =
       let unnubbed = Key.toText . fst <$> olist
        in case unnubbed \\ nub unnubbed of
             [] -> pure ()
-            bad@(_ : _) -> Left bad
+            bad@(_ : _) -> throwError $ "case insensitivity check: redundant attributes " <> show bad
     lowerPair :: (Key.Key, Value) -> m (Key.Key, Value)
-    lowerPair (key, val) = (lowerKey key,) <$> jsonLower val
+    lowerPair (key, val) = (Key.fromText . CI.foldCase . Key.toText $ key,) <$> jsonLower val
 jsonLower (Array x) = Array <$> mapM jsonLower x
-jsonLower same@(String _) = Right same -- (only object attributes, not all texts in the value side of objects!)
-jsonLower same@(Number _) = Right same
-jsonLower same@(Bool _) = Right same
-jsonLower same@Null = Right same
+jsonLower same@(String _) = pure same
+jsonLower same@(Number _) = pure same
+jsonLower same@(Bool _) = pure same
+jsonLower same@Null = pure same
 
-lowerKey :: Key.Key -> Key.Key
-lowerKey = Key.fromText . CI.foldCase . Key.toText
+-- `jsonLower` for aeson `Parser`s.
+prsJsonLower :: Value -> Parser Value
+prsJsonLower = either fail pure . jsonLower

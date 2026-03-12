@@ -56,7 +56,7 @@ testRichInfo =
       toRichInfoAssocList (fromRichInfoAssocList riAssocList) === riAssocList,
     testProperty "assoc list in RichInfoMapAndList is stable and forms a prefix of the toRichInfoAssocList value" $ \ri -> do
       let keys = fmap (\(RichField k _) -> k)
-      keys (richInfoAssocList ri) `isPrefixOf` keys (unRichInfoAssocList (toRichInfoAssocList ri)),
+      keys (fromMaybe [] (richInfoAssocList ri)) `isPrefixOf` keys (unRichInfoAssocList (toRichInfoAssocList ri)),
     testGroup
       "RichInfo Examples"
       [ testCase "Empty rich info" $ do
@@ -105,6 +105,7 @@ testRichInfo =
           let inputJSON =
                 [aesonQQ|{
                                      "urn:ietf:params:scim:schemas:extension:wire:1.0:User" : {
+                                       "foo": "bar",
                                        "bar": "baz"
                                      },
                                      "urn:wire:scim:schemas:profile:1.0" : {
