@@ -2104,7 +2104,6 @@ data NewApp = NewApp
 -- FUTUREWORK(fisx): rename to AppInfo; remove name, pict, assets, accentId, meta
 data GetApp = GetApp
   { name :: Name,
-    pict :: Pict,
     assets :: [Asset],
     accentId :: ColourId,
     meta :: A.Object,
@@ -2201,7 +2200,6 @@ getAppObjectSchema :: ObjectSchema SwaggerDoc GetApp
 getAppObjectSchema =
   GetApp
     <$> (.name) .= field "name" schema
-    <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
     <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
     <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
     <*> (.meta) .= field "metadata" jsonObject
