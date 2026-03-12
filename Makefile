@@ -691,6 +691,10 @@ diff-live-manifest: clean-charts charts-integration
 	OUTPUT_FILE="/tmp/wire-server.yaml" ./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
 	DIFF_OUTPUT_FILE="$(DIFF_OUTPUT_FILE)" ./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
 
+render-ci-manifest: clean-charts charts-integration
+	./hack/bin/helm-render-ci-values.sh
+	./hack/bin/render-manifest.sh /tmp/wire-server-test-a.yaml
+
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \
 	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
