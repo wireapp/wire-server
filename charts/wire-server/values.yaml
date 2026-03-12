@@ -12,6 +12,8 @@ tags:
   mlsstats: false
   integration: false
 
+consumableNotifications: false
+
 galley:
   replicaCount: 3
   image:
