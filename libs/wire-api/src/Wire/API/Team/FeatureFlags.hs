@@ -190,11 +190,11 @@ newtype instance FeatureDefaults ValidateSAMLEmailsConfig
 
 instance ParseFeatureDefaults (FeatureDefaults ValidateSAMLEmailsConfig) where
   parseFeatureDefaults obj =
-    ValidateSAMLEmailsDefaults <$> do
+    do
       -- Accept the legacy typo in config input for backward compatibility,
       -- but prefer the canonical feature key when both are present.
-      mCanonical <- obj .:? featureKey @ValidateSAMLEmailsConfig
-      mLegacy <- obj .:? "validateSAMLEmails"
+      mCanonical :: Maybe (FeatureDefaults ValidateSAMLEmailsConfig) <- obj .:? featureKey @ValidateSAMLEmailsConfig
+      mLegacy :: Maybe (FeatureDefaults ValidateSAMLEmailsConfig) <- obj .:? "validateSAMLEmails"
       pure $ fromMaybe def (mCanonical <|> mLegacy)
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
