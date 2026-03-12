@@ -93,14 +93,15 @@ testCreateApp = do
   -- A teamless user can't get the app
   outsideUser <- randomUser domain def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
-    resp.status `shouldMatchInt` 403 -- TODO: 200
-    resp.json %. "label" `shouldMatch` "app-no-permission"
+    -- this may change soon, see
+    -- https://wearezeta.atlassian.net/browse/WPB-23995,
+    -- https://wearezeta.atlassian.net/browse/WPB-23840
+    resp.status `shouldMatchInt` 200
 
-  -- Another team's owner nor member can't get the app
   (owner2, tid2, [regularMember2]) <- createTeam domain 2
-  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
-  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
-  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
+  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
 
   -- Category must be any of the values for the Category enum
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
