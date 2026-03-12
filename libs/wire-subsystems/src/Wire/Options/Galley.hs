@@ -56,21 +56,21 @@ module Wire.Options.Galley
     logNetStrings,
     logFormat,
     guestLinkTTLSeconds,
-    defGuestLinkTTLSeconds,
     passwordHashingOptions,
     passwordHashingRateLimit,
     checkGroupInfo,
     meetings,
     validityPeriod,
     postgresMigration,
-    GuestLinkTTLSeconds (..),
     PostgresMigrationOpts (..),
     StorageLocation (..),
+    GuestLinkTTLSeconds (..),
+    defGuestLinkTTLSeconds,
   )
 where
 
 import Control.Lens hiding (Level, (.=))
-import Data.Aeson
+import Data.Aeson (FromJSON (..))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Id (TeamId)
@@ -86,7 +86,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
-import Wire.Options.Keys
+import Wire.Options.Keys (MLSPrivateKeyPaths)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)
 
@@ -101,6 +101,10 @@ instance FromJSON GuestLinkTTLSeconds where
     if n > 0 && n <= 31536000
       then pure $ GuestLinkTTLSeconds n
       else fail "GuestLinkTTLSeconds must be in (0, 31536000]"
+
+-- | Default guest link TTL in days. 365 days if not set.
+defGuestLinkTTLSeconds :: GuestLinkTTLSeconds
+defGuestLinkTTLSeconds = GuestLinkTTLSeconds $ 60 * 60 * 24 * 365 -- 1 year
 
 data Settings = Settings
   { -- | Number of connections for the HTTP client pool
@@ -183,10 +187,6 @@ makeLenses ''MeetingsConfig
 
 defConcurrentDeletionEvents :: Int
 defConcurrentDeletionEvents = 128
-
--- | Default guest link TTL in days. 365 days if not set.
-defGuestLinkTTLSeconds :: GuestLinkTTLSeconds
-defGuestLinkTTLSeconds = GuestLinkTTLSeconds $ 60 * 60 * 24 * 365 -- 1 year
 
 data JournalOpts = JournalOpts
   { -- | SQS queue name to send team events

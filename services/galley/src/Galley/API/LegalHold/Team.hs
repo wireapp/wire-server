@@ -21,19 +21,25 @@ module Galley.API.LegalHold.Team
     assertLegalHoldEnabledForTeam,
     ensureNotTooLargeToActivateLegalHold,
     teamSizeBelowLimit,
+    ensureReAuthorised,
   )
 where
 
+import Data.Code qualified as Code
 import Data.Id
+import Data.Misc (PlainTextPassword6)
 import Data.Range
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags as Team (FanoutLimit, FeatureDefaults (..))
 import Wire.API.Team.Size
+import Wire.API.User (VerificationAction)
+import Wire.API.User.Auth.ReAuth
 import Wire.BrigAPIAccess
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.LegalHold
@@ -94,3 +100,15 @@ teamSizeBelowLimit teamSize = do
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
       -- unlimited, see docs of 'ensureNotTooLargeForLegalHold'
       pure True
+
+ensureReAuthorised ::
+  ( Member BrigAPIAccess r,
+    Member (Error AuthenticationError) r
+  ) =>
+  UserId ->
+  Maybe PlainTextPassword6 ->
+  Maybe Code.Value ->
+  Maybe VerificationAction ->
+  Sem r ()
+ensureReAuthorised u secret mbAction mbCode =
+  reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither

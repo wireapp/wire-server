@@ -17,13 +17,22 @@
 
 module Wire.TeamSubsystem.GalleyAPI where
 
+import Data.LegalHold (UserLegalHoldStatus (..))
 import Imports
 import Polysemy
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.Team.Feature (FeatureStatus (FeatureStatusEnabled), LockableFeature (..))
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.TeamSubsystem
 
-interpretTeamSubsystemToGalleyAPI :: (Member GalleyAPIAccess r) => InterpreterFor TeamSubsystem r
+interpretTeamSubsystemToGalleyAPI ::
+  ( Member GalleyAPIAccess r,
+    Member (ErrorS TeamMemberNotFound) r,
+    Member (ErrorS TeamNotFound) r
+  ) =>
+  InterpreterFor TeamSubsystem r
 interpretTeamSubsystemToGalleyAPI = interpret $ \case
   InternalGetTeamMember userId teamId -> GalleyAPIAccess.getTeamMember userId teamId
   InternalGetTeamMembersWithLimit teamId maxResults -> GalleyAPIAccess.getTeamMembersWithLimit teamId maxResults
@@ -32,3 +41,41 @@ interpretTeamSubsystemToGalleyAPI = interpret $ \case
   InternalGetTeamAdmins teamId -> GalleyAPIAccess.getTeamAdmins teamId
   InternalGetOneUserTeam userId -> GalleyAPIAccess.getTeamId userId
   InternalFinalizeDeleteTeam lusr mcon teamId -> GalleyAPIAccess.finalizeDeleteTeam lusr mcon teamId
+  GetUserStatus lusr tid uid -> do
+    GalleyAPIAccess.getTeamMember uid tid >>= \case
+      Nothing -> throwS @'TeamMemberNotFound
+      Just _ -> do
+        GalleyAPIAccess.getUserLegalholdStatus lusr tid >>= \case
+          Nothing -> throwS @'TeamNotFound
+          Just status -> pure status
+  GetTeamMembersForFanout tid ->
+    GalleyAPIAccess.getTeamMembersWithLimit tid Nothing
+  AssertTeamExists tid -> do
+    void $ GalleyAPIAccess.getTeam tid
+  GetLHStatusForUsers uids -> do
+    for uids $ \uid -> do
+      mteamId <- GalleyAPIAccess.getTeamId uid
+      status <- case mteamId of
+        Nothing -> pure UserLegalHoldDisabled
+        Just tid -> do
+          GalleyAPIAccess.getTeamMember uid tid >>= \case
+            Nothing -> pure UserLegalHoldDisabled
+            Just _ -> do
+              LockableFeature {status} <- GalleyAPIAccess.getTeamLegalHoldStatus tid
+              pure $
+                if status == FeatureStatusEnabled
+                  then UserLegalHoldEnabled
+                  else UserLegalHoldDisabled
+      pure (uid, status)
+  GetLHStatus mtid uid -> do
+    case mtid of
+      Nothing -> pure UserLegalHoldDisabled
+      Just tid -> do
+        GalleyAPIAccess.getTeamMember uid tid >>= \case
+          Nothing -> pure UserLegalHoldDisabled
+          Just _ -> do
+            LockableFeature {status} <- GalleyAPIAccess.getTeamLegalHoldStatus tid
+            pure $
+              if status == FeatureStatusEnabled
+                then UserLegalHoldEnabled
+                else UserLegalHoldDisabled

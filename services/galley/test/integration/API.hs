@@ -66,7 +66,6 @@ import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer hiding (status)
-import Galley.API.Mapping
 import Imports hiding (id)
 import Imports qualified as I
 import Network.HTTP.Types.Status qualified as HTTP
@@ -104,6 +103,7 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.ConversationSubsystem.Mapping
 import Wire.Options.Galley (federator, rabbitmq)
 import Wire.StoredConversation hiding (convName)
 

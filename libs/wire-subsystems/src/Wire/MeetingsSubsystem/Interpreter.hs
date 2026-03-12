@@ -122,7 +122,7 @@ createMeetingImpl zUser newMeeting = do
           }
 
   -- Create and store the conversation via ConversationSubsystem
-  storedConv <- ConversationSubsystem.createGroupConversation zUser Nothing newConv
+  storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
 
   -- Store meeting (trial status is provided by caller)
   storedMeeting <-
