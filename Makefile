@@ -714,6 +714,16 @@ sboms-helmfile:
 .PHONY: sboms
 sboms: sboms-helm sboms-docker-compose sboms-helmfile
 
+# Validate all SBOM files using cyclonedx
+.PHONY: validate-sboms
+validate-sboms:
+	@echo "Validating SBOM files..."
+	@find ./sboms -name '*.json' -type f | while read sbom; do \
+		echo "Validating: $$sbom"; \
+		cyclonedx validate --input-file "$$sbom" --fail-on-errors; \
+	done
+	@echo "All SBOMs validated successfully"
+
 # Upload all SBOMs to Dependency Track
 # Requires DEPENDENCY_TRACK_API_KEY environment variable
 .PHONY: upload-sboms
