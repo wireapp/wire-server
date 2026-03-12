@@ -149,6 +149,7 @@ getIndexUserBaseQuery =
   [sql|
     SELECT
     id,
+    user_type,
     team, writetime(team),
     name, writetime(name),
     status, writetime(status),
