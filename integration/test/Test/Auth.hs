@@ -252,7 +252,7 @@ testSetCookieLabelOnSsoFlow = do
   domain <- make OwnDomain
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
-  void $ setTeamFeatureStatus owner tid "validateSAMLEmails" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "enabled"
   idp@(samlId, _) <- do
     (resp, (meta, creds)) <- registerTestIdPWithMetaWithPrivateCreds owner
     resp.status `shouldMatchInt` 201

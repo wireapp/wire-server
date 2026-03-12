@@ -187,7 +187,15 @@ newtype instance FeatureDefaults ValidateSAMLEmailsConfig
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
   deriving (FromJSON, ToJSON) via Defaults (Feature ValidateSAMLEmailsConfig)
-  deriving (ParseFeatureDefaults) via OptionalField ValidateSAMLEmailsConfig
+
+instance ParseFeatureDefaults (FeatureDefaults ValidateSAMLEmailsConfig) where
+  parseFeatureDefaults obj =
+    do
+      -- Accept the legacy typo in config input for backward compatibility,
+      -- but prefer the canonical feature key when both are present.
+      mCanonical :: Maybe (FeatureDefaults ValidateSAMLEmailsConfig) <- obj .:? featureKey @ValidateSAMLEmailsConfig
+      mLegacy :: Maybe (FeatureDefaults ValidateSAMLEmailsConfig) <- obj .:? "validateSAMLEmails"
+      pure $ fromMaybe def (mCanonical <|> mLegacy)
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
   deriving stock (Eq, Show)

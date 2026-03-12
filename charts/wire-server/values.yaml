@@ -198,7 +198,7 @@ galley:
             status: disabled
         sso: disabled-by-default
         teamSearchVisibility: disabled-by-default
-        validateSAMLEmails:
+        validateSAMLemails:
           defaults:
             status: enabled
         outlookCalIntegration:
