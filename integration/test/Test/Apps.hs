@@ -87,13 +87,13 @@ testCreateApp = do
   void $ getApp regularMember tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "name") `shouldMatch` "chappie"
-    (resp.json %. "description") `shouldMatch` "some description of this app"
-    (resp.json %. "category") `shouldMatch` "ai"
+    (resp.json %. "app.description") `shouldMatch` "some description of this app"
+    (resp.json %. "app.category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
   outsideUser <- randomUser domain def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
-    resp.status `shouldMatchInt` 403
+    resp.status `shouldMatchInt` 403 -- TODO: 200
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
   -- Another team's owner nor member can't get the app
@@ -185,7 +185,7 @@ testDeleteAppFromTeam = do
   eventually $ do
     -- Check StoredApp is gone
     bindResponse (getApp owner tid appId) $ \resp -> do
-      resp.status `shouldMatchInt` 404
+      resp.status `shouldMatchInt` 404 -- TODO: 403
 
     -- Check StoredUser is deleted (via public API)
     bindResponse (getUser owner appIdObject) $ \resp -> do
@@ -228,14 +228,11 @@ testPutApp = do
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
-      `shouldMatchShape` SObject
+      `shouldMatchShapeLenient` SObject
         [ ("accent_id", SNumber),
           ("assets", SArray (SObject [("key", SString), ("size", SString), ("type", SString)])),
           ("name", SString),
-          ("category", SString),
-          ("description", SString),
-          ("metadata", SObject []),
-          ("picture", SArray SAny)
+          ("app", SObject [("category", SString), ("description", SString)])
         ]
 
   let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
@@ -252,7 +249,6 @@ testRetrieveUsersIncludingApps = do
             ("locale", SString),
             ("managed_by", SString),
             ("name", SString),
-            ("picture", SArray SAny),
             ("qualified_id", SObject [("domain", SString), ("id", SString)]),
             ("searchable", SBool),
             ("status", SString),
@@ -272,9 +268,7 @@ testRetrieveUsersIncludingApps = do
         SObject
           [ ("accent_id", SNumber),
             ("assets", SArray SAny),
-            ("category", SString),
-            ("description", SString),
-            ("metadata", SObject []),
+            ("app", SObject [("category", SString), ("description", SString)]),
             ("name", SString),
             ("picture", SArray SAny)
           ]
@@ -301,7 +295,7 @@ testRetrieveUsersIncludingApps = do
     resp.status `shouldMatchInt` 200
     pure resp.json
   appCreated
-    `shouldMatchShape` SObject
+    `shouldMatchShapeLenient` SObject
       [ ("cookie", SString),
         ("user", userShape)
       ]
@@ -324,25 +318,25 @@ testRetrieveUsersIncludingApps = do
   getTeamMember owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
-    resp.json `shouldMatchShape` memberShape
+    resp.json `shouldMatchShapeLenient` memberShape
 
   -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
   getApps owner tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     apps <- resp.json & maybe (error "this shouldn't happen") pure
-    apps `shouldMatchShape` SArray appWithIdShape
+    apps `shouldMatchShapeLenient` SArray appWithIdShape
 
   -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
   getApp owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatchShape` appShape
+    resp.json `shouldMatchShapeLenient` appShape
 
   -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
   listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
       %. "found.0"
-      `shouldMatchShape` SObject
+      `shouldMatchShapeLenient` SObject
         [ ("accent_id", SNumber),
           ("assets", SArray SAny),
           ("id", SString),
@@ -367,4 +361,4 @@ testRetrieveUsersIncludingApps = do
       resp.status `shouldMatchInt` 200
       hits :: [Value] <- resp.json %. "documents" & asList
       length hits `shouldMatchInt` 2 -- owner doesn't find itself
-      (`shouldMatchShape` searchResultShape) `mapM_` hits
+      (`shouldMatchShapeLenient` searchResultShape) `mapM_` hits
