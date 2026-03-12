@@ -47,6 +47,13 @@ webapp:
 fakeS3:
   enabled: true
 
+services:
+  nginz:
+    # Update this if you've overwritten the default HTTP port in nginz.
+    httpPort: 8080
+    # Update this if you've overwritten the default WebSocket port in nginz.
+    wsPort: 8081
+
 tls:
   secret:
     # If true, a kubernetes.io/tls Secret is created from secrets.tlsWildcardCert

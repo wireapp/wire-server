@@ -298,7 +298,7 @@ The route attaches to the HTTPS listener of the Gateway via `parentRefs`.
 
 **Review:** Renders correctly with and without TLS; `helm lint` passes.
 
-- [ ] Done
+- [x] Done
 
 ---
 
