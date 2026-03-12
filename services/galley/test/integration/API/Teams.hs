@@ -1280,7 +1280,7 @@ testBillingInLargeTeam = do
   refreshIndex
   opts <- view tsGConf
   galley <- viewGalley
-  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
+  let fanoutLimit = fromRange $ Galley.currentFanoutLimitOpts opts
   allOwnersBeforeFanoutLimit <-
     foldM
       ( \billingMembers n -> do

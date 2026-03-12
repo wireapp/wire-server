@@ -455,7 +455,7 @@ addMembers conv (UserList lusers rusers) = do
         -- User is remote, so we only add it to the member_remote_user
         -- table, but the reverse mapping has to be done on the remote
         -- backend; so we assume an additional call to their backend has
-        -- been (or will be) made separately. See Galley.API.Update.addMembers
+        -- been (or will be) made separately. See Wire.ConversationSubsystem.Update.addMembers
         addPrepQuery Cql.insertRemoteMember (conv, domain, uid, role)
 
   pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)

@@ -21,9 +21,6 @@ module Run
 where
 
 import Imports
-import Test.Galley.API.Message qualified
-import Test.Galley.API.One2One qualified
-import Test.Galley.Mapping qualified
 import Test.Tasty
 
 main :: IO ()
@@ -31,7 +28,4 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Galley.API.Message.tests,
-        Test.Galley.API.One2One.tests,
-        Test.Galley.Mapping.tests
-      ]
+      []

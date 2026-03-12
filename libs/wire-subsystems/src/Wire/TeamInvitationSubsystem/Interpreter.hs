@@ -286,7 +286,7 @@ logInvitationRequest context action =
 
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
--- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
+-- There is some code duplication with 'Wire.ConversationSubsystem.Teams.ensureNotElevated'.
 ensurePermissionToAddUser ::
   ( Member (Error TeamInvitationSubsystemError) r,
     Member TeamSubsystem r

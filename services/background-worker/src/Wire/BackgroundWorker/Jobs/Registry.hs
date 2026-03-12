@@ -22,6 +22,7 @@ where
 
 import Bilge qualified
 import Bilge.Retry
+import Cassandra (ClientState)
 import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString qualified as BS
@@ -34,6 +35,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
+import Hasql.Pool qualified as Hasql
 import Imports
 import Network.HTTP.Client qualified as Http
 import OpenSSL.Session qualified as SSL
@@ -42,41 +44,54 @@ import Polysemy.Async (asyncToIOFinal)
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (resourceToIOFinal)
 import Polysemy.TinyLog qualified as P
 import Ssl.Util
 import System.Logger as Logger
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
+import Wire.API.Conversation.Role qualified as Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
-import Wire.API.Team.FeatureFlags (FeatureDefaults (FeatureLegalHoldDisabledPermanently))
+import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults (FeatureLegalHoldDisabledPermanently), currentFanoutLimit)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BackgroundJobsRunner (runJob)
 import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
+import Wire.BackgroundWorker.Options (Settings (..))
 import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError)
+import Wire.CodeStore.Cassandra (interpretCodeStoreToCassandra)
+import Wire.CodeStore.DualWrite (interpretCodeStoreToCassandraAndPostgres)
+import Wire.CodeStore.Postgres (interpretCodeStoreToPostgres)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (GroupInfoCheckEnabled (..), GuestLinkTTLSeconds (..), IntraListing (..), interpretConversationSubsystem)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
 import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
+import Wire.FederationSubsystem.Interpreter (runFederationSubsystem)
 import Wire.FireAndForget (interpretFireAndForget)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
+import Wire.HashPassword.Interpreter (runHashPassword)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException
 import Wire.PostgresMigrationOpts
+import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
+import Wire.RateLimit (RateLimitExceeded)
+import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
 import Wire.Sem.Concurrency (ConcurrencySafety (Unsafe))
 import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
@@ -174,12 +189,18 @@ dispatchJob job = do
             let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
                 makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
              in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
+          convCodesStoreInterpreter =
+            case env.postgresMigration.conversationCodes of
+              CassandraStorage -> interpretCodeStoreToCassandra
+              MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+              PostgresqlStorage -> interpretCodeStoreToPostgres
       runFinal @IO
         . unsafelyPerformConcurrency @_ @'Unsafe
         . embedToFinal @IO
         . asyncToIOFinal
         . interpretRace
         . runDelay
+        . resourceToIOFinal
         . runError
         . mapError @ClientError (T.pack . displayException)
         . mapError @FederationError (T.pack . displayException)
@@ -206,13 +227,71 @@ dispatchJob job = do
         . mapError @(Tagged 'ConvNotFound ()) (const ("Conversation not found" :: Text))
         . mapError @(Tagged 'ChannelsNotEnabled ()) (const ("Channels not enabled" :: Text))
         . mapError @(Tagged 'NotAnMlsConversation ()) (const ("Not an MLS conversation" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.DeleteConversation) ()) (const ("Cannot delete conversation" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.LeaveConversation) ()) (const ("Cannot leave conversation" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.ModifyConversationAccess) ()) (const ("Cannot modify conversation access" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.ModifyConversationName) ()) (const ("Cannot modify conversation name" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.ModifyConversationMessageTimer) ()) (const ("Cannot modify conversation message timer" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.ModifyConversationReceiptMode) ()) (const ("Cannot modify conversation receipt mode" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.ModifyAddPermission) ()) (const ("Cannot modify add permission" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.AddConversationMember) ()) (const ("Cannot add member to conversation" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.ModifyOtherConversationMember) ()) (const ("Cannot modify member from conversation" :: Text))
+        . mapError @(Tagged ('ActionDenied Role.RemoveConversationMember) ()) (const ("Cannot remove member from conversation" :: Text))
+        . mapError @(Tagged 'MLSLegalholdIncompatible ()) (const ("MLS - Legalhold is incompatible" :: Text))
+        . mapError @(Tagged 'MLSIdentityMismatch ()) (const ("MLS - identity mismatch" :: Text))
+        . mapError @(Tagged 'MLSUnsupportedMessage ()) (const ("MLS - unsupported message" :: Text))
+        . mapError @(Tagged 'MLSStaleMessage ()) (const ("MLS - stale message" :: Text))
+        . mapError @(Tagged 'MLSProposalNotFound ()) (const ("MLS - proposal not found" :: Text))
+        . mapError @(Tagged 'MLSUnsupportedProposal ()) (const ("MLS - proposal not supported" :: Text))
+        . mapError @(Tagged 'MLSCommitMissingReferences ()) (const ("MLS - commit missing references" :: Text))
+        . mapError @(Tagged 'MLSSelfRemovalNotAllowed ()) (const ("MLS - self-removal is denied" :: Text))
+        . mapError @(Tagged 'MLSClientSenderUserMismatch ()) (const ("MLS - client-sender user mismatch" :: Text))
+        . mapError @(Tagged 'MLSSubConvClientNotInParent ()) (const ("MLS - sub-conversation client is missing in the parent conversation" :: Text))
+        . mapError @(Tagged 'MLSInvalidLeafNodeSignature ()) (const ("MLS - invalid leaf node signature" :: Text))
+        . mapError @(Tagged 'MLSInvalidLeafNodeIndex ()) (const ("MLS - leaf node index" :: Text))
+        . mapError @(Tagged 'MLSGroupConversationMismatch ()) (const ("MLS - group-conversation mismatch" :: Text))
+        . mapError @(Tagged 'MLSFederatedResetNotSupported ()) (const ("MLS - federated reset not supported" :: Text))
+        . mapError @(Tagged 'MLSSubConvUnsupportedConvType ()) (const ("MLS - sub-conversation unsopported ConvType" :: Text))
+        . mapError @(Tagged 'MLSClientMismatch ()) (const ("MLS - client mismatch" :: Text))
+        . mapError @(Tagged 'MLSMissingGroupInfo ()) (const ("MLS - missing group info" :: Text))
+        . mapError @(Tagged 'MLSFederatedOne2OneNotSupported ()) (const ("MLS - federation One2One not supported" :: Text))
+        . mapError @(Tagged 'MLSReadReceiptsNotAllowed ()) (const ("MLS - read receipts not allowed" :: Text))
+        . mapError @(Tagged 'MLSMigrationCriteriaNotSatisfied ()) (const ("MLS - migration criteria not satisfied" :: Text))
+        . mapError @(Tagged 'GroupIdVersionNotSupported ()) (const ("groupId version not supported" :: Text))
+        . mapError @(Tagged 'ConvMemberNotFound ()) (const ("Conversation member not found" :: Text))
+        . mapError @(Tagged 'BroadcastLimitExceeded ()) (const ("Broadcast limit exceeded" :: Text))
+        . mapError @(Tagged 'TeamMemberNotFound ()) (const ("Team member not found" :: Text))
+        . mapError @(Tagged 'AccessDenied ()) (const ("Access denied" :: Text))
+        . mapError @(Tagged 'CodeNotFound ()) (const ("Conversation not found" :: Text))
+        . mapError @(Tagged 'InvalidConversationPassword ()) (const ("Invalid conversation password" :: Text))
+        . mapError @(Tagged 'TooManyMembers ()) (const ("Too many members" :: Text))
+        . mapError @(Tagged 'CreateConversationCodeConflict ()) (const ("Create conversation code conflict" :: Text))
+        . mapError @(Tagged 'InvalidTarget ()) (const ("Invalid target" :: Text))
+        . mapError @(Tagged 'GuestLinksDisabled ()) (const ("Guest links disabled" :: Text))
+        . mapError @(Tagged 'InvalidTargetAccess ()) (const ("Invalid target access" :: Text))
+        . mapError @(Tagged 'ConvInvalidProtocolTransition ()) (const ("Conversation invalid protocol transition" :: Text))
+        . mapError @MLSProtocolError (const ("MLS - protocol error" :: Text))
+        . mapError @MLSOutOfSyncError (const ("MLS - out-of-sync error" :: Text))
+        . mapError @MLSProposalFailure (const ("MLS - proposal failure" :: Text))
+        . mapError @AuthenticationError (const ("Authentication error" :: Text))
+        . mapError @GroupInfoDiagnostics (const ("Group info diagnostics" :: Text))
+        . mapError @NonFederatingBackends (const ("Non federating backends" :: Text))
+        . mapError @UnreachableBackendsLegacy (const ("Unreachable backends legacy" :: Text))
+        . mapError @RateLimitExceeded (const ("Rate limit exceeded" :: Text))
         . interpretTinyLog env job.requestId job.jobId
-        . runInputConst env.hasqlPool
-        . runInputConst (toLocalUnsafe env.federationDomain ())
-        . runInputConst (FeatureLegalHoldDisabledPermanently)
-        . runInputConst env.cassandraGalley
-        . runInputConst legalHoldEnv
-        . runInputConst (ExposeInvitationURLsAllowlist [])
+        . runInputConst @Hasql.Pool env.hasqlPool
+        . runInputConst @(Local ()) (toLocalUnsafe env.federationDomain ())
+        . runInputConst @(FeatureDefaults LegalholdConfig) FeatureLegalHoldDisabledPermanently
+        . runInputConst @ClientState env.cassandraGalley
+        . runInputConst @LegalHoldEnv legalHoldEnv
+        . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.settings.exposeInvitationURLsTeamAllowlist)
+        . runInputConst @(Either HttpsUrl (Map Text HttpsUrl)) env.convCodeURI
+        . runInputConst @IntraListing (IntraListing env.settings.intraListing)
+        . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.settings.checkGroupInfo)
+        . runInputConst @(Maybe GuestLinkTTLSeconds) env.settings.guestLinkTTLSeconds
+        . runInputConst @FanoutLimit (currentFanoutLimit env.settings.maxTeamSize env.settings.maxFanoutSize)
+        . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
+        . interpretProposalStoreToCassandra
         . interpretServiceStoreToCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
         . interpretTeamFeatureStoreToCassandra
@@ -235,12 +314,20 @@ dispatchJob job = do
         . interpretBrigAccess env.brigEndpoint
         . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
         . runInputSem getConversationSubsystemConfig
+        . runInputSem @(Maybe (MLSKeysByPurpose MLSPrivateKeys)) (inputs @ConversationSubsystemConfig (.mlsKeys))
         . runInputSem getConfiguredFeatureFlags
+        . runHashPassword env.settings.passwordHashingOptions
+        . interpretRateLimit env.passwordHashingRateLimitEnv
+        . convCodesStoreInterpreter
         . interpretExternalAccess extEnv
         . interpretSparAPIAccessToRpc env.sparEndpoint
         . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig job.requestId)
         . interpretFederationAPIAccess federationAPIAccessConfig
         . interpretTeamSubsystem teamSubsystemConfig
+        . ( \m -> do
+              p <- inputs @ConversationSubsystemConfig (.federationProtocols)
+              runFederationSubsystem p m
+          )
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
@@ -252,6 +339,7 @@ dispatchJob job = do
       Sem r ConversationSubsystemConfig
     getConversationSubsystemConfig = getConversationConfig
 
+    backendQueueEnv :: Env -> BackendNotificationQueueAccess.Env
     backendQueueEnv env =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,

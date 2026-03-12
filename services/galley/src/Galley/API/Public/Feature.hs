@@ -20,16 +20,17 @@
 
 module Galley.API.Public.Feature where
 
+import Data.Proxy (Proxy (..))
 import Galley.API.Teams
 import Galley.API.Teams.Features
-import Galley.API.Teams.Features.Get
 import Galley.App
 import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
-import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForTeamMember)
+import Wire.ConversationSubsystem
+import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForTeamMember, getFeature)
 
 featureAPIGetPut :: forall cfg r. (_) => API (FeatureAPIGetPut cfg) r
 featureAPIGetPut =
@@ -42,7 +43,7 @@ featureAPI =
     <@> featureAPIGetPut
     <@> featureAPIGetPut
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
-    <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @SearchVisibilityAvailableConfig))
+    <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam (Proxy @SearchVisibilityAvailableConfig)))
     <@> mkNamedAPI @'("get", RequireExternalEmailVerificationConfig) getFeature
     <@> mkNamedAPI @'("get", DigitalSignaturesConfig) getFeature
     <@> featureAPIGetPut

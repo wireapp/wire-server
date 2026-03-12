@@ -19,10 +19,12 @@
 , bilge
 , bimap
 , bloodhound
+, brig-types
 , bytestring
 , bytestring-conversion
 , case-insensitive
 , cassandra-util
+, comonad
 , conduit
 , constraints
 , containers
@@ -66,6 +68,7 @@
 , imports
 , iproute
 , iso639
+, kan-extensions
 , lens
 , lens-aeson
 , lib
@@ -155,10 +158,12 @@ mkDerivation {
     bilge
     bimap
     bloodhound
+    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
     cassandra-util
+    comonad
     conduit
     constraints
     containers
@@ -198,6 +203,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    kan-extensions
     lens
     lens-aeson
     lrucaching
@@ -277,10 +283,12 @@ mkDerivation {
     base64-bytestring
     bilge
     bloodhound
+    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
     cassandra-util
+    comonad
     conduit
     constraints
     containers
@@ -321,6 +329,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    kan-extensions
     lens
     lens-aeson
     lrucaching

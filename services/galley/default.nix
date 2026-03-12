@@ -20,7 +20,6 @@
 , cassandra-util
 , cassava
 , cereal
-, comonad
 , conduit
 , containers
 , cookie
@@ -38,7 +37,6 @@
 , galley-types
 , gitignoreSource
 , hasql-pool
-, hex
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , HsOpenSSL
@@ -92,7 +90,6 @@
 , tasty-ant-xml
 , tasty-cannon
 , tasty-hunit
-, tasty-quickcheck
 , temporary
 , text
 , time
@@ -107,8 +104,6 @@
 , uri-bytestring
 , utf8-string
 , uuid
-, uuid-types
-, vector
 , wai
 , wai-extra
 , wai-middleware-gunzip
@@ -140,7 +135,6 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     cassava
-    comonad
     containers
     crypton
     crypton-x509
@@ -148,10 +142,8 @@ mkDerivation {
     errors
     exceptions
     extended
-    extra
     galley-types
     hasql-pool
-    hex
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     HsOpenSSL
@@ -178,11 +170,9 @@ mkDerivation {
     servant
     servant-server
     singletons
-    sop-core
     split
     ssl-util
     stm
-    tagged
     text
     time
     tinylog
@@ -193,7 +183,6 @@ mkDerivation {
     uri-bytestring
     utf8-string
     uuid
-    vector
     wai
     wai-extra
     wai-middleware-gunzip
@@ -286,24 +275,7 @@ mkDerivation {
     wire-subsystems
     yaml
   ];
-  testHaskellDepends = [
-    base
-    containers
-    extra
-    galley-types
-    imports
-    lens
-    polysemy
-    polysemy-wire-zoo
-    tasty
-    tasty-hunit
-    tasty-quickcheck
-    types-common
-    uuid-types
-    wire-api
-    wire-api-federation
-    wire-subsystems
-  ];
+  testHaskellDepends = [ base imports tasty ];
   description = "Conversations";
   license = lib.licenses.agpl3Only;
 }

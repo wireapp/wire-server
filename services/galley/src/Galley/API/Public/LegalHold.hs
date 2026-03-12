@@ -21,6 +21,7 @@ import Galley.API.LegalHold
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.LegalHold
+import Wire.ConversationSubsystem
 
 legalHoldAPI :: API LegalHoldAPI GalleyEffects
 legalHoldAPI =

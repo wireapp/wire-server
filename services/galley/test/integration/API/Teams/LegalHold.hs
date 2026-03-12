@@ -173,7 +173,7 @@ testRemoveLegalHoldFromTeam = do
 testAddTeamUserTooLargeWithLegalholdWhitelisted :: (HasCallStack) => TestM ()
 testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
   o <- view tsGConf
-  let fanoutLimit = fromIntegral @_ @Integer . fromRange $ Galley.currentFanoutLimit o
+  let fanoutLimit = fromIntegral @_ @Integer . fromRange $ Galley.currentFanoutLimitOpts o
   forM_ [2 .. (fanoutLimit + 5)] $ \_n -> do
     addUserToTeam' owner tid !!! do
       const 201 === statusCode

@@ -112,6 +112,30 @@ data:
     backgroundJobs:
 {{ toYaml . | indent 6 }}
     {{- end }}
+
+    settings:
+      maxTeamSize: {{ .settings.maxTeamSize }}
+      maxFanoutSize: {{ .settings.maxFanoutSize }}
+      exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
+      maxConvSize: {{ .settings.maxConvSize }}
+      intraListing: {{ .settings.intraListing }}
+      {{- if .settings.conversationCodeURI }}
+      conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
+      {{- else if .settings.multiIngress }}
+      multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
+      {{- end }}
+      {{- if .settings.federationProtocols }}
+      federationProtocols: {{ .settings.federationProtocols }}
+      {{- end }}
+      {{- if .settings.guestLinkTTLSeconds }}
+      guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
+      {{- end }}
+      passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
+      passwordHashingRateLimit: {{ toYaml .settings.passwordHashingRateLimit | nindent 8 }}
+      {{- if .settings.checkGroupInfo }}
+      checkGroupInfo: {{ .settings.checkGroupInfo }}
+      {{- end }}
+
     {{- if .postgresMigration }}
     postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
     {{- end }}

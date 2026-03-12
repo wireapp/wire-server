@@ -23,7 +23,6 @@ import Data.Aeson
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Proxy
 import Data.Range
 import Data.Set qualified as Set
 import Data.Time.Clock.DiffTime
@@ -38,6 +37,7 @@ import Polysemy.TinyLog qualified as P
 import System.Logger.Class as Log
 import Wire.API.Push.V2 hiding (Push (..), Recipient, newPush)
 import Wire.API.Push.V2 qualified as V2
+import Wire.API.Team.FeatureFlags (defaultFanoutLimit)
 import Wire.API.Team.HardTruncationLimit (HardTruncationLimit)
 import Wire.GundeckAPIAccess (GundeckAPIAccess)
 import Wire.GundeckAPIAccess qualified as GundeckAPIAccess
@@ -74,9 +74,6 @@ data NotificationSubsystemConfig = NotificationSubsystemConfig
 defaultNotificationSubsystemConfig :: RequestId -> NotificationSubsystemConfig
 defaultNotificationSubsystemConfig reqId =
   NotificationSubsystemConfig defaultFanoutLimit defaultChunkSize defaultSlowPushDelay reqId
-
-defaultFanoutLimit :: Range 1 HardTruncationLimit Int32
-defaultFanoutLimit = toRange (Proxy @HardTruncationLimit)
 
 defaultChunkSize :: Natural
 defaultChunkSize = 128

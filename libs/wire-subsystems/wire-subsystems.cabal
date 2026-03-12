@@ -98,10 +98,12 @@ common common-all
     , base64-bytestring
     , bilge
     , bloodhound
+    , brig-types
     , bytestring
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , comonad
     , conduit
     , constraints
     , containers
@@ -139,6 +141,7 @@ common common-all
     , imports
     , iproute
     , iso639
+    , kan-extensions
     , lens
     , lens-aeson
     , lrucaching
@@ -252,12 +255,49 @@ library
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.Action
+    Wire.ConversationSubsystem.Action.Kick
+    Wire.ConversationSubsystem.Action.Leave
+    Wire.ConversationSubsystem.Action.Notify
+    Wire.ConversationSubsystem.Action.Reset
+    Wire.ConversationSubsystem.Clients
+    Wire.ConversationSubsystem.Create
     Wire.ConversationSubsystem.CreateInternal
+    Wire.ConversationSubsystem.Features
+    Wire.ConversationSubsystem.Federation
     Wire.ConversationSubsystem.Fetch
     Wire.ConversationSubsystem.Internal
     Wire.ConversationSubsystem.Interpreter
+    Wire.ConversationSubsystem.Legalhold
+    Wire.ConversationSubsystem.LegalholdConflicts
+    Wire.ConversationSubsystem.Mapping
+    Wire.ConversationSubsystem.Message
+    Wire.ConversationSubsystem.MLS
+    Wire.ConversationSubsystem.MLS.CheckClients
+    Wire.ConversationSubsystem.MLS.Commit.Core
+    Wire.ConversationSubsystem.MLS.Commit.ExternalCommit
+    Wire.ConversationSubsystem.MLS.Commit.InternalCommit
+    Wire.ConversationSubsystem.MLS.Conversation
+    Wire.ConversationSubsystem.MLS.Enabled
+    Wire.ConversationSubsystem.MLS.GroupInfo
+    Wire.ConversationSubsystem.MLS.GroupInfoCheck
+    Wire.ConversationSubsystem.MLS.IncomingMessage
+    Wire.ConversationSubsystem.MLS.Keys
+    Wire.ConversationSubsystem.MLS.Message
+    Wire.ConversationSubsystem.MLS.Migration
+    Wire.ConversationSubsystem.MLS.One2One
+    Wire.ConversationSubsystem.MLS.OutOfSync
+    Wire.ConversationSubsystem.MLS.Propagate
+    Wire.ConversationSubsystem.MLS.Proposal
+    Wire.ConversationSubsystem.MLS.Removal
+    Wire.ConversationSubsystem.MLS.Reset
+    Wire.ConversationSubsystem.MLS.SubConversation
+    Wire.ConversationSubsystem.MLS.Util
+    Wire.ConversationSubsystem.MLS.Welcome
     Wire.ConversationSubsystem.Notify
     Wire.ConversationSubsystem.One2One
+    Wire.ConversationSubsystem.Query
+    Wire.ConversationSubsystem.Update
     Wire.ConversationSubsystem.Util
     Wire.CustomBackendStore
     Wire.CustomBackendStore.Cassandra
@@ -532,6 +572,9 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
+    Wire.ConversationSubsystem.MappingSpec
+    Wire.ConversationSubsystem.MessageSpec
+    Wire.ConversationSubsystem.One2OneSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec

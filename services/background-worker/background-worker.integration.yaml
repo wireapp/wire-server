@@ -79,6 +79,37 @@ backgroundJobs:
   jobTimeout: 5s
   maxAttempts: 3
 
+settings:
+  maxTeamSize: 32
+  maxFanoutSize: 18
+  exposeInvitationURLsTeamAllowlist: []
+  maxConvSize: 16
+  intraListing: false
+  conversationCodeURI: https://account.wire.com/conversation-join/
+  federationProtocols: ["mls", "proteus"]
+  guestLinkTTLSeconds: 604800
+  passwordHashingOptions:
+    algorithm: argon2id
+    iterations: 1
+    memory: 128
+    parallelism: 1
+  passwordHashingRateLimit:
+    ipAddrLimit:
+      burst: 5
+      inverseRate: 300000000
+    userLimit:
+      burst: 5
+      inverseRate: 60000000
+    internalLimit:
+      burst: 10
+      inverseRate: 0
+    ipv4CidrBlock: 32
+    ipv6CidrBlock: 64
+    ipAddressExceptions:
+      - 127.0.0.1/8
+    maxRateLimitedKeys: 100000
+  checkGroupInfo: false
+
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql

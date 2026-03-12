@@ -27,6 +27,7 @@ import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Domain (Domain)
 import Data.Map.Strict qualified as Map
+import Data.Misc (HttpsUrl)
 import HTTP2.Client.Manager
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
@@ -45,6 +46,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
 import Wire.PostgresMigrationOpts
+import Wire.RateLimit.Interpreter (RateLimitEnv, newRateLimitEnv)
 
 type IsWorking = Bool
 
@@ -86,7 +88,10 @@ data Env = Env
     gundeckEndpoint :: Endpoint,
     sparEndpoint :: Endpoint,
     galleyEndpoint :: Endpoint,
-    brigEndpoint :: Endpoint
+    brigEndpoint :: Endpoint,
+    settings :: Settings,
+    convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
+    passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
 data BackendNotificationMetrics = BackendNotificationMetrics
@@ -137,6 +142,14 @@ mkEnv opts = do
       galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
+      settings = opts.settings
+  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
+  convCodeURI <- case (settings.conversationCodeURI, settings.multiIngress) of
+    (Nothing, Nothing) -> error errMsg
+    (Nothing, Just mi) -> pure (Right mi)
+    (Just uri, Nothing) -> pure (Left uri)
+    (Just _, Just _) -> error errMsg
+  passwordHashingRateLimitEnv <- newRateLimitEnv settings.passwordHashingRateLimit
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   amqpJobsPublisherChannel <-

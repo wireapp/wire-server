@@ -22,13 +22,9 @@ module Galley.API.Teams.Features
   ( setFeature,
     setFeatureInternal,
     patchFeatureInternal,
-    getAllTeamFeaturesForTeam,
-    getAllTeamFeaturesForUser,
     updateLockStatus,
     GetFeatureConfig (..),
     SetFeatureConfig (..),
-    guardSecondFactorDisabled,
-    featureEnabledForTeam,
     guardMlsE2EIdConfig,
   )
 where
@@ -43,7 +39,6 @@ import Data.Kind
 import Data.Qualified (Local)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
-import Galley.API.Teams.Features.Get
 import Galley.App
 import Galley.Options
 import Galley.Types.Error (InternalError)
@@ -68,10 +63,9 @@ import Wire.BrigAPIAccess (BrigAPIAccess, updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Wire.ExternalAccess (ExternalAccess)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
-import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal, getFeatureForTeam)
+import Wire.FeaturesConfigSubsystem.Types
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
@@ -98,13 +92,10 @@ patchFeatureInternal ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r,
     GetFeatureConfigEffects r
   ) =>
   TeamId ->
@@ -135,13 +126,11 @@ setFeature ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (Error TeamFeatureError) r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -158,14 +147,11 @@ setFeatureInternal ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
-    Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member ConversationSubsystem r,
+    Member NotificationSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -183,8 +169,7 @@ setFeatureUnchecked ::
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member ConversationSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -198,8 +183,7 @@ updateLockStatus ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member TeamFeatureStore r,
-    Member TeamStore r,
-    Member (ErrorS 'TeamNotFound) r
+    Member ConversationSubsystem r
   ) =>
   TeamId ->
   LockStatus ->
@@ -226,9 +210,8 @@ pushFeatureEvent ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member NotificationSubsystem r,
-    Member P.TinyLog r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member ConversationSubsystem r,
+    Member P.TinyLog r
   ) =>
   TeamId ->
   Event ->
@@ -262,10 +245,9 @@ setFeatureForTeam ::
     SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
     Member P.TinyLog r,
+    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member TeamFeatureStore r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamFeatureStore r
   ) =>
   TeamId ->
   LockableFeature cfg ->

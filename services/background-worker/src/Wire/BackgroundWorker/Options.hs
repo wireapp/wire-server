@@ -19,16 +19,21 @@ module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
 import Data.Domain (Domain)
+import Data.Id (TeamId)
 import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
-import System.Logger.Extended
+import System.Logger.Extended hiding (Settings)
 import Util.Options
+import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.Team.FeatureFlags (FanoutLimit)
+import Wire.ConversationSubsystem.Interpreter (GuestLinkTTLSeconds)
 import Wire.Migration
 import Wire.PostgresMigrationOpts
+import Wire.RateLimit.Interpreter (RateLimitConfig)
 
 data Opts = Opts
   { logLevel :: !Level,
@@ -57,10 +62,28 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     backgroundJobs :: BackgroundJobsConfig,
-    federationDomain :: Domain
+    federationDomain :: Domain,
+    settings :: !Settings
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts
+
+data Settings = Settings
+  { maxTeamSize :: !Word32,
+    maxFanoutSize :: !(Maybe FanoutLimit),
+    exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
+    maxConvSize :: !Word16,
+    intraListing :: !Bool,
+    conversationCodeURI :: !(Maybe HttpsUrl),
+    multiIngress :: !(Maybe (Map Text HttpsUrl)),
+    federationProtocols :: !(Maybe [ProtocolTag]),
+    guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
+    passwordHashingOptions :: !PasswordHashingOptions,
+    passwordHashingRateLimit :: !RateLimitConfig,
+    checkGroupInfo :: !(Maybe Bool)
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON) via Generically Settings
 
 data BackendNotificationsConfig = BackendNotificationsConfig
   { -- | Minimum amount of time (in microseconds) to wait before doing the first
