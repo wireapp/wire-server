@@ -10,8 +10,9 @@
     "role": "member",
     "saml_idp": "",
     "scim_external_id": null,
+    "searchable": true,
     "sso": null,
     "team": "00000002-0000-0000-0000-000100000002",
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }

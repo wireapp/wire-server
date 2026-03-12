@@ -31,6 +31,7 @@ teamContactTemplate :: TeamContact
 teamContactTemplate =
   TeamContact
     { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
+      teamContactUserType = UserTypeRegular,
       teamContactName = "",
       teamContactColorId = Nothing,
       teamContactHandle = Nothing,
@@ -56,6 +57,7 @@ testObject_SearchResult_20TeamContact_user_1 =
       searchResults =
         [ teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
+              teamContactUserType = UserTypeApp,
               teamContactColorId = Just 0,
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
               teamContactEmail = Just (unsafeEmailAddress "some" "example"),
@@ -70,6 +72,7 @@ testObject_SearchResult_20TeamContact_user_1 =
             },
           teamContactTemplate
             { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
+              teamContactUserType = UserTypeRegular,
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
               teamContactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),

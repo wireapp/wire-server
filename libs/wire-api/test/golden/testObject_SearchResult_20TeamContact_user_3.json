@@ -12,10 +12,11 @@
             "role": "admin",
             "saml_idp": null,
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": "00000001-0000-0001-0000-000000000000",
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -29,10 +30,11 @@
             "role": null,
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": null,
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         },
         {
             "accent_id": 0,
@@ -46,10 +48,11 @@
             "role": null,
             "saml_idp": "",
             "scim_external_id": null,
+            "searchable": true,
             "sso": null,
             "team": null,
-            "user_groups": [],
-            "searchable": true
+            "type": "regular",
+            "user_groups": []
         }
     ],
     "found": -5,

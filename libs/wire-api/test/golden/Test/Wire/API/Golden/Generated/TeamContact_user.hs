@@ -30,6 +30,7 @@ teamContactTemplate :: TeamContact
 teamContactTemplate =
   TeamContact
     { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000")),
+      teamContactUserType = UserTypeRegular,
       teamContactName = "",
       teamContactColorId = Nothing,
       teamContactHandle = Nothing,

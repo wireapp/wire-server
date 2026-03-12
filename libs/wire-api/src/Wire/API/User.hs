@@ -733,8 +733,8 @@ instance FromJSON (EmailVisibility ()) where
     _ -> fail "unexpected value for EmailVisibility settings"
 
 -- | Create profile, overwriting the email field.  Called `mkUserProfile`.
-mkUserProfileWithEmail :: Maybe EmailAddress -> UserType -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfileWithEmail memail userType u legalHoldStatus =
+mkUserProfileWithEmail :: Maybe EmailAddress -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail memail u legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
   UserProfile
@@ -752,12 +752,12 @@ mkUserProfileWithEmail memail userType u legalHoldStatus =
       profileEmail = memail,
       profileLegalholdStatus = legalHoldStatus,
       profileSupportedProtocols = userSupportedProtocols u,
-      profileType = userType,
+      profileType = u.userType,
       profileSearchable = userSearchable u
     }
 
-mkUserProfile :: EmailVisibilityConfigWithViewer -> UserType -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfile emailVisibilityConfigAndViewer userType u legalHoldStatus =
+mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
   let isEmailVisible = case emailVisibilityConfigAndViewer of
         EmailVisibleToSelf -> False
         EmailVisibleIfOnTeam -> isJust (userTeam u)
@@ -765,7 +765,7 @@ mkUserProfile emailVisibilityConfigAndViewer userType u legalHoldStatus =
         EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
           Just viewerTeamId == userTeam u
             && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
-   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) userType u legalHoldStatus
+   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) u legalHoldStatus
 
 --------------------------------------------------------------------------------
 -- NewUser
