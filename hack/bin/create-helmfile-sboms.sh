@@ -73,6 +73,16 @@ echo "Processing helmfile: $HELMFILE_PATH"
 # We use helmfile template to render all releases and extract images
 cd "$GIT_ROOT"
 
+# Set dummy environment variables required by helmfile
+export NAMESPACE_1="${NAMESPACE_1:-dummy-namespace-1}"
+export NAMESPACE_2="${NAMESPACE_2:-dummy-namespace-2}"
+export FEDERATION_DOMAIN_1="${FEDERATION_DOMAIN_1:-fed1.example.com}"
+export FEDERATION_DOMAIN_2="${FEDERATION_DOMAIN_2:-fed2.example.com}"
+export FEDERATION_DOMAIN_BASE_1="${FEDERATION_DOMAIN_BASE_1:-base1.example.com}"
+export FEDERATION_DOMAIN_BASE_2="${FEDERATION_DOMAIN_BASE_2:-base2.example.com}"
+export FEDERATION_CA_CERTIFICATE="${FEDERATION_CA_CERTIFICATE:-dummy-cert}"
+export ENTERPRISE_IMAGE_PULL_SECRET="${ENTERPRISE_IMAGE_PULL_SECRET:-dummy-secret}"
+
 # Extract images from helmfile
 images=$(helmfile -f "$HELMFILE_PATH" template 2>/dev/null | yq -r '.. | objects | .image? // empty' - 2>/dev/null | sort -u || true)
 
