@@ -63,7 +63,7 @@ testEmailVisibleToSelf :: TestTree
 testEmailVisibleToSelf =
   testProperty "should not contain email when email visibility is EmailVisibleToSelf" $
     \user lhStatus ->
-      let profile = mkUserProfile EmailVisibleToSelf user lhStatus
+      let profile = mkUserProfile EmailVisibleToSelf user Nothing lhStatus
        in profileEmail profile === Nothing
             .&&. profileLegalholdStatus profile === lhStatus
 
@@ -71,7 +71,7 @@ testEmailVisibleIfOnTeam :: TestTree
 testEmailVisibleIfOnTeam =
   testProperty "should contain email only if the user has one and is part of a team when email visibility is EmailVisibleIfOnTeam" $
     \user lhStatus ->
-      let profile = mkUserProfile EmailVisibleIfOnTeam user lhStatus
+      let profile = mkUserProfile EmailVisibleIfOnTeam user Nothing lhStatus
        in (profileEmail profile === (userTeam user *> userEmail user))
             .&&. profileLegalholdStatus profile === lhStatus
 
@@ -81,13 +81,13 @@ testEmailVisibleIfOnSameTeam =
   where
     testNoViewerTeam = testProperty "should not contain email when viewer is not part of a team" $
       \user lhStatus ->
-        let profile = mkUserProfile (EmailVisibleIfOnSameTeam Nothing) user lhStatus
+        let profile = mkUserProfile (EmailVisibleIfOnSameTeam Nothing) user Nothing lhStatus
          in (profileEmail profile === Nothing)
               .&&. profileLegalholdStatus profile === lhStatus
 
     testViewerDifferentTeam = testProperty "should not contain email when viewer is not part of the same team" $
       \viewerTeamId viewerMembership user lhStatus ->
-        let profile = mkUserProfile (EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership))) user lhStatus
+        let profile = mkUserProfile (EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership))) user Nothing lhStatus
          in Just viewerTeamId /= userTeam user ==>
               ( profileEmail profile === Nothing
                   .&&. profileLegalholdStatus profile === lhStatus
@@ -97,7 +97,7 @@ testEmailVisibleIfOnSameTeam =
       \viewerTeamId (viewerMembershipNoRole :: TeamMember) userNoTeam lhStatus ->
         let user = userNoTeam {userTeam = Just viewerTeamId}
             viewerMembership = viewerMembershipNoRole & TeamMember.permissions .~ TeamMember.rolePermissions RoleExternalPartner
-            profile = mkUserProfile (EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership))) user lhStatus
+            profile = mkUserProfile (EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership))) user Nothing lhStatus
          in ( profileEmail profile === Nothing
                 .&&. profileLegalholdStatus profile === lhStatus
             )
@@ -106,7 +106,7 @@ testEmailVisibleIfOnSameTeam =
       \viewerTeamId (viewerMembershipNoRole :: TeamMember) viewerRole userNoTeam lhStatus ->
         let user = userNoTeam {userTeam = Just viewerTeamId}
             viewerMembership = viewerMembershipNoRole & TeamMember.permissions .~ TeamMember.rolePermissions viewerRole
-            profile = mkUserProfile (EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership))) user lhStatus
+            profile = mkUserProfile (EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership))) user Nothing lhStatus
          in viewerRole /= RoleExternalPartner ==>
               ( profileEmail profile === userEmail user
                   .&&. profileLegalholdStatus profile === lhStatus

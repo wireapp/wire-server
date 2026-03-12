@@ -557,7 +557,7 @@ miniGetAllProfiles = do
   dom <- input
   pure $
     map
-      (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) defUserLegalHoldStatus)
+      (\u -> mkUserProfileWithEmail Nothing (mkUserFromStored dom miniLocale u) Nothing defUserLegalHoldStatus)
       users
 
 miniGetUsersByIds :: [UserId] -> MiniFederationMonad 'Brig [UserProfile]

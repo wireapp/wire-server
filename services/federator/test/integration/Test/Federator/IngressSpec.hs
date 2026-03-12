@@ -59,7 +59,7 @@ spec env = do
         brig <- view teBrig <$> ask
         user <- randomUser brig
 
-        let expectedProfile = mkUserProfile EmailVisibleToSelf user UserLegalHoldNoConsent
+        let expectedProfile = mkUserProfile EmailVisibleToSelf user Nothing UserLegalHoldNoConsent
         runTestSem $ do
           resp <-
             liftToCodensity
