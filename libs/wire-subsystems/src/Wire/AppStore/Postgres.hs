@@ -71,11 +71,18 @@ getAppImpl ::
   UserId ->
   TeamId ->
   Sem r (Maybe StoredApp)
-getAppImpl uid tid =
+getAppImpl uid tid = (eraseMetadata <$$>) do
   runStatement (uid, tid) $
     dimapPG
       [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
         from apps where user_id = ($1 :: uuid) and team_id = ($2 :: uuid) |]
+  where
+
+-- `metadata` is unused, can be removed from postgres schema.  for now
+-- we just ignore it instead of removing it from the database to avoid
+-- migration issues.  ~~fisx
+eraseMetadata :: StoredApp -> StoredApp
+eraseMetadata sap = sap {meta = mempty}
 
 getAppsImpl ::
   ( Member (Input Pool) r,
@@ -84,7 +91,7 @@ getAppsImpl ::
   ) =>
   TeamId ->
   Sem r [StoredApp]
-getAppsImpl tid =
+getAppsImpl tid = (eraseMetadata <$$>) do
   runStatement tid $
     dimapPG
       [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)

@@ -1,2 +1,2 @@
-- remove Pict from CreateApp request body
--
+- remove pict attribute from CreateApp
+- remove metadata attribute from GetApp

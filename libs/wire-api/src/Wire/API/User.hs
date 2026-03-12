@@ -2106,7 +2106,6 @@ data GetApp = GetApp
   { name :: Name,
     assets :: [Asset],
     accentId :: ColourId,
-    meta :: A.Object,
     category :: Category,
     description :: Range 0 300 Text
   }
@@ -2202,7 +2201,6 @@ getAppObjectSchema =
     <$> (.name) .= field "name" schema
     <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
     <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
-    <*> (.meta) .= field "metadata" jsonObject
     <*> (.category) .= field "category" schema
     <*> (.description) .= field "description" schema
 

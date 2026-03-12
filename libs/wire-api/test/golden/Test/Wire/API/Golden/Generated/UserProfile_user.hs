@@ -92,7 +92,6 @@ testObject_UserProfile_user_2 =
             { name = Name "alsoUser2",
               assets = [],
               accentId = ColourId 0,
-              meta = mempty,
               category = Other,
               description = unsafeRange "bloob"
             },

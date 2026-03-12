@@ -108,7 +108,7 @@ createAppImpl lusr tid (NewApp new password6) = do
         StoredApp
           { id = u.id,
             teamId = tid,
-            meta = new.meta,
+            meta = mempty, -- unused, can be removed from postgres schema at some point.
             category = new.category,
             description = new.description,
             creator = tUnqualified lusr
@@ -167,10 +167,8 @@ getAppImpl lusr tid uid = do
   pure $
     Wire.API.User.GetApp
       { name = u.name,
-        pict = fromMaybe (Pict []) u.pict,
         assets = fromMaybe [] u.assets,
         accentId = u.accentId,
-        meta = storedApp.meta,
         category = storedApp.category,
         description = storedApp.description
       }
@@ -192,10 +190,8 @@ getAppsImpl lusr tid = do
         ( u.id,
           Wire.API.User.GetApp
             { name = u.name,
-              pict = fromMaybe (Pict []) u.pict,
               assets = fromMaybe [] u.assets,
               accentId = u.accentId,
-              meta = storedApp.meta,
               category = storedApp.category,
               description = storedApp.description
             }
@@ -268,7 +264,7 @@ appNewStoredUser creator new = do
         ssoId = Nothing,
         name = new.name,
         textStatus = Nothing,
-        pict = new.pict,
+        pict = Pict [],
         assets = new.assets,
         accentId = new.accentId,
         password = Nothing,
