@@ -2094,18 +2094,20 @@ instance ToSchema ListUsersById where
 -- Apps (can't easily go into its own module because cyclical deps)
 
 data NewApp = NewApp
-  { app :: GetApp,
+  { app :: GetApp, -- FUTUREWORK(fisx): inline this (the old Getapp, not the new AppInfo)
+
     -- | admin password for additional access control
     password :: PlainTextPassword6
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
-data GetApp = GetApp -- TODO: rename to AppInfo?  something better?  also rename profileAppProfile to something else.
-  { name :: Name, -- TODO: remove
-    pict :: Pict, -- TODO: remove
-    assets :: [Asset], -- TODO: remove
-    accentId :: ColourId, -- TODO: remove
-    meta :: A.Object, -- TODO: remove
+-- FUTUREWORK(fisx): rename to AppInfo; remove name, pict, assets, accentId, meta
+data GetApp = GetApp
+  { name :: Name,
+    pict :: Pict,
+    assets :: [Asset],
+    accentId :: ColourId,
+    meta :: A.Object,
     category :: Category,
     description :: Range 0 300 Text
   }
@@ -2217,7 +2219,7 @@ instance ToSchema PutApp where
         <*> (.description) .= maybe_ (optField "description" schema)
 
 data CreatedApp = CreatedApp
-  { user :: User,
+  { user :: User, -- FUTUREWORK(fisx): make this UserProfile so it'll contain app details.
     cookie :: SomeUserToken
   }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
