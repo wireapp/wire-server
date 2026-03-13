@@ -2000,6 +2000,23 @@ gundeck:
   settings:
     cellsEventQueue: "cells_events"
 ```
+
+## Configure consumable notifications
+
+The `consumableNotifications` flag controls whether the RabbitMQ-backed Events
+API for clients with the `consumable-notifications` capability is operational.
+When disabled, the legacy notification flow remains active.
+
+This is a root-level Helm `values.yaml` setting. It is rendered into both the
+`brig` and `gundeck` service configs:
+
+```yaml
+consumableNotifications: false
+```
+
+- In `brig`, it is rendered as `optSettings.setConsumableNotifications`.
+- In `gundeck`, it is rendered as `settings.consumableNotifications`.
+
 ## Background worker: Background jobs
 
 The background worker processes asynchronous jobs (conversation migrations, backend notifications). Configuration is supplied via Helm under `background-worker.config` and rendered into `background-worker.yaml`.
