@@ -27,26 +27,23 @@ where
 
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Either (isLeft, isRight)
-import Data.Foldable (for_)
-import Data.Text (Text)
 import HaskellWorks.Hspec.Hedgehog (require)
 import Hedgehog
 import qualified Hedgehog.Gen as Gen
 import qualified Hedgehog.Range as Range
-import Lens.Micro
+import Imports
 import Network.URI.Static (uri)
 import Test.Hspec
 import Test.Schema.Util (genUri, mk_prop_caseInsensitive)
 import Text.Email.Validate (emailAddress, validate)
+import Web.Scim.AttrName
 import qualified Web.Scim.Class.User as UserClass
-import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), lowerKey)
+import Web.Scim.Filter
+import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..), WithId (..), prsJsonLower)
 import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta (ETag (Strong, Weak), Meta (..), WithMeta (..))
-import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
-import qualified Web.Scim.Schema.PatchOp as PatchOp
-import Web.Scim.Schema.Schema (Schema (..))
+import Web.Scim.Schema.PatchOp
+import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User (NoUserExtra (..), User (..))
 import qualified Web.Scim.Schema.User as User
 import Web.Scim.Schema.User.Address as Address
@@ -112,10 +109,14 @@ spec = do
           ("externalid", String "lol"),
           ("active", Bool True)
         ]
-        $ \(key, upd) -> do
-          let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
-          let patchOp = PatchOp [operation]
-          User.applyPatch user patchOp `shouldSatisfy` isRight
+        $ \(key :: Text, newValue) -> do
+          let patchOp :: Patch PatchTag = Patch [operation]
+              operation =
+                PatchOpReplace
+                  (Just (ValuePath (AttrPath Nothing (AttrName key) Nothing) Nothing))
+                  newValue
+          applyPatch patchOp user `shouldSatisfy` isRight
+
     it "does not support multi-value attributes" $ do
       let schemas' = []
       let extras = KeyMap.empty
@@ -138,18 +139,20 @@ spec = do
           ("entitlements", toJSON @[Text] mempty),
           ("x509Certificates", toJSON @[Certificate] mempty)
         ]
-        $ \(key, upd) -> do
-          let operation = Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
-          let patchOp = PatchOp [operation]
-          User.applyPatch user patchOp `shouldSatisfy` isLeft
+        $ \(_key :: String, _upd) -> do
+          let patchOp :: Patch PatchTag = todo -- PatchOp [operation]
+          -- let operation = todo -- Operation Replace (Just (NormalPath (AttrPath Nothing key Nothing))) (Just upd)
+          applyPatch patchOp user `shouldSatisfy` isLeft
+
     it "applies patch to `extra`" $ do
       let schemas' = []
       let extras = KeyMap.empty
       let user :: User PatchTag = User.empty schemas' "hello" extras
-      let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
-      let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
-      let patchOp = PatchOp [operation]
-      User.extra <$> User.applyPatch user patchOp `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
+      let Right _programmingLanguagePath = todo -- User.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
+      -- let operation = todo -- Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
+      let patchOp :: Patch PatchTag = todo -- PatchOp [operation]
+      User.extra <$> applyPatch patchOp user `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
+
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
@@ -472,20 +475,20 @@ data UserExtraTest = UserExtraEmpty | UserExtraObject {test :: Text}
   deriving (Show, Eq)
 
 instance FromJSON UserExtraTest where
-  parseJSON = withObject "UserExtraObject" $ \(lowercase -> o) -> do
-    o .:? "urn:hscim:test" >>= \case
-      Nothing -> pure UserExtraEmpty
-      Just (lowercase -> o2) -> UserExtraObject <$> o2 .: "test"
+  parseJSON = prsJsonLower >=> prs
     where
-      lowercase = KeyMap.fromList . map (over _1 lowerKey) . KeyMap.toList
+      prs = withObject "UserExtraObject" $ \o -> do
+        o .:? "urn:hscim:test" >>= \case
+          Nothing -> pure UserExtraEmpty
+          Just o2 -> UserExtraObject <$> o2 .: "test"
 
 instance ToJSON UserExtraTest where
   toJSON UserExtraEmpty = object []
   toJSON (UserExtraObject t) =
     object ["urn:hscim:test" .= object ["test" .= t]]
 
-instance Patchable UserExtraTest where
-  applyOperation _ _ = undefined
+instance SupportsSchemas UserExtraTest where
+  supportedSchemas _ = undefined
 
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)

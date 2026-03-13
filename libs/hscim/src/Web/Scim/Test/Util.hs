@@ -62,6 +62,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as L
 import Data.Proxy
+import qualified Data.Set as Set
 import Data.Text hiding (show)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -76,7 +77,7 @@ import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
 import Test.Hspec.Wai.Matcher (bodyEquals, match)
 import Web.Scim.Class.Auth (AuthTypes (..))
 import Web.Scim.Class.Group (GroupTypes (..))
-import Web.Scim.Schema.Schema (Schema (CustomSchema, User20))
+import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User (UserTypes (..))
 
 -- | re-implementation of 'shouldRespondWith' with better error reporting.
@@ -254,7 +255,9 @@ data TestTag id authData authInfo userExtra
 instance UserTypes (TestTag id authData authInfo userExtra) where
   type UserId (TestTag id authData authInfo userExtra) = id
   type UserExtra (TestTag id authData authInfo userExtra) = userExtra
-  supportedSchemas = [User20, CustomSchema "urn:hscim:test"]
+
+instance SupportsSchemas (TestTag id authData authInfo userExtra) where
+  supportedSchemas _ = Set.fromList [User20, CustomSchema "urn:hscim:test"]
 
 instance GroupTypes (TestTag id authData authInfo userExtra) where
   type GroupId (TestTag id authData authInfo userExtra) = id

@@ -59,12 +59,14 @@ import Web.Scim.Filter (Filter)
 import Web.Scim.Schema.ListResponse (ListResponse)
 import Web.Scim.Schema.PatchOp (PatchOp)
 import qualified Web.Scim.Schema.ResourceType as ResourceType
+import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User (User)
 import Web.Scim.Schema.UserTypes (UserExtra, UserId)
 import Web.Scim.Server
 
 type HasScimClient tag =
   ( AuthTypes tag,
+    SupportsSchemas tag,
     ToJSON (UserExtra tag),
     FromJSON (UserExtra tag),
     FromJSON (UserId tag),
