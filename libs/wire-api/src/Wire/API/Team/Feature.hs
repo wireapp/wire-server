@@ -2182,23 +2182,21 @@ instance FromByteString FeatureStatus where
 instance Cass.Cql FeatureStatus where
   ctype = Cass.Tagged Cass.IntColumn
 
-  fromCql (Cass.CqlInt n) = case n of
-    0 -> pure FeatureStatusDisabled
-    1 -> pure FeatureStatusEnabled
-    _ -> Left "fromCql: Invalid FeatureStatus"
+  fromCql (Cass.CqlInt n) = mapLeft T.unpack $ postgresUnmarshall n
   fromCql _ = Left "fromCql: FeatureStatus: CqlInt expected"
 
-  toCql FeatureStatusDisabled = Cass.CqlInt 0
-  toCql FeatureStatusEnabled = Cass.CqlInt 1
+  toCql = Cass.CqlInt . postgresMarshall
 
 instance PostgresMarshall Int32 FeatureStatus where
-  postgresMarshall FeatureStatusEnabled = 1
-  postgresMarshall FeatureStatusDisabled = 0
+  postgresMarshall = \case
+    FeatureStatusDisabled -> 0
+    FeatureStatusEnabled -> 1
 
 instance PostgresUnmarshall Int32 FeatureStatus where
-  postgresUnmarshall 1 = Right FeatureStatusEnabled
-  postgresUnmarshall 0 = Right FeatureStatusDisabled
-  postgresUnmarshall _ = Left "invalid feature status"
+  postgresUnmarshall = \case
+    0 -> Right FeatureStatusDisabled
+    1 -> Right FeatureStatusEnabled
+    n -> Left $ "Invalid FeatureStatus: " <> T.pack (show n)
 
 -- | list of available features config types
 type Features :: [Type]

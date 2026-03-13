@@ -185,6 +185,7 @@ import Data.Schema
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
@@ -205,6 +206,7 @@ import Wire.API.Error.Brig
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Locale
 import Wire.API.Password
+import Wire.API.PostgresMarshall
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team
@@ -489,16 +491,23 @@ instance ToSchema UserType where
 instance C.Cql UserType where
   ctype = C.Tagged C.IntColumn
 
-  toCql UserTypeRegular = C.CqlInt 0
-  toCql UserTypeBot = C.CqlInt 1
-  toCql UserTypeApp = C.CqlInt 2
+  toCql = C.CqlInt . postgresMarshall
 
-  fromCql (C.CqlInt i) = case i of
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
+  fromCql _ = Left "user type: int expected"
+
+instance PostgresMarshall Int32 UserType where
+  postgresMarshall = \case
+    UserTypeRegular -> 0
+    UserTypeBot -> 1
+    UserTypeApp -> 2
+
+instance PostgresUnmarshall Int32 UserType where
+  postgresUnmarshall = \case
     0 -> pure UserTypeRegular
     1 -> pure UserTypeBot
     2 -> pure UserTypeApp
-    n -> Left $ "unexpected user type: " ++ show n
-  fromCql _ = Left "user type: int expected"
+    n -> Left $ "unexpected user type: " <> Text.pack (show n)
 
 --------------------------------------------------------------------------------
 -- UserProfile
@@ -1855,20 +1864,27 @@ instance Schema.ToSchema AccountStatus where
 instance C.Cql AccountStatus where
   ctype = C.Tagged C.IntColumn
 
-  toCql Active = C.CqlInt 0
-  toCql Suspended = C.CqlInt 1
-  toCql Deleted = C.CqlInt 2
-  toCql Ephemeral = C.CqlInt 3
-  toCql PendingInvitation = C.CqlInt 4
+  toCql = C.CqlInt . postgresMarshall
 
-  fromCql (C.CqlInt i) = case i of
-    0 -> pure Active
-    1 -> pure Suspended
-    2 -> pure Deleted
-    3 -> pure Ephemeral
-    4 -> pure PendingInvitation
-    n -> Left $ "unexpected account status: " ++ show n
+  fromCql (C.CqlInt i) = mapLeft Text.unpack $ postgresUnmarshall i
   fromCql _ = Left "account status: int expected"
+
+instance PostgresMarshall Int32 AccountStatus where
+  postgresMarshall = \case
+    Active -> 0
+    Suspended -> 1
+    Deleted -> 2
+    Ephemeral -> 3
+    PendingInvitation -> 4
+
+instance PostgresUnmarshall Int32 AccountStatus where
+  postgresUnmarshall = \case
+    0 -> Right Active
+    1 -> Right Suspended
+    2 -> Right Deleted
+    3 -> Right Ephemeral
+    4 -> Right PendingInvitation
+    n -> Left $ "unexpected account status: " <> Text.show n
 
 data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
   deriving (Eq, Show, Generic)
@@ -2008,6 +2024,12 @@ instance C.Cql (Imports.Set BaseProtocolTag) where
   toCql = C.CqlInt . fromIntegral . protocolSetBits
   fromCql (C.CqlInt bits) = pure $ protocolSetFromBits (fromIntegral bits)
   fromCql _ = Left "Protocol set: Int expected"
+
+instance PostgresMarshall Int32 (Imports.Set BaseProtocolTag) where
+  postgresMarshall = fromIntegral . protocolSetBits
+
+instance PostgresUnmarshall Int32 (Imports.Set BaseProtocolTag) where
+  postgresUnmarshall = Right . protocolSetFromBits . fromIntegral
 
 baseProtocolMask :: BaseProtocolTag -> Word32
 baseProtocolMask BaseProtocolProteusTag = 1

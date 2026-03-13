@@ -94,6 +94,7 @@ import Imports
 import Servant
 import URI.ByteString
 import Wire.API.Error
+import Wire.API.PostgresMarshall
 import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
@@ -199,6 +200,12 @@ instance C.Cql AssetKey where
   toCql = C.CqlText . assetKeyToText
   fromCql (C.CqlText txt) = runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "AssetKey: Text expected"
+
+instance PostgresMarshall Text AssetKey where
+  postgresMarshall = assetKeyToText
+
+instance PostgresUnmarshall Text AssetKey where
+  postgresUnmarshall = mapLeft (\e -> "failed to parse AssetKey: " <> T.pack e) . runParser parser . T.encodeUtf8
 
 --------------------------------------------------------------------------------
 -- AssetToken

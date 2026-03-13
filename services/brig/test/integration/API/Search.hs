@@ -89,6 +89,7 @@ import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
+import Wire.PostgresMigrationOpts
 
 tests :: Opt.Opts -> ES.Server -> Manager -> Galley -> Brig -> IO TestTree
 tests opts additionalElasticSearch mgr galley brig = do
@@ -800,7 +801,7 @@ runReindexFromAnotherIndex logger opts newIndexName migrationIndexName =
    in runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
 runReindexFromDatabase ::
-  (ElasticSettings -> CassandraSettings -> PostgresSettings -> Endpoint -> Command) ->
+  (ElasticSettings -> CassandraSettings -> PostgresSettings -> UserStorageLocation -> Endpoint -> Command) ->
   Log.Logger ->
   Opt.Opts ->
   ES.IndexName ->
@@ -826,7 +827,7 @@ runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName =
       postgresSettings :: PostgresSettings =
         brigOptsToPostgresSettings opts
       endpoint :: Endpoint = opts.galley
-   in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings endpoint
+   in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings (UserStorageLocation opts.postgresMigration.user) endpoint
 
 toESConnectionSettings :: ElasticSearchOpts -> ES.IndexName -> ESConnectionSettings
 toESConnectionSettings opts migrationIndexName = ESConnectionSettings {..}

@@ -71,6 +71,7 @@ import Text.Email.Parser
 import URI.ByteString qualified as URI
 import URI.ByteString.QQ (uri)
 import Web.Scim.Schema.User.Email ()
+import Wire.API.PostgresMarshall
 import Wire.API.User.EmailAddress
 import Wire.API.User.Phone
 import Wire.API.User.Profile (fromName, mkName)
@@ -150,6 +151,7 @@ data UserSSOId
   | UserScimExternalId Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
+  deriving (PostgresMarshall A.Value, PostgresUnmarshall A.Value) via (StoreAsJSON UserSSOId)
 
 isUserSSOId :: UserSSOId -> Bool
 isUserSSOId (UserSSOId _) = True
