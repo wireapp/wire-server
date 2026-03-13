@@ -255,7 +255,7 @@ pushAll pushes = do
   pushAllLegacy legacyNotifs allUserClients
 
   rabbitmqNotifs <- mapM mkNewNotification rabbitmqPushes
-  pushAllViaRabbitMq rabbitmqNotifs allUserClients
+  unless (null rabbitmqNotifs) $ pushAllViaRabbitMq rabbitmqNotifs allUserClients
 
   -- Note that Cells needs all notifications because it doesn't matter whether
   -- some recipients have rabbitmq clients or not.
