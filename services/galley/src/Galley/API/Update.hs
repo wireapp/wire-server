@@ -138,7 +138,7 @@ import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess qualified as E
 import Wire.FeaturesConfigSubsystem

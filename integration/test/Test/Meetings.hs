@@ -197,3 +197,51 @@ testMeetingUpdateUnauthorized = do
           ]
 
   putMeeting otherUser domain meetingId update >>= assertStatus 404
+
+testMeetingDelete :: (HasCallStack) => App ()
+testMeetingDelete = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      recurrenceUntil = addUTCTime (30 * 24 * 3600) now
+      recurrence =
+        object
+          [ "frequency" .= "daily",
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
+          ]
+      newMeeting =
+        object
+          [ "title" .= "Team Standup",
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "invited_emails" .= ([] :: [String]),
+            "recurrence" .= recurrence
+          ]
+  r1 <- postMeetings owner newMeeting
+  assertSuccess r1
+  meeting <- getJSON 201 r1
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  deleteMeeting owner domain meetingId >>= assertStatus 200
+  getMeeting owner domain meetingId >>= assertStatus 404
+
+testMeetingDeleteNotFound :: (HasCallStack) => App ()
+testMeetingDeleteNotFound = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
+  deleteMeeting owner "example.com" fakeMeetingId >>= assertStatus 404
+
+testMeetingDeleteUnauthorized :: (HasCallStack) => App ()
+testMeetingDeleteUnauthorized = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (otherUser, _, _membersOther) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime []
+  r1 <- postMeetings owner newMeeting
+  assertSuccess r1
+  meeting <- getJSON 201 r1
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  deleteMeeting otherUser domain meetingId >>= assertStatus 404

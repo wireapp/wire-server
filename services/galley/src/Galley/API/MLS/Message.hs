@@ -88,7 +88,7 @@ import Wire.API.Team.LegalHold
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem hiding (getConversation)
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem

@@ -63,6 +63,22 @@ type MeetingsAPI =
                     Meeting
            )
     :<|> Named
+           "delete-meeting"
+           ( Summary "Delete a meeting"
+               :> From 'V15
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 200 "Meeting deleted"]
+                    ()
+           )
+    :<|> Named
            "get-meeting"
            ( Summary "Get a single meeting by ID"
                :> From 'V15

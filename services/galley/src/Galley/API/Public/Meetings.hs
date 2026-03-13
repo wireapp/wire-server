@@ -26,4 +26,5 @@ meetingsAPI :: API MeetingsAPI GalleyEffects
 meetingsAPI =
   mkNamedAPI @"create-meeting" Meetings.createMeeting
     <@> mkNamedAPI @"update-meeting" Meetings.updateMeeting
+    <@> mkNamedAPI @"delete-meeting" Meetings.deleteMeeting
     <@> mkNamedAPI @"get-meeting" Meetings.getMeeting
