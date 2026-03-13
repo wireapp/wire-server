@@ -108,7 +108,7 @@ isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
     ( statusCode resp == 200
-        && ( ((.status) <$> responseJsonMaybe @(LockableFeature ValidateSAMLEmailsConfig) resp)
+        && ( ((.status) <$> responseJsonMaybe @(LockableFeature RequireExternalEmailVerificationConfig) resp)
                == Just FeatureStatusEnabled
            )
     )
