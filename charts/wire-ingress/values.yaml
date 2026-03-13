@@ -47,7 +47,9 @@ webapp:
 fakeS3:
   enabled: true
 
-services:
+service:
+  webapp:
+    externalPort: 8080
   nginz:
     # Update this if you've overwritten the default HTTP port in nginz.
     httpPort: 8080

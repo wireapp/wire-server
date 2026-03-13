@@ -312,7 +312,7 @@ annotation in Envoy — they are transparent at the HTTP layer.
 
 **Review:** Rendered only when `websockets.enabled: true`. Hostname differs from nginz route.
 
-- [ ] Done
+- [x] Done
 
 ---
 
@@ -325,7 +325,7 @@ Routes `config.dns.webapp` → `webapp-http` service port `externalPort`.
 
 **Review:** Absent from rendered output when `webapp.enabled: false`.
 
-- [ ] Done
+- [x] Done
 
 ---
 
