@@ -1,0 +1,13 @@
+{{- if .Values.teamSettings.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: team-settings-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.teamSettings.externalPort }}
+      targetPort: 8080
+  selector:
+    app: team-settings
+{{- end }}

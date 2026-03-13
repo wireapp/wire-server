@@ -336,7 +336,7 @@ Condition: `teamSettings.enabled`
 
 Routes `config.dns.teamSettings` → `team-settings-http` ClusterIP service port `service.teamSettings.externalPort`.
 
-- [ ] Done
+- [x] Done
 
 ---
 
@@ -347,7 +347,7 @@ Condition: `accountPages.enabled`
 
 Routes `config.dns.accountPages` → `account-pages-http` ClusterIP service port `service.accountPages.externalPort`.
 
-- [ ] Done
+- [x] Done
 
 ---
 
