@@ -129,4 +129,16 @@ tls:
 ingress:
   class: nginx
 
+gatewayAPI:
+  # Set to true to use Envoy Gateway instead of ingress-nginx for the dynamic
+  # backend federation ingresses. Requires federator.gatewayAPI.enabled=true in
+  # the nginx-ingress-services release deployed in the same namespace (which
+  # handles the main federation endpoint and the federation-test-helper service).
+  enabled: false
+  # Name of the GatewayClass created by Envoy Gateway.
+  gatewayClassName: envoy-gateway
+  # Container port on which the Envoy proxy pod listens for HTTPS.
+  # See nginx-ingress-services values for details.
+  envoyContainerPort: 443
+
 secrets: {}
