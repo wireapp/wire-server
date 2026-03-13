@@ -222,29 +222,46 @@ testMeetingListMultiple = do
   let firstMeeting = defaultMeetingJson "First Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
       secondMeeting = defaultMeetingJson "Second Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
       thirdMeeting = defaultMeetingJson "Third Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-  postMeetings owner firstMeeting >>= assertStatus 201
-  postMeetings owner secondMeeting >>= assertStatus 201
-  postMeetings owner thirdMeeting >>= assertStatus 201
+  r1 <- postMeetings owner firstMeeting
+  assertSuccess r1
+  m1 <- getJSON 201 r1
+  (id1, _) <- getMeetingIdAndDomain m1
+
+  r2 <- postMeetings owner secondMeeting
+  assertSuccess r2
+  m2 <- getJSON 201 r2
+  (id2, _) <- getMeetingIdAndDomain m2
+
+  r3 <- postMeetings owner thirdMeeting
+  assertSuccess r3
+  m3 <- getJSON 201 r3
+  (id3, _) <- getMeetingIdAndDomain m3
+
   resp <- getMeetingsList owner
   assertSuccess resp
   meetings <- resp.json & asList
   length (meetings :: [Value]) `shouldMatchInt` 3
 
+  titles <- forM meetings $ \m -> m %. "title" >>= asString
+  let expectedTitles = ["First Meeting", "Second Meeting", "Third Meeting"]
+  (all (`elem` titles) expectedTitles) `shouldMatch` True
+
+  fetchedIds <- forM meetings $ \m -> m %. "qualified_id" %. "id" >>= asString
+  let expectedIds = [id1, id2, id3]
+  (all (`elem` fetchedIds) expectedIds) `shouldMatch` True
+
 testMeetingListPagination :: (HasCallStack) => App ()
 testMeetingListPagination = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   now <- liftIO getCurrentTime
-  let firstMeeting = defaultMeetingJson "Meeting 1" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-      secondMeeting = defaultMeetingJson "Meeting 2" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-      thirdMeeting = defaultMeetingJson "Meeting 3" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-      fourthMeeting = defaultMeetingJson "Meeting 4" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-      fifthMeeting = defaultMeetingJson "Meeting 5" (addUTCTime 3600 now) (addUTCTime 7200 now) []
-  postMeetings owner firstMeeting >>= assertStatus 201
-  postMeetings owner secondMeeting >>= assertStatus 201
-  postMeetings owner thirdMeeting >>= assertStatus 201
-  postMeetings owner fourthMeeting >>= assertStatus 201
-  postMeetings owner fifthMeeting >>= assertStatus 201
+
+  -- The internal page size is 1000, so we create 1001 meetings to test pagination.
+  -- This ensures `hasMore = True` is triggered and multiple pages are fetched.
+  forM_ [(1 :: Int) .. 1001] $ \i -> do
+    let meeting = defaultMeetingJson ("Meeting " <> show i) (addUTCTime 3600 now) (addUTCTime 7200 now) []
+    postMeetings owner meeting >>= assertStatus 201
+
   resp <- getMeetingsList owner
   assertSuccess resp
   meetings <- resp.json & asList
-  length (meetings :: [Value]) `shouldMatchInt` 5
+  length (meetings :: [Value]) `shouldMatchInt` 1001
