@@ -1,5 +1,4 @@
 # Default values for wire-ingress
-
 gateway:
   # If true, a Gateway resource is created by this chart.
   # If false, set gateway.name to reference an existing Gateway.
@@ -24,7 +23,6 @@ gateway:
     enabled: false
     # If true, connections without a PROXY protocol header are also accepted.
     # Use this only if some traffic bypasses the load balancer (e.g. direct node access).
-    # WARNING: breaks PROXY protocol spec compliance.
     optional: false
   listeners:
     https:
@@ -36,58 +34,8 @@ gateway:
       enabled: false
       port: 80
 
-teamSettings:
-  enabled: false
-accountPages:
-  enabled: false
-websockets:
-  enabled: true
-webapp:
-  enabled: true
-fakeS3:
-  enabled: true
-
-service:
-  webapp:
-    externalPort: 8080
-  teamSettings:
-    externalPort: 8080
-  accountPages:
-    externalPort: 8080
-  nginz:
-    # Update this if you've overwritten the default HTTP port in nginz.
-    httpPort: 8080
-    # Update this if you've overwritten the default WebSocket port in nginz.
-    wsPort: 8081
-
-tls:
-  secret:
-    # If true, a kubernetes.io/tls Secret is created from secrets.tlsWildcardCert
-    # and secrets.tlsWildcardKey. Set to false if the secret is managed externally.
-    create: true
-    # Override the name of the Secret. If not set, the name is derived from the release name.
-    nameOverride: ""
-  useCertManager: false
-  createIssuer: true
-  privateKey:
-    rotationPolicy: Always
-    algorithm: ECDSA
-    size: 384  # 521 is not supported by Let's Encrypt
-  issuer:
-    name: letsencrypt-http01
-    kind: Issuer  # Issuer | ClusterIssuer
-  # caNamespace: wire-federation-v0
-
-certManager:
-  # If true, uses the Let's Encrypt staging API (certificates are NOT trusted):
-  #   https://acme-staging-v02.api.letsencrypt.org/directory
-  # If false (default), uses the production API (certificates are trusted):
-  #   https://acme-v02.api.letsencrypt.org/directory
-  inTestMode: false
-  certmasterEmail:
-  customSolvers:
-
-# You will need to supply DNS names:
+# NOTE: Please provide names. Here are naming suggestions:
+# You need to reference those in the nginz helm chart nginx_conf.deeplink.endpoints
 # config:
 #   dns:
 #     https: nginz-https.<domain>
@@ -98,8 +46,68 @@ certManager:
 #     certificateDomain: federator.<domain>  # domain to use in the federator CSR
 #     teamSettings: teams.<domain>  # ignored unless teamSettings.enabled == true
 #     accountPages: account.<domain> # ignored unless accountPages.enabled == true
-#
-# For TLS (manual mode, tls.useCertManager: false):
+
+websockets:
+  enabled: true
+webapp:
+  enabled: true
+fakeS3:
+  enabled: true
+teamSettings:
+  enabled: false
+accountPages:
+  enabled: false
+
+service:
+  webapp:
+    externalPort: 8080
+  teamSettings:
+    externalPort: 8080
+  accountPages:
+    externalPort: 8080
+  s3:
+    externalPort: 9000
+    serviceName: fake-aws-s3
+  # Set this to false if minio is not provided by the fake-aws-s3 chart
+  useFakeS3: true
+  nginz:
+    # Update this if you've overwritten the default HTTP port in nginz.
+    httpPort: 8080
+    # Update this if you've overwritten the default WebSocket port in nginz.
+    wsPort: 8081
+
+# TLS settings
+
+tls:
+  secret:
+    # If true, a kubernetes.io/tls Secret is created from secrets.tlsWildcardCert
+    # and secrets.tlsWildcardKey. Set to false if the secret is managed externally.
+    create: true
+    # Override the name of the Secret. If not set, the name is derived from the release name.
+    nameOverride: ""
+
+  # If set to true create Certificate object that request from tls.issuer
+  useCertManager: false
+  privateKey:
+    rotationPolicy: Always
+    algorithm: ECDSA
+    size: 384  # 521 is not supported by Let's Encrypt
+
+  createIssuer: true
+  issuer:
+    name: letsencrypt-http01
+    kind: Issuer  # Issuer | ClusterIssuer
+
+certManager:
+  # If true, uses the Let's Encrypt staging API (certificates are NOT trusted):
+  #   https://acme-staging-v02.api.letsencrypt.org/directory
+  # If false (default), uses the production API (certificates are trusted):
+  #   https://acme-v02.api.letsencrypt.org/directory
+  inTestMode: false
+  certmasterEmail:
+  customSolvers:
+
+# For TLS (manual mode, tls.useCertManager: false, tls.secret.create: false):
 # secrets:
 #   tlsWildcardCert: |
 #     -----BEGIN CERTIFICATE-----

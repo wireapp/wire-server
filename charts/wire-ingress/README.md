@@ -162,7 +162,7 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | Feature | Old behaviour | New behaviour |
 |---|---|---|
 | Default ACME solver | `http01.ingress.class: nginx` | `http01.gatewayHTTPRoute` targeting this chart's Gateway — requires `gateway.listeners.http.enabled: true` |
-| `/minio/` path blocking | nginx `server-snippet` returning 403 | Envoy Gateway `HTTPRouteFilter` `directResponse` (implementation-specific, non-standard) |
+| `/minio/` path blocking | nginx `server-snippet` returning 403 | `RequestRedirect` to `/` (301) — standard Gateway API |
 | Federator client cert header | `nginx.ingress.kubernetes.io/configuration-snippet` setting `X-SSL-Certificate` | Envoy Gateway `ClientTrafficPolicy` + `HTTPRouteFilter` header injection |
 | Websocket routing | Separate host with port name `ws` | Same `HTTPRoute` — WebSocket upgrades are handled transparently by Envoy |
 
@@ -299,6 +299,7 @@ The route attaches to the HTTPS listener of the Gateway via `parentRefs`.
 **Review:** Renders correctly with and without TLS; `helm lint` passes.
 
 - [x] Done
+- [x] Manually tested
 
 ---
 
@@ -313,6 +314,7 @@ annotation in Envoy — they are transparent at the HTTP layer.
 **Review:** Rendered only when `websockets.enabled: true`. Hostname differs from nginz route.
 
 - [x] Done
+- [x] Manually tested
 
 ---
 
@@ -337,6 +339,7 @@ Condition: `teamSettings.enabled`
 Routes `config.dns.teamSettings` → `team-settings-http` ClusterIP service port `service.teamSettings.externalPort`.
 
 - [x] Done
+- [x] Manually tested
 
 ---
 
@@ -348,25 +351,24 @@ Condition: `accountPages.enabled`
 Routes `config.dns.accountPages` → `account-pages-http` ClusterIP service port `service.accountPages.externalPort`.
 
 - [x] Done
+- [x] Manually tested
 
 ---
 
 #### HTTPRoute + Service — fakeS3 / minio
 
-Templates: `templates/httproute-minio.yaml`, `templates/service-minio.yaml`
+Template: `templates/httproute-minio.yaml`
 Condition: `fakeS3.enabled`
 
-Routes `config.dns.fakeS3` → `fake-aws-s3` service.
+Routes `config.dns.fakeS3` → `fake-aws-s3` service directly (no intermediary ClusterIP service needed — the fake-aws-s3 chart creates its own service).
 
-Access to `/minio/` paths is blocked with a 403 using an Envoy Gateway `HTTPRouteFilter` with
-`type: DirectResponse` and `statusCode: 403`, placed as a prefix match rule before the catch-all.
+Access to `/minio/` paths is blocked by a `RequestRedirect` to `/` (301), placed as a prefix
+match rule before the catch-all. This is standard Gateway API — no Envoy extensions required.
 
-> **Incompatibility note:** `DirectResponse` is an Envoy Gateway extension
-> (`gateway.envoyproxy.io/v1alpha1`). It is not part of the standard Gateway API spec.
+**Review:** Two rules rendered: one redirect rule for `/minio/` prefix, one catch-all for `/`.
 
-**Review:** Two rules rendered: one 403 rule for `/minio/` prefix, one catch-all for `/`.
-
-- [ ] Done
+- [x] Done
+- [x] Manually tested assets work
 
 ---
 

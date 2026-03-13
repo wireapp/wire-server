@@ -1,0 +1,38 @@
+{{- if .Values.fakeS3.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "wire-ingress.fullname" . }}-minio
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  parentRefs:
+    - name: {{ include "wire-ingress.getGatewayName" . | quote }}
+      namespace: {{ .Release.Namespace | quote }}
+      kind: Gateway
+      sectionName: https
+  hostnames:
+    - {{ required "config.dns.fakeS3 is required when fakeS3.enabled is true" .Values.config.dns.fakeS3 | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /minio/
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /
+            statusCode: 301
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ .Values.service.s3.serviceName }}
+          port: {{ .Values.service.s3.externalPort }}
+          kind: Service
+{{- end }}
