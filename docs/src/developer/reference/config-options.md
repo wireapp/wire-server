@@ -288,7 +288,7 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
-### Validate SAML Emails
+### Require External Email Verification
 
 The external feature name `validateSAMLemails` is kept for backward compatibility, but it is misleading: the feature applies to email addresses originating from both SCIM and SAML, and it controls ownership verification rather than generic email validation.
 
