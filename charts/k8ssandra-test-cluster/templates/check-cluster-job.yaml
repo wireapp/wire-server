@@ -6,6 +6,10 @@ kind: Job
 metadata:
   name: check-cluster-job
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "10"
 spec:
   template:
     spec:
