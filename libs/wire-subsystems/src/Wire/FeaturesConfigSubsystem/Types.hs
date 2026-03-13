@@ -71,7 +71,7 @@ instance GetFeatureConfig SSOConfig
 
 instance GetFeatureConfig SearchVisibilityAvailableConfig
 
-instance GetFeatureConfig ValidateSAMLEmailsConfig
+instance GetFeatureConfig RequireExternalEmailVerificationConfig
 
 instance GetFeatureConfig DigitalSignaturesConfig
 
