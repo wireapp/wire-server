@@ -1,7 +1,8 @@
+{{- if .Values.websockets.enabled }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "wire-ingress.fullname" . }}-nginz
+  name: {{ include "wire-ingress.fullname" . }}-nginz-websockets
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
@@ -13,7 +14,7 @@ spec:
       kind: Gateway
       sectionName: https
   hostnames:
-    - {{ required "config.dns.https is required" .Values.config.dns.https | quote }}
+    - {{ required "config.dns.ssl is required when websockets.enabled is true" .Values.config.dns.ssl | quote }}
   rules:
     - matches:
         - path:
@@ -21,5 +22,6 @@ spec:
             value: /
       backendRefs:
         - name: nginz
-          port: {{ .Values.service.nginz.httpPort }}
+          port: {{ .Values.service.nginz.wsPort }}
           kind: Service
+{{- end }}
