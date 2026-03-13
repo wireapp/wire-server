@@ -1,7 +1,9 @@
 teamSettings:
-  enabled: true
+  enabled: false
 accountPages:
-  enabled: true
+  enabled: false
+webapp:
+  enabled: false
 federator:
   enabled: true
   integrationTestHelper: true
@@ -11,17 +13,14 @@ tls:
     name: federation
     kind: ClusterIssuer
   createIssuer: false
-  caNamespace: wire-federation-v0
+  caNamespace: ""
 
 config:
   ingressClass: "nginx-{{ .Release.Namespace }}"
   dns:
     https: "nginz-https.{{ .Release.Namespace }}-integration.example.com"
     ssl: "nginz-ssl.{{ .Release.Namespace }}-integration.example.com"
-    webapp: "webapp.{{ .Release.Namespace }}-integration.example.com"
     fakeS3: "assets.{{ .Release.Namespace }}-integration.example.com"
-    teamSettings: "teams.{{ .Release.Namespace }}-integration.example.com"
-    accountPages: "account.{{ .Release.Namespace }}-integration.example.com"
     # federator: dynamically set by hack/helmfile.yaml.gotmpl
     # certificateDomain: dynamically set by hack/helmfile.yaml.gotmpl
 
