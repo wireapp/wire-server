@@ -288,15 +288,17 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
-### Validate SAML Emails
+### Require External Email Verification
 
-The feature only affects email address changes originating from SCIM or SAML.  Personal users and team users provisioned through the team management app will *always* be validated.
+The external feature name `validateSAMLemails` is kept for backward compatibility, but it is misleading: the feature applies to email addresses originating from both SCIM and SAML, and it controls ownership verification rather than generic email validation.
 
-`enabled` means "user has authority over email address": if a new user account with an email address is created, the user behind the account will receive a validation email.  If they follow the validation procedure, they will be able to receive emails about their account, eg., if a new device is associated with the account.  If the user does not validate their email address, they can still use it to login.
+The feature only affects email address changes originating from SCIM or SAML. Personal users and team users provisioned through the team management app will *always* go through email verification.
 
-`disabled` means "team admin has authority over email address, and by extension over all member accounts": if a user account with an email address is created, the address is considered valid immediately, without any emails being sent out, and without confirmation from the recipient.
+`enabled` means "user has authority over email address": if a new user account with an email address is created, the user behind the account will receive a verification email. If they complete the verification flow, they will be able to receive emails about their account, eg., if a new device is associated with the account. If they do not verify their email address, they can still use it to log in.
 
-Validate SAML emails is enabled by default.  To disable, use the following syntax:
+`disabled` means "team admin has authority over email address, and by extension over all member accounts": if a user account with an email address is created, the address is auto-activated immediately, without any emails being sent out and without confirmation from the recipient.
+
+This feature is enabled by default. To disable it, use the following syntax:
 
 ```yaml
 # galley.yaml

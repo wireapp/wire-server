@@ -158,6 +158,7 @@ library
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
     Test.FeatureFlags.OutlookCalIntegration
+    Test.FeatureFlags.RequireExternalEmailVerification
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound
     Test.FeatureFlags.SelfDeletingMessages
@@ -167,7 +168,6 @@ library
     Test.FeatureFlags.StealthUsers
     Test.FeatureFlags.User
     Test.FeatureFlags.Util
-    Test.FeatureFlags.ValidateSAMLEmails
     Test.Federation
     Test.Federator
     Test.LegalHold

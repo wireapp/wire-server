@@ -15,19 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.FeatureFlags.ValidateSAMLEmails where
+module Test.FeatureFlags.RequireExternalEmailVerification where
 
 import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
-testPatchValidateSAMLEmails :: (HasCallStack) => App ()
-testPatchValidateSAMLEmails =
+testPatchRequireExternalEmailVerification :: (HasCallStack) => App ()
+testPatchRequireExternalEmailVerification =
   checkPatch OwnDomain "validateSAMLemails"
     $ object ["status" .= "disabled"]
 
-testValidateSAMLEmailsInternal :: (HasCallStack) => App ()
-testValidateSAMLEmailsInternal = do
+testRequireExternalEmailVerification :: (HasCallStack) => App ()
+testRequireExternalEmailVerification = do
   (alice, tid, _) <- createTeam OwnDomain 0
   withWebSocket alice $ \ws -> do
     setFlag InternalAPI ws tid "validateSAMLemails" disabled

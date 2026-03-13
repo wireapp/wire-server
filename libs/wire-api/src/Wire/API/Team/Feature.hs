@@ -61,7 +61,7 @@ module Wire.API.Team.Feature
     SearchVisibilityAvailableConfig (..),
     SelfDeletingMessagesConfigB (..),
     SelfDeletingMessagesConfig,
-    ValidateSAMLEmailsConfig (..),
+    RequireExternalEmailVerificationConfig (..),
     DigitalSignaturesConfig (..),
     ConferenceCallingConfigB (..),
     ConferenceCallingConfig,
@@ -256,7 +256,7 @@ data FeatureSingleton cfg where
   FeatureSingletonLegalholdConfig :: FeatureSingleton LegalholdConfig
   FeatureSingletonSSOConfig :: FeatureSingleton SSOConfig
   FeatureSingletonSearchVisibilityAvailableConfig :: FeatureSingleton SearchVisibilityAvailableConfig
-  FeatureSingletonValidateSAMLEmailsConfig :: FeatureSingleton ValidateSAMLEmailsConfig
+  FeatureSingletonRequireExternalEmailVerificationConfig :: FeatureSingleton RequireExternalEmailVerificationConfig
   FeatureSingletonDigitalSignaturesConfig :: FeatureSingleton DigitalSignaturesConfig
   FeatureSingletonConferenceCallingConfig :: FeatureSingleton ConferenceCallingConfig
   FeatureSingletonSndFactorPasswordChallengeConfig :: FeatureSingleton SndFactorPasswordChallengeConfig
@@ -753,29 +753,33 @@ instance ToSchema SearchVisibilityAvailableConfig where
 type instance DeprecatedFeatureName V2 SearchVisibilityAvailableConfig = "search-visibility"
 
 --------------------------------------------------------------------------------
--- ValidateSAMLEmails feature
+-- RequireExternalEmailVerification feature
 
--- | This feature does not have a PUT endpoint. See Note [unsettable features].
-data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
+-- | Controls whether externally managed email addresses (from SAML or SCIM)
+-- must be verified by the user, or are auto-activated.
+-- The external feature name is kept for backward compatibility.
+--
+-- (This feature does not have a PUT endpoint. See Note [unsettable features].)
+data RequireExternalEmailVerificationConfig = RequireExternalEmailVerificationConfig
   deriving (Eq, Show, Generic, GSOP.Generic)
-  deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
-  deriving (RenderableSymbol) via (RenderableTypeName ValidateSAMLEmailsConfig)
-  deriving (ParseDbFeature, Default) via (TrivialFeature ValidateSAMLEmailsConfig)
+  deriving (Arbitrary) via (GenericUniform RequireExternalEmailVerificationConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName RequireExternalEmailVerificationConfig)
+  deriving (ParseDbFeature, Default) via (TrivialFeature RequireExternalEmailVerificationConfig)
 
-instance ToSchema ValidateSAMLEmailsConfig where
-  schema = object "ValidateSAMLEmailsConfig" objectSchema
+instance ToSchema RequireExternalEmailVerificationConfig where
+  schema = object "RequireExternalEmailVerificationConfig" objectSchema
 
-instance Default (LockableFeature ValidateSAMLEmailsConfig) where
+instance Default (LockableFeature RequireExternalEmailVerificationConfig) where
   def = defUnlockedFeature
 
-instance ToObjectSchema ValidateSAMLEmailsConfig where
-  objectSchema = pure ValidateSAMLEmailsConfig
+instance ToObjectSchema RequireExternalEmailVerificationConfig where
+  objectSchema = pure RequireExternalEmailVerificationConfig
 
-instance IsFeatureConfig ValidateSAMLEmailsConfig where
-  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
-  featureSingleton = FeatureSingletonValidateSAMLEmailsConfig
+instance IsFeatureConfig RequireExternalEmailVerificationConfig where
+  type FeatureSymbol RequireExternalEmailVerificationConfig = "validateSAMLemails"
+  featureSingleton = FeatureSingletonRequireExternalEmailVerificationConfig
 
-type instance DeprecatedFeatureName V2 ValidateSAMLEmailsConfig = "validate-saml-emails"
+type instance DeprecatedFeatureName V2 RequireExternalEmailVerificationConfig = "validate-saml-emails"
 
 --------------------------------------------------------------------------------
 -- DigitalSignatures feature
@@ -2207,7 +2211,7 @@ type Features =
     SSOConfig,
     SearchVisibilityAvailableConfig,
     SearchVisibilityInboundConfig,
-    ValidateSAMLEmailsConfig,
+    RequireExternalEmailVerificationConfig,
     DigitalSignaturesConfig,
     AppLockConfig,
     FileSharingConfig,

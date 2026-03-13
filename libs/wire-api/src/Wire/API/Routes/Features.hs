@@ -36,4 +36,6 @@ type family FeatureErrors cfg where
 type family FeatureAPIDesc cfg where
   FeatureAPIDesc EnforceFileDownloadLocationConfig =
     "<p><b>Custom feature: only supported on some dedicated on-prem systems.</b></p>"
+  FeatureAPIDesc RequireExternalEmailVerificationConfig =
+    "<p>Controls whether externally managed email addresses (from SAML or SCIM) must be verified by the user, or are auto-activated.</p><p>The external feature name is kept as <code>validateSAMLemails</code> for backward compatibility. That name is misleading because the feature also applies to SCIM-managed users, and it controls email ownership verification rather than generic email validation.</p>"
   FeatureAPIDesc _ = ""

@@ -375,7 +375,7 @@ writeFeatures
                 (def :: LockableFeaturePatch SSOConfig) {status = sso_status}
 
               writeFeature team_id $
-                (def :: LockableFeaturePatch ValidateSAMLEmailsConfig)
+                (def :: LockableFeaturePatch RequireExternalEmailVerificationConfig)
                   { status = validate_saml_emails
                   }
 
