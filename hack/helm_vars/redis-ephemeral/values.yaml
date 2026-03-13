@@ -1,7 +1,7 @@
 redis-ephemeral:
   image:
-    registry: public.ecr.aws
-    repository: docker/library/redis
+    registry: dhi.io
+    repository: redis
 
   redisConfig: |
     requirepass very-secure-redis-master-password
