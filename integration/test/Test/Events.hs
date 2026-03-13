@@ -815,44 +815,52 @@ mkEvent uid cid transient =
     ]
 
 testTypingIndicatorIsNotSentToOwnClient :: (HasCallStack) => TaggedBool "federated" -> App ()
-testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = startDynamicBackends [(enableConsumableNotifications def), (enableConsumableNotifications def)] $ \[domain, otherDomain] -> do
-  (alice, _, aliceClient) <- mkUserPlusClientWithDomain domain
-  (bob, _, bobClient) <- mkUserPlusClientWithDomain (if federated then otherDomain else domain)
-  connectTwoUsers alice bob
-  aliceClientId <- objId aliceClient
-  bobClientId <- objId bobClient
-  conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
+  let runTest =
+        if federated
+          then startDynamicBackends [(enableConsumableNotifications def), (enableConsumableNotifications def)]
+          else \run -> startDynamicBackends [(enableConsumableNotifications def)] $ \[domain] -> run [domain, domain]
+  runTest $ \[domain, otherDomain] -> do
+    (alice, _, aliceClient) <- mkUserPlusClientWithDomain domain
+    (bob, _, bobClient) <- mkUserPlusClientWithDomain otherDomain
+    connectTwoUsers alice bob
+    aliceClientId <- objId aliceClient
+    bobClientId <- objId bobClient
+    conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
-  runCodensity (createEventWebSockets [(alice, Just aliceClientId), (bob, Just bobClientId)]) $ \[aliceWs, bobWs] -> do
-    -- consume all events to ensure we start with a clean slate
-    consumeAllEvents_ aliceWs
-    consumeAllEvents_ bobWs
+    runCodensity (createEventWebSockets [(alice, Just aliceClientId), (bob, Just bobClientId)]) $ \[aliceWs, bobWs] -> do
+      -- consume all events to ensure we start with a clean slate
+      consumeAllEvents_ aliceWs
+      consumeAllEvents_ bobWs
 
-    -- Alice is typing
-    sendTypingStatus alice conv "started" >>= assertSuccess
+      -- Alice is typing
+      sendTypingStatus alice conv "started" >>= assertSuccess
 
-    -- Bob should receive the typing indicator for Alice
-    assertEvent bobWs $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
-      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
-      e %. "data.event.payload.0.qualified_from" `shouldMatch` (alice %. "qualified_id")
-      ackEvent bobWs e
+      -- Bob should receive the typing indicator for Alice
+      assertEvent bobWs $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+        e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+        e %. "data.event.payload.0.qualified_from" `shouldMatch` (alice %. "qualified_id")
+        ackEvent bobWs e
 
-    -- Alice should not receive the typing indicator for herself
-    assertNoEvent_ aliceWs
+      -- Alice should not receive the typing indicator for herself
+      assertNoEvent_ aliceWs
 
-    -- Bob is typing
-    sendTypingStatus bob conv "started" >>= assertSuccess
+      -- Bob is typing
+      sendTypingStatus bob conv "started" >>= assertSuccess
 
-    -- Alice should receive the typing indicator for Bob
-    assertEvent aliceWs $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
-      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
-      e %. "data.event.payload.0.qualified_from" `shouldMatch` (bob %. "qualified_id")
-      ackEvent aliceWs e
+      -- Alice should receive the typing indicator for Bob
+      assertEvent aliceWs $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+        e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+        e %. "data.event.payload.0.qualified_from" `shouldMatch` (bob %. "qualified_id")
+        ackEvent aliceWs e
 
-    -- Bob should not receive the typing indicator for himself
-    assertNoEvent_ bobWs
+      -- Bob should not receive the typing indicator for himself
+      assertNoEvent_ bobWs
+
+-- convert :: ((HasCallStack) => (String -> App ()) -> App ()) -> ([String] -> App ()) -> App ()
+-- convert = undefined
 
 -- We only delete queues to clean up federated integration tests. So, we
 -- mostly want to ensure we don't get stuck there.
