@@ -125,7 +125,7 @@ federationSitemap ::
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"get-conversations@v1" getConversationsV1
-    :<|> Named @"get-conversations" getConversations
+    :<|> Named @"get-conversations" Galley.API.Federation.getConversations
     :<|> Named @"leave-conversation" leaveConversation
     :<|> Named @"send-message" sendMessage
     :<|> Named @"update-conversation" updateConversation
@@ -228,7 +228,7 @@ getConversationsV1 ::
   GetConversationsRequest ->
   Sem r GetConversationsResponse
 getConversationsV1 domain req =
-  getConversationsResponseFromV2 <$> getConversations domain req
+  getConversationsResponseFromV2 <$> Galley.API.Federation.getConversations domain req
 
 getConversations ::
   ( Member E.ConversationStore r,

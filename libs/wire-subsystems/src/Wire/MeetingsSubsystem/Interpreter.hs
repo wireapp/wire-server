@@ -25,15 +25,18 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
+import Data.Map qualified as Map
 import Data.Qualified (Local, Qualified (..), tDomain, tUnqualified)
+import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
-import Data.Time.Clock (NominalDiffTime, addUTCTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
 import Imports
 import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
+import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsPremiumConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
 import Wire.ConversationSubsystem (ConversationSubsystem)
@@ -67,6 +70,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     updateMeetingImpl zUser meetingId update validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId validityPeriod
+  ListMeetings zUser ->
+    listMeetingsImpl zUser validityPeriod
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -209,3 +214,68 @@ storedMeetingToMeeting domain sm =
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt
     }
+
+listMeetingsImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  NominalDiffTime ->
+  Sem r [API.Meeting]
+listMeetingsImpl zUser validityPeriod = do
+  now <- Now.get
+  let cutoff = addUTCTime (negate validityPeriod) now
+  -- List all meetings created by the user
+  createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
+  -- Loop over local conversations accessible by the user, then filter to only keep meetings.
+  memberMeetings <- getAllMemberMeetings zUser cutoff
+  -- Combine and deduplicate
+  let allMeetings = map (storedMeetingToMeeting (tDomain zUser)) createdMeetings <> memberMeetings
+      uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
+  pure uniqueMeetings
+
+getAllMemberMeetings ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r
+  ) =>
+  Local UserId ->
+  UTCTime ->
+  Sem r [API.Meeting]
+getAllMemberMeetings zUser cutoff = do
+  -- We process conversations in pages
+  processPage Nothing
+  where
+    processPage ::
+      ( Member Store.MeetingsStore r,
+        Member ConversationSubsystem r
+      ) =>
+      Maybe ConversationPagingState -> Sem r [API.Meeting]
+    processPage pagingState = do
+      let range = unsafeRange 1000 :: Range 1 1000 Int32
+      page <- ConversationSubsystem.getConversationIds zUser range pagingState
+      case page of
+        MultiTablePaging.MultiTablePage uConvIds hasMore _ ->
+          if null uConvIds
+            then pure []
+            else do
+              convs <- ConversationSubsystem.getConversations (map qUnqualified uConvIds)
+              let meetingConvs = filter isMeetingConv convs
+                  meetingConvIds = Set.fromList $ map (.id_) meetingConvs
+              -- Identify which Qualified ConvIds correspond to meeting conversations
+              -- We use the original Qualified IDs to query the meeting store
+              let targetQConvIds = filter (\qId -> qUnqualified qId `Set.member` meetingConvIds) uConvIds
+              -- Fetch meetings for these conversations
+              pageMeetings <- forM targetQConvIds $ \qConvId -> do
+                Store.listMeetingsByConversation (qUnqualified qConvId) cutoff
+              let currentMeetings = storedMeetingToMeeting (tDomain zUser) <$> concat pageMeetings
+              -- Check if there are more pages
+              if hasMore
+                then do
+                  -- Recurse with paging state from the page
+                  let nextPageState = Just page.mtpPagingState
+                  rest <- processPage nextPageState
+                  pure (currentMeetings <> rest)
+                else pure currentMeetings
+    isMeetingConv :: StoredConversation -> Bool
+    isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation

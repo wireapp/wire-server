@@ -148,5 +148,13 @@ data MeetingsStore m a where
   GetMeeting ::
     MeetingId ->
     MeetingsStore m (Maybe StoredMeeting)
+  ListMeetingsByUser ::
+    UserId ->
+    UTCTime ->
+    MeetingsStore m [StoredMeeting]
+  ListMeetingsByConversation ::
+    ConvId ->
+    UTCTime ->
+    MeetingsStore m [StoredMeeting]
 
 makeSem ''MeetingsStore
