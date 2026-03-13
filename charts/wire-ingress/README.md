@@ -302,9 +302,9 @@ The route attaches to the HTTPS listener of the Gateway via `parentRefs`.
 
 ---
 
-#### HTTPRoute — websockets
+#### HTTPRoute — nginz websockets
 
-Template: `templates/httproute-websockets.yaml`
+Template: `templates/httproute-nginz-websockets.yaml`
 Condition: `websockets.enabled`
 
 Routes `config.dns.ssl` → `nginz` service port `ws`. WebSocket upgrades require no special
@@ -316,12 +316,12 @@ annotation in Envoy — they are transparent at the HTTP layer.
 
 ---
 
-#### HTTPRoute — webapp
+#### HTTPRoute + Service — webapp
 
-Template: `templates/httproute-webapp.yaml`
+Templates: `templates/httproute-webapp.yaml`, `templates/service-webapp.yaml`
 Condition: `webapp.enabled`
 
-Routes `config.dns.webapp` → `webapp-http` service port `externalPort`.
+Routes `config.dns.webapp` → `webapp-http` ClusterIP service port `service.webapp.externalPort`.
 
 **Review:** Absent from rendered output when `webapp.enabled: false`.
 
@@ -329,31 +329,31 @@ Routes `config.dns.webapp` → `webapp-http` service port `externalPort`.
 
 ---
 
-#### HTTPRoute — team-settings
+#### HTTPRoute + Service — team-settings
 
-Template: `templates/httproute-team-settings.yaml`
+Templates: `templates/httproute-team-settings.yaml`, `templates/service-team-settings.yaml`
 Condition: `teamSettings.enabled`
 
-Routes `config.dns.teamSettings` → `team-settings-http` service port `externalPort`.
+Routes `config.dns.teamSettings` → `team-settings-http` ClusterIP service port `service.teamSettings.externalPort`.
 
 - [ ] Done
 
 ---
 
-#### HTTPRoute — account-pages
+#### HTTPRoute + Service — account-pages
 
-Template: `templates/httproute-account-pages.yaml`
+Templates: `templates/httproute-account-pages.yaml`, `templates/service-account-pages.yaml`
 Condition: `accountPages.enabled`
 
-Routes `config.dns.accountPages` → `account-pages-http` service port `externalPort`.
+Routes `config.dns.accountPages` → `account-pages-http` ClusterIP service port `service.accountPages.externalPort`.
 
 - [ ] Done
 
 ---
 
-#### HTTPRoute — fakeS3 / minio
+#### HTTPRoute + Service — fakeS3 / minio
 
-Template: `templates/httproute-minio.yaml`
+Templates: `templates/httproute-minio.yaml`, `templates/service-minio.yaml`
 Condition: `fakeS3.enabled`
 
 Routes `config.dns.fakeS3` → `fake-aws-s3` service.
@@ -368,25 +368,9 @@ Access to `/minio/` paths is blocked with a 403 using an Envoy Gateway `HTTPRout
 
 - [ ] Done
 
-
 ---
 
-### Phase 5 — Services
-
-#### ClusterIP Services
-
-Template: `templates/service.yaml`
-
-Creates `webapp-http`, `s3-http`, `team-settings-http`, and `account-pages-http` ClusterIP
-services with their respective selectors and ports.
-
-**Review:** `helm template` produces the expected set of ClusterIP services for the enabled features.
-
-- [ ] Done
-
----
-
-### Phase 6 — Federator
+### Phase 5 — Federator
 
 #### Gateway listener for federator
 
@@ -450,7 +434,7 @@ in `templates/certificate-federator.yaml`.
 
 ---
 
-### Phase 7 — Integration test helper
+### Phase 6 — Integration test helper
 
 #### federation-test-helper Service
 
@@ -464,7 +448,7 @@ otherwise.
 
 ---
 
-### Phase 8 — custom solver secret
+### Phase 7 — custom solver secret
 
 #### Custom ACME solver secret
 
@@ -477,7 +461,7 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 
 ---
 
-### Phase 9 — Documentation and CI values
+### Phase 8 — Documentation and CI values
 
 #### Finalize README, migration guide, and ci/ values files
 
