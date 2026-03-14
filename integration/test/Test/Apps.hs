@@ -186,7 +186,12 @@ testDeleteAppFromTeam = do
   eventually $ do
     -- Check StoredApp is gone
     bindResponse (getApp owner tid appId) $ \resp -> do
-      resp.status `shouldMatchInt` 404 -- TODO: 403
+      -- TODO: `getApp` requires a caller, but in
+      -- getLocalUserProfileFilteredImpl we don't have one.  so we
+      -- either need to not call getApp in case there is no user
+      -- profile to inject it into, or create a variant getAppUnsafe
+      -- that does not do the `ensureTeamMember` thing.
+      resp.status `shouldMatchInt` 404
 
     -- Check StoredUser is deleted (via public API)
     bindResponse (getUser owner appIdObject) $ \resp -> do
