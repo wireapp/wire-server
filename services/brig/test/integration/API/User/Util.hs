@@ -167,7 +167,7 @@ initiateEmailUpdateCreds brig email (cky, tok) uid = do
     unversioned
       . brig
       . path "/access/self/email"
-      . cookie cky
+      . Bilge.cookie cky
       . header "Authorization" ("Bearer " <> toByteString' tok)
       . zUser uid
       . Bilge.json (EmailUpdate email)

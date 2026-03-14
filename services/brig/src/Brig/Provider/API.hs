@@ -924,7 +924,7 @@ botGetSelf :: (Member UserSubsystem r, Member (Input (Local ())) r) => BotId -> 
 botGetSelf bot = do
   getBy <- lift . liftSem . qualifyLocal' $ getByNoFilters {getByUserId = [botUserId bot], includePendingInvitations = NoPendingInvitations}
   p <- fmap listToMaybe . lift . liftSem $ User.getAccountsBy getBy
-  maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf u UserLegalHoldNoConsent) p
+  maybe (throwStd (errorToWai @'E.UserNotFound)) (\u -> pure $ Public.mkUserProfile EmailVisibleToSelf u Nothing UserLegalHoldNoConsent) p
 
 botGetClient :: (Member GalleyAPIAccess r, Member ClientStore r) => BotId -> (Handler r) (Maybe Public.Client)
 botGetClient bot = do

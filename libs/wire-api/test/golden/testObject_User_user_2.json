@@ -28,6 +28,7 @@
         "domain": "k.vbg.p",
         "id": "00000000-0000-0001-0000-000200000001"
     },
+    "searchable": true,
     "service": {
         "id": "00000000-0000-0000-0000-000000000001",
         "provider": "00000000-0000-0000-0000-000100000000"
@@ -35,6 +36,5 @@
     "status": "deleted",
     "supported_protocols": [],
     "text_status": "text status",
-    "searchable": true,
     "type": "bot"
 }

@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Self-tests for the 'Shape' DSL and 'shouldMatchShape' assertion.
+-- | Self-tests for the 'Shape' DSL and 'shouldMatchShape*' assertions.
 module Test.Shape where
 
 import Testlib.Prelude
@@ -26,35 +26,41 @@ import Testlib.Prelude
 testShapeObjectMatch :: (HasCallStack) => App ()
 testShapeObjectMatch = do
   let v = object ["foo" .= (42 :: Int), "bar" .= ("hello" :: String)]
-  v `shouldMatchShape` SObject [("foo", SNumber), ("bar", SString)]
+  v `shouldMatchShapeExact` SObject [("foo", SNumber), ("bar", SString)]
+
+-- | A matching object shape succeeds.
+testShapeObjectMatchLenient :: (HasCallStack) => App ()
+testShapeObjectMatchLenient = do
+  let v = object ["foo" .= (42 :: Int), "bar" .= ("hello" :: String)]
+  v `shouldMatchShapeLenient` SObject [("foo", SNumber)]
 
 -- | An unexpected key in the actual object causes a failure.
 testShapeUnexpectedKey :: (HasCallStack) => App ()
 testShapeUnexpectedKey = do
   let v = object ["foo" .= (1 :: Int), "extra" .= (2 :: Int)]
   expectFailure (\_ -> pure ()) do
-    v `shouldMatchShape` SObject [("foo", SNumber)]
+    v `shouldMatchShapeExact` SObject [("foo", SNumber)]
 
 -- | A missing key in the actual object causes a failure.
 testShapeMissingKey :: (HasCallStack) => App ()
 testShapeMissingKey = do
   let v = object ["foo" .= (1 :: Int)]
   expectFailure (\_ -> pure ()) do
-    v `shouldMatchShape` SObject [("foo", SNumber), ("bar", SString)]
+    v `shouldMatchShapeExact` SObject [("foo", SNumber), ("bar", SString)]
 
 -- | Providing a non-object value when 'SObject' is expected causes a failure.
 testShapeWrongTypeObject :: (HasCallStack) => App ()
 testShapeWrongTypeObject = do
   let v = toJSON ("hello" :: String)
   expectFailure (\_ -> pure ()) do
-    v `shouldMatchShape` SObject [("foo", SNumber)]
+    v `shouldMatchShapeExact` SObject [("foo", SNumber)]
 
 -- | Providing a non-string when 'SString' is expected causes a failure.
 testShapeWrongTypeString :: (HasCallStack) => App ()
 testShapeWrongTypeString = do
   let v = Number 42
   expectFailure (\_ -> pure ()) do
-    v `shouldMatchShape` SString
+    v `shouldMatchShapeExact` SString
 
 -- | An array element with the wrong type causes a failure, and the error
 -- message includes the element index.
@@ -63,7 +69,7 @@ testShapeArrayElementMismatch = do
   -- First two elements are strings (match), third is a number (mismatch at [2])
   let v = toJSON [toJSON ("a" :: String), toJSON ("b" :: String), toJSON (3 :: Int)]
   expectFailure (\e -> e.msg `shouldContainString` "[2]") do
-    v `shouldMatchShape` SArray SString
+    v `shouldMatchShapeExact` SArray SString
 
 -- | A nested mismatch deep in an object/array reports the full JSON path.
 testShapeNestedPathReported :: (HasCallStack) => App ()
@@ -80,7 +86,7 @@ testShapeNestedPathReported = do
           ]
   expectFailure (\e -> e.msg `shouldContainString` ".assets[0].key") do
     v
-      `shouldMatchShape` SObject
+      `shouldMatchShapeExact` SObject
         [ ( "assets",
             SArray
               ( SObject
@@ -97,15 +103,15 @@ testShapeSAny :: (HasCallStack) => App ()
 testShapeSAny = do
   let vals :: [Value]
       vals = [Null, Bool True, toJSON ("x" :: String), Number 1, toJSON ([] :: [Int]), object []]
-  mapM_ (`shouldMatchShape` SAny) vals
+  mapM_ (`shouldMatchShapeExact` SAny) vals
 
 -- | An empty array matches 'SArray' with any element shape.
 testShapeEmptyArray :: (HasCallStack) => App ()
 testShapeEmptyArray = do
   let v = toJSON ([] :: [Int])
-  v `shouldMatchShape` SArray SString
-  v `shouldMatchShape` SArray SNumber
-  v `shouldMatchShape` SArray (SObject [])
+  v `shouldMatchShapeExact` SArray SString
+  v `shouldMatchShapeExact` SArray SNumber
+  v `shouldMatchShapeExact` SArray (SObject [])
 
 -- | 'valueShape' computes the correct shape of a JSON value.
 testValueShape :: (HasCallStack) => App ()
@@ -120,4 +126,4 @@ testValueShape = do
           ]
   shape <- valueShape v
   -- The computed shape should itself pass the shape-match on v
-  v `shouldMatchShape` shape
+  v `shouldMatchShapeExact` shape

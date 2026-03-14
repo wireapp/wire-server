@@ -1,0 +1,1 @@
+Add `"app"` attribute to `GET /list-users`, `GET /users/:dom/:uid`; make `GET /teams/:tid/apps`, `GET /teams/:tid/apps/:uid` return same schema as `GET /list-users`.

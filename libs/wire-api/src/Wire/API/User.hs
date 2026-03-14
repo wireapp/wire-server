@@ -47,6 +47,18 @@ module Wire.API.User
     mkUserProfileWithEmail,
     userObjectSchema,
 
+    -- * Apps
+    NewApp (..),
+    GetApp (..),
+    PutApp (..),
+    Category (..),
+    categoryTextMapping,
+    categoryMap,
+    categoryFromText,
+    categoryToText,
+    CreatedApp (..),
+    RefreshAppCookieResponse (..),
+
     -- * UpgradePersonalToTeam
     CreateUserTeam (..),
     UpgradePersonalToTeamResponses,
@@ -157,6 +169,7 @@ import Control.Arrow ((&&&))
 import Control.Error.Safe (rightMay)
 import Control.Lens (makePrisms, over, view, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), withText)
+import Data.Aeson qualified as A
 import Data.Aeson.Types qualified as A
 import Data.Attoparsec.ByteString qualified as Parser
 import Data.Bifunctor qualified as Bifunctor
@@ -171,17 +184,18 @@ import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
+import Data.HashMap.Strict qualified as HM
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc (PlainTextPassword6, PlainTextPassword8)
+import Data.Misc
 import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.SOP
-import Data.Schema
+import Data.Schema hiding (description)
 import Data.Schema qualified as Schema
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -212,12 +226,12 @@ import Wire.API.Team.Member (TeamMember)
 import Wire.API.Team.Member qualified as TeamMember
 import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode, ActivationKey)
-import Wire.API.User.Auth (CookieLabel)
+import Wire.API.User.Auth
 import Wire.API.User.Identity hiding (toByteString)
 import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
-import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary as Arbitrary
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -525,6 +539,7 @@ data UserProfile = UserProfile
     profileLegalholdStatus :: UserLegalHoldStatus,
     profileSupportedProtocols :: Set BaseProtocolTag,
     profileType :: UserType,
+    profileApp :: Maybe GetApp,
     profileSearchable :: Bool
   }
   deriving stock (Eq, Show, Generic)
@@ -532,40 +547,43 @@ data UserProfile = UserProfile
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfile)
 
 instance ToSchema UserProfile where
-  schema =
-    object "UserProfile" $
-      UserProfile
-        <$> profileQualifiedId
-          .= field "qualified_id" schema
-        <* (qUnqualified . profileQualifiedId)
-          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-        <*> profileName
-          .= field "name" schema
-        <*> profileTextStatus
-          .= maybe_ (optField "text_status" schema)
-        <*> profilePict
-          .= (field "picture" schema <|> pure noPict)
-        <*> profileAssets
-          .= (field "assets" (array schema) <|> pure [])
-        <*> profileAccentId
-          .= field "accent_id" schema
-        <*> ((\del -> if del then Just True else Nothing) . profileDeleted)
-          .= maybe_ (fromMaybe False <$> optField "deleted" schema)
-        <*> profileService
-          .= maybe_ (optField "service" schema)
-        <*> profileHandle
-          .= maybe_ (optField "handle" schema)
-        <*> profileExpire
-          .= maybe_ (optField "expires_at" schema)
-        <*> profileTeam
-          .= maybe_ (optField "team" schema)
-        <*> profileEmail
-          .= maybe_ (optField "email" schema)
-        <*> profileLegalholdStatus
-          .= field "legalhold_status" schema
-        <*> profileSupportedProtocols .= supportedProtocolsObjectSchema
-        <*> profileType .= fmap (fromMaybe UserTypeRegular) (optField "type" schema)
-        <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
+  schema = object "UserProfile" userProfileObjectSchema
+
+userProfileObjectSchema :: ObjectSchema SwaggerDoc UserProfile
+userProfileObjectSchema =
+  UserProfile
+    <$> profileQualifiedId
+      .= field "qualified_id" schema
+    <* (qUnqualified . profileQualifiedId)
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+    <*> profileName
+      .= field "name" schema
+    <*> profileTextStatus
+      .= maybe_ (optField "text_status" schema)
+    <*> profilePict
+      .= (field "picture" schema <|> pure noPict)
+    <*> profileAssets
+      .= (field "assets" (array schema) <|> pure [])
+    <*> profileAccentId
+      .= field "accent_id" schema
+    <*> ((\del -> if del then Just True else Nothing) . profileDeleted)
+      .= maybe_ (fromMaybe False <$> optField "deleted" schema)
+    <*> profileService
+      .= maybe_ (optField "service" schema)
+    <*> profileHandle
+      .= maybe_ (optField "handle" schema)
+    <*> profileExpire
+      .= maybe_ (optField "expires_at" schema)
+    <*> profileTeam
+      .= maybe_ (optField "team" schema)
+    <*> profileEmail
+      .= maybe_ (optField "email" schema)
+    <*> profileLegalholdStatus
+      .= field "legalhold_status" schema
+    <*> profileSupportedProtocols .= supportedProtocolsObjectSchema
+    <*> profileType .= fmap (fromMaybe UserTypeRegular) (optField "type" schema)
+    <*> profileApp .= maybe_ (optField "app" schema)
+    <*> profileSearchable .= fmap (fromMaybe True) (optField "searchable" schema)
 
 --------------------------------------------------------------------------------
 -- SelfProfile
@@ -732,9 +750,9 @@ instance FromJSON (EmailVisibility ()) where
     "visible_to_self" -> pure EmailVisibleToSelf
     _ -> fail "unexpected value for EmailVisibility settings"
 
--- | Create profile, overwriting the email field.  Called `mkUserProfile`.
-mkUserProfileWithEmail :: Maybe EmailAddress -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfileWithEmail memail u legalHoldStatus =
+-- | Create profile, overwriting the email field.  Called by `mkUserProfile`.
+mkUserProfileWithEmail :: Maybe EmailAddress -> User -> Maybe GetApp -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail memail u mba legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
   UserProfile
@@ -753,11 +771,12 @@ mkUserProfileWithEmail memail u legalHoldStatus =
       profileLegalholdStatus = legalHoldStatus,
       profileSupportedProtocols = userSupportedProtocols u,
       profileType = u.userType,
+      profileApp = mba,
       profileSearchable = userSearchable u
     }
 
-mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> UserLegalHoldStatus -> UserProfile
-mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
+mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> Maybe GetApp -> UserLegalHoldStatus -> UserProfile
+mkUserProfile emailVisibilityConfigAndViewer u mba legalHoldStatus =
   let isEmailVisible = case emailVisibilityConfigAndViewer of
         EmailVisibleToSelf -> False
         EmailVisibleIfOnTeam -> isJust (userTeam u)
@@ -765,7 +784,7 @@ mkUserProfile emailVisibilityConfigAndViewer u legalHoldStatus =
         EmailVisibleIfOnSameTeam (Just (viewerTeamId, viewerMembership)) ->
           Just viewerTeamId == userTeam u
             && TeamMember.hasPermission viewerMembership TeamMember.ViewSameTeamEmails
-   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) u legalHoldStatus
+   in mkUserProfileWithEmail (if isEmailVisible then userEmail u else Nothing) u mba legalHoldStatus
 
 --------------------------------------------------------------------------------
 -- NewUser
@@ -1475,7 +1494,7 @@ instance ToSchema PasswordChange where
   schema =
     over
       doc
-      ( description
+      ( Schema.description
           ?~ "Data to change a password. The old password is required if \
              \a password already exists."
       )
@@ -1735,12 +1754,12 @@ data VerifyDeleteUser = VerifyDeleteUser
 
 instance ToSchema VerifyDeleteUser where
   schema =
-    objectWithDocModifier "VerifyDeleteUser" (description ?~ "Data for verifying an account deletion.") $
+    objectWithDocModifier "VerifyDeleteUser" (Schema.description ?~ "Data for verifying an account deletion.") $
       VerifyDeleteUser
         <$> verifyDeleteUserKey
-          .= fieldWithDocModifier "key" (description ?~ "The identifying key of the account (i.e. user ID).") schema
+          .= fieldWithDocModifier "key" (Schema.description ?~ "The identifying key of the account (i.e. user ID).") schema
         <*> verifyDeleteUserCode
-          .= fieldWithDocModifier "code" (description ?~ "The verification code.") schema
+          .= fieldWithDocModifier "code" (Schema.description ?~ "The verification code.") schema
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
@@ -2070,3 +2089,153 @@ instance ToSchema ListUsersById where
       ListUsersById
         <$> listUsersByIdFound .= field "found" (array schema)
         <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
+
+--------------------------------------------------------------------------------
+-- Apps (can't easily go into its own module because cyclical deps)
+
+data NewApp = NewApp
+  { app :: GetApp, -- FUTUREWORK(fisx): inline this (the old Getapp, not the new AppInfo)
+
+    -- | admin password for additional access control
+    password :: PlainTextPassword6
+  }
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
+
+-- FUTUREWORK(fisx): rename to AppInfo; remove name, pict, assets, accentId, meta
+data GetApp = GetApp
+  { name :: Name,
+    pict :: Pict,
+    assets :: [Asset],
+    accentId :: ColourId,
+    meta :: A.Object,
+    category :: Category,
+    description :: Range 0 300 Text
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetApp)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
+
+data PutApp = PutApp
+  { name :: Maybe Name,
+    assets :: Maybe [Asset],
+    accentId :: Maybe ColourId,
+    category :: Maybe Category,
+    description :: Maybe (Range 0 300 Text)
+  }
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
+
+data Category
+  = Security
+  | Collaboration
+  | Productivity
+  | Automation
+  | Files
+  | AI
+  | Developer
+  | Support
+  | Finance
+  | HR
+  | Integration
+  | Compliance
+  | Other
+  deriving (Eq, Ord, Show, Read, Generic)
+  deriving (Arbitrary) via GenericUniform Category
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Category)
+
+categoryTextMapping :: [(Text, Category)]
+categoryTextMapping =
+  [ ("security", Security),
+    ("collaboration", Collaboration),
+    ("productivity", Productivity),
+    ("automation", Automation),
+    ("files", Files),
+    ("ai", AI),
+    ("developer", Developer),
+    ("support", Support),
+    ("finance", Finance),
+    ("hr", HR),
+    ("integration", Integration),
+    ("compliance", Compliance),
+    ("other", Other)
+  ]
+
+categoryMap :: HM.HashMap Text Category
+categoryMap = HM.fromList categoryTextMapping
+
+categoryFromText :: Text -> Maybe Category
+categoryFromText text' = HM.lookup text' categoryMap
+
+categoryToText :: Category -> Text
+categoryToText = \case
+  Security -> "security"
+  Collaboration -> "collaboration"
+  Productivity -> "productivity"
+  Automation -> "automation"
+  Files -> "files"
+  AI -> "ai"
+  Developer -> "developer"
+  Support -> "support"
+  Finance -> "finance"
+  HR -> "hr"
+  Integration -> "integration"
+  Compliance -> "compliance"
+  Other -> "other"
+
+instance ToSchema Category where
+  schema =
+    enum @Text "Category" $
+      mconcat $
+        map (uncurry element) categoryTextMapping
+
+instance ToSchema NewApp where
+  schema =
+    object "NewApp" $
+      NewApp
+        <$> (.app) .= field "app" schema
+        <*> (.password) .= field "password" schema
+
+instance ToSchema GetApp where
+  schema = object "GetApp" getAppObjectSchema
+
+getAppObjectSchema :: ObjectSchema SwaggerDoc GetApp
+getAppObjectSchema =
+  GetApp
+    <$> (.name) .= field "name" schema
+    <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
+    <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
+    <*> (.meta) .= field "metadata" jsonObject
+    <*> (.category) .= field "category" schema
+    <*> (.description) .= field "description" schema
+
+instance ToSchema PutApp where
+  schema =
+    object "PutApp" $
+      PutApp
+        <$> (.name) .= maybe_ (optField "name" schema)
+        <*> (.assets) .= maybe_ (optField "assets" (array schema))
+        <*> (.accentId) .= maybe_ (optField "accent_id" schema)
+        <*> (.category) .= maybe_ (optField "category" schema)
+        <*> (.description) .= maybe_ (optField "description" schema)
+
+data CreatedApp = CreatedApp
+  { user :: User, -- FUTUREWORK(fisx): make this UserProfile so it'll contain app details.
+    cookie :: SomeUserToken
+  }
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
+
+instance ToSchema CreatedApp where
+  schema =
+    object "CreatedApp" $
+      CreatedApp
+        <$> (.user) .= field "user" schema
+        <*> (.cookie) .= field "cookie" schema
+
+newtype RefreshAppCookieResponse = RefreshAppCookieResponse
+  {cookie :: SomeUserToken}
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RefreshAppCookieResponse
+
+instance ToSchema RefreshAppCookieResponse where
+  schema =
+    object "RefreshAppCookieResponse" $
+      RefreshAppCookieResponse <$> (.cookie) .= field "cookie" schema
