@@ -42,7 +42,6 @@ import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Wire.API.App
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
@@ -2128,7 +2127,7 @@ type AppsAPI =
                :> Capture "tid" TeamId
                :> "apps"
                :> Capture "uid" UserId
-               :> Get '[JSON] GetApp
+               :> Get '[JSON] UserProfile
            )
     :<|> Named
            "get-apps"
@@ -2138,7 +2137,7 @@ type AppsAPI =
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Get '[JSON] GetAppList
+               :> Get '[JSON] [UserProfile]
            )
     :<|> Named
            "put-app"

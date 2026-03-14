@@ -808,6 +808,7 @@ testMultipleUsers opts brig = do
             profileLegalholdStatus = UserLegalHoldDisabled,
             profileSupportedProtocols = defSupportedProtocols,
             profileType = UserTypeRegular,
+            profileApp = Nothing,
             profileSearchable = True
           }
       users = [u1, u2, u3]

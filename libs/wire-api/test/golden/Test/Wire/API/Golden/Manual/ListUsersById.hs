@@ -23,6 +23,7 @@ import Data.Domain
 import Data.Id
 import Data.LegalHold
 import Data.Qualified
+import Data.Range
 import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Imports
@@ -54,6 +55,7 @@ profile1 =
       profileLegalholdStatus = UserLegalHoldDisabled,
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
+      profileApp = Nothing,
       profileSearchable = True
     }
 profile2 =
@@ -73,6 +75,15 @@ profile2 =
       profileLegalholdStatus = UserLegalHoldDisabled,
       profileSupportedProtocols = Set.fromList [BaseProtocolProteusTag, BaseProtocolMLSTag],
       profileType = UserTypeRegular,
+      profileApp =
+        Just $
+          GetApp
+            { name = Name "alsoUser2",
+              assets = [],
+              accentId = ColourId 0,
+              category = Other,
+              description = unsafeRange "bloob"
+            },
       profileSearchable = True
     }
 

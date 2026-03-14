@@ -11,10 +11,10 @@
         "domain": "s-f4.s",
         "id": "00000002-0000-0001-0000-000200000002"
     },
+    "searchable": true,
     "status": "deleted",
     "supported_protocols": [
         "proteus"
     ],
-    "searchable": true,
     "type": "regular"
 }
