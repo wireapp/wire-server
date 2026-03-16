@@ -2200,10 +2200,10 @@ instance ToSchema NewApp where
         <*> (.password) .= field "password" schema
 
 instance ToSchema AppInfo where
-  schema = object "AppInfo" getAppObjectSchema
+  schema = object "AppInfo" appInfoObjectSchema
 
-getAppObjectSchema :: ObjectSchema SwaggerDoc AppInfo
-getAppObjectSchema =
+appInfoObjectSchema :: ObjectSchema SwaggerDoc AppInfo
+appInfoObjectSchema =
   AppInfo
     <$> (.category) .= field "category" schema
     <*> (.description) .= field "description" schema

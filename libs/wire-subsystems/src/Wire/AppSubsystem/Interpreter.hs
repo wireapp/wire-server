@@ -133,8 +133,7 @@ createAppImpl lusr tid newApp = do
   pure
     CreatedApp
       { user =
-          let storedUser :: StoredUser = newStoredUserToStoredUser u
-              usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
+          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
               mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
               lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
            in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
@@ -168,7 +167,6 @@ getAppImpl ::
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
-  u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
   pure $ storedAppToAppInfo storedApp
 
 storedAppToAppInfo :: StoredApp -> AppInfo
@@ -189,13 +187,7 @@ getAppsImpl ::
   Sem r [(UserId, AppInfo)]
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
-  Store.getApps tid <&> map \storedApp ->
-    ( storedApp.id,
-      AppInfo
-        { category = storedApp.category,
-          description = storedApp.description
-        }
-    )
+  Store.getApps tid <&> map \storedApp -> (storedApp.id, storedAppToAppInfo storedApp)
 
 updateAppImpl ::
   ( Member AppStore r,
