@@ -25,7 +25,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
-import Data.UUID.V4
 import Data.ZAuth.Token
 import Imports
 import Polysemy
@@ -34,7 +33,6 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
-import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
@@ -48,6 +46,7 @@ import Wire.AuthenticationSubsystem.ZAuth
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
+import Wire.Sem.Random
 import Wire.StoredUser
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
@@ -58,7 +57,6 @@ import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
 runAppSubsystem ::
   ( Member UserStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
@@ -66,38 +64,41 @@ runAppSubsystem ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member UserSubsystem r
+    Member Random r
   ) =>
+  InterpreterFor UserSubsystem (AuthenticationSubsystem ': r) ->
+  InterpreterFor AuthenticationSubsystem r ->
   Sem (AppSubsystem ': r) a ->
   Sem r a
-runAppSubsystem = interpret \case
-  CreateApp lusr tid new -> createAppImpl lusr tid new
-  GetApp lusr tid uid -> getAppImpl lusr tid uid
-  GetApps lusr tid -> getAppsImpl lusr tid
-  UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
-  RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
-  DeleteApp tid appId -> deleteAppImpl tid appId
+runAppSubsystem runUser runAuth =
+  interpret $
+    runAuth . runUser . \case
+      CreateApp lusr tid new -> createAppImpl lusr tid new
+      Wire.AppSubsystem.GetApp lusr tid uid -> getAppImpl lusr tid uid
+      GetApps lusr tid -> getAppsImpl lusr tid
+      UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
+      RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+      DeleteApp tid appId -> deleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
-    Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   TeamId ->
-  Apps.NewApp ->
-  Sem r Apps.CreatedApp
-createAppImpl lusr tid (Apps.NewApp new password6) = do
+  NewApp ->
+  Sem r CreatedApp
+createAppImpl lusr tid (NewApp new password6) = do
   verifyUserPasswordError lusr password6
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
@@ -130,7 +131,7 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
-    Apps.CreatedApp
+    CreatedApp
       { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
         cookie = mkSomeToken c.cookieValue
       }
@@ -158,13 +159,13 @@ getAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Sem r Apps.GetApp
+  Sem r GetApp
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
   u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
   pure $
-    Apps.GetApp
+    Wire.API.User.GetApp
       { name = u.name,
         pict = fromMaybe (Pict []) u.pict,
         assets = fromMaybe [] u.assets,
@@ -182,14 +183,14 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r Apps.GetAppList
+  Sem r [(UserId, GetApp)]
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
   storedApps <- Store.getApps tid
   us <- Store.getUsers ((.id) <$> storedApps)
   let mkApp (storedApp, u) =
         ( u.id,
-          Apps.GetApp
+          Wire.API.User.GetApp
             { name = u.name,
               pict = fromMaybe (Pict []) u.pict,
               assets = fromMaybe [] u.assets,
@@ -199,7 +200,7 @@ getAppsImpl lusr tid = do
               description = storedApp.description
             }
         )
-  pure . Apps.GetAppList $ mkApp <$> matchAndZip storedApps us
+  pure $ mkApp <$> matchAndZip storedApps us
   where
     matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
     matchAndZip as us = mapMaybe f as
@@ -216,7 +217,7 @@ updateAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Apps.PutApp ->
+  PutApp ->
   Sem r ()
 updateAppImpl lusr tid appid upd = do
   (_updater, umem) <- ensureTeamMember lusr tid
@@ -251,19 +252,17 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
   pure $ mkSomeToken c.cookieValue
 
 appNewStoredUser ::
-  ( Member (Embed IO) r,
-    Member (Input AppSubsystemConfig) r
-  ) =>
+  (Member (Input AppSubsystemConfig) r, Member Random r) =>
   StoredUser ->
-  Apps.GetApp ->
+  GetApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
-  uid <- liftIO nextRandom
+  uid <- newId
   defLoc <- inputs defaultLocale
   let loc = toLocale defLoc (creator.language, creator.country)
   pure
     NewStoredUser
-      { id = Id uid,
+      { id = uid,
         userType = UserTypeApp,
         email = Nothing,
         ssoId = Nothing,

@@ -65,8 +65,9 @@ inMemoryUserSubsystemInterpreter =
     IsBlocked _ -> pure False
     GetUserProfiles _ _ -> error "GetUserProfiles: implement on demand (userSubsystemInterpreter)"
     GetUserProfilesWithErrors _ _ -> error "GetUserProfilesWithErrors: implement on demand (userSubsystemInterpreter)"
-    GetLocalUserProfiles luids ->
-      toProfile . mkUserFromStored testDomain testLocale <$$> UserStore.getUsers (tUnqualified luids)
+    GetLocalUserProfilesFiltered upf luids -> case upf of
+      Everything -> toProfile . mkUserFromStored testDomain testLocale <$$> UserStore.getUsers (tUnqualified luids)
+      _ -> error "GetLocalUserProfilesFiltered : unsupported filter (userSubsystemInterpreter)"
     GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
@@ -91,4 +92,4 @@ inMemoryUserSubsystemInterpreter =
     SetUserSearchable {} -> error "SetUserSearchable: implement on demand (userSubsystemInterpreter)"
 
 toProfile :: User -> UserProfile
-toProfile u = mkUserProfileWithEmail (userEmail u) u UserLegalHoldDisabled
+toProfile u = mkUserProfileWithEmail (userEmail u) u Nothing UserLegalHoldDisabled

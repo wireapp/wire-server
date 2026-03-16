@@ -347,9 +347,9 @@ postgres-schema-impl:
 
 .PHONY: cqlsh
 cqlsh:
-	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
+	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep 'cassandra' | perl -ne '/^(\S+)\s/ && print $$1'))
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
+	docker exec -it $(CASSANDRA_CONTAINER) cqlsh
 
 .PHONY: psql
 psql:

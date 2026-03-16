@@ -28,7 +28,7 @@
 -- SCIM branch of the API is fully defined in "Spar.Scim".
 module Spar.API
   ( -- * Server
-    app,
+    Spar.API.app,
     api,
 
     -- * API types
