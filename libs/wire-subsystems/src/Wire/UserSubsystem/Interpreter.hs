@@ -568,8 +568,8 @@ injectAppsIntoUserProfiles = mapM \uprof -> do
     localDom <- input
     pure $ foldQualified localDom Just (const Nothing) uprof.profileQualifiedId
 
-  mbApp :: Maybe GetApp <- case (uprof.profileType, mbluid, uprof.profileTeam) of
-    (UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
+  mbApp :: Maybe GetApp <- case (uprof.profileDeleted, uprof.profileType, mbluid, uprof.profileTeam) of
+    (False, UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
     _ -> pure Nothing
 
   pure (uprof {profileApp = mbApp})

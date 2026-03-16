@@ -186,7 +186,7 @@ testDeleteAppFromTeam = do
   eventually $ do
     -- Check StoredApp is gone
     bindResponse (getApp owner tid appId) $ \resp -> do
-      resp.status `shouldMatchInt` 404 -- TODO: 403
+      resp.status `shouldMatchInt` 404
 
     -- Check StoredUser is deleted (via public API)
     bindResponse (getUser owner appIdObject) $ \resp -> do

@@ -1770,8 +1770,11 @@ createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r Public.
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
 getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r UserProfile
-getApp lusr _tid uid =
-  lift . liftSem $ getLocalUserProfileFiltered404 AppsOnly (qualifyAs lusr uid)
+getApp lusr _tid uid = lift . liftSem $ do
+  prof <- getLocalUserProfileFiltered404 AppsOnly (qualifyAs lusr uid)
+  if prof.profileDeleted
+    then throw UserSubsystemProfileNotFound
+    else pure prof
 
 getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
 getApps lusr tid =
