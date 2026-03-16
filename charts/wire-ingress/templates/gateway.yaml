@@ -26,6 +26,17 @@ spec:
         certificateRefs:
           - name: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
             kind: Secret
+    {{- if .Values.federator.enabled }}
+    - name: federator
+      port: {{ .Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ if .Values.federator.tls.useCertManager }}{{ include "wire-ingress.getFederatorCertificateSecretName" . | quote }}{{ else }}{{ required "federator.tls.secretName is required when federator.tls.useCertManager is false" .Values.federator.tls.secretName | quote }}{{ end }}
+            kind: Secret
+    {{- end }}
     {{- if .Values.gateway.listeners.http.enabled }}
     - name: http
       port: {{ .Values.gateway.listeners.http.port }}

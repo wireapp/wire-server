@@ -1,0 +1,30 @@
+{{- if .Values.federator.enabled }}
+{{/* Injects the mTLS client certificate as X-SSL-Certificate request header,
+     matching nginx's $ssl_client_escaped_cert behaviour.
+     Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1). */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: {{ include "wire-ingress.fullname" . }}-federator-cert-header
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ include "wire-ingress.fullname" . }}-federator
+  lua:
+    - type: Inline
+      inline: |
+        function envoy_on_request(request_handle)
+          local ssl = request_handle:connection():ssl()
+          if ssl ~= nil then
+            local cert = ssl:urlEncodedPemEncodedPeerCertificate()
+            if cert ~= nil and cert ~= "" then
+              request_handle:headers():add("X-SSL-Certificate", cert)
+            end
+          end
+        end
+{{- end }}

@@ -36,6 +36,15 @@ Name of the TLS certificate secret. Differs based on whether cert-manager is use
 {{- end -}}
 
 {{/*
+Name of the federator TLS certificate secret (cert-manager managed).
+*/}}
+{{- define "wire-ingress.getFederatorCertificateSecretName" -}}
+{{- $nameParts := list (include "wire-ingress.fullname" .) -}}
+{{- $nameParts = append $nameParts "federator-managed-tls-certificate" -}}
+{{- join "-" $nameParts -}}
+{{- end -}}
+
+{{/*
 Name of the custom ACME solver secret.
 */}}
 {{- define "wire-ingress.getCustomSolversSecretName" -}}

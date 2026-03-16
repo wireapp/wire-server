@@ -1,0 +1,37 @@
+{{- if and .Values.federator.enabled .Values.federator.tls.useCertManager }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "federator-{{ include "wire-ingress.zone" . | replace "." "-" }}-csr"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  issuerRef:
+    {{- if .Values.federator.tls.issuer.name }}
+    name: {{ .Values.federator.tls.issuer.name | quote }}
+    kind: {{ .Values.federator.tls.issuer.kind | default .Values.tls.issuer.kind }}
+    {{- if .Values.federator.tls.issuer.group }}
+    group: {{ .Values.federator.tls.issuer.group }}
+    {{- end }}
+    {{- else }}
+    name: {{ include "wire-ingress.getIssuerName" . | quote }}
+    kind: {{ .Values.tls.issuer.kind }}
+    {{- end }}
+  usages:
+    - server auth
+    - client auth
+  duration: {{ .Values.federator.tls.duration }}
+  renewBefore: {{ .Values.federator.tls.renewBefore }}
+  isCA: false
+  secretName: {{ include "wire-ingress.getFederatorCertificateSecretName" . | quote }}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    encoding: PKCS1
+    rotationPolicy: {{ .Values.federator.tls.privateKey.rotationPolicy }}
+  dnsNames:
+    - {{ or .Values.config.dns.certificateDomain .Values.config.dns.federator | quote }}
+{{- end }}
