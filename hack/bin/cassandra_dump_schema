@@ -9,7 +9,7 @@ import re
 def run_cqlsh(container, expr):
     p = (
         subprocess.run(
-            ["docker", "exec", "-i", container, "/usr/bin/cqlsh", "-e", expr],
+            ["docker", "exec", "-i", container, "cqlsh", "-e", expr],
             stdout=PIPE,
             check=True,
         )
