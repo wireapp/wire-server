@@ -540,6 +540,9 @@ cannon:
     rate_limit_reqs_per_user: "10r/s"
     rate_limit_reqs_per_addr: "5r/m"
     user_rate_limit_request_zones: []
+    # The status code that is returned on throttling.
+    # 420 is the legacy status code and should be changed to 429 once all client support this
+    rate_limit_status: 420
 
     tls:
       protocols: TLSv1.2 TLSv1.3

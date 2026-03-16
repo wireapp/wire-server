@@ -176,10 +176,8 @@ http {
   limit_conn_zone $rate_limited_by_zuser zone=conns_per_user:10m;
   limit_conn_zone $rate_limited_by_addr zone=conns_per_addr:10m;
 
-  # Too Many Requests (420) is returned on throttling
-  # TODO: Change to 429 once all clients support this
-  limit_req_status 420;
-  limit_conn_status 420;
+  limit_req_status {{ .Values.nginx_conf.rate_limit_status }};
+  limit_conn_status {{ .Values.nginx_conf.rate_limit_status }};
 
   limit_req_log_level warn;
   limit_conn_log_level warn;
