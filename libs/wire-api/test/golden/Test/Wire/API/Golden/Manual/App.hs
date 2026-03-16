@@ -42,14 +42,9 @@ testObject_CreatedApp_1 :: CreatedApp
 testObject_CreatedApp_1 =
   CreatedApp testObject_UserProfile_user_2 someToken
 
-testObject_GetApp_1 :: GetApp
-testObject_GetApp_1 =
-  GetApp
-    (either undefined id $ mkName "good name")
-    mempty
-    defaultAccentId
-    Other
-    (unsafeRange "good description")
+testObject_AppInfo_1 :: AppInfo
+testObject_AppInfo_1 =
+  AppInfo Other (unsafeRange "good description")
 
 testObject_PutApp_1 :: PutApp
 testObject_PutApp_1 =

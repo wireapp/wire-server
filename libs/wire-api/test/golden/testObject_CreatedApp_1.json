@@ -3,11 +3,8 @@
     "user": {
         "accent_id": -1,
         "app": {
-            "accent_id": 0,
-            "assets": [],
             "category": "other",
-            "description": "bloob",
-            "name": "alsoUser2"
+            "description": "bloob"
         },
         "assets": [],
         "deleted": true,

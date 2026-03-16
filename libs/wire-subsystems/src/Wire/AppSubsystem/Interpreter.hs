@@ -22,7 +22,6 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..))
-import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
@@ -75,7 +74,7 @@ runAppSubsystem runUser runAuth =
   interpret $
     runAuth . runUser . \case
       CreateApp lusr tid new -> createAppImpl lusr tid new
-      Wire.AppSubsystem.GetApp lusr tid uid -> getAppImpl lusr tid uid
+      GetApp lusr tid uid -> getAppImpl lusr tid uid
       GetApps lusr tid -> getAppsImpl lusr tid
       UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
       RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
@@ -136,7 +135,7 @@ createAppImpl lusr tid newApp = do
       { user =
           let storedUser :: StoredUser = newStoredUserToStoredUser u
               usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
-              mbApp :: Maybe GetApp = Just $ storedAppToGetApp storedUser app
+              mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
               lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
            in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
         cookie = mkSomeToken c.cookieValue
@@ -165,20 +164,17 @@ getAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Sem r GetApp
+  Sem r AppInfo
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
   u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
-  pure $ storedAppToGetApp u storedApp
+  pure $ storedAppToAppInfo storedApp
 
-storedAppToGetApp :: StoredUser -> StoredApp -> GetApp
-storedAppToGetApp usr app =
-  Wire.API.User.GetApp
-    { name = usr.name,
-      assets = fromMaybe [] usr.assets,
-      accentId = usr.accentId,
-      category = app.category,
+storedAppToAppInfo :: StoredApp -> AppInfo
+storedAppToAppInfo app =
+  AppInfo
+    { category = app.category,
       description = app.description
     }
 
@@ -190,28 +186,16 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r [(UserId, GetApp)]
+  Sem r [(UserId, AppInfo)]
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
-  storedApps <- Store.getApps tid
-  us <- Store.getUsers ((.id) <$> storedApps)
-  let mkApp (storedApp, u) =
-        ( u.id,
-          Wire.API.User.GetApp
-            { name = u.name,
-              assets = fromMaybe [] u.assets,
-              accentId = u.accentId,
-              category = storedApp.category,
-              description = storedApp.description
-            }
-        )
-  pure $ mkApp <$> matchAndZip storedApps us
-  where
-    matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
-    matchAndZip as us = mapMaybe f as
-      where
-        f a = (a,) <$> Map.lookup a.id umap
-        umap = Map.fromList $ (\u -> (u.id, u)) <$> us
+  Store.getApps tid <&> map \storedApp ->
+    ( storedApp.id,
+      AppInfo
+        { category = storedApp.category,
+          description = storedApp.description
+        }
+    )
 
 updateAppImpl ::
   ( Member AppStore r,

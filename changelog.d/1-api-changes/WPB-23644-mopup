@@ -2,3 +2,5 @@
 - remove metadata attribute from GetApp
 - inline GetApp fields into NewApp
 - make CreatedApp.user contain UserProfile (which includes app info)
+- rename GetApp to AppInfo
+- remove AppInfo.{name,assets,accentId} (redundant user data)

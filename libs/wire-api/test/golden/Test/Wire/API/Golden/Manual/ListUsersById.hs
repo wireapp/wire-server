@@ -77,11 +77,8 @@ profile2 =
       profileType = UserTypeRegular,
       profileApp =
         Just $
-          GetApp
-            { name = Name "alsoUser2",
-              assets = [],
-              accentId = ColourId 0,
-              category = Other,
+          AppInfo
+            { category = Other,
               description = unsafeRange "bloob"
             },
       profileSearchable = True

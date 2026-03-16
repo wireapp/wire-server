@@ -75,8 +75,8 @@ tests =
         testObjects [(testObject_NewApp_1, "testObject_NewApp_1.json")],
       testGroup "CreatedApp" $
         testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")],
-      testGroup "GetApp" $
-        testObjects [(testObject_GetApp_1, "testObject_GetApp_1.json")],
+      testGroup "AppInfo" $
+        testObjects [(testObject_AppInfo_1, "testObject_AppInfo_1.json")],
       testGroup "PutApp" $
         testObjects
           [ (testObject_PutApp_1, "testObject_PutApp_1.json"),

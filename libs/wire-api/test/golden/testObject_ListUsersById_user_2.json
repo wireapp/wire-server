@@ -20,11 +20,8 @@
         {
             "accent_id": 0,
             "app": {
-                "accent_id": 0,
-                "assets": [],
                 "category": "other",
-                "description": "bloob",
-                "name": "alsoUser2"
+                "description": "bloob"
             },
             "assets": [],
             "id": "eb48b095-d96f-4a94-b4ec-2a1d61447e13",
