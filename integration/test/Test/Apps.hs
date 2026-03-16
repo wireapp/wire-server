@@ -103,9 +103,10 @@ testCreateApp = do
   bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
   bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
 
-  -- Category must be any of the values for the Category enum
+  -- Category can be any text; sanitization must happen by clients.
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
-    resp.status `shouldMatchInt` 400
+    resp.status `shouldMatchInt` 200
+    deleteTeamMember tid owner (resp.json %. "user") >>= assertSuccess
 
   let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
       foundUserType searcher exactMatchTerm aTypes =
@@ -114,6 +115,7 @@ testCreateApp = do
           foundDocs :: [Value] <- resp.json %. "documents" >>= asList
           docsInTeam :: [Value] <- do
             -- make sure that matches from previous test runs don't get in the way.
+            -- related: https://wearezeta.atlassian.net/browse/WPB-23995
             catMaybes
               <$> forM
                 foundDocs
