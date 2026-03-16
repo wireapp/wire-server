@@ -2094,11 +2094,16 @@ instance ToSchema ListUsersById where
 -- Apps (can't easily go into its own module because cyclical deps)
 
 data NewApp = NewApp
-  { app :: GetApp, -- FUTUREWORK(fisx): inline this (the old Getapp, not the new AppInfo)
-
+  { name :: Name,
+    assets :: [Asset],
+    accentId :: ColourId,
+    category :: Category,
+    description :: Range 0 300 Text,
     -- | admin password for additional access control
     password :: PlainTextPassword6
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
 -- FUTUREWORK(fisx): rename to AppInfo; remove name, pict, assets, accentId, meta
@@ -2120,6 +2125,8 @@ data PutApp = PutApp
     category :: Maybe Category,
     description :: Maybe (Range 0 300 Text)
   }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PutApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
 
 data Category
@@ -2189,7 +2196,11 @@ instance ToSchema NewApp where
   schema =
     object "NewApp" $
       NewApp
-        <$> (.app) .= field "app" schema
+        <$> (.name) .= field "name" schema
+        <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
+        <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
+        <*> (.category) .= field "category" schema
+        <*> (.description) .= field "description" schema
         <*> (.password) .= field "password" schema
 
 instance ToSchema GetApp where

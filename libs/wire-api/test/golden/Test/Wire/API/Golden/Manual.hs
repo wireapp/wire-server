@@ -21,6 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.Activate_user
+import Test.Wire.API.Golden.Manual.App
 import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
 import Test.Wire.API.Golden.Manual.ClientCapabilityList
@@ -70,7 +71,16 @@ tests :: TestTree
 tests =
   testGroup
     "Manual golden tests"
-    [ testGroup "UserGroupPage" $
+    [ testGroup "NewApp" $
+        testObjects [(testObject_NewApp_1, "testObject_NewApp_1.json")],
+      testGroup "GetApp" $
+        testObjects [(testObject_GetApp_1, "testObject_GetApp_1.json")],
+      testGroup "PutApp" $
+        testObjects
+          [ (testObject_PutApp_1, "testObject_PutApp_1.json"),
+            (testObject_PutApp_2, "testObject_PutApp_2.json")
+          ],
+      testGroup "UserGroupPage" $
         testObjects
           [ (testObject_UserGroupPage_1, "testObject_UserGroupPage_1.json"),
             (testObject_UserGroupPage_2, "testObject_UserGroupPage_2.json"),

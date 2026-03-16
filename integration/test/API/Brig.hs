@@ -1244,16 +1244,13 @@ createApp creator tid new = do
   submit "POST" $
     req
       & addJSONObject
-        [ "app"
-            .= object
-              [ "name" .= new.name,
-                "picture" .= new.pict,
-                "assets" .= new.assets,
-                "accent_id" .= new.accentId,
-                "metadata" .= new.meta,
-                "category" .= new.category,
-                "description" .= new.description
-              ],
+        [ "name" .= new.name,
+          "picture" .= new.pict,
+          "assets" .= new.assets,
+          "accent_id" .= new.accentId,
+          "metadata" .= new.meta,
+          "category" .= new.category,
+          "description" .= new.description,
           "password" .= defPassword
         ]
 
