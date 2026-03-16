@@ -73,6 +73,8 @@ tests =
     "Manual golden tests"
     [ testGroup "NewApp" $
         testObjects [(testObject_NewApp_1, "testObject_NewApp_1.json")],
+      testGroup "CreatedApp" $
+        testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")],
       testGroup "GetApp" $
         testObjects [(testObject_GetApp_1, "testObject_GetApp_1.json")],
       testGroup "PutApp" $

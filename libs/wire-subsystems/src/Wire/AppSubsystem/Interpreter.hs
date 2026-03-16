@@ -21,11 +21,12 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Json.Util
+import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Map qualified as Map
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
-import Data.ZAuth.Token
+import Data.ZAuth.Token (Token (..), Type (U))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -98,19 +99,19 @@ createAppImpl ::
   TeamId ->
   NewApp ->
   Sem r CreatedApp
-createAppImpl lusr tid (NewApp new password6) = do
-  verifyUserPasswordError lusr password6
+createAppImpl lusr tid newApp = do
+  verifyUserPasswordError lusr newApp.password
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
-  u <- appNewStoredUser creator new
+  u <- appNewStoredUser creator newApp
   let app =
         StoredApp
           { id = u.id,
             teamId = tid,
             meta = mempty, -- unused, can be removed from postgres schema at some point.
-            category = new.category,
-            description = new.description,
+            category = newApp.category,
+            description = newApp.description,
             creator = tUnqualified lusr
           }
 
@@ -132,7 +133,12 @@ createAppImpl lusr tid (NewApp new password6) = do
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
     CreatedApp
-      { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
+      { user =
+          let storedUser :: StoredUser = newStoredUserToStoredUser u
+              usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
+              mbApp :: Maybe GetApp = Just $ storedAppToGetApp storedUser app
+              lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
+           in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
         cookie = mkSomeToken c.cookieValue
       }
 
@@ -164,14 +170,17 @@ getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
   u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
-  pure $
-    Wire.API.User.GetApp
-      { name = u.name,
-        assets = fromMaybe [] u.assets,
-        accentId = u.accentId,
-        category = storedApp.category,
-        description = storedApp.description
-      }
+  pure $ storedAppToGetApp u storedApp
+
+storedAppToGetApp :: StoredUser -> StoredApp -> GetApp
+storedAppToGetApp usr app =
+  Wire.API.User.GetApp
+    { name = usr.name,
+      assets = fromMaybe [] usr.assets,
+      accentId = usr.accentId,
+      category = app.category,
+      description = app.description
+    }
 
 getAppsImpl ::
   ( Member AppStore r,
@@ -250,7 +259,7 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
 appNewStoredUser ::
   (Member (Input AppSubsystemConfig) r, Member Random r) =>
   StoredUser ->
-  GetApp ->
+  NewApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
   uid <- newId

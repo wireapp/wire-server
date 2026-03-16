@@ -1,3 +1,4 @@
-- remove pict attribute from CreateApp
+- remove pict attribute from GetApp
 - remove metadata attribute from GetApp
 - inline GetApp fields into NewApp
+- make CreatedApp.user contain UserProfile (which includes app info)

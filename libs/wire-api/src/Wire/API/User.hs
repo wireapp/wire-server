@@ -2226,9 +2226,10 @@ instance ToSchema PutApp where
         <*> (.description) .= maybe_ (optField "description" schema)
 
 data CreatedApp = CreatedApp
-  { user :: User, -- FUTUREWORK(fisx): make this UserProfile so it'll contain app details.
+  { user :: UserProfile,
     cookie :: SomeUserToken
   }
+  deriving stock (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
 
 instance ToSchema CreatedApp where

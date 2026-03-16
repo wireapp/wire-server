@@ -20,7 +20,13 @@ module Test.Wire.API.Golden.Manual.App where
 import Data.Misc
 import Data.Range
 import Imports
+import Test.Wire.API.Golden.Generated.UserProfile_user
+import Web.HttpApiData
 import Wire.API.User
+import Wire.API.User.Auth (SomeUserToken)
+
+someToken :: SomeUserToken
+someToken = either undefined id $ parseUrlPiece "DTHdPvHSFolvyGVvuaexZ9DKptwnxTSn8UhKc-6A9q34s4q0YY3_CgpYxDMr56crHrW79EPwKu2BLwQkFT7wBw==.v=1.k=1.d=1773661988.t=u.l=.u=ac638199-8816-439f-88dd-8e206c9b5baa.r=fa16d9df"
 
 testObject_NewApp_1 :: NewApp
 testObject_NewApp_1 =
@@ -31,6 +37,10 @@ testObject_NewApp_1 =
     Other
     (unsafeRange "good description")
     (plainTextPassword6Unsafe "good password")
+
+testObject_CreatedApp_1 :: CreatedApp
+testObject_CreatedApp_1 =
+  CreatedApp testObject_UserProfile_user_2 someToken
 
 testObject_GetApp_1 :: GetApp
 testObject_GetApp_1 =

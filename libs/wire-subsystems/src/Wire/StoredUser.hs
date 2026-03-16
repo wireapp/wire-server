@@ -234,6 +234,33 @@ deriving instance
 instance HasField "service" NewStoredUser (Maybe ServiceRef) where
   getField user = ServiceRef <$> user.serviceId <*> user.providerId
 
+newStoredUserToStoredUser :: NewStoredUser -> StoredUser
+newStoredUserToStoredUser new =
+  StoredUser
+    { id = new.id,
+      userType = Just new.userType,
+      name = new.name,
+      textStatus = new.textStatus,
+      pict = Just new.pict,
+      email = new.email,
+      emailUnvalidated = new.email,
+      ssoId = new.ssoId,
+      accentId = new.accentId,
+      assets = Just new.assets,
+      activated = new.activated,
+      status = Just new.status,
+      expires = new.expires,
+      language = Just new.language,
+      country = new.country,
+      providerId = new.providerId,
+      serviceId = new.serviceId,
+      handle = new.handle,
+      teamId = new.teamId,
+      managedBy = Just new.managedBy,
+      supportedProtocols = Just new.supportedProtocols,
+      searchable = Just new.searchable
+    }
+
 -- This saves the identity from `NewStoredUser` even if the user is
 -- not activated.
 newStoredUserToUser :: Qualified NewStoredUser -> User
