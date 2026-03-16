@@ -56,8 +56,8 @@ testObject_Feature_team_10 = Feature FeatureStatusDisabled SSOConfig
 testObject_Feature_team_11 :: Feature SearchVisibilityAvailableConfig
 testObject_Feature_team_11 = Feature FeatureStatusEnabled SearchVisibilityAvailableConfig
 
-testObject_Feature_team_12 :: Feature ValidateSAMLEmailsConfig
-testObject_Feature_team_12 = Feature FeatureStatusDisabled ValidateSAMLEmailsConfig
+testObject_Feature_team_12 :: Feature RequireExternalEmailVerificationConfig
+testObject_Feature_team_12 = Feature FeatureStatusDisabled RequireExternalEmailVerificationConfig
 
 testObject_Feature_team_13 :: Feature DigitalSignaturesConfig
 testObject_Feature_team_13 = Feature FeatureStatusEnabled DigitalSignaturesConfig

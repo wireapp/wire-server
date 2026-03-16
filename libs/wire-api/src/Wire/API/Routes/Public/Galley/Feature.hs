@@ -42,7 +42,7 @@ type FeatureAPI =
     :<|> FeatureAPIGetPut SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
     :<|> SearchVisibilitySet
-    :<|> FeatureAPIGet ValidateSAMLEmailsConfig
+    :<|> FeatureAPIGet RequireExternalEmailVerificationConfig
     :<|> FeatureAPIGet DigitalSignaturesConfig
     :<|> FeatureAPIGetPut AppLockConfig
     :<|> FeatureAPIGetPut FileSharingConfig
@@ -108,7 +108,7 @@ type DeprecatedFeatureConfigs =
   [ LegalholdConfig,
     SSOConfig,
     SearchVisibilityAvailableConfig,
-    ValidateSAMLEmailsConfig,
+    RequireExternalEmailVerificationConfig,
     DigitalSignaturesConfig,
     AppLockConfig,
     FileSharingConfig,
@@ -129,7 +129,7 @@ type family AllDeprecatedFeatureConfigAPI cfgs where
 type DeprecatedFeatureAPI =
   FeatureStatusDeprecatedGet DeprecationNotice1 SearchVisibilityAvailableConfig V2
     :<|> FeatureStatusDeprecatedPut DeprecationNotice1 SearchVisibilityAvailableConfig V2
-    :<|> FeatureStatusDeprecatedGet DeprecationNotice1 ValidateSAMLEmailsConfig V2
+    :<|> FeatureStatusDeprecatedGet DeprecationNotice1 RequireExternalEmailVerificationConfig V2
     :<|> FeatureStatusDeprecatedGet DeprecationNotice2 DigitalSignaturesConfig V2
 
 type FeatureAPIGet cfg =

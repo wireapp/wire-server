@@ -887,12 +887,12 @@ testSsoLoginAndEmailVerification = do
     user %. "email" `shouldMatch` email
 
 -- | This test may be covered by `testScimUpdateEmailAddress` and maybe can be removed.
-testSsoLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "validateSAMLEmails" -> App ()
-testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
+testSsoLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "requireExternalEmailVerification" -> App ()
+testSsoLoginNoSamlEmailValidation (TaggedBool requireExternalEmailVerification) = do
   (owner, tid, _) <- createTeam OwnDomain 1
   emailDomain <- randomDomain
 
-  let status = if validateSAMLEmails then "enabled" else "disabled"
+  let status = if requireExternalEmailVerification then "enabled" else "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -910,7 +910,7 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
       eid = CI.original $ uref ^. SAML.uidSubject . to SAML.unsafeShowNameID
   eid `shouldMatch` email
 
-  when validateSAMLEmails $ do
+  when requireExternalEmailVerification $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
       user <- res.json & asList >>= assertOne
@@ -936,11 +936,11 @@ testSsoLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
     user %. "email" `shouldMatch` email
 
 -- | create user with non-email externalId.  then use put to add an email address.
-testScimUpdateEmailAddress :: (HasCallStack) => TaggedBool "extIdIsEmail" -> TaggedBool "validateSAMLEmails" -> App ()
-testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEmails) = do
+testScimUpdateEmailAddress :: (HasCallStack) => TaggedBool "extIdIsEmail" -> TaggedBool "requireExternalEmailVerification" -> App ()
+testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool requireExternalEmailVerification) = do
   (owner, tid, _) <- createTeam OwnDomain 1
 
-  let status = if validateSAMLEmails then "enabled" else "disabled"
+  let status = if requireExternalEmailVerification then "enabled" else "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -991,7 +991,7 @@ testScimUpdateEmailAddress (TaggedBool extIdIsEmail) (TaggedBool validateSAMLEma
     res.status `shouldMatchInt` 200
     res.json %. "emails" `shouldMatch` [object ["value" .= newEmail]]
 
-  when validateSAMLEmails $ do
+  when requireExternalEmailVerification $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
       user <- res.json & asList >>= assertOne
@@ -1164,11 +1164,11 @@ testScimUpdateEmailAddressAndExternalId = do
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` newEmail1
 
-testScimLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "validateSAMLEmails" -> App ()
-testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
+testScimLoginNoSamlEmailValidation :: (HasCallStack) => TaggedBool "requireExternalEmailVerification" -> App ()
+testScimLoginNoSamlEmailValidation (TaggedBool requireExternalEmailVerification) = do
   (owner, tid, _) <- createTeam OwnDomain 1
 
-  let status = if validateSAMLEmails then "enabled" else "disabled"
+  let status = if requireExternalEmailVerification then "enabled" else "disabled"
   assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -1187,7 +1187,7 @@ testScimLoginNoSamlEmailValidation (TaggedBool validateSAMLEmails) = do
     res.status `shouldMatchInt` 200
     res.json %. "id" `shouldMatch` uid
 
-  when validateSAMLEmails $ do
+  when requireExternalEmailVerification $ do
     getUsersId OwnDomain [uid] `bindResponse` \res -> do
       res.status `shouldMatchInt` 200
       user <- res.json & asList >>= assertOne

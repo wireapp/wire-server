@@ -87,7 +87,7 @@ tests s =
       test s "GET /teams/:tid/admins" testGetTeamAdminInfo,
       test s "/teams/:tid/features/legalhold" testLegalholdConfig,
       test s "/teams/:tid/features/sso" $ testFeatureStatus @SSOConfig,
-      test s "/teams/:tid/features/validateSamlEmails" $ testFeatureStatus @ValidateSAMLEmailsConfig,
+      test s "/teams/:tid/features/validateSamlEmails" $ testFeatureStatus @RequireExternalEmailVerificationConfig,
       test s "/teams/:tid/features/digitalSignatures" $ testFeatureStatus @DigitalSignaturesConfig,
       test s "/teams/:tid/features/fileSharing" $ testFeatureStatus @FileSharingConfig,
       test s "/teams/:tid/features/conference-calling" $ testFeatureStatusOptTtl defConfCalling (Just FeatureTTLUnlimited),

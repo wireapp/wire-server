@@ -43,7 +43,7 @@ featureAPI =
     <@> featureAPIGetPut
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
     <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @SearchVisibilityAvailableConfig))
-    <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) getFeature
+    <@> mkNamedAPI @'("get", RequireExternalEmailVerificationConfig) getFeature
     <@> mkNamedAPI @'("get", DigitalSignaturesConfig) getFeature
     <@> featureAPIGetPut
     <@> featureAPIGetPut
@@ -86,7 +86,7 @@ deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =
   mkNamedAPI @'("get-deprecated", '(SearchVisibilityAvailableConfig, V2)) getFeature
     <@> mkNamedAPI @'("put-deprecated", '(SearchVisibilityAvailableConfig, V2)) setFeature
-    <@> mkNamedAPI @'("get-deprecated", '(ValidateSAMLEmailsConfig, V2)) getFeature
+    <@> mkNamedAPI @'("get-deprecated", '(RequireExternalEmailVerificationConfig, V2)) getFeature
     <@> mkNamedAPI @'("get-deprecated", '(DigitalSignaturesConfig, V2)) getFeature
 
 deprecatedFeatureAPI :: API (AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs) GalleyEffects
@@ -94,7 +94,7 @@ deprecatedFeatureAPI =
   mkNamedAPI @'("get-config", LegalholdConfig) getSingleFeatureForUser
     <@> mkNamedAPI @'("get-config", SSOConfig) getSingleFeatureForUser
     <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) getSingleFeatureForUser
-    <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) getSingleFeatureForUser
+    <@> mkNamedAPI @'("get-config", RequireExternalEmailVerificationConfig) getSingleFeatureForUser
     <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) getSingleFeatureForUser
     <@> mkNamedAPI @'("get-config", AppLockConfig) getSingleFeatureForUser
     <@> mkNamedAPI @'("get-config", FileSharingConfig) getSingleFeatureForUser

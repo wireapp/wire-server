@@ -323,7 +323,7 @@ instance SetFeatureConfig SearchVisibilityAvailableConfig where
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
 
-instance SetFeatureConfig ValidateSAMLEmailsConfig
+instance SetFeatureConfig RequireExternalEmailVerificationConfig
 
 instance SetFeatureConfig DigitalSignaturesConfig
 
