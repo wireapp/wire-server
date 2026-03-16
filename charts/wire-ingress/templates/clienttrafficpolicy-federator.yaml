@@ -1,0 +1,23 @@
+{{- if .Values.federator.enabled }}
+{{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
+     Enforces mTLS client certificate validation on the federator listener only. */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: {{ include "wire-ingress.getGatewayName" . }}-federator-mtls
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ include "wire-ingress.getGatewayName" . | quote }}
+      sectionName: federator
+  tls:
+    clientValidation:
+      caCertificateRefs:
+        - name: federator-ca
+          kind: ConfigMap
+{{- end }}

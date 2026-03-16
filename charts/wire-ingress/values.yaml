@@ -70,11 +70,38 @@ service:
     serviceName: fake-aws-s3
   # Set this to false if minio is not provided by the fake-aws-s3 chart
   useFakeS3: true
+  federator:
+    # Must match service.externalFederatorPort in the federator chart.
+    externalPort: 8081
   nginz:
     # Update this if you've overwritten the default HTTP port in nginz.
     httpPort: 8080
     # Update this if you've overwritten the default WebSocket port in nginz.
     wsPort: 8081
+
+# Federator
+
+federator:
+  enabled: false
+  integrationTestHelper: false
+  tls:
+    # If true, a cert-manager Certificate is created for the federator TLS secret.
+    # Independent of the global tls.useCertManager setting.
+    useCertManager: true
+    # Name of the externally-managed TLS Secret for the federator listener.
+    # Only relevant when useCertManager is false — the secret must exist before deploying.
+    # When useCertManager is true this is ignored; the secret name is derived from the release name.
+    secretName: ""
+    duration: 2160h
+    renewBefore: 360h
+    privateKey:
+      rotationPolicy: Always
+    # Issuer for federator certificate (mTLS with Client Auth EKU).
+    # If not set, uses global tls.issuer configuration.
+    issuer: {}
+      # name: ""
+      # kind: ""
+      # group: ""
 
 # TLS settings
 
@@ -117,7 +144,7 @@ certManager:
 #     -----BEGIN PRIVATE KEY-----
 #     ...
 #     -----END PRIVATE KEY-----
-#   tlsClientCA: |
-#     -----BEGIN CERTIFICATE-----
-#     ...
-#     -----END CERTIFICATE-----
+#
+# When federator.enabled is true, a ConfigMap named `federator-ca` with a `ca.crt` key
+# must exist in the release namespace. It is created by the wire-server chart
+# and is referenced by the ClientTrafficPolicy for mTLS.

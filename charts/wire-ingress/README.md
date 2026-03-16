@@ -105,6 +105,7 @@ Operators should be able to reuse most of their existing values files with minim
 | `kubeVersionOverride` | Deprecated; the federation-test-helper label selector no longer needs a version override |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
 | `tls.enabled` | This is removed since it didnt ahve any effect. All ingresses are always defined with TLS. |
+| `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
 
 ### Fully backwards compatible values
 
@@ -127,6 +128,8 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | `federator.tls.issuer.name` | |
 | `federator.tls.issuer.kind` | |
 | `federator.tls.issuer.group` | |
+| _(not present)_ | `federator.tls.useCertManager` | Controls cert-manager for the federator TLS secret independently of `tls.useCertManager` |
+| _(not present)_ | `federator.tls.secretName` | Name of the externally-managed TLS Secret for the federator listener. Only relevant when `federator.tls.useCertManager` is `false`. When `true`, the secret name is derived from the release name via the same helper as the main TLS secret. |
 | `tls.useCertManager` | |
 | `tls.createIssuer` | |
 | `tls.privateKey.rotationPolicy` | |
@@ -154,7 +157,6 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | `config.dns.accountPages` | |
 | `secrets.tlsWildcardCert` | |
 | `secrets.tlsWildcardKey` | |
-| `secrets.tlsClientCA` | |
 | `secrets.certManager.customSolversSecret` | |
 
 ### Behaviour changes
@@ -328,6 +330,7 @@ Routes `config.dns.webapp` → `webapp-http` ClusterIP service port `service.web
 **Review:** Absent from rendered output when `webapp.enabled: false`.
 
 - [x] Done
+- [x] Manually tested
 
 ---
 
@@ -382,7 +385,7 @@ Extend `templates/gateway.yaml` to add a separate TLS listener for `config.dns.f
 The federator requires its own listener so that `ClientTrafficPolicy` can enforce mTLS only on
 that listener, not on the main HTTPS listener.
 
-- [ ] Done
+- [x] Done
 
 ---
 
@@ -397,7 +400,7 @@ federator listener.
 Fails with an error if `config.isAdditionalIngress` is set, since federation and multi-ingress
 cannot be combined.
 
-- [ ] Done
+- [x] Done
 
 ---
 
@@ -419,20 +422,27 @@ Enforces mTLS client certificate validation and forwards the client certificate 
 > `ClientTrafficPolicy` does not expose a depth knob; validation depth is implicitly controlled by
 > the CA chain provided in `federator-ca-secret`.
 
-- [ ] Done
+- [x] Done
+- [x] Manually tested a federated request (see  check-federation-certs.sh script)
 
 ---
 
-#### Federator TLS secrets + CA secret
+#### Federator TLS secret + X-SSL-Certificate header injection
 
-Templates: `templates/secret-federator.yaml`, `templates/ca-federator.yaml`
+Templates: `templates/secret-federator.yaml`, `templates/certificate-federator.yaml`, `templates/envoyextensionpolicy-federator.yaml`
 Condition: `federator.enabled`
 
-Creates `federator-certificate-secret` and `federator-ca-secret`. When `tls.useCertManager` is
-enabled, a cert-manager `Certificate` with both `server auth` and `client auth` EKUs is created
-in `templates/certificate-federator.yaml`.
+Creates `federator-certificate-secret` (manual mode) or a cert-manager `Certificate` with both
+`server auth` and `client auth` EKUs (`tls.useCertManager: true`).
 
-- [ ] Done
+The `federator-ca` ConfigMap is **not** created by this chart — it is created by the wire-server
+chart and must exist in the release namespace before deploying with `federator.enabled: true`.
+
+The `EnvoyExtensionPolicy` injects the mTLS client certificate as the `X-SSL-Certificate` request
+header via an inline Lua filter, matching nginx's `$ssl_client_escaped_cert` behaviour.
+
+- [x] Done
+- [x] Manually tested
 
 ---
 
