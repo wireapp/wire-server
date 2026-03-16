@@ -49,7 +49,7 @@ module Wire.API.User
 
     -- * Apps
     NewApp (..),
-    GetApp (..),
+    AppInfo (..),
     PutApp (..),
     Category (..),
     categoryTextMapping,
@@ -539,7 +539,7 @@ data UserProfile = UserProfile
     profileLegalholdStatus :: UserLegalHoldStatus,
     profileSupportedProtocols :: Set BaseProtocolTag,
     profileType :: UserType,
-    profileApp :: Maybe GetApp,
+    profileApp :: Maybe AppInfo,
     profileSearchable :: Bool
   }
   deriving stock (Eq, Show, Generic)
@@ -751,7 +751,7 @@ instance FromJSON (EmailVisibility ()) where
     _ -> fail "unexpected value for EmailVisibility settings"
 
 -- | Create profile, overwriting the email field.  Called by `mkUserProfile`.
-mkUserProfileWithEmail :: Maybe EmailAddress -> User -> Maybe GetApp -> UserLegalHoldStatus -> UserProfile
+mkUserProfileWithEmail :: Maybe EmailAddress -> User -> Maybe AppInfo -> UserLegalHoldStatus -> UserProfile
 mkUserProfileWithEmail memail u mba legalHoldStatus =
   -- This profile would be visible to any other user. When a new field is
   -- added, please make sure it is OK for other users to have access to it.
@@ -775,7 +775,7 @@ mkUserProfileWithEmail memail u mba legalHoldStatus =
       profileSearchable = userSearchable u
     }
 
-mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> Maybe GetApp -> UserLegalHoldStatus -> UserProfile
+mkUserProfile :: EmailVisibilityConfigWithViewer -> User -> Maybe AppInfo -> UserLegalHoldStatus -> UserProfile
 mkUserProfile emailVisibilityConfigAndViewer u mba legalHoldStatus =
   let isEmailVisible = case emailVisibilityConfigAndViewer of
         EmailVisibleToSelf -> False
@@ -2094,26 +2094,25 @@ instance ToSchema ListUsersById where
 -- Apps (can't easily go into its own module because cyclical deps)
 
 data NewApp = NewApp
-  { app :: GetApp, -- FUTUREWORK(fisx): inline this (the old Getapp, not the new AppInfo)
-
+  { name :: Name,
+    assets :: [Asset],
+    accentId :: ColourId,
+    category :: Category,
+    description :: Range 0 300 Text,
     -- | admin password for additional access control
     password :: PlainTextPassword6
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema NewApp
 
--- FUTUREWORK(fisx): rename to AppInfo; remove name, pict, assets, accentId, meta
-data GetApp = GetApp
-  { name :: Name,
-    pict :: Pict,
-    assets :: [Asset],
-    accentId :: ColourId,
-    meta :: A.Object,
-    category :: Category,
+data AppInfo = AppInfo
+  { category :: Category,
     description :: Range 0 300 Text
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform GetApp)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema GetApp
+  deriving (Arbitrary) via (GenericUniform AppInfo)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema AppInfo
 
 data PutApp = PutApp
   { name :: Maybe Name,
@@ -2122,6 +2121,8 @@ data PutApp = PutApp
     category :: Maybe Category,
     description :: Maybe (Range 0 300 Text)
   }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PutApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
 
 data Category
@@ -2191,21 +2192,20 @@ instance ToSchema NewApp where
   schema =
     object "NewApp" $
       NewApp
-        <$> (.app) .= field "app" schema
+        <$> (.name) .= field "name" schema
+        <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
+        <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
+        <*> (.category) .= field "category" schema
+        <*> (.description) .= field "description" schema
         <*> (.password) .= field "password" schema
 
-instance ToSchema GetApp where
-  schema = object "GetApp" getAppObjectSchema
+instance ToSchema AppInfo where
+  schema = object "AppInfo" appInfoObjectSchema
 
-getAppObjectSchema :: ObjectSchema SwaggerDoc GetApp
-getAppObjectSchema =
-  GetApp
-    <$> (.name) .= field "name" schema
-    <*> (.pict) .= (fromMaybe noPict <$> optField "picture" schema)
-    <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
-    <*> (.accentId) .= (fromMaybe defaultAccentId <$> optField "accent_id" schema)
-    <*> (.meta) .= field "metadata" jsonObject
-    <*> (.category) .= field "category" schema
+appInfoObjectSchema :: ObjectSchema SwaggerDoc AppInfo
+appInfoObjectSchema =
+  AppInfo
+    <$> (.category) .= field "category" schema
     <*> (.description) .= field "description" schema
 
 instance ToSchema PutApp where
@@ -2219,9 +2219,10 @@ instance ToSchema PutApp where
         <*> (.description) .= maybe_ (optField "description" schema)
 
 data CreatedApp = CreatedApp
-  { user :: User, -- FUTUREWORK(fisx): make this UserProfile so it'll contain app details.
+  { user :: UserProfile,
     cookie :: SomeUserToken
   }
+  deriving stock (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema CreatedApp
 
 instance ToSchema CreatedApp where

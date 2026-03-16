@@ -21,11 +21,11 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Map qualified as Map
+import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
-import Data.ZAuth.Token
+import Data.ZAuth.Token (Token (..), Type (U))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -74,7 +74,7 @@ runAppSubsystem runUser runAuth =
   interpret $
     runAuth . runUser . \case
       CreateApp lusr tid new -> createAppImpl lusr tid new
-      Wire.AppSubsystem.GetApp lusr tid uid -> getAppImpl lusr tid uid
+      GetApp lusr tid uid -> getAppImpl lusr tid uid
       GetApps lusr tid -> getAppsImpl lusr tid
       UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
       RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
@@ -98,19 +98,19 @@ createAppImpl ::
   TeamId ->
   NewApp ->
   Sem r CreatedApp
-createAppImpl lusr tid (NewApp new password6) = do
-  verifyUserPasswordError lusr password6
+createAppImpl lusr tid newApp = do
+  verifyUserPasswordError lusr newApp.password
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
-  u <- appNewStoredUser creator new
+  u <- appNewStoredUser creator newApp
   let app =
         StoredApp
           { id = u.id,
             teamId = tid,
-            meta = new.meta,
-            category = new.category,
-            description = new.description,
+            meta = mempty, -- unused, can be removed from postgres schema at some point.
+            category = newApp.category,
+            description = newApp.description,
             creator = tUnqualified lusr
           }
 
@@ -132,7 +132,11 @@ createAppImpl lusr tid (NewApp new password6) = do
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
     CreatedApp
-      { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
+      { user =
+          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
+              mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
+              lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
+           in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
         cookie = mkSomeToken c.cookieValue
       }
 
@@ -159,21 +163,18 @@ getAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Sem r GetApp
+  Sem r AppInfo
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
-  u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
-  pure $
-    Wire.API.User.GetApp
-      { name = u.name,
-        pict = fromMaybe (Pict []) u.pict,
-        assets = fromMaybe [] u.assets,
-        accentId = u.accentId,
-        meta = storedApp.meta,
-        category = storedApp.category,
-        description = storedApp.description
-      }
+  pure $ storedAppToAppInfo storedApp
+
+storedAppToAppInfo :: StoredApp -> AppInfo
+storedAppToAppInfo app =
+  AppInfo
+    { category = app.category,
+      description = app.description
+    }
 
 getAppsImpl ::
   ( Member AppStore r,
@@ -183,30 +184,10 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r [(UserId, GetApp)]
+  Sem r [(UserId, AppInfo)]
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
-  storedApps <- Store.getApps tid
-  us <- Store.getUsers ((.id) <$> storedApps)
-  let mkApp (storedApp, u) =
-        ( u.id,
-          Wire.API.User.GetApp
-            { name = u.name,
-              pict = fromMaybe (Pict []) u.pict,
-              assets = fromMaybe [] u.assets,
-              accentId = u.accentId,
-              meta = storedApp.meta,
-              category = storedApp.category,
-              description = storedApp.description
-            }
-        )
-  pure $ mkApp <$> matchAndZip storedApps us
-  where
-    matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
-    matchAndZip as us = mapMaybe f as
-      where
-        f a = (a,) <$> Map.lookup a.id umap
-        umap = Map.fromList $ (\u -> (u.id, u)) <$> us
+  Store.getApps tid <&> map \storedApp -> (storedApp.id, storedAppToAppInfo storedApp)
 
 updateAppImpl ::
   ( Member AppStore r,
@@ -254,7 +235,7 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
 appNewStoredUser ::
   (Member (Input AppSubsystemConfig) r, Member Random r) =>
   StoredUser ->
-  GetApp ->
+  NewApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
   uid <- newId
@@ -268,7 +249,7 @@ appNewStoredUser creator new = do
         ssoId = Nothing,
         name = new.name,
         textStatus = Nothing,
-        pict = new.pict,
+        pict = Pict [],
         assets = new.assets,
         accentId = new.accentId,
         password = Nothing,

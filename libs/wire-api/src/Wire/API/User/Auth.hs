@@ -482,7 +482,7 @@ instance AsHeaders '[Maybe UserTokenCookie] AccessToken SomeAccess where
 data SomeUserToken
   = PlainUserToken (ZAuth.Token ZAuth.U)
   | LHUserToken (ZAuth.Token ZAuth.LU)
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance ToSchema SomeUserToken where
   schema =

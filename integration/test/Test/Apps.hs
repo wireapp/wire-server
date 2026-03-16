@@ -247,12 +247,9 @@ testRetrieveUsersIncludingApps = do
           [ ("accent_id", SNumber),
             ("assets", SArray SAny),
             ("id", SString),
-            ("locale", SString),
-            ("managed_by", SString),
             ("name", SString),
             ("qualified_id", SObject [("domain", SString), ("id", SString)]),
             ("searchable", SBool),
-            ("status", SString),
             ("supported_protocols", SArray SString),
             ("team", SString),
             ("type", SString)
@@ -267,15 +264,14 @@ testRetrieveUsersIncludingApps = do
           ]
       appShape =
         SObject
-          [ ("accent_id", SNumber),
-            ("assets", SArray SAny),
-            ("app", SObject [("category", SString), ("description", SString)]),
-            ("name", SString),
-            ("picture", SArray SAny)
+          [ ("category", SString),
+            ("description", SString)
           ]
-      appWithIdShape = case appShape of
-        SObject attrs ->
-          SObject (("id", SString) : attrs)
+      appWithIdShape =
+        SObject
+          [ ("id", SString),
+            ("app", appShape)
+          ]
       searchResultShape =
         SObject
           [ ("accent_id", SNumber),
@@ -330,7 +326,7 @@ testRetrieveUsersIncludingApps = do
   -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
   getApp owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatchShapeLenient` appShape
+    resp.json `shouldMatchShapeLenient` userShape
 
   -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
   listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do

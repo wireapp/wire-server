@@ -552,12 +552,12 @@ getUserProfilesWithErrorsImpl self others = do
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
     renderBucketError (e, qlist) = (,e) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
 
--- | Consult `AppSubsystem` to get `GetApp`s info for `UserProfile`'s
+-- | Consult `AppSubsystem` to get `AppInfo`s info for `UserProfile`'s
 -- `app` attribute.
 --
 -- NOTE ON PERFORMANCE: this function calls `getApp` once per user
 -- profile.  we could call `getApps` once instead, build a map from
--- that, and look up `GetApp` for all profiles in memory.  There is a
+-- that, and look up `AppInfo` for all profiles in memory.  There is a
 -- trade-off between memory usage and database IO, and we should
 -- measure this before we make a change.
 injectAppsIntoUserProfiles ::
@@ -568,7 +568,7 @@ injectAppsIntoUserProfiles = mapM \uprof -> do
     localDom <- input
     pure $ foldQualified localDom Just (const Nothing) uprof.profileQualifiedId
 
-  mbApp :: Maybe GetApp <- case (uprof.profileDeleted, uprof.profileType, mbluid, uprof.profileTeam) of
+  mbApp :: Maybe AppInfo <- case (uprof.profileDeleted, uprof.profileType, mbluid, uprof.profileTeam) of
     (False, UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
     _ -> pure Nothing
 
