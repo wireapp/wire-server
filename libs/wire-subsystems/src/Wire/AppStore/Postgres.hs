@@ -71,7 +71,7 @@ getAppImpl ::
   UserId ->
   TeamId ->
   Sem r (Maybe StoredApp)
-getAppImpl uid tid = (eraseMetadata <$$>) do
+getAppImpl uid tid = eraseMetadata <$$> do
   runStatement (uid, tid) $
     dimapPG
       [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
@@ -91,7 +91,7 @@ getAppsImpl ::
   ) =>
   TeamId ->
   Sem r [StoredApp]
-getAppsImpl tid = (eraseMetadata <$$>) do
+getAppsImpl tid = eraseMetadata <$$> do
   runStatement tid $
     dimapPG
       [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
