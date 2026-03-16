@@ -296,7 +296,7 @@ The feature only affects email address changes originating from SCIM or SAML. Pe
 
 `enabled` means "user has authority over email address": if a new user account with an email address is created, the user behind the account will receive a verification email. If they complete the verification flow, they will be able to receive emails about their account, eg., if a new device is associated with the account. If they do not verify their email address, they can still use it to log in.
 
-`disabled` means "team admin has authority over email address, and by extension over all member accounts": if a user account with an email address is created, the address is auto-activated immediately, without any emails being sent out and without confirmation from the recipient.
+`disabled` means "team admin has authority over email address, and by extension over all member accounts": if a user account with an email address is created, the address is auto-activated immediately, without any verification email being sent and without confirmation from the recipient. The user can still receive later account notifications on that address, eg., if a new device is associated with the account.
 
 This feature is enabled by default. To disable it, use the following syntax:
 

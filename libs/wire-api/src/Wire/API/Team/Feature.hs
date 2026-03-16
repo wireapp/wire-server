@@ -756,7 +756,9 @@ type instance DeprecatedFeatureName V2 SearchVisibilityAvailableConfig = "search
 -- RequireExternalEmailVerification feature
 
 -- | Controls whether externally managed email addresses (from SAML or SCIM)
--- must be verified by the user, or are auto-activated.
+-- must be verified by the user, or are auto-activated. When disabled, no
+-- verification email is sent, but the address is still activated immediately
+-- and can receive later account notifications such as new-device emails.
 -- The external feature name is kept for backward compatibility.
 --
 -- (This feature does not have a PUT endpoint. See Note [unsettable features].)
