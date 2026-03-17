@@ -460,18 +460,15 @@ otherwise.
 
 Notes:
 
-This helper ties inot the integration test setup.
-Here's how the integration tests are set up. My goal is to make integration tests pass
-when we deploy wire-ingress instead in place of nginx-ingress-services
+This helper ties into the integration test setup.
+Here's how the integration tests are set up with nginx-ingress-service. My goal is to make integration tests pass
+when we deploy wire-ingress instead in place of nginx-ingress-servicess.
 
 The integration test are deployed via helmfile hack/helmfile.yaml.gotmpl
 
-
 The cluster in which the integration tests run has ClusterIssuer named "federation" that will sign any certs.
 
-From 
-
-/home/stefan/repos/wire-server/hack/helm_vars/wire-server/values.yaml.gotmpl
+From /home/stefan/repos/wire-server/hack/helm_vars/wire-server/values.yaml.gotmpl
 ```
 federator:
   tls:
@@ -480,9 +477,10 @@ federator:
 ```
 we can see that the federator will assume that the cert used for both client and server auth is externally provide at secret "federator-certificate-secret"
 
-For that we actually have to 
+In the integration test setup 2 domains federationDomain1 and federationDomain2 are configured with a namespace .
+The federator will use the "federation" ClusterIssuer to obtain a cert.
 
-
+Wire uses a SRV records to look up the federator domain of a domain. This is what federation-test-helper is used for. The SRV record on the service targets the ingress deployment pods which are ingressing the federator.
 
 
 
