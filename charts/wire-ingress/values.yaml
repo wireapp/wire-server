@@ -88,10 +88,10 @@ federator:
     # If true, a cert-manager Certificate is created for the federator TLS secret.
     # Independent of the global tls.useCertManager setting.
     useCertManager: true
-    # Name of the externally-managed TLS Secret for the federator listener.
-    # Only relevant when useCertManager is false — the secret must exist before deploying.
-    # When useCertManager is true this is ignored; the secret name is derived from the release name.
-    secretName: ""
+    # Name of the TLS Secret for the federator listener.
+    # When useCertManager is true, cert-manager writes the certificate into this secret.
+    # When useCertManager is false, the secret must exist before deploying.
+    secretName: "federator-certificate-secret"
     duration: 2160h
     renewBefore: 360h
     privateKey:
