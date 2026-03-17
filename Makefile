@@ -23,7 +23,7 @@ KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 PSQL_DB               ?= backendA
 export PSQL_DB
-DEPENDENCY_TRACK_PROJECT_NAME ?= sven-bom-test
+DEPENDENCY_TRACK_PROJECT_NAME ?= wire-server
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
