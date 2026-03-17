@@ -1,0 +1,39 @@
+{{- if (and .Values.federator.enabled .Values.federator.integrationTestHelper) }}
+# Envoy Gateway runs proxy pods in its own namespace (envoy-gateway-system), not in the release
+# namespace. Kubernetes Services cannot select pods across namespaces, so we need two resources:
+#
+# 1. A ClusterIP Service in envoy-gateway-system that selects our proxy pods by their
+#    owning-gateway labels (set by Envoy Gateway on all proxy pods it manages).
+#
+# 2. An ExternalName Service named federation-test-helper in the release namespace.
+#    This creates the SRV record that Wire federation discovery expects:
+#    _wire-server-federator._tcp.federation-test-helper.<namespace>.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Namespace }}-fed
+  namespace: envoy-gateway-system
+spec:
+  type: ClusterIP
+  ports:
+  - name: wire-server-federator
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    gateway.envoyproxy.io/owning-gateway-name: {{ include "wire-ingress.getGatewayName" . }}
+    gateway.envoyproxy.io/owning-gateway-namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: federation-test-helper
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ExternalName
+  externalName: {{ .Release.Namespace }}-fed.envoy-gateway-system.svc.cluster.local
+  ports:
+  - name: wire-server-federator
+    port: 443
+    protocol: TCP
+{{- end }}

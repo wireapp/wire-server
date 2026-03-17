@@ -276,11 +276,24 @@ releases:
     values:
       - './helm_vars/{{ .Values.ingressChart }}/values.yaml.gotmpl'
 
+  # - name: 'ingress-svc'
+  #   namespace: '{{ .Values.namespace1 }}'
+  #   chart: '../.local/charts/nginx-ingress-services'
+  #   values:
+  #     - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+  #   set:
+  #     - name: config.dns.federator
+  #       value: '{{ .Values.federationDomain1 }}'
+  #     - name: config.dns.certificateDomain
+  #       value: '*.{{ .Values.federationDomainBase1 }}'
+  #   needs:
+  #     - 'ingress'
+
   - name: 'ingress-svc'
     namespace: '{{ .Values.namespace1 }}'
-    chart: '../.local/charts/nginx-ingress-services'
+    chart: '../.local/charts/wire-ingress'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+      - './helm_vars/wire-ingress/values.yaml.gotmpl'
     set:
       # Federation domain is also the SRV record created by the
       # federation-test-helper service. Maybe we can find a way to make these
@@ -289,14 +302,25 @@ releases:
         value: '{{ .Values.federationDomain1 }}'
       - name: config.dns.certificateDomain
         value: '*.{{ .Values.federationDomainBase1 }}'
-    needs:
-      - 'ingress'
+
+  # - name: 'ingress-svc'
+  #   namespace: '{{ .Values.namespace2 }}'
+  #   chart: '../.local/charts/nginx-ingress-services'
+  #   values:
+  #     - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+  #   set:
+  #     - name: config.dns.federator
+  #       value: '{{ .Values.federationDomain2 }}'
+  #     - name: config.dns.certificateDomain
+  #       value: '*.{{ .Values.federationDomainBase2 }}'
+  #   needs:
+  #     - 'ingress'
 
   - name: 'ingress-svc'
     namespace: '{{ .Values.namespace2 }}'
-    chart: '../.local/charts/nginx-ingress-services'
+    chart: '../.local/charts/wire-ingress'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+      - './helm_vars/wire-ingress/values.yaml.gotmpl'
     set:
       # Federation domain is also the SRV record created by the
       # federation-test-helper service. Maybe we can find a way to make these
@@ -305,8 +329,6 @@ releases:
         value: '{{ .Values.federationDomain2 }}'
       - name: config.dns.certificateDomain
         value: '*.{{ .Values.federationDomainBase2 }}'
-    needs:
-      - 'ingress'
 
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a

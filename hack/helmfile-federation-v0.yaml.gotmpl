@@ -72,19 +72,34 @@ releases:
     values:
       - './helm_vars/rabbitmq/values.yaml.gotmpl'
 
-  - name: 'ingress'
-    namespace: wire-federation-v0
-    chart: 'wire/ingress-nginx-controller'
-    version: 4.38.0-mandarin.14
-    values:
-      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
+  # - name: 'ingress'
+  #   namespace: wire-federation-v0
+  #   chart: 'wire/ingress-nginx-controller'
+  #   version: 4.38.0-mandarin.14
+  #   values:
+  #     - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
+
+  # - name: 'ingress-svc'
+  #   namespace: wire-federation-v0
+  #   chart: 'wire/nginx-ingress-services'
+  #   version: 4.38.0-mandarin.14
+  #   values:
+  #     - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+  #   set:
+  #     - name: config.dns.federator
+  #       value: wire-federation-v0.svc.cluster.local
+  #     - name: config.dns.certificateDomain
+  #       value: '*.wire-federation-v0.svc.cluster.local'
+  #   needs:
+  #     - 'ingress'
+  #     - 'cert-manager/cert-manager'
+  #     - 'cert-manager/federation-certs'
 
   - name: 'ingress-svc'
     namespace: wire-federation-v0
-    chart: 'wire/nginx-ingress-services'
-    version: 4.38.0-mandarin.14
+    chart: '../.local/charts/wire-ingress'
     values:
-      - './helm_vars/nginx-ingress-services/values.yaml.gotmpl'
+      - './helm_vars/wire-ingress/values.yaml.gotmpl'
     set:
       # Federation domain is also the SRV record created by the
       # federation-test-helper service. Maybe we can find a way to make these
@@ -94,7 +109,6 @@ releases:
       - name: config.dns.certificateDomain
         value: '*.wire-federation-v0.svc.cluster.local'
     needs:
-      - 'ingress'
       - 'cert-manager/cert-manager'
       - 'cert-manager/federation-certs'
 
