@@ -486,7 +486,116 @@ Wire uses a SRV records to look up the federator domain of a domain. This is wha
 
 ---
 
-### Phase 7 — custom solver secret
+### Phase 7 — Switch integration tests to wire-ingress
+
+Replace all uses of `nginx-ingress-services` in `hack/` with `wire-ingress`.
+
+The integration test setup deploys two federation namespaces (`namespace1`, `namespace2`) each
+with their own ingress release. Both currently use `nginx-ingress-services`. The goal is to make
+integration tests pass with `wire-ingress` in place of `nginx-ingress-services`.
+
+#### Overview of changes
+
+Files to update:
+
+| File | Change |
+|---|---|
+| `hack/helmfile.yaml.gotmpl` | Replace two `ingress-svc` release blocks |
+| `hack/helmfile-federation-v0.yaml.gotmpl` | Replace one `ingress-svc` release block |
+| `hack/bin/integration-setup-federation.sh` | Replace `nginx-ingress-services` in `charts` array with `wire-ingress` |
+| `hack/helm_vars/nginx-ingress-services/values.yaml.gotmpl` | Keep for reference; create `hack/helm_vars/wire-ingress/values.yaml.gotmpl` |
+
+#### Step 1 — Create `hack/helm_vars/wire-ingress/values.yaml.gotmpl`
+
+Adapt from the existing nginx-ingress-services values. Key changes:
+
+- Remove `config.ingressClass` → replace with `gateway.className` pointing to the Envoy GatewayClass
+- Remove `secrets.tlsClientCA` (dropped — `federator-ca` ConfigMap is created by the wire-server chart)
+- Add `federator.tls.useCertManager: true` with `federator.tls.issuer.name: federation` /
+  `federator.tls.issuer.kind: ClusterIssuer`
+
+The wire-ingress chart creates the cert at `federator-certificate-secret` (our default
+`federator.tls.secretName`) via cert-manager using the `federation` ClusterIssuer. The federator
+chart reads the same secret (via `useSharedFederatorSecret: true`). This is how both charts share
+the same mTLS cert.
+
+Expected values:
+```yaml
+teamSettings:
+  enabled: true
+accountPages:
+  enabled: true
+federator:
+  enabled: true
+  integrationTestHelper: true
+  tls:
+    useCertManager: true
+    issuer:
+      name: federation
+      kind: ClusterIssuer
+tls:
+  useCertManager: true
+  issuer:
+    name: federation
+    kind: ClusterIssuer
+  createIssuer: false
+  caNamespace: wire-federation-v0
+gateway:
+  className: "envoy"
+config:
+  dns:
+    https: "nginz-https.{{ .Release.Namespace }}-integration.example.com"
+    ssl: "nginz-ssl.{{ .Release.Namespace }}-integration.example.com"
+    webapp: "webapp.{{ .Release.Namespace }}-integration.example.com"
+    fakeS3: "assets.{{ .Release.Namespace }}-integration.example.com"
+    teamSettings: "teams.{{ .Release.Namespace }}-integration.example.com"
+    accountPages: "account.{{ .Release.Namespace }}-integration.example.com"
+    # federator: dynamically set by helmfile
+    # certificateDomain: dynamically set by helmfile
+```
+
+#### Step 2 — Update `hack/helmfile.yaml.gotmpl`
+
+In both `ingress-svc` release blocks (namespace1 and namespace2):
+- Change `chart` from `../.local/charts/nginx-ingress-services` to `../.local/charts/wire-ingress`
+- Change `values` from `./helm_vars/nginx-ingress-services/values.yaml.gotmpl` to `./helm_vars/wire-ingress/values.yaml.gotmpl`
+- Review the `needs: ['ingress']` dependency — `ingress` refers to the nginx-ingress-controller
+  release. With wire-ingress there is no nginx controller; this dependency should be removed or
+  replaced with the Envoy Gateway release if it is managed by this helmfile.
+
+#### Step 3 — Update `hack/helmfile-federation-v0.yaml.gotmpl`
+
+The `ingress-svc` release currently pins `wire/nginx-ingress-services` at a specific version.
+Replace with a local chart reference (same as helmfile.yaml.gotmpl):
+- Change `chart` to `../.local/charts/wire-ingress`
+- Change `values` to `./helm_vars/wire-ingress/values.yaml.gotmpl`
+
+#### Step 4 — Update `hack/bin/integration-setup-federation.sh`
+
+Line 25: replace `nginx-ingress-services` with `wire-ingress` in the `charts` array.
+
+#### Step 5 — Verify federation-test-helper pod selector
+
+After the first deployment, check the actual labels on the Envoy Gateway proxy pods:
+
+```bash
+kubectl get pods -n <namespace> --show-labels | grep envoy
+```
+
+The template currently uses:
+```yaml
+selector:
+  gateway.envoyproxy.io/owning-gateway-name: <gateway-name>
+  gateway.envoyproxy.io/owning-gateway-namespace: <namespace>
+```
+
+Adjust `templates/federation-test-helper.yaml` if the actual labels differ.
+
+- [ ] Done
+
+---
+
+### Phase 8 — custom solver secret
 
 #### Custom ACME solver secret
 
@@ -499,7 +608,7 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 
 ---
 
-### Phase 8 — Documentation and CI values
+### Phase 9 — Documentation and CI values
 
 #### Finalize README, migration guide, and ci/ values files
 
