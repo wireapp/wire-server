@@ -18,6 +18,7 @@
 module Wire.MockInterpreters.MeetingsStore where
 
 import Data.Id
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Imports
 import Polysemy
@@ -67,3 +68,13 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                   updatedAt = now
                 }
         modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)
+  ListMeetingsByUser userId cutoffTime ->
+    gets $
+      filter (\sm -> sm.creator == userId && sm.endTime >= cutoffTime)
+        . List.sortOn (.startTime)
+        . Map.elems
+  ListMeetingsByConversation convId cutoffTime ->
+    gets $
+      filter (\sm -> sm.conversationId == convId && sm.endTime >= cutoffTime)
+        . List.sortOn (.startTime)
+        . Map.elems

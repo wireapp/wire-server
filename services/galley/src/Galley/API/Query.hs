@@ -105,8 +105,9 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
 import Wire.CodeStore.Code (Code (codeConversation))
 import Wire.CodeStore.Code qualified as Data
-import Wire.ConversationStore qualified as E
+import Wire.ConversationStore qualified as ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
@@ -123,7 +124,7 @@ import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
 getBotConversation ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member TeamSubsystem r
@@ -148,7 +149,7 @@ getBotConversation zbot cnv = do
 
 getUnqualifiedOwnConversation ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error InternalError) r,
@@ -164,7 +165,7 @@ getUnqualifiedOwnConversation lusr cnv = do
 
 getUnqualifiedConversation ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member TeamSubsystem r
@@ -178,7 +179,7 @@ getUnqualifiedConversation lusr cnv =
 
 getConversation ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -198,7 +199,7 @@ getConversation lusr cnv =
 
 getOwnConversation ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Error FederationError) r,
@@ -218,7 +219,7 @@ getOwnConversation lusr cnv = do
     cnv
 
 getRemoteConversation ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
@@ -235,7 +236,7 @@ getRemoteConversation lusr remoteConvId = do
     _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -253,7 +254,7 @@ getRemoteConversations lusr remoteConvs =
 getLocalConversationInternal ::
   ( Member (Input (Local ())) r,
     Member (ErrorS ConvNotFound) r,
-    Member E.ConversationStore r
+    Member ConversationStore.ConversationStore r
   ) =>
   ConvId ->
   Sem r Conversation
@@ -306,7 +307,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
   ) =>
@@ -315,7 +316,7 @@ getRemoteConversationsWithFailures ::
   Sem r ([FailedGetConversation], [Public.OwnConversation])
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
-  statusMap <- E.getRemoteConversationStatus (tUnqualified lusr) convs
+  statusMap <- ConversationStore.getRemoteConversationStatus (tUnqualified lusr) convs
   let remoteView :: Remote RemoteConversationV2 -> OwnConversation
       remoteView rconv =
         Mapping.remoteConversationView
@@ -360,7 +361,7 @@ getRemoteConversationsWithFailures lusr convs = do
     handleFailure (Right c) = pure . Right . traverse (.convs) $ c
 
 getConversationRoles ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member TeamSubsystem r
@@ -375,14 +376,14 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationStore.ConversationStore r) =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
   let size = fromMaybe (toRange (Proxy @1000)) msize
-  ids <- E.getLocalConversationIds (tUnqualified lusr) start size
+  ids <- ConversationStore.getLocalConversationIds (tUnqualified lusr) start size
   pure $
     Public.ConversationList
       (resultSetResult ids)
@@ -400,13 +401,13 @@ conversationIdsPageFromUnqualified lusr start msize = do
 -- FUTUREWORK: Move the body of this function to 'conversationIdsPageFrom' once
 -- support for V2 is dropped.
 conversationIdsPageFromV2 ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationSubsystem.ConversationSubsystem r) =>
   ListGlobalSelfConvs ->
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
 conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
-  filterOut <$> E.getConversationIds lusr gmtprSize gmtprState
+  filterOut <$> ConversationSubsystem.getConversationIds lusr gmtprSize gmtprState
   where
     -- MLS self-conversation of this user
     selfConvId = mlsSelfConvId (tUnqualified lusr)
@@ -434,7 +435,8 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
 -- - lexicographically by their domain and then by their id.
 conversationIdsPageFrom ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
+    Member ConversationSubsystem.ConversationSubsystem r,
     Member (Error InternalError) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member P.TinyLog r
@@ -456,7 +458,7 @@ conversationIdsPageFrom lusr state = do
 
 getConversations ::
   ( Member (Error InternalError) r,
-    Member E.ConversationStore r,
+    Member ConversationStore.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
@@ -469,7 +471,7 @@ getConversations luser mids mstart msize = do
   flip ConversationList more <$> mapM (Mapping.conversationViewV9 luser) cs
 
 getConversationsInternal ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationStore.ConversationStore r) =>
   Local UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -479,7 +481,7 @@ getConversationsInternal luser mids mstart msize = do
   (more, ids) <- getIds mids
   let localConvIds = ids
   cs <-
-    E.getConversations localConvIds
+    ConversationStore.getConversations localConvIds
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   pure $ Public.ConversationList cs more
   where
@@ -487,21 +489,21 @@ getConversationsInternal luser mids mstart msize = do
 
     -- get ids and has_more flag
     getIds ::
-      (Member E.ConversationStore r) =>
+      (Member ConversationStore.ConversationStore r) =>
       Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
       Sem r (Bool, [ConvId])
     getIds (Just ids) =
       (False,)
-        <$> E.selectConversations
+        <$> ConversationStore.selectConversations
           (tUnqualified luser)
           (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
-      r <- E.getLocalConversationIds (tUnqualified luser) mstart (rcast size)
+      r <- ConversationStore.getLocalConversationIds (tUnqualified luser) mstart (rcast size)
       let hasMore = resultSetType r == ResultSetTruncated
       pure (hasMore, resultSetResult r)
 
 listConversations ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Error InternalError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member P.TinyLog r
@@ -512,10 +514,10 @@ listConversations ::
 listConversations luser (Public.ListConversations ids) = do
   let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <-
-    foundsAndNotFounds (E.selectConversations (tUnqualified luser)) localIds
+    foundsAndNotFounds (ConversationStore.selectConversations (tUnqualified luser)) localIds
 
   localInternalConversations <-
-    E.getConversations foundLocalIds
+    ConversationStore.getConversations foundLocalIds
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   localConversations <- mapM (Mapping.conversationViewV9 luser) localInternalConversations
 
@@ -550,7 +552,7 @@ listConversations luser (Public.ListConversations ids) = do
       pure (founds, notFounds)
 
 iterateConversations ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationStore.ConversationStore r) =>
   Local UserId ->
   Range 1 500 Int32 ->
   ([StoredConversation] -> Sem r a) ->
@@ -569,7 +571,7 @@ iterateConversations luid pageSize handleConvs = go Nothing
       pure $ resultHead : resultTail
 
 internalGetMember ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Error FederationError) r,
     Member (Input (Local ())) r
   ) =>
@@ -583,7 +585,7 @@ internalGetMember qcnv usr = do
 
 getSelfMember ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS ConvNotFound) r,
     Member (Error FederationError) r,
     Member TinyLog r,
@@ -607,34 +609,34 @@ getSelfMember lusr cnv = do
       pure $ Just $ conv.cnvMembers.cmSelf
 
 getLocalSelf ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationStore.ConversationStore r) =>
   Local UserId ->
   ConvId ->
   Sem r (Maybe Public.Member)
 getLocalSelf lusr cnv = do
   do
-    alive <- E.isConversationAlive cnv
+    alive <- ConversationStore.isConversationAlive cnv
     if alive
-      then localMemberToPublic lusr <$$> E.getLocalMember cnv (tUnqualified lusr)
-      else Nothing <$ E.deleteConversation cnv
+      then localMemberToPublic lusr <$$> ConversationStore.getLocalMember cnv (tUnqualified lusr)
+      else Nothing <$ ConversationStore.deleteConversation cnv
 
 getConversationMeta ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r
   ) =>
   ConvId ->
   Sem r ConversationMetadata
 getConversationMeta cnv =
   ifM
-    (E.isConversationAlive cnv)
-    (E.getConversationMetadata cnv >>= noteS @'ConvNotFound)
-    (E.deleteConversation cnv >> throwS @'ConvNotFound)
+    (ConversationStore.isConversationAlive cnv)
+    (ConversationStore.getConversationMetadata cnv >>= noteS @'ConvNotFound)
+    (ConversationStore.deleteConversation cnv >> throwS @'ConvNotFound)
 
 getConversationByReusableCode ::
   forall r.
   ( Member BrigAPIAccess r,
     Member CodeStore r,
-    Member E.ConversationStore r,
+    Member ConversationStore.ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -652,7 +654,7 @@ getConversationByReusableCode ::
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) False Nothing (ConversationCode key value)
-  conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
+  conv <- ConversationStore.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView c conv
@@ -679,7 +681,7 @@ ensureGuestLinksEnabled mbTid =
 
 getConversationGuestLinksStatus ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member FeaturesConfigSubsystem r,
@@ -689,7 +691,7 @@ getConversationGuestLinksStatus ::
   ConvId ->
   Sem r (LockableFeature GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
-  conv <- E.getConversation convId >>= noteS @'ConvNotFound
+  conv <- ConversationStore.getConversation convId >>= noteS @'ConvNotFound
   mTeamMember <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember uid) conv.metadata.cnvmTeam
   ensureConvAdmin conv uid mTeamMember
   getConversationGuestLinksFeatureStatus (Data.convTeam conv)
@@ -707,7 +709,7 @@ getConversationGuestLinksFeatureStatus (Just tid) = getFeatureForTeam tid
 -- the backend removal key).
 getMLSSelfConversationWithError ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -727,7 +729,7 @@ getMLSSelfConversationWithError lusr = do
 -- number.
 getMLSSelfConversation ::
   forall r.
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
@@ -735,12 +737,12 @@ getMLSSelfConversation ::
   Sem r OwnConversation
 getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
-  mconv <- E.getConversation selfConvId
+  mconv <- ConversationStore.getConversation selfConvId
   cnv <- maybe (createMLSSelfConversation lusr) pure mconv
   conversationViewV9 lusr cnv
 
 createMLSSelfConversation ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationStore.ConversationStore r) =>
   Local UserId ->
   Sem r StoredConversation
 createMLSSelfConversation lusr = do
@@ -754,7 +756,7 @@ createMLSSelfConversation lusr = do
             protocol = BaseProtocolMLSTag,
             groupId = Nothing
           }
-  E.upsertConversation lcnv nc
+  ConversationStore.upsertConversation lcnv nc
 
 -- | Get an MLS 1-1 conversation. If not already existing, the conversation
 -- object is created on the fly, but not persisted. The conversation will only
@@ -766,7 +768,7 @@ createMLSSelfConversation lusr = do
 -- two is responsible for hosting the conversation.
 getMLSOne2OneConversationV5 ::
   ( Member BrigAPIAccess r,
-    Member E.ConversationStore r,
+    Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -790,7 +792,7 @@ getMLSOne2OneConversationV5 lself qother = do
 getMLSOne2OneConversationInternal ::
   forall r.
   ( Member BrigAPIAccess r,
-    Member E.ConversationStore r,
+    Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -811,7 +813,7 @@ getMLSOne2OneConversationInternal lself qother =
 getMLSOne2OneConversationV6 ::
   forall r.
   ( Member BrigAPIAccess r,
-    Member E.ConversationStore r,
+    Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -838,7 +840,7 @@ getMLSOne2OneConversationV6 lself qother = do
 
 getMLSOne2OneConversation ::
   ( Member BrigAPIAccess r,
-    Member E.ConversationStore r,
+    Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -860,7 +862,7 @@ getMLSOne2OneConversation lself qother fmt = do
     <$> formatPublicKeys fmt convWithUnformattedKeys.publicKeys
 
 getLocalMLSOne2OneConversation ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Error InternalError) r,
     Member P.TinyLog r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -870,7 +872,7 @@ getLocalMLSOne2OneConversation ::
   Local ConvId ->
   Sem r (MLSOne2OneConversation MLSPublicKey)
 getLocalMLSOne2OneConversation lself lconv = do
-  mconv <- E.getConversation (tUnqualified lconv)
+  mconv <- ConversationStore.getConversation (tUnqualified lconv)
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
   conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
@@ -937,7 +939,7 @@ getRemoteMLSOne2OneConversation lself qother rconv = do
 -- group ID, however we /do/ assume that the two backends agree on which of the
 -- two is responsible for hosting the conversation.
 isMLSOne2OneEstablished ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -959,11 +961,11 @@ isMLSOne2OneEstablished lself qother = do
     convId
 
 isLocalMLSOne2OneEstablished ::
-  (Member E.ConversationStore r) =>
+  (Member ConversationStore.ConversationStore r) =>
   Local ConvId ->
   Sem r Bool
 isLocalMLSOne2OneEstablished lconv = do
-  mconv <- E.getConversation (tUnqualified lconv)
+  mconv <- ConversationStore.getConversation (tUnqualified lconv)
   pure $ case mconv of
     Nothing -> False
     Just conv -> do
@@ -993,7 +995,7 @@ isRemoteMLSOne2OneEstablished lself qother rconv = do
     ep = epochNumber . cnvmlsEpoch
 
 searchChannels ::
-  ( Member E.ConversationStore r,
+  ( Member ConversationStore.ConversationStore r,
     Member (ErrorS NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member TeamSubsystem r
@@ -1015,8 +1017,8 @@ searchChannels lusr tid searchString sortOrder pageSize lastName lastId discover
     Left e | not discoverable -> throw e
     _ -> pure ()
   ConversationPage
-    <$> E.searchConversations
-      E.ConversationSearch
+    <$> ConversationStore.searchConversations
+      ConversationStore.ConversationSearch
         { team = tid,
           searchString,
           sortOrder = fromMaybe Desc sortOrder,

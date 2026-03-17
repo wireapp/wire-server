@@ -40,5 +40,8 @@ data MeetingsSubsystem m a where
     Local UserId ->
     Qualified MeetingId ->
     MeetingsSubsystem m (Maybe Meeting)
+  ListMeetings ::
+    Local UserId ->
+    MeetingsSubsystem m [Meeting]
 
 makeSem ''MeetingsSubsystem

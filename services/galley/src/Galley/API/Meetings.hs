@@ -19,6 +19,7 @@ module Galley.API.Meetings
   ( createMeeting,
     updateMeeting,
     getMeeting,
+    listMeetings,
   )
 where
 
@@ -104,3 +105,15 @@ getMeeting zUser domain meetingId = do
   case maybeMeeting of
     Nothing -> throwS @'MeetingNotFound
     Just meeting -> pure meeting
+
+listMeetings ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member TeamStore.TeamStore r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'InvalidOperation) r
+  ) =>
+  Local UserId ->
+  Sem r [Meeting]
+listMeetings lUser = do
+  checkMeetingsEnabled (tUnqualified lUser)
+  Meetings.listMeetings lUser

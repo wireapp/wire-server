@@ -73,3 +73,12 @@ type MeetingsAPI =
                :> CanThrow 'MeetingNotFound
                :> Get '[JSON] Meeting
            )
+    :<|> Named
+           "list-meetings"
+           ( Summary "List all meetings for the authenticated user"
+               :> From 'V15
+               :> ZLocalUser
+               :> "meetings"
+               :> "list"
+               :> Get '[JSON] [Meeting]
+           )
