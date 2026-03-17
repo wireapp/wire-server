@@ -12,6 +12,7 @@ excludes = [
 
 [formatter.shellcheck]
 command = "shellcheck"
+options = ["-x"]
 includes = ["*.sh"]
 excludes = [
   "dist-newstyle/",
