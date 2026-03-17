@@ -129,7 +129,7 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | `federator.tls.issuer.kind` | |
 | `federator.tls.issuer.group` | |
 | _(not present)_ | `federator.tls.useCertManager` | Controls cert-manager for the federator TLS secret independently of `tls.useCertManager` |
-| _(not present)_ | `federator.tls.secretName` | Name of the externally-managed TLS Secret for the federator listener. Only relevant when `federator.tls.useCertManager` is `false`. When `true`, the secret name is derived from the release name via the same helper as the main TLS secret. |
+| _(not present)_ | `federator.tls.secretName` | Name of the TLS Secret for the federator listener. Default: `federator-certificate-secret`. When `useCertManager: true`, cert-manager writes the issued certificate into this secret. When `useCertManager: false`, the secret must exist before deploying. |
 | `tls.useCertManager` | |
 | `tls.createIssuer` | |
 | `tls.privateKey.rotationPolicy` | |
@@ -457,6 +457,34 @@ integration tests. Uses `app.kubernetes.io/` labels on Kubernetes >= 1.23, legac
 otherwise.
 
 - [ ] Done
+
+Notes:
+
+This helper ties inot the integration test setup.
+Here's how the integration tests are set up. My goal is to make integration tests pass
+when we deploy wire-ingress instead in place of nginx-ingress-services
+
+The integration test are deployed via helmfile hack/helmfile.yaml.gotmpl
+
+
+The cluster in which the integration tests run has ClusterIssuer named "federation" that will sign any certs.
+
+From 
+
+/home/stefan/repos/wire-server/hack/helm_vars/wire-server/values.yaml.gotmpl
+```
+federator:
+  tls:
+    useCertManager: true
+    useSharedFederatorSecret: true
+```
+we can see that the federator will assume that the cert used for both client and server auth is externally provide at secret "federator-certificate-secret"
+
+For that we actually have to 
+
+
+
+
 
 ---
 

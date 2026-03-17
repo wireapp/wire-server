@@ -34,7 +34,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ if .Values.federator.tls.useCertManager }}{{ include "wire-ingress.getFederatorCertificateSecretName" . | quote }}{{ else }}{{ required "federator.tls.secretName is required when federator.tls.useCertManager is false" .Values.federator.tls.secretName | quote }}{{ end }}
+          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
             kind: Secret
     {{- end }}
     {{- if .Values.gateway.listeners.http.enabled }}
