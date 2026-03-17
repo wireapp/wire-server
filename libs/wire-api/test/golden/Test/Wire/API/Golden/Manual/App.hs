@@ -34,7 +34,7 @@ testObject_NewApp_1 =
     (either undefined id $ mkName "good name")
     mempty
     defaultAccentId
-    Other
+    (Category "other")
     (unsafeRange "good description")
     (plainTextPassword6Unsafe "good password")
 
@@ -44,7 +44,7 @@ testObject_CreatedApp_1 =
 
 testObject_AppInfo_1 :: AppInfo
 testObject_AppInfo_1 =
-  AppInfo Other (unsafeRange "good description")
+  AppInfo (Category "other") (unsafeRange "good description")
 
 testObject_PutApp_1 :: PutApp
 testObject_PutApp_1 =
@@ -52,7 +52,7 @@ testObject_PutApp_1 =
     (Just (either undefined id $ mkName "good name"))
     (Just mempty)
     (Just defaultAccentId)
-    (Just Other)
+    (Just (Category "other"))
     (Just (unsafeRange "good description"))
 
 testObject_PutApp_2 :: PutApp

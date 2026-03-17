@@ -108,7 +108,7 @@ updateAppImpl ::
   StoredAppUpdate ->
   Sem r (Either AppStoreError ())
 updateAppImpl (toUUID -> teamId) (toUUID -> appId) upd = do
-  found <- case (User.categoryToText <$> upd.category, fromRange <$> upd.description) of
+  found <- case (User.fromCategory <$> upd.category, fromRange <$> upd.description) of
     (Just cat, Just desc) ->
       runStatement (cat, desc, appId, teamId) $
         [maybeStatement|

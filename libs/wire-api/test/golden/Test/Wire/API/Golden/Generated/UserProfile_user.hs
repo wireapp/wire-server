@@ -89,7 +89,7 @@ testObject_UserProfile_user_2 =
       profileApp =
         Just $
           AppInfo
-            { category = Other,
+            { category = Category "other",
               description = unsafeRange "bloob"
             },
       profileSearchable = True

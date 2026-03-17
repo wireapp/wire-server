@@ -52,10 +52,6 @@ module Wire.API.User
     AppInfo (..),
     PutApp (..),
     Category (..),
-    categoryTextMapping,
-    categoryMap,
-    categoryFromText,
-    categoryToText,
     CreatedApp (..),
     RefreshAppCookieResponse (..),
 
@@ -184,7 +180,6 @@ import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Either.Extra (maybeToEither)
 import Data.Handle (Handle)
-import Data.HashMap.Strict qualified as HM
 import Data.HashMap.Strict.InsOrd qualified as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
@@ -2125,68 +2120,15 @@ data PutApp = PutApp
   deriving (Arbitrary) via (GenericUniform PutApp)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema PutApp
 
-data Category
-  = Security
-  | Collaboration
-  | Productivity
-  | Automation
-  | Files
-  | AI
-  | Developer
-  | Support
-  | Finance
-  | HR
-  | Integration
-  | Compliance
-  | Other
+newtype Category = Category {fromCategory :: Text}
   deriving (Eq, Ord, Show, Read, Generic)
   deriving (Arbitrary) via GenericUniform Category
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Category)
 
-categoryTextMapping :: [(Text, Category)]
-categoryTextMapping =
-  [ ("security", Security),
-    ("collaboration", Collaboration),
-    ("productivity", Productivity),
-    ("automation", Automation),
-    ("files", Files),
-    ("ai", AI),
-    ("developer", Developer),
-    ("support", Support),
-    ("finance", Finance),
-    ("hr", HR),
-    ("integration", Integration),
-    ("compliance", Compliance),
-    ("other", Other)
-  ]
-
-categoryMap :: HM.HashMap Text Category
-categoryMap = HM.fromList categoryTextMapping
-
-categoryFromText :: Text -> Maybe Category
-categoryFromText text' = HM.lookup text' categoryMap
-
-categoryToText :: Category -> Text
-categoryToText = \case
-  Security -> "security"
-  Collaboration -> "collaboration"
-  Productivity -> "productivity"
-  Automation -> "automation"
-  Files -> "files"
-  AI -> "ai"
-  Developer -> "developer"
-  Support -> "support"
-  Finance -> "finance"
-  HR -> "hr"
-  Integration -> "integration"
-  Compliance -> "compliance"
-  Other -> "other"
-
 instance ToSchema Category where
-  schema =
-    enum @Text "Category" $
-      mconcat $
-        map (uncurry element) categoryTextMapping
+  schema = over doc desc (Category <$> fromCategory .= schema @Text)
+    where
+      desc = S.description ?~ "Category name (if uncertain, pick \"other\")"
 
 instance ToSchema NewApp where
   schema =
