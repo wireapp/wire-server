@@ -1,0 +1,1 @@
+Add Wire Meetings add invitation endpoint `POST /meetings/<domain>/<id>/invitations`
