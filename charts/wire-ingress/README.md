@@ -592,6 +592,7 @@ selector:
 Adjust `templates/federation-test-helper.yaml` if the actual labels differ.
 
 - [ ] Done
+- [ ] deal with the federation ingresses for the dynamic backends. remove them? they are not needed. or set up the same way as federation (but no test)
 
 ---
 
