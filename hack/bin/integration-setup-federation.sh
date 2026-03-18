@@ -28,12 +28,12 @@ mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 export NAMESPACE_1="$NAMESPACE"
-export FEDERATION_DOMAIN_BASE_1="$NAMESPACE_1.svc.cluster.local"
-export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE_1"
+export FEDERATION_DOMAIN_BASE_1="envoy-gateway-system.svc.cluster.local"
+export FEDERATION_DOMAIN_1="${NAMESPACE_1}-fed.${FEDERATION_DOMAIN_BASE_1}"
 
 export NAMESPACE_2="$NAMESPACE-fed2"
-export FEDERATION_DOMAIN_BASE_2="$NAMESPACE_2.svc.cluster.local"
-export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE_2"
+export FEDERATION_DOMAIN_BASE_2="envoy-gateway-system.svc.cluster.local"
+export FEDERATION_DOMAIN_2="${NAMESPACE_2}-fed.${FEDERATION_DOMAIN_BASE_2}"
 
 echo "Fetch federation-ca secret from cert-manager namespace"
 FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
