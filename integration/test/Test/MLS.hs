@@ -1094,6 +1094,9 @@ testGroupInfoMismatch = do
           length clients `shouldMatchInt` 3
           resp.json %. "commit" `shouldMatchBase64` mp2.message
           resp.json %. "group_info" `shouldMatchBase64` (fromJust mp1.groupInfo)
+          resp.json %. "code" `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "inconsistent-group-state"
+          resp.json %. "message" `shouldMatch` "Submitted group info is inconsistent with the backend group state"
 
       -- check that epoch is still 1
       bindResponse (getConversation alice convId) $ \resp -> do
@@ -1114,6 +1117,9 @@ testGroupInfoMismatch = do
           length clients `shouldMatchInt` 3
           resp.json %. "commit" `shouldMatchBase64` mp3.message
           resp.json %. "group_info" `shouldMatchBase64` (fromJust mp1.groupInfo)
+          resp.json %. "code" `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "inconsistent-group-state"
+          resp.json %. "message" `shouldMatch` "Submitted group info is inconsistent with the backend group state"
 
       -- check that epoch is still 1
       bindResponse (getConversation alice convId) $ \resp -> do
