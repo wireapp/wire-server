@@ -78,3 +78,15 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
       filter (\sm -> sm.conversationId == convId && sm.endTime >= cutoffTime)
         . List.sortOn (.startTime)
         . Map.elems
+  AddInvitedEmails mid newEmails -> do
+    sm <- gets (Map.lookup mid)
+    case sm of
+      Nothing -> pure ()
+      Just meeting -> do
+        now <- Now.get
+        let updatedMeeting =
+              meeting
+                { invitedEmails = meeting.invitedEmails ++ newEmails,
+                  updatedAt = now
+                }
+        modify (Map.insert mid updatedMeeting)
