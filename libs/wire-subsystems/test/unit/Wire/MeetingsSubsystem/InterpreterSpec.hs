@@ -498,7 +498,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "returns False for non-existent meeting" $ do
       let nonExistentId = Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")
 
-      result <- runTestStack now gen Map.empty teamConfig $
-        addInvitedEmails zUser1 nonExistentId [email1]
+      result <-
+        runTestStack now gen Map.empty teamConfig $
+          addInvitedEmails zUser1 nonExistentId [email1]
 
       result `shouldBe` Right False
