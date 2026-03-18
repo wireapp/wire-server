@@ -2,16 +2,6 @@
 
 # Common functions and utilities for SBOM generation scripts
 
-# Check if Docker is available and running
-check_docker_running() {
-  if ! docker info >/dev/null 2>&1; then
-    echo "ERROR: Docker is not running or not accessible." >&2
-    echo "Please start Docker and try again." >&2
-    exit 1
-  fi
-  return 0
-}
-
 # Canonicalize image names to include explicit docker.io or existing registry
 # prefix. Docker's default registry is docker.io, but it's often omitted in
 # image references.
@@ -86,7 +76,7 @@ scan_image_with_syft() {
     fi
   else
     # Modern format - scan directly with syft
-    if ! "$run_syft" "docker:$canonical_img" "$temp_filename"; then
+    if ! "$run_syft" "registry:$canonical_img" "$temp_filename"; then
       echo "  ERROR: Failed to generate SBOM for $canonical_img" >&2
       rm -f "$temp_filename"
       return 1

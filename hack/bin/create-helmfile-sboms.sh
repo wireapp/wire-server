@@ -20,9 +20,6 @@ if [[ -z "$VERSION_OVERRIDE" ]]; then
   exit 1
 fi
 
-# Check if Docker is available and running
-check_docker_running
-
 mkdir -p "$OUTPUT_DIR"
 
 # Get current git commit hash for linking to source

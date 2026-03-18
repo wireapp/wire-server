@@ -20,9 +20,6 @@ if [[ -z "$VERSION_OVERRIDE" ]]; then
   exit 1
 fi
 
-# Check if Docker is available and running
-check_docker_running
-
 # Extract images from a Helm chart using helm template
 # This properly resolves images from subcharts and dependencies
 extract_images_from_chart() {

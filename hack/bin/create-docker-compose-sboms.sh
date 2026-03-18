@@ -13,9 +13,6 @@ OUTPUT_DIR="${1:-.}"
 COMPOSE_FILE_RELATIVE="deploy/dockerephemeral/docker-compose.yaml"
 COMPOSE_FILE="$GIT_ROOT/$COMPOSE_FILE_RELATIVE"
 
-# Check if Docker is available and running
-check_docker_running
-
 mkdir -p "$OUTPUT_DIR"
 
 # Get current git commit hash for linking to source
