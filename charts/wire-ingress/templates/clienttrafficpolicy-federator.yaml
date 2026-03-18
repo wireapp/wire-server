@@ -17,6 +17,7 @@ spec:
       sectionName: federator
   tls:
     clientValidation:
+      optional: true
       caCertificateRefs:
         - name: federator-ca
           kind: ConfigMap
