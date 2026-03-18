@@ -76,7 +76,7 @@ type MeetingsAPI =
     :<|> Named
            "list-meetings"
            ( Summary "List all meetings for the authenticated user"
-               :> From 'V15
+               :> From 'V16
                :> ZLocalUser
                :> "meetings"
                :> "list"
