@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Common
 import API.Galley
 import Data.Aeson.QQ.Simple
 import SetupHelpers
@@ -152,15 +153,19 @@ testRefreshAppCookie = do
     cookie <- resp.json %. "cookie" & asString
     pure (appId, cookie)
 
-  bindResponse (refreshAppCookie bob tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie bob tid appId defPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  bindResponse (refreshAppCookie charlie tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie charlie tid appId defPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  cookie' <- bindResponse (refreshAppCookie alice tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie alice tid appId "this is not a good password") $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "app-no-permission"
+
+  cookie' <- bindResponse (refreshAppCookie alice tid appId defPassword) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "cookie" & asString
 
