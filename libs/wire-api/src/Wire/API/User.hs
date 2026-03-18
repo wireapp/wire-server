@@ -53,6 +53,7 @@ module Wire.API.User
     PutApp (..),
     Category (..),
     CreatedApp (..),
+    RefreshAppCookieRequest (..),
     RefreshAppCookieResponse (..),
 
     -- * UpgradePersonalToTeam
@@ -2173,6 +2174,15 @@ instance ToSchema CreatedApp where
       CreatedApp
         <$> (.user) .= field "user" schema
         <*> (.cookie) .= field "cookie" schema
+
+newtype RefreshAppCookieRequest = RefreshAppCookieRequest
+  {password :: PlainTextPassword6}
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RefreshAppCookieRequest
+
+instance ToSchema RefreshAppCookieRequest where
+  schema =
+    object "RefreshAppCookieRequest" $
+      RefreshAppCookieRequest <$> (.password) .= field "password" schema
 
 newtype RefreshAppCookieResponse = RefreshAppCookieResponse
   {cookie :: SomeUserToken}

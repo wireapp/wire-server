@@ -1786,9 +1786,9 @@ getApps lusr tid =
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put
 
-refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r Public.RefreshAppCookieResponse
-refreshAppCookie lusr tid appId = do
-  mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId
+refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Maybe Public.RefreshAppCookieRequest -> Handler r Public.RefreshAppCookieResponse
+refreshAppCookie lusr tid appId req = do
+  mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId ((.password) <$> req)
   case mc of
     Left delay -> throwE $ loginError (LoginThrottled delay)
     Right c -> pure $ Public.RefreshAppCookieResponse c

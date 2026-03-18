@@ -22,6 +22,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.Misc
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
@@ -77,7 +78,7 @@ runAppSubsystem runUser runAuth =
       GetApp lusr tid uid -> getAppImpl lusr tid uid
       GetApps lusr tid -> getAppsImpl lusr tid
       UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
-      RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
+      RefreshAppCookie lusr tid appId password -> runError $ refreshAppCookieImpl lusr tid appId password
       DeleteApp tid appId -> deleteAppImpl tid appId
 
 createAppImpl ::
@@ -221,8 +222,12 @@ refreshAppCookieImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
+  Maybe PlainTextPassword6 ->
   Sem r SomeUserToken
-refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
+refreshAppCookieImpl (tUnqualified -> uid) tid appId mbPassword = do
+  reauthenticateEither uid mbPassword
+    >>= either (const $ throw AppSubsystemErrorNoPerm) (const $ pure ())
+
   mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
   void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
