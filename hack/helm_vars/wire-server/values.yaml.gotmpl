@@ -613,8 +613,9 @@ federator:
     optSettings:
       useSystemCAStore: false
     logLevel: Debug
-  {{- if .Values.uploadXml }}
   tests:
+    nginxIngressHost: {{ .Values.federationDomain1 }}
+  {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}

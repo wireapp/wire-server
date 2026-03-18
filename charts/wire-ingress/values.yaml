@@ -7,7 +7,11 @@ gateway:
   name: ""
   # Name of the GatewayClass installed by the Envoy Gateway controller.
   className: ""
-  # Annotations to add to the LoadBalancer Service created by Envoy Gateway.
+  # Service type for the Envoy proxy Service created by Envoy Gateway.
+  # Use ClusterIP for in-cluster-only access (e.g. integration tests).
+  # Defaults to LoadBalancer (Envoy Gateway's default behaviour, no EnvoyProxy resource created).
+  serviceType: LoadBalancer
+  # Annotations to add to the Service created by Envoy Gateway.
   # Requires Gateway API CRDs v1.1+.
   # Example for AWS NLB:
   #   infrastructure:
@@ -84,6 +88,10 @@ service:
 federator:
   enabled: false
   integrationTestHelper: false
+  # Set to true to bypass the privileged-port check in federation-test-helper.yaml.
+  # Needed if Envoy Gateway's port remapping behaviour changes or a custom setup
+  # binds the proxy directly on a privileged port.
+  skipPrivilegedPortCheck: false
   tls:
     # If true, a cert-manager Certificate is created for the federator TLS secret.
     # Independent of the global tls.useCertManager setting.

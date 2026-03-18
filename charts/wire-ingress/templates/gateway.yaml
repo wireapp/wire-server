@@ -12,10 +12,20 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   gatewayClassName: {{ .Values.gateway.className | quote }}
-  {{- if .Values.gateway.infrastructure.annotations }}
+  {{- $hasAnnotations := .Values.gateway.infrastructure.annotations }}
+  {{- $hasEnvoyProxy := ne .Values.gateway.serviceType "LoadBalancer" }}
+  {{- if (or $hasAnnotations $hasEnvoyProxy) }}
   infrastructure:
+    {{- if $hasAnnotations }}
     annotations:
       {{- toYaml .Values.gateway.infrastructure.annotations | nindent 6 }}
+    {{- end }}
+    {{- if $hasEnvoyProxy }}
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: {{ include "wire-ingress.getGatewayName" . | quote }}
+    {{- end }}
   {{- end }}
   listeners:
     - name: https
