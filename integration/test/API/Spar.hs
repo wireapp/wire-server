@@ -180,6 +180,16 @@ createIdpWithZHost user mbZHost metadata = do
           & addHeader "Content-Type" "application/xml"
   submit "POST" (req & maybe id zHost mbZHost)
 
+createIdpWithZHostV1 :: (HasCallStack, MakesValue user) => user -> Maybe String -> SAML.IdPMetadata -> App Response
+createIdpWithZHostV1 user mbZHost metadata = do
+  bReq <- baseRequest user Spar Versioned "/identity-providers"
+  let req =
+        bReq
+          & addQueryParams [("api_version", "v1")]
+          & addXML (fromLT $ SAML.encode metadata)
+          & addHeader "Content-Type" "application/xml"
+  submit "POST" (req & maybe id zHost mbZHost)
+
 -- | https://staging-nginz-https.zinfra.io/v7/api/swagger-ui/#/default/idp-update
 updateIdp :: (HasCallStack, MakesValue user) => user -> String -> SAML.IdPMetadata -> App Response
 updateIdp = (flip updateIdpWithZHost) Nothing
