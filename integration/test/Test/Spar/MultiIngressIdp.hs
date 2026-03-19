@@ -303,17 +303,16 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
     resp.status `shouldMatchInt` 200
     resp.json %. "extraInfo.domain" `shouldMatch` Null
 
-{-* IdP API V1/V2 constraints
+-- * IdP API V1/V2 constraints
 
-The `validateNewIdP` rules for IdP creation apply to multi-ingress setups as
-well. Depending on the IdP API version, IdP issuers have to be either unique
-per backend (V1) or per team (V2).
-
-As issuers correspond to realms in Keycloak and realms are return-URL
-specific, this is probably fine for now. Otherwise, we would have to
-redesign spar's database schema. E.g there would be a race-condition on the
-`spar.issuer_idp_v2` table.
--}
+-- | The `validateNewIdP` rules for IdP creation apply to multi-ingress setups as
+-- well. Depending on the IdP API version, IdP issuers have to be either unique
+-- per backend (V1) or per team (V2).
+--
+-- As issuers correspond to realms in Keycloak and realms are return-URL
+-- specific, this is probably fine for now. Otherwise, we would have to
+-- redesign spar's database schema. E.g there would be a race-condition on the
+-- `spar.issuer_idp_v2` table.
 testMultiIngressSameIdPDifferentDomains :: (HasCallStack) => App ()
 testMultiIngressSameIdPDifferentDomains = do
   withModifiedBackend
