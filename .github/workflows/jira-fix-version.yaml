@@ -82,8 +82,12 @@ jobs:
 
           # Priority 1: Check title for WPB-* pattern
           echo "Checking PR title for Jira issues..."
-          TITLE_ISSUES=$(echo "$PR_TITLE" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u)
-          TITLE_COUNT=$(echo "$TITLE_ISSUES" | grep -c '^' || echo 0)
+          TITLE_ISSUES=$(echo "$PR_TITLE" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u || true)
+          if [ -z "$TITLE_ISSUES" ]; then
+            TITLE_COUNT=0
+          else
+            TITLE_COUNT=$(echo -n "$TITLE_ISSUES" | grep -c '^')
+          fi
 
           if [ "$TITLE_COUNT" -gt 1 ]; then
             echo "ERROR: Multiple Jira issues found in title (ambiguous):"
@@ -94,10 +98,15 @@ jobs:
             FOUND_AT="title"
             echo "Found Jira issue in title: $JIRA_ISSUE"
           else
-            # Priority 2: Check for ticket:<url> pattern with WPB-* in URL
-            echo "No issue in title, checking for ticket:<url> pattern..."
-            TICKET_ISSUES=$(echo "$PR_BODY" | grep -ioE 'ticket:[^ ]*WPB-[0-9]+[^ ]*' | grep -ioE 'WPB-[0-9]+' | sort -u)
-            TICKET_COUNT=$(echo "$TICKET_ISSUES" | grep -c '^' || echo 0)
+            # Priority 2: Check for ticket:<url> or bare Jira URL pattern with WPB-* (case-insensitive)
+            echo "No issue in title, checking for ticket URL patterns..."
+            # Match both: ticket:<url> or https://.../browse/WPB-* or .../WPB-*
+            TICKET_ISSUES=$(echo "$PR_BODY" | grep -ioE '(ticket:|https?://[^ ]*/browse/)WPB-[0-9]+' | grep -ioE 'WPB-[0-9]+' | sort -u || true)
+            if [ -z "$TICKET_ISSUES" ]; then
+              TICKET_COUNT=0
+            else
+              TICKET_COUNT=$(echo -n "$TICKET_ISSUES" | grep -c '^')
+            fi
 
             if [ "$TICKET_COUNT" -gt 1 ]; then
               echo "ERROR: Multiple Jira issues found in ticket URLs (ambiguous):"
@@ -110,8 +119,12 @@ jobs:
             else
               # Priority 3: Check anywhere in description for WPB-*
               echo "No ticket URL found, checking entire description..."
-              DESC_ISSUES=$(echo "$PR_BODY" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u)
-              DESC_COUNT=$(echo "$DESC_ISSUES" | grep -c '^' || echo 0)
+              DESC_ISSUES=$(echo "$PR_BODY" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u || true)
+              if [ -z "$DESC_ISSUES" ]; then
+                DESC_COUNT=0
+              else
+                DESC_COUNT=$(echo -n "$DESC_ISSUES" | grep -c '^')
+              fi
 
               if [ "$DESC_COUNT" -gt 1 ]; then
                 echo "ERROR: Multiple Jira issues found in description (ambiguous):"
