@@ -1,12 +1,18 @@
-{{- if (and .Values.gateway.create (ne .Values.gateway.serviceType "LoadBalancer")) }}
+{{- if (and .Values.gateway.create .Values.gateway.envoyProxy.create) }}
+{{- $name := .Values.gateway.envoyProxy.name | default (include "wire-ingress.getGatewayName" .) }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
-  name: {{ include "wire-ingress.getGatewayName" . | quote }}
+  name: {{ $name | quote }}
 spec:
+  {{- with .Values.gateway.envoyProxy.spec }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  {{- if .Values.gateway.manageServiceType }}
   provider:
     type: Kubernetes
     kubernetes:
       envoyService:
         type: {{ .Values.gateway.serviceType | quote }}
+  {{- end }}
 {{- end }}
