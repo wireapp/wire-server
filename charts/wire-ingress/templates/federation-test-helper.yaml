@@ -17,8 +17,8 @@
 #   -l gateway.envoyproxy.io/owning-gateway-namespace=<namespace> \
 #   -o jsonpath='{.items[0].spec.ports[?(@.name=="https-443")].targetPort}'
 {{- $httpsPort := int .Values.gateway.listeners.https.port }}
-{{- if and (lt $httpsPort 1024) (not .Values.federator.skipPrivilegedPortCheck) }}
-{{- fail (printf "federation-test-helper: gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set gateway.listeners.https.port to the actual container port (e.g. %d). To bypass set federator.skipPrivilegedPortCheck: true." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
+{{- if lt $httpsPort 1024 }}
+{{- fail (printf "federation-test-helper: gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
 {{- end }}
 apiVersion: v1
 kind: Service
