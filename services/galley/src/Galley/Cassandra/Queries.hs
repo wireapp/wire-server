@@ -31,9 +31,7 @@ module Galley.Cassandra.Queries
 where
 
 import Cassandra as C hiding (Value)
-import Data.Domain (Domain)
 import Data.Id
-import Data.Misc
 import Imports
 import Wire.API.Team.SearchVisibility
 
