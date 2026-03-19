@@ -73,23 +73,66 @@ jobs:
           PR_BODY=$(echo "$PR_DATA" | jq -r '.body // ""')
 
           echo "PR Title: $PR_TITLE"
-          echo "PR Body: $PR_BODY"
+          echo "PR Body:"
+          echo "$PR_BODY"
+          echo "---"
 
-          # Extract Jira issue IDs (pattern: WPB-XXXXX)
-          # Search in both title and body, handle both bracketed and non-bracketed formats
-          JIRA_ISSUES=$(echo -e "$PR_TITLE\n$PR_BODY" | \
-            grep -oE '\[?WPB-[0-9]+\]?' | \
-            tr -d '[]' | \
-            sort -u | \
-            tr '\n' ',' | \
-            sed 's/,$//')
+          JIRA_ISSUE=""
+          FOUND_AT=""
 
-          if [ -z "$JIRA_ISSUES" ]; then
-            echo "No Jira issues found in PR #$PR_NUMBER"
-            echo "issues=" >> $GITHUB_OUTPUT
+          # Priority 1: Check title for WPB-* pattern
+          echo "Checking PR title for Jira issues..."
+          TITLE_ISSUES=$(echo "$PR_TITLE" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u)
+          TITLE_COUNT=$(echo "$TITLE_ISSUES" | grep -c '^' || echo 0)
+
+          if [ "$TITLE_COUNT" -gt 1 ]; then
+            echo "ERROR: Multiple Jira issues found in title (ambiguous):"
+            echo "$TITLE_ISSUES"
+            exit 1
+          elif [ "$TITLE_COUNT" -eq 1 ]; then
+            JIRA_ISSUE="$TITLE_ISSUES"
+            FOUND_AT="title"
+            echo "Found Jira issue in title: $JIRA_ISSUE"
           else
-            echo "Found Jira issues: $JIRA_ISSUES"
-            echo "issues=$JIRA_ISSUES" >> $GITHUB_OUTPUT
+            # Priority 2: Check for ticket:<url> pattern with WPB-* in URL
+            echo "No issue in title, checking for ticket:<url> pattern..."
+            TICKET_ISSUES=$(echo "$PR_BODY" | grep -oE 'ticket:[^ ]*WPB-[0-9]+[^ ]*' | grep -oE 'WPB-[0-9]+' | sort -u)
+            TICKET_COUNT=$(echo "$TICKET_ISSUES" | grep -c '^' || echo 0)
+
+            if [ "$TICKET_COUNT" -gt 1 ]; then
+              echo "ERROR: Multiple Jira issues found in ticket URLs (ambiguous):"
+              echo "$TICKET_ISSUES"
+              exit 1
+            elif [ "$TICKET_COUNT" -eq 1 ]; then
+              JIRA_ISSUE="$TICKET_ISSUES"
+              FOUND_AT="ticket URL"
+              echo "Found Jira issue in ticket URL: $JIRA_ISSUE"
+            else
+              # Priority 3: Check anywhere in description for WPB-*
+              echo "No ticket URL found, checking entire description..."
+              DESC_ISSUES=$(echo "$PR_BODY" | grep -oE '\[?WPB-[0-9]+\]?' | tr -d '[]' | sort -u)
+              DESC_COUNT=$(echo "$DESC_ISSUES" | grep -c '^' || echo 0)
+
+              if [ "$DESC_COUNT" -gt 1 ]; then
+                echo "ERROR: Multiple Jira issues found in description (ambiguous):"
+                echo "$DESC_ISSUES"
+                exit 1
+              elif [ "$DESC_COUNT" -eq 1 ]; then
+                JIRA_ISSUE="$DESC_ISSUES"
+                FOUND_AT="description"
+                echo "Found Jira issue in description: $JIRA_ISSUE"
+              fi
+            fi
+          fi
+
+          if [ -z "$JIRA_ISSUE" ]; then
+            echo "No Jira issue found in PR #$PR_NUMBER"
+            echo "issue=" >> $GITHUB_OUTPUT
+            echo "found_at=" >> $GITHUB_OUTPUT
+          else
+            echo "Final Jira issue: $JIRA_ISSUE (found in $FOUND_AT)"
+            echo "issue=$JIRA_ISSUE" >> $GITHUB_OUTPUT
+            echo "found_at=$FOUND_AT" >> $GITHUB_OUTPUT
           fi
 
       - name: Summary
@@ -99,7 +142,8 @@ jobs:
           echo "Chart Version: ${{ steps.version.outputs.chart_version }}"
           echo "Release Version (Fix Version): ${{ steps.version.outputs.release_version }}"
           echo "Associated PR: ${{ steps.find_pr.outputs.pr_number || 'None found' }}"
-          echo "Jira Issues: ${{ steps.jira_issues.outputs.issues || 'None found' }}"
+          echo "Jira Issue: ${{ steps.jira_issues.outputs.issue || 'None found' }}"
+          echo "Found in: ${{ steps.jira_issues.outputs.found_at || 'N/A' }}"
           echo "========================================="
 
           # Create a formatted summary for GitHub Actions UI
@@ -110,7 +154,8 @@ jobs:
           - **Chart Version**: \`${{ steps.version.outputs.chart_version }}\`
           - **Release Version (Fix Version)**: \`${{ steps.version.outputs.release_version }}\`
           - **Associated PR**: ${{ steps.find_pr.outputs.pr_number && format('#{0}', steps.find_pr.outputs.pr_number) || 'None found' }}
-          - **Jira Issues**: \`${{ steps.jira_issues.outputs.issues || 'None found' }}\`
+          - **Jira Issue**: \`${{ steps.jira_issues.outputs.issue || 'None found' }}\`
+          - **Found in**: ${{ steps.jira_issues.outputs.found_at || 'N/A' }}
 
           ### Next Steps
           When ready to enable Jira updates:
@@ -121,16 +166,18 @@ jobs:
 
       # TODO: Uncomment this step when ready to actually update Jira
       # - name: Update Jira
-      #   if: steps.jira_issues.outputs.issues != ''
+      #   if: steps.jira_issues.outputs.issue != ''
       #   run: |
       #     # This is where you would make API calls to Jira
-      #     # to set the fix version on the issues
-      #     IFS=',' read -ra ISSUES <<< "${{ steps.jira_issues.outputs.issues }}"
-      #     for issue in "${ISSUES[@]}"; do
-      #       echo "Would update $issue with fix version ${{ steps.version.outputs.release_version }}"
-      #       # curl -X PUT \
-      #       #   -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN }}" \
-      #       #   -H "Content-Type: application/json" \
-      #       #   -d '{"update":{"fixVersions":[{"add":{"name":"${{ steps.version.outputs.release_version }}"}}]}}' \
-      #       #   https://your-jira-instance.atlassian.net/rest/api/2/issue/$issue
-      #     done
+      #     # to set the fix version on the issue
+      #     ISSUE="${{ steps.jira_issues.outputs.issue }}"
+      #     FIX_VERSION="${{ steps.version.outputs.release_version }}"
+      #
+      #     echo "Would update $ISSUE with fix version $FIX_VERSION"
+      #
+      #     # Example Jira API call:
+      #     # curl -X PUT \
+      #     #   -H "Authorization: Basic ${{ secrets.JIRA_API_TOKEN }}" \
+      #     #   -H "Content-Type: application/json" \
+      #     #   -d "{\"update\":{\"fixVersions\":[{\"add\":{\"name\":\"$FIX_VERSION\"}}]}}" \
+      #     #   "https://your-jira-instance.atlassian.net/rest/api/2/issue/$ISSUE"
