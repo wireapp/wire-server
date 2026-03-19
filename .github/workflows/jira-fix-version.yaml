@@ -43,16 +43,16 @@ jobs:
           COMMIT_SHA=$(git rev-list -n 1 "${GITHUB_REF}")
           echo "Commit SHA: $COMMIT_SHA"
 
-          # Find PR that contains this commit
-          # Note: This searches for merged PRs that include this commit
-          PR_NUMBER=$(gh pr list \
-            --state merged \
-            --search "$COMMIT_SHA" \
-            --json number \
-            --jq '.[0].number' || echo "")
+          # Get the commit message
+          COMMIT_MESSAGE=$(git log -1 --format=%s "$COMMIT_SHA")
+          echo "Commit message: $COMMIT_MESSAGE"
+
+          # Extract PR number from commit message (format: "... (#1234)")
+          # This is the standard format when PRs are merged via GitHub
+          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oE '\(#[0-9]+\)' | grep -oE '[0-9]+' || echo "")
 
           if [ -z "$PR_NUMBER" ]; then
-            echo "No PR found for commit $COMMIT_SHA"
+            echo "No PR number found in commit message"
             echo "pr_number=" >> $GITHUB_OUTPUT
           else
             echo "Found PR #$PR_NUMBER"
