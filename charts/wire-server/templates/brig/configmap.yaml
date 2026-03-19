@@ -394,6 +394,6 @@ data:
       {{- if hasKey . "setNomadProfiles" }}
       setNomadProfiles: {{ index . "setNomadProfiles" }}
       {{- end }}
-      setConsumableNotifications: {{ $.Values.consumableNotifications }}
+      setConsumableNotifications: false
     {{- end }}
   {{- end }}
