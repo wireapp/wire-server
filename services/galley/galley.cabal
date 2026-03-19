@@ -136,12 +136,9 @@ library
     Galley.Cassandra
     Galley.Cassandra.Store
     Galley.Cassandra.Team
-    Galley.Cassandra.TeamNotifications
     Galley.Cassandra.Util
-    Galley.Data.TeamNotifications
     Galley.Effects.Queue
     Galley.Effects.TeamMemberStore
-    Galley.Effects.TeamNotificationStore
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal

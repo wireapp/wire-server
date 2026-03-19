@@ -59,10 +59,8 @@ import Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandra,
     interpretTeamMemberStoreToCassandraWithPaging,
   )
-import Galley.Cassandra.TeamNotifications
 import Galley.Effects.Queue qualified as GE
 import Galley.Effects.TeamMemberStore
-import Galley.Effects.TeamNotificationStore
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Keys
@@ -175,6 +173,8 @@ import Wire.TeamFeatureStore.Cassandra
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError (..))
 import Wire.TeamFeatureStore.Migrating
 import Wire.TeamFeatureStore.Postgres
+import Wire.TeamNotificationStore (TeamNotificationStore)
+import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws
 import Wire.TeamStore (TeamStore)

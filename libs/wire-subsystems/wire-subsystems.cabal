@@ -373,6 +373,8 @@ library
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamJournal
     Wire.TeamJournal.Aws
+    Wire.TeamNotificationStore
+    Wire.TeamNotificationStore.Cassandra
     Wire.TeamStore
     Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries
