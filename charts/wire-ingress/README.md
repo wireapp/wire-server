@@ -124,6 +124,7 @@ Operators should be able to reuse most of their existing values files with minim
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
 | `tls.enabled` | This is removed since it didnt ahve any effect. All ingresses are always defined with TLS. |
 | `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
+| `secrets.certManager.customSolversSecret` | No longer supported by the chart. Please create a custom Issuer in case you need to handle secrets. |
 
 ### Fully backwards compatible values
 
@@ -175,7 +176,6 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | `config.dns.accountPages` | |
 | `secrets.tlsWildcardCert` | |
 | `secrets.tlsWildcardKey` | |
-| `secrets.certManager.customSolversSecret` | |
 
 ### Behaviour changes
 
@@ -525,7 +525,8 @@ Template: `templates/custom-solvers-secret.yaml`
 An opaque Secret containing credentials for custom ACME challenge solvers, referenced by
 `certManager.customSolvers`.
 
-- [ ] Done
+- [x] Drop this functionality and document this
+- [x] Done
 
 ---
 
