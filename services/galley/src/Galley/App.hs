@@ -173,10 +173,10 @@ import Wire.TeamFeatureStore.Cassandra
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError (..))
 import Wire.TeamFeatureStore.Migrating
 import Wire.TeamFeatureStore.Postgres
-import Wire.TeamNotificationStore (TeamNotificationStore)
-import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws
+import Wire.TeamNotificationStore (TeamNotificationStore)
+import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore.Cassandra (interpretTeamStoreToCassandra)
 import Wire.TeamSubsystem (TeamSubsystem)
