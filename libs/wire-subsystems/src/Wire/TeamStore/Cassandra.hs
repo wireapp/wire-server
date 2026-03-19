@@ -28,6 +28,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Wire.API.Team.SearchVisibility
 import Data.Map.Strict qualified as Map
 import Data.Range
 import Data.Set qualified as Set
@@ -129,6 +130,15 @@ interpretTeamStoreToCassandra = interpret $ \case
   SetTeamStatus tid st -> do
     logEffect "TeamStore.SetTeamStatus"
     embedClientInput (updateTeamStatus tid st)
+  GetSearchVisibility tid -> do
+    logEffect "TeamStore.GetSearchVisibility"
+    embedClientInput  $ getSearchVisibility tid
+  SetSearchVisibility tid value -> do
+    logEffect "TeamStore.SetSearchVisibility"
+    embedClientInput   $ setSearchVisibility tid value
+  ResetSearchVisibility tid -> do
+    logEffect "TeamStore.ResetSearchVisibility"
+    embedClientInput    $ resetSearchVisibility tid
 
 createTeam ::
   ( Member (Input ClientState) r,
@@ -331,3 +341,23 @@ teamMemberInfos t u = mkTeamMemberInfo <$$> retry x1 (query Cql.selectTeamMember
   where
     mkTeamMemberInfo (uid, perms, permsWT, _, _, _) =
       TeamMemberInfo {Info.userId = uid, Info.permissions = perms, Info.permissionsWriteTime = toUTCTimeMillis $ writetimeToUTC permsWT}
+
+-- | Return whether a given team is allowed to enable/disable sso
+getSearchVisibility :: (MonadClient m) => TeamId -> m TeamSearchVisibility
+getSearchVisibility tid =
+  toSearchVisibility <$> do
+    retry x1 $ query1 Cql.selectSearchVisibility (params LocalQuorum (Identity tid))
+  where
+    -- The value is either set or we return the default
+    toSearchVisibility :: Maybe (Identity (Maybe TeamSearchVisibility)) -> TeamSearchVisibility
+    toSearchVisibility (Just (Identity (Just status))) = status
+    toSearchVisibility _ = SearchVisibilityStandard
+
+-- | Determines whether a given team is allowed to enable/disable sso
+setSearchVisibility :: (MonadClient m) => TeamId -> TeamSearchVisibility -> m ()
+setSearchVisibility tid visibilityType = do
+  retry x5 $ write Cql.updateSearchVisibility (params LocalQuorum (visibilityType, tid))
+
+resetSearchVisibility :: (MonadClient m) => TeamId -> m ()
+resetSearchVisibility tid = do
+  retry x5 $ write Cql.updateSearchVisibility (params LocalQuorum (SearchVisibilityStandard, tid))

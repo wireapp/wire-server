@@ -30,6 +30,7 @@ import Wire.API.Team
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Member.Info (TeamMemberInfo)
 import Wire.API.Team.Permission
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.ListItems
 import Wire.Sem.Paging
 
@@ -66,6 +67,9 @@ data TeamStore m a where
   DeleteTeam :: TeamId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
+  GetSearchVisibility :: TeamId -> TeamStore m TeamSearchVisibility
+  SetSearchVisibility :: TeamId -> TeamSearchVisibility -> TeamStore m ()
+  ResetSearchVisibility :: TeamId -> TeamStore m ()
 
 makeSem ''TeamStore
 
