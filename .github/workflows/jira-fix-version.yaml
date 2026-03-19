@@ -3,7 +3,7 @@ name: Set Jira Fix Version
 on:
   push:
     tags:
-      - 'chart/*'
+      - "test/*"
 
 jobs:
   set-fix-version:
@@ -17,7 +17,7 @@ jobs:
         id: version
         run: |
           # Extract version from tag (e.g., chart/5.28.31 -> 5.28.31)
-          TAG_NAME="${GITHUB_REF#refs/tags/chart/}"
+          TAG_NAME="${GITHUB_REF#refs/tags/test/}"
           echo "chart_version=$TAG_NAME" >> $GITHUB_OUTPUT
 
           # Parse version components
