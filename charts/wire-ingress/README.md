@@ -30,6 +30,24 @@ separately.
 The default values create the Gateway. The default `gateway.name` is derived from the release name,
 so that self-referencing is consistent by default.
 
+### EnvoyProxy resource
+
+The chart creates an `EnvoyProxy` resource (when `gateway.envoyProxy.create: true`) and wires it
+to the `Gateway` via `infrastructure.parametersRef`. Use `gateway.envoyProxy.spec` to pass
+arbitrary fields from the [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec).
+
+Set `gateway.envoyProxy.create: false` when a shared `EnvoyProxy` is managed at the
+`GatewayClass` level (e.g. shared load balancer across deployments) — leave `gateway.envoyProxy.name`
+empty and the Gateway will have no `infrastructure.parametersRef`, letting the `GatewayClass`-level
+`EnvoyProxy` take effect automatically.
+
+Set `gateway.envoyProxy.name` (with `create: false`) to reference an existing `EnvoyProxy` in the
+**same namespace** via `infrastructure.parametersRef`.
+
+`gateway.manageServiceType: true` (default) is a shorthand that sets
+`provider.kubernetes.envoyService.type` to `gateway.serviceType`. Disable it when managing
+the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
+
 ### GatewayClass is not created
 
 `GatewayClass` is installed by the Envoy Gateway Helm chart and is cluster-scoped. This chart only

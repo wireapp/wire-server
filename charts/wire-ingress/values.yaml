@@ -7,9 +7,38 @@ gateway:
   name: ""
   # Name of the GatewayClass installed by the Envoy Gateway controller.
   className: ""
-  # Service type for the Envoy proxy Service created by Envoy Gateway.
-  # Use ClusterIP for in-cluster-only access (e.g. integration tests).
-  # Defaults to LoadBalancer (Envoy Gateway's default behaviour, no EnvoyProxy resource created).
+  envoyProxy:
+    # If true, an EnvoyProxy resource is created by this chart and the Gateway
+    # references it via infrastructure.parametersRef.
+    # Set to false when the GatewayClass already has a cluster-level EnvoyProxy
+    # (e.g. a shared load balancer managed by the cluster operator), or when you
+    # want to reference an existing EnvoyProxy via envoyProxy.name.
+    create: true
+    # Name of the EnvoyProxy resource.
+    # When create: true  — the created resource uses this name (defaults to the Gateway name).
+    # When create: false — if non-empty, the Gateway references this existing EnvoyProxy
+    #                      via infrastructure.parametersRef (must be in the same namespace).
+    #                      If empty, no parametersRef is set on the Gateway (GatewayClass
+    #                      level EnvoyProxy takes effect).
+    name: ""
+    # Free-form EnvoyProxy spec, merged verbatim at the spec root.
+    # Only used when create: true.
+    # See https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec
+    # Example - shared load balancer across Gateways (single wire-ingress chart):
+    #   spec:
+    #     mergeGateways: true
+    # Example - ClusterIP service (integration tests / no external LB):
+    #   spec:
+    #     provider:
+    #       type: Kubernetes
+    #       kubernetes:
+    #         envoyService:
+    #           type: ClusterIP
+    spec: {}
+  # Convenience shorthand for provider.kubernetes.envoyService.type.
+  # Only takes effect when manageServiceType: true.
+  # Do not combine with envoyProxy.spec.provider.kubernetes.envoyService.
+  manageServiceType: true
   serviceType: LoadBalancer
   # Annotations to add to the Service created by Envoy Gateway.
   # Requires Gateway API CRDs v1.1+.
@@ -31,12 +60,22 @@ gateway:
   listeners:
     https:
       port: 443
+      # Optional hostname restriction for the HTTPS listener.
+      # Required when using mergeGateways (shared EnvoyProxy across deployments) to avoid
+      # listener hostname conflicts. Set to a wildcard covering this deployment's domains,
+      # e.g. "*.example.com".
+      # If your domains in config.dns are not under the same subdomain, you need create
+      # a custom Gateway object for your use case, with multiple listeners. See the Gateway API docs.
+      hostname: ""
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
     # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
     # See the README for configuration details.
     http:
       enabled: false
       port: 80
+      # Optional hostname restriction for the HTTP listener. Set alongside
+      # listeners.https.hostname when using mergeGateways.
+      hostname: ""
 
 # NOTE: Please provide names. Here are naming suggestions:
 # You need to reference those in the nginz helm chart nginx_conf.deeplink.endpoints

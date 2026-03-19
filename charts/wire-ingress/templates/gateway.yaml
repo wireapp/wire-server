@@ -12,25 +12,32 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   gatewayClassName: {{ .Values.gateway.className | quote }}
-  {{- $hasAnnotations := .Values.gateway.infrastructure.annotations }}
-  {{- $hasEnvoyProxy := ne .Values.gateway.serviceType "LoadBalancer" }}
-  {{- if (or $hasAnnotations $hasEnvoyProxy) }}
+  {{- $envoyProxyName := "" }}
+  {{- if .Values.gateway.envoyProxy.create }}
+  {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.getGatewayName" .) }}
+  {{- else if .Values.gateway.envoyProxy.name }}
+  {{- $envoyProxyName = .Values.gateway.envoyProxy.name }}
+  {{- end }}
+  {{- if (or .Values.gateway.infrastructure.annotations $envoyProxyName) }}
   infrastructure:
-    {{- if $hasAnnotations }}
+    {{- if .Values.gateway.infrastructure.annotations }}
     annotations:
       {{- toYaml .Values.gateway.infrastructure.annotations | nindent 6 }}
     {{- end }}
-    {{- if $hasEnvoyProxy }}
+    {{- if $envoyProxyName }}
     parametersRef:
       group: gateway.envoyproxy.io
       kind: EnvoyProxy
-      name: {{ include "wire-ingress.getGatewayName" . | quote }}
+      name: {{ $envoyProxyName | quote }}
     {{- end }}
   {{- end }}
   listeners:
     - name: https
       port: {{ .Values.gateway.listeners.https.port }}
       protocol: HTTPS
+      {{- if .Values.gateway.listeners.https.hostname }}
+      hostname: {{ .Values.gateway.listeners.https.hostname | quote }}
+      {{- end }}
       tls:
         mode: Terminate
         certificateRefs:
@@ -51,5 +58,8 @@ spec:
     - name: http
       port: {{ .Values.gateway.listeners.http.port }}
       protocol: HTTP
+      {{- if .Values.gateway.listeners.http.hostname }}
+      hostname: {{ .Values.gateway.listeners.http.hostname | quote }}
+      {{- end }}
     {{- end }}
 {{- end }}
