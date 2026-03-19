@@ -17,6 +17,11 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever possible.
 Operators should be able to reuse most of their existing values files with minimal changes.
 
+### Behaviour changes
+
+* non-tls ingress disabled by default. If you want to make use of automated certificate validation via http01, you need `gateway.listeners.http.enabled: true`
+* s3 ingress b`/minio/` path blocking. Returns 301 redirect to "/" (was 403).
+
 ### Renamed / restructured values
 
 | Old key | New key | Notes |
@@ -39,7 +44,7 @@ Operators should be able to reuse most of their existing values files with minim
 | `config.dns.base` | Only used for CSP header rendering, which is a multi-ingress feature |
 | `kubeVersionOverride` | Deprecated; the federation-test-helper label selector no longer needs a version override |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
-| `tls.enabled` | This is removed since it didnt ahve any effect. All ingresses are always defined with TLS. |
+| `tls.enabled` | This is removed since it didn't have any effect. All ingresses are always defined with TLS. |
 | `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
 | `secrets.certManager.customSolversSecret` | No longer supported by the chart. Please create a custom Issuer in case you need to handle secrets. |
 
@@ -93,15 +98,6 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | `config.dns.accountPages` | |
 | `secrets.tlsWildcardCert` | |
 | `secrets.tlsWildcardKey` | |
-
-### Behaviour changes
-
-| Feature | Old behaviour | New behaviour |
-|---|---|---|
-| Default ACME solver | `http01.ingress.class: nginx` | `http01.gatewayHTTPRoute` targeting this chart's Gateway — requires `gateway.listeners.http.enabled: true` |
-| `/minio/` path blocking | nginx `server-snippet` returning 403 | `RequestRedirect` to `/` (301) — standard Gateway API |
-| Federator client cert header | `nginx.ingress.kubernetes.io/configuration-snippet` setting `X-SSL-Certificate` | Envoy Gateway `ClientTrafficPolicy` + `HTTPRouteFilter` header injection |
-| Websocket routing | Separate host with port name `ws` | Same `HTTPRoute` — WebSocket upgrades are handled transparently by Envoy |
 
 
 ## Design decisions
@@ -513,6 +509,7 @@ integration tests pass with `wire-ingress` in place of `nginx-ingress-services`.
 
 - [x] Done
 - [x] deal with the federation ingresses for the dynamic backends. remove them? they are not needed. or set up the same way as federation (but no test)
+- [ ] fix integration test setup so all test pass
 
 ---
 
