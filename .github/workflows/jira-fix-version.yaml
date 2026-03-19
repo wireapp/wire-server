@@ -96,7 +96,7 @@ jobs:
           else
             # Priority 2: Check for ticket:<url> pattern with WPB-* in URL
             echo "No issue in title, checking for ticket:<url> pattern..."
-            TICKET_ISSUES=$(echo "$PR_BODY" | grep -oE 'ticket:[^ ]*WPB-[0-9]+[^ ]*' | grep -oE 'WPB-[0-9]+' | sort -u)
+            TICKET_ISSUES=$(echo "$PR_BODY" | grep -ioE 'ticket:[^ ]*WPB-[0-9]+[^ ]*' | grep -ioE 'WPB-[0-9]+' | sort -u)
             TICKET_COUNT=$(echo "$TICKET_ISSUES" | grep -c '^' || echo 0)
 
             if [ "$TICKET_COUNT" -gt 1 ]; then
