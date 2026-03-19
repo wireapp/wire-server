@@ -35,6 +35,7 @@ import System.Random (StdGen, mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
+import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -423,3 +424,82 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                       .&&. m.startTime === effectiveStart
                       .&&. m.endTime === effectiveEnd
                       .&&. m.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
+
+  describe "addInvitedEmails" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        email1 = unsafeEmailAddress "user1" "example.com"
+        email2 = unsafeEmailAddress "user2" "example.com"
+
+    it "returns True and adds emails for creator of valid meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Test Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        success <- addInvitedEmails zUser1 meeting.id [email1, email2]
+        fetched <- getMeeting zUser1 meeting.id
+        pure (success, fetched)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (success, Just m) -> do
+          success `shouldBe` True
+          m.invitedEmails `shouldBe` [email1, email2]
+        Right (_, Nothing) -> fail "Expected Just meeting"
+
+    it "returns False for expired meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime (-7200) now,
+                endTime = addUTCTime (-5000) now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        addInvitedEmails zUser1 meeting.id [email1]
+
+      result `shouldBe` Right False
+
+    it "returns False for non-creator" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Non-creator Test",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        addInvitedEmails zUser2 meeting.id [email1]
+
+      result `shouldBe` Right False
+
+    it "returns False for non-existent meeting" $ do
+      let nonExistentId = Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")
+
+      result <-
+        runTestStack now gen Map.empty teamConfig $
+          addInvitedEmails zUser1 nonExistentId [email1]
+
+      result `shouldBe` Right False

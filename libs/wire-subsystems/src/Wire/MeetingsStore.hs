@@ -156,5 +156,9 @@ data MeetingsStore m a where
     ConvId ->
     UTCTime ->
     MeetingsStore m [StoredMeeting]
+  AddInvitedEmails ::
+    MeetingId ->
+    [EmailAddress] ->
+    MeetingsStore m ()
 
 makeSem ''MeetingsStore

@@ -36,11 +36,11 @@ import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error (throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
-import Wire.API.User.Identity (EmailAddress)
+import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.MeetingsStore
 import Wire.Postgres (PGConstraints)
 
@@ -59,6 +59,8 @@ interpretMeetingsStoreToPostgres =
       listMeetingsByUserImpl userId cutoffTime
     ListMeetingsByConversation convId cutoffTime ->
       listMeetingsByConversationImpl convId cutoffTime
+    AddInvitedEmails meetingId email ->
+      addInvitedEmailsImpl meetingId email
 
 -- * Create
 
@@ -173,10 +175,7 @@ instance {-# OVERLAPPING #-} PostgresMarshall UpdateStoredMeetingWithoutRecurren
     )
 
 updateMeetingImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   MeetingId ->
   Maybe (Range 1 256 Text) ->
   Maybe UTCTime ->
@@ -272,10 +271,7 @@ getMeetingStatement =
 -- * List
 
 listMeetingsByUserImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UserId ->
   UTCTime ->
   Sem r [StoredMeeting]
@@ -303,10 +299,7 @@ listMeetingsByUserImpl userId cutoffTime = do
         |]
 
 listMeetingsByConversationImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   ConvId ->
   UTCTime ->
   Sem r [StoredMeeting]
@@ -332,3 +325,25 @@ listMeetingsByConversationImpl convId cutoffTime = do
           WHERE conversation_id = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
           ORDER BY start_time ASC
         |]
+
+addInvitedEmailsImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  [EmailAddress] ->
+  Sem r ()
+addInvitedEmailsImpl meetingId emails = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = statement (V.fromList (fromEmail <$> emails), toUUID meetingId) addEmailStatement
+
+    addEmailStatement :: Statement (V.Vector Text, UUID) ()
+    addEmailStatement =
+      [resultlessStatement|
+        UPDATE meetings
+        SET invited_emails = array_cat(invited_emails, array(SELECT DISTINCT unnest($1 :: text[]))),
+            updated_at = NOW()
+        WHERE id = ($2 :: uuid)
+      |]

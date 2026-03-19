@@ -38,7 +38,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsPremiumConfig)
-import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag))
+import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
@@ -72,6 +72,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     getMeetingImpl zUser meetingId validityPeriod
   ListMeetings zUser ->
     listMeetingsImpl zUser validityPeriod
+  AddInvitedEmails zUser meetingId emails ->
+    addInvitedEmailsImpl zUser meetingId emails validityPeriod
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -157,6 +159,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
     now <- lift Now.get
     let cutoff = addUTCTime (negate validityPeriod) now
     guard $ meeting.endTime >= cutoff
+    guard $ qDomain meetingId == tDomain zUser
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
         throw InvalidTimes
@@ -188,6 +191,7 @@ getMeetingImpl zUser meetingId validityPeriod = do
     now <- lift Now.get
     let cutoff = addUTCTime (negate validityPeriod) now
     guard $ storedMeeting.endTime >= cutoff
+    guard $ qDomain meetingId == tDomain zUser
     -- Check authorization: user must be creator OR member of the associated conversation
     let isCreator = storedMeeting.creator == tUnqualified zUser
     if isCreator
@@ -279,3 +283,25 @@ getAllMemberMeetings zUser cutoff = do
                 else pure currentMeetings
     isMeetingConv :: StoredConversation -> Bool
     isMeetingConv conv = conv.metadata.cnvmGroupConvType == Just MeetingConversation
+
+addInvitedEmailsImpl ::
+  ( Member Store.MeetingsStore r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  [EmailAddress] ->
+  NominalDiffTime ->
+  Sem r Bool
+addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+  result <-
+    runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ storedMeeting.endTime >= cutoff
+      guard $ storedMeeting.creator == tUnqualified zUser
+      guard $ qDomain meetingId == tDomain zUser
+      lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
+
+  pure $ isJust result

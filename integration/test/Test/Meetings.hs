@@ -265,3 +265,28 @@ testMeetingListPagination = do
   assertSuccess resp
   meetings <- resp.json & asList
   length (meetings :: [Value]) `shouldMatchInt` 1001
+
+testMeetingAddInvitation :: (HasCallStack) => App ()
+testMeetingAddInvitation = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
+  r1 <- postMeetings owner newMeeting
+  assertSuccess r1
+  meeting <- assertOne r1.json
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ["bob@example.com"]]
+  postMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
+  r2 <- getMeeting owner domain meetingId
+  assertSuccess r2
+  updated <- assertOne r2.json
+  updated %. "invited_emails" `shouldMatch` ["alice@example.com", "bob@example.com"]
+
+testMeetingAddInvitationNotFound :: (HasCallStack) => App ()
+testMeetingAddInvitationNotFound = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
+  let invitation = object ["emails" .= ["bob@example.com"]]
+  postMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404

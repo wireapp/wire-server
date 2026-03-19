@@ -82,3 +82,21 @@ type MeetingsAPI =
                :> "list"
                :> Get '[JSON] [Meeting]
            )
+    :<|> Named
+           "add-meeting-invitation"
+           ( Summary "Add an email to the invited emails"
+               :> From 'V16
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "invitations"
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> ReqBody '[JSON] MeetingEmailsInvitation
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 "Invitation added"]
+                    ()
+           )
