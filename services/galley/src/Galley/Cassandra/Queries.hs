@@ -25,10 +25,7 @@
 -- - team_member
 -- update using: `rg -i -P '(?:update|from|into)\s+([A-Za-z0-9_]+)' -or '$1' --no-line-number services/galley/src/Galley/Cassandra/Queries.hs | sort | uniq`
 module Galley.Cassandra.Queries
-  ( selectCustomBackend,
-    upsertCustomBackend,
-    deleteCustomBackend,
-    selectSearchVisibility,
+  ( selectSearchVisibility,
     updateSearchVisibility,
   )
 where
@@ -49,17 +46,3 @@ selectSearchVisibility =
 updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
 updateSearchVisibility =
   {- `IF EXISTS`, but that requires benchmarking -} "update team set search_visibility = ? where team = ?"
-
--- Custom Backend -----------------------------------------------------------
-
-selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
-selectCustomBackend =
-  "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"
-
-upsertCustomBackend :: PrepQuery W (HttpsUrl, HttpsUrl, Domain) ()
-upsertCustomBackend =
-  "update custom_backend set config_json_url = ?, webapp_welcome_url = ? where domain = ?"
-
-deleteCustomBackend :: PrepQuery W (Identity Domain) ()
-deleteCustomBackend =
-  "delete from custom_backend where domain = ?"
