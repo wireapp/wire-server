@@ -53,7 +53,6 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
-import Galley.Cassandra.CustomBackend
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
   ( interpretInternalTeamListToCassandra,
@@ -62,7 +61,6 @@ import Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandraWithPaging,
   )
 import Galley.Cassandra.TeamNotifications
-import Galley.Effects.CustomBackendStore
 import Galley.Effects.Queue qualified as GE
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.TeamMemberStore
@@ -124,6 +122,8 @@ import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.CustomBackendStore
+import Wire.CustomBackendStore.Cassandra
 import Wire.Error
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.ExternalAccess.External

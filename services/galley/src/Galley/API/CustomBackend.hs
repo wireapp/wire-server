@@ -22,14 +22,12 @@ module Galley.API.CustomBackend
 where
 
 import Data.Domain (Domain)
-import Galley.Effects.CustomBackendStore
 import Imports hiding ((\\))
 import Polysemy
 import Wire.API.CustomBackend qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-
--- PUBLIC ---------------------------------------------------------------------
+import Wire.CustomBackendStore
 
 getCustomBackendByDomain ::
   ( Member CustomBackendStore r,

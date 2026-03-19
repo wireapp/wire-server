@@ -51,7 +51,6 @@ import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.App
-import Galley.Effects.CustomBackendStore
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -95,6 +94,7 @@ import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
+import Wire.CustomBackendStore
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FederationSubsystem (getFederationStatus)
