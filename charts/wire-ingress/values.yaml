@@ -127,10 +127,6 @@ service:
 federator:
   enabled: false
   integrationTestHelper: false
-  # Set to true to bypass the privileged-port check in federation-test-helper.yaml.
-  # Needed if Envoy Gateway's port remapping behaviour changes or a custom setup
-  # binds the proxy directly on a privileged port.
-  skipPrivilegedPortCheck: false
   tls:
     # If true, a cert-manager Certificate is created for the federator TLS secret.
     # Independent of the global tls.useCertManager setting.
