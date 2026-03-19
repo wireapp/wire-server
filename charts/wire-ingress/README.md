@@ -12,92 +12,9 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ---
 
-## Design decisions
-
-### Gateway API controller: Envoy Gateway
-
-The chart targets [Envoy Gateway](https://gateway.envoyproxy.io/). Implementation-specific
-resources (`ClientTrafficPolicy`, `SecurityPolicy`, `HTTPRouteFilter` with `directResponse`) are
-used where the standard Gateway API has gaps. These resources are clearly marked in each template.
-
-### Gateway creation is optional
-
-The chart can optionally create a `Gateway` resource (controlled by `gateway.create: true`).
-When `gateway.create: false`, all `HTTPRoute` and policy resources still reference the gateway by
-name (`gateway.name`). This allows operators to share a Gateway across multiple charts or manage it
-separately.
-
-The default values create the Gateway. The default `gateway.name` is derived from the release name,
-so that self-referencing is consistent by default.
-
-### EnvoyProxy resource
-
-The chart creates an `EnvoyProxy` resource (when `gateway.envoyProxy.create: true`) and wires it
-to the `Gateway` via `infrastructure.parametersRef`. Use `gateway.envoyProxy.spec` to pass
-arbitrary fields from the [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec).
-
-Set `gateway.envoyProxy.create: false` when a shared `EnvoyProxy` is managed at the
-`GatewayClass` level (e.g. shared load balancer across deployments) — leave `gateway.envoyProxy.name`
-empty and the Gateway will have no `infrastructure.parametersRef`, letting the `GatewayClass`-level
-`EnvoyProxy` take effect automatically.
-
-Set `gateway.envoyProxy.name` (with `create: false`) to reference an existing `EnvoyProxy` in the
-**same namespace** via `infrastructure.parametersRef`.
-
-`gateway.manageServiceType: true` (default) is a shorthand that sets
-`provider.kubernetes.envoyService.type` to `gateway.serviceType`. Disable it when managing
-the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
-
-### GatewayClass is not created
-
-`GatewayClass` is installed by the Envoy Gateway Helm chart and is cluster-scoped. This chart only
-references it by name via `gateway.className`.
-
-### Multi-ingress is out of scope
-
-Single-domain deployments are the only supported topology. Multi-domain support can be added later.
-
-### HTTP01 certificate challenges
-
-cert-manager can complete ACME HTTP01 challenges through the Gateway using the `gatewayHTTPRoute`
-solver (cert-manager >= 1.14). The **default solver** in this chart uses `gatewayHTTPRoute` — it
-requires the HTTP listener to be enabled:
-
-```yaml
-gateway:
-  listeners:
-    http:
-      enabled: true  # required for HTTP01 challenges
-```
-
-If you cannot or do not want to open port 80, use a DNS01 solver instead by setting
-
-```yaml
-certManager:
-  customSolvers:
-    - dns01:
-        # .. provider-specific settings
-```
-
-DNS01 requires credentials for your DNS provider but does not need
-port 80 to be open.
-
-### Federator mTLS uses Envoy Gateway policies
-
-Federator mTLS is implemented using:
-
-- `ClientTrafficPolicy` to configure TLS settings on the federator `Gateway` listener (client
-  certificate validation, verify depth)
-- A separate `Gateway` listener (or dedicated `Gateway`) for the federator so that mTLS settings
-  apply only to that listener
-- The `X-SSL-Certificate` header forwarding is handled via Envoy Gateway's `HTTPRouteFilter` with
-  request header injection from the client cert (implementation-specific)
-
----
-
 ## Backwards compatibility
 
-The chart preserves the `values.yaml` structure of `nginx-ingress-services` wherever possible.
+The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever possible.
 Operators should be able to reuse most of their existing values files with minimal changes.
 
 ### Renamed / restructured values
@@ -186,6 +103,89 @@ All keys below are accepted unchanged. Their names, types, and semantics are ide
 | Federator client cert header | `nginx.ingress.kubernetes.io/configuration-snippet` setting `X-SSL-Certificate` | Envoy Gateway `ClientTrafficPolicy` + `HTTPRouteFilter` header injection |
 | Websocket routing | Separate host with port name `ws` | Same `HTTPRoute` — WebSocket upgrades are handled transparently by Envoy |
 
+
+## Design decisions
+
+### Gateway API controller: Envoy Gateway
+
+The chart targets [Envoy Gateway](https://gateway.envoyproxy.io/). Implementation-specific
+resources (`ClientTrafficPolicy`, `SecurityPolicy`, `HTTPRouteFilter` with `directResponse`) are
+used where the standard Gateway API has gaps. These resources are clearly marked in each template.
+
+### Gateway creation is optional
+
+The chart can optionally create a `Gateway` resource (controlled by `gateway.create: true`).
+When `gateway.create: false`, all `HTTPRoute` and policy resources still reference the gateway by
+name (`gateway.name`). This allows operators to share a Gateway across multiple charts or manage it
+separately.
+
+The default values create the Gateway. The default `gateway.name` is derived from the release name,
+so that self-referencing is consistent by default.
+
+### EnvoyProxy resource
+
+The chart creates an `EnvoyProxy` resource (when `gateway.envoyProxy.create: true`) and wires it
+to the `Gateway` via `infrastructure.parametersRef`. Use `gateway.envoyProxy.spec` to pass
+arbitrary fields from the [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec).
+
+Set `gateway.envoyProxy.create: false` when a shared `EnvoyProxy` is managed at the
+`GatewayClass` level (e.g. shared load balancer across deployments) — leave `gateway.envoyProxy.name`
+empty and the Gateway will have no `infrastructure.parametersRef`, letting the `GatewayClass`-level
+`EnvoyProxy` take effect automatically.
+
+Set `gateway.envoyProxy.name` (with `create: false`) to reference an existing `EnvoyProxy` in the
+**same namespace** via `infrastructure.parametersRef`.
+
+`gateway.manageServiceType: true` (default) is a shorthand that sets
+`provider.kubernetes.envoyService.type` to `gateway.serviceType`. Disable it when managing
+the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
+
+### GatewayClass is not created
+
+`GatewayClass` is installed by the Envoy Gateway Helm chart and is cluster-scoped. This chart only
+references it by name via `gateway.className`.
+
+### Multi-ingress is out of scope
+
+Single-domain deployments are the only supported topology. Multi-domain support can be added later.
+
+### HTTP01 certificate challenges
+
+cert-manager can complete ACME HTTP01 challenges through the Gateway using the `gatewayHTTPRoute`
+solver (cert-manager >= 1.14). The **default solver** in this chart uses `gatewayHTTPRoute` — it
+requires the HTTP listener to be enabled:
+
+```yaml
+gateway:
+  listeners:
+    http:
+      enabled: true  # required for HTTP01 challenges
+```
+
+If you cannot or do not want to open port 80, use a DNS01 solver instead by setting
+
+```yaml
+certManager:
+  customSolvers:
+    - dns01:
+        # .. provider-specific settings
+```
+
+DNS01 requires credentials for your DNS provider but does not need
+port 80 to be open.
+
+### Federator mTLS uses Envoy Gateway policies
+
+Federator mTLS is implemented using:
+
+- `ClientTrafficPolicy` to configure TLS settings on the federator `Gateway` listener (client
+  certificate validation, verify depth)
+- A separate `Gateway` listener (or dedicated `Gateway`) for the federator so that mTLS settings
+  apply only to that listener
+- The `X-SSL-Certificate` header forwarding is handled via Envoy Gateway's `HTTPRouteFilter` with
+  request header injection from the client cert (implementation-specific)
+
+---
 ---
 
 ## Testing strategy
