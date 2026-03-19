@@ -1,1 +1,0 @@
-A new root-level Helm value `consumableNotifications` was added to control whether RabbitMQ queues are created and used for clients with the `consumable-notifications` capability. The value is provided via the `wire-server` Helm chart defaults and defaults to `false`.
