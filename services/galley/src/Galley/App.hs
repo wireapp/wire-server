@@ -56,11 +56,8 @@ import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabl
 import Galley.Cassandra.Team
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
-    interpretTeamMemberStoreToCassandra,
-    interpretTeamMemberStoreToCassandraWithPaging,
   )
 import Galley.Effects.Queue qualified as GE
-import Galley.Effects.TeamMemberStore
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Keys
@@ -175,6 +172,11 @@ import Wire.TeamFeatureStore.Migrating
 import Wire.TeamFeatureStore.Postgres
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws
+import Wire.TeamMemberStore (TeamMemberStore)
+import Wire.TeamMemberStore.Cassandra
+  ( interpretTeamMemberStoreToCassandra,
+    interpretTeamMemberStoreToCassandraWithPaging,
+  )
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamStore (TeamStore)

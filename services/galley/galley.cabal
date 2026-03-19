@@ -138,7 +138,6 @@ library
     Galley.Cassandra.Team
     Galley.Cassandra.Util
     Galley.Effects.Queue
-    Galley.Effects.TeamMemberStore
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal

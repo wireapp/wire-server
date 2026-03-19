@@ -45,7 +45,6 @@ import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Effects.TeamMemberStore (TeamMemberStore)
 import Galley.Options
 import Galley.Types.Error (InternalError)
 import Imports
@@ -86,6 +85,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamFeatureStore
+import Wire.TeamMemberStore (TeamMemberStore)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as SearchVisibilityData
 import Wire.TeamSubsystem (TeamSubsystem)

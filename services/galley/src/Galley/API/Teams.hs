@@ -83,7 +83,6 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
 import Galley.Effects.Queue qualified as E
-import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Options
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
@@ -141,6 +140,7 @@ import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal qualified as Journal
+import Wire.TeamMemberStore qualified as E
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as E

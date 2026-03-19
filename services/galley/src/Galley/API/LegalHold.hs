@@ -45,7 +45,6 @@ import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
-import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Error
 import Imports
@@ -90,6 +89,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.TeamMemberStore
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
