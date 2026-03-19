@@ -49,5 +49,10 @@ data MeetingsSubsystem m a where
     Qualified MeetingId ->
     [EmailAddress] ->
     MeetingsSubsystem m Bool
+  RemoveInvitedEmails ::
+    Local UserId ->
+    Qualified MeetingId ->
+    [EmailAddress] ->
+    MeetingsSubsystem m Bool
 
 makeSem ''MeetingsSubsystem

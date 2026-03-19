@@ -61,6 +61,8 @@ interpretMeetingsStoreToPostgres =
       listMeetingsByConversationImpl convId cutoffTime
     AddInvitedEmails meetingId email ->
       addInvitedEmailsImpl meetingId email
+    RemoveInvitedEmails meetingId emails ->
+      removeInvitedEmailsImpl meetingId emails
 
 -- * Create
 
@@ -344,6 +346,27 @@ addInvitedEmailsImpl meetingId emails = do
       [resultlessStatement|
         UPDATE meetings
         SET invited_emails = array_cat(invited_emails, array(SELECT DISTINCT unnest($1 :: text[]))),
+            updated_at = NOW()
+        WHERE id = ($2 :: uuid)
+      |]
+
+removeInvitedEmailsImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  [EmailAddress] ->
+  Sem r ()
+removeInvitedEmailsImpl meetingId emails = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = statement (V.fromList (fromEmail <$> emails), toUUID meetingId) removeEmailStatement
+    removeEmailStatement :: Statement (V.Vector Text, UUID) ()
+    removeEmailStatement =
+      [resultlessStatement|
+        UPDATE meetings M
+        SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[]))),
             updated_at = NOW()
         WHERE id = ($2 :: uuid)
       |]

@@ -90,3 +90,15 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                   updatedAt = now
                 }
         modify (Map.insert mid updatedMeeting)
+  RemoveInvitedEmails mid emailsToRemove -> do
+    sm <- gets (Map.lookup mid)
+    case sm of
+      Nothing -> pure ()
+      Just meeting -> do
+        now <- Now.get
+        let updatedMeeting =
+              meeting
+                { invitedEmails = filter (`notElem` emailsToRemove) meeting.invitedEmails,
+                  updatedAt = now
+                }
+        modify (Map.insert mid updatedMeeting)
