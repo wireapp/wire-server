@@ -134,8 +134,6 @@ library
     Galley.API.Update
     Galley.App
     Galley.Cassandra
-    Galley.Cassandra.Store
-    Galley.Cassandra.Util
     Galley.Effects.Queue
     Galley.Env
     Galley.External.LegalHoldService
