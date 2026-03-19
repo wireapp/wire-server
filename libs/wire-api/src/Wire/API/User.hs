@@ -2176,13 +2176,23 @@ instance ToSchema CreatedApp where
         <*> (.cookie) .= field "cookie" schema
 
 newtype RefreshAppCookieRequest = RefreshAppCookieRequest
-  {password :: PlainTextPassword6}
+  { password :: Maybe PlainTextPassword6
+  }
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RefreshAppCookieRequest
 
 instance ToSchema RefreshAppCookieRequest where
   schema =
     object "RefreshAppCookieRequest" $
-      RefreshAppCookieRequest <$> (.password) .= field "password" schema
+      RefreshAppCookieRequest
+        <$> (.password)
+          .= optFieldWithDocModifier
+            "password"
+            ( S.description
+                ?~ "The password of the authenticated admin for verification. \
+                   \The password is not required for deleting temporary clients, \
+                   \or if the user has only SAML credentials."
+            )
+            (maybeWithDefault A.Null schema)
 
 newtype RefreshAppCookieResponse = RefreshAppCookieResponse
   {cookie :: SomeUserToken}

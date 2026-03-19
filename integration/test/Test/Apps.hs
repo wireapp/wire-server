@@ -164,14 +164,14 @@ testRefreshAppCookie = do
 
   forM_
     [ (Nothing, 415),
-      (Just Null, 403),
-      (Just (object []), 400),
+      (Just Null, 400),
+      (Just (object []), 403),
       (Just (object ["password" .= "this is not a good password"]), 403)
     ]
-    $ \(badPassword, expectedStatus) -> do
+    $ \(badPassword, stat) -> do
       -- the status codes and error labels differ here, but the
       -- important thing is that the request fails.
-      refreshAppCookie alice tid appId badPassword >>= assertStatus expectedStatus
+      refreshAppCookie alice tid appId badPassword >>= assertStatus stat
 
   cookie' <- bindResponse (refreshAppCookie alice tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 200
