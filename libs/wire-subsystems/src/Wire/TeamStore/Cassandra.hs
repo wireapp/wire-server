@@ -28,7 +28,6 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Wire.API.Team.SearchVisibility
 import Data.Map.Strict qualified as Map
 import Data.Range
 import Data.Set qualified as Set
@@ -45,6 +44,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfo (TeamMemberInfo))
 import Wire.API.Team.Member.Info qualified as Info
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
+import Wire.API.Team.SearchVisibility
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationStore.Cassandra.Instances ()
@@ -132,13 +132,13 @@ interpretTeamStoreToCassandra = interpret $ \case
     embedClientInput (updateTeamStatus tid st)
   GetSearchVisibility tid -> do
     logEffect "TeamStore.GetSearchVisibility"
-    embedClientInput  $ getSearchVisibility tid
+    embedClientInput $ getSearchVisibility tid
   SetSearchVisibility tid value -> do
     logEffect "TeamStore.SetSearchVisibility"
-    embedClientInput   $ setSearchVisibility tid value
+    embedClientInput $ setSearchVisibility tid value
   ResetSearchVisibility tid -> do
     logEffect "TeamStore.ResetSearchVisibility"
-    embedClientInput    $ resetSearchVisibility tid
+    embedClientInput $ resetSearchVisibility tid
 
 createTeam ::
   ( Member (Input ClientState) r,
