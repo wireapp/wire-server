@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch all history to find PR associations
 
       - name: Extract and calculate version
         id: version
