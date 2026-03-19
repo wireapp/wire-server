@@ -273,7 +273,7 @@ testMeetingAddInvitation = do
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
-  meeting <- postMeetings owner newMeeting >>= getJSON 200
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   let invitation = object ["emails" .= ["bob@example.com"]]
   postMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
@@ -295,7 +295,7 @@ testMeetingRemoveInvitation = do
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
-  meeting <- postMeetings owner newMeeting >>= getJSON 200
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   let removeInvitation = object ["emails" .= ["alice@example.com"]]
 
