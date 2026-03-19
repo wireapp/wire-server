@@ -18,6 +18,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- | See also: "Galley.API.TeamNotifications".
+--
+-- This module is a clone of "Gundeck.Notification.Data".
+--
+-- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
+-- We should really use a scalable message queue instead.
 module Wire.TeamNotificationStore
   ( ResultPage (..),
     TeamNotificationStore (..),

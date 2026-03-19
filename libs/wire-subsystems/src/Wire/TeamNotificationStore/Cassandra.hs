@@ -83,6 +83,10 @@ add tid nid (Blob . JSON.encode -> payload) =
       \(?, ?, ?) \
       \USING TTL ?"
 
+-- |
+-- >>> import Data.Time
+-- >>> formatTime defaultTimeLocale "%d days, %H hours, %M minutes, %S seconds" (secondsToNominalDiffTime (fromIntegral notificationTTLSeconds))
+-- "28 days, 0 hours, 0 minutes, 0 seconds"
 notificationTTLSeconds :: Int32
 notificationTTLSeconds = round $ nominalDiffTimeToSeconds $ 28 * nominalDay
 
