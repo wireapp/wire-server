@@ -159,6 +159,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
     now <- lift Now.get
     let cutoff = addUTCTime (negate validityPeriod) now
     guard $ meeting.endTime >= cutoff
+    guard $ qDomain meetingId == tDomain zUser
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
         throw InvalidTimes
@@ -190,6 +191,7 @@ getMeetingImpl zUser meetingId validityPeriod = do
     now <- lift Now.get
     let cutoff = addUTCTime (negate validityPeriod) now
     guard $ storedMeeting.endTime >= cutoff
+    guard $ qDomain meetingId == tDomain zUser
     -- Check authorization: user must be creator OR member of the associated conversation
     let isCreator = storedMeeting.creator == tUnqualified zUser
     if isCreator
@@ -299,6 +301,7 @@ addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       let cutoff = addUTCTime (negate validityPeriod) now
       guard $ storedMeeting.endTime >= cutoff
       guard $ storedMeeting.creator == tUnqualified zUser
+      guard $ qDomain meetingId == tDomain zUser
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result

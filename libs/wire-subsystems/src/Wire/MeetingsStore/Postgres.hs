@@ -343,7 +343,7 @@ addInvitedEmailsImpl meetingId emails = do
     addEmailStatement =
       [resultlessStatement|
         UPDATE meetings
-        SET invited_emails = array_cat(invited_emails, $1 :: text[]),
+        SET invited_emails = array_cat(invited_emails, array(SELECT DISTINCT unnest($1 :: text[]))),
             updated_at = NOW()
         WHERE id = ($2 :: uuid)
       |]
