@@ -8,10 +8,6 @@
   {{- (semverCompare ">= 1.24-0" (include "kubeVersion" .)) -}}
 {{- end -}}
 
-{{- define "integrationTestHelperNewLabels" -}}
-  {{- (semverCompare ">= 1.23-0" (include "kubeVersion" .)) -}}
-{{- end -}}
-
 {{- define "useCassandraTLS" -}}
 {{ or (hasKey .cassandra "tlsCa") (hasKey .cassandra "tlsCaSecretRef") }}
 {{- end -}}

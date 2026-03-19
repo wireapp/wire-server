@@ -475,6 +475,7 @@ integration tests. Uses `app.kubernetes.io/` labels on Kubernetes >= 1.23, legac
 otherwise.
 
 - [ ] Done
+- [x] delete the unused Ingress from the "integration" chart
 
 Notes:
 
