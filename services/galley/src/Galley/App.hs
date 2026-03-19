@@ -53,10 +53,6 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
-import Galley.Cassandra.Team
-  ( interpretInternalTeamListToCassandra,
-    interpretTeamListToCassandra,
-  )
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -135,6 +131,10 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.ListItems (ListItems)
+import Wire.ListItems.Team.Cassandra
+  ( interpretInternalTeamListToCassandra,
+    interpretTeamListToCassandra,
+  )
 import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem (MeetingsSubsystem)

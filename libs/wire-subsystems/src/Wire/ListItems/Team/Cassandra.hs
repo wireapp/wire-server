@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Team
+module Wire.ListItems.Team.Cassandra
   ( interpretTeamListToCassandra,
     interpretInternalTeamListToCassandra,
   )
@@ -24,8 +24,6 @@ where
 import Cassandra
 import Data.Id
 import Data.Range
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
@@ -33,6 +31,7 @@ import Polysemy.TinyLog
 import Wire.ListItems
 import Wire.Sem.Paging.Cassandra
 import Wire.TeamStore.Cassandra.Queries qualified as Cql
+import Wire.Util (embedClientInput, logEffect)
 
 interpretTeamListToCassandra ::
   ( Member (Embed IO) r,
@@ -44,7 +43,7 @@ interpretTeamListToCassandra ::
 interpretTeamListToCassandra = interpret $ \case
   ListItems uid ps lim -> do
     logEffect "TeamList.ListItems"
-    embedClient $ teamIdsFrom uid ps lim
+    embedClientInput $ teamIdsFrom uid ps lim
 
 interpretInternalTeamListToCassandra ::
   ( Member (Embed IO) r,
@@ -56,7 +55,7 @@ interpretInternalTeamListToCassandra ::
 interpretInternalTeamListToCassandra = interpret $ \case
   ListItems uid mps lim -> do
     logEffect "InternalTeamList.ListItems"
-    embedClient $ case mps of
+    embedClientInput $ case mps of
       Nothing -> do
         page <- teamIdsForPagination uid Nothing lim
         mkInternalPage page pure

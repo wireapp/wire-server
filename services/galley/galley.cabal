@@ -135,7 +135,6 @@ library
     Galley.App
     Galley.Cassandra
     Galley.Cassandra.Store
-    Galley.Cassandra.Team
     Galley.Cassandra.Util
     Galley.Effects.Queue
     Galley.Env
