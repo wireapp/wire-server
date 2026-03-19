@@ -71,7 +71,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
       -- Create IdP for ernie domain
       SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdErnie <-
-        createIdpWithZHost owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString
@@ -79,7 +79,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
       -- Create IdP for bert domain
       SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdBert <-
-        createIdpWithZHost owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` bertZHost
           resp.json %. "id" >>= asString
@@ -267,7 +267,7 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
       -- Create IdP for ernie domain
       SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdErnie <-
-        createIdpWithZHost owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString

@@ -168,24 +168,26 @@ mkScimUser scimUserId =
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/idp-create
 createIdp :: (HasCallStack, MakesValue user) => user -> SAML.IdPMetadata -> App Response
-createIdp = (flip createIdpWithZHost) Nothing
+createIdp = (flip createIdpWithZHostV2) Nothing
 
-createIdpWithZHost :: (HasCallStack, MakesValue user) => user -> Maybe String -> SAML.IdPMetadata -> App Response
-createIdpWithZHost user mbZHost metadata = do
-  bReq <- baseRequest user Spar Versioned "/identity-providers"
-  let req =
-        bReq
-          & addQueryParams [("api_version", "v2")]
-          & addXML (fromLT $ SAML.encode metadata)
-          & addHeader "Content-Type" "application/xml"
-  submit "POST" (req & maybe id zHost mbZHost)
+-- | Create an IdP using API version V2.
+--
+-- V2 enforces issuer uniqueness per team (issuers can be reused across different teams).
+createIdpWithZHostV2 :: (HasCallStack, MakesValue user) => user -> Maybe String -> SAML.IdPMetadata -> App Response
+createIdpWithZHostV2 = createIdpWithZHostAndVersion "v2"
 
+-- | Create an IdP using API version V1.
+--
+-- V1 enforces global issuer uniqueness across the entire backend (all teams).
 createIdpWithZHostV1 :: (HasCallStack, MakesValue user) => user -> Maybe String -> SAML.IdPMetadata -> App Response
-createIdpWithZHostV1 user mbZHost metadata = do
+createIdpWithZHostV1 = createIdpWithZHostAndVersion "v1"
+
+createIdpWithZHostAndVersion :: (HasCallStack, MakesValue user) => String -> user -> Maybe String -> SAML.IdPMetadata -> App Response
+createIdpWithZHostAndVersion apiVersion user mbZHost metadata = do
   bReq <- baseRequest user Spar Versioned "/identity-providers"
   let req =
         bReq
-          & addQueryParams [("api_version", "v1")]
+          & addQueryParams [("api_version", apiVersion)]
           & addXML (fromLT $ SAML.encode metadata)
           & addHeader "Content-Type" "application/xml"
   submit "POST" (req & maybe id zHost mbZHost)
