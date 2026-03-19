@@ -309,10 +309,13 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
 -- well. Depending on the IdP API version, IdP issuers have to be either unique
 -- per backend (V1) or per team (V2).
 --
--- As issuers correspond to realms in Keycloak and realms are return-URL
--- specific, this is probably fine for now. Otherwise, we would have to
--- redesign spar's database schema. E.g there would be a race-condition on the
--- `spar.issuer_idp_v2` table.
+-- Note: In multi-ingress setups, one might wonder why the same IdP metadata /
+-- issuer cannot be used for the same team across multiple domains. Supporting
+-- this would require redesigning spar's database schema (e.g., there would be
+-- a race condition on the `spar.issuer_idp_v2` table). Furthermore, IdP
+-- configs are strongly URL-related on IdP-side: issuers correspond to e.g.
+-- Keycloak realms, which have a specific return-URL. Given the limited
+-- practical benefit, this complexity is not justified for now.
 testMultiIngressSameIdPDifferentDomains :: (HasCallStack) => App ()
 testMultiIngressSameIdPDifferentDomains = do
   withModifiedBackend
