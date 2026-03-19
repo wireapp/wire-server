@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+VALUES_FILE="${VALUES_FILE:-$(mktemp).yaml}"
+
 # from repo root
 export NAMESPACE_1="${NAMESPACE_1:-test-a}"
 export NAMESPACE_2="${NAMESPACE_2:-test-b}"
@@ -17,10 +19,8 @@ export ENTERPRISE_IMAGE_PULL_SECRET="${ENTERPRISE_IMAGE_PULL_SECRET:-{}}"
 helmfile -f hack/helmfile.yaml.gotmpl \
   -e default \
   --skip-deps \
-  -l name=wire-server \
+  -l name=wire-server,namespace="${NAMESPACE_1}" \
   write-values \
-  --output-file-template '/tmp/{{ .Release.Name }}-{{ .Release.Namespace }}.yaml'
+  --output-file-template "${VALUES_FILE}"
 
-VALUES_FILE="/tmp/wire-server-${NAMESPACE_1}.yaml"
-
-echo "Rendered values:   $VALUES_FILE"
+echo "Rendered values: $VALUES_FILE"
