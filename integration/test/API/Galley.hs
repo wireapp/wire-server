@@ -1013,3 +1013,8 @@ postMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> St
 postMeetingInvitation user domain meetingId invitation = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations"])
   submit "POST" $ req & addJSON invitation
+
+deleteMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+deleteMeetingInvitation user domain meetingId removeInvitation = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations", "delete"])
+  submit "POST" $ req & addJSON removeInvitation

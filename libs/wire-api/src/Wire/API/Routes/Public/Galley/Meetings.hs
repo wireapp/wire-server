@@ -100,3 +100,22 @@ type MeetingsAPI =
                     '[RespondEmpty 200 "Invitation added"]
                     ()
            )
+    :<|> Named
+           "remove-meeting-invitation"
+           ( Summary "Remove emails from the invited emails"
+               :> From 'V16
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "invitations"
+               :> "delete"
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> ReqBody '[JSON] MeetingEmailsInvitation
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 "Invitations removed"]
+                    ()
+           )

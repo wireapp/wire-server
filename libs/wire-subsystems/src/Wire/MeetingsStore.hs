@@ -160,5 +160,9 @@ data MeetingsStore m a where
     MeetingId ->
     [EmailAddress] ->
     MeetingsStore m ()
+  RemoveInvitedEmails ::
+    MeetingId ->
+    [EmailAddress] ->
+    MeetingsStore m ()
 
 makeSem ''MeetingsStore

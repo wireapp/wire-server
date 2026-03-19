@@ -273,15 +273,11 @@ testMeetingAddInvitation = do
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
-  r1 <- postMeetings owner newMeeting
-  assertSuccess r1
-  meeting <- assertOne r1.json
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   let invitation = object ["emails" .= ["bob@example.com"]]
   postMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
-  r2 <- getMeeting owner domain meetingId
-  assertSuccess r2
-  updated <- assertOne r2.json
+  updated <- getMeeting owner domain meetingId >>= getJSON 200
   updated %. "invited_emails" `shouldMatch` ["alice@example.com", "bob@example.com"]
 
 testMeetingAddInvitationNotFound :: (HasCallStack) => App ()
@@ -290,3 +286,28 @@ testMeetingAddInvitationNotFound = do
   fakeMeetingId <- randomId
   let invitation = object ["emails" .= ["bob@example.com"]]
   postMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404
+
+testMeetingRemoveInvitation :: (HasCallStack) => App ()
+testMeetingRemoveInvitation = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let removeInvitation = object ["emails" .= ["alice@example.com"]]
+
+  deleteMeetingInvitation owner domain meetingId removeInvitation >>= assertStatus 200
+
+  updated <- getMeeting owner domain meetingId >>= getJSON 200
+  updated %. "invited_emails" `shouldMatch` ["bob@example.com"]
+
+testMeetingRemoveInvitationNotFound :: (HasCallStack) => App ()
+testMeetingRemoveInvitationNotFound = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
+  let removeInvitation = object ["emails" .= ["alice@example.com"]]
+
+  deleteMeetingInvitation owner "example.com" fakeMeetingId removeInvitation >>= assertStatus 404

@@ -74,6 +74,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     listMeetingsImpl zUser validityPeriod
   AddInvitedEmails zUser meetingId emails ->
     addInvitedEmailsImpl zUser meetingId emails validityPeriod
+  RemoveInvitedEmails zUser meetingId emails ->
+    removeInvitedEmailsImpl zUser meetingId emails validityPeriod
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -303,5 +305,27 @@ addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ Store.addInvitedEmails (qUnqualified meetingId) emails
+
+  pure $ isJust result
+
+removeInvitedEmailsImpl ::
+  ( Member Store.MeetingsStore r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  [EmailAddress] ->
+  NominalDiffTime ->
+  Sem r Bool
+removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+  result <-
+    runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ storedMeeting.endTime >= cutoff
+      guard $ storedMeeting.creator == tUnqualified zUser
+      guard $ qDomain meetingId == tDomain zUser
+      lift $ Store.removeInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result
