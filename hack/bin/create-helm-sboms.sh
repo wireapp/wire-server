@@ -11,12 +11,12 @@ source "$(dirname "$0")/sbom-common.sh"
 
 OUTPUT_DIR="${1:-.}"
 VERSION_OVERRIDE="${2:-}"
-CHARTS_DIR="$GIT_ROOT/charts"
+CHARTS_DIR="$GIT_ROOT/.local/charts"
 
 if [[ -z "$VERSION_OVERRIDE" ]]; then
   echo "Usage: $0 <output-dir> <version>"
   echo "  output-dir: Directory to write SBOM files"
-  echo "  version: Version to use for images (e.g., 5.28.9)"
+  echo "  version: Version to use for packaged charts (e.g., 5.28.22)"
   exit 1
 fi
 
@@ -79,11 +79,6 @@ for chart_dir in "$CHARTS_DIR"/*/; do
   while IFS= read -r img; do
     # Skip empty lines
     [[ -z "$img" ]] && continue
-
-    # Replace placeholder tags (do-not-use) with user-provided version
-    if [[ "$img" == *":do-not-use" ]] || [[ "$img" == *":0.0.42" ]]; then
-      img="${img%:*}:${VERSION_OVERRIDE}"
-    fi
 
     canonical_img=$(canonicalize_image_name "$img")
     safe_name=$(echo "$canonical_img" | tr '/:' '-')

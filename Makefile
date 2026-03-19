@@ -567,6 +567,11 @@ charts-serve-all: $(foreach chartName,$(CHARTS_RELEASE),chart-$(chartName))
 .PHONY: charts-release
 charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName))
 
+# Prepare .local/charts to be read by `helmfile`
+.PHONY: .local/charts
+.local/charts: charts-release
+	./hack/bin/prepare-local-charts.sh $(CHARTS_RELEASE)
+
 .PHONY: clean-charts
 clean-charts:
 	rm -rf .local/charts
@@ -708,7 +713,7 @@ upload-bombon: sbom.json
 
 # Generate SBOMs for Helm charts
 .PHONY: sboms-helm
-sboms-helm:
+sboms-helm: .local/charts
 	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
 		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
 		exit 1; \
@@ -722,7 +727,7 @@ sboms-docker-compose:
 
 # Generate SBOMs for Helmfile
 .PHONY: sboms-helmfile
-sboms-helmfile:
+sboms-helmfile: .local/charts
 	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
 		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
 		exit 1; \

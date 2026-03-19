@@ -59,11 +59,6 @@ while IFS= read -r img; do
   # Skip empty lines
   [[ -z "$img" ]] && continue
 
-  # Replace placeholder tags (do-not-use) with user-provided version
-  if [[ "$img" == *":do-not-use" ]] || [[ "$img" == *":0.0.42" ]]; then
-    img="${img%:*}:${VERSION_OVERRIDE}"
-  fi
-
   canonical_img=$(canonicalize_image_name "$img")
   safe_name=$(echo "$canonical_img" | tr '/:' '-')
   filename="$OUTPUT_DIR/sbom-helmfile-${safe_name}.cyclonedx.json"
