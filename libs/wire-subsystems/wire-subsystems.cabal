@@ -250,7 +250,11 @@ library
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.CreateInternal
+    Wire.ConversationSubsystem.Fetch
+    Wire.ConversationSubsystem.Internal
     Wire.ConversationSubsystem.Interpreter
+    Wire.ConversationSubsystem.Notify
     Wire.ConversationSubsystem.One2One
     Wire.ConversationSubsystem.Util
     Wire.CustomBackendStore
