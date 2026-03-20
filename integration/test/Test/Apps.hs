@@ -297,6 +297,21 @@ testRetrieveUsersIncludingApps = do
             ("team", SString),
             ("type", SString)
           ]
+      listResultShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("assets", SArray SAny),
+            ("app", SAny),
+            ("id", SString),
+            ("legalhold_status", SString),
+            ("name", SString),
+            ("picture", SArray SAny),
+            ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("searchable", SBool),
+            ("supported_protocols", SArray SString),
+            ("team", SString),
+            ("type", SString)
+          ]
 
   domain <- make OwnDomain
   (owner, tid, [regular]) <- createTeam domain 2
@@ -346,22 +361,7 @@ testRetrieveUsersIncludingApps = do
   -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
   listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json
-      %. "found.0"
-      `shouldMatchShapeLenient` SObject
-        [ ("accent_id", SNumber),
-          ("assets", SArray SAny),
-          ("id", SString),
-          ("legalhold_status", SString),
-          ("name", SString),
-          ("picture", SArray SAny),
-          ("qualified_id", SObject [("domain", SString), ("id", SString)]),
-          ("searchable", SBool),
-          ("supported_protocols", SArray SString),
-          ("team", SString),
-          ("type", SString)
-          -- TODO: [("user", ...), ("app", ...)] ?
-        ]
+    resp.json %. "found.0" `shouldMatchShapeLenient` listResultShape
 
   -- [`GET /search/contacts`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/search-contacts) (route id: "search-contacts")
   putSelf owner (def {name = Just "name-A1"}) >>= assertSuccess
