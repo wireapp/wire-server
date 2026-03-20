@@ -2189,7 +2189,6 @@ instance ToSchema RefreshAppCookieRequest where
             "password"
             ( S.description
                 ?~ "The password of the authenticated admin for verification. \
-                   \The password is not required for deleting temporary clients, \
                    \or if the user has only SAML credentials."
             )
             (maybeWithDefault A.Null schema)
