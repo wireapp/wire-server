@@ -500,9 +500,10 @@ in
     enableDocs = false;
   };
 
-  devEnv = pkgs.mkShell {
+  devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
-    packages = commonTools ++ [
+    ignoreCollisions = true;
+    paths = commonTools ++ [
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
