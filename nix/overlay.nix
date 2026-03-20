@@ -32,6 +32,8 @@ self: super: {
 
   rabbitmqadmin = super.callPackage ./pkgs/rabbitmqadmin { };
 
+  sbomqs = super.callPackage ./pkgs/sbomqs { };
+
   # Disable hlint in HLS to get around this bug:
   # https://github.com/haskell/haskell-language-server/issues/4674
   haskell = super.haskell // {
