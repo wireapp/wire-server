@@ -1,0 +1,33 @@
+{{- if .Values.federator.enabled }}
+{{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
+     Strips trailing dots from the :authority header on the federator listener
+     before virtual-host matching. Wire federator resolves federation targets
+     via DNS SRV lookups; Kubernetes DNS returns FQDNs with a trailing dot
+     (e.g. "foo.svc.cluster.local."). HTTP/2 passes that dot in :authority,
+     which does not match the listener's hostname (no trailing dot) → route_not_found.
+     strip_trailing_host_dot normalises the header before Envoy's route selection. */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: {{ include "wire-ingress.fullname" . }}-federator-strip-dot
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ include "wire-ingress.getGatewayName" . | quote }}
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.listener.v3.Listener"
+      # The https and federator listeners share port 10443, so Envoy Gateway
+      # merges them into a single xDS listener named after the first section
+      # ("https"). The federator filter chain is at index 1 (https is index 0).
+      name: {{ printf "%s/%s/https" .Release.Namespace (include "wire-ingress.getGatewayName" .) | quote }}
+      operation:
+        op: add
+        path: "/filter_chains/1/filters/0/typed_config/strip_trailing_host_dot"
+        value: true
+{{- end }}
