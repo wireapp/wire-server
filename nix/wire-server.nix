@@ -515,7 +515,6 @@ let
     pkgs.yq
     pkgs.nginz
     pkgs.rabbitmqadmin
-    pkgs.sbomqs
     pkgs.postgresql
 
     pkgs_24_11.cabal-install
