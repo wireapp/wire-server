@@ -35,9 +35,7 @@ spec:
     - name: https
       port: {{ .Values.gateway.listeners.https.port }}
       protocol: HTTPS
-      {{- if .Values.gateway.listeners.https.hostname }}
-      hostname: {{ .Values.gateway.listeners.https.hostname | quote }}
-      {{- end }}
+      hostname: {{ required "gateway.listeners.https.hostname is required (see values.yaml for details)" .Values.gateway.listeners.https.hostname | quote }}
       tls:
         mode: Terminate
         certificateRefs:
