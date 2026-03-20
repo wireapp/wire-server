@@ -711,6 +711,23 @@ upload-bombon: sbom.json
 		--auto-create \
 		--bom-file ./sbom.json
 
+# SBOM creation and uploading (Helm charts, Helmfile, docker-compose)
+#
+# For non-Nix environments (Kubernetes, docker-compose) and Helm charts we can
+# use the usual tools and do not need tom-bombadil.
+#
+# There is a Nix `devShell` which provides an environment for these targets, `sbom`.
+# E.g. to run the `sboms` target:
+# `nix develop .\#sbom --command make sboms HELM_SEMVER=... DOCKER_TAG=...`
+#
+# Why don't we simply add this `nix develop` call to the Makefile targets?
+# Targets should be independently executable and creating a Nix env in a Nix
+# env doesn't play well.
+
+# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+.PHONY: sboms
+sboms: sboms-helm sboms-docker-compose sboms-helmfile
+
 # Generate SBOMs for Helm charts
 .PHONY: sboms-helm
 sboms-helm: .local/charts
@@ -733,10 +750,6 @@ sboms-helmfile: .local/charts
 		exit 1; \
 	fi
 	./hack/bin/create-helmfile-sboms.sh tmp/sboms/helmfile $(HELM_SEMVER)
-
-# Generate all SBOMs (Helm + Docker Compose + Helmfile)
-.PHONY: sboms
-sboms: sboms-helm sboms-docker-compose sboms-helmfile
 
 # Validate all SBOM files using cyclonedx
 .PHONY: validate-sboms
