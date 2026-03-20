@@ -27,6 +27,7 @@ import Text.RawString.QQ
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Permission
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 
 -- Teams --------------------------------------------------------------------
 
@@ -170,6 +171,14 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 updateTeamSplashScreen :: PrepQuery W (Text, TeamId) ()
 updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
+
+selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
+selectSearchVisibility =
+  "select search_visibility from team where team = ?"
+
+updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
+updateSearchVisibility =
+  {- `IF EXISTS`, but that requires benchmarking -} "update team set search_visibility = ? where team = ?"
 
 -- LegalHold whitelist -------------------------------------------------------
 

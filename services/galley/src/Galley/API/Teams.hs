@@ -83,7 +83,6 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
 import Galley.Effects.Queue qualified as E
-import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Effects.TeamNotificationStore (TeamNotificationStore)
 import Galley.Options
@@ -987,7 +986,7 @@ deleteTeamConversation lusr zcon _tid cid = do
 getSearchVisibility ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member SearchVisibilityData.SearchVisibilityStore r,
+    Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1003,7 +1002,7 @@ setSearchVisibility ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member SearchVisibilityData.SearchVisibilityStore r,
+    Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   (TeamId -> Sem r Bool) ->
@@ -1215,17 +1214,17 @@ canUserJoinTeam tid = do
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
-  (Member SearchVisibilityData.SearchVisibilityStore r) =>
+  (Member TeamStore r) =>
   TeamId ->
   Sem r TeamSearchVisibilityView
 getSearchVisibilityInternal =
   fmap TeamSearchVisibilityView
-    . SearchVisibilityData.getSearchVisibility
+    . E.getSearchVisibility
 
 setSearchVisibilityInternal ::
   forall r.
   ( Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member SearchVisibilityData.SearchVisibilityStore r
+    Member TeamStore r
   ) =>
   (TeamId -> Sem r Bool) ->
   TeamId ->
@@ -1234,7 +1233,7 @@ setSearchVisibilityInternal ::
 setSearchVisibilityInternal availableForTeam tid (TeamSearchVisibilityView searchVisibility) = do
   unlessM (availableForTeam tid) $
     throwS @'TeamSearchVisibilityNotEnabled
-  SearchVisibilityData.setSearchVisibility tid searchVisibility
+  E.setSearchVisibility tid searchVisibility
 
 userIsTeamOwner ::
   ( Member (ErrorS 'TeamMemberNotFound) r,

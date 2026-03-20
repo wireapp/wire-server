@@ -45,8 +45,6 @@ import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Effects.SearchVisibilityStore
-import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Effects.TeamMemberStore (TeamMemberStore)
 import Galley.Options
 import Galley.Types.Error (InternalError)
@@ -89,6 +87,7 @@ import Wire.Sem.Random (Random)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamFeatureStore
 import Wire.TeamStore (TeamStore)
+import Wire.TeamStore qualified as SearchVisibilityData
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
@@ -314,7 +313,7 @@ instance SetFeatureConfig SSOConfig where
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
   type
     SetFeatureForTeamConstraints SearchVisibilityAvailableConfig (r :: EffectRow) =
-      ( Member SearchVisibilityStore r,
+      ( Member TeamStore r,
         Member (Input Opts) r
       )
 

@@ -53,7 +53,6 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
-import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Team
   ( interpretInternalTeamListToCassandra,
     interpretTeamListToCassandra,
@@ -62,7 +61,6 @@ import Galley.Cassandra.Team
   )
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects.Queue qualified as GE
-import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
 import Galley.Env
@@ -214,7 +212,6 @@ type GalleyEffects =
      HashPassword,
      Random,
      CustomBackendStore,
-     SearchVisibilityStore,
      TeamStore,
      TeamJournal,
      LegalHoldStore,
@@ -531,7 +528,6 @@ evalGalley e =
         . interpretLegalHoldStoreToCassandra lh
         . interpretTeamJournal (e ^. aEnv)
         . interpretTeamStoreToCassandra
-        . interpretSearchVisibilityStoreToCassandra
         . interpretCustomBackendStoreToCassandra
         . randomToIO
         . runHashPassword e._options._settings._passwordHashingOptions
