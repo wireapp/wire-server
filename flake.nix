@@ -100,7 +100,7 @@
           inherit system;
         };
         bomDependenciesDrv = tom-bombadil.lib.${system}.bomDependenciesDrv;
-        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 pkgs_unstable inputs bomDependenciesDrv; };
+        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 inputs bomDependenciesDrv; };
       in
       {
         # profileEnv wireServer docs docsEnv mls-test-cli nginz;
