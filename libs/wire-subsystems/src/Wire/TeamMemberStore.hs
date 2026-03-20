@@ -1,6 +1,8 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,22 +17,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Store
-  ( embedClient,
+module Wire.TeamMemberStore
+  ( TeamMemberStore (..),
+    listTeamMembers,
   )
 where
 
-import Cassandra
+import Data.Id
 import Imports
 import Polysemy
-import Polysemy.Input
+import Wire.API.Team.Member
+import Wire.Sem.Paging
 
-embedClient ::
-  ( Member (Embed IO) r,
-    Member (Input ClientState) r
-  ) =>
-  Client a ->
-  Sem r a
-embedClient client = do
-  cs <- input
-  embed @IO $ runClient cs client
+data TeamMemberStore p m a where
+  ListTeamMembers ::
+    TeamId ->
+    Maybe (PagingState p TeamMember) ->
+    PagingBounds p TeamMember ->
+    TeamMemberStore p m (Page p TeamMember)
+
+makeSem ''TeamMemberStore

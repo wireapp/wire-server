@@ -317,6 +317,7 @@ library
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.ListItems.Team.Cassandra
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
@@ -373,6 +374,8 @@ library
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamJournal
     Wire.TeamJournal.Aws
+    Wire.TeamMemberStore
+    Wire.TeamMemberStore.Cassandra
     Wire.TeamNotificationStore
     Wire.TeamNotificationStore.Cassandra
     Wire.TeamStore

@@ -53,14 +53,7 @@ import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
 import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
-import Galley.Cassandra.Team
-  ( interpretInternalTeamListToCassandra,
-    interpretTeamListToCassandra,
-    interpretTeamMemberStoreToCassandra,
-    interpretTeamMemberStoreToCassandraWithPaging,
-  )
 import Galley.Effects.Queue qualified as GE
-import Galley.Effects.TeamMemberStore
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
 import Galley.Keys
@@ -138,6 +131,10 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.ListItems (ListItems)
+import Wire.ListItems.Team.Cassandra
+  ( interpretInternalTeamListToCassandra,
+    interpretTeamListToCassandra,
+  )
 import Wire.MeetingsStore (MeetingsStore)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystem (MeetingsSubsystem)
@@ -175,6 +172,11 @@ import Wire.TeamFeatureStore.Migrating
 import Wire.TeamFeatureStore.Postgres
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws
+import Wire.TeamMemberStore (TeamMemberStore)
+import Wire.TeamMemberStore.Cassandra
+  ( interpretTeamMemberStoreToCassandra,
+    interpretTeamMemberStoreToCassandraWithPaging,
+  )
 import Wire.TeamNotificationStore (TeamNotificationStore)
 import Wire.TeamNotificationStore.Cassandra (interpretTeamNotificationStoreToCassandra)
 import Wire.TeamStore (TeamStore)
