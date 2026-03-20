@@ -16,13 +16,13 @@ CHARTS_DIR="$SCRIPT_DIR/../../.local/charts"
 cd "$CHARTS_DIR"
 
 # If arguments provided, process those charts; otherwise process all subdirectories
-if [ $# -gt 0 ]; then
+if [[ $# -gt 0 ]]; then
   charts=("$@")
 else
   # Find all chart directories (those containing Chart.yaml)
   charts=()
   for dir in */; do
-    if [ -f "$dir/Chart.yaml" ]; then
+    if [[ -f "$dir/Chart.yaml" ]]; then
       charts+=("${dir%/}")
     fi
   done
