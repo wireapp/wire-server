@@ -38,7 +38,8 @@ testMultiIngressIdpSimpleCase = do
               "saml.spDomainConfigs"
               ( object
                   [ ernieZHost .= makeSpDomainConfig ernieZHost,
-                    bertZHost .= makeSpDomainConfig bertZHost
+                    bertZHost .= makeSpDomainConfig bertZHost,
+                    kermitZHost .= makeSpDomainConfig kermitZHost
                   ]
               )
       }
@@ -49,7 +50,7 @@ testMultiIngressIdpSimpleCase = do
       -- Create IdP for one domain
       SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
       idpId <-
-        createIdpWithZHost owner (Just ernieZHost) idpmeta `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmeta `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString
@@ -91,7 +92,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
 
       SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId1 <-
-        createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString
@@ -117,7 +118,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
       -- Create unconfigured -> no multi-ingress domain
       SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId2 <-
-        createIdpWithZHost owner (unconfiguredZHost) idpmeta2 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (unconfiguredZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` Null
           resp.json %. "id" >>= asString
@@ -129,7 +130,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
       -- Create a second unconfigured -> no multi-ingress domain
       SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId3 <-
-        createIdpWithZHost owner (unconfiguredZHost) idpmeta3 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (unconfiguredZHost) idpmeta3 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` Null
           resp.json %. "id" >>= asString
@@ -150,7 +151,8 @@ testMultiIngressAtMostOneIdPPerDomain = do
               "saml.spDomainConfigs"
               ( object
                   [ ernieZHost .= makeSpDomainConfig ernieZHost,
-                    bertZHost .= makeSpDomainConfig bertZHost
+                    bertZHost .= makeSpDomainConfig bertZHost,
+                    kermitZHost .= makeSpDomainConfig kermitZHost
                   ]
               )
       }
@@ -160,21 +162,21 @@ testMultiIngressAtMostOneIdPPerDomain = do
 
       SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId1 <-
-        createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "id" >>= asString
 
       -- Creating a second IdP for the same domain -> failure
       SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
       _idpId2 <-
-        createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 409
           resp.json %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
       -- Create an IdP for one domain and update it to another that already has one -> failure
       SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId3 <-
-        createIdpWithZHost owner (Just bertZHost) idpmeta2 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just bertZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "id" >>= asString
 
@@ -186,7 +188,7 @@ testMultiIngressAtMostOneIdPPerDomain = do
       -- Create an IdP with no domain and update it to a domain that already has one -> failure
       SAML.SampleIdP idpmeta4 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId4 <-
-        createIdpWithZHost owner Nothing idpmeta4 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner Nothing idpmeta4 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "id" >>= asString
 
@@ -213,14 +215,14 @@ testMultiIngressAtMostOneIdPPerDomain = do
 
       SAML.SampleIdP idpmeta5 _ _ _ <- SAML.makeSampleIdPMetadata
       idpId5 <-
-        createIdpWithZHost owner (Just ernieZHost) idpmeta5 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmeta5 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString
 
       -- After deletion of the IdP of a domain, one can be moved from another domain
       SAML.SampleIdP idpmeta6 _ _ _ <- SAML.makeSampleIdPMetadata
-      createIdpWithZHost owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
+      createIdpWithZHostV2 owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
@@ -228,7 +230,7 @@ testMultiIngressAtMostOneIdPPerDomain = do
         resp.status `shouldMatchInt` 204
 
       idpId6 <-
-        createIdpWithZHost owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` bertZHost
           resp.json %. "id" >>= asString
@@ -254,14 +256,14 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
   -- With Z-Host header
   SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId1 <-
-    createIdpWithZHost owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
+    createIdpWithZHostV2 owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "extraInfo.domain" `shouldMatch` Null
       resp.json %. "id" >>= asString
 
   SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId2 <-
-    createIdpWithZHost owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
+    createIdpWithZHostV2 owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "extraInfo.domain" `shouldMatch` Null
       resp.json %. "id" >>= asString
@@ -279,14 +281,14 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
   -- Without Z-Host header
   SAML.SampleIdP idpmeta5 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId5 <-
-    createIdpWithZHost owner Nothing idpmeta5 `bindResponse` \resp -> do
+    createIdpWithZHostV2 owner Nothing idpmeta5 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "extraInfo.domain" `shouldMatch` Null
       resp.json %. "id" >>= asString
 
   SAML.SampleIdP idpmeta6 _ _ _ <- SAML.makeSampleIdPMetadata
   idpId6 <-
-    createIdpWithZHost owner Nothing idpmeta6 `bindResponse` \resp -> do
+    createIdpWithZHostV2 owner Nothing idpmeta6 `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "extraInfo.domain" `shouldMatch` Null
       resp.json %. "id" >>= asString
@@ -300,3 +302,117 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
   updateIdpWithZHost owner Nothing idpId6 idpmeta8 `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "extraInfo.domain" `shouldMatch` Null
+
+-- | The `validateNewIdP` rules for IdP creation apply to multi-ingress setups as
+-- well. Depending on the IdP API version, IdP issuers have to be either unique
+-- per backend (V1) or per team (V2).
+--
+-- Note: In multi-ingress setups, one might wonder why the same IdP metadata /
+-- issuer cannot be used for the same team across multiple domains. Supporting
+-- this would require redesigning spar's database schema (e.g., there would be
+-- a race condition on the `spar.issuer_idp_v2` table). Furthermore, IdP
+-- configs are strongly URL-related on IdP-side: issuers correspond to e.g.
+-- Keycloak realms, which have a specific return-URL. Given the limited
+-- practical benefit, this complexity is not justified for now.
+testMultiIngressIdPIssuerDifferentDomains :: (HasCallStack) => App ()
+testMultiIngressIdPIssuerDifferentDomains = do
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost .= makeSpDomainConfig ernieZHost,
+                    bertZHost .= makeSpDomainConfig bertZHost,
+                    kermitZHost .= makeSpDomainConfig kermitZHost
+                  ]
+              )
+      }
+    $ \domain -> do
+      -- V1 API: Issuers must be unique per backend (across all teams)
+      (owner1, tid1, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner1 tid1 "sso" "enabled"
+
+      -- Create first IdP metadata for V1
+      SAML.SampleIdP idpmetaV1 _ _ _ <- SAML.makeSampleIdPMetadata
+      _idpId1 <-
+        createIdpWithZHostV1 owner1 (Just ernieZHost) idpmetaV1 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
+          resp.json %. "id" >>= asString
+
+      -- Try to create V1 IdP on a different team with different metadata but same issuer -> failure
+      -- Test with different domains to show constraint is domain-independent
+      (owner2, tid2, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner2 tid2 "sso" "enabled"
+
+      -- Try with same domain as original -> should fail (V1 global uniqueness)
+      SAML.SampleIdP idpmetaV1_alt _ _ _ <- SAML.makeSampleIdPMetadata
+      let idpmetaV1_alt_sameIssuer = idpmetaV1_alt & SAML.edIssuer .~ (idpmetaV1 ^. SAML.edIssuer)
+
+      createIdpWithZHostV1 owner2 (Just ernieZHost) idpmetaV1_alt_sameIssuer `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "idp-already-in-use"
+
+      -- Try with different domain -> should also fail (V1 global uniqueness)
+      createIdpWithZHostV1 owner2 (Just bertZHost) idpmetaV1_alt_sameIssuer `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "idp-already-in-use"
+
+      -- Try with no domain -> should also fail (V1 global uniqueness)
+      createIdpWithZHostV1 owner2 Nothing idpmetaV1_alt_sameIssuer `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "idp-already-in-use"
+
+      -- Counter-example: V1 IdP with different issuer -> success
+      SAML.SampleIdP idpmetaV1_differentIssuer _ _ _ <- SAML.makeSampleIdPMetadata
+      void
+        $ createIdpWithZHostV1 owner2 (Just ernieZHost) idpmetaV1_differentIssuer
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+
+      -- V2 API: Issuers must be unique per team (but can be reused across teams)
+      -- Use a different issuer than V1 to avoid API version mixing errors
+      (owner3, tid3, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner3 tid3 "sso" "enabled"
+
+      -- Create V2 IdP on team 3 with new issuer
+      SAML.SampleIdP idpmetaV2 _ _ _ <- SAML.makeSampleIdPMetadata
+
+      _idpId3 <-
+        createIdpWithZHostV2 owner3 (Just ernieZHost) idpmetaV2 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
+          resp.json %. "id" >>= asString
+
+      -- Try to create another V2 IdP on same team with different metadata but same issuer -> failure
+      -- First, try with the same domain -> hits domain constraint (409)
+      SAML.SampleIdP idpmetaV2_alt _ _ _ <- SAML.makeSampleIdPMetadata
+      let idpmetaV2_alt_sameIssuer = idpmetaV2_alt & SAML.edIssuer .~ (idpmetaV2 ^. SAML.edIssuer)
+
+      createIdpWithZHostV2 owner3 (Just ernieZHost) idpmetaV2_alt_sameIssuer `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 409
+        resp.json %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
+
+      -- Try with a different domain -> hits issuer constraint (400)
+      createIdpWithZHostV2 owner3 (Just bertZHost) idpmetaV2_alt_sameIssuer `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "idp-already-in-use"
+
+      -- Try with no domain -> hits issuer constraint (400)
+      createIdpWithZHostV2 owner3 Nothing idpmetaV2_alt_sameIssuer `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 400
+        resp.json %. "label" `shouldMatch` "idp-already-in-use"
+
+      -- Counter-example: V2 IdP with same issuer on different team -> success (different team)
+      (owner4, tid4, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner4 tid4 "sso" "enabled"
+
+      void
+        $ createIdpWithZHostV2 owner4 (Just ernieZHost) idpmetaV2_alt_sameIssuer
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 201
+          resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost

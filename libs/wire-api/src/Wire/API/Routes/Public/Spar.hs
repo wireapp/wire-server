@@ -204,7 +204,15 @@ type IdpGetAll = Get '[JSON] IdPList
 
 -- | See also: 'validateNewIdP', 'idpCreate', 'idpCreateXML'.
 type IdpCreate =
-  ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
+  Description
+    "Create a new identity provider.\n\
+    \\n\
+    \The `api_version` parameter controls the uniqueness constraint for IdP issuers:\n\
+    \- `v1`: IdP issuers must be globally unique across the entire backend (all teams)\n\
+    \- `v2` (default): IdP issuers must be unique per team (can be reused across different teams)\n\
+    \\n\
+    \These constraints apply to both, multi-ingress and standard backends."
+    :> ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
     :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion -- see also: 'DeprecateSSOAPIV1'
     -- FUTUREWORK: The handle is restricted to 32 characters. Can we find a more reasonable upper bound and create a type for it? Also see `IdpUpdate`.

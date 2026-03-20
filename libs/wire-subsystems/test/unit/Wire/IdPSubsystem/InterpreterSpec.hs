@@ -32,6 +32,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.State
 import SAML2.WebSSO qualified as SAML
+import SAML2.WebSSO.Types (IdPMetadata (_edIssuer))
 import System.Logger.Message qualified as Log
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -150,6 +151,9 @@ spec = describe "IdPSubsystem.Interpreter" $ do
             ( \otherIdP ->
                 Just dom == otherIdP._idpExtraInfo._domain
                   || idp._idpId == otherIdP._idpId
+                  -- In reality, this constraint is enforced by `validateNewIdP`, called close to the endpoint.
+                  -- Depending on the IdP API version, the issuer must be either unique per backend (V1) or per team (V2)
+                  || idp._idpMetadata._edIssuer == otherIdP._idpMetadata._edIssuer
             )
             otherIdPs
         )
