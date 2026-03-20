@@ -486,9 +486,56 @@ let
 
   localPkgs = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
   bomDependencies = bomDependenciesDrv pkgs localPkgs haskellPackages;
+
+  devEnvPkgs = commonTools ++ [
+    pkgs.bash
+    pkgs.crate2nix
+    pkgs.dash
+    (pkgs.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
+    pkgs.ghcid
+    pkgs.kind
+    pkgs.netcat
+    pkgs.niv
+    pkgs.haskell.packages.ghc912.apply-refact
+    (pkgs.python3.withPackages
+      (ps: with ps; [
+        black
+        bokeh
+        flake8
+        ipdb
+        ipython
+        protobuf
+        pylint
+        pyyaml
+        requests
+        websockets
+      ]))
+    pkgs.rsync
+    pkgs.wget
+    pkgs.yq
+    pkgs.nginz
+    pkgs.rabbitmqadmin
+    pkgs.sbomqs
+    pkgs.postgresql
+
+    pkgs_24_11.cabal-install
+    pkgs.nix-prefetch-git
+    pkgs.haskellPackages.cabal-plan
+    pkgs.lsof
+    pkgs.haskellPackages.headroom
+    profileEnv
+    pkgs_unstable.syft
+    pkgs.cyclonedx-cli
+  ]
+    ++ ghcWithPackages
+    ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+    # linux-only, not strictly required tools
+    pkgs.docker-compose
+    (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
+  ];
 in
 {
-  inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies;
+  inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies devEnvPkgs;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
@@ -503,52 +550,7 @@ in
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
     ignoreCollisions = true;
-    paths = commonTools ++ [
-      pkgs.bash
-      pkgs.crate2nix
-      pkgs.dash
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "910" ]; })
-      pkgs.ghcid
-      pkgs.kind
-      pkgs.netcat
-      pkgs.niv
-      pkgs.haskell.packages.ghc912.apply-refact
-      (pkgs.python3.withPackages
-        (ps: with ps; [
-          black
-          bokeh
-          flake8
-          ipdb
-          ipython
-          protobuf
-          pylint
-          pyyaml
-          requests
-          websockets
-        ]))
-      pkgs.rsync
-      pkgs.wget
-      pkgs.yq
-      pkgs.nginz
-      pkgs.rabbitmqadmin
-      pkgs.sbomqs
-      pkgs.postgresql
-
-      pkgs_24_11.cabal-install
-      pkgs.nix-prefetch-git
-      pkgs.haskellPackages.cabal-plan
-      pkgs.lsof
-      pkgs.haskellPackages.headroom
-      profileEnv
-      pkgs_unstable.syft
-      pkgs.cyclonedx-cli
-    ]
-    ++ ghcWithPackages
-    ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-      # linux-only, not strictly required tools
-      pkgs.docker-compose
-      (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
-    ];
+    paths = devEnvPkgs;
   };
 
   inherit brig-templates;
