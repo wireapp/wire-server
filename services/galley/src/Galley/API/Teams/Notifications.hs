@@ -43,8 +43,6 @@ import Data.Id
 import Data.Json.Util (toJSONObject)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Range (Range)
-import Galley.Data.TeamNotifications qualified as DataTeamQueue
-import Galley.Effects.TeamNotificationStore qualified as E
 import Imports
 import Polysemy
 import Wire.API.Error
@@ -53,6 +51,7 @@ import Wire.API.Event.Team (Event)
 import Wire.API.Internal.Notification
 import Wire.API.User
 import Wire.BrigAPIAccess as Intra
+import Wire.TeamNotificationStore qualified as E
 
 getTeamNotifications ::
   ( Member BrigAPIAccess r,
@@ -68,8 +67,8 @@ getTeamNotifications zusr since size = do
   page <- E.getTeamNotifications tid since size
   pure $
     queuedNotificationList
-      (toList (DataTeamQueue.resultSeq page))
-      (DataTeamQueue.resultHasMore page)
+      (toList (E.resultSeq page))
+      (E.resultHasMore page)
       Nothing
 
 pushTeamEvent :: (Member E.TeamNotificationStore r) => TeamId -> Event -> Sem r ()

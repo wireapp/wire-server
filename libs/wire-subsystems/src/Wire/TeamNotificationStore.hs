@@ -1,8 +1,9 @@
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -23,17 +24,40 @@
 --
 -- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
 -- We should really use a scalable message queue instead.
-module Galley.Data.TeamNotifications (ResultPage (..)) where
+module Wire.TeamNotificationStore
+  ( ResultPage (..),
+    TeamNotificationStore (..),
+    createTeamNotification,
+    getTeamNotifications,
+    mkNotificationId,
+  )
+where
 
+import Data.Aeson qualified as JSON
+import Data.Id
+import Data.List.NonEmpty
+import Data.Range
 import Data.Sequence (Seq)
 import Imports
+import Polysemy
 import Wire.API.Internal.Notification
 
 data ResultPage = ResultPage
-  { -- | A sequence of notifications.
-    resultSeq :: Seq QueuedNotification,
-    -- | Whether there might be more notifications that can be
-    -- obtained through another query, starting the the ID of the
-    -- last notification in 'resultSeq'.
+  { resultSeq :: Seq QueuedNotification,
     resultHasMore :: !Bool
   }
+
+data TeamNotificationStore m a where
+  CreateTeamNotification ::
+    TeamId ->
+    NotificationId ->
+    NonEmpty JSON.Object ->
+    TeamNotificationStore m ()
+  GetTeamNotifications ::
+    TeamId ->
+    Maybe NotificationId ->
+    Range 1 10000 Int32 ->
+    TeamNotificationStore m ResultPage
+  MkNotificationId :: TeamNotificationStore m NotificationId
+
+makeSem ''TeamNotificationStore

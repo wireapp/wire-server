@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2026 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,13 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | See also: "Galley.API.TeamNotifications".
---
--- This module is a clone of "Gundeck.Notification.Data".
---
--- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
--- We should really use a scalable message queue instead.
-module Galley.Cassandra.TeamNotifications
+module Wire.TeamNotificationStore.Cassandra
   ( interpretTeamNotificationStoreToCassandra,
   )
 where
@@ -37,10 +31,6 @@ import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import Data.Sequence qualified as Seq
 import Data.Time (nominalDay, nominalDiffTimeToSeconds)
 import Data.UUID.V1 qualified as UUID
-import Galley.Cassandra.Store
-import Galley.Cassandra.Util
-import Galley.Data.TeamNotifications
-import Galley.Effects.TeamNotificationStore (TeamNotificationStore (..))
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities hiding (Error)
@@ -48,6 +38,8 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog hiding (err)
 import Wire.API.Internal.Notification
+import Wire.TeamNotificationStore (ResultPage (..), TeamNotificationStore (..))
+import Wire.Util (embedClientInput, logEffect)
 
 interpretTeamNotificationStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -59,15 +51,14 @@ interpretTeamNotificationStoreToCassandra ::
 interpretTeamNotificationStoreToCassandra = interpret $ \case
   CreateTeamNotification tid nid objs -> do
     logEffect "TeamNotificationStore.CreateTeamNotification"
-    embedClient $ add tid nid objs
+    embedClientInput $ add tid nid objs
   GetTeamNotifications tid mnid lim -> do
     logEffect "TeamNotificationStore.GetTeamNotifications"
-    embedClient $ fetch tid mnid lim
+    embedClientInput $ fetch tid mnid lim
   MkNotificationId -> do
     logEffect "TeamNotificationStore.MkNotificationId"
     embed mkNotificationId
 
--- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
 mkNotificationId :: IO NotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
@@ -77,7 +68,6 @@ mkNotificationId = do
     fun = const (pure . isNothing)
     err = mkError status500 "internal-error" "unable to generate notification ID"
 
--- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::
   TeamId ->
   NotificationId ->
@@ -94,7 +84,6 @@ add tid nid (Blob . JSON.encode -> payload) =
       \USING TTL ?"
 
 -- |
---
 -- >>> import Data.Time
 -- >>> formatTime defaultTimeLocale "%d days, %H hours, %M minutes, %S seconds" (secondsToNominalDiffTime (fromIntegral notificationTTLSeconds))
 -- "28 days, 0 hours, 0 minutes, 0 seconds"
@@ -113,10 +102,10 @@ fetch tid since (fromRange -> size) = do
   -- or have found size + 1 notifications (not including the 'since').
   let isize = fromIntegral size' :: Int
   (ns, more) <- collect Seq.empty isize page1
-  -- Drop the extra element from the end as well.  Keep the inclusive start
+  -- Drop the extra element from the end as well. Keep the inclusive start
   -- value in the response (if a 'since' was given and found).
   -- This can probably simplified a lot further, but we need to understand
-  -- 'Seq' in order to do that.  If you find a bug, this may be a good
+  -- 'Seq' in order to do that. If you find a bug, this may be a good
   -- place to start looking.
   pure $! case Seq.viewl (trim (isize - 1) ns) of
     EmptyL -> ResultPage Seq.empty False
@@ -136,27 +125,27 @@ fetch tid since (fromRange -> size) = do
        in if not more || num' == 0
             then pure (acc', more || not (null (snd ns)))
             else liftClient (nextPage page) >>= collect acc' num'
+
     trim :: Int -> Seq a -> Seq a
     trim l ns
       | Seq.length ns <= l = ns
       | otherwise = case Seq.viewr ns of
           EmptyR -> ns
           xs :> _ -> xs
+
     cqlStart :: PrepQuery R (Identity TeamId) (TimeUuid, Blob)
     cqlStart =
       "SELECT id, payload \
       \FROM team_notifications \
       \WHERE team = ? \
       \ORDER BY id ASC"
+
     cqlSince :: PrepQuery R (TeamId, TimeUuid) (TimeUuid, Blob)
     cqlSince =
       "SELECT id, payload \
       \FROM team_notifications \
       \WHERE team = ? AND id >= ? \
       \ORDER BY id ASC"
-
--------------------------------------------------------------------------------
--- Conversions
 
 toNotif :: (TimeUuid, Blob) -> [QueuedNotification] -> [QueuedNotification]
 toNotif (i, b) ns =
@@ -165,7 +154,7 @@ toNotif (i, b) ns =
     (\p1 -> queuedNotification notifId p1 : ns)
     ( JSON.decode' (fromBlob b)
     -- FUTUREWORK: this is from the database, so it's slightly more ok to ignore parse
-    -- errors than if it's data provided by a client.  it would still be better to have an
+    -- errors than if it's data provided by a client. it would still be better to have an
     -- error entry in the log file and crash, rather than ignore the error and continue.
     )
   where
