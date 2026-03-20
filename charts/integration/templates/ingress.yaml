@@ -1,0 +1,32 @@
+{{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: integration-federator-{{ $name }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/auth-tls-verify-client: "on"
+    nginx.ingress.kubernetes.io/auth-tls-verify-depth: "{{ $.Values.tls.verify_depth }}"
+    nginx.ingress.kubernetes.io/auth-tls-secret: "{{ or $.Values.tls.caNamespace $.Release.Namespace }}/federator-ca-secret"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header "X-SSL-Certificate" $ssl_client_escaped_cert;
+spec:
+  ingressClassName: "{{ $.Values.ingress.class }}"
+  tls:
+  - hosts:
+      - {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+    secretName: federator-certificate-secret
+  rules:
+    - host: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: integration
+                port:
+                  number: {{ $dynamicBackend.federatorExternalPort }}
+{{- end }}
