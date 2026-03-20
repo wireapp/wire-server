@@ -60,12 +60,14 @@ gateway:
   listeners:
     https:
       port: 443
-      # Optional hostname restriction for the HTTPS listener.
-      # Required when using mergeGateways (shared EnvoyProxy across deployments) to avoid
-      # listener hostname conflicts. Set to a wildcard covering this deployment's domains,
-      # e.g. "*.example.com".
-      # If your domains in config.dns are not under the same subdomain, you need create
-      # a custom Gateway object for your use case, with multiple listeners. See the Gateway API docs.
+      # Required. Hostname restriction for the HTTPS listener.
+      # Must be a wildcard or exact hostname covering this deployment's domains,
+      # e.g. "*.example.com". This prevents OverlappingTLSConfig with the federator
+      # listener (which uses the federation domain on the same port) — without an
+      # explicit hostname both listeners are catch-all and Envoy degrades ALPN to
+      # HTTP/1.1-only.
+      # If your domains in config.dns span multiple subdomains, you need a custom
+      # Gateway object with multiple listeners. See the Gateway API docs.
       hostname: ""
     # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
     # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.

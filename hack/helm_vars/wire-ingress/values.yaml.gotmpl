@@ -27,6 +27,11 @@ gateway:
       # We use 10443 directly so targetPort in federation-test-helper matches the
       # actual container port without needing a separate override.
       port: 10443
+      # Explicit hostname prevents OverlappingTLSConfig with the federator listener
+      # (which uses <namespace>-fed.envoy-gateway-system.svc.cluster.local).
+      # Without this, both listeners are catch-all on the same port and Envoy
+      # forces HTTP/1.1-only ALPN, breaking HTTP/2 federation requests.
+      hostname: "*.{{ .Release.Namespace }}-integration.example.com"
 
 config:
   dns:
