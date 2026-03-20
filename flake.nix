@@ -108,7 +108,9 @@
           inherit (wireServerPkgs) pkgs profileEnv wireServer docs docsEnv mls-test-cli nginz;
         };
         devShells = {
-          default = wireServerPkgs.wireServer.devEnv;
+          default = pkgs.mkShell {
+            packages = wireServerPkgs.wireServer.devEnvPkgs;
+          };
         };
       }
     );
