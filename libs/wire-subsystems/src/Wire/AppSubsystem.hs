@@ -21,6 +21,7 @@ module Wire.AppSubsystem where
 
 import Data.Default
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Data.RetryAfter
 import Imports
@@ -64,6 +65,7 @@ data AppSubsystem m a where
     Local UserId ->
     TeamId ->
     UserId ->
+    Maybe PlainTextPassword6 ->
     AppSubsystem m (Either RetryAfter SomeUserToken)
   DeleteApp ::
     TeamId ->

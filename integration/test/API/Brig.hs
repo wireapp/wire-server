@@ -1266,10 +1266,10 @@ putAppMetadata tid owner appId appMetadata = do
   req <- baseRequest owner Brig Versioned path
   submit "PUT" (req & addJSON appMetadata)
 
-refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
-refreshAppCookie u tid appId = do
+refreshAppCookie :: (MakesValue u) => u -> String -> String -> Maybe Value -> App Response
+refreshAppCookie u tid appId mbBody = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
-  submit "POST" req
+  submit "POST" $ req & maybe id addJSON mbBody
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handle
 checkHandle :: (MakesValue user) => user -> String -> App Response

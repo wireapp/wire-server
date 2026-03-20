@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Common
 import API.Galley
 import Data.Aeson.QQ.Simple
 import SetupHelpers
@@ -145,6 +146,7 @@ testRefreshAppCookie = do
   charlie <- randomUser OwnDomain def
 
   let new = def {name = "flexo"} :: NewApp
+      goodPassword = Just (object ["password" .= defPassword])
 
   (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -152,15 +154,26 @@ testRefreshAppCookie = do
     cookie <- resp.json %. "cookie" & asString
     pure (appId, cookie)
 
-  bindResponse (refreshAppCookie bob tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie bob tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  bindResponse (refreshAppCookie charlie tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie charlie tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  cookie' <- bindResponse (refreshAppCookie alice tid appId) $ \resp -> do
+  forM_
+    [ (Nothing, 415),
+      (Just Null, 400),
+      (Just (object []), 403),
+      (Just (object ["password" .= "this is not a good password"]), 403)
+    ]
+    $ \(badPassword, stat) -> do
+      -- the status codes and error labels differ here, but the
+      -- important thing is that the request fails.
+      refreshAppCookie alice tid appId badPassword >>= assertStatus stat
+
+  cookie' <- bindResponse (refreshAppCookie alice tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "cookie" & asString
 

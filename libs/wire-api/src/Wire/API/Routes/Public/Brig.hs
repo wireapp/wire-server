@@ -2161,5 +2161,6 @@ type AppsAPI =
                :> "apps"
                :> Capture "app" UserId
                :> "cookies"
+               :> ReqBody '[JSON] RefreshAppCookieRequest
                :> Post '[JSON] RefreshAppCookieResponse
            )
