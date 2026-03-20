@@ -486,24 +486,8 @@ let
 
   localPkgs = map (e: (hPkgs localModsEnableAll).${e}) wireServerPackages;
   bomDependencies = bomDependenciesDrv pkgs localPkgs haskellPackages;
-in
-{
-  inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies;
 
-  images = images localModsEnableAll;
-  imagesUnoptimizedNoDocs = images localModsOnlyTests;
-  # Used for production images, ensure that optimizations and tests are always
-  # enabled!
-  imagesNoDocs = images {
-    enableOptimization = true;
-    enableTests = true;
-    enableDocs = false;
-  };
-
-  devEnv = pkgs.buildEnv {
-    name = "wire-server-dev-env";
-    ignoreCollisions = true;
-    paths = commonTools ++ [
+  devEnvPkgs = commonTools ++ [
       pkgs.bash
       pkgs.crate2nix
       pkgs.dash
@@ -549,6 +533,24 @@ in
       pkgs.docker-compose
       (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
     ];
+in
+{
+  inherit ciImage hoogleImage allImages haskellPackages haskellPackagesUnoptimizedNoDocs imagesList bomDependencies devEnvPkgs;
+
+  images = images localModsEnableAll;
+  imagesUnoptimizedNoDocs = images localModsOnlyTests;
+  # Used for production images, ensure that optimizations and tests are always
+  # enabled!
+  imagesNoDocs = images {
+    enableOptimization = true;
+    enableTests = true;
+    enableDocs = false;
+  };
+
+  devEnv = pkgs.buildEnv {
+    name = "wire-server-dev-env";
+    ignoreCollisions = true;
+    paths =  devEnvPkgs;
   };
 
   inherit brig-templates;
