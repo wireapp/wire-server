@@ -1,0 +1,1 @@
+Fix `nix develop` env. It now also can be called outside of the reposity directory.
