@@ -161,6 +161,7 @@ import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
+import Wire.Util
 
 acceptConv ::
   ( Member ConversationStore r,

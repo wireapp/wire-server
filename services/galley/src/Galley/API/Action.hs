@@ -143,6 +143,7 @@ import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
+import Wire.Util
 
 class IsConversationAction (tag :: ConversationActionTag) where
   type HasConversationActionEffects tag (r :: EffectRow) :: Constraint

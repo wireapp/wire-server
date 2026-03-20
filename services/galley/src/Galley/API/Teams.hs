@@ -147,6 +147,7 @@ import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
+import Wire.Util
 
 getTeamH ::
   forall r.

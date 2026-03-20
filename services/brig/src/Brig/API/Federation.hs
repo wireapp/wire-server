@@ -68,6 +68,8 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.AuthenticationSubsystem
 import Wire.ClientStore (ClientStore)
+import Wire.ClientSubsystem (ClientSubsystem)
+import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DeleteQueue
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -91,7 +93,8 @@ federationSitemap ::
     Member UserStore r,
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -289,8 +292,8 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
     isTeamAllowed (Just _) Nothing = False
     isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
 
-getUserClients :: (Member ClientStore r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
-getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
+getUserClients _ (GetUserClients uids) = (lift $ liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientError
 
 getMLSClients :: (Member ClientStore r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do

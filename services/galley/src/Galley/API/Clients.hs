@@ -46,13 +46,13 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore (ConversationStore, getConversation)
 import Wire.ConversationSubsystem qualified as ConvSubsystem
-import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.UserClientIndexStore qualified as E
+import Wire.Util
 
 getClients ::
   (Member ConvSubsystem.ConversationSubsystem r) =>

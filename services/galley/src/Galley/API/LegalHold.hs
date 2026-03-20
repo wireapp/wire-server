@@ -93,6 +93,7 @@ import Wire.TeamMemberStore
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.Util
 
 createSettings ::
   forall r.

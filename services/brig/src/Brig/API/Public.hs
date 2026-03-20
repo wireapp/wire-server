@@ -163,6 +163,8 @@ import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
@@ -415,7 +417,8 @@ servantSitemap ::
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member AppSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -798,42 +801,42 @@ deleteClient ::
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
-listClients :: (Member ClientStore r) => UserId -> (Handler r) [Public.Client]
+listClients :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.Client]
 listClients zusr =
-  lift $ API.lookupLocalClients zusr
+  lift $ liftSem $ lookupLocalClients zusr
 
-getClient :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) (Maybe Public.Client)
-getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
+getClient :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) (Maybe Public.Client)
+getClient zusr clientId = lift $ liftSem $ lookupLocalClient zusr clientId
 
-getUserClientsUnqualified :: (Member ClientStore r) => UserId -> (Handler r) [Public.PubClient]
+getUserClientsUnqualified :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
-  API.lookupPubClients (Qualified uid localdomain) !>> clientError
+  (lift $ liftSem $ ClientSubsystem.lookupPublicClients (Qualified uid localdomain)) !>> clientError
 
-getUserClientsQualified :: (Member ClientStore r) => Qualified UserId -> (Handler r) [Public.PubClient]
-getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
+getUserClientsQualified :: (Member ClientSubsystem r) => Qualified UserId -> (Handler r) [Public.PubClient]
+getUserClientsQualified quid = (lift $ liftSem $ ClientSubsystem.lookupPublicClients quid) !>> clientError
 
-getUserClientUnqualified :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) Public.PubClient
+getUserClientUnqualified :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
-  x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
+  x <- (lift $ liftSem $ lookupPublicClient (Qualified uid localdomain) cid) !>> clientError
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: (Member ClientStore r) => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk :: (Member ClientSubsystem r) => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
-  API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
+  (lift $ liftSem $ ClientSubsystem.lookupPublicClientsBulk (fromRange limitedUids)) !>> clientError
 
-listClientsBulkV2 :: (Member ClientStore r) => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: (Member ClientSubsystem r) => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: (Member ClientStore r) => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
+getUserClientQualified :: (Member ClientSubsystem r) => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientQualified quid cid = do
-  x <- API.lookupPubClient quid cid !>> clientError
+  x <- (lift $ liftSem $ ClientSubsystem.lookupPublicClient quid cid) !>> clientError
   ifNothing (notFound "client not found") x
 
-getClientCapabilities :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
+getClientCapabilities :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
-  mclient <- lift (API.lookupLocalClient uid cid)
+  mclient <- lift $ liftSem $ lookupLocalClient uid cid
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
 getRichInfo ::

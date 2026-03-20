@@ -109,6 +109,7 @@ import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserList (UserList (UserList))
+import Wire.Util
 
 onClientRemoved ::
   ( Member BackendNotificationQueueAccess r,

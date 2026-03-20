@@ -25,12 +25,6 @@ module Brig.API.Client
     pubClient,
     legalHoldClientRequested,
     removeLegalHoldClient,
-    lookupLocalClient,
-    lookupLocalClients,
-    lookupPubClient,
-    lookupPubClients,
-    lookupPubClientsBulk,
-    lookupLocalPubClientsBulk,
     createAccessToken,
 
     -- * Prekeys
@@ -55,7 +49,6 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
-import Brig.Federation.Client (getUserClients)
 import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra (guardLegalhold)
 import Brig.IO.Intra qualified as Intra
@@ -86,7 +79,6 @@ import Polysemy
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
-import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
@@ -100,7 +92,6 @@ import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
-import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
@@ -118,49 +109,6 @@ import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-lookupLocalClient :: (Member ClientStore r) => UserId -> ClientId -> AppT r (Maybe Client)
-lookupLocalClient uid = liftSem . ClientStore.lookupClient uid
-
-lookupLocalClients :: (Member ClientStore r) => UserId -> AppT r [Client]
-lookupLocalClients = liftSem . ClientStore.lookupClients
-
-lookupPubClient :: (Member ClientStore r) => Qualified UserId -> ClientId -> ExceptT ClientError (AppT r) (Maybe PubClient)
-lookupPubClient qid cid = do
-  clients <- lookupPubClients qid
-  pure $ find ((== cid) . pubClientId) clients
-
-lookupPubClients :: (Member ClientStore r) => Qualified UserId -> ExceptT ClientError (AppT r) [PubClient]
-lookupPubClients qid@(Qualified uid domain) = do
-  getForUser <$> lookupPubClientsBulk [qid]
-  where
-    getForUser :: QualifiedUserMap (Set PubClient) -> [PubClient]
-    getForUser qmap = fromMaybe [] $ do
-      um <- userMap <$> Map.lookup domain (qualifiedUserMap qmap)
-      Set.toList <$> Map.lookup uid um
-
-lookupPubClientsBulk :: (Member ClientStore r) => [Qualified UserId] -> ExceptT ClientError (AppT r) (QualifiedUserMap (Set PubClient))
-lookupPubClientsBulk qualifiedUids = do
-  loc <- qualifyLocal ()
-  let (localUsers, remoteUsers) = partitionQualified loc qualifiedUids
-  remoteUserClientMap <- lift $ getRemoteClients $ indexQualified (fmap tUntagged remoteUsers)
-  localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
-  pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
-  where
-    getRemoteClients :: Map Domain [UserId] -> AppT r (Map Domain (UserMap (Set PubClient)))
-    getRemoteClients uids = do
-      results <-
-        traverse
-          (\(d, ids) -> mapLeft (const d) . fmap (d,) <$> runExceptT (getUserClients d (GetUserClients ids)))
-          (Map.toList uids)
-      forM_ (lefts results) $ \d ->
-        Log.warn $
-          field "remote_domain" (domainText d)
-            ~~ msg (val "Failed to fetch clients for domain")
-      pure $ Map.fromList (rights results)
-
-lookupLocalPubClientsBulk :: (Member ClientStore r) => [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
-lookupLocalPubClientsBulk = lift . liftSem . ClientStore.lookupPubClientsBulk
 
 addClient ::
   ( Member GalleyAPIAccess r,
