@@ -1,21 +1,15 @@
 {{- if (and .Values.federator.enabled .Values.federator.integrationTestHelper) }}
-# Envoy Gateway runs proxy pods in its own namespace (envoy-gateway-system), not in the release
-# namespace. Kubernetes Services cannot select pods across namespaces, so we need two resources:
-#
-# 1. A ClusterIP Service in envoy-gateway-system that selects our proxy pods by their
-#    owning-gateway labels (set by Envoy Gateway on all proxy pods it manages).
-#
-# 2. An ExternalName Service named federation-test-helper in the release namespace.
-#    This creates the SRV record that Wire federation discovery expects:
-#    _wire-server-federator._tcp.federation-test-helper.<namespace>.svc.cluster.local
+# Envoy Gateway runs proxy pods in envoy-gateway-system, not in the release namespace.
+# Kubernetes Services cannot select pods across namespaces, so we create a ClusterIP
+# Service in envoy-gateway-system that selects the proxy pods by their owning-gateway
+# labels (set by Envoy Gateway). This service becomes the SRV target for Wire federation
+# discovery:
+#   _wire-server-federator._tcp.<namespace>-fed.envoy-gateway-system.svc.cluster.local
 #
 # targetPort must match the port the Envoy proxy pod actually listens on.
 # When gateway.listeners.https.port is privileged (<1024), Envoy Gateway remaps it
 # by adding 10000 on the container (e.g. 443→10443). Set gateway.listeners.https.port
 # to the actual container port in your values (e.g. 10443) to avoid this.
-# To find the real port: kubectl -n envoy-gateway-system get svc \
-#   -l gateway.envoyproxy.io/owning-gateway-namespace=<namespace> \
-#   -o jsonpath='{.items[0].spec.ports[?(@.name=="https-443")].targetPort}'
 {{- $httpsPort := int .Values.gateway.listeners.https.port }}
 {{- if lt $httpsPort 1024 }}
 {{- fail (printf "federation-test-helper: gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
@@ -35,17 +29,4 @@ spec:
   selector:
     gateway.envoyproxy.io/owning-gateway-name: {{ include "wire-ingress.getGatewayName" . }}
     gateway.envoyproxy.io/owning-gateway-namespace: {{ .Release.Namespace }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: federation-test-helper
-  namespace: {{ .Release.Namespace }}
-spec:
-  type: ExternalName
-  externalName: {{ .Release.Namespace }}-fed.envoy-gateway-system.svc.cluster.local
-  ports:
-  - name: wire-server-federator
-    port: 443
-    protocol: TCP
 {{- end }}

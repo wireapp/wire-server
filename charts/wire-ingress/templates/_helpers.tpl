@@ -73,11 +73,3 @@ Name of the Gateway resource. Uses gateway.name if set, otherwise derives one fr
 {{ include "wire-ingress.fullname" . }}-gateway
 {{- end -}}
 {{- end -}}
-
-{{/*
-Whether to use new-style app.kubernetes.io labels for the federation-test-helper.
-Kubernetes >= 1.23 uses app.kubernetes.io/*, older versions use app/component labels.
-*/}}
-{{- define "wire-ingress.integrationTestHelperNewLabels" -}}
-  {{- (semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version) -}}
-{{- end -}}

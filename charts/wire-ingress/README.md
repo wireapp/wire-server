@@ -42,7 +42,6 @@ Operators should be able to reuse most of their existing values files with minim
 | `config.isAdditionalIngress` | Multi-ingress out of scope |
 | `config.renderCSPInIngress` | Multi-ingress out of scope |
 | `config.dns.base` | Only used for CSP header rendering, which is a multi-ingress feature |
-| `kubeVersionOverride` | Deprecated; the federation-test-helper label selector no longer needs a version override |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
 | `tls.enabled` | This is removed since it didn't have any effect. All ingresses are always defined with TLS. |
 | `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
@@ -466,36 +465,19 @@ header via an inline Lua filter, matching nginx's `$ssl_client_escaped_cert` beh
 
 Template: `templates/federation-test-helper.yaml`
 
-A ClusterIP service targeting the ingress controller pod, used for SRV-based discovery in
-integration tests. Uses `app.kubernetes.io/` labels on Kubernetes >= 1.23, legacy labels
-otherwise.
+A ClusterIP Service in `envoy-gateway-system` that selects the Envoy proxy pods for this
+Gateway (using `gateway.envoyproxy.io/owning-gateway-*` labels). Because Envoy Gateway runs
+proxy pods in its own namespace, a cross-namespace Service is needed to expose them for
+DNS-based federation discovery.
+
+The service is named `<namespace>-fed` and lives in `envoy-gateway-system`, so the SRV record
+that Wire federation discovery resolves is:
+
+```
+_wire-server-federator._tcp.<namespace>-fed.envoy-gateway-system.svc.cluster.local
+```
 
 - [x] Done
-- [x] delete the unused Ingress from the "integration" chart
-
-Notes:
-
-This helper ties into the integration test setup.
-Here's how the integration tests are set up with nginx-ingress-service. My goal is to make integration tests pass
-when we deploy wire-ingress instead in place of nginx-ingress-servicess.
-
-The integration test are deployed via helmfile hack/helmfile.yaml.gotmpl
-
-The cluster in which the integration tests run has ClusterIssuer named "federation" that will sign any certs.
-
-From /home/stefan/repos/wire-server/hack/helm_vars/wire-server/values.yaml.gotmpl
-```
-federator:
-  tls:
-    useCertManager: true
-    useSharedFederatorSecret: true
-```
-we can see that the federator will assume that the cert used for both client and server auth is externally provide at secret "federator-certificate-secret"
-
-In the integration test setup 2 domains federationDomain1 and federationDomain2 are configured with a namespace .
-The federator will use the "federation" ClusterIssuer to obtain a cert.
-
-Wire uses a SRV records to look up the federator domain of a domain. This is what federation-test-helper is used for. The SRV record on the service targets the ingress deployment pods which are ingressing the federator.
 
 ---
 
