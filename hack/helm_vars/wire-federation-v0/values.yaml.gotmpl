@@ -324,6 +324,7 @@ background-worker:
         ipv6CidrBlock: 64 # Block /64 range at a time.
         ipAddressExceptions:
         - 127.0.0.1/8
+        maxRateLimitedKeys: 100000
       checkGroupInfo: false
   secrets:
     rabbitmq:
