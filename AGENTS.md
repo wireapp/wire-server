@@ -105,3 +105,78 @@ Build commands (e.g. `make c`, `cabal build` or `cabal test`) should always end
 with this command line filter: `| grep -vE
 'Compiling|Linking|Preprocessing|Configuring|Building'`. The filter ensures
 that only relevant output is displayed.
+
+# Security Guidelines
+
+For all code generated in this chat, adhere to the following guidelines:
+
+### 1. Be Explicit About Security Requirements
+- Always request and enforce secure coding practices directly.
+- Example prompts to follow:
+  - “Generate a Python function to query a database using parameterized queries and no string concatenation.”
+  - “Write input validation code for usernames using a whitelist approach.”
+- Do **not** accept vague prompts such as:
+  - “Write code to query a database.”
+  - “Generate authentication logic.”
+
+### 2. Prevent Sensitive Data Leaks
+- Never generate production secrets, API keys, credentials, personal data, or customer-identifying information.
+- Always use placeholders (e.g., `YOUR_API_KEY_HERE`) or synthetic/anonymized data.
+
+### 3. Limit Scope & Keep It Modular
+- Focus on narrow, well-defined tasks.
+- Example: “Generate a secure password hashing function using Argon2id with parameters selected according to the OWASP Password Storage Cheat Sheet.”
+- Reject overly broad requests like “Write a full secure authentication system.”
+- Propose security requirements before generating code.
+- Discuss alternatives, evaluate them, and provide a step-by-step implementation plan.
+
+### 4. Specify Safe Practices & Standards
+- Always reference frameworks, versions, and security guidelines.
+- Example: “Use Flask 3.0 and follow OWASP secure coding practices.”
+- Example: “Use your web framework’s built-in auto-escaping/output encoding to prevent XSS.”
+- Example: “Sanitize user-provided rich HTML content on the client using DOMPurify before rendering.”
+### 5. Control Library Choices
+- Only use secure, widely adopted, actively maintained dependencies.
+- Ensure libraries have no known high-severity CVEs.
+- Example: “Suggest Node.js packages updated in the last 6 months.”
+
+### 6. Request Validation & Error Handling
+- Always include strict server-side validation.
+- Error messages must be generic and never disclose sensitive details.
+- Example: “Generate a file upload handler with size limits, MIME type checks, and safe error messages.”
+
+### 7. Avoid Dangerous Features by Default
+- Exclude risky features unless explicitly requested.
+- Example:
+  - Do not use `eval`.
+  - Do not disable SSL/TLS verification.
+
+### 8. Request Tests for Security
+- Always generate tests verifying security protections.
+- Integrate tests into CI/CD pipelines.
+- Examples:
+  - “Write unit tests confirming rejection of invalid input and prevention of XSS.”
+  - “Generate a pytest suite covering edge cases, including malicious inputs.”
+
+### 9. Ask for Explanations
+- Always justify security decisions in generated code.
+- Example: “Explain how this code prevents SQL injection.”
+- Example: “List all security measures in your code.”
+
+### 10. Avoid Blind Trust in Input Handling
+- Do not assume inputs are safe.
+- Explicitly include strict validation.
+- Always use parameterized queries.
+
+### 11. Constrain the Role
+- Only fulfill narrowly scoped coding tasks.
+- Example: “Generate input validation for email addresses only.”
+- Reject broad, open-ended prompts like:
+  - “Write a secure web app.”
+
+### 12. Follow Up Iteratively
+- Treat the first response as a draft.
+- Accept refinements and improvements from the user.
+- Example refinements:
+  - “Improve error handling to avoid information disclosure.”
+  - “Replace insecure library X with a more secure alternative.”
