@@ -55,8 +55,8 @@ import Testlib.ResourcePool
 import UnliftIO hiding (handle)
 
 testConsumeEventsOneWebSocket :: (HasCallStack) => App ()
-testConsumeEventsOneWebSocket = do
-  alice <- randomUser OwnDomain def
+testConsumeEventsOneWebSocket = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
 
   lastNotifResp <-
     retrying
@@ -95,11 +95,13 @@ testConsumeEventsOneWebSocket = do
 
 testWebSocketTimeout :: (HasCallStack) => App ()
 testWebSocketTimeout = withModifiedBackend
-  def
-    { cannonCfg =
-        setField "wsOpts.activityTimeout" (1000000 :: Int)
-          >=> setField "wsOpts.pongTimeout" (1000000 :: Int)
-    }
+  ( enableConsumableNotifications
+      def
+        { cannonCfg =
+            setField "wsOpts.activityTimeout" (1000000 :: Int)
+              >=> setField "wsOpts.pongTimeout" (1000000 :: Int)
+        }
+  )
   $ \domain -> do
     alice <- randomUser domain def
     client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
@@ -118,8 +120,8 @@ testWebSocketTimeout = withModifiedBackend
         $ assertFailure "Expected web socket timeout"
 
 testConsumeTempEvents :: (HasCallStack) => App ()
-testConsumeTempEvents = do
-  alice <- randomUser OwnDomain def
+testConsumeTempEvents = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
 
   client0 <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId0 <- objId client0
@@ -160,7 +162,7 @@ testConsumeTempEvents = do
 
 testTemporaryQueuesAreDeletedAfterUse :: (HasCallStack) => App ()
 testTemporaryQueuesAreDeletedAfterUse = do
-  startDynamicBackendsReturnResources [def] $ \[beResource] -> do
+  startDynamicBackendsReturnResources [enableConsumableNotifications def] $ \[beResource] -> do
     let domain = beResource.berDomain
     rabbitmqAdmin <- mkRabbitMqAdminClientForResource beResource
     [alice, bob] <- createAndConnectUsers [domain, domain]
@@ -204,8 +206,8 @@ testTemporaryQueuesAreDeletedAfterUse = do
       queuesAfterWS.items `shouldMatchSet` [deadNotifsQueue, cellsEventsQueue, aliceClientQueue, backgroundJobsQueue]
 
 testSendMessageNoReturnToSenderWithConsumableNotificationsProteus :: (HasCallStack) => App ()
-testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
-  (alice, tid, bob : _) <- createTeam OwnDomain 2
+testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, tid, bob : _) <- createTeam domain 2
   aliceOldClient <- addClient alice def >>= getJSON 201
   aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   aliceClientId <- objId aliceClient
@@ -237,8 +239,8 @@ testSendMessageNoReturnToSenderWithConsumableNotificationsProteus = do
     assertNoEvent_ ws
 
 testEventsForSpecificClients :: (HasCallStack) => App ()
-testEventsForSpecificClients = do
-  alice <- randomUser OwnDomain def
+testEventsForSpecificClients = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
   uid <- objId alice
   client1 <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   cid1 <- objId client1
@@ -262,7 +264,7 @@ testEventsForSpecificClients = do
                 "payload" .= [object ["hello" .= "client2"]]
               ]
 
-      GundeckInternal.postPush OwnDomain [eventForClient1, eventForClient2] >>= assertSuccess
+      GundeckInternal.postPush domain [eventForClient1, eventForClient2] >>= assertSuccess
       assertEvent ws1 $ \e ->
         e %. "data.event.payload.0.hello" `shouldMatch` "client1"
 
@@ -273,9 +275,9 @@ testEventsForSpecificClients = do
         $ assertNoEvent_ wsTemp
 
 testConsumeEventsForDifferentUsers :: (HasCallStack) => App ()
-testConsumeEventsForDifferentUsers = do
-  alice <- randomUser OwnDomain def
-  bob <- randomUser OwnDomain def
+testConsumeEventsForDifferentUsers = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
+  bob <- randomUser domain def
 
   aliceClient <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   aliceClientId <- objId aliceClient
@@ -299,8 +301,8 @@ testConsumeEventsForDifferentUsers = do
       sendAck ws deliveryTag False
 
 testConsumeEventsWhileHavingLegacyClients :: (HasCallStack) => App ()
-testConsumeEventsWhileHavingLegacyClients = do
-  alice <- randomUser OwnDomain def
+testConsumeEventsWhileHavingLegacyClients = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
 
   -- Even if alice has no clients, the notifications should still be persisted
   -- in Cassandra. This choice is kinda arbitrary as these notifications
@@ -333,8 +335,8 @@ testConsumeEventsWhileHavingLegacyClients = do
     resp.json %. "notifications.1.payload.0.type" `shouldMatch` "user.client-add"
 
 testConsumeEventsAcks :: (HasCallStack) => App ()
-testConsumeEventsAcks = do
-  alice <- randomUser OwnDomain def
+testConsumeEventsAcks = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
@@ -355,8 +357,8 @@ testConsumeEventsAcks = do
     assertNoEvent_ ws
 
 testConsumeEventsMultipleAcks :: (HasCallStack) => App ()
-testConsumeEventsMultipleAcks = do
-  alice <- randomUser OwnDomain def
+testConsumeEventsMultipleAcks = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
@@ -379,8 +381,8 @@ testConsumeEventsMultipleAcks = do
     assertNoEvent_ ws
 
 testConsumeEventsAckNewEventWithoutAckingOldOne :: (HasCallStack) => App ()
-testConsumeEventsAckNewEventWithoutAckingOldOne = do
-  alice <- randomUser OwnDomain def
+testConsumeEventsAckNewEventWithoutAckingOldOne = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
   client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
   clientId <- objId client
 
@@ -415,7 +417,7 @@ testConsumeEventsAckNewEventWithoutAckingOldOne = do
 testEventsDeadLettered :: (HasCallStack) => App ()
 testEventsDeadLettered = do
   let notifTTL = 1 # Second
-  withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
+  withModifiedBackend (enableConsumableNotifications (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)})) $ \domain -> do
     alice <- randomUser domain def
 
     -- This generates an event
@@ -449,7 +451,7 @@ testEventsDeadLettered = do
 testEventsDeadLetteredWithReconnect :: (HasCallStack) => App ()
 testEventsDeadLetteredWithReconnect = do
   let notifTTL = 1 # Second
-  startDynamicBackendsReturnResources [def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}] $ \[resources] -> do
+  startDynamicBackendsReturnResources [enableConsumableNotifications (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)})] $ \[resources] -> do
     let domain :: String = resources.berDomain
     alice <- randomUser domain def
 
@@ -501,7 +503,7 @@ testEventsDeadLetteredWithReconnect = do
 testTransientEventsDoNotTriggerDeadLetters :: (HasCallStack) => App ()
 testTransientEventsDoNotTriggerDeadLetters = do
   let notifTTL = 1 # Second
-  withModifiedBackend (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)}) $ \domain -> do
+  withModifiedBackend (enableConsumableNotifications (def {gundeckCfg = setField "settings.notificationTTL" (notifTTL #> Second)})) $ \domain -> do
     alice <- randomUser domain def
     -- Creates a non-transient event
     client <- addClient alice def {acapabilities = Just ["consumable-notifications"]} >>= getJSON 201
@@ -527,9 +529,9 @@ testTransientEventsDoNotTriggerDeadLetters = do
       assertNoEvent_ ws
 
 testTransientEvents :: (HasCallStack) => App ()
-testTransientEvents = do
-  (alice, _, _) <- mkUserPlusClient
-  (bob, _, bobClient) <- mkUserPlusClient
+testTransientEvents = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, _, _) <- mkUserPlusClientWithDomain domain
+  (bob, _, bobClient) <- mkUserPlusClientWithDomain domain
   connectTwoUsers alice bob
   bobClientId <- objId bobClient
 
@@ -567,11 +569,13 @@ testTransientEvents = do
 
 testChannelLimit :: (HasCallStack) => App ()
 testChannelLimit = withModifiedBackend
-  ( def
-      { cannonCfg =
-          setField "rabbitMqMaxChannels" (2 :: Int)
-            >=> setField "rabbitMqMaxConnections" (1 :: Int)
-      }
+  ( enableConsumableNotifications
+      ( def
+          { cannonCfg =
+              setField "rabbitMqMaxChannels" (2 :: Int)
+                >=> setField "rabbitMqMaxConnections" (1 :: Int)
+          }
+      )
   )
   $ \domain -> do
     alice <- randomUser domain def
@@ -609,7 +613,7 @@ testChannelKilled = do
     void $ killAllRabbitMqConns backend
     waitUntilNoRabbitMqConns backend
 
-    runCodensity (startDynamicBackend backend def) $ \_ -> do
+    runCodensity (startDynamicBackend backend (enableConsumableNotifications def)) $ \_ -> do
       let domain = backend.berDomain
       alice <- randomUser domain def
       [c1, c2] <-
@@ -643,8 +647,8 @@ testChannelKilled = do
         assertNoEventHelper ws `shouldMatch` WebSocketDied
 
 testSingleConsumer :: (HasCallStack) => App ()
-testSingleConsumer = do
-  alice <- randomUser OwnDomain def
+testSingleConsumer = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  alice <- randomUser domain def
   clientId <-
     addClient alice def {acapabilities = Just ["consumable-notifications"]}
       >>= getJSON 201
@@ -682,8 +686,8 @@ testSingleConsumer = do
     lift $ assertNoEvent_ ws'
 
 testPrefetchCount :: (HasCallStack) => App ()
-testPrefetchCount = do
-  (alice, uid, cid) <- mkUserPlusClient
+testPrefetchCount = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, uid, cid) <- mkUserPlusClientWithDomain domain
   emptyQueue alice cid
 
   for_ [1 :: Int .. 550] $ \i ->
@@ -693,7 +697,7 @@ testPrefetchCount = do
               [ "recipients" .= [object ["user_id" .= uid, "clients" .= [cid], "route" .= "any"]],
                 "payload" .= [object ["no" .= show i]]
               ]
-      GundeckInternal.postPush OwnDomain [event] >>= assertSuccess
+      GundeckInternal.postPush domain [event] >>= assertSuccess
   runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
     es <- consumeAllEventsNoAck ws
     assertBool ("First 500 events expected, got " ++ show (length es)) $ length es == 500
@@ -704,11 +708,11 @@ testPrefetchCount = do
     assertBool "Receive at least one outstanding event" $ not (null es')
 
 testEndOfInitialSync :: (HasCallStack) => App ()
-testEndOfInitialSync = do
-  (alice, uid, cid) <- mkUserPlusClient
+testEndOfInitialSync = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, uid, cid) <- mkUserPlusClientWithDomain domain
   let n = 20
   replicateM_ n $ do
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
 
   -- marker0 <- randomId
   runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
@@ -719,7 +723,7 @@ testEndOfInitialSync = do
     length (preExistingEvents <> otherEvents) `shouldMatchInt` (n + 2)
 
     -- more events should not be followed by the sync event
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "test"
       ackEvent ws e
@@ -734,18 +738,18 @@ testEndOfInitialSync = do
     length events `shouldMatchInt` 1
 
     -- more events should not be followed by synchronization event
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
     assertEvent ws $ \e -> do
       e %. "data.event.payload.0.type" `shouldMatch` "test"
       ackEvent ws e
     assertNoEvent_ ws
 
 testEndOfInitialSyncMoreEventsAfterSyncMessage :: (HasCallStack) => App ()
-testEndOfInitialSyncMoreEventsAfterSyncMessage = do
-  (alice, uid, cid) <- mkUserPlusClient
+testEndOfInitialSyncMoreEventsAfterSyncMessage = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, uid, cid) <- mkUserPlusClientWithDomain domain
   let n = 20
   replicateM_ n $ do
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
 
   runCodensity (createEventsWebSocketWithSync alice (Just cid)) \(endMarker, ws) -> do
     -- it seems this is needed to reduce flakiness,
@@ -754,7 +758,7 @@ testEndOfInitialSyncMoreEventsAfterSyncMessage = do
 
     -- before consuming, we push n more events
     replicateM_ n $ do
-      GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+      GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
 
     preExistingEvents <- consumeEventsUntilEndOfInitialSync ws endMarker
     otherEvents <- consumeAllEvents ws
@@ -765,14 +769,14 @@ testEndOfInitialSyncMoreEventsAfterSyncMessage = do
       `shouldMatch` True
 
 testEndOfInitialSyncIgnoreExpired :: (HasCallStack) => App ()
-testEndOfInitialSyncIgnoreExpired = do
-  (alice, uid, cid) <- mkUserPlusClient
+testEndOfInitialSyncIgnoreExpired = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, uid, cid) <- mkUserPlusClientWithDomain domain
   let n = 20
   replicateM_ n $ do
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
 
   replicateM_ n $ do
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid True] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid True] >>= assertSuccess
 
   -- Wait for transient events to expire
   Timeout.threadDelay (1 # Second)
@@ -784,11 +788,11 @@ testEndOfInitialSyncIgnoreExpired = do
     length events `shouldMatchInt` (n + 2) -- +1 for the sync event, +1 for the client add event
 
 testEndOfInitialSyncAckMultiple :: (HasCallStack) => App ()
-testEndOfInitialSyncAckMultiple = do
-  (alice, uid, cid) <- mkUserPlusClient
+testEndOfInitialSyncAckMultiple = withModifiedBackend (enableConsumableNotifications def) $ \domain -> do
+  (alice, uid, cid) <- mkUserPlusClientWithDomain domain
   let n = 20
   replicateM_ n $ do
-    GundeckInternal.postPush OwnDomain [mkEvent uid cid False] >>= assertSuccess
+    GundeckInternal.postPush domain [mkEvent uid cid False] >>= assertSuccess
 
   runCodensity (createEventsWebSocketWithSync alice (Just cid)) $ \(endMarker, ws) -> do
     void $ assertEvent ws pure
@@ -812,43 +816,51 @@ mkEvent uid cid transient =
 
 testTypingIndicatorIsNotSentToOwnClient :: (HasCallStack) => TaggedBool "federated" -> App ()
 testTypingIndicatorIsNotSentToOwnClient (TaggedBool federated) = do
-  (alice, _, aliceClient) <- mkUserPlusClientWithDomain OwnDomain
-  (bob, _, bobClient) <- mkUserPlusClientWithDomain (if federated then OtherDomain else OwnDomain)
-  connectTwoUsers alice bob
-  aliceClientId <- objId aliceClient
-  bobClientId <- objId bobClient
-  conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
+  let runTest =
+        if federated
+          then startDynamicBackends [(enableConsumableNotifications def), (enableConsumableNotifications def)]
+          else \run -> startDynamicBackends [(enableConsumableNotifications def)] $ \[domain] -> run [domain, domain]
+  runTest $ \[domain, otherDomain] -> do
+    (alice, _, aliceClient) <- mkUserPlusClientWithDomain domain
+    (bob, _, bobClient) <- mkUserPlusClientWithDomain otherDomain
+    connectTwoUsers alice bob
+    aliceClientId <- objId aliceClient
+    bobClientId <- objId bobClient
+    conv <- postConversation alice defProteus {qualifiedUsers = [bob]} >>= getJSON 201
 
-  runCodensity (createEventWebSockets [(alice, Just aliceClientId), (bob, Just bobClientId)]) $ \[aliceWs, bobWs] -> do
-    -- consume all events to ensure we start with a clean slate
-    consumeAllEvents_ aliceWs
-    consumeAllEvents_ bobWs
+    runCodensity (createEventWebSockets [(alice, Just aliceClientId), (bob, Just bobClientId)]) $ \[aliceWs, bobWs] -> do
+      -- consume all events to ensure we start with a clean slate
+      consumeAllEvents_ aliceWs
+      consumeAllEvents_ bobWs
 
-    -- Alice is typing
-    sendTypingStatus alice conv "started" >>= assertSuccess
+      -- Alice is typing
+      sendTypingStatus alice conv "started" >>= assertSuccess
 
-    -- Bob should receive the typing indicator for Alice
-    assertEvent bobWs $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
-      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
-      e %. "data.event.payload.0.qualified_from" `shouldMatch` (alice %. "qualified_id")
-      ackEvent bobWs e
+      -- Bob should receive the typing indicator for Alice
+      assertEvent bobWs $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+        e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+        e %. "data.event.payload.0.qualified_from" `shouldMatch` (alice %. "qualified_id")
+        ackEvent bobWs e
 
-    -- Alice should not receive the typing indicator for herself
-    assertNoEvent_ aliceWs
+      -- Alice should not receive the typing indicator for herself
+      assertNoEvent_ aliceWs
 
-    -- Bob is typing
-    sendTypingStatus bob conv "started" >>= assertSuccess
+      -- Bob is typing
+      sendTypingStatus bob conv "started" >>= assertSuccess
 
-    -- Alice should receive the typing indicator for Bob
-    assertEvent aliceWs $ \e -> do
-      e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
-      e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
-      e %. "data.event.payload.0.qualified_from" `shouldMatch` (bob %. "qualified_id")
-      ackEvent aliceWs e
+      -- Alice should receive the typing indicator for Bob
+      assertEvent aliceWs $ \e -> do
+        e %. "data.event.payload.0.type" `shouldMatch` "conversation.typing"
+        e %. "data.event.payload.0.qualified_conversation" `shouldMatch` (conv %. "qualified_id")
+        e %. "data.event.payload.0.qualified_from" `shouldMatch` (bob %. "qualified_id")
+        ackEvent aliceWs e
 
-    -- Bob should not receive the typing indicator for himself
-    assertNoEvent_ bobWs
+      -- Bob should not receive the typing indicator for himself
+      assertNoEvent_ bobWs
+
+-- convert :: ((HasCallStack) => (String -> App ()) -> App ()) -> ([String] -> App ()) -> App ()
+-- convert = undefined
 
 -- We only delete queues to clean up federated integration tests. So, we
 -- mostly want to ensure we don't get stuck there.
@@ -860,12 +872,14 @@ testBackendPusherRecoversFromQueueDeletion = do
 
   let remotesRefreshInterval = 10000 :: Int
   startDynamicBackendsReturnResources
-    [ def
-        { backgroundWorkerCfg =
-            setField
-              "backendNotificationPusher.remotesRefreshInterval"
-              remotesRefreshInterval
-        }
+    [ enableConsumableNotifications
+        ( def
+            { backgroundWorkerCfg =
+                setField
+                  "backendNotificationPusher.remotesRefreshInterval"
+                  remotesRefreshInterval
+            }
+        )
     ]
     $ \[beResource] -> do
       let domain = beResource.berDomain
@@ -1243,3 +1257,11 @@ mkRabbitMqAdminClientForResource backend = do
   opts <- asks (.rabbitMQConfig)
   servantClient <- liftIO $ mkRabbitMqAdminClientEnv opts {vHost = Text.pack backend.berVHost}
   pure . fromServant $ Servant.hoistClient (Proxy @(ToServant AdminAPI AsApi)) (liftIO @App) (toServant servantClient)
+
+enableConsumableNotifications :: ServiceOverrides -> ServiceOverrides
+enableConsumableNotifications overrides =
+  overrides
+    <> def
+      { brigCfg = setField "optSettings.setConsumableNotifications" True,
+        gundeckCfg = setField "settings.consumableNotifications" True
+      }

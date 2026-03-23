@@ -96,5 +96,6 @@ data:
       {{- if hasKey . "cellsEventQueue" }}
       cellsEventQueue: {{ .cellsEventQueue }}
       {{- end }}
+      consumableNotifications: false
 
   {{- end }}

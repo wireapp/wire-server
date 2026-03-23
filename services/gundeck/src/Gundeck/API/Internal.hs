@@ -22,11 +22,12 @@ module Gundeck.API.Internal
 where
 
 import Cassandra qualified
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Data.Id
 import Gundeck.Client
 import Gundeck.Client qualified as Client
 import Gundeck.Monad
+import Gundeck.Options (consumableNotifications, settings)
 import Gundeck.Presence qualified as Presence
 import Gundeck.Push qualified as Push
 import Gundeck.Push.Data qualified as PushTok
@@ -69,6 +70,8 @@ getPushTokensH uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> 
 
 registerConsumableNotificationsClient :: UserId -> ClientId -> Gundeck NoContent
 registerConsumableNotificationsClient uid cid = do
-  chan <- getRabbitMqChan
-  void . liftIO $ setupConsumableNotifications chan uid cid
+  enabled <- asks (^. options . settings . consumableNotifications)
+  when enabled $ do
+    chan <- getRabbitMqChan
+    void . liftIO $ setupConsumableNotifications chan uid cid
   pure NoContent

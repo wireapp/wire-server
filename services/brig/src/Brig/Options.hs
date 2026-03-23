@@ -591,7 +591,9 @@ data Settings = Settings
     -- | Whether to allow ephemeral user creation
     ephemeralUserCreationEnabled :: !Bool,
     -- | Determines if this backend supports nomad profiles.
-    nomadProfiles :: !(Maybe Bool)
+    nomadProfiles :: !(Maybe Bool),
+    -- | Determines if consumable notifications are enabled
+    consumableNotifications :: !Bool
   }
   deriving (Show, Generic)
 
