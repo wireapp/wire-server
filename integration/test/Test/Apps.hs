@@ -45,12 +45,32 @@ testCreateApp = do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  -- Owner can create an app
-  (appId, cookie) <- bindResponse (createApp owner tid new) $ \resp -> do
+  -- Get the last team notification ID before creating the app
+  lastTeamNotif <- bindResponse (getTeamNotifications regularMember Nothing) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    appId <- resp.json %. "user.id" & asString
-    cookie <- resp.json %. "cookie" & asString
-    pure (appId, cookie)
+    resp.json %. "notifications.-1.id" & asString
+
+  -- Owner can create an app
+  (appId, cookie) <- withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+    bindResponse (createApp owner tid new) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      appId <- resp.json %. "user.id" & asString
+      cookie <- resp.json %. "cookie" & asString
+      _ <- do
+        let predicate payload = do
+              typ <- payload %. "payload.0.type" & asString
+              pure $ typ == "team.member-join"
+        void $ awaitMatch predicate wsOwner
+        void $ assertNoEvent 5 wsRegularMember
+      pure (appId, cookie)
+
+  -- Verify that the team.member-join event is in the team notifications queue
+  bindResponse (getTeamNotifications regularMember (Just lastTeamNotif)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    -- First notification is `lastTeamNotif`, we can ignore that one.
+    resp.json %. "notifications.1.payload.0.type" `shouldMatch` "team.member-join"
+    resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
+    resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` appId
 
   -- App user should have type "app"
   let appIdObject = object ["domain" .= domain, "id" .= appId]
@@ -187,7 +207,7 @@ testRefreshAppCookie = do
 testDeleteAppFromTeam :: (HasCallStack) => App ()
 testDeleteAppFromTeam = do
   domain <- make OwnDomain
-  (owner, tid, _) <- createTeam domain 1
+  (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "chappie"} :: NewApp
   appId <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -195,8 +215,14 @@ testDeleteAppFromTeam = do
 
   let appIdObject = object ["domain" .= domain, "id" .= appId]
 
-  bindResponse (deleteTeamMember tid owner appIdObject) $ \resp -> do
-    resp.status `shouldMatchInt` 202
+  withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+    bindResponse (deleteTeamMember tid owner appIdObject) $ \resp -> do
+      resp.status `shouldMatchInt` 202
+      let predicate payload = do
+            typ <- payload %. "payload.0.type" & asString
+            pure $ typ == "team.member-leave"
+      void $ awaitMatch predicate wsOwner
+      void $ awaitMatch predicate wsRegularMember
 
   eventually $ do
     -- Check StoredApp is gone
@@ -216,7 +242,7 @@ testDeleteAppFromTeam = do
 testPutApp :: (HasCallStack) => App ()
 testPutApp = do
   domain <- make OwnDomain
-  (owner, tid, _) <- createTeam domain 1
+  (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "choppie"} :: NewApp
   appId <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -238,9 +264,11 @@ testPutApp = do
           "description": "This is the best app ever."
         }|]
 
-  bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-
+  withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+    bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+    void $ assertNoEvent 5 wsOwner
+    void $ assertNoEvent 5 wsRegularMember
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
