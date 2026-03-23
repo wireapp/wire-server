@@ -8,6 +8,6 @@ export HELM_CACHE_HOME=$(mktemp -d)
 
 make clean-charts
 
-NAMESPACE=test-stefan-2 DOCKER_TAG=5.27.0 make kube-integration-setup
+NAMESPACE=test-stefan-2 DOCKER_TAG=0.0.2-pr.13994 make kube-integration-setup
 
-NAMESPACE=test-stefan-2 DOCKER_TAG=5.27.0 HELM_PARALLELISM=0 make kube-integration-test
+NAMESPACE=test-stefan-2 DOCKER_TAG=0.0.2-pr.13994 HELM_PARALLELISM=0 make kube-integration-test
