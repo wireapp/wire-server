@@ -36,14 +36,14 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.Sem.Paging.Cassandra (ResultSet (..), ResultSetType (..))
 
-getConversationIdsResultSetImpl ::
+getConversationIdsResultSet ::
   forall r.
   (Member ConversationStore r) =>
   Local UserId ->
   Range 1 1000 Int32 ->
   Maybe (Qualified ConvId) ->
   Sem r (ResultSet (Qualified ConvId))
-getConversationIdsResultSetImpl lusr maxIds mLastId = do
+getConversationIdsResultSet lusr maxIds mLastId = do
   case fmap (flip relativeTo lusr) mLastId of
     Nothing -> getLocals Nothing
     Just (Local (tUnqualified -> lastId)) -> getLocals (Just lastId)
@@ -80,7 +80,7 @@ getConversationIdsImpl ::
   Sem r ConvIdsPage
 getConversationIdsImpl lusr maxIds pagingState = do
   let mLastId = Aeson.decode . BS.fromStrict =<< (.mtpsState) =<< pagingState
-  resultSet <- getConversationIdsResultSetImpl lusr maxIds mLastId
+  resultSet <- getConversationIdsResultSet lusr maxIds mLastId
   let mLastResult = lastMay resultSet.resultSetResult
   pure
     MultiTablePage
