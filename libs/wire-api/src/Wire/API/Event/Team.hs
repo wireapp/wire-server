@@ -124,7 +124,6 @@ data EventType
   | ConvCreate
   | ConvDelete
   | CollaboratorAdd
-  | AppCreate
   | CollaboratorUpdate
   | CollaboratorRemove
   deriving stock (Eq, Show, Generic)
@@ -144,7 +143,6 @@ instance ToSchema EventType where
           element "team.conversation-create" ConvCreate,
           element "team.conversation-delete" ConvDelete,
           element "team.collaborator-add" CollaboratorAdd,
-          element "team.app-create" AppCreate,
           element "team.collaborator-update" CollaboratorUpdate,
           element "team.collaborator-remove" CollaboratorRemove
         ]
@@ -162,7 +160,6 @@ data EventData
   | EdConvCreate ConvId
   | EdConvDelete ConvId
   | EdCollaboratorAdd UserId [CollaboratorPermission]
-  | EdAppCreate UserId
   | EdCollaboratorUpdate UserId [CollaboratorPermission]
   | EdCollaboratorRemove UserId
   deriving stock (Eq, Show, Generic)
@@ -194,7 +191,6 @@ instance ToJSON EventData where
       [ "user" A..= usr,
         "permissions" A..= perms
       ]
-  toJSON (EdAppCreate usr) = A.object ["user" A..= usr]
   toJSON (EdCollaboratorUpdate usr perms) =
     A.object
       [ "user" A..= usr,
@@ -212,7 +208,6 @@ eventDataType (EdMemberUpdate _ _) = MemberUpdate
 eventDataType (EdConvCreate _) = ConvCreate
 eventDataType (EdConvDelete _) = ConvDelete
 eventDataType (EdCollaboratorAdd _ _) = CollaboratorAdd
-eventDataType (EdAppCreate _) = AppCreate
 eventDataType (EdCollaboratorUpdate _ _) = CollaboratorUpdate
 eventDataType (EdCollaboratorRemove _) = CollaboratorRemove
 
@@ -245,10 +240,6 @@ parseEventData CollaboratorAdd Nothing = fail "missing event data for type 'team
 parseEventData CollaboratorAdd (Just j) = do
   let f o = EdCollaboratorAdd <$> o .: "user" <*> o .: "permissions"
   withObject "collaborator add data" f j
-parseEventData AppCreate Nothing = fail "missing event data for type 'team.app-create'"
-parseEventData AppCreate (Just j) = do
-  let f o = EdAppCreate <$> o .: "user"
-  withObject "app create data" f j
 parseEventData CollaboratorUpdate Nothing = fail "missing event data for type 'team.collaborator-update'"
 parseEventData CollaboratorUpdate (Just j) = do
   let f o = EdCollaboratorUpdate <$> o .: "user" <*> o .: "permissions"
@@ -271,7 +262,6 @@ genEventData = \case
   ConvCreate -> EdConvCreate <$> arbitrary
   ConvDelete -> EdConvDelete <$> arbitrary
   CollaboratorAdd -> EdCollaboratorAdd <$> arbitrary <*> arbitrary
-  AppCreate -> EdAppCreate <$> arbitrary
   CollaboratorUpdate -> EdCollaboratorUpdate <$> arbitrary <*> arbitrary
   CollaboratorRemove -> EdCollaboratorRemove <$> arbitrary
 
