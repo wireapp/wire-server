@@ -108,7 +108,7 @@ that only relevant output is displayed.
 
 # Security Guidelines
 
-For every code generated in this chat adhere to the following guidelines:
+For all code generated in this chat, adhere to the following guidelines:
 
 ### 1. Be Explicit About Security Requirements
 - Always request and enforce secure coding practices directly.
