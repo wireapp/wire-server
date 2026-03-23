@@ -295,18 +295,22 @@ executable federator-integration
     , hspec-junit-formatter
     , http-client-tls
     , http-types
+    , http2
     , http2-manager
     , imports
     , kan-extensions
     , lens
+    , network
     , optparse-applicative
     , polysemy
     , QuickCheck
     , random
     , servant-client-core
+    , streaming-commons
     , string-conversions
     , tasty-hunit
     , text
+    , time-manager
     , types-common
     , uuid
     , wire-api

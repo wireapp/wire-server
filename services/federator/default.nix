@@ -53,12 +53,14 @@
 , servant-client
 , servant-client-core
 , servant-server
+, streaming-commons
 , string-conversions
 , tasty
 , tasty-hunit
 , tasty-quickcheck
 , temporary
 , text
+, time-manager
 , tinylog
 , transformers
 , types-common
@@ -149,18 +151,21 @@ mkDerivation {
     hspec-junit-formatter
     http-client-tls
     http-types
-    http2-manager
+    http2
     imports
     kan-extensions
     lens
+    network
     optparse-applicative
     polysemy
     QuickCheck
     random
     servant-client-core
+    streaming-commons
     string-conversions
     tasty-hunit
     text
+    time-manager
     types-common
     uuid
     wire-api

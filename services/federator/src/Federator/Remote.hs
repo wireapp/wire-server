@@ -29,6 +29,7 @@ where
 import Control.Exception qualified as E
 import Control.Monad.Codensity
 import Data.Binary.Builder
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.Domain
 import Data.IORef qualified as IORef
@@ -118,7 +119,7 @@ interpretRemote = interpret $ \case
         E.catches
           ( H2Manager.withHTTP2RequestOnSingleUseConnWithHook
               mgr
-              (True, hostname, fromIntegral port)
+              (True, removeTrailingDot hostname, fromIntegral port)
               req'
               ( \peerAddr -> do
                   (mhost, _) <- Sock.getNameInfo [Sock.NI_NUMERICHOST] True False peerAddr
@@ -143,3 +144,6 @@ interpretRemote = interpret $ \case
     mIpTxt <- embed @(Codensity IO) . liftIO $ IORef.readIORef ipRef
     let mIpBS = fmap (TEnc.encodeUtf8 . T.pack) mIpTxt
     pure $ maybe resp (\ipbs -> resp {responseHeaders = responseHeaders resp Seq.|> (remoteIpHeaderName, ipbs)}) mIpBS
+    where
+      removeTrailingDot :: ByteString -> ByteString
+      removeTrailingDot bs = fromMaybe bs $ BS.stripSuffix "." bs
