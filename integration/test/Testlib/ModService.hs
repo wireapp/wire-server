@@ -650,7 +650,7 @@ prepareNginzRuntimeFiles resource = do
 
 prepareNginzK8sRuntimeFiles :: String -> ServiceMap -> IO (FilePath, FilePath, FilePath)
 prepareNginzK8sRuntimeFiles domain sm = do
-  tmpDir <- createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  tmpDir <- createTempDirectory "/tmp" "nginz-"
   copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
   let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
@@ -674,7 +674,7 @@ prepareNginzLocalRuntimeFiles resource sm basedir = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
-  tmpDir <- createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  tmpDir <- createTempDirectory "/tmp" "nginz-"
 
   -- copy all config files into the tmp dir
   let from = basedir </> "nginz" </> "integration-test"
