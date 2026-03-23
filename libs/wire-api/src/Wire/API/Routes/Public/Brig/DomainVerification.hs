@@ -271,7 +271,7 @@ instance ToSchema DomainOwnershipToken where
 newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (RegisteredDomains v)
 
-instance (SingI v) => ToSchema (RegisteredDomains v) where
+instance (Typeable v, SingI v) => ToSchema (RegisteredDomains v) where
   schema =
     object "RegisteredDomains" $
       RegisteredDomains

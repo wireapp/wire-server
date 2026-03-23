@@ -313,7 +313,7 @@ deriving via
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
-instance (ToSchema (TeamMember' tag)) => ToSchema (TeamMemberList' tag) where
+instance (Typeable tag, ToSchema (TeamMember' tag)) => ToSchema (TeamMemberList' tag) where
   schema =
     objectWithDocModifier "TeamMemberList" (description ?~ "list of team member") $
       TeamMemberList

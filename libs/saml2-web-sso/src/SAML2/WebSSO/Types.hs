@@ -166,6 +166,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Bifunctor (first)
 import Data.CaseInsensitive qualified as CI
+import Data.Data (Typeable)
 import Data.List qualified as L
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NL
@@ -346,7 +347,7 @@ data IdPConfig extra = IdPConfig
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema.Schema (IdPConfig extra))
 
-instance (Schema.ToSchema extra) => Schema.ToSchema (IdPConfig extra) where
+instance (Typeable (IdPConfig extra), Schema.ToSchema extra) => Schema.ToSchema (IdPConfig extra) where
   schema =
     Schema.object "IdPConfig" $
       IdPConfig

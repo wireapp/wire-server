@@ -405,7 +405,7 @@ defUnlockedFeature =
       config = def
     }
 
-instance (IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
+instance (Typeable cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
   schema =
     object name $
       LockableFeature
@@ -439,7 +439,7 @@ instance Default (LockableFeaturePatch cfg) where
 
 -- | The ToJSON implementation of `LockableFeaturePatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance (ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) where
+instance (Typeable cfg, ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) where
   schema =
     object name $
       LockableFeaturePatch
@@ -476,7 +476,7 @@ forgetLock ws = Feature ws.status ws.config
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
 withLockStatus ls (Feature s c) = LockableFeature s ls c
 
-instance (ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
+instance (Typeable cfg, ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
   schema =
     object name $
       Feature
@@ -491,7 +491,7 @@ instance (ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".Feature"
 
 instance
-  (ToObjectSchema (Versioned v cfg), ToSchema (Versioned v cfg)) =>
+  (Typeable cfg, Typeable v, ToObjectSchema (Versioned v cfg), ToSchema (Versioned v cfg)) =>
   ToSchema (Versioned v (Feature cfg))
   where
   schema = Versioned . fmap unVersioned <$> (fmap Versioned . unVersioned) .= schema @(Feature (Versioned v cfg))
@@ -875,7 +875,7 @@ instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   featureSingleton = FeatureSingletonConferenceCallingConfig
 
-instance (OptWithDefault f) => ToSchema (ConferenceCallingConfigB Covered f) where
+instance (Typeable f, OptWithDefault f) => ToSchema (ConferenceCallingConfigB Covered f) where
   schema =
     object "ConferenceCallingConfig" $
       ConferenceCallingConfig
@@ -998,7 +998,7 @@ deriving via (BarbieFeature AppLockConfigB) instance ToSchema AppLockConfig
 instance Default AppLockConfig where
   def = AppLockConfig (EnforceAppLock False) 60
 
-instance (FieldF f) => ToSchema (AppLockConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (AppLockConfigB Covered f) where
   schema =
     object "AppLockConfig" $
       AppLockConfig
@@ -1079,7 +1079,7 @@ deriving via (BarbieFeature SelfDeletingMessagesConfigB) instance (ToSchema Self
 instance Default SelfDeletingMessagesConfig where
   def = SelfDeletingMessagesConfig 0
 
-instance (FieldF f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
   schema =
     object "SelfDeletingMessagesConfig" $
       SelfDeletingMessagesConfig
@@ -1139,7 +1139,7 @@ instance Default MLSConfig where
         mlsGroupInfoDiagnostics = Any False
       }
 
-instance (FieldF f) => ToSchema (MLSConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (MLSConfigB Covered f) where
   schema =
     object "MLSConfig" $
       MLSConfig
@@ -1212,7 +1212,7 @@ instance ToSchema ChannelPermissions where
           element "admins" Admins
         ]
 
-instance (FieldF f) => ToSchema (ChannelsConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (ChannelsConfigB Covered f) where
   schema =
     object "ChannelsConfig" $
       ChannelsConfig
@@ -1329,7 +1329,7 @@ instance Arbitrary MlsE2EIdConfig where
       <*> fmap (Alt . pure) arbitrary
       <*> arbitrary
 
-instance (FieldF f) => ToSchema (MlsE2EIdConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (MlsE2EIdConfigB Covered f) where
   schema =
     object "MlsE2EIdConfig" $
       MlsE2EIdConfig
@@ -1414,7 +1414,7 @@ instance Arbitrary MlsMigrationConfig where
           finaliseRegardlessAfter = finaliseRegardlessAfter
         }
 
-instance (NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
+instance (Typeable f, NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
   schema =
     object "MlsMigration" $
       MlsMigrationConfig
@@ -1467,7 +1467,7 @@ instance Default EnforceFileDownloadLocationConfig where
 instance Arbitrary EnforceFileDownloadLocationConfig where
   arbitrary = EnforceFileDownloadLocationConfig . fmap (T.pack . getPrintableString) <$> arbitrary
 
-instance (NestedMaybe f) => ToSchema (EnforceFileDownloadLocationConfigB Covered f) where
+instance (Typeable f, NestedMaybe f) => ToSchema (EnforceFileDownloadLocationConfigB Covered f) where
   schema =
     object "EnforceFileDownloadLocation" $
       EnforceFileDownloadLocationConfig
@@ -1752,7 +1752,7 @@ instance Default CellsConfig where
             }
       }
 
-instance (FieldF f) => ToSchema (CellsConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (CellsConfigB Covered f) where
   schema =
     objectWithDocModifier "CellsConfig" (S.schema . S.example ?~ schemaToJSON (def @CellsConfig)) $
       CellsConfig
@@ -1888,7 +1888,7 @@ instance Default CellsInternalConfig where
         storage = CellsStorage $ NumBytes $ BigIntString 1000000000000 -- 1 TB
       }
 
-instance (FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
+instance (Typeable f, FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
   schema =
     object "CellsInternalConfig" $
       CellsInternalConfig
@@ -2268,15 +2268,18 @@ instance (HObjectSchema c xs, c x) => HObjectSchema c ((x :: Type) : xs) where
   hobjectSchema f = (:*) <$> hd .= f <*> tl .= hobjectSchema @c @xs f
 
 -- | constraint synonym  for 'ToSchema' 'AllTeamFeatures'
-class (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
+class (Typeable cfg, IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
-instance (IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
+instance (Typeable cfg, IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstraints cfg
 
 instance ToSchema AllTeamFeatures where
   schema =
     object "AllTeamFeatures" $ hobjectSchema @FeatureFieldConstraints featureField
     where
-      featureField :: forall cfg. (FeatureFieldConstraints cfg) => ObjectSchema SwaggerDoc (LockableFeature cfg)
+      featureField ::
+        forall cfg.
+        (FeatureFieldConstraints cfg) =>
+        ObjectSchema SwaggerDoc (LockableFeature cfg)
       featureField = field (T.pack (symbolVal (Proxy @(FeatureSymbol cfg)))) schema
 
 class (Arbitrary cfg, IsFeatureConfig cfg) => ArbitraryFeatureConfig cfg

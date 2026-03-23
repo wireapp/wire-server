@@ -189,7 +189,7 @@ deprecatedSchema new =
       . (deprecated ?~ True)
 
 qualifiedSchema ::
-  (HasSchemaRef doc) =>
+  (Typeable a, HasSchemaRef doc) =>
   Text ->
   Text ->
   ValueSchema doc a ->
@@ -208,16 +208,16 @@ qualifiedObjectSchema fieldName sch =
     <$> qDomain .= field "domain" schema
     <*> qUnqualified .= field fieldName sch
 
-instance (KnownIdTag t) => ToSchema (Qualified (Id t)) where
+instance (Typeable t, KnownIdTag t) => ToSchema (Qualified (Id t)) where
   schema = qualifiedSchema (idTagName (idTagValue @t) <> "Id") "id" schema
 
 instance ToSchema (Qualified Handle) where
   schema = qualifiedSchema "Handle" "handle" schema
 
-instance (KnownIdTag t) => ToJSON (Qualified (Id t)) where
+instance (Typeable t, KnownIdTag t) => ToJSON (Qualified (Id t)) where
   toJSON = schemaToJSON
 
-instance (KnownIdTag t) => FromJSON (Qualified (Id t)) where
+instance (Typeable t, KnownIdTag t) => FromJSON (Qualified (Id t)) where
   parseJSON = schemaParseJSON
 
 instance (Typeable t, KnownIdTag t) => S.ToSchema (Qualified (Id t)) where

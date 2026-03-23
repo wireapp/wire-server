@@ -361,7 +361,7 @@ mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
-  (IsFeatureConfig cfg) =>
+  (Typeable cfg, IsFeatureConfig cfg) =>
   TeamId ->
   Feature cfg ->
   Handler NoContent

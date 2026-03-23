@@ -43,7 +43,7 @@ data Event = Event
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Event
 
-arbitraryFeature :: forall cfg. (IsFeatureConfig cfg, Arbitrary cfg) => Gen A.Value
+arbitraryFeature :: forall cfg. (Typeable cfg, IsFeatureConfig cfg, Arbitrary cfg) => Gen A.Value
 arbitraryFeature = toJSON <$> arbitrary @(LockableFeature cfg)
 
 class AllArbitraryFeatures cfgs where
@@ -53,7 +53,8 @@ instance AllArbitraryFeatures '[] where
   allArbitraryFeatures = []
 
 instance
-  ( IsFeatureConfig cfg,
+  ( Typeable cfg,
+    IsFeatureConfig cfg,
     Arbitrary cfg,
     AllArbitraryFeatures cfgs
   ) =>
@@ -101,7 +102,7 @@ instance ToJSONObject Event where
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
 
-mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg) => TeamId -> LockableFeature cfg -> Event
+mkUpdateEvent :: forall cfg. (Typeable cfg, IsFeatureConfig cfg) => TeamId -> LockableFeature cfg -> Event
 mkUpdateEvent tid ws =
   Event
     { _eventType = Update,

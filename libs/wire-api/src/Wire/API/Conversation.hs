@@ -373,7 +373,7 @@ data MLSOne2OneConversation a = MLSOne2OneConversation
   }
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a))
 
-instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
+instance (Typeable a, ToSchema a) => ToSchema (MLSOne2OneConversation a) where
   schema =
     let aName = maybe "" ("_" <>) $ getName (schemaDoc (schema @a))
      in object ("MLSOne2OneConversation" <> aName) $
@@ -473,7 +473,7 @@ instance ConversationListItem ConvId where
 instance ConversationListItem OwnConversation where
   convListItemName _ = "conversations"
 
-instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
+instance (Typeable a, ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
   schema = conversationListSchema schema
 
 instance ToSchema (Versioned 'V2 (ConversationList OwnConversation)) where
@@ -484,7 +484,7 @@ instance ToSchema (Versioned 'V2 (ConversationList OwnConversation)) where
 
 conversationListSchema ::
   forall a.
-  (ConversationListItem a) =>
+  (Typeable a, ConversationListItem a) =>
   ValueSchema NamedSwaggerDoc a ->
   ValueSchema NamedSwaggerDoc (ConversationList a)
 conversationListSchema sch =

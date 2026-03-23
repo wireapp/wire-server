@@ -273,7 +273,7 @@ data DomainRegistrationResponse (v :: Version) = DomainRegistrationResponse
 mkDomainRegistrationResponse :: DomainRegistration -> DomainRegistrationResponse v
 mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationResponse {..}
 
-instance (SingI v) => ToSchema (DomainRegistrationResponse v) where
+instance (Typeable v, SingI v) => ToSchema (DomainRegistrationResponse v) where
   schema =
     object "DomainRegistrationResponse" $
       DomainRegistrationResponse

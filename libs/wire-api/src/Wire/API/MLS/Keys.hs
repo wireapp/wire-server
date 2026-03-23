@@ -41,7 +41,7 @@ data MLSKeysByPurpose a = MLSKeysByPurpose
   deriving (Eq, Show, Functor, Foldable, Traversable)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeysByPurpose a)
 
-instance (ToSchema a) => ToSchema (MLSKeysByPurpose a) where
+instance (Typeable a, ToSchema a) => ToSchema (MLSKeysByPurpose a) where
   schema =
     object "MLSKeysByPurpose" $
       MLSKeysByPurpose
@@ -56,7 +56,7 @@ data MLSKeys a = MLSKeys
   deriving (Eq, Show, Functor, Foldable, Traversable)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema (MLSKeys a)
 
-instance (ToSchema a) => ToSchema (MLSKeys a) where
+instance (Typeable a, ToSchema a) => ToSchema (MLSKeys a) where
   schema =
     object "MLSKeys" $
       MLSKeys

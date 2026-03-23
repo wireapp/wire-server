@@ -76,7 +76,7 @@ data UserGroupPage_ a = UserGroupPage
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema (UserGroupPage_ a)
 
-instance (ToSchema a) => ToSchema (UserGroupPage_ a) where
+instance (Typeable a, ToSchema a) => ToSchema (UserGroupPage_ a) where
   schema =
     objectWithDocModifier "UserGroupPage" addPageDocs $
       UserGroupPage

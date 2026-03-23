@@ -67,12 +67,18 @@ type RequestSchemaConstraint name tables max def = (KnownNat max, KnownNat def, 
 deriving via
   Schema (GetMultiTablePageRequest name tables max def)
   instance
-    (RequestSchemaConstraint name tables max def) => ToJSON (GetMultiTablePageRequest name tables max def)
+    ( Typeable tables,
+      RequestSchemaConstraint name tables max def
+    ) =>
+    ToJSON (GetMultiTablePageRequest name tables max def)
 
 deriving via
   Schema (GetMultiTablePageRequest name tables max def)
   instance
-    (RequestSchemaConstraint name tables max def) => FromJSON (GetMultiTablePageRequest name tables max def)
+    ( Typeable tables,
+      RequestSchemaConstraint name tables max def
+    ) =>
+    FromJSON (GetMultiTablePageRequest name tables max def)
 
 deriving via
   Schema (GetMultiTablePageRequest name tables max def)
@@ -82,7 +88,12 @@ deriving via
     ) =>
     S.ToSchema (GetMultiTablePageRequest name tables max def)
 
-instance (RequestSchemaConstraint name tables max def) => ToSchema (GetMultiTablePageRequest name tables max def) where
+instance
+  ( Typeable tables,
+    RequestSchemaConstraint name tables max def
+  ) =>
+  ToSchema (GetMultiTablePageRequest name tables max def)
+  where
   schema =
     let addPagingStateDoc =
           description
@@ -117,13 +128,19 @@ type PageSchemaConstraints name resultsKey tables a = (KnownSymbol resultsKey, K
 deriving via
   (Schema (MultiTablePage name resultsKey tables a))
   instance
-    (PageSchemaConstraints name resultsKey tables a) =>
+    ( Typeable tables,
+      Typeable a,
+      PageSchemaConstraints name resultsKey tables a
+    ) =>
     ToJSON (MultiTablePage name resultsKey tables a)
 
 deriving via
   (Schema (MultiTablePage name resultsKey tables a))
   instance
-    (PageSchemaConstraints name resultsKey tables a) =>
+    ( Typeable tables,
+      Typeable a,
+      PageSchemaConstraints name resultsKey tables a
+    ) =>
     FromJSON (MultiTablePage name resultsKey tables a)
 
 deriving via
@@ -133,7 +150,13 @@ deriving via
     S.ToSchema (MultiTablePage name resultsKey tables a)
 
 instance
-  (KnownSymbol resultsKey, KnownSymbol name, ToSchema a, PagingTable tables) =>
+  ( KnownSymbol resultsKey,
+    KnownSymbol name,
+    Typeable a,
+    ToSchema a,
+    Typeable tables,
+    PagingTable tables
+  ) =>
   ToSchema (MultiTablePage name resultsKey tables a)
   where
   schema =
