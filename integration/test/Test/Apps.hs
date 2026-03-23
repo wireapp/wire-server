@@ -177,12 +177,14 @@ testRefreshAppCookie = do
     resp.status `shouldMatchInt` 200
     resp.json %. "cookie" & asString
 
-  for_ [cookie, cookie'] $ \c ->
-    void $ bindResponse (renewToken OwnDomain c) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "user" `shouldMatch` appId
-      resp.json %. "token_type" `shouldMatch` "Bearer"
-      resp.json %. "access_token" & asString
+  renewToken OwnDomain cookie `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+
+  renewToken OwnDomain cookie' `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user" `shouldMatch` appId
+    resp.json %. "token_type" `shouldMatch` "Bearer"
+    void $ resp.json %. "access_token" & asString
 
 testDeleteAppFromTeam :: (HasCallStack) => App ()
 testDeleteAppFromTeam = do
