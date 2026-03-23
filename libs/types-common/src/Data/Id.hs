@@ -484,8 +484,8 @@ newtype IdObject a = IdObject {fromIdObject :: a}
   deriving (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (IdObject a)
 
-instance (ToSchema a) => ToSchema (IdObject a) where
+instance (Typeable a, ToSchema a) => ToSchema (IdObject a) where
   schema = idObjectSchema (IdObject <$> fromIdObject .= schema)
 
-idObjectSchema :: ValueSchemaP NamedSwaggerDoc a b -> ValueSchemaP NamedSwaggerDoc a b
+idObjectSchema :: (Typeable a) => ValueSchemaP NamedSwaggerDoc a b -> ValueSchemaP NamedSwaggerDoc a b
 idObjectSchema sch = object "Id" (field "id" sch)

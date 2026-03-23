@@ -97,6 +97,7 @@ import Control.Monad.Trans.Cont
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
+import Data.Data (typeRep)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -402,8 +403,8 @@ tag f = rmap runIdentity . f . rmap Identity
 -- This can be used to convert a combination of schemas obtained using
 -- 'field' into a single schema for a JSON object.
 object ::
-  (HasObject doc doc') =>
-  Text ->
+  (Typeable a, HasObject doc doc') =>
+  Text -> -- TODO: remove schema name, it's generated now!
   SchemaP doc A.Object [A.Pair] a b ->
   SchemaP doc' A.Value A.Value a b
 object = objectOver id
@@ -412,22 +413,32 @@ object = objectOver id
 --
 -- Just like 'fieldOver', but for 'object'.
 objectOver ::
-  (HasObject doc doc') =>
+  forall doc doc' v' a b v.
+  (Typeable a, HasObject doc doc') =>
   Lens v v' A.Value A.Object ->
-  Text ->
+  Text -> -- TODO: remove schema name, it's generated now!
   SchemaP doc v' [A.Pair] a b ->
   SchemaP doc' v A.Value a b
-objectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+objectOver l _name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
+    name = mkSchemaName @a
     parseObject val = ContT $ \k -> A.withObject (T.unpack name) k val
     r v = runContT (l parseObject v) (schemaIn sch)
     w x = A.object <$> schemaOut sch x
     s = mkObject name (schemaDoc sch)
 
+-- | Object and enum schema names by default are the fully qualified
+-- name of the haskell type.  If that's not unique, we should probably
+-- change those type names.  This will avoid collisions in the hash
+-- table keeping track of all the schema references in openapi3.
+-- track of all the schema references in openapi3.
+mkSchemaName :: forall a. (Typeable a) => Text
+mkSchemaName = T.pack $ show $ typeRep (Proxy @a)
+
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.
 objectWithDocModifier ::
-  (HasObject doc doc') =>
+  (Typeable a, HasObject doc doc') =>
   Text ->
   (doc' -> doc') ->
   ObjectSchema doc a ->
@@ -559,12 +570,13 @@ element label value = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- 'element' into a single schema for a JSON string.
 enum ::
   forall v doc a b.
-  (With v, HasEnum v doc) =>
-  Text ->
+  (Typeable a, With v, HasEnum v doc) =>
+  Text -> -- TODO: remove schema name, it's generated now!
   SchemaP [A.Value] v (Alt Maybe v) a b ->
   SchemaP doc A.Value A.Value a b
-enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
+enum _name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
   where
+    name = mkSchemaName @a
     d = mkEnum @v name (schemaDoc sch)
     i x =
       with (T.unpack name) (schemaIn sch) x
