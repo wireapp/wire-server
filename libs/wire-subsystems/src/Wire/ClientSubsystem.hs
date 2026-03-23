@@ -18,5 +18,6 @@ data ClientSubsystem m a where
   LookupPublicClient :: Qualified UserId -> ClientId -> ClientSubsystem m (Maybe PubClient)
   LookupPublicClients :: Qualified UserId -> ClientSubsystem m [PubClient]
   LookupPublicClientsBulk :: [Qualified UserId] -> ClientSubsystem m (QualifiedUserMap (Set PubClient))
+  AddClient :: Local UserId -> Maybe ConnId -> NewClient -> ClientSubsystem m Client
 
 makeSem ''ClientSubsystem

@@ -23,7 +23,6 @@ module Brig.Data.Client
     ReAuthPolicy,
     reAuthForNewClients,
     addClientWithReAuthPolicy,
-    addClient,
   )
 where
 

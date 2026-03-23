@@ -3,9 +3,10 @@ module Wire.ClientSubsystem.Interpreter (runClientSubsystem) where
 import Control.Monad
 import Data.Domain
 import Data.Id
-import Data.Map as Map
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Map qualified as Map
 import Data.Qualified
-import Data.Set as Set
+import Data.Set qualified as Set
 import Data.Time.Clock
 import Imports
 import Polysemy
@@ -17,13 +18,23 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Error
 import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.UserMap
-import Wire.ClientStore (ClientStore)
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
+import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error
+import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem (..))
 import Wire.FederationAPIAccess (FederationAPIAccess, runFederatedEither)
 import Wire.Sem.Logger qualified as Log
+import Wire.Sem.Now qualified as Now
+import Wire.UserSubsystem qualified as User
 import Wire.Util
+
+data ClientSubsystemConfig = ClientSubsystemConfig
+  { userMaxPermClients :: Int
+  }
 
 runClientSubsystem ::
   ( Member ClientStore r,
@@ -34,8 +45,9 @@ runClientSubsystem ::
     FederationMonad m,
     Typeable m
   ) =>
+  ClientSubsystemConfig ->
   InterpreterFor ClientSubsystem r
-runClientSubsystem = interpret $ \case
+runClientSubsystem conf = interpret $ \case
   InternalGetActivityTimestamps uid -> internalGetActivityTimestamps uid
   LookupLocalClient uid cid -> lookupLocalClient uid cid
   LookupLocalClients uid -> lookupLocalClients uid
@@ -43,8 +55,167 @@ runClientSubsystem = interpret $ \case
   LookupPublicClient quid cid -> lookupPubClient quid cid
   LookupPublicClients quid -> lookupPubClients quid
   LookupPublicClientsBulk quids -> lookupPubClientsBulk quids
+  AddClient luid conn new -> addClient conf luid conn new
 
+addClient ::
+  -- ( Member GalleyAPIAccess r,
+  --   Member NotificationSubsystem r,
+  --   Member UserSubsystem r,
+  --   Member DeleteQueue r,
+  --   Member EmailSubsystem r,
+  --   Member AuthenticationSubsystem r,
+  --   Member VerificationCodeSubsystem r,
+  --   Member Events r,
+  --   Member ClientStore r
+  -- ) =>
+  ClientSubsystemConfig ->
+  Local UserId ->
+  Maybe ConnId ->
+  NewClient ->
+  Sem r Client
+addClient = undefined -- addClientWithReAuthPolicy Data.reAuthForNewClients
+
+-- nb. We must ensure that the set of clients known to brig is always
+-- a superset of the clients known to galley.
+addClientWithReAuthPolicy ::
+  ClientSubsystemConfig ->
+  ReAuthPolicy ->
+  Local UserId ->
+  Maybe ConnId ->
+  NewClient ->
+  Sem r Client
+addClientWithReAuthPolicy conf policy luid@(tUnqualified -> u) con new = do
+  usr <-
+    (lift . liftSem $ User.getAccountNoFilter luid)
+      >>= maybe (throwE (ClientUserNotFound u)) pure
+  verifyCode (newClientVerificationCode new) luid
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
+  let mCaps :: Maybe ClientCapabilityList
+      mCaps = updlhdev $ newClientCapabilities new
+        where
+          updlhdev :: Maybe ClientCapabilityList -> Maybe ClientCapabilityList
+          updlhdev =
+            if newClientType new == LegalHoldClientType
+              then Just . ClientCapabilityList . maybe (Set.singleton lhcaps) (Set.insert lhcaps . fromClientCapabilityList)
+              else id
+          lhcaps = ClientSupportsLegalholdImplicitConsent
+  (clt0, old, count) <-
+    (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients mCaps)
+      !>> ClientDataError
+  let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
+  consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
+  when (consumableNotificationsEnabled && supportsConsumableNotifications clt) $ lift $ liftSem $ do
+    setupConsumableNotifications u clt.clientId
+  lift $ do
+    for_ old $ execDelete u con
+    liftSem $ GalleyAPIAccess.newClient u clt.clientId
+    liftSem $ Intra.onClientEvent u con (ClientAdded clt)
+    when (clientType clt == LegalHoldClientType) $ liftSem $ Events.generateUserEvent u con (UserLegalHoldEnabled u)
+    when (count > 1) $
+      for_ (userEmail usr) $
+        \email ->
+          liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
+  pure clt
+  where
+    clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
+
+    verifyCode ::
+      Maybe Code.Value ->
+      Local UserId ->
+      ExceptT ClientError (AppT r) ()
+    verifyCode mbCode luid1 =
+      -- this only happens inside the login flow (in particular, when logging in from a new device)
+      -- the code obtained for logging in is used a second time for adding the device
+      UserAuth.verifyCode mbCode Code.Login luid1 `catchE` \case
+        VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
+        VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
+        VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+
+data ClientDataError
+  = TooManyClients
+  | ClientReAuthError !ReAuthError
+  | ClientMissingAuth
+  | MalformedPrekeys
+  | MLSPublicKeyDuplicate
+  | MLSNotEnabled
+  | KeyPackageDecodingError
+  | InvalidKeyPackageRef
+
+-- | Re-authentication policy.
 --
+-- For a potential new client, a policy is a function that takes as arguments
+-- the number of existing clients of the same type, and whether the client
+-- already exists, and returns whether the user should be forced to
+-- re-authenticate.
+type ReAuthPolicy = Int -> Bool -> Bool
+
+-- | Default re-authentication policy.
+--
+-- Re-authenticate if there is at least one other client.
+reAuthForNewClients :: ReAuthPolicy
+reAuthForNewClients count upsert = count > 0 && not upsert
+
+addClientWithReAuthPolicy' ::
+  forall r.
+  ( Member AuthenticationSubsystem r,
+    Member ClientStore r,
+    Member Now.Now r
+  ) =>
+  ReAuthPolicy ->
+  Local UserId ->
+  ClientId ->
+  NewClient ->
+  Int ->
+  Maybe ClientCapabilityList ->
+  Sem r (Client, [Client], Word)
+addClientWithReAuthPolicy' reAuthPolicy u newId c maxPermClients caps = do
+  clients <- ClientStore.lookupClients (tUnqualified u)
+  let typed = filter ((== newClientType c) . clientType) clients
+  let count = length typed
+  let upsert = any exists typed
+  when (reAuthPolicy count upsert) do
+    (Authentication.reauthenticateEither (tUnqualified u) (newClientPassword c))
+      >>= either (undefined . ClientReAuthError) pure
+  let capacity = fmap (+ (-count)) limit
+  unless (maybe True (> 0) capacity || upsert) $
+    undefined TooManyClients
+  new <- insert (tUnqualified u)
+  let !total = fromIntegral (length clients + if upsert then 0 else 1)
+  let old = maybe (filter (not . exists) typed) (const []) limit
+  pure (new, old, total)
+  where
+    limit :: Maybe Int
+    limit = case newClientType c of
+      PermanentClientType -> Just maxPermClients
+      TemporaryClientType -> Nothing
+      LegalHoldClientType -> Nothing
+
+    exists :: Client -> Bool
+    exists = (==) newId . (.clientId)
+
+    insert uid = do
+      now <- toUTCTimeMillis <$> Now.get
+      let prekeys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
+      unless (all checkPrekeyBundle prekeys) $
+        undefined MalformedPrekeys
+      mErr <- ClientStore.upsert uid newId now (c {newClientCapabilities = caps})
+      case mErr of
+        Just DuplicateMLSPublicKey -> undefined MLSPublicKeyDuplicate
+        Nothing ->
+          pure $!
+            Client
+              { clientId = newId,
+                clientType = newClientType c,
+                clientTime = now,
+                clientClass = newClientClass c,
+                clientLabel = newClientLabel c,
+                clientCookie = newClientCookie c,
+                clientModel = newClientModel c,
+                clientCapabilities = fromMaybe mempty caps,
+                clientMLSPublicKeys = mempty,
+                clientLastActive = Nothing
+              }
+
 internalGetActivityTimestamps :: (Member ClientStore r) => UserId -> Sem r [Maybe UTCTime]
 internalGetActivityTimestamps = ClientStore.getActivityTimestamps
 
