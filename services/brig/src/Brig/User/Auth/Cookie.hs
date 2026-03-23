@@ -62,6 +62,7 @@ import Web.Cookie qualified as WebCookie
 import Wire.API.User.Auth
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Cookie (revokeAllCookies)
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics qualified as Metrics
@@ -197,9 +198,6 @@ listCookies u [] = adhocSessionStoreInterpreter $ Store.listCookies u
 listCookies u ll = filter byLabel <$> adhocSessionStoreInterpreter (Store.listCookies u)
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
-
-revokeAllCookies :: (Member AuthenticationSubsystem r) => UserId -> Sem r ()
-revokeAllCookies u = revokeCookies u [] []
 
 --------------------------------------------------------------------------------
 -- HTTP

@@ -110,6 +110,12 @@ newCookieLimitedImpl u c typ label policy = do
       Nothing -> revokeCookiesImpl u evict []
   newCookieImpl u c typ label policy
 
+revokeAllCookies ::
+  (Member AuthenticationSubsystem r) =>
+  UserId ->
+  Sem r ()
+revokeAllCookies u = revokeCookies u [] []
+
 revokeCookiesImpl ::
   (Member SessionStore r) =>
   UserId ->
