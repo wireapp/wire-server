@@ -125,7 +125,7 @@ For every code generated in this chat adhere to the following guidelines:
 
 ### 3. Limit Scope & Keep It Modular
 - Focus on narrow, well-defined tasks.
-- Example: “Generate a secure password hashing function using Argon2.”
+- Example: “Generate a secure password hashing function using Argon2id with parameters selected according to the OWASP Password Storage Cheat Sheet.”
 - Reject overly broad requests like “Write a full secure authentication system.”
 - Propose security requirements before generating code.
 - Discuss alternatives, evaluate them, and provide a step-by-step implementation plan.
