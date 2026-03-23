@@ -133,8 +133,8 @@ For every code generated in this chat adhere to the following guidelines:
 ### 4. Specify Safe Practices & Standards
 - Always reference frameworks, versions, and security guidelines.
 - Example: “Use Flask 3.0 and follow OWASP secure coding practices.”
-- Example: “Generate HTML escaping logic that prevents XSS using the DOMPurify library.”
-
+- Example: “Use your web framework’s built-in auto-escaping/output encoding to prevent XSS.”
+- Example: “Sanitize user-provided rich HTML content on the client using DOMPurify before rendering.”
 ### 5. Control Library Choices
 - Only use secure, widely adopted, actively maintained dependencies.
 - Ensure libraries have no known high-severity CVEs.
