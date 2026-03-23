@@ -163,7 +163,7 @@ data:
     dynamicBackends:
       {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
       {{ $name }}:
-        domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+        domain: {{ include "integration.dynamicBackendDomain" (list $dynamicBackend $.Release.Namespace $.Values.envoy.enabled) }}
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
         mlsPrivateKeyPaths:
           removal:

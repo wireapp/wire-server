@@ -1,4 +1,31 @@
 
+{{/*
+Name of the Gateway resource for dynamic backends in envoy mode.
+*/}}
+{{- define "integration.getDynBackendsGatewayName" -}}
+{{- if .Values.envoy.gateway.name -}}
+{{ .Values.envoy.gateway.name }}
+{{- else -}}
+{{ .Release.Name }}-dynamic-backends
+{{- end -}}
+{{- end -}}
+
+{{/*
+Domain for a dynamic backend. Returns the correct hostname depending on whether
+envoy mode is enabled.
+Args: list $dynamicBackend $namespace $envoyEnabled
+*/}}
+{{- define "integration.dynamicBackendDomain" -}}
+{{- $dynamicBackend := index . 0 -}}
+{{- $namespace := index . 1 -}}
+{{- $envoyEnabled := index . 2 -}}
+{{- if $envoyEnabled -}}
+{{- printf "%s-%s.envoy-gateway-system.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $namespace -}}
+{{- else -}}
+{{- printf "%s.%s.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $namespace -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Allow KubeVersion to be overridden. */}}
 {{- define "kubeVersion" -}}
   {{- default $.Capabilities.KubeVersion.Version $.Values.kubeVersionOverride -}}

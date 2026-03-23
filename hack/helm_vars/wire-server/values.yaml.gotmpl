@@ -690,8 +690,10 @@ background-worker:
       password: {{ .Values.rabbitmqPassword }}
 
 integration:
-  ingress:
-    class: "nginx-{{ .Release.Namespace }}"
+  envoy:
+    enabled: true
+    gateway:
+      className: "envoy"
   config:
     cassandra:
       host: {{ .Values.cassandraHost }}
