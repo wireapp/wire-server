@@ -82,6 +82,7 @@ library
     Galley.API.Create
     Galley.API.CustomBackend
     Galley.API.Federation
+    Galley.API.Federation.Handlers
     Galley.API.Internal
     Galley.API.LegalHold
     Galley.API.LegalHold.Conflicts
