@@ -43,6 +43,7 @@ import Wire.AppStore (AppStore, StoredApp (..))
 import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Cookie (revokeAllCookies)
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -232,6 +233,7 @@ refreshAppCookieImpl (tUnqualified -> uid) tid appId mbPassword = do
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
   void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
 
+  revokeAllCookies appId
   c :: Cookie (Token U) <-
     newCookieLimited appId Nothing PersistentCookie Nothing RevokeSameLabel
       >>= either throw pure
