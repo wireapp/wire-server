@@ -1,6 +1,7 @@
 {{- if .Values.envoy.enabled }}
 {{- $gatewayName := include "integration.getDynBackendsGatewayName" . }}
 {{- $httpsPort := int .Values.envoy.gateway.listeners.https.port }}
+{{- $controllerNs := .Values.envoy.controllerNamespace }}
 {{- if lt $httpsPort 1024 }}
 {{- fail (printf "envoy.gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set envoy.gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
 {{- end }}
@@ -83,7 +84,7 @@ spec:
         value: true
 {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
 {{- $httpRouteName := printf "%s-dynbackend-%s" $gatewayName $name }}
-{{- $svcDomain := printf "%s-%s.envoy-gateway-system.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $.Release.Namespace }}
+{{- $svcDomain := printf "%s-%s.%s.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $.Release.Namespace $controllerNs }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -131,14 +132,14 @@ spec:
           end
         end
 ---
-# ClusterIP service in envoy-gateway-system selects the Envoy proxy pods for this Gateway.
+# ClusterIP service in {{ $controllerNs }} selects the Envoy proxy pods for this Gateway.
 # The service name determines the SRV record used by federation discovery:
 #   _wire-server-federator._tcp.{{ $svcDomain }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ $dynamicBackend.federatorExternalHostPrefix }}-{{ $.Release.Namespace }}
-  namespace: envoy-gateway-system
+  namespace: {{ $controllerNs }}
 spec:
   type: ClusterIP
   ports:

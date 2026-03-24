@@ -692,6 +692,7 @@ background-worker:
 integration:
   envoy:
     enabled: {{ ne (env "WIRE_INGRESS_MODE") "nginx" }}
+    controllerNamespace: {{ env "ENVOY_GATEWAY_NAMESPACE" }}
     gateway:
       className: "envoy"
   {{- if eq (env "WIRE_INGRESS_MODE") "nginx" }}

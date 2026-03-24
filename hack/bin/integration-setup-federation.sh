@@ -8,8 +8,10 @@ export NAMESPACE=${NAMESPACE:-test-integration}
 # Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 # Available modes: gateway (default, uses wire-ingress), nginx (uses nginx-ingress-services)
-WIRE_INGRESS_MODE=${WIRE_INGRESS_MODE:-gateway}
+WIRE_INGRESS_MODE=${WIRE_INGRESS_MODE:-nginx}
 export WIRE_INGRESS_MODE
+ENVOY_GATEWAY_NAMESPACE=${ENVOY_GATEWAY_NAMESPACE:-envoy-gateway-system}
+export ENVOY_GATEWAY_NAMESPACE
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
@@ -39,9 +41,9 @@ if [[ "$WIRE_INGRESS_MODE" == "nginx" ]]; then
   export FEDERATION_DOMAIN_BASE_2="${NAMESPACE_2}.svc.cluster.local"
   export FEDERATION_DOMAIN_2="federation-test-helper.${FEDERATION_DOMAIN_BASE_2}"
 else
-  export FEDERATION_DOMAIN_BASE_1="envoy-gateway-system.svc.cluster.local"
+  export FEDERATION_DOMAIN_BASE_1="${ENVOY_GATEWAY_NAMESPACE}.svc.cluster.local"
   export FEDERATION_DOMAIN_1="${NAMESPACE_1}-fed.${FEDERATION_DOMAIN_BASE_1}"
-  export FEDERATION_DOMAIN_BASE_2="envoy-gateway-system.svc.cluster.local"
+  export FEDERATION_DOMAIN_BASE_2="${ENVOY_GATEWAY_NAMESPACE}.svc.cluster.local"
   export FEDERATION_DOMAIN_2="${NAMESPACE_2}-fed.${FEDERATION_DOMAIN_BASE_2}"
 fi
 
