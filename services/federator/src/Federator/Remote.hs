@@ -144,6 +144,6 @@ interpretRemote = interpret $ \case
     mIpTxt <- embed @(Codensity IO) . liftIO $ IORef.readIORef ipRef
     let mIpBS = fmap (TEnc.encodeUtf8 . T.pack) mIpTxt
     pure $ maybe resp (\ipbs -> resp {responseHeaders = responseHeaders resp Seq.|> (remoteIpHeaderName, ipbs)}) mIpBS
-    where
-      removeTrailingDot :: ByteString -> ByteString
-      removeTrailingDot bs = fromMaybe bs $ BS.stripSuffix "." bs
+  where
+    removeTrailingDot :: ByteString -> ByteString
+    removeTrailingDot bs = fromMaybe bs $ BS.stripSuffix "." bs

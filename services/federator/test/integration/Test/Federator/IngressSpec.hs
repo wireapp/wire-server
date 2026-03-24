@@ -222,7 +222,8 @@ withMockHttp2TlsServer ::
   IO a
 withMockHttp2TlsServer handler action = do
   sslCtx <- loadMockServerSSLContext
-  bracket (bindRandomPortTCP "*") (close . snd) $ \(port, sock) ->
+  bracket (bindRandomPortTCP "*") (close . snd) $ \(port, sock) -> do
+    NS.listen sock 1024
     bracket (async $ mockHttp2TlsServerOnSocket sslCtx sock) cancel (const (action port))
   where
     loadMockServerSSLContext :: IO SSLContext
@@ -241,7 +242,6 @@ withMockHttp2TlsServer handler action = do
       Socket ->
       IO ()
     mockHttp2TlsServerOnSocket ctx listenSock = do
-      NS.listen listenSock 1024
       forever $ do
         (sock, _) <- NS.accept listenSock
         ssl <- SSL.connection ctx sock
