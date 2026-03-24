@@ -1,1 +1,0 @@
-charts/wire-server: Fix nil pointer errors in merged subchart templates when optional values (brig.turn, rabbitmq TLS, cassandraBrig/cassandraGalley) are not provided

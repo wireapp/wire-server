@@ -1,1 +1,0 @@
-`GET /teams/:tid/search` response contains user types now (app or regular).

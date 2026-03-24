@@ -1,3 +1,126 @@
+# [2026-03-24] (Chart Release 5.29.0)
+
+## Release notes
+
+
+* Helm chart refactoring: several core services were migrated from wire-server subcharts into the umbrella chart templates (`charts/wire-server/templates`).
+
+  Moved as core services:
+  - `background-worker`
+  - `brig`
+  - `cannon`
+  - `cargohold`
+  - `galley`
+  - `gundeck`
+  - `proxy`
+  - `spar`
+
+  As a result, dependency tags for moved services are obsolete for the current wire-server chart, because these services are no longer resolved through `requirements.yaml` dependencies. In particular, `tags.brig`, `tags.galley`, `tags.cannon`, `tags.cargohold`, `tags.gundeck`, `tags.proxy`, and `tags.spar` are no longer needed for wire-server deployments.
+
+  Operator note: during upgrade, rendered manifests will show metadata/source changes (for example chart labels and template source paths). This is expected from the inlining refactor and may trigger a one-time rollout due to checksum annotation changes.
+
+  Compatibility note: for standard wire-server deployments this is not expected to be breaking, because the moved core services were not toggled off via tags in default/in-repo environments. However, this is a breaking change for custom deployments that previously disabled any of these services via wire-server dependency tags (`tags.<service>: false`), because those tags are now obsolete after inlining. (#5085)
+
+* Rate-limit status codes in `nginz` and cannon's embedded `nginz` are now configurable via Helm values.
+
+  Compatibility note: the default remains `420`, so this does not change behavior for existing deployments and requires no direct operator action. (#5124)
+
+* Remove the old `metallb` wrapper chart. This hasn't been published or updated
+  for quite some time. Even the Docker images weren't available anymore. (#5111)
+
+
+## API changes
+
+
+* Require admin password for refreshing app cookies (`POST /teams/:tid/apps/:uid/cookies`). (#5129)
+
+* Add `"app"` attribute to `GET /list-users`, `GET /users/:dom/:uid`; make `GET /teams/:tid/apps`, `GET /teams/:tid/apps/:uid` return same schema as `GET /list-users`. (#5070)
+
+* `GET /teams/:tid/search` response contains user types now (app or regular). (#5074)
+
+* - remove pict attribute from GetApp
+  - remove metadata attribute from GetApp
+  - inline GetApp fields into NewApp
+  - make CreatedApp.user contain UserProfile (which includes app info)
+  - rename GetApp to AppInfo
+  - remove AppInfo.{name,assets,accentId} (redundant user data) (#5115)
+
+* Create new API version V16 and finalize API version V15. (#5121)
+
+
+## Features
+
+
+* Add meetings listings endpoint `/meetings/list`. (#5109)
+
+* Add Wire Meetings add invitation endpoint `POST /meetings/:domain/:id/invitations` (#5132)
+
+* Add Wire Meetings delete invitation endpoint `POST /meetings/:domain/:id/invitations/delete` (#5136)
+
+
+## Bug fixes and other updates
+
+
+* Claiming key packages for a deleted user now returns a client error instead of a server error (#5113)
+
+* backoffice/stern: fix Swagger UI for comma-separated list query parameters (#5108)
+
+* Streamlined and fixed team feature config `validateSAMLemails` (#5114)
+
+* When the admin creates a new app cookie, all previous ones must be revoked. (#5149)
+
+* charts/elasticsearch-index: Allow configuring postgresql (#5092)
+
+* charts/wire-server: Fix nil pointer errors in merged subchart templates when optional values (brig.turn, rabbitmq TLS, cassandraBrig/cassandraGalley) are not provided (#5112)
+
+* Improve error message when failing to parse group ID (#5089)
+
+
+## Documentation
+
+
+* Updated docs for the team feature `validateSAMLemails` (#5118)
+
+
+## Internal changes
+
+
+* The status code for rate limit responses from nginz and cannon is now configurable and set to 420 per default (#5124)
+
+* Add curl to integration test failure reports. (#5048)
+
+* Add `UserType` fields in various data types. (#5074)
+
+* Progressively move away from singletons to type class to allow progressive migration to `wire-subsystems` of Galley's actions.
+  Drop `Galley.Intra.Util`,`Galley.Effects`,  `Galley.API.MLS.Commit`, and `Galley.API.Push`.
+  Break dependencies to `Opts`/`Env`.
+  Split `ConversationSubsystem.Interpreter` `Galley.API.Federation` (#5075, #5081, #5086, #5087, #5098, #5101, #5102, #5103, #5104, #5110, #5145, #5148)
+
+* Logging Wire-Client, Wire-Client-Version and Wire-Config-Hash headers in nginz (#5123)
+
+* Refactor scripts to alleviate SonarQube warnings (#5097)
+
+* Consumable notifications are now disabled (#5116)
+
+* The fields `code`, `label`, and `message` where added to the inconsistent group state error response of `POST /mls/commit-bundels` (#PR_NOT_FOUND)
+
+* Refactor Category: from ADT to Text. (#5120)
+
+* Moved TeamVisibilityStore operations into TeamStore (#5137)
+
+* Moved TeamNotificationStore to wire-subsystems (#5138)
+
+* Moved CustomBackendStore to wire-subsystems (#5135)
+
+* Moved TeamMemberStore, interpreter, and ListItems interpreters for Team to wire-subsystems (#5140)
+
+* `sbomqs` has been unused for years now. Thus, dropping it from our Nix env. (#5144)
+
+* Adjust the `default` Nix flake `devShell` such that `nix develop` is usable. (#5127)
+
+* Create and upload SBOMs for Helmfile, docker-compose and Helm charts. (#5122)
+
+
 # [2026-03-03] (Chart Release 5.28.0)
 
 ## Release notes

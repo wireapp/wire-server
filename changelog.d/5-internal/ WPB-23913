@@ -1,1 +1,0 @@
-The status code for rate limit responses from nginz and cannon is now configurable and set to 420 per default

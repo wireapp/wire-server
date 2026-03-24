@@ -1,3 +1,0 @@
-Rate-limit status codes in `nginz` and cannon's embedded `nginz` are now configurable via Helm values.
-
-Compatibility note: the default remains `420`, so this does not change behavior for existing deployments and requires no direct operator action.
