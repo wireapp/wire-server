@@ -23,6 +23,8 @@ module Wire.AuthenticationSubsystem.Interpreter
 where
 
 import Data.ByteString.Conversion
+import Data.Code qualified as Code
+import Data.Default
 import Data.HavePendingInvitations
 import Data.Id
 import Data.Misc
@@ -37,6 +39,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger
 import Wire.API.Allowlists qualified as AllowLists
+import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Password
 import Wire.AuthenticationSubsystem
@@ -45,6 +48,8 @@ import Wire.AuthenticationSubsystem.Cookie
 import Wire.AuthenticationSubsystem.Error
 import Wire.EmailSubsystem
 import Wire.Events
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore (PasswordStore)
@@ -59,6 +64,10 @@ import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem (UserSubsystem, getLocalAccountBy)
 import Wire.UserSubsystem qualified as User
+import Wire.VerificationCode
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
+import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
 
 interpretAuthenticationSubsystem ::
   forall r.
@@ -75,7 +84,9 @@ interpretAuthenticationSubsystem ::
     Member RateLimit r,
     Member CryptoSign r,
     Member Random r,
-    Member Events r
+    Member Events r,
+    Member GalleyAPIAccess r,
+    Member VerificationCodeSubsystem r
   ) =>
   InterpreterFor UserSubsystem r ->
   InterpreterFor AuthenticationSubsystem r
@@ -96,6 +107,8 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         NewCookie uid mcid typ mLabel policy -> newCookieImpl uid mcid typ mLabel policy
         NewCookieLimited uid mcid typ mLabel policy -> runError $ newCookieLimitedImpl uid mcid typ mLabel policy
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
+        -- Verification Codes
+        EnforceVerificationCodeEither luid mCode action -> runError $ enforceVerificationCodeImpl luid mCode action
         -- Testing
         InternalLookupPasswordResetCode userKey -> internalLookupPasswordResetCodeImpl userKey
 
@@ -395,3 +408,35 @@ verifyUserPasswordErrorImpl ::
 verifyUserPasswordErrorImpl (tUnqualified -> uid) password = do
   unlessM (fst <$> verifyUserPasswordImpl uid password) do
     throw AuthenticationSubsystemBadCredentials
+
+enforceVerificationCodeImpl ::
+  forall r.
+  ( Member GalleyAPIAccess r,
+    Member VerificationCodeSubsystem r,
+    Member UserSubsystem r,
+    Member (Error VerificationCodeError) r
+  ) =>
+  Local UserId ->
+  Maybe Code.Value ->
+  VerificationAction ->
+  Sem r ()
+enforceVerificationCodeImpl luid mCode action = do
+  (mEmail, mTid) <- getEmailAndTeamId luid
+  verificationRequired <- case mTid of
+    Just tid -> GalleyAPIAccess.getVerificationCodeEnabled tid
+    Nothing -> pure $ (def @(Feature SndFactorPasswordChallengeConfig)).status == FeatureStatusEnabled
+  isSsoUser <- maybe False isSamlUser <$> User.getAccountNoFilter luid
+  when (verificationRequired && not isSsoUser) $ do
+    case (mCode, mEmail) of
+      (Just code, Just email) -> do
+        codeValid <- isJust <$> VerificationCodeSubsystem.verifyCode (mkKey email) (scopeFromAction action) code
+        unless codeValid $ throw VerificationCodeNoPendingCode
+      (Nothing, _) -> throw VerificationCodeRequired
+      (_, Nothing) -> throw VerificationCodeNoEmail
+  where
+    getEmailAndTeamId u = do
+      mbAccount <- User.getAccountNoFilter u
+      pure
+        ( userEmail =<< mbAccount,
+          userTeam =<< mbAccount
+        )

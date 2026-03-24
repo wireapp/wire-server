@@ -104,6 +104,7 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
@@ -241,10 +242,12 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
     verifyCode mbCode luid1 =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login luid1 `catchE` \case
-        VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
-        VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
-        VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+      (lift $ liftSem $ Authentication.enforceVerificationCodeEither luid1 mbCode Code.Login)
+        >>= \case
+          Left VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
+          Left VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
+          Left VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+          Right () -> pure ()
 
 updateClient ::
   (Member NotificationSubsystem r, Member ClientStore r) =>

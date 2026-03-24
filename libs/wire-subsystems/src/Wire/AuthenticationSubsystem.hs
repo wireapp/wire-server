@@ -19,6 +19,7 @@
 
 module Wire.AuthenticationSubsystem where
 
+import Data.Code qualified as Code
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -77,6 +78,8 @@ data AuthenticationSubsystem m a where
     SameLabelPolicy ->
     AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
   RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
+  -- Verification Codes
+  EnforceVerificationCodeEither :: Local UserId -> Maybe Code.Value -> VerificationAction -> AuthenticationSubsystem m (Either VerificationCodeError ())
   -- For testing
   InternalLookupPasswordResetCode :: EmailKey -> AuthenticationSubsystem m (Maybe PasswordResetPair)
 

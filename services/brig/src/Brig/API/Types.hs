@@ -141,11 +141,6 @@ data LoginError
   | LoginCodeInvalid
   | LoginPasswordUpdateRequired
 
-data VerificationCodeError
-  = VerificationCodeRequired
-  | VerificationCodeNoPendingCode
-  | VerificationCodeNoEmail
-
 data SendActivationCodeError
   = InvalidRecipient EmailKey
   | UserKeyInUse EmailKey

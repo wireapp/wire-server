@@ -58,6 +58,14 @@ data AuthenticationSubsystemError
 
 instance Exception AuthenticationSubsystemError
 
+data VerificationCodeError
+  = VerificationCodeRequired
+  | VerificationCodeNoPendingCode
+  | VerificationCodeNoEmail
+  deriving (Eq, Show)
+
+instance Exception VerificationCodeError
+
 authenticationSubsystemErrorToHttpError :: AuthenticationSubsystemError -> HttpError
 authenticationSubsystemErrorToHttpError =
   StdError . \case

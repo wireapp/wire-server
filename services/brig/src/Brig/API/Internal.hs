@@ -346,7 +346,6 @@ authAPI ::
     Member TinyLog r,
     Member Events r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
