@@ -229,10 +229,10 @@ withMockHttp2TlsServer settings handler action = do
     bracket (async $ mockHttp2TlsServerOnSocket sslCtx sock) cancel (const (action port))
   where
     loadMockServerSSLContext :: RunSettings -> IO SSLContext
-    loadMockServerSSLContext runSettings = do
+    loadMockServerSSLContext settings = do
       ctx <- SSL.context
-      SSL.contextSetCertificateFile ctx runSettings.clientCertificate
-      SSL.contextSetPrivateKeyFile ctx runSettings.clientPrivateKey
+      SSL.contextSetCertificateFile ctx settings.clientCertificate
+      SSL.contextSetPrivateKeyFile ctx settings.clientPrivateKey
       SSL.contextSetALPNProtos ctx ["h2"]
       SSL.contextSetCiphers ctx "HIGH"
       sslCheck <- SSL.contextCheckPrivateKey ctx
