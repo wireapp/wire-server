@@ -12,6 +12,23 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ---
 
+## Prerequisites
+
+### Envoy Gateway
+
+[Envoy Gateway](https://gateway.envoyproxy.io/) must be installed in the cluster before deploying
+this chart. The `EnvoyPatchPolicy` extension API must be enabled (required for federation — see
+[EnvoyPatchPolicy](#envoypatchpolicy)):
+
+```yaml
+config:
+  envoyGateway:
+    extensionApis:
+      enableEnvoyPatchPolicy: true
+```
+
+---
+
 ## Backwards compatibility
 
 The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever possible.
@@ -151,14 +168,21 @@ references it by name via `gateway.className`.
 
 ### EnvoyPatchPolicy
 
-When `federator.enabled: true`, the chart creates an `EnvoyPatchPolicy` resource that sets
-`strip_trailing_host_dot: true` on the federator filter chain.
+When `federator.enabled: true`, the chart creates an `EnvoyPatchPolicy` resource that adds the
+FQDN variant of the federator hostname (e.g. `federator.example.com.`, with trailing dot) to the
+Envoy virtual host's domain list.
 
 **Why this is needed:** Wire federation resolves remote backends via DNS SRV records. Per the DNS
 specification, SRV record targets are always FQDNs — they include a trailing dot
 (e.g. `peer.example.com.`). The federator passes this FQDN directly as the HTTP/2 `:authority`
 header. Envoy's virtual-host matching is exact, so the trailing dot causes a `route_not_found`
-error. `strip_trailing_host_dot` normalises the header before route selection.
+error. Adding the FQDN as an additional domain in the route configuration allows Envoy to match
+both the bare hostname and the FQDN.
+
+The policy targets `kind: GatewayClass` (using `gateway.className`) and patches the
+`RouteConfiguration` named `<namespace>/<gateway>/federator`. This approach works correctly with
+`mergeGateways: true` because route configuration names are per-namespace even when multiple
+Gateways share a single Envoy proxy.
 
 `EnvoyPatchPolicy` is an Envoy Gateway extension API. It must be explicitly enabled in the
 EnvoyGateway ConfigMap before deploying this chart with `federator.enabled: true`:
@@ -173,10 +197,6 @@ spec:
   extensionApis:
     enableEnvoyPatchPolicy: true
 ```
-
-Set `gateway.patchPolicies.enabled: false` only if you cannot enable `EnvoyPatchPolicy` in your
-cluster. In that case, federation will not work unless you apply the trailing-dot fix by other
-means.
 
 > **Future note:** If future versions of the Wire federator stop sending FQDNs in the
 > `:authority` header, this patch policy will no longer be needed. `gateway.patchPolicies.enabled`
@@ -589,13 +609,15 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 - [x] document: must deploy enovy-gateway with patches enabled
 - [x] envoy patch policies: adjust docs: its not a kubernetes problem, but that SRV records have to by FQDM
 - [x] for .Values.federator.tls.useCertManager document that you'll likely needa private CA, since many public CA stopped issuing client auth certs
-- [ ] organize the parameter listing in this README better 
+- [x] organize the parameter listing in this README better 
+- [x] rework patch policies so merged gateways work
+- [x] test now if diya / elna federation works
+- [ ] test now if integration test pass
+- [ ] Write the migration guide section of this README
 - [ ] move the phases out of README
 - [ ] clean up PR: no stray files
 - [ ] remove CLAUDE.md
 - [ ] make a note on nginx-ingress-services
-- [ ] create PR for the4 
-- [ ] Write the migration guide section of this README
 
 ---
 
