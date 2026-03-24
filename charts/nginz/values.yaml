@@ -89,6 +89,9 @@ nginx_conf:
   default_client_max_body_size: "512k"
   rate_limit_reqs_per_user: "30r/s"
   rate_limit_reqs_per_addr: "15r/m"
+  # The status code that is returned on throttling.
+  # 420 is the legacy status code and should be changed to 429 once all client support this
+  rate_limit_status: 420
 
   # This value must be a list of strings. Each string is copied verbatim into
   # the nginx.conf after the default 'limit_req_zone' directives. This should be
