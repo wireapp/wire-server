@@ -25,7 +25,7 @@ gateway:
   listeners:
     https:
       # Envoy Gateway remaps privileged ports (+10000) on the proxy pod container.
-      # We use 10443 directly so targetPort in federation-test-helper matches the
+      # We use 10443 directly so targetPort in the service-test-fed.yaml matches the
       # actual container port without needing a separate override.
       port: 10443
       hostname: "*.{{ .Release.Namespace }}-integration.example.com"
