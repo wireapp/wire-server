@@ -129,7 +129,7 @@ createAppImpl lusr tid newApp = do
   internalUpdateSearchIndex u.id
 
   -- generate a team event
-  generateTeamEvents creator.id tid [EdAppCreate u.id]
+  generateTeamEvents creator.id tid [EdMemberJoin u.id]
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure

@@ -1,0 +1,1 @@
+Integration tests for user events when user type is app.  Replace redundant app-created event with team.member-join.
