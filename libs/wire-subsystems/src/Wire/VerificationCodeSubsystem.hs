@@ -35,6 +35,8 @@ data VerificationCodeSubsystemError
   = VerificationCodeThrottled RetryAfter
   deriving (Show, Eq)
 
+instance Exception VerificationCodeSubsystemError
+
 verificationCodeSubsystemErrorToHttpError :: VerificationCodeSubsystemError -> HttpError
 verificationCodeSubsystemErrorToHttpError = \case
   VerificationCodeThrottled t ->
