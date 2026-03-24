@@ -223,13 +223,13 @@ withMockHttp2TlsServer ::
   (Int -> IO a) ->
   IO a
 withMockHttp2TlsServer settings handler action = do
-  sslCtx <- loadMockServerSSLContext settings
+  sslCtx <- loadMockServerSSLContext
   bracket (bindRandomPortTCP "*") (close . snd) $ \(port, sock) -> do
     NS.listen sock 1024
     bracket (async $ mockHttp2TlsServerOnSocket sslCtx sock) cancel (const (action port))
   where
-    loadMockServerSSLContext :: RunSettings -> IO SSLContext
-    loadMockServerSSLContext settings = do
+    loadMockServerSSLContext :: IO SSLContext
+    loadMockServerSSLContext = do
       ctx <- SSL.context
       SSL.contextSetCertificateFile ctx settings.clientCertificate
       SSL.contextSetPrivateKeyFile ctx settings.clientPrivateKey
