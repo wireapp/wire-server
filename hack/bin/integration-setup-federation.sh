@@ -7,6 +7,9 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 # Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
+# Available modes: gateway (default, uses wire-ingress), nginx (uses nginx-ingress-services)
+WIRE_INGRESS_MODE=${WIRE_INGRESS_MODE:-gateway}
+export WIRE_INGRESS_MODE
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
@@ -28,12 +31,19 @@ mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 export NAMESPACE_1="$NAMESPACE"
-export FEDERATION_DOMAIN_BASE_1="envoy-gateway-system.svc.cluster.local"
-export FEDERATION_DOMAIN_1="${NAMESPACE_1}-fed.${FEDERATION_DOMAIN_BASE_1}"
-
 export NAMESPACE_2="$NAMESPACE-fed2"
-export FEDERATION_DOMAIN_BASE_2="envoy-gateway-system.svc.cluster.local"
-export FEDERATION_DOMAIN_2="${NAMESPACE_2}-fed.${FEDERATION_DOMAIN_BASE_2}"
+
+if [[ "$WIRE_INGRESS_MODE" == "nginx" ]]; then
+  export FEDERATION_DOMAIN_BASE_1="${NAMESPACE_1}.svc.cluster.local"
+  export FEDERATION_DOMAIN_1="federation-test-helper.${FEDERATION_DOMAIN_BASE_1}"
+  export FEDERATION_DOMAIN_BASE_2="${NAMESPACE_2}.svc.cluster.local"
+  export FEDERATION_DOMAIN_2="federation-test-helper.${FEDERATION_DOMAIN_BASE_2}"
+else
+  export FEDERATION_DOMAIN_BASE_1="envoy-gateway-system.svc.cluster.local"
+  export FEDERATION_DOMAIN_1="${NAMESPACE_1}-fed.${FEDERATION_DOMAIN_BASE_1}"
+  export FEDERATION_DOMAIN_BASE_2="envoy-gateway-system.svc.cluster.local"
+  export FEDERATION_DOMAIN_2="${NAMESPACE_2}-fed.${FEDERATION_DOMAIN_BASE_2}"
+fi
 
 echo "Fetch federation-ca secret from cert-manager namespace"
 FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)
