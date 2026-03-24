@@ -511,13 +511,22 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 
 ### Phase 9 — Documentation and CI values
 
-#### Finalize README, migration guide, and ci/ values files
+#### Finalize PR
 
-- Write the migration guide section of this README
-- Create `ci/values-minimal.yaml`, `ci/values-full.yaml`, etc.
-- Ensure `helm lint` and `helm template` pass for all CI values files
-
-- [ ] Done
+- [ ] introduce a flag that switches between gateway / ingress-nginx in the tests
+- [ ] investigate: migrate federation-test helper to integrations chart?
+- [ ] replace "envoy-gateway-system" hardcoded namespace with chart var
+- [ ] feature flag for envoypatch policies (enabled by default, turned off in tests)
+- [ ] document: must deploy enovy-gateway with patches enabled
+- [ ] envoy patch policies: adjust docs: its not a kubernetes problem, but that SRV records have to by FQDM
+- [ ] for .Values.federator.tls.useCertManager document that you'll likely needa private CA, since many public CA stopped issuing client auth certs
+- [ ] Write the migration guide section of this README
+- [ ] collate the parameters and changes better
+- [ ] move the phases out of README
+- [ ] clean up PR: no stray files
+- [ ] remove CLAUDE.md
+- [ ] make a note on nginx-ingress-services
+- [ ] create PR for the4 
 
 ---
 
