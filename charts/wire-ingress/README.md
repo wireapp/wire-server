@@ -31,6 +31,7 @@ Operators should be able to reuse most of their existing values files with minim
 | _(not present)_ | `gateway.name` | Name of the Gateway to attach routes to |
 | _(not present)_ | `gateway.infrastructure.annotations` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure) |
 | _(not present)_ | `gateway.proxyProtocol.enabled` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all Gateway listeners — required when the load balancer is configured to send PROXY protocol headers |
+| _(not present)_ | `gateway.patchPolicies.enabled` | Controls whether `EnvoyPatchPolicy` resources are created (default: `true`). See [EnvoyPatchPolicy](#envoypatchpolicy) below. |
 | _(not present)_ | `tls.secret.create` | If `false`, the TLS Secret is not created by this chart — use when the secret is managed externally (e.g. by another chart or operator). `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` are ignored when `false`. |
 | _(not present)_ | `tls.secret.nameOverride` | Override the name of the TLS Secret referenced by the Gateway listener. If not set, the name is derived from the release name. |
 
@@ -139,6 +140,41 @@ the service type via `envoyProxy.spec` or a cluster-level `EnvoyProxy`.
 
 `GatewayClass` is installed by the Envoy Gateway Helm chart and is cluster-scoped. This chart only
 references it by name via `gateway.className`.
+
+### EnvoyPatchPolicy
+
+When `federator.enabled: true`, the chart creates an `EnvoyPatchPolicy` resource that sets
+`strip_trailing_host_dot: true` on the federator filter chain.
+
+**Why this is needed:** Wire federation resolves remote backends via DNS SRV records. Per the DNS
+specification, SRV record targets are always FQDNs — they include a trailing dot
+(e.g. `peer.example.com.`). The federator passes this FQDN directly as the HTTP/2 `:authority`
+header. Envoy's virtual-host matching is exact, so the trailing dot causes a `route_not_found`
+error. `strip_trailing_host_dot` normalises the header before route selection.
+
+`EnvoyPatchPolicy` is an Envoy Gateway extension API. It must be explicitly enabled in the
+EnvoyGateway ConfigMap before deploying this chart with `federator.enabled: true`:
+
+```yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyGateway
+metadata:
+  name: envoy-gateway
+  namespace: envoy-gateway-system
+spec:
+  extensionApis:
+    enableEnvoyPatchPolicy: true
+```
+
+Set `gateway.patchPolicies.enabled: false` only if you cannot enable `EnvoyPatchPolicy` in your
+cluster. In that case, federation will not work unless you apply the trailing-dot fix by other
+means.
+
+> **Future note:** If future versions of the Wire federator stop sending FQDNs in the
+> `:authority` header, this patch policy will no longer be needed. `gateway.patchPolicies.enabled`
+> exists so it can be disabled at that point without a chart change.
+
+---
 
 ### Multi-ingress is out of scope
 
@@ -516,9 +552,9 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 - [x] introduce a flag that switches between gateway / ingress-nginx in the tests
 - [x] investigate: migrate federation-test helper to integrations chart? NO, becasue we would need to pass the relase name
 - [x] replace "envoy-gateway-system" hardcoded namespace with chart var
-- [ ] feature flag for envoypatch policies (enabled by default, turned off in tests)
-- [ ] document: must deploy enovy-gateway with patches enabled
-- [ ] envoy patch policies: adjust docs: its not a kubernetes problem, but that SRV records have to by FQDM
+- [x] feature flag for envoypatch policies (enabled by default, turned off in tests)
+- [x] document: must deploy enovy-gateway with patches enabled
+- [x] envoy patch policies: adjust docs: its not a kubernetes problem, but that SRV records have to by FQDM
 - [ ] for .Values.federator.tls.useCertManager document that you'll likely needa private CA, since many public CA stopped issuing client auth certs
 - [ ] Write the migration guide section of this README
 - [ ] collate the parameters and changes better
