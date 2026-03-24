@@ -2,16 +2,6 @@
 
 # Common functions and utilities for SBOM generation scripts
 
-# Check if Docker is available and running
-check_docker_running() {
-  if ! docker info >/dev/null 2>&1; then
-    echo "ERROR: Docker is not running or not accessible." >&2
-    echo "Please start Docker and try again." >&2
-    exit 1
-  fi
-  return 0
-}
-
 # Canonicalize image names to include explicit docker.io or existing registry
 # prefix. Docker's default registry is docker.io, but it's often omitted in
 # image references.
@@ -59,6 +49,22 @@ scan_image_with_syft() {
   local run_syft
   run_syft="$(dirname "${BASH_SOURCE[0]}")/run-syft.sh"
 
+  # Set up registry authentication if credentials are available
+  # This prevents "too many requests" issues when querying dockerhub images
+  # and allows access to private repositories on quay.io.
+  local syft_env=()
+  if [[ "$canonical_img" == docker.io/* ]] && [[ -n "${DOCKER_HUB_USERNAME:-}" ]] && [[ -n "${DOCKER_HUB_PASSWORD:-}" ]]; then
+    syft_env=(
+      "SYFT_REGISTRY_AUTH_USERNAME=$DOCKER_HUB_USERNAME"
+      "SYFT_REGISTRY_AUTH_PASSWORD=$DOCKER_HUB_PASSWORD"
+    )
+  elif [[ "$canonical_img" == quay.io/* ]] && [[ -n "${QUAY_REPO_USER:-}" ]] && [[ -n "${QUAY_REPO_PASSWORD:-}" ]]; then
+    syft_env=(
+      "SYFT_REGISTRY_AUTH_USERNAME=$QUAY_REPO_USER"
+      "SYFT_REGISTRY_AUTH_PASSWORD=$QUAY_REPO_PASSWORD"
+    )
+  fi
+
   # Check manifest version with skopeo to determine if conversion is needed
   local manifest_info
   manifest_info=$(skopeo inspect --raw "docker://$canonical_img" 2>/dev/null || echo "")
@@ -78,7 +84,7 @@ scan_image_with_syft() {
     fi
 
     # Scan the OCI format image
-    if ! "$run_syft" "oci-dir:$oci_dir" "$temp_filename"; then
+    if ! env "${syft_env[@]}" "$run_syft" "oci-dir:$oci_dir" "$temp_filename"; then
       echo "  ERROR: Failed to scan OCI image for $canonical_img" >&2
       rm -rf "$oci_dir"
       rm -f "$temp_filename"
@@ -86,7 +92,7 @@ scan_image_with_syft() {
     fi
   else
     # Modern format - scan directly with syft
-    if ! "$run_syft" "docker:$canonical_img" "$temp_filename"; then
+    if ! env "${syft_env[@]}" "$run_syft" "registry:$canonical_img" "$temp_filename"; then
       echo "  ERROR: Failed to generate SBOM for $canonical_img" >&2
       rm -f "$temp_filename"
       return 1

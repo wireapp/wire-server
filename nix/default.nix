@@ -1,4 +1,4 @@
-{ pkgs, pkgs_24_11, pkgs_unstable, bomDependenciesDrv, inputs, }:
+{ pkgs, pkgs_24_11, bomDependenciesDrv, inputs, }:
 let
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
@@ -10,7 +10,7 @@ let
     '';
   };
 
-  wireServer = import ./wire-server.nix { inherit pkgs pkgs_24_11 pkgs_unstable bomDependenciesDrv inputs; };
+  wireServer = import ./wire-server.nix { inherit pkgs pkgs_24_11 bomDependenciesDrv inputs; };
   nginz = pkgs.callPackage ./nginz.nix { };
 
   # packages necessary to build wire-server docs
