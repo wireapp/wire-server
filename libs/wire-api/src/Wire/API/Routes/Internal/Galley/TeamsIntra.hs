@@ -69,7 +69,7 @@ data TeamStatus
 
 instance S.ToSchema TeamStatus where
   schema =
-    S.enum @Text "TeamStatus" $
+    S.enum @Text $
       mconcat
         [ S.element "active" Active,
           S.element "pending_delete" PendingDelete,
@@ -89,7 +89,7 @@ data TeamData = TeamData
 
 instance S.ToSchema TeamData where
   schema =
-    S.object "TeamData" $
+    S.object $
       TeamData
         <$> tdTeam S..= S.field "team" S.schema
         <*> tdStatus S..= S.field "status" S.schema
@@ -105,7 +105,7 @@ data TeamStatusUpdate = TeamStatusUpdate
 
 instance S.ToSchema TeamStatusUpdate where
   schema =
-    S.object "TeamStatusUpdate" $
+    S.object $
       TeamStatusUpdate
         <$> tuStatus S..= S.field "status" S.schema
         <*> tuCurrency S..= S.maybe_ (S.optField "currency" S.genericToSchema)
@@ -118,7 +118,7 @@ newtype TeamName = TeamName
 
 instance S.ToSchema TeamName where
   schema =
-    S.object "TeamName" $
+    S.object $
       TeamName
         <$> tnName S..= S.field "name" S.schema
 
@@ -132,7 +132,7 @@ data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
 
 instance S.ToSchema GuardLegalholdPolicyConflicts where
   schema =
-    S.object "GuardLegalholdPolicyConflicts" $
+    S.object $
       GuardLegalholdPolicyConflicts
         <$> glhProtectee S..= S.field "glhProtectee" S.schema
         <*> glhUserClients S..= S.field "glhUserClients" S.schema

@@ -64,7 +64,7 @@ data Event = Event
 
 instance ToSchema Event where
   schema =
-    object "Event" $
+    object $
       Event
         <$> _eventTeam .= field "team" schema
         <*> _eventTime .= field "time" utcTimeSchema
@@ -132,7 +132,7 @@ data EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "team.create" TeamCreate,
           element "team.delete" TeamDelete,
@@ -167,7 +167,7 @@ data EventData
 -- FUTUREWORK: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
 instance ToSchema EventData where
   schema =
-    object "EventData" $
+    object $
       EdTeamCreate
         <$> (undefined :: EventData -> Team) .= field "team" schema
 

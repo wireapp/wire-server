@@ -78,7 +78,7 @@ data UserGroupPage_ a = UserGroupPage
 
 instance (Typeable a, ToSchema a) => ToSchema (UserGroupPage_ a) where
   schema =
-    objectWithDocModifier "UserGroupPage" addPageDocs $
+    objectWithDocModifier addPageDocs $
       UserGroupPage
         <$> page .= field "page" (array schema)
         <*> total .= field "total" schema

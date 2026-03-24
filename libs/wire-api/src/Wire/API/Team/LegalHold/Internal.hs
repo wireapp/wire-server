@@ -102,8 +102,7 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Schema.ToSchema LegalHoldClientRequest where
   schema =
-    Schema.object
-      "LegalHoldClientRequest"
-      $ LegalHoldClientRequest
+    Schema.object $
+      LegalHoldClientRequest
         <$> lhcrRequester Schema..= Schema.field "requester" Schema.schema
         <*> lhcrLastPrekey Schema..= Schema.field "last_prekey" Schema.schema

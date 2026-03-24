@@ -43,7 +43,7 @@ newtype RemoteDomains = RemoteDomains
 
 instance ToSchema RemoteDomains where
   schema =
-    objectWithDocModifier "RemoteDomains" (description ?~ "A set of remote domains") $
+    objectWithDocModifier (description ?~ "A set of remote domains") $
       RemoteDomains
         <$> (Set.map tDomain . rdDomains)
           .= field "domains" (Set.map (flip toRemoteUnsafe ()) <$> set schema)

@@ -116,7 +116,7 @@ data EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "user.new" EventTypeUserCreated,
           element "user.activate" EventTypeUserActivated,
@@ -407,7 +407,7 @@ eventObjectSchema =
               _ConnectionEvent
               ( ConnectionUpdated
                   <$> ucConn .= field "connection" schema
-                  <*> ucName .= maybe_ (optField "user" (object "UserName" (field "name" schema)))
+                  <*> ucName .= maybe_ (optField "user" (object (field "name" schema)))
               )
           EventTypeUserGroupCreated ->
             tag
@@ -442,7 +442,7 @@ instance ToJSONObject Event where
   toJSONObject = KM.fromList . fold . schemaOut eventObjectSchema
 
 instance ToSchema Event where
-  schema = object "UserEvent" eventObjectSchema
+  schema = object eventObjectSchema
 
 deriving via (Schema Event) instance A.ToJSON Event
 

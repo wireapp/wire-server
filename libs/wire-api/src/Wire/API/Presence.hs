@@ -86,7 +86,7 @@ data Presence = Presence
 
 instance ToSchema Presence where
   schema =
-    object "Presence" $
+    object $
       ( Presence
           <$> userId .= field "user_id" schema
           <*> connId .= field "device_id" schema

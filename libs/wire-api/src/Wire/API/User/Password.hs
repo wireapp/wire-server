@@ -70,7 +70,7 @@ data NewPasswordReset
 
 instance ToSchema NewPasswordReset where
   schema =
-    objectWithDocModifier "NewPasswordReset" objectDesc $
+    objectWithDocModifier objectDesc $
       (toTuple .= newPasswordResetTupleObjectSchema) `withParser` fromTuple
     where
       objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
@@ -115,7 +115,7 @@ data CompletePasswordReset = CompletePasswordReset
 
 instance ToSchema CompletePasswordReset where
   schema =
-    objectWithDocModifier "CompletePasswordReset" objectDocs $
+    objectWithDocModifier objectDocs $
       CompletePasswordReset
         <$> (maybePasswordResetIdentityToTuple . cpwrIdent) .= maybePasswordResetIdentityObjectSchema
         <*> cpwrCode .= fieldWithDocModifier "code" codeDocs schema
@@ -219,7 +219,7 @@ data PasswordReset = PasswordReset
 
 instance ToSchema PasswordReset where
   schema =
-    objectWithDocModifier "PasswordReset" objectDocs $
+    objectWithDocModifier objectDocs $
       PasswordReset
         <$> pwrCode .= fieldWithDocModifier "code" codeDocs schema
         <*> pwrPassword .= fieldWithDocModifier "password" pwDocs schema

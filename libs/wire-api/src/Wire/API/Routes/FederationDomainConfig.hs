@@ -56,12 +56,12 @@ deriving via Schema FederationRestriction instance (ToJSON FederationRestriction
 
 tagSchema :: ValueSchema NamedSwaggerDoc FederationRestrictionTag
 tagSchema =
-  enum @Text "FederationRestrictionTag" $
+  enum @Text $
     mconcat [element "allow_all" FederationRestrictionAllowAllTag, element "restrict_by_team" FederationRestrictionByTeamTag]
 
 instance ToSchema FederationRestriction where
   schema =
-    object "FederationRestriction" $
+    object $
       fromTagged
         <$> toTagged
           .= bind
@@ -93,7 +93,7 @@ data FederationDomainConfig = FederationDomainConfig
 
 instance ToSchema FederationDomainConfig where
   schema =
-    object "FederationDomainConfig" $
+    object $
       FederationDomainConfig
         <$> domain .= field "domain" schema
         <*> searchPolicy .= field "search_policy" schema
@@ -140,7 +140,7 @@ data FederationStrategy
 
 instance ToSchema FederationStrategy where
   schema =
-    enum @Text "FederationStrategy" $
+    enum @Text $
       mconcat
         [ element "allowNone" AllowNone,
           element "allowAll" AllowAll,
@@ -156,6 +156,6 @@ newtype FederationRemoteTeam = FederationRemoteTeam
 
 instance ToSchema FederationRemoteTeam where
   schema =
-    object "FederationRemoteTeam" $
+    object $
       FederationRemoteTeam
         <$> teamId .= field "team_id" schema

@@ -87,7 +87,7 @@ domainRedirectTag PreAuthorized = PreAuthorizedTag
 
 instance ToSchema DomainRedirectTag where
   schema =
-    enum @Text "DomainRedirect Tag" $
+    enum @Text $
       mconcat
         [ element "none" NoneTag,
           element "locked" LockedTag,
@@ -146,7 +146,7 @@ domainRedirectSchema v =
 
     backendConfigObjectSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, Maybe HttpsUrl)
     backendConfigObjectSchema =
-      object "BackendConfig" $
+      object $
         (,)
           <$> fst .= field "config_url" schema
           <*> snd .= maybe_ (optField "webapp_url" schema)
@@ -155,7 +155,7 @@ samlIdPIdObjectSchema :: ObjectSchema SwaggerDoc SAML.IdPId
 samlIdPIdObjectSchema = SAML.IdPId <$> SAML.fromIdPId .= field "sso_code" uuidSchema
 
 instance ToSchema DomainRedirect where
-  schema = object "DomainRedirect " (domainRedirectSchema V10)
+  schema = object (domainRedirectSchema V10)
 
 deriving via (Schema DomainRedirect) instance FromJSON DomainRedirect
 
@@ -184,7 +184,7 @@ data TeamInviteTag
 
 instance ToSchema TeamInviteTag where
   schema =
-    enum @Text "TeamInvite Tag" $
+    enum @Text $
       mconcat
         [ element "allowed" AllowedTag,
           element "not-allowed" NotAllowedTag,
@@ -214,7 +214,7 @@ teamInviteObjectSchema =
       TeamTag -> tag _Team (field "team" schema)
 
 instance ToSchema TeamInvite where
-  schema = object "TeamInvite" teamInviteObjectSchema
+  schema = object teamInviteObjectSchema
 
 deriving via (Schema TeamInvite) instance FromJSON TeamInvite
 
@@ -255,7 +255,7 @@ instance Arbitrary DomainRegistrationUpdate where
 
 instance ToSchema DomainRegistrationUpdate where
   schema =
-    object "DomainRegistrationUpdate" $
+    object $
       DomainRegistrationUpdate
         <$> (.domainRedirect) .= domainRedirectSchema V10
         <*> (.teamInvite) .= teamInviteObjectSchema
@@ -275,7 +275,7 @@ mkDomainRegistrationResponse DomainRegistration {..} = DomainRegistrationRespons
 
 instance (Typeable v, SingI v) => ToSchema (DomainRegistrationResponse v) where
   schema =
-    object "DomainRegistrationResponse" $
+    object $
       DomainRegistrationResponse
         <$> (.domain) .= field "domain" schema
         <*> (.authorizedTeam) .= maybe_ (optField "authorized_team" schema)

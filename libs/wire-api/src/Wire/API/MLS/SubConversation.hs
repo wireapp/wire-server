@@ -150,7 +150,7 @@ convOrSubConvIdObjectSchema =
 
 instance ToSchema ConvOrSubConvId where
   schema =
-    object "ConvOrSubConvId" $
+    object $
       fromTagged
         <$> toTagged
           .= bind
@@ -182,7 +182,7 @@ instance ToSchema ConvOrSubConvId where
 
       tagSchema :: ValueSchema NamedSwaggerDoc ConvOrSubTag
       tagSchema =
-        enum @Text "ConvOrSubTag" $
+        enum @Text $
           mconcat
             [ element "conv" ConvTag,
               element "subconv" SubConvTag

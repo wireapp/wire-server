@@ -47,7 +47,7 @@ newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
 
 instance S.ToSchema TeamMemberInfo where
   schema =
-    S.object "TeamMemberInfo" $
+    S.object $
       TeamMemberInfo
         <$> tm S..= teamMemberObjectSchema
         <* ((`hasPermission` SetBilling) . tm) S..= S.field "can_update_billing" S.schema
@@ -62,7 +62,7 @@ data TeamInfo = TeamInfo
 
 instance S.ToSchema TeamInfo where
   schema =
-    S.object "TeamInfo" $
+    S.object $
       TeamInfo
         <$> tiData S..= S.field "info" S.schema
         <*> tiMembers S..= S.field "members" (S.array S.schema)
@@ -78,7 +78,7 @@ data TeamAdminInfo = TeamAdminInfo
 
 instance S.ToSchema TeamAdminInfo where
   schema =
-    S.object "TeamAdminInfo" $
+    S.object $
       TeamAdminInfo
         <$> taData S..= S.field "data" S.schema
         <*> taOwners S..= S.field "owners" (S.array S.schema)
@@ -193,7 +193,7 @@ data TeamBillingInfo = TeamBillingInfo
 
 instance S.ToSchema TeamBillingInfo where
   schema =
-    S.object "TeamBillingInfo" $
+    S.object $
       TeamBillingInfo
         <$> tbiFirstname S..= S.field "firstname" S.schema
         <*> tbiLastname S..= S.field "lastname" S.schema
@@ -219,7 +219,7 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
 
 instance S.ToSchema TeamBillingInfoUpdate where
   schema =
-    S.object "TeamBillingInfoUpdate" $
+    S.object $
       TeamBillingInfoUpdate
         <$> tbiuFirstname S..= tbiuField "firstname"
         <*> tbiuLastname S..= tbiuField "lastname"

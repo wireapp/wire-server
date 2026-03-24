@@ -74,7 +74,7 @@ instance ToSchema InvitationRequest where
 
 invitationRequestSchema :: Bool -> ValueSchema NamedSwaggerDoc InvitationRequest
 invitationRequestSchema allowExisting =
-  objectWithDocModifier "InvitationRequest" (DS.description ?~ "A request to join a team on Wire.") $
+  objectWithDocModifier (DS.description ?~ "A request to join a team on Wire.") $
     InvitationRequest
       <$> locale
         .= optFieldWithDocModifier "locale" (DS.description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
@@ -191,7 +191,7 @@ data InvitationList = InvitationList
 
 instance ToSchema InvitationList where
   schema =
-    objectWithDocModifier "InvitationList" (DS.description ?~ "A list of sent team invitations.") $
+    objectWithDocModifier (DS.description ?~ "A list of sent team invitations.") $
       InvitationList
         <$> ilInvitations .= field "invitations" (array schema)
         <*> ilHasMore .= fieldWithDocModifier "has_more" (DS.description ?~ "Indicator that the server has more invitations than returned.") schema
@@ -208,7 +208,7 @@ data AcceptTeamInvitation = AcceptTeamInvitation
 
 instance ToSchema AcceptTeamInvitation where
   schema =
-    objectWithDocModifier "AcceptTeamInvitation" (DS.description ?~ "Accept an invitation to join a team on Wire.") $
+    objectWithDocModifier (DS.description ?~ "Accept an invitation to join a team on Wire.") $
       AcceptTeamInvitation
         <$> (.code) .= fieldWithDocModifier "code" (DS.description ?~ "Invitation code to accept.") schema
         <*> (.password) .= fieldWithDocModifier "password" (DS.description ?~ "The user account password.") schema
@@ -223,7 +223,7 @@ data InvitationUserView = InvitationUserView
 
 instance ToSchema InvitationUserView where
   schema =
-    object "InvitationUserView" $
+    object $
       InvitationUserView
         <$> invitation .= invitationObjectSchema
         <*> inviterEmail .= maybe_ (optField "created_by_email" schema)

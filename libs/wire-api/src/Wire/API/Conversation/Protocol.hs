@@ -174,10 +174,10 @@ optionalActiveMLSConversationDataSchema _ =
     mk epoch ts cs = ActiveMLSConversationData epoch <$> ts <*> cs
 
 instance ToSchema ConversationMLSData where
-  schema = object "ConversationMLSData" (mlsDataSchema Nothing)
+  schema = object (mlsDataSchema Nothing)
 
 instance ToSchema (Versioned 'V5 ConversationMLSData) where
-  schema = Versioned <$> object "ConversationMLSDataV5" (unVersioned .= mlsDataSchema (Just V5))
+  schema = Versioned <$> object (unVersioned .= mlsDataSchema (Just V5))
 
 -- TODO: Fix API compatibility
 data ActiveMLSConversationData = ActiveMLSConversationData
@@ -193,7 +193,7 @@ data ActiveMLSConversationData = ActiveMLSConversationData
   deriving (ToJSON, FromJSON) via Schema ActiveMLSConversationData
 
 instance ToSchema ActiveMLSConversationData where
-  schema = object "ActiveMLSConversationData" activeMLSConversationDataSchema
+  schema = object activeMLSConversationDataSchema
 
 activeMLSConversationDataSchema :: ObjectSchema SwaggerDoc ActiveMLSConversationData
 activeMLSConversationDataSchema =
@@ -229,9 +229,13 @@ protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
 protocolTag (ProtocolMixed _) = ProtocolMixedTag
 
+-- TODO!### interesting, we intentionally made 3 different schemas all
+-- have the name "Protocol" here until now.  was there a reason?
+-- maybe a good one?
+
 instance ToSchema ProtocolTag where
   schema =
-    enum @Text "Protocol" $
+    enum @Text $
       mconcat
         [ element "proteus" ProtocolProteusTag,
           element "mls" ProtocolMLSTag,
@@ -254,10 +258,10 @@ protocolSchema v =
         (snd .= dispatch (protocolDataSchema v))
 
 instance ToSchema Protocol where
-  schema = object "Protocol" (protocolSchema Nothing)
+  schema = object (protocolSchema Nothing)
 
 instance ToSchema (Versioned 'V5 Protocol) where
-  schema = object "Protocol" (Versioned <$> unVersioned .= protocolSchema (Just V5))
+  schema = object (Versioned <$> unVersioned .= protocolSchema (Just V5))
 
 deriving via (Schema Protocol) instance FromJSON Protocol
 
@@ -275,7 +279,7 @@ newtype ProtocolUpdate = ProtocolUpdate {unProtocolUpdate :: ProtocolTag}
   deriving (Arbitrary) via GenericUniform ProtocolUpdate
 
 instance ToSchema ProtocolUpdate where
-  schema = object "ProtocolUpdate" (ProtocolUpdate <$> unProtocolUpdate .= protocolTagSchema)
+  schema = object (ProtocolUpdate <$> unProtocolUpdate .= protocolTagSchema)
 
 deriving via (Schema ProtocolUpdate) instance FromJSON ProtocolUpdate
 

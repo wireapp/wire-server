@@ -76,7 +76,7 @@ data EventType = Update
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "feature-config.update" Update
         ]
@@ -91,7 +91,7 @@ eventObjectSchema =
 
 instance ToSchema Event where
   schema =
-    object "Event" eventObjectSchema
+    object eventObjectSchema
 
 instance ToJSONObject Event where
   toJSONObject =

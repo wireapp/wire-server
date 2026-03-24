@@ -50,7 +50,7 @@ data JSONResponse = JSONResponse
 
 instance ToSchema JSONResponse where
   schema =
-    object "JSONResponse" $
+    object $
       JSONResponse
         <$> status .= field "status" (toEnum <$> (fromEnum .= schema))
         <*> value .= field "value" jsonValue

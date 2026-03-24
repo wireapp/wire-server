@@ -60,7 +60,7 @@ data NewLegalHoldService = NewLegalHoldService
 
 instance ToSchema NewLegalHoldService where
   schema =
-    object "NewLegalHoldService" $
+    object $
       NewLegalHoldService
         <$> newLegalHoldServiceUrl .= field "base_url" schema
         <*> newLegalHoldServiceKey .= field "public_key" schema
@@ -84,7 +84,7 @@ data LHServiceStatus = Configured | NotConfigured | Disabled
 
 instance ToSchema LHServiceStatus where
   schema =
-    enum @Text "LHServiceStatus" $
+    enum @Text $
       mconcat
         [ element "configured" Configured,
           element "not_configured" NotConfigured,
@@ -93,7 +93,7 @@ instance ToSchema LHServiceStatus where
 
 instance ToSchema ViewLegalHoldService where
   schema =
-    object "ViewLegalHoldService" $
+    object $
       toOutput
         .= recordSchema
         `withParser` validateViewLegalHoldService
@@ -132,7 +132,7 @@ data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
 
 instance ToSchema ViewLegalHoldServiceInfo where
   schema =
-    object "ViewLegalHoldServiceInfo" $
+    object $
       ViewLegalHoldServiceInfo
         <$> viewLegalHoldServiceTeam .= field "team_id" schema
         <*> viewLegalHoldServiceUrl .= field "base_url" schema
@@ -156,7 +156,7 @@ data UserLegalHoldStatusResponse = UserLegalHoldStatusResponse
 
 instance ToSchema UserLegalHoldStatusResponse where
   schema =
-    object "UserLegalHoldStatusResponse" $
+    object $
       UserLegalHoldStatusResponse
         <$> ulhsrStatus .= field "status" schema
         <*> ulhsrLastPrekey .= maybe_ (optField "last_prekey" schema)
@@ -174,7 +174,7 @@ data RemoveLegalHoldSettingsRequest = RemoveLegalHoldSettingsRequest
 
 instance ToSchema RemoveLegalHoldSettingsRequest where
   schema =
-    object "RemoveLegalHoldSettingsRequest" $
+    object $
       RemoveLegalHoldSettingsRequest
         <$> rmlhsrPassword .= maybe_ (optField "password" schema)
 
@@ -190,7 +190,7 @@ data DisableLegalHoldForUserRequest = DisableLegalHoldForUserRequest
 
 instance ToSchema DisableLegalHoldForUserRequest where
   schema =
-    object "DisableLegalHoldForUserRequest" $
+    object $
       DisableLegalHoldForUserRequest
         <$> dlhfuPassword .= maybe_ (optField "password" schema)
 
@@ -206,7 +206,7 @@ data ApproveLegalHoldForUserRequest = ApproveLegalHoldForUserRequest
 
 instance ToSchema ApproveLegalHoldForUserRequest where
   schema =
-    object "ApproveLegalHoldForUserRequest" $
+    object $
       ApproveLegalHoldForUserRequest
         <$> alhfuPassword .= maybe_ (optField "password" schema)
 

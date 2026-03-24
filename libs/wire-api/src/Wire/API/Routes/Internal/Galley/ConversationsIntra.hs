@@ -30,7 +30,7 @@ data DesiredMembership = Included | Excluded
 
 instance ToSchema DesiredMembership where
   schema =
-    enum @Text "DesiredMembership" $
+    enum @Text $
       mconcat
         [ element "included" Included,
           element "excluded" Excluded
@@ -42,7 +42,7 @@ data Actor = LocalActor | RemoteActor
 
 instance ToSchema Actor where
   schema =
-    enum @Text "Actor" $
+    enum @Text $
       mconcat
         [ element "local_actor" LocalActor,
           element "remote_actor" RemoteActor
@@ -60,7 +60,7 @@ data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
 
 instance ToSchema UpsertOne2OneConversationRequest where
   schema =
-    object "UpsertOne2OneConversationRequest" $
+    object $
       UpsertOne2OneConversationRequest
         <$> (tUntagged . uooLocalUser) .= field "local_user" (qTagUnsafe <$> schema)
         <*> (tUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)

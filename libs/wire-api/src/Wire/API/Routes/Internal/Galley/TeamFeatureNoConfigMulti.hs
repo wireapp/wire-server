@@ -36,7 +36,7 @@ data TeamStatus cfg = TeamStatus
 
 instance forall k (cfg :: k). (Typeable k, Typeable cfg) => ToSchema (TeamStatus cfg) where
   schema =
-    object "TeamStatus" $
+    object $
       TeamStatus
         <$> team .= field "team" schema
         <*> status .= field "status" schema

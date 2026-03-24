@@ -35,7 +35,7 @@ data TeamMemberInfo = TeamMemberInfo
 
 instance ToSchema TeamMemberInfo where
   schema =
-    object "TeamMemberInfo" $
+    object $
       TeamMemberInfo
         <$> (.userId) .= field "userId" schema
         <*> (.permissions) .= field "permissions" schema
@@ -49,6 +49,6 @@ newtype TeamMemberInfoList = TeamMemberInfoList
 
 instance ToSchema TeamMemberInfoList where
   schema =
-    object "TeamMemberInfoList" $
+    object $
       TeamMemberInfoList
         <$> (.members) .= field "members" (array schema)

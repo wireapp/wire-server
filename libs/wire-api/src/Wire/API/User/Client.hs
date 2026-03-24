@@ -155,7 +155,7 @@ data ClientCapability
 
 instance ToSchema ClientCapability where
   schema =
-    enum @Text "ClientCapability" $
+    enum @Text $
       element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
         <> element "consumable-notifications" ClientSupportsConsumableNotifications
 
@@ -164,7 +164,7 @@ data ClientCapabilityV7 = ClientSupportsLegalholdImplicitConsentV7
 
 capabilitySchemaV7 :: ValueSchema NamedSwaggerDoc ClientCapabilityV7
 capabilitySchemaV7 =
-  enum @Text "ClientCapabilityV7" $
+  enum @Text $
     element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsentV7
 
 clientCapabilityFromV7 :: ClientCapabilityV7 -> ClientCapability
@@ -194,7 +194,7 @@ instance ToSchema ClientCapabilityList where
 
 instance ToSchema (Versioned V6 ClientCapabilityList) where
   schema =
-    object "ClientCapabilityListV6Wrapper" $
+    object $
       Versioned
         <$> unVersioned .= field "capabilities" (capabilitiesSchema (Just V6))
 
@@ -334,7 +334,7 @@ instance Arbitrary QualifiedUserClientPrekeyMapV4 where
 
 instance ToSchema QualifiedUserClientPrekeyMapV4 where
   schema =
-    object "QualifiedUserClientPrekeyMapV4" $
+    object $
       QualifiedUserClientPrekeyMapV4
         <$> fmap to' (from' .= field "qualified_user_client_prekeys" (map_ schema))
         <*> failedToList .= maybe_ (optField "failed_to_list" (array schema))
@@ -386,7 +386,7 @@ data ClientInfo = ClientInfo
 
 instance ToSchema ClientInfo where
   schema =
-    object "ClientInfo" $
+    object $
       ClientInfo
         <$> (.clientId) .= field "id" schema
         <*> (.mlsSignatureKey) .= maybe_ (optField "mls_signature_key" base64Schema)
@@ -605,7 +605,7 @@ data ClientList = ClientList {clClients :: [ClientId]}
 
 instance ToSchema ClientList where
   schema =
-    object "ClientList" $
+    object $
       ClientList
         <$> clClients
           .= field "client_ids" (array schema)
@@ -624,7 +624,7 @@ data PubClient = PubClient
 
 instance ToSchema PubClient where
   schema =
-    object "PubClient" $
+    object $
       PubClient
         <$> pubClientId .= field "id" schema
         <*> pubClientClass .= maybe_ (optField "class" schema)
@@ -667,7 +667,7 @@ data ClientType
 
 instance ToSchema ClientType where
   schema =
-    enum @Text "ClientType" $
+    enum @Text $
       element "temporary" TemporaryClientType
         <> element "permanent" PermanentClientType
         <> element "legalhold" LegalHoldClientType
@@ -694,7 +694,7 @@ data ClientClass
 
 instance ToSchema ClientClass where
   schema =
-    enum @Text "ClientClass" $
+    enum @Text $
       element "phone" PhoneClient
         <> element "tablet" TabletClient
         <> element "desktop" DesktopClient
@@ -735,7 +735,7 @@ data NewClient = NewClient
 
 newClientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc NewClient
 newClientSchema mVersion =
-  object "NewClient" $
+  object $
     NewClient
       <$> newClientPrekeys
         .= fieldWithDocModifier
@@ -854,7 +854,7 @@ defUpdateClient =
 
 updateClientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc UpdateClient
 updateClientSchema mVersion =
-  object "UpdateClient" $
+  object $
     UpdateClient
       <$> updateClientPrekeys
         .= ( fromMaybe []
@@ -907,7 +907,7 @@ newtype RmClient = RmClient
 
 instance ToSchema RmClient where
   schema =
-    object "DeleteClient" $
+    object $
       RmClient
         <$> rmPassword
           .= optFieldWithDocModifier

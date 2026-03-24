@@ -43,7 +43,7 @@ instance Default CellsState where
 
 instance ToSchema CellsState where
   schema =
-    enum @Text "CellsState" $
+    enum @Text $
       mconcat
         [ element "disabled" CellsDisabled,
           element "pending" CellsPending,

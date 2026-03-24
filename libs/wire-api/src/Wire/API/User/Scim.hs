@@ -172,7 +172,7 @@ instance ToHttpApiData ScimToken where
 
 instance ToSchema ScimTokenInfo where
   schema =
-    object "ScimTokenInfo" $
+    object $
       ScimTokenInfo
         <$> (.stiTeam) .= field "team" schema
         <*> (.stiId) .= field "id" schema
@@ -201,7 +201,7 @@ data ScimTokenInfoV7 = ScimTokenInfoV7
 
 instance ToSchema ScimTokenInfoV7 where
   schema =
-    object "ScimTokenInfoV7" $
+    object $
       ScimTokenInfoV7
         <$> (.stiTeam) .= field "team" schema
         <*> (.stiId) .= field "id" schema
@@ -468,7 +468,7 @@ data CreateScimTokenResponse = CreateScimTokenResponse
 
 instance ToSchema CreateScimTokenResponse where
   schema =
-    object "CreateScimTokenResponse" $
+    object $
       CreateScimTokenResponse
         <$> (.token) .= field "token" schema
         <*> (.info) .= field "info" schema
@@ -483,7 +483,7 @@ data CreateScimTokenResponseV7 = CreateScimTokenResponseV7
 
 instance ToSchema CreateScimTokenResponseV7 where
   schema =
-    object "CreateScimTokenResponseV7" $
+    object $
       CreateScimTokenResponseV7
         <$> (.token) .= field "token" schema
         <*> (.info) .= field "info" schema
@@ -499,7 +499,7 @@ data ScimTokenList = ScimTokenList
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenList)
 
 instance ToSchema ScimTokenList where
-  schema = object "ScimTokenList" $ ScimTokenList <$> (.scimTokenListTokens) .= field "tokens" (array schema)
+  schema = object $ ScimTokenList <$> (.scimTokenListTokens) .= field "tokens" (array schema)
 
 data ScimTokenListV7 = ScimTokenListV7
   { scimTokenListTokens :: [ScimTokenInfoV7]
@@ -508,11 +508,11 @@ data ScimTokenListV7 = ScimTokenListV7
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenListV7)
 
 instance ToSchema ScimTokenListV7 where
-  schema = object "ScimTokenListV7" $ ScimTokenListV7 <$> (.scimTokenListTokens) .= field "tokens" (array schema)
+  schema = object $ ScimTokenListV7 <$> (.scimTokenListTokens) .= field "tokens" (array schema)
 
 newtype ScimTokenName = ScimTokenName {fromScimTokenName :: Text}
   deriving (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema.Schema ScimTokenName)
 
 instance ToSchema ScimTokenName where
-  schema = object "ScimTokenName" $ ScimTokenName <$> fromScimTokenName .= field "name" schema
+  schema = object $ ScimTokenName <$> fromScimTokenName .= field "name" schema

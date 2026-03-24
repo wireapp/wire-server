@@ -134,7 +134,7 @@ queuedNotification = QueuedNotification
 
 instance ToSchema QueuedNotification where
   schema =
-    objectWithDocModifier "QueuedNotification" queuedNotificationDoc $
+    objectWithDocModifier queuedNotificationDoc $
       QueuedNotification
         <$> _queuedNotificationId
           .= field "id" schema
@@ -160,7 +160,7 @@ queuedNotificationList = QueuedNotificationList
 
 instance ToSchema QueuedNotificationList where
   schema =
-    objectWithDocModifier "QueuedNotificationList" queuedNotificationListDoc $
+    objectWithDocModifier queuedNotificationListDoc $
       QueuedNotificationList
         <$> _queuedNotifications
           .= fieldWithDocModifier "notifications" notificationsDoc (array schema)
@@ -205,7 +205,7 @@ newtype ServerTime = ServerTime {getServerTime :: UTCTime}
 
 instance ToSchema ServerTime where
   schema =
-    objectWithDocModifier "ServerTime" serverTimeDoc $
+    objectWithDocModifier serverTimeDoc $
       ServerTime
         <$> getServerTime .= field "time" utcTimeSchema
     where

@@ -109,7 +109,7 @@ instance ToSchema History where
 
 instance ToSchema HistorySharingConfig where
   schema =
-    object "HistorySharingConfig" $
+    object $
       HistorySharingConfig
         <$> (.depth) .= field "depth" schema
 

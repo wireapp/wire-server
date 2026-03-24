@@ -342,7 +342,7 @@ instance ToSchema RichField where
   -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
   -- that some provisioning agent would support "type" but not "name".
   schema =
-    object "RichField" $
+    object $
       RichField
         <$> richFieldType .= field "type" (CI.original .= (CI.mk <$> schema))
         <*> richFieldValue .= field "value" schema

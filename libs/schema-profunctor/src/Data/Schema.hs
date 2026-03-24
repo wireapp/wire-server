@@ -403,8 +403,8 @@ tag f = rmap runIdentity . f . rmap Identity
 -- This can be used to convert a combination of schemas obtained using
 -- 'field' into a single schema for a JSON object.
 object ::
+  forall doc doc' a b.
   (Typeable a, HasObject doc doc') =>
-  Text -> -- TODO: remove schema name, it's generated now!
   SchemaP doc A.Object [A.Pair] a b ->
   SchemaP doc' A.Value A.Value a b
 object = objectOver id
@@ -416,10 +416,9 @@ objectOver ::
   forall doc doc' v' a b v.
   (Typeable a, HasObject doc doc') =>
   Lens v v' A.Value A.Object ->
-  Text -> -- TODO: remove schema name, it's generated now!
   SchemaP doc v' [A.Pair] a b ->
   SchemaP doc' v A.Value a b
-objectOver l _name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+objectOver l sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
     name = mkSchemaName @a
     parseObject val = ContT $ \k -> A.withObject (T.unpack name) k val
@@ -438,12 +437,12 @@ mkSchemaName = T.pack $ show $ typeRep (Proxy @a)
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.
 objectWithDocModifier ::
+  forall doc doc' a.
   (Typeable a, HasObject doc doc') =>
-  Text ->
   (doc' -> doc') ->
   ObjectSchema doc a ->
   ValueSchema doc' a
-objectWithDocModifier name modify sch = over doc modify (object name sch)
+objectWithDocModifier modify sch = over doc modify (object sch)
 
 -- | Turn a named schema into an unnamed one.
 --
@@ -571,10 +570,9 @@ element label value = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 enum ::
   forall v doc a b.
   (Typeable a, With v, HasEnum v doc) =>
-  Text -> -- TODO: remove schema name, it's generated now!
   SchemaP [A.Value] v (Alt Maybe v) a b ->
   SchemaP doc A.Value A.Value a b
-enum _name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
+enum sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
   where
     name = mkSchemaName @a
     d = mkEnum @v name (schemaDoc sch)
@@ -665,7 +663,7 @@ parsedTextWithDoc desc name parser = appendDescr (text name) `withParser` (eithe
 -- | A schema for an arbitrary JSON object.
 jsonObject :: ValueSchema SwaggerDoc A.Object
 jsonObject =
-  unnamed . object "Object" $
+  unnamed . object $
     mkSchema (pure (mempty & S.type_ ?~ S.OpenApiObject)) pure (pure . (^.. ifolded . withIndex))
 
 -- | A schema for an arbitrary JSON value.

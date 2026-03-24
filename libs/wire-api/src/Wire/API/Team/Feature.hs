@@ -407,7 +407,7 @@ defUnlockedFeature =
 
 instance (Typeable cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
   schema =
-    object name $
+    object $ -- TODO!###
       LockableFeature
         <$> (.status) .= field "status" schema
         <*> (.lockStatus) .= field "lockStatus" schema
@@ -416,9 +416,6 @@ instance (Typeable cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) w
           .= optField
             "ttl"
             (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
-    where
-      inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".LockableFeature"
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeature cfg) where
   arbitrary = LockableFeature <$> arbitrary <*> arbitrary <*> arbitrary
@@ -441,7 +438,7 @@ instance Default (LockableFeaturePatch cfg) where
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
 instance (Typeable cfg, ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) where
   schema =
-    object name $
+    object $ -- TODO!###
       LockableFeaturePatch
         <$> (.status) .= maybe_ (optField "status" schema)
         <*> (.lockStatus) .= maybe_ (optField "lockStatus" schema)
@@ -450,9 +447,6 @@ instance (Typeable cfg, ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) whe
           .= optField
             "ttl"
             (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
-    where
-      inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".LockableFeaturePatch"
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (LockableFeaturePatch cfg) where
   arbitrary = LockableFeaturePatch <$> arbitrary <*> arbitrary <*> arbitrary
@@ -605,7 +599,7 @@ instance FromHttpApiData LockStatus where
 
 instance ToSchema LockStatus where
   schema =
-    enum @Text "LockStatus" $
+    enum @Text $
       mconcat
         [ element "locked" LockStatusLocked,
           element "unlocked" LockStatusUnlocked
@@ -655,7 +649,7 @@ newtype LockStatusResponse = LockStatusResponse {_unlockStatus :: LockStatus}
 
 instance ToSchema LockStatusResponse where
   schema =
-    object "LockStatusResponse" $
+    object $
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
 
@@ -669,7 +663,7 @@ data GuestLinksConfig = GuestLinksConfig
   deriving (ParseDbFeature, Default) via TrivialFeature GuestLinksConfig
 
 instance ToSchema GuestLinksConfig where
-  schema = object "GuestLinksConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature GuestLinksConfig) where
   def = defUnlockedFeature
@@ -701,7 +695,7 @@ instance IsFeatureConfig LegalholdConfig where
   featureSingleton = FeatureSingletonLegalholdConfig
 
 instance ToSchema LegalholdConfig where
-  schema = object "LegalholdConfig" objectSchema
+  schema = object objectSchema
 
 --------------------------------------------------------------------------------
 -- SSO feature
@@ -724,7 +718,7 @@ instance IsFeatureConfig SSOConfig where
   featureSingleton = FeatureSingletonSSOConfig
 
 instance ToSchema SSOConfig where
-  schema = object "SSOConfig" objectSchema
+  schema = object objectSchema
 
 --------------------------------------------------------------------------------
 -- SearchVisibility available feature
@@ -748,7 +742,7 @@ instance IsFeatureConfig SearchVisibilityAvailableConfig where
   featureSingleton = FeatureSingletonSearchVisibilityAvailableConfig
 
 instance ToSchema SearchVisibilityAvailableConfig where
-  schema = object "SearchVisibilityAvailableConfig" objectSchema
+  schema = object objectSchema
 
 type instance DeprecatedFeatureName V2 SearchVisibilityAvailableConfig = "search-visibility"
 
@@ -769,7 +763,7 @@ data RequireExternalEmailVerificationConfig = RequireExternalEmailVerificationCo
   deriving (ParseDbFeature, Default) via (TrivialFeature RequireExternalEmailVerificationConfig)
 
 instance ToSchema RequireExternalEmailVerificationConfig where
-  schema = object "RequireExternalEmailVerificationConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature RequireExternalEmailVerificationConfig) where
   def = defUnlockedFeature
@@ -806,7 +800,7 @@ instance IsFeatureConfig DigitalSignaturesConfig where
 type instance DeprecatedFeatureName V2 DigitalSignaturesConfig = "digital-signatures"
 
 instance ToSchema DigitalSignaturesConfig where
-  schema = object "DigitalSignaturesConfig" objectSchema
+  schema = object objectSchema
 
 --------------------------------------------------------------------------------
 -- ConferenceCalling feature
@@ -877,7 +871,7 @@ instance IsFeatureConfig ConferenceCallingConfig where
 
 instance (Typeable f, OptWithDefault f) => ToSchema (ConferenceCallingConfigB Covered f) where
   schema =
-    object "ConferenceCallingConfig" $
+    object $
       ConferenceCallingConfig
         <$> one2OneCalls
           .= fromOpt
@@ -893,7 +887,7 @@ data SndFactorPasswordChallengeConfig = SndFactorPasswordChallengeConfig
   deriving (ParseDbFeature, Default) via (TrivialFeature SndFactorPasswordChallengeConfig)
 
 instance ToSchema SndFactorPasswordChallengeConfig where
-  schema = object "SndFactorPasswordChallengeConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature SndFactorPasswordChallengeConfig) where
   def = defLockedFeature
@@ -926,7 +920,7 @@ instance IsFeatureConfig SearchVisibilityInboundConfig where
   featureSingleton = FeatureSingletonSearchVisibilityInboundConfig
 
 instance ToSchema SearchVisibilityInboundConfig where
-  schema = object "SearchVisibilityInboundConfig" objectSchema
+  schema = object objectSchema
 
 ----------------------------------------------------------------------
 -- ClassifiedDomains feature
@@ -952,7 +946,7 @@ deriving via (GenericUniform ClassifiedDomainsConfig) instance Arbitrary Classif
 
 instance ToSchema ClassifiedDomainsConfig where
   schema =
-    object "ClassifiedDomainsConfig" $
+    object $
       ClassifiedDomainsConfig
         <$> classifiedDomainsDomains .= field "domains" (array schema)
 
@@ -1000,7 +994,7 @@ instance Default AppLockConfig where
 
 instance (Typeable f, FieldF f) => ToSchema (AppLockConfigB Covered f) where
   schema =
-    object "AppLockConfig" $
+    object $
       AppLockConfig
         <$> (.enforce) .= fieldF "enforceAppLock" schema
         <*> (.timeout) .= fieldF "inactivityTimeoutSecs" schema
@@ -1046,7 +1040,7 @@ instance IsFeatureConfig FileSharingConfig where
   featureSingleton = FeatureSingletonFileSharingConfig
 
 instance ToSchema FileSharingConfig where
-  schema = object "FileSharingConfig" objectSchema
+  schema = object objectSchema
 
 ----------------------------------------------------------------------
 -- SelfDeletingMessagesConfig
@@ -1081,7 +1075,7 @@ instance Default SelfDeletingMessagesConfig where
 
 instance (Typeable f, FieldF f) => ToSchema (SelfDeletingMessagesConfigB Covered f) where
   schema =
-    object "SelfDeletingMessagesConfig" $
+    object $
       SelfDeletingMessagesConfig
         <$> sdmEnforcedTimeoutSeconds .= fieldF "enforcedTimeoutSeconds" schema
 
@@ -1141,7 +1135,7 @@ instance Default MLSConfig where
 
 instance (Typeable f, FieldF f) => ToSchema (MLSConfigB Covered f) where
   schema =
-    object "MLSConfig" $
+    object $
       MLSConfig
         <$> mlsProtocolToggleUsers
           .= ( fieldWithDocModifierF
@@ -1205,7 +1199,7 @@ data ChannelPermissions = TeamMembers | Everyone | Admins
 
 instance ToSchema ChannelPermissions where
   schema =
-    enum @Text "ChannelPermissions" $
+    enum @Text $
       mconcat
         [ element "team-members" TeamMembers,
           element "everyone" Everyone,
@@ -1214,7 +1208,7 @@ instance ToSchema ChannelPermissions where
 
 instance (Typeable f, FieldF f) => ToSchema (ChannelsConfigB Covered f) where
   schema =
-    object "ChannelsConfig" $
+    object $
       ChannelsConfig
         <$> allowedToCreateChannels .= fieldF "allowed_to_create_channels" schema
         <*> allowedToOpenChannels .= fieldF "allowed_to_open_channels" schema
@@ -1249,7 +1243,7 @@ instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   featureSingleton = FeatureSingletonExposeInvitationURLsToTeamAdminConfig
 
 instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
-  schema = object "ExposeInvitationURLsToTeamAdminConfig" objectSchema
+  schema = object objectSchema
 
 ----------------------------------------------------------------------
 -- OutlookCalIntegrationConfig
@@ -1273,7 +1267,7 @@ instance IsFeatureConfig OutlookCalIntegrationConfig where
   featureSingleton = FeatureSingletonOutlookCalIntegrationConfig
 
 instance ToSchema OutlookCalIntegrationConfig where
-  schema = object "OutlookCalIntegrationConfig" objectSchema
+  schema = object objectSchema
 
 ----------------------------------------------------------------------
 -- MlsE2EIdConfig
@@ -1331,7 +1325,7 @@ instance Arbitrary MlsE2EIdConfig where
 
 instance (Typeable f, FieldF f) => ToSchema (MlsE2EIdConfigB Covered f) where
   schema =
-    object "MlsE2EIdConfig" $
+    object $
       MlsE2EIdConfig
         <$> ( (fmap toSeconds . verificationExpiration)
                 .= fieldWithDocModifierF
@@ -1416,7 +1410,7 @@ instance Arbitrary MlsMigrationConfig where
 
 instance (Typeable f, NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
   schema =
-    object "MlsMigration" $
+    object $
       MlsMigrationConfig
         <$> startTime .= nestedMaybeField "startTime" (unnamed utcTimeSchema)
         <*> finaliseRegardlessAfter .= nestedMaybeField "finaliseRegardlessAfter" (unnamed utcTimeSchema)
@@ -1469,7 +1463,7 @@ instance Arbitrary EnforceFileDownloadLocationConfig where
 
 instance (Typeable f, NestedMaybe f) => ToSchema (EnforceFileDownloadLocationConfigB Covered f) where
   schema =
-    object "EnforceFileDownloadLocation" $
+    object $
       EnforceFileDownloadLocationConfig
         <$> enforcedDownloadLocation .= nestedMaybeField "enforcedDownloadLocation" (unnamed schema)
 
@@ -1508,7 +1502,7 @@ instance IsFeatureConfig LimitedEventFanoutConfig where
   featureSingleton = FeatureSingletonLimitedEventFanoutConfig
 
 instance ToSchema LimitedEventFanoutConfig where
-  schema = object "LimitedEventFanoutConfig" objectSchema
+  schema = object objectSchema
 
 --------------------------------------------------------------------------------
 -- DomainRegistration feature
@@ -1521,7 +1515,7 @@ data DomainRegistrationConfig = DomainRegistrationConfig
   deriving (Default, ParseDbFeature) via (TrivialFeature DomainRegistrationConfig)
 
 instance ToSchema DomainRegistrationConfig where
-  schema = object "DomainRegistrationConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature DomainRegistrationConfig) where
   def = defLockedFeature
@@ -1543,7 +1537,7 @@ data CellsPropertyStatus = Enabled | Disabled | Enforced
 
 instance ToSchema CellsPropertyStatus where
   schema =
-    enum @Text "CellsPropertyStatus" $
+    enum @Text $
       mconcat
         [ element "enabled" Enabled,
           element "disabled" Disabled,
@@ -1560,7 +1554,7 @@ data CellsProperty = CellsProperty
 
 instance ToSchema CellsProperty where
   schema =
-    object "CellsProperty" $
+    object $
       CellsProperty
         <$> (.enabled) .= field "enabled" schema
         <*> (.default_) .= field "default" schema
@@ -1575,7 +1569,7 @@ data CellsUsers = CellsUsers
 
 instance ToSchema CellsUsers where
   schema =
-    object "CellsUsers" $
+    object $
       CellsUsers
         <$> (.externals) .= field "externals" schema
         <*> (.guests) .= field "guests" schema
@@ -1587,7 +1581,7 @@ newtype CellsCollaboraStatus = CellsCollaboraStatus {enabled :: Bool}
 
 instance ToSchema CellsCollaboraStatus where
   schema =
-    object "CellsCollaboraStatus" $
+    object $
       CellsCollaboraStatus
         <$> (.enabled) .= field "enabled" schema
 
@@ -1604,7 +1598,7 @@ data CellsPublicLinks = CellsPublicLinks
 
 instance ToSchema CellsPublicLinks where
   schema =
-    object "CellsPublicLinks" $
+    object $
       CellsPublicLinks
         <$> enableFiles .= field "enableFiles" schema
         <*> enableFolders .= field "enableFolders" schema
@@ -1623,7 +1617,7 @@ data CellsRecycle = CellsRecycle
 
 instance ToSchema CellsRecycle where
   schema =
-    object "CellsRecycle" $
+    object $
       CellsRecycle
         <$> autoPurgeDays .= field "autoPurgeDays" schema
         <*> disable .= field "disable" schema
@@ -1639,7 +1633,7 @@ data CellsConfigStorage = CellsConfigStorage
 
 instance ToSchema CellsConfigStorage where
   schema =
-    object "CellsConfigStorage" $
+    object $
       CellsConfigStorage
         <$> perFileQuotaBytes .= field "perFileQuotaBytes" schema
         <*> recycle .= field "recycle" schema
@@ -1654,7 +1648,7 @@ data CellsUserMetaTags = CellsUserMetaTags
 
 instance ToSchema CellsUserMetaTags where
   schema =
-    object "CellsUserMetaTags" $
+    object $
       CellsUserMetaTags
         <$> defaultValues .= field "defaultValues" (array schema)
         <*> allowFreeValues .= field "allowFreeValues" schema
@@ -1666,7 +1660,7 @@ newtype CellsNamespaces = CellsNamespaces {usermetaTags :: CellsUserMetaTags}
 
 instance ToSchema CellsNamespaces where
   schema =
-    object "CellsNamespaces" $
+    object $
       CellsNamespaces
         <$> usermetaTags .= field "usermetaTags" schema
 
@@ -1677,7 +1671,7 @@ newtype CellsMetadata = CellsMetadata {namespaces :: CellsNamespaces}
 
 instance ToSchema CellsMetadata where
   schema =
-    object "CellsMetadata" $
+    object $
       CellsMetadata
         <$> namespaces .= field "namespaces" schema
 
@@ -1754,7 +1748,7 @@ instance Default CellsConfig where
 
 instance (Typeable f, FieldF f) => ToSchema (CellsConfigB Covered f) where
   schema =
-    objectWithDocModifier "CellsConfig" (S.schema . S.example ?~ schemaToJSON (def @CellsConfig)) $
+    objectWithDocModifier (S.schema . S.example ?~ schemaToJSON (def @CellsConfig)) $
       CellsConfig
         <$> channels .= fieldF "channels" schema
         <*> groups .= fieldF "groups" schema
@@ -1766,7 +1760,7 @@ instance (Typeable f, FieldF f) => ToSchema (CellsConfigB Covered f) where
         <*> metadata .= fieldF "metadata" schema
 
 instance ToSchema (Versioned V13 CellsConfig) where
-  schema = object "CellsConfigV13" objectSchema
+  schema = object objectSchema
 
 instance ToObjectSchema (Versioned V13 CellsConfig) where
   objectSchema = pure $ Versioned def
@@ -1791,7 +1785,7 @@ data CollaboraEdition = No | Code | Cool
 
 instance ToSchema CollaboraEdition where
   schema =
-    enum @Text "CollaboraEdition" $
+    enum @Text $
       mconcat
         [ element "NO" No,
           element "CODE" Code,
@@ -1807,7 +1801,7 @@ newtype CellsCollabora = CellsCollabora
 
 instance ToSchema CellsCollabora where
   schema =
-    object "CellsCollabora" $
+    object $
       CellsCollabora
         <$> edition .= field "edition" schema
 
@@ -1819,7 +1813,7 @@ newtype CellsBackend = CellsBackend
   deriving newtype (Arbitrary)
 
 instance ToSchema CellsBackend where
-  schema = object "CellsBackend" $ CellsBackend <$> url .= field "url" schema
+  schema = object $ CellsBackend <$> url .= field "url" schema
 
 newtype NumBytes = NumBytes {unNumBytes :: BigIntString}
   deriving newtype (Show, Eq)
@@ -1849,7 +1843,7 @@ newtype CellsStorage = CellsStorage
 
 instance ToSchema CellsStorage where
   schema =
-    object "CellsStorage" $
+    object $
       CellsStorage
         <$> perUserQuotaBytes .= field "perUserQuotaBytes" schema
 
@@ -1890,7 +1884,7 @@ instance Default CellsInternalConfig where
 
 instance (Typeable f, FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
   schema =
-    object "CellsInternalConfig" $
+    object $
       CellsInternalConfig
         <$> backend .= fieldF "backend" schema
         <*> (.collabora) .= fieldF "collabora" schema
@@ -1927,7 +1921,7 @@ instance Default AllowedGlobalOperationsConfig where
 
 instance ToSchema AllowedGlobalOperationsConfig where
   schema =
-    object "AllowedGlobalOperationsConfig" $
+    object $
       AllowedGlobalOperationsConfig
         <$> mlsConversationReset .= field "mlsConversationReset" schema
 
@@ -1958,7 +1952,7 @@ instance ParseDbFeature AssetAuditLogConfig where
   serialiseDbConfig = DbConfig . schemaToJSON
 
 instance ToSchema AssetAuditLogConfig where
-  schema = object "AssetAuditLogConfig" objectSchema
+  schema = object objectSchema
 
 instance Default AssetAuditLogConfig where
   def = AssetAuditLogConfig
@@ -1984,7 +1978,7 @@ data ConsumableNotificationsConfig = ConsumableNotificationsConfig
   deriving (Default, ParseDbFeature) via (TrivialFeature ConsumableNotificationsConfig)
 
 instance ToSchema ConsumableNotificationsConfig where
-  schema = object "ConsumableNotificationsConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature ConsumableNotificationsConfig) where
   def = defLockedFeature
@@ -2006,7 +2000,7 @@ data ChatBubblesConfig = ChatBubblesConfig
   deriving (ParseDbFeature, Default) via TrivialFeature ChatBubblesConfig
 
 instance ToSchema ChatBubblesConfig where
-  schema = object "ChatBubblesConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature ChatBubblesConfig) where
   def = defLockedFeature
@@ -2028,7 +2022,7 @@ data AppsConfig = AppsConfig
   deriving (ParseDbFeature, Default) via TrivialFeature AppsConfig
 
 instance ToSchema AppsConfig where
-  schema = object "AppsConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature AppsConfig) where
   def = defLockedFeature
@@ -2053,7 +2047,7 @@ data SimplifiedUserConnectionRequestQRCodeConfig = SimplifiedUserConnectionReque
   deriving (ParseDbFeature, Default) via TrivialFeature SimplifiedUserConnectionRequestQRCodeConfig
 
 instance ToSchema SimplifiedUserConnectionRequestQRCodeConfig where
-  schema = object "SimplifiedUserConnectionRequestQRCode" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature SimplifiedUserConnectionRequestQRCodeConfig) where
   def = defUnlockedFeature
@@ -2075,7 +2069,7 @@ data StealthUsersConfig = StealthUsersConfig
   deriving (ParseDbFeature, Default) via TrivialFeature StealthUsersConfig
 
 instance ToSchema StealthUsersConfig where
-  schema = object "StealthUsersConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature StealthUsersConfig) where
   def = defLockedFeature
@@ -2100,7 +2094,7 @@ data MeetingsConfig = MeetingsConfig
   deriving (ParseDbFeature, Default) via TrivialFeature MeetingsConfig
 
 instance ToSchema MeetingsConfig where
-  schema = object "MeetingsConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature MeetingsConfig) where
   def = defUnlockedFeature
@@ -2125,7 +2119,7 @@ data MeetingsPremiumConfig = MeetingsPremiumConfig
   deriving (ParseDbFeature, Default) via TrivialFeature MeetingsPremiumConfig
 
 instance ToSchema MeetingsPremiumConfig where
-  schema = object "MeetingsPremiumConfig" objectSchema
+  schema = object objectSchema
 
 instance Default (LockableFeature MeetingsPremiumConfig) where
   def = defLockedFeature
@@ -2166,7 +2160,7 @@ instance ToHttpApiData FeatureStatus where
 
 instance ToSchema FeatureStatus where
   schema =
-    enum @Text "FeatureStatus" $
+    enum @Text $
       mconcat
         [ element "enabled" FeatureStatusEnabled,
           element "disabled" FeatureStatusDisabled
@@ -2274,7 +2268,7 @@ instance (Typeable cfg, IsFeatureConfig cfg, ToSchema cfg) => FeatureFieldConstr
 
 instance ToSchema AllTeamFeatures where
   schema =
-    object "AllTeamFeatures" $ hobjectSchema @FeatureFieldConstraints featureField
+    object $ hobjectSchema @FeatureFieldConstraints featureField
     where
       featureField ::
         forall cfg.
@@ -2441,7 +2435,7 @@ instance Default TeamFeatureMigrationState where
 
 instance ToSchema TeamFeatureMigrationState where
   schema =
-    enum @Text "TeamFeatureMigrationState" $
+    enum @Text $
       mconcat
         [ element "not_started" MigrationNotStarted,
           element "in_progress" MigrationInProgress,

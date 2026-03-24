@@ -80,7 +80,7 @@ newtype AllURLs = AllURLs {unAllURLs :: [HttpsUrl]}
 
 instance ToSchema AllURLs where
   schema =
-    object "AllURLs" $
+    object $
       AllURLs
         <$> unAllURLs .= field "sft_servers_all" (array schema)
 

@@ -125,7 +125,7 @@ data KeyValuePair = KeyValuePair
 
 instance ToSchema KeyValuePair where
   schema =
-    object "KeyValuePair" $
+    object $
       KeyValuePair
         <$> key .= field "key" schema
         <*> code .= field "code" schema

@@ -54,7 +54,7 @@ addBot = AddBot
 
 instance ToSchema AddBot where
   schema =
-    object "AddBot" $
+    object $
       AddBot
         <$> _addBotService .= field "service" schema
         <*> _addBotConv .= field "conversation" schema
@@ -74,7 +74,7 @@ removeBot = RemoveBot
 
 instance ToSchema RemoveBot where
   schema =
-    object "RemoveBot" $
+    object $
       RemoveBot
         <$> _rmBotConv .= field "conversation" schema
         <*> _rmBotId .= field "bot" schema

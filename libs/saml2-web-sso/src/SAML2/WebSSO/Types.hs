@@ -272,7 +272,7 @@ data ContactPerson = ContactPerson
 -- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
 instance Schema.ToSchema ContactPerson where
   schema =
-    Schema.object "ContactPerson" $
+    Schema.object $
       ContactPerson
         <$> (_cntType Schema..= Schema.field "type" Schema.schema)
         <*> (_cntCompany Schema..= Schema.maybe_ (Schema.optField "company" Schema.schema))
@@ -292,7 +292,7 @@ data ContactType
 -- (We may want to replace old template-haskell'ed ToJSON and FromJSON instances in hsaml2, but how?)
 instance Schema.ToSchema ContactType where
   schema =
-    Schema.enum @ST.Text "ContactType" $
+    Schema.enum @ST.Text $
       mconcat
         [ Schema.element "ContactTechnical" ContactTechnical,
           Schema.element "ContactSupport" ContactSupport,
@@ -313,7 +313,7 @@ data IdPMetadata = IdPMetadata
 
 instance Schema.ToSchema IdPMetadata where
   schema =
-    Schema.object "IdPMetadata" $
+    Schema.object $
       IdPMetadata
         <$> (_edIssuer Schema..= Schema.field "issuer" Schema.schema)
         <*> (_edRequestURI Schema..= Schema.field "requestURI" Schema.schema)
@@ -349,7 +349,7 @@ data IdPConfig extra = IdPConfig
 
 instance (Typeable (IdPConfig extra), Schema.ToSchema extra) => Schema.ToSchema (IdPConfig extra) where
   schema =
-    Schema.object "IdPConfig" $
+    Schema.object $
       IdPConfig
         <$> (_idpId Schema..= Schema.field "id" Schema.schema)
         <*> (_idpMetadata Schema..= Schema.field "metadata" Schema.schema)

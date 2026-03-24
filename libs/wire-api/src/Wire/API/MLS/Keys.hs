@@ -43,7 +43,7 @@ data MLSKeysByPurpose a = MLSKeysByPurpose
 
 instance (Typeable a, ToSchema a) => ToSchema (MLSKeysByPurpose a) where
   schema =
-    object "MLSKeysByPurpose" $
+    object $
       MLSKeysByPurpose
         <$> (.removal) .= field "removal" schema
 
@@ -58,7 +58,7 @@ data MLSKeys a = MLSKeys
 
 instance (Typeable a, ToSchema a) => ToSchema (MLSKeys a) where
   schema =
-    object "MLSKeys" $
+    object $
       MLSKeys
         <$> ed25519 .= field "ed25519" schema
         <*> ecdsa_secp256r1_sha256 .= field "ecdsa_secp256r1_sha256" schema
@@ -74,7 +74,7 @@ data MLSPrivateKeys = MLSPrivateKeys
 
 instance ToSchema MLSPrivateKeys where
   schema =
-    object "MLSPrivateKeys" $
+    object $
       MLSPrivateKeys
         <$> (.mlsKeyPair_ed25519) .= field @NamedSwaggerDoc "ed25519" (opaqueSchema "KeyPair Ed25519")
         <*> (.mlsKeyPair_ecdsa_secp256r1_sha256) .= field @NamedSwaggerDoc "ecdsa_secp256r1_sha256" (opaqueSchema "KeyPair Ecdsa_secp256r1_sha256")
@@ -137,7 +137,7 @@ data JWK = JWK
 
 instance ToSchema JWK where
   schema =
-    object "JWK" $
+    object $
       JWK
         <$> (.keyType) .= field "kty" schema
         <*> (.curve) .= field "crv" schema

@@ -92,7 +92,7 @@ data AssetAuditLogMetadata = AssetAuditLogMetadata
 
 instance S.ToSchema AssetAuditLogMetadata where
   schema =
-    S.object "AssetAuditLogMetadata" $
+    S.object $
       AssetAuditLogMetadata
         <$> convId S..= S.field "convId" S.schema
         <*> filename S..= S.field "filename" S.schema

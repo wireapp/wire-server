@@ -348,7 +348,7 @@ data ListAllSFTServers
 
 instance ToSchema ListAllSFTServers where
   schema =
-    enum @Text "ListSFTServers" $
+    enum @Text $
       mconcat
         [ element "enabled" ListAllSFTServers,
           element "disabled" HideAllSFTServers

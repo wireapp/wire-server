@@ -244,7 +244,7 @@ conversationMetadataObjectSchema sch =
     <*> cnvmHistory .= (fromMaybe def <$> optField "history" schema)
 
 instance ToSchema ConversationMetadata where
-  schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
+  schema = object (conversationMetadataObjectSchema accessRolesSchema)
 
 instance ToSchema (Versioned 'V2 ConversationMetadata) where
   schema =
@@ -581,7 +581,7 @@ data Access
 instance ToSchema Access where
   schema =
     (S.schema . DS.description ?~ "How users can join conversations") $
-      enum @Text "Access" $
+      enum @Text $
         mconcat
           [ element "private" PrivateAccess,
             element "invite" InviteAccess,
@@ -726,7 +726,7 @@ toAccessRoleLegacy accessRoles = do
 instance ToSchema AccessRole where
   schema =
     (S.schema . DS.description ?~ desc) $
-      enum @Text "AccessRole" $
+      enum @Text $
         mconcat
           [ element "team_member" TeamMemberAccessRole,
             element "non_team_member" NonTeamMemberAccessRole,
@@ -747,7 +747,7 @@ instance ToSchema AccessRoleLegacy where
   schema =
     (S.schema . S.deprecated ?~ True) $
       (S.schema . DS.description ?~ desc) $
-        enum @Text "AccessRoleLegacy" $
+        enum @Text $
           mconcat
             [ element "private" PrivateAccessRole,
               element "team" TeamAccessRole,
@@ -781,7 +781,7 @@ data ConvType
 
 instance ToSchema ConvType where
   schema =
-    enum @Integer "ConvType" $
+    enum @Integer $
       mconcat
         [ element 0 RegularConv,
           element 1 SelfConv,
@@ -852,7 +852,7 @@ data GroupConvType = GroupConversation | Channel | MeetingConversation
 
 instance ToSchema GroupConvType where
   schema =
-    enum @Text "GroupConvType" $
+    enum @Text $
       mconcat
         [ element "group_conversation" GroupConversation,
           element "channel" Channel,
@@ -1085,7 +1085,7 @@ data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
 
 instance ToSchema Invite where
   schema =
-    object "Invite" $
+    object $
       Invite
         <$> (.invUsers)
           .= field "users" (nonEmptyArray schema)
@@ -1103,7 +1103,7 @@ data InviteQualified = InviteQualified
 
 instance ToSchema InviteQualified where
   schema =
-    object "InviteQualified" $
+    object $
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
         <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
@@ -1118,7 +1118,7 @@ data InviteQualifiedInternal = InviteQualifiedInternal
 
 instance ToSchema InviteQualifiedInternal where
   schema =
-    object "InviteQualifiedInternal" $
+    object $
       InviteQualifiedInternal
         <$> (.actor) .= field "actor" schema
         <*> (.invite) .= field "invite" schema
@@ -1135,7 +1135,7 @@ newtype ConversationRename = ConversationRename
 
 instance ToSchema ConversationRename where
   schema =
-    object "ConversationRename" $
+    object $
       ConversationRename
         <$> cupName
           .= fieldWithDocModifier
@@ -1175,7 +1175,7 @@ data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
 
 instance ToSchema ConversationReceiptModeUpdate where
   schema =
-    objectWithDocModifier "ConversationReceiptModeUpdate" (DS.description ?~ desc) $
+    objectWithDocModifier (DS.description ?~ desc) $
       ConversationReceiptModeUpdate
         <$> cruReceiptMode .= field "receipt_mode" (unnamed schema)
     where
@@ -1210,7 +1210,7 @@ instance Default JoinType where
 
 instance ToSchema JoinType where
   schema =
-    enum @Text "JoinType" $
+    enum @Text $
       mconcat
         [ element "external_add" ExternalAdd,
           element "internal_add" InternalAdd
@@ -1290,7 +1290,7 @@ instance Default AddPermission where
 
 instance ToSchema AddPermission where
   schema =
-    enum @Text "AddPermission" $
+    enum @Text $
       mconcat
         [ element "admins" Admins,
           element "everyone" Everyone
@@ -1350,7 +1350,7 @@ data ConversationHistoryUpdate = ConversationHistoryUpdate
 
 instance ToSchema ConversationHistoryUpdate where
   schema =
-    object "ConversationHistoryUpdate" $
+    object $
       ConversationHistoryUpdate
         <$> (.history) .= field "history" schema
 

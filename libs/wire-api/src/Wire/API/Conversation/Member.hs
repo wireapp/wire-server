@@ -64,7 +64,7 @@ data OwnConvMembers = OwnConvMembers
 
 instance ToSchema OwnConvMembers where
   schema =
-    objectWithDocModifier "OwnConvMembers" (description ?~ "Users of a conversation") $
+    objectWithDocModifier (description ?~ "Users of a conversation") $
       OwnConvMembers
         <$> cmSelf
           .= fieldWithDocModifier
@@ -90,7 +90,7 @@ data ConvMembers = ConvMembers
 
 instance ToSchema ConvMembers where
   schema =
-    objectWithDocModifier "ConvMembers" (description ?~ "Users of a conversation") $
+    objectWithDocModifier (description ?~ "Users of a conversation") $
       ConvMembers
         <$> self .= maybe_ (optFieldWithDocModifier "self" selfDesc schema)
         <*> others .= fieldWithDocModifier "others" othersDesc (array schema)
@@ -132,7 +132,7 @@ defMember uid =
 
 instance ToSchema Member where
   schema =
-    object "Member" $
+    object $
       Member
         <$> memId .= field "qualified_id" schema
         <* (qUnqualified . memId)
@@ -177,7 +177,7 @@ data OtherMember = OtherMember
 
 instance ToSchema OtherMember where
   schema =
-    object "OtherMember" $
+    object $
       OtherMember
         <$> omQualifiedId .= field "qualified_id" schema
         <* (qUnqualified . omQualifiedId) .= optional (field "id" schema)
@@ -212,7 +212,7 @@ memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 instance ToSchema MemberUpdate where
   schema =
     (`withParser` (either fail pure . validateMemberUpdate))
-      . object "MemberUpdate"
+      . object
       $ MemberUpdate
         <$> mupOtrMuteStatus .= maybe_ (optField "otr_muted_status" schema)
         <*> mupOtrMuteRef .= maybe_ (optField "otr_muted_ref" schema)
@@ -255,7 +255,6 @@ instance ToSchema OtherMemberUpdate where
   schema =
     (`withParser` (either fail pure . validateOtherMemberUpdate))
       . objectWithDocModifier
-        "OtherMemberUpdate"
         (description ?~ "Update user properties of other members relative to a conversation")
       $ OtherMemberUpdate
         <$> omuConvRoleName .= maybe_ (optField "conversation_role" schema)

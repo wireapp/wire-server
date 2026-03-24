@@ -100,8 +100,7 @@ instance
             ?~ "optional, when not specified, the first page will be returned.\
                \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
         addSizeDoc = description ?~ ("optional, must be <= " <> textFromNat @max <> ", defaults to " <> textFromNat @def <> ".")
-     in objectWithDocModifier
-          ("GetPaginated_" <> textFromSymbol @name)
+     in objectWithDocModifier -- TODO!###
           (description ?~ "A request to list some or all of a user's " <> textFromSymbol @name <> ", including remote ones")
           $ GetMultiTablePageRequest
             <$> gmtprSize .= (fromMaybe (toRange (Proxy @def)) <$> optFieldWithDocModifier "size" addSizeDoc schema)
@@ -160,7 +159,7 @@ instance
   ToSchema (MultiTablePage name resultsKey tables a)
   where
   schema =
-    object (textFromSymbol @name <> "_Page") $
+    object $ -- TODO!###
       MultiTablePage
         <$> mtpResults .= field (textFromSymbol @resultsKey) (array schema)
         <*> mtpHasMore .= field "has_more" schema

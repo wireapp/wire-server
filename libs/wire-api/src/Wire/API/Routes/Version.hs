@@ -179,7 +179,7 @@ versionByteString :: Version -> ByteString
 versionByteString = ("v" <>) . toByteString' . versionInt @Int
 
 instance ToSchema Version where
-  schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
+  schema = enum @Text . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
 
 instance FromHttpApiData Version where
   parseQueryParam v = note ("Unknown version: " <> v) $
@@ -206,7 +206,7 @@ newtype VersionNumber = VersionNumber {fromVersionNumber :: Version}
 
 instance ToSchema VersionNumber where
   schema =
-    enum @Integer "VersionNumber" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
+    enum @Integer . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
 
 instance FromHttpApiData VersionNumber where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
@@ -235,7 +235,7 @@ data VersionInfo = VersionInfo
 
 instance ToSchema VersionInfo where
   schema =
-    objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
+    objectWithDocModifier (S.schema . S.example ?~ toJSON example) $
       VersionInfo
         <$> vinfoSupported
           .= vinfoObjectSchema schema
@@ -307,7 +307,7 @@ instance ToSchema VersionExp where
         <> tag
           _VersionExpDevelopment
           ( unnamed
-              (enum @Text "VersionExpDevelopment" (element "development" ()))
+              (enum @Text (element "development" ()))
           )
 
 deriving via Schema VersionExp instance (FromJSON VersionExp)

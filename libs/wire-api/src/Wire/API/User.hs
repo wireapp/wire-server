@@ -244,7 +244,7 @@ newtype UserIdList = UserIdList {mUsers :: [UserId]}
 
 instance ToSchema UserIdList where
   schema =
-    object "UserIdList" $
+    object $
       UserIdList
         <$> mUsers
           .= field "user_ids" (array schema)
@@ -263,7 +263,7 @@ newtype UserIds = UserIds
 
 instance ToSchema UserIds where
   schema =
-    object "UserIds" $
+    object $
       UserIds
         <$> cUsers
           .= field "ids" (array schema)
@@ -278,7 +278,7 @@ newtype GetActivationCodeResp = GetActivationCodeResp {fromGetActivationCodeResp
 
 instance ToSchema GetActivationCodeResp where
   schema =
-    object "GetActivationCodeResp" $
+    object $
       curry GetActivationCodeResp
         <$> (fst . fromGetActivationCodeResp) .= field "key" schema
         <*> (snd . fromGetActivationCodeResp) .= field "code" schema
@@ -290,7 +290,7 @@ newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp {fromGetPasswordRese
 
 instance ToSchema GetPasswordResetCodeResp where
   schema =
-    object "GetPasswordResetCodeResp" $
+    object $
       curry GetPasswordResetCodeResp
         <$> (fst . fromGetPasswordResetCodeResp) .= field "key" schema
         <*> (snd . fromGetPasswordResetCodeResp) .= field "code" schema
@@ -317,7 +317,7 @@ newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
 
 instance ToSchema ManagedByUpdate where
   schema =
-    object "ManagedByUpdate" $
+    object $
       ManagedByUpdate
         <$> mbuManagedBy .= field "managed_by" schema
 
@@ -328,7 +328,7 @@ newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
 
 instance ToSchema RichInfoUpdate where
   schema =
-    object "RichInfoUpdate" $
+    object $
       RichInfoUpdate
         <$> riuRichInfo .= field "rich_info" schema
 
@@ -396,14 +396,14 @@ updateConnectionsInternalTag (CreateConnectionForTest _ _) = CreateConnectionFor
 
 instance ToSchema UpdateConnectionsInternalTag where
   schema =
-    enum @Text "UpdateConnectionsInternalTag" $
+    enum @Text $
       element "BlockForMissingLHConsent" BlockForMissingLHConsentTag
         <> element "RemoveLHBlocksInvolving" RemoveLHBlocksInvolvingTag
         <> element "CreateConnectionForTest" CreateConnectionForTestTag
 
 instance ToSchema UpdateConnectionsInternal where
   schema =
-    object "UpdateConnectionsInternal" $
+    object $
       snd
         <$> (updateConnectionsInternalTag &&& id)
           .= bind
@@ -446,7 +446,7 @@ newtype QualifiedUserIdList = QualifiedUserIdList {qualifiedUserIdList :: [Quali
 
 instance ToSchema QualifiedUserIdList where
   schema =
-    object "QualifiedUserIdList" qualifiedUserIdListObjectSchema
+    object qualifiedUserIdListObjectSchema
 
 qualifiedUserIdListObjectSchema :: ObjectSchema SwaggerDoc QualifiedUserIdList
 qualifiedUserIdListObjectSchema =
@@ -489,7 +489,7 @@ instance Default UserType where
 
 instance ToSchema UserType where
   schema =
-    Schema.enum @Text "UserType" $
+    Schema.enum @Text $
       mconcat
         [ Schema.element "regular" UserTypeRegular,
           Schema.element "app" UserTypeApp,
@@ -543,7 +543,7 @@ data UserProfile = UserProfile
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema UserProfile)
 
 instance ToSchema UserProfile where
-  schema = object "UserProfile" userProfileObjectSchema
+  schema = object userProfileObjectSchema
 
 userProfileObjectSchema :: ObjectSchema SwaggerDoc UserProfile
 userProfileObjectSchema =
@@ -657,7 +657,7 @@ userDeleted u = userStatus u == Deleted
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToSchema User where
-  schema = object "User" userObjectSchema
+  schema = object userObjectSchema
 
 userObjectSchema :: ObjectSchema SwaggerDoc User
 userObjectSchema =
@@ -850,7 +850,7 @@ data CreateUserTeam = CreateUserTeam
 
 instance ToSchema CreateUserTeam where
   schema =
-    object "CreateUserTeam" $
+    object $
       CreateUserTeam
         <$> createdTeamId .= field "team_id" schema
         <*> createdTeamName .= field "team_name" schema
@@ -1016,7 +1016,7 @@ data NewUserSpar = NewUserSpar
 
 instance ToSchema NewUserSpar where
   schema =
-    object "NewUserSpar" $
+    object $
       NewUserSpar
         <$> newUserSparUUID
           .= field "newUserSparUUID" genericToSchema
@@ -1169,7 +1169,7 @@ newUserRawObjectSchema =
 
 instance ToSchema (NewUser PlainTextPassword8) where
   schema =
-    object "NewUser" $ newUserToRaw .= withParser newUserRawObjectSchema newUserFromRaw
+    object $ newUserToRaw .= withParser newUserRawObjectSchema newUserFromRaw
 
 newUserToRaw :: NewUser PlainTextPassword8 -> NewUserRaw
 newUserToRaw NewUser {..} =
@@ -1385,7 +1385,7 @@ data BindingNewTeamUser = BindingNewTeamUser
 
 instance ToSchema BindingNewTeamUser where
   schema =
-    object "BindingNewTeamUser" $
+    object $
       BindingNewTeamUser
         <$> bnuTeam
           .= newTeamObjectSchema
@@ -1405,7 +1405,7 @@ data ScimUserInfo = ScimUserInfo
 
 instance ToSchema ScimUserInfo where
   schema =
-    object "ScimUserInfo" $
+    object $
       ScimUserInfo
         <$> suiUserId
           .= field "id" schema
@@ -1426,7 +1426,7 @@ newtype UserSet = UserSet
 
 instance ToSchema UserSet where
   schema =
-    object "UserSet" $
+    object $
       UserSet
         <$> usUsrs
           .= field "users" (set schema)
@@ -1448,7 +1448,7 @@ data UserUpdate = UserUpdate
 
 instance ToSchema UserUpdate where
   schema =
-    object "UserUpdate" $
+    object $
       UserUpdate
         <$> uupName
           .= maybe_ (optField "name" schema)
@@ -1494,7 +1494,7 @@ instance ToSchema PasswordChange where
           ?~ "Data to change a password. The old password is required if \
              \a password already exists."
       )
-      . object "PasswordChange"
+      . object
       $ PasswordChange
         <$> oldPassword
           .= maybe_ (optField "old_password" schema)
@@ -1530,7 +1530,7 @@ newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
 
 instance ToSchema LocaleUpdate where
   schema =
-    object "LocaleUpdate" $
+    object $
       LocaleUpdate
         <$> luLocale
           .= field "locale" schema
@@ -1542,7 +1542,7 @@ newtype EmailUpdate = EmailUpdate {euEmail :: EmailAddress}
 
 instance ToSchema EmailUpdate where
   schema =
-    object "EmailUpdate" $
+    object $
       EmailUpdate
         <$> euEmail
           .= field "email" schema
@@ -1596,7 +1596,7 @@ newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
 
 instance ToSchema PhoneUpdate where
   schema =
-    object "PhoneUpdate" $
+    object $
       PhoneUpdate
         <$> puPhone
           .= field "phone" schema
@@ -1648,7 +1648,7 @@ newtype HandleUpdate = HandleUpdate {huHandle :: Text}
 
 instance ToSchema HandleUpdate where
   schema =
-    object "HandleUpdate" $
+    object $
       HandleUpdate <$> huHandle .= field "handle" schema
 
 data ChangeHandleError
@@ -1682,7 +1682,7 @@ newtype NameUpdate = NameUpdate {nuHandle :: Text}
 
 instance ToSchema NameUpdate where
   schema =
-    object "NameUpdate" $
+    object $
       NameUpdate <$> nuHandle .= field "name" schema
 
 data ChangeEmailResponse
@@ -1720,7 +1720,7 @@ newtype DeleteUser = DeleteUser
 
 instance ToSchema DeleteUser where
   schema =
-    object "DeleteUser" $
+    object $
       DeleteUser
         <$> deleteUserPassword
           .= maybe_ (optField "password" schema)
@@ -1750,7 +1750,7 @@ data VerifyDeleteUser = VerifyDeleteUser
 
 instance ToSchema VerifyDeleteUser where
   schema =
-    objectWithDocModifier "VerifyDeleteUser" (Schema.description ?~ "Data for verifying an account deletion.") $
+    objectWithDocModifier (Schema.description ?~ "Data for verifying an account deletion.") $
       VerifyDeleteUser
         <$> verifyDeleteUserKey
           .= fieldWithDocModifier "key" (Schema.description ?~ "The identifying key of the account (i.e. user ID).") schema
@@ -1766,7 +1766,7 @@ newtype DeletionCodeTimeout = DeletionCodeTimeout
 
 instance ToSchema DeletionCodeTimeout where
   schema =
-    object "DeletionCodeTimeout" $
+    object $
       DeletionCodeTimeout
         <$> fromDeletionCodeTimeout
           .= field "expires_in" schema
@@ -1858,7 +1858,7 @@ data AccountStatus
 
 instance Schema.ToSchema AccountStatus where
   schema =
-    Schema.enum @Text "AccountStatus" $
+    Schema.enum @Text $
       mconcat
         [ Schema.element "active" Active,
           Schema.element "suspended" Suspended,
@@ -1892,7 +1892,7 @@ data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStat
 
 instance Schema.ToSchema AccountStatusResp where
   schema =
-    object "AccountStatusResp" $
+    object $
       AccountStatusResp <$> fromAccountStatusResp .= field "status" schema
 
 newtype AccountStatusUpdate = AccountStatusUpdate {suStatus :: AccountStatus}
@@ -1902,7 +1902,7 @@ newtype AccountStatusUpdate = AccountStatusUpdate {suStatus :: AccountStatus}
 
 instance Schema.ToSchema AccountStatusUpdate where
   schema =
-    object "AccountStatusUpdate" $
+    object $
       AccountStatusUpdate <$> suStatus .= field "status" schema
 
 -------------------------------------------------------------------------------
@@ -1927,7 +1927,7 @@ data NewUserScimInvitation = NewUserScimInvitation
 
 instance Schema.ToSchema NewUserScimInvitation where
   schema =
-    Schema.object "NewUserScimInvitation" $
+    Schema.object $
       NewUserScimInvitation
         <$> newUserScimInvTeamId Schema..= Schema.field "team_id" Schema.schema
         <*> newUserScimInvUserId Schema..= Schema.field "user_id" Schema.schema
@@ -1950,7 +1950,7 @@ data VerificationAction
 
 instance ToSchema VerificationAction where
   schema =
-    enum @Text "VerificationAction" $
+    enum @Text $
       mconcat
         [ element "create_scim_token" CreateScimToken,
           element "login" Login,
@@ -1998,7 +1998,7 @@ data SendVerificationCode = SendVerificationCode
 
 instance ToSchema SendVerificationCode where
   schema =
-    object "SendVerificationCode" $
+    object $
       SendVerificationCode
         <$> svcAction
           .= field "action" schema
@@ -2034,7 +2034,7 @@ baseProtocolToProtocol BaseProtocolMLSTag = ProtocolMLSTag
 
 instance ToSchema BaseProtocolTag where
   schema =
-    enum @Text "BaseProtocol" $
+    enum @Text $
       mconcat
         [ element "proteus" BaseProtocolProteusTag,
           element "mls" BaseProtocolMLSTag
@@ -2066,7 +2066,7 @@ newtype SupportedProtocolUpdate = SupportedProtocolUpdate
 
 instance ToSchema SupportedProtocolUpdate where
   schema =
-    object "SupportedProtocolUpdate" $
+    object $
       SupportedProtocolUpdate
         <$> unSupportedProtocolUpdate
           .= field "supported_protocols" (set schema)
@@ -2081,7 +2081,7 @@ data ListUsersById = ListUsersById
 
 instance ToSchema ListUsersById where
   schema =
-    object "ListUsersById" $
+    object $
       ListUsersById
         <$> listUsersByIdFound .= field "found" (array schema)
         <*> listUsersByIdFailed .= maybe_ (optField "failed" $ nonEmptyArray schema)
@@ -2133,7 +2133,7 @@ instance ToSchema Category where
 
 instance ToSchema NewApp where
   schema =
-    object "NewApp" $
+    object $
       NewApp
         <$> (.name) .= field "name" schema
         <*> (.assets) .= (fromMaybe [] <$> optField "assets" (array schema))
@@ -2143,7 +2143,7 @@ instance ToSchema NewApp where
         <*> (.password) .= field "password" schema
 
 instance ToSchema AppInfo where
-  schema = object "AppInfo" appInfoObjectSchema
+  schema = object appInfoObjectSchema
 
 appInfoObjectSchema :: ObjectSchema SwaggerDoc AppInfo
 appInfoObjectSchema =
@@ -2153,7 +2153,7 @@ appInfoObjectSchema =
 
 instance ToSchema PutApp where
   schema =
-    object "PutApp" $
+    object $
       PutApp
         <$> (.name) .= maybe_ (optField "name" schema)
         <*> (.assets) .= maybe_ (optField "assets" (array schema))
@@ -2170,7 +2170,7 @@ data CreatedApp = CreatedApp
 
 instance ToSchema CreatedApp where
   schema =
-    object "CreatedApp" $
+    object $
       CreatedApp
         <$> (.user) .= field "user" schema
         <*> (.cookie) .= field "cookie" schema
@@ -2182,7 +2182,7 @@ newtype RefreshAppCookieRequest = RefreshAppCookieRequest
 
 instance ToSchema RefreshAppCookieRequest where
   schema =
-    object "RefreshAppCookieRequest" $
+    object $
       RefreshAppCookieRequest
         <$> (.password)
           .= optFieldWithDocModifier
@@ -2199,5 +2199,5 @@ newtype RefreshAppCookieResponse = RefreshAppCookieResponse
 
 instance ToSchema RefreshAppCookieResponse where
   schema =
-    object "RefreshAppCookieResponse" $
+    object $
       RefreshAppCookieResponse <$> (.cookie) .= field "cookie" schema
