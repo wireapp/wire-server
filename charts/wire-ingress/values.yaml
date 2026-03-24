@@ -81,6 +81,11 @@ gateway:
       # Optional hostname restriction for the HTTP listener. Set alongside
       # listeners.https.hostname when using mergeGateways.
       hostname: ""
+  # Set to false to skip creating EnvoyPatchPolicy resources.
+  # EnvoyPatchPolicy requires extensionApis.enableEnvoyPatchPolicy: true
+  # in the EnvoyGateway ConfigMap (see README).
+  patchPolicies:
+    enabled: true
 
 # NOTE: Please provide names. Here are naming suggestions:
 # You need to reference those in the nginz helm chart nginx_conf.deeplink.endpoints

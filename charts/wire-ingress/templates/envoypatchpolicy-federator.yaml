@@ -1,4 +1,4 @@
-{{- if .Values.federator.enabled }}
+{{- if and .Values.federator.enabled .Values.gateway.patchPolicies.enabled }}
 {{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
      Strips trailing dots from the :authority header on the federator listener
      before virtual-host matching. Wire federator resolves federation targets
