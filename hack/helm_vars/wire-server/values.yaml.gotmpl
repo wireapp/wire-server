@@ -691,9 +691,13 @@ background-worker:
 
 integration:
   envoy:
-    enabled: true
+    enabled: {{ ne (env "WIRE_INGRESS_MODE") "nginx" }}
     gateway:
       className: "envoy"
+  {{- if eq (env "WIRE_INGRESS_MODE") "nginx" }}
+  ingress:
+    class: "nginx-{{ .Release.Namespace }}"
+  {{- end }}
   config:
     cassandra:
       host: {{ .Values.cassandraHost }}

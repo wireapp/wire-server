@@ -11,6 +11,21 @@ Name of the Gateway resource for dynamic backends in envoy mode.
 {{- end -}}
 
 {{/*
+Federation origin domain for a given namespace (used as originDomain in the config).
+Returns the SRV hostname that other backends use to reach this namespace's federator.
+Args: list $namespace $envoyEnabled
+*/}}
+{{- define "integration.federationOriginDomain" -}}
+{{- $namespace := index . 0 -}}
+{{- $envoyEnabled := index . 1 -}}
+{{- if $envoyEnabled -}}
+{{- printf "%s-fed.envoy-gateway-system.svc.cluster.local" $namespace -}}
+{{- else -}}
+{{- printf "federation-test-helper.%s.svc.cluster.local" $namespace -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Domain for a dynamic backend. Returns the correct hostname depending on whether
 envoy mode is enabled.
 Args: list $dynamicBackend $namespace $envoyEnabled
