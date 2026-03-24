@@ -508,7 +508,6 @@ data MessageSendingStatus = MessageSendingStatus
 instance ToSchema MessageSendingStatus where
   schema =
     objectWithDocModifier
-      "MessageSendingStatus"
       (description ?~ combinedDesc)
       $ MessageSendingStatus
         <$> mssTime .= field "time" schema

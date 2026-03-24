@@ -176,9 +176,8 @@ data TeamDomainRedirectTag = TeamNoRegistrationTag | TeamNoneTag
 
 instance ToSchema TeamDomainRedirectTag where
   schema =
-    enum @Text
-      "TeamDomainRedirectTag"
-      $ mconcat
+    enum @Text $
+      mconcat
         [ element "no-registration" TeamNoRegistrationTag,
           element "none" TeamNoneTag
         ]

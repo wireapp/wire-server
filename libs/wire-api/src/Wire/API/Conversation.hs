@@ -251,7 +251,6 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
     Versioned
       <$> unVersioned
         .= object
-          "ConversationMetadata"
           (conversationMetadataObjectSchema accessRolesSchemaV2)
 
 instance HasCellsState ConversationMetadata where
@@ -323,7 +322,7 @@ conversationSchema ::
   Maybe Version ->
   ValueSchema NamedSwaggerDoc OwnConversation
 conversationSchema v =
-  objectWithDocModifier
+  namedObjectWithDocModifier -- TODO!###
     ("OwnConversation" <> foldMap (Text.toUpper . versionText) v)
     (DS.description ?~ "A conversation object as returned from the server")
     (ownConversationObjectSchema v)
@@ -355,7 +354,6 @@ data Conversation = Conversation
 instance ToSchema Conversation where
   schema =
     objectWithDocModifier
-      "Conversation"
       (DS.description ?~ "A conversation object as returned from the server")
       $ conversationObjectSchema
 
@@ -375,11 +373,10 @@ data MLSOne2OneConversation a = MLSOne2OneConversation
 
 instance (Typeable a, ToSchema a) => ToSchema (MLSOne2OneConversation a) where
   schema =
-    let aName = maybe "" ("_" <>) $ getName (schemaDoc (schema @a))
-     in object ("MLSOne2OneConversation" <> aName) $
-          MLSOne2OneConversation
-            <$> (.conversation) .= field "conversation" schema
-            <*> publicKeys .= field "public_keys" schema
+    object $
+      MLSOne2OneConversation
+        <$> (.conversation) .= field "conversation" schema
+        <*> publicKeys .= field "public_keys" schema
 
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
@@ -402,7 +399,6 @@ instance (SingI v) => ToSchema (Versioned v CreateGroupOwnConversation) where
 createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupOwnConversation
 createGroupConversationSchema v =
   objectWithDocModifier
-    "CreateGroupOwnConversation"
     (DS.description ?~ "A created group-conversation object extended with a list of failed-to-add users")
     $ CreateGroupOwnConversation
       <$> cgcConversation .= ownConversationObjectSchema v
@@ -427,7 +423,6 @@ data CreateGroupConversation = CreateGroupConversation
 instance ToSchema CreateGroupConversation where
   schema =
     objectWithDocModifier
-      "CreateGroupConversation"
       (DS.description ?~ "A created group-conversation object extended with a list of failed-to-add users")
       $ CreateGroupConversation
         <$> (.conversation) .= conversationObjectSchema
@@ -449,7 +444,6 @@ data ConversationCoverView = ConversationCoverView
 instance ToSchema ConversationCoverView where
   schema =
     objectWithDocModifier
-      "ConversationCoverView"
       (DS.description ?~ "Limited view of Conversation.")
       $ ConversationCoverView
         <$> cnvCoverConvId .= field "id" schema
@@ -489,7 +483,6 @@ conversationListSchema ::
   ValueSchema NamedSwaggerDoc (ConversationList a)
 conversationListSchema sch =
   objectWithDocModifier
-    "ConversationList"
     (DS.description ?~ "Object holding a list of " <> convListItemName (Proxy @a))
     $ ConversationList
       <$> convList .= field "conversations" (array sch)
@@ -528,7 +521,6 @@ newtype ListConversations = ListConversations
 instance ToSchema ListConversations where
   schema =
     objectWithDocModifier
-      "ListConversations"
       (DS.description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
       $ ListConversations
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
@@ -547,7 +539,7 @@ conversationsResponseSchema ::
 conversationsResponseSchema v =
   let notFoundDoc = DS.description ?~ "These conversations either don't exist or are deleted."
       failedDoc = DS.description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
-   in objectWithDocModifier
+   in namedObjectWithDocModifier -- TODO!###
         ("ConversationsResponse" <> foldMap (Text.toUpper . versionText) v)
         (DS.description ?~ "Response object for getting metadata of a list of conversations")
         $ ConversationsResponse
@@ -910,7 +902,7 @@ newConvSchema ::
   ObjectSchema SwaggerDoc (Maybe (Set AccessRole)) ->
   ValueSchema NamedSwaggerDoc NewConv
 newConvSchema v sch =
-  objectWithDocModifier
+  namedObjectWithDocModifier -- TODO!### we probably want versionedObject etc. as well?  just pass the maybe-version and do the same thing every time?
     ("NewConv" <> foldMap (Text.toUpper . versionText) v)
     (DS.description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv

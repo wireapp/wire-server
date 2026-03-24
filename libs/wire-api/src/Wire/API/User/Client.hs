@@ -543,7 +543,8 @@ mlsPublicKeysSchema =
 
 clientSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc Client
 clientSchema mVersion =
-  object (versionedName mVersion "Client") $
+  -- TODO!###
+  namedObject (versionedName mVersion "Client") $
     Client
       <$> (.clientId) .= field "id" schema
       <*> clientType .= field "type" schema

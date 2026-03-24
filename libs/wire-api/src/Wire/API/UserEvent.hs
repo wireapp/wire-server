@@ -281,7 +281,6 @@ eventObjectSchema =
                   ( field
                       "user"
                       ( object
-                          "UserUpdatedData"
                           ( UserUpdatedData
                               <$> eupId .= field "id" schema
                               <*> eupName .= maybe_ (optField "name" schema)
@@ -304,7 +303,6 @@ eventObjectSchema =
                     ( field
                         "user"
                         ( object
-                            "UserIdentityUpdatedData"
                             ( UserIdentityUpdatedData
                                 <$> eiuId .= field "id" schema
                                 <*> eiuEmail .= maybe_ (optField "email" schema)
@@ -321,7 +319,6 @@ eventObjectSchema =
                   ( field
                       "user"
                       ( object
-                          "UserIdentityRemovedData"
                           ( UserIdentityRemovedData
                               <$> eirId .= field "id" schema
                               <*> eirEmail .= maybe_ (optField "email" schema)

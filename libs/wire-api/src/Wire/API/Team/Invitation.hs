@@ -111,7 +111,6 @@ data Invitation = Invitation
 instance ToSchema Invitation where
   schema =
     objectWithDocModifier
-      "Invitation"
       (DS.description ?~ "An invitation to join a team on Wire. If invitee is invited from an existing personal account, inviter email is included.")
       invitationObjectSchema
 

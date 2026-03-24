@@ -119,7 +119,6 @@ defFederationDomainConfigs =
 instance ToSchema FederationDomainConfigs where
   schema =
     objectWithDocModifier
-      "FederationDomainConfigs"
       (description ?~ "See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections.")
       $ FederationDomainConfigs
         <$> strategy .= field "strategy" schema
