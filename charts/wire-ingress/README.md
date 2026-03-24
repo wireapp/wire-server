@@ -22,82 +22,90 @@ Operators should be able to reuse most of their existing values files with minim
 * non-tls ingress disabled by default. If you want to make use of automated certificate validation via http01, you need `gateway.listeners.http.enabled: true`
 * s3 ingress b`/minio/` path blocking. Returns 301 redirect to "/" (was 403).
 
-### Renamed / restructured values
+### New values (no equivalent in nginx-ingress-services)
 
-| Old key | New key | Notes |
+Only values that require explanation are listed. Trivial or self-explanatory values (ports,
+name overrides, etc.) can be found in `values.yaml`.
+
+| Key | Default | Description |
 |---|---|---|
-| `config.ingressClass` | `gateway.className` | Different concept: GatewayClass name, not IngressClass |
-| _(not present)_ | `gateway.create` | `true` = chart creates the Gateway; `false` = BYO |
-| _(not present)_ | `gateway.name` | Name of the Gateway to attach routes to |
-| _(not present)_ | `gateway.infrastructure.annotations` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure) |
-| _(not present)_ | `gateway.proxyProtocol.enabled` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all Gateway listeners — required when the load balancer is configured to send PROXY protocol headers |
-| _(not present)_ | `gateway.patchPolicies.enabled` | Controls whether `EnvoyPatchPolicy` resources are created (default: `true`). See [EnvoyPatchPolicy](#envoypatchpolicy) below. |
-| _(not present)_ | `tls.secret.create` | If `false`, the TLS Secret is not created by this chart — use when the secret is managed externally (e.g. by another chart or operator). `secrets.tlsWildcardCert` and `secrets.tlsWildcardKey` are ignored when `false`. |
-| _(not present)_ | `tls.secret.nameOverride` | Override the name of the TLS Secret referenced by the Gateway listener. If not set, the name is derived from the release name. |
+| `gateway.create` | `true` | If `false`, no `Gateway` resource is created — set `gateway.name` to reference an existing one. Useful when sharing a Gateway across multiple releases. |
+| `gateway.controllerNamespace` | `envoy-gateway-system` | Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
+| `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
+| `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
+| `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set `mergeGateways`, custom service annotations, etc. |
+| `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
+| `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
+| `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
+| `gateway.proxyProtocol.enabled` | `false` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all listeners. Required when the upstream load balancer is configured to send PROXY protocol headers. |
+| `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
+| `gateway.listeners.https.hostname` | `""` | **Required when `federator.enabled: true`.** Restricts the HTTPS listener to a specific hostname (e.g. `*.example.com`). Without this, both the HTTPS and federator listeners are catch-all on the same port, causing Envoy to degrade ALPN to HTTP/1.1-only (`OverlappingTLSConfig`). |
+| `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
+| `tls.secret.create` | `true` | If `false`, the TLS Secret is not created by this chart. Use when the secret is managed externally (e.g. by another operator). |
+| `federator.tls.useCertManager` | `true` | Controls cert-manager for the federator TLS secret independently of `tls.useCertManager`. Requires a private CA — see [Federator TLS certificate](#federator-tls-certificate-federatortlsusecertmanager). |
 
-### Dropped values (not applicable to Gateway API)
+### Dropped values
 
 | Old key | Reason |
 |---|---|
+| `config.ingressClass` | Replaced by `gateway.className` — different concept (GatewayClass name, not IngressClass) |
 | `ingressName` | Multi-ingress out of scope |
 | `config.isAdditionalIngress` | Multi-ingress out of scope |
 | `config.renderCSPInIngress` | Multi-ingress out of scope |
 | `config.dns.base` | Only used for CSP header rendering, which is a multi-ingress feature |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
-| `tls.enabled` | This is removed since it didn't have any effect. All ingresses are always defined with TLS. |
+| `tls.enabled` | Removed — had no effect; all routes are always TLS-terminated |
 | `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
-| `secrets.certManager.customSolversSecret` | No longer supported by the chart. Please create a custom Issuer in case you need to handle secrets. |
+| `secrets.certManager.customSolversSecret` | No longer supported. Create a custom Issuer instead. |
 
 ### Fully backwards compatible values
 
 All keys below are accepted unchanged. Their names, types, and semantics are identical to
 `nginx-ingress-services`.
 
-| Key | Notes |
-|---|---|
-| `nameOverride` | |
-| `teamSettings.enabled` | |
-| `accountPages.enabled` | |
-| `websockets.enabled` | |
-| `webapp.enabled` | |
-| `fakeS3.enabled` | |
-| `federator.enabled` | |
-| `federator.integrationTestHelper` | |
-| `federator.tls.duration` | |
-| `federator.tls.renewBefore` | |
-| `federator.tls.privateKey.rotationPolicy` | |
-| `federator.tls.issuer.name` | |
-| `federator.tls.issuer.kind` | |
-| `federator.tls.issuer.group` | |
-| _(not present)_ | `federator.tls.useCertManager` | Controls cert-manager for the federator TLS secret independently of `tls.useCertManager` |
-| _(not present)_ | `federator.tls.secretName` | Name of the TLS Secret for the federator listener. Default: `federator-certificate-secret`. When `useCertManager: true`, cert-manager writes the issued certificate into this secret. When `useCertManager: false`, the secret must exist before deploying. |
-| `tls.useCertManager` | |
-| `tls.createIssuer` | |
-| `tls.privateKey.rotationPolicy` | |
-| `tls.privateKey.algorithm` | |
-| `tls.privateKey.size` | |
-| `tls.issuer.name` | |
-| `tls.issuer.kind` | |
-| `tls.caNamespace` | |
-| `certManager.inTestMode` | |
-| `certManager.certmasterEmail` | |
-| `certManager.customSolvers` | |
-| `service.webapp.externalPort` | |
-| `service.s3.externalPort` | |
-| `service.s3.serviceName` | |
-| `service.useFakeS3` | |
-| `service.teamSettings.externalPort` | |
-| `service.accountPages.externalPort` | |
-| `config.dns.https` | |
-| `config.dns.ssl` | |
-| `config.dns.webapp` | |
-| `config.dns.fakeS3` | |
-| `config.dns.federator` | |
-| `config.dns.certificateDomain` | |
-| `config.dns.teamSettings` | |
-| `config.dns.accountPages` | |
-| `secrets.tlsWildcardCert` | |
-| `secrets.tlsWildcardKey` | |
+| Key |
+|---|
+| `nameOverride` |
+| `teamSettings.enabled` |
+| `accountPages.enabled` |
+| `websockets.enabled` |
+| `webapp.enabled` |
+| `fakeS3.enabled` |
+| `federator.enabled` |
+| `federator.integrationTestHelper` |
+| `federator.tls.duration` |
+| `federator.tls.renewBefore` |
+| `federator.tls.privateKey.rotationPolicy` |
+| `federator.tls.issuer.name` |
+| `federator.tls.issuer.kind` |
+| `federator.tls.issuer.group` |
+| `tls.useCertManager` |
+| `tls.createIssuer` |
+| `tls.privateKey.rotationPolicy` |
+| `tls.privateKey.algorithm` |
+| `tls.privateKey.size` |
+| `tls.issuer.name` |
+| `tls.issuer.kind` |
+| `tls.caNamespace` |
+| `certManager.inTestMode` |
+| `certManager.certmasterEmail` |
+| `certManager.customSolvers` |
+| `service.webapp.externalPort` |
+| `service.s3.externalPort` |
+| `service.s3.serviceName` |
+| `service.useFakeS3` |
+| `service.teamSettings.externalPort` |
+| `service.accountPages.externalPort` |
+| `config.dns.https` |
+| `config.dns.ssl` |
+| `config.dns.webapp` |
+| `config.dns.fakeS3` |
+| `config.dns.federator` |
+| `config.dns.certificateDomain` |
+| `config.dns.teamSettings` |
+| `config.dns.accountPages` |
+| `secrets.tlsWildcardCert` |
+| `secrets.tlsWildcardKey` |
 
 
 ## Design decisions
@@ -204,6 +212,31 @@ certManager:
 
 DNS01 requires credentials for your DNS provider but does not need
 port 80 to be open.
+
+### Federator TLS certificate (`federator.tls.useCertManager`)
+
+When `federator.tls.useCertManager: true`, cert-manager issues the federator TLS certificate.
+The certificate requires both **server auth** and **client auth** Extended Key Usages (EKUs),
+because federator connections are mutually authenticated.
+
+**Most public CAs (including Let's Encrypt) no longer issue certificates with the client auth
+EKU.** You will need a **private CA** (e.g. a cert-manager `ClusterIssuer` backed by an internal
+CA) to issue the federator certificate. Using the same public ACME issuer as for the main
+wildcard certificate will not work.
+
+A typical setup uses a cert-manager `ClusterIssuer` of type `CA`, referencing a private CA
+secret:
+
+```yaml
+federator:
+  tls:
+    useCertManager: true
+    issuer:
+      name: my-private-ca
+      kind: ClusterIssuer
+```
+
+---
 
 ### Federator mTLS uses Envoy Gateway policies
 
@@ -499,7 +532,7 @@ header via an inline Lua filter, matching nginx's `$ssl_client_escaped_cert` beh
 
 #### federation-test-helper Service
 
-Template: `templates/federation-test-helper.yaml`
+Template: `templates/service-test-fed.yaml`
 
 A ClusterIP Service in `envoy-gateway-system` that selects the Envoy proxy pods for this
 Gateway (using `gateway.envoyproxy.io/owning-gateway-*` labels). Because Envoy Gateway runs
@@ -527,7 +560,7 @@ integration tests pass with `wire-ingress` in place of `nginx-ingress-services`.
 
 - [x] Done
 - [x] deal with the federation ingresses for the dynamic backends. remove them? they are not needed. or set up the same way as federation (but no test)
-- [ ] fix integration test setup so all test pass
+- [x] fix integration test setup so all test pass
 
 ---
 
@@ -555,14 +588,14 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 - [x] feature flag for envoypatch policies (enabled by default, turned off in tests)
 - [x] document: must deploy enovy-gateway with patches enabled
 - [x] envoy patch policies: adjust docs: its not a kubernetes problem, but that SRV records have to by FQDM
-- [ ] for .Values.federator.tls.useCertManager document that you'll likely needa private CA, since many public CA stopped issuing client auth certs
-- [ ] Write the migration guide section of this README
-- [ ] collate the parameters and changes better
+- [x] for .Values.federator.tls.useCertManager document that you'll likely needa private CA, since many public CA stopped issuing client auth certs
+- [ ] organize the parameter listing in this README better 
 - [ ] move the phases out of README
 - [ ] clean up PR: no stray files
 - [ ] remove CLAUDE.md
 - [ ] make a note on nginx-ingress-services
 - [ ] create PR for the4 
+- [ ] Write the migration guide section of this README
 
 ---
 
