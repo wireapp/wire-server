@@ -168,7 +168,7 @@ spec:
         integration-dynamic-backends-ses.sh {{ .Values.config.sesEndpointUrl }}
         integration-dynamic-backends-s3.sh {{ .Values.config.s3EndpointUrl }}
         {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
-        integration-dynamic-backends-vhosts.sh {{ $.Values.config.rabbitmqPutVHostUrl }} {{ include "integration.dynamicBackendDomain" (list $dynamicBackend $.Release.Namespace $.Values.envoy.enabled) }}
+        integration-dynamic-backends-vhosts.sh {{ $.Values.config.rabbitmqPutVHostUrl }} {{ include "integration.dynamicBackendDomain" (list $dynamicBackend $.Release.Namespace $.Values.envoy.enabled $.Values.envoy.controllerNamespace) }}
         {{- end }}
     resources:
       requests:

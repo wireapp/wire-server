@@ -1,10 +1,11 @@
 {{- if (and .Values.federator.enabled .Values.federator.integrationTestHelper) }}
-# Envoy Gateway runs proxy pods in envoy-gateway-system, not in the release namespace.
+# This is used only for integration tests.
+# Envoy Gateway runs proxy pods in {controllerNamespace}, not in the release namespace.
 # Kubernetes Services cannot select pods across namespaces, so we create a ClusterIP
-# Service in envoy-gateway-system that selects the proxy pods by their owning-gateway
+# Service in {controllerNamespace} that selects the proxy pods by their owning-gateway
 # labels (set by Envoy Gateway). This service becomes the SRV target for Wire federation
 # discovery:
-#   _wire-server-federator._tcp.<namespace>-fed.envoy-gateway-system.svc.cluster.local
+#   _wire-server-federator._tcp.<namespace>-fed.{controllerNamespace}.svc.cluster.local
 #
 # targetPort must match the port the Envoy proxy pod actually listens on.
 # When gateway.listeners.https.port is privileged (<1024), Envoy Gateway remaps it
@@ -18,7 +19,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Namespace }}-fed
-  namespace: envoy-gateway-system
+  namespace: {{ .Values.gateway.controllerNamespace }}
 spec:
   type: ClusterIP
   ports:

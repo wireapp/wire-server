@@ -133,6 +133,9 @@ envoy:
   # Set to true to deploy Gateway API resources instead of nginx Ingress objects
   # for the dynamic backends. Requires an Envoy Gateway controller in the cluster.
   enabled: false
+  # Namespace where the Envoy Gateway controller runs its proxy pods.
+  # Change only if you installed Envoy Gateway into a non-default namespace.
+  controllerNamespace: envoy-gateway-system
   gateway:
     # Name of the Gateway resource. Defaults to <release-name>-dynamic-backends if empty.
     name: ""

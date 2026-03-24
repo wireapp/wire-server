@@ -513,9 +513,9 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 
 #### Finalize PR
 
-- [ ] introduce a flag that switches between gateway / ingress-nginx in the tests
-- [ ] investigate: migrate federation-test helper to integrations chart?
-- [ ] replace "envoy-gateway-system" hardcoded namespace with chart var
+- [x] introduce a flag that switches between gateway / ingress-nginx in the tests
+- [x] investigate: migrate federation-test helper to integrations chart? NO, becasue we would need to pass the relase name
+- [x] replace "envoy-gateway-system" hardcoded namespace with chart var
 - [ ] feature flag for envoypatch policies (enabled by default, turned off in tests)
 - [ ] document: must deploy enovy-gateway with patches enabled
 - [ ] envoy patch policies: adjust docs: its not a kubernetes problem, but that SRV records have to by FQDM
