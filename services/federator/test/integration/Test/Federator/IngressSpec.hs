@@ -36,6 +36,7 @@ import Data.Text.Encoding qualified as Text
 import Federator.Discovery
 import Federator.Monitor (FederationSetupError)
 import Federator.Monitor.Internal (mkSSLContextWithoutCert)
+import Federator.Options (RunSettings (..))
 import Federator.Remote
 import Foreign.Marshal.Alloc (mallocBytes)
 import HTTP2.Client.Manager (http2ManagerWithSSLCtx)
@@ -97,7 +98,7 @@ spec env = do
                   HTTP2.responseBuilder (HTTP.mkStatus 421 "Misdirected Request") [] (Builder.stringUtf8 authority)
                 Nothing ->
                   HTTP2.responseNoBody HTTP.status400 []
-       in withMockHttp2TlsServer authorityCheckingHandler $ \port ->
+       in withMockHttp2TlsServer env._teSettings authorityCheckingHandler $ \port ->
             runTestFederator env $
               runTestSem $ do
                 resp <-
@@ -217,20 +218,21 @@ callRemoteTargetWithSettings sslCtx target requestPath headers payload = do
     $ discoverAndCall (Domain "example.com") Brig requestPath headers payload
 
 withMockHttp2TlsServer ::
+  RunSettings ->
   (HTTP2.Request -> IO HTTP2.Response) ->
   (Int -> IO a) ->
   IO a
-withMockHttp2TlsServer handler action = do
-  sslCtx <- loadMockServerSSLContext
+withMockHttp2TlsServer settings handler action = do
+  sslCtx <- loadMockServerSSLContext settings
   bracket (bindRandomPortTCP "*") (close . snd) $ \(port, sock) -> do
     NS.listen sock 1024
     bracket (async $ mockHttp2TlsServerOnSocket sslCtx sock) cancel (const (action port))
   where
-    loadMockServerSSLContext :: IO SSLContext
-    loadMockServerSSLContext = do
+    loadMockServerSSLContext :: RunSettings -> IO SSLContext
+    loadMockServerSSLContext runSettings = do
       ctx <- SSL.context
-      SSL.contextSetCertificateFile ctx "test/resources/integration-leaf.pem"
-      SSL.contextSetPrivateKeyFile ctx "test/resources/integration-leaf-key.pem"
+      SSL.contextSetCertificateFile ctx runSettings.clientCertificate
+      SSL.contextSetPrivateKeyFile ctx runSettings.clientPrivateKey
       SSL.contextSetALPNProtos ctx ["h2"]
       SSL.contextSetCiphers ctx "HIGH"
       sslCheck <- SSL.contextCheckPrivateKey ctx
