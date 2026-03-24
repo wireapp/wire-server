@@ -567,6 +567,11 @@ charts-serve-all: $(foreach chartName,$(CHARTS_RELEASE),chart-$(chartName))
 .PHONY: charts-release
 charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName))
 
+# Prepare .local/charts to be read by `helmfile`
+.PHONY: .local/charts
+.local/charts: charts-release
+	./hack/bin/prepare-local-charts.sh $(CHARTS_RELEASE)
+
 .PHONY: clean-charts
 clean-charts:
 	rm -rf .local/charts
@@ -711,9 +716,26 @@ upload-bombon: sbom.json
 		--auto-create \
 		--bom-file ./sbom.json
 
+# SBOM creation and uploading (Helm charts, Helmfile, docker-compose)
+#
+# For non-Nix environments (Kubernetes, docker-compose) and Helm charts we can
+# use the usual tools and do not need tom-bombadil.
+#
+# There is a Nix `devShell` which provides an environment for these targets, `sbom`.
+# E.g. to run the `sboms` target:
+# `nix develop .\#sbom --command make sboms HELM_SEMVER=... DOCKER_TAG=...`
+#
+# Why don't we simply add this `nix develop` call to the Makefile targets?
+# Targets should be independently executable and creating a Nix env in a Nix
+# env doesn't play well.
+
+# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+.PHONY: sboms
+sboms: sboms-helm sboms-docker-compose sboms-helmfile
+
 # Generate SBOMs for Helm charts
 .PHONY: sboms-helm
-sboms-helm:
+sboms-helm: .local/charts
 	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
 		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
 		exit 1; \
@@ -727,16 +749,12 @@ sboms-docker-compose:
 
 # Generate SBOMs for Helmfile
 .PHONY: sboms-helmfile
-sboms-helmfile:
+sboms-helmfile: .local/charts
 	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
 		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
 		exit 1; \
 	fi
 	./hack/bin/create-helmfile-sboms.sh tmp/sboms/helmfile $(HELM_SEMVER)
-
-# Generate all SBOMs (Helm + Docker Compose + Helmfile)
-.PHONY: sboms
-sboms: sboms-helm sboms-docker-compose sboms-helmfile
 
 # Validate all SBOM files using cyclonedx
 .PHONY: validate-sboms

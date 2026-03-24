@@ -100,7 +100,7 @@
           inherit system;
         };
         bomDependenciesDrv = tom-bombadil.lib.${system}.bomDependenciesDrv;
-        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 pkgs_unstable inputs bomDependenciesDrv; };
+        wireServerPkgs = import ./nix { inherit pkgs pkgs_24_11 inputs bomDependenciesDrv; };
       in
       {
         # profileEnv wireServer docs docsEnv mls-test-cli nginz;
@@ -110,6 +110,38 @@
         devShells = {
           default = pkgs.mkShell {
             packages = wireServerPkgs.wireServer.devEnvPkgs;
+          };
+        };
+        # Shell environment for generating Software Bill of Materials (SBOMs)
+        # Used on CI.
+        devShells.sbom = pkgs.mkShell {
+          packages = [
+            # Shell and core utilities
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.findutils
+            pkgs.git
+
+            # JSON/YAML processing
+            pkgs.jq
+            pkgs.yq
+
+            # Network tools
+            pkgs.curl
+
+            # Container and SBOM tools
+            pkgs.cyclonedx-cli
+            pkgs_unstable.syft
+            pkgs.kubernetes-helm
+            pkgs.helmfile
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+            # Linux-only container tools
+            pkgs.skopeo
+            pkgs.docker
+            pkgs.docker-compose
+          ];
+          meta = {
+            description = "Development shell with tools for SBOM generation";
           };
         };
       }
