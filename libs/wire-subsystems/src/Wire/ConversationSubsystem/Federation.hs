@@ -562,7 +562,8 @@ type MLSBundleStaticErrors =
     '[ ErrorS 'MLSWelcomeMismatch,
        ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'MLSInvalidLeafNodeSignature
+       ErrorS 'MLSInvalidLeafNodeSignature,
+       ErrorS 'MLSGroupConversationMismatch
      ]
 
 handleMLSMessageErrors ::
@@ -605,7 +606,6 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSGroupConversationMismatch) r,
     Member (ErrorS 'MLSClientMismatch) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
@@ -672,7 +672,6 @@ sendMLSMessage ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS 'MLSGroupConversationMismatch) r,
     Member (ErrorS 'MLSClientMismatch) r,
     Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
