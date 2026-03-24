@@ -1,6 +1,7 @@
 module Wire.ClientSubsystem.Interpreter (runClientSubsystem) where
 
 import Control.Monad
+import Data.Code as Code
 import Data.Domain
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
@@ -17,6 +18,7 @@ import System.Logger.Message
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Error
+import Wire.API.User as User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap
@@ -26,7 +28,10 @@ import Wire.AuthenticationSubsystem.Error
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem (ClientSubsystem (..))
+import Wire.Events as Events
 import Wire.FederationAPIAccess (FederationAPIAccess, runFederatedEither)
+import Wire.GalleyAPIAccess as GalleyAPIAccess
+import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Now qualified as Now
 import Wire.UserSubsystem qualified as User
@@ -89,7 +94,6 @@ addClientWithReAuthPolicy conf policy luid@(tUnqualified -> u) con new = do
     (lift . liftSem $ User.getAccountNoFilter luid)
       >>= maybe (throwE (ClientUserNotFound u)) pure
   verifyCode (newClientVerificationCode new) luid
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   let mCaps :: Maybe ClientCapabilityList
       mCaps = updlhdev $ newClientCapabilities new
         where
@@ -100,21 +104,20 @@ addClientWithReAuthPolicy conf policy luid@(tUnqualified -> u) con new = do
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
-    (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients mCaps)
+    (addClientWithReAuthPolicyX policy luid clientId' new conf.userMaxPermClients mCaps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
   when (consumableNotificationsEnabled && supportsConsumableNotifications clt) $ lift $ liftSem $ do
     setupConsumableNotifications u clt.clientId
-  lift $ do
-    for_ old $ execDelete u con
-    liftSem $ GalleyAPIAccess.newClient u clt.clientId
-    liftSem $ Intra.onClientEvent u con (ClientAdded clt)
-    when (clientType clt == LegalHoldClientType) $ liftSem $ Events.generateUserEvent u con (UserLegalHoldEnabled u)
-    when (count > 1) $
-      for_ (userEmail usr) $
-        \email ->
-          liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
+  for_ old $ execDelete u con
+  GalleyAPIAccess.newClient u clt.clientId
+  onClientEvent u con (ClientAdded clt)
+  when (clientType clt == LegalHoldClientType) $ liftSem $ Events.generateUserEvent u con (UserLegalHoldEnabled u)
+  when (count > 1) $
+    for_ (userEmail usr) $
+      \email ->
+        liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
   pure clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
@@ -122,14 +125,14 @@ addClientWithReAuthPolicy conf policy luid@(tUnqualified -> u) con new = do
     verifyCode ::
       Maybe Code.Value ->
       Local UserId ->
-      ExceptT ClientError (AppT r) ()
+      Sem r ()
     verifyCode mbCode luid1 =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login luid1 `catchE` \case
-        VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
-        VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
-        VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+      undefined "verifyCode" mbCode User.Login luid1 `catchE` \case
+        VerificationCodeRequired -> undefined ClientCodeAuthenticationRequired
+        VerificationCodeNoPendingCode -> undefined ClientCodeAuthenticationFailed
+        VerificationCodeNoEmail -> undefined ClientCodeAuthenticationFailed
 
 data ClientDataError
   = TooManyClients
@@ -301,3 +304,25 @@ getFederatedUserClients ::
 getFederatedUserClients domain guc = do
   Log.info $ msg @Text "Brig-federation: get users' clients from remote backend"
   runFederatedEither (toRemoteUnsafe domain ()) $ fedClient @'Brig @"get-user-clients" guc
+
+onClientEvent ::
+  (Member NotificationSubsystem r) =>
+  -- | Originator of the event.
+  UserId ->
+  -- | Client connection ID.
+  Maybe ConnId ->
+  -- | The event.
+  ClientEvent ->
+  Sem r ()
+onClientEvent orig conn e = do
+  let event = ClientEvent e
+  let rcpt = Recipient orig V2.RecipientClientsAll
+  pushNotifications
+    [ def
+        { origin = Just orig,
+          json = toJSONObject event,
+          recipients = [rcpt],
+          conn,
+          apsData = toApsData event
+        }
+    ]
