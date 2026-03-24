@@ -50,8 +50,11 @@ module Data.Schema
     declareSwaggerSchema,
     getName,
     object,
+    namedObject,
     objectWithDocModifier,
+    namedObjectWithDocModifier,
     objectOver,
+    namedObjectOver,
     jsonObject,
     jsonValue,
     field,
@@ -67,6 +70,7 @@ module Data.Schema
     map_,
     mapWithKeys,
     enum,
+    namedEnum,
     maybe_,
     maybeWithDefault,
     bind,
@@ -402,14 +406,24 @@ tag f = rmap runIdentity . f . rmap Identity
 --
 -- This can be used to convert a combination of schemas obtained using
 -- 'field' into a single schema for a JSON object.
+-- Uses the Typeable instance to automatically generate the schema name.
 object ::
   forall doc doc' a b.
   (Typeable a, HasObject doc doc') =>
   SchemaP doc A.Object [A.Pair] a b ->
   SchemaP doc' A.Value A.Value a b
-object = objectOver id
+object = namedObject (mkSchemaName @a)
+
+-- | Version of 'object' that takes an explicit name.
+namedObject ::
+  (HasObject doc doc') =>
+  Text ->
+  SchemaP doc A.Object [A.Pair] a b ->
+  SchemaP doc' A.Value A.Value a b
+namedObject name = namedObjectOver id name
 
 -- | A version of 'object' for more general input values.
+-- Uses the Typeable instance to automatically generate the schema name.
 --
 -- Just like 'fieldOver', but for 'object'.
 objectOver ::
@@ -418,9 +432,17 @@ objectOver ::
   Lens v v' A.Value A.Object ->
   SchemaP doc v' [A.Pair] a b ->
   SchemaP doc' v A.Value a b
-objectOver l sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+objectOver l = namedObjectOver l (mkSchemaName @a)
+
+-- | Version of 'objectOver' that takes an explicit name.
+namedObjectOver ::
+  (HasObject doc doc') =>
+  Lens v v' A.Value A.Object ->
+  Text ->
+  SchemaP doc v' [A.Pair] a b ->
+  SchemaP doc' v A.Value a b
+namedObjectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
-    name = mkSchemaName @a
     parseObject val = ContT $ \k -> A.withObject (T.unpack name) k val
     r v = runContT (l parseObject v) (schemaIn sch)
     w x = A.object <$> schemaOut sch x
@@ -436,13 +458,23 @@ mkSchemaName = T.pack $ show $ typeRep (Proxy @a)
 
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.
+-- Uses the Typeable instance to automatically generate the schema name.
 objectWithDocModifier ::
   forall doc doc' a.
   (Typeable a, HasObject doc doc') =>
   (doc' -> doc') ->
   ObjectSchema doc a ->
   ValueSchema doc' a
-objectWithDocModifier modify sch = over doc modify (object sch)
+objectWithDocModifier = namedObjectWithDocModifier (mkSchemaName @a)
+
+-- | Version of 'objectWithDocModifier' that takes an explicit name.
+namedObjectWithDocModifier ::
+  (HasObject doc doc') =>
+  Text ->
+  (doc' -> doc') ->
+  ObjectSchema doc a ->
+  ValueSchema doc' a
+namedObjectWithDocModifier name modify sch = over doc modify (namedObject name sch)
 
 -- | Turn a named schema into an unnamed one.
 --
@@ -567,14 +599,24 @@ element label value = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 --
 -- This is used to convert a combination of schemas obtained using
 -- 'element' into a single schema for a JSON string.
+-- | A schema for an enumeration.
+-- Uses the Typeable instance to automatically generate the schema name.
 enum ::
   forall v doc a b.
   (Typeable a, With v, HasEnum v doc) =>
   SchemaP [A.Value] v (Alt Maybe v) a b ->
   SchemaP doc A.Value A.Value a b
-enum sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
+enum = namedEnum (mkSchemaName @a)
+
+-- | Version of 'enum' that takes an explicit name.
+namedEnum ::
+  forall v doc a b.
+  (With v, HasEnum v doc) =>
+  Text ->
+  SchemaP [A.Value] v (Alt Maybe v) a b ->
+  SchemaP doc A.Value A.Value a b
+namedEnum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
   where
-    name = mkSchemaName @a
     d = mkEnum @v name (schemaDoc sch)
     i x =
       with (T.unpack name) (schemaIn sch) x
