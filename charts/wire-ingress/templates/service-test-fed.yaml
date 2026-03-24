@@ -13,7 +13,7 @@
 # to the actual container port in your values (e.g. 10443) to avoid this.
 {{- $httpsPort := int .Values.gateway.listeners.https.port }}
 {{- if lt $httpsPort 1024 }}
-{{- fail (printf "federation-test-helper: gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
+{{- fail (printf "service-test-fed: gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
 {{- end }}
 apiVersion: v1
 kind: Service
