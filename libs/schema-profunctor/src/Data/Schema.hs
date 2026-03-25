@@ -102,7 +102,7 @@ import Control.Monad.Trans.Cont
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
-import Data.Data (typeRep)
+import Data.Typeable (typeRep)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
