@@ -438,7 +438,6 @@ data OtrMessage = OtrMessage
 instance ToSchema OtrMessage where
   schema =
     objectWithDocModifier
-      "OtrMessage"
       (description ?~ "Encrypted message of a conversation")
       otrMessageObjectSchema
 

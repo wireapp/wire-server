@@ -1000,7 +1000,6 @@ managedDesc =
 instance ToSchema ConvTeamInfo where
   schema =
     objectWithDocModifier
-      "ConvTeamInfo"
       (DS.description ?~ "Team information")
       $ ConvTeamInfo
         <$> cnvTeamId .= field "teamid" schema
@@ -1028,7 +1027,6 @@ data NewOne2OneConv = NewOne2OneConv
 instance ToSchema NewOne2OneConv where
   schema =
     objectWithDocModifier
-      "NewOne2OneConv"
       (DS.description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
       $ NewOne2OneConv
         <$> (.users)
@@ -1187,7 +1185,6 @@ data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
 instance ToSchema ConversationMessageTimerUpdate where
   schema =
     objectWithDocModifier
-      "ConversationMessageTimerUpdate"
       (DS.description ?~ "Contains conversation properties to update")
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
@@ -1220,7 +1217,6 @@ data ConversationJoin = ConversationJoin
 instance ToSchema ConversationJoin where
   schema =
     objectWithDocModifier
-      "ConversationJoin"
       (DS.description ?~ "The action of some users joining a conversation")
       $ ConversationJoin
         <$> (.users) .= field "users" (nonEmptyArray schema)
@@ -1238,7 +1234,6 @@ data ConversationMemberUpdate = ConversationMemberUpdate
 instance ToSchema ConversationMemberUpdate where
   schema =
     objectWithDocModifier
-      "ConversationMemberUpdate"
       (DS.description ?~ "The action of promoting/demoting a member of a conversation")
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
@@ -1255,7 +1250,6 @@ data ConversationRemoveMembers = ConversationRemoveMembers
 instance ToSchema ConversationRemoveMembers where
   schema =
     objectWithDocModifier
-      "ConversationRemoveMembers"
       (DS.description ?~ "The action of removing members from a conversation")
       $ ConversationRemoveMembers
         <$> crmTargets .= field "targets" (nonEmptyArray schema)
@@ -1310,7 +1304,6 @@ newtype AddPermissionUpdate = AddPermissionUpdate
 instance ToSchema AddPermissionUpdate where
   schema =
     objectWithDocModifier
-      "AddPermissionUpdate"
       (DS.description ?~ "The action of changing the permission to add members to a channel")
       $ AddPermissionUpdate
         <$> addPermission .= field "add_permission" schema
@@ -1328,7 +1321,6 @@ instance Default ExtraConversationData where
 instance ToSchema ExtraConversationData where
   schema =
     objectWithDocModifier
-      "ExtraConversationData"
       (DS.description ?~ "Extra conversation data, used for group conversations")
       $ ExtraConversationData
         <$> newGroupId .= optField "group_id" (maybeWithDefault A.Null schema)
