@@ -8,6 +8,7 @@ import Data.Time.Clock
 import Imports
 import Polysemy
 import Wire.API.User.Client
+import Wire.API.UserEvent
 import Wire.API.UserMap
 
 data ClientSubsystem m a where
@@ -19,5 +20,6 @@ data ClientSubsystem m a where
   LookupPublicClients :: Qualified UserId -> ClientSubsystem m [PubClient]
   LookupPublicClientsBulk :: [Qualified UserId] -> ClientSubsystem m (QualifiedUserMap (Set PubClient))
   AddClient :: Local UserId -> Maybe ConnId -> NewClient -> ClientSubsystem m Client
+  OnClientEvent :: UserId -> Maybe ConnId -> ClientEvent -> ClientSubsystem r ()
 
 makeSem ''ClientSubsystem
