@@ -7,7 +7,7 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 # Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
-# Available modes: gateway (default, uses wire-ingress), nginx (uses nginx-ingress-services)
+# This controls if integration tests run against ingress-nginx ofr envoy-gateway
 WIRE_INGRESS_MODE=${WIRE_INGRESS_MODE:-envoy}
 export WIRE_INGRESS_MODE
 ENVOY_GATEWAY_NAMESPACE=${ENVOY_GATEWAY_NAMESPACE:-envoy-gateway-system}
