@@ -14,6 +14,11 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ## Prerequisites
 
+### Gateway API
+
+Install the [Gateway API](https://gateway-api.sigs.k8s.io/) into your cluster.
+This chart makes use of the of the kinds defined in the `gateway.networking.k8s.io/v1` API.
+
 ### Envoy Gateway
 
 [Envoy Gateway](https://gateway.envoyproxy.io/) must be installed in the cluster before deploying
@@ -27,12 +32,37 @@ config:
       enableEnvoyPatchPolicy: true
 ```
 
+Also make sure also you've created a `GatewayClass` object with 
+```
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+```
+
+You need to refer to this object in the `gateway.className` paramter.
+
 ---
 
 ## Backwards compatibility
 
+
+### Migrating from the `nginx-ingress-services` chart
+
 The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever possible.
-Operators should be able to reuse most of their existing values files with minimal changes.
+Operators should be able to reuse most of their existing values files with minimal changes:
+
+Please add a `gateway` config block to your `values` yaml. And consider at least
+
+- `gateway.create`: if set to `false` you have to create a `Gateway` object yourself. Make sure to set `gateway.name` to your 
+- `gateway.className`: set this to `Gateway` class you created during installtion (see above).
+- `proxyProtocol.enabled`: set this to `true` if our load balancer uses the PROXY protocol
+- `gateway.listeners.https.hostname`: Please set this to `*.<your-domain>`. This assumes that all domains confiured `config.dns.*` are subdomains of `<your-domain>`.
+   If this is not the case then please create your own gateway (Set `gateway.create` to `false`).
+- `gateway.patchPolicies.targetGatewayClass`: depends on your setup (see below)
+- `gateway.envoyProxy.create` and `gateway.manageServiceType`: depends your setup
+
+For more details please see below.
+
+Feel free to remove `secrets.tlsClientCA`. This key is not longer needed.
 
 ### Behaviour changes
 
@@ -47,18 +77,19 @@ name overrides, etc.) can be found in `values.yaml`.
 | Key | Default | Description |
 |---|---|---|
 | `gateway.create` | `true` | If `false`, no `Gateway` resource is created — set `gateway.name` to reference an existing one. Useful when sharing a Gateway across multiple releases. |
-| `gateway.controllerNamespace` | `envoy-gateway-system` | Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
+| `gateway.className` | `""` | **Required.** Name of the `GatewayClass` installed by the Envoy Gateway controller (e.g. `envoy`). Must match the `GatewayClass` object whose `spec.controllerName` is `gateway.envoyproxy.io/gatewayclass-controller`. |
+| `gateway.listeners.https.hostname` | `""` | **Required when `federator.enabled: true`.** Restricts the HTTPS listener to a specific hostname (e.g. `*.example.com`). Without this, both the HTTPS and federator listeners are catch-all on the same port, causing Envoy to degrade ALPN to HTTP/1.1-only (`OverlappingTLSConfig`). |
+| `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
 | `gateway.envoyProxy.spec` | `{}` | Free-form [EnvoyProxySpec](https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec) merged verbatim. Use to set `mergeGateways`, custom service annotations, etc. |
-| `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
 | `gateway.manageServiceType` | `true` | Shorthand that sets `envoyService.type` to `gateway.serviceType`. Disable when managing the service type via `gateway.envoyProxy.spec` directly. |
+| `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
 | `gateway.proxyProtocol.enabled` | `false` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all listeners. Required when the upstream load balancer is configured to send PROXY protocol headers. |
-| `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
+| `gateway.patchPolicies.enabled` | `true` | Controls whether `` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
 | `gateway.patchPolicies.targetGatewayClass` | `false` | When `true`, `EnvoyPatchPolicy` targets the `GatewayClass` instead of the `Gateway`. **Required when `gateway.envoyProxy.spec.mergeGateways: true`**: with merged Gateways, policies targeting a `Gateway` are not applied — they must target the `GatewayClass`. Leave `false` for single-Gateway deployments (e.g. integration tests). |
-| `gateway.listeners.https.hostname` | `""` | **Required when `federator.enabled: true`.** Restricts the HTTPS listener to a specific hostname (e.g. `*.example.com`). Without this, both the HTTPS and federator listeners are catch-all on the same port, causing Envoy to degrade ALPN to HTTP/1.1-only (`OverlappingTLSConfig`). |
-| `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
+| `gateway.controllerNamespace` | `envoy-gateway-system` | Can be ignored, relevant only for integration tests. Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
 | `tls.secret.create` | `true` | If `false`, the TLS Secret is not created by this chart. Use when the secret is managed externally (e.g. by another operator). |
 | `federator.tls.useCertManager` | `true` | Controls cert-manager for the federator TLS secret independently of `tls.useCertManager`. Requires a private CA — see [Federator TLS certificate](#federator-tls-certificate-federatortlsusecertmanager). |
 
@@ -66,7 +97,7 @@ name overrides, etc.) can be found in `values.yaml`.
 
 | Old key | Reason |
 |---|---|
-| `config.ingressClass` | Replaced by `gateway.className` — different concept (GatewayClass name, not IngressClass) |
+| `config.ingressClass` | |
 | `ingressName` | Multi-ingress out of scope |
 | `config.isAdditionalIngress` | Multi-ingress out of scope |
 | `config.renderCSPInIngress` | Multi-ingress out of scope |
