@@ -294,7 +294,7 @@ type MiniBackendLowerEffects =
 
 miniBackendLowerEffectsInterpreters ::
   forall r a.
-  Members AllErrors r =>
+  (Members AllErrors r) =>
   MiniBackendParams r ->
   Sem (MiniBackendLowerEffects `Append` r) a ->
   Sem r (MiniBackend, a)
@@ -312,7 +312,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
     . noRateLimit
-   . userGroupStoreTestInterpreter
+    . userGroupStoreTestInterpreter
     . runInMemorySessionStore
     . runInMemoryVerificationCodeStore
     . runInMemoryPasswordResetCodeStore

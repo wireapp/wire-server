@@ -44,7 +44,6 @@ import Cassandra
 import Control.Error hiding (bool)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
-import Data.Default
 import Data.Handle (Handle)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
@@ -62,7 +61,6 @@ import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
 import Util.Timeout
 import Wire.API.Team.Feature
-import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
@@ -88,22 +86,16 @@ import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-import Wire.VerificationCode qualified as VerificationCode
-import Wire.VerificationCodeGen qualified as VerificationCodeGen
-import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
-import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
 
 login ::
   forall r.
-  ( Member GalleyAPIAccess r,
-    Member (Input (Local ())) r,
+  ( Member (Input (Local ())) r,
     Member ActivationCodeStore r,
     Member Events r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,

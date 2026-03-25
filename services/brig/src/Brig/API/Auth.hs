@@ -73,7 +73,6 @@ import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
-import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
   ( Member TinyLog r,
@@ -134,15 +133,13 @@ sendLoginCode _ =
   throwStd (errorToWai @'E.InvalidPhone)
 
 login ::
-  ( Member GalleyAPIAccess r,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
     Member ActivationCodeStore r,
-    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,

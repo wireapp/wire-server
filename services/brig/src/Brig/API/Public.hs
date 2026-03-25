@@ -770,7 +770,6 @@ addClient ::
     Member NotificationSubsystem r,
     Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
     Member ClientStore r

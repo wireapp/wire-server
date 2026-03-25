@@ -242,7 +242,6 @@ accountAPI ::
     Member UserStore r,
     Member TinyLog r,
     Member EmailSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member PropertySubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
@@ -544,7 +543,6 @@ addClientInternalH ::
     Member EmailSubsystem r,
     Member Events r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member ClientStore r
   ) =>

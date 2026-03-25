@@ -61,7 +61,6 @@ import Brig.IO.Intra (guardLegalhold)
 import Brig.IO.Intra qualified as Intra
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
-import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra (MonadClient)
 import Control.Error
@@ -119,7 +118,6 @@ import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: (Member ClientStore r) => UserId -> ClientId -> AppT r (Maybe Client)
 lookupLocalClient uid = liftSem . ClientStore.lookupClient uid
@@ -171,7 +169,6 @@ addClient ::
     Member DeleteQueue r,
     Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member Events r,
     Member ClientStore r
   ) =>
@@ -192,7 +189,6 @@ addClientWithReAuthPolicy ::
     Member Events r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member ClientStore r
   ) =>
   Data.ReAuthPolicy ->
