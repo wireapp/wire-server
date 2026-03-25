@@ -86,7 +86,7 @@ name overrides, etc.) can be found in `values.yaml`.
 | `gateway.serviceType` | `LoadBalancer` | Service type for the Envoy proxy service. Only used when `gateway.manageServiceType: true`. |
 | `gateway.infrastructure.annotations` | `{}` | Annotations forwarded to the LoadBalancer Service provisioned by Envoy Gateway — see [Gateway API docs](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayInfrastructure). Use for cloud-specific LB settings (e.g. AWS NLB). |
 | `gateway.proxyProtocol.enabled` | `false` | Creates a `ClientTrafficPolicy` enabling PROXY protocol on all listeners. Required when the upstream load balancer is configured to send PROXY protocol headers. |
-| `gateway.patchPolicies.enabled` | `true` | Controls whether `` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
+| `gateway.patchPolicies.enabled` | `true` | Controls whether `EnvoyPatchPolicy` resources are created — see [EnvoyPatchPolicy](#envoypatchpolicy). |
 | `gateway.patchPolicies.targetGatewayClass` | `false` | When `true`, `EnvoyPatchPolicy` targets the `GatewayClass` instead of the `Gateway`. **Required when `gateway.envoyProxy.spec.mergeGateways: true`**: with merged Gateways, policies targeting a `Gateway` are not applied — they must target the `GatewayClass`. Leave `false` for single-Gateway deployments (e.g. integration tests). |
 | `gateway.controllerNamespace` | `envoy-gateway-system` | Can be ignored, relevant only for integration tests. Namespace where Envoy Gateway runs its proxy pods. Change only if Envoy Gateway was installed into a non-default namespace. |
 | `tls.secret.create` | `true` | If `false`, the TLS Secret is not created by this chart. Use when the secret is managed externally (e.g. by another operator). |
@@ -290,5 +290,6 @@ Federator mTLS is implemented using:
   certificate validation, verify depth)
 - A separate `Gateway` listener (or dedicated `Gateway`) for the federator so that mTLS settings
   apply only to that listener
-- The `X-SSL-Certificate` header forwarding is handled via Envoy Gateway's `HTTPRouteFilter` with
-  request header injection from the client cert (implementation-specific)
+- `X-SSL-Certificate` header forwarding is handled via an `EnvoyExtensionPolicy` with an inline
+  Lua filter that reads the URL-encoded PEM client certificate from the connection and injects it
+  as a request header, matching nginx's `$ssl_client_escaped_cert` behaviour
