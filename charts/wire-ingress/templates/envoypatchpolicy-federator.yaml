@@ -20,8 +20,14 @@ metadata:
 spec:
   targetRef:
     group: gateway.networking.k8s.io
+    {{- if .Values.gateway.patchPolicies.targetGatewayClass }}
     kind: GatewayClass
     name: {{ .Values.gateway.className | quote }}
+    {{- else }}
+    kind: Gateway
+    name: {{ include "wire-ingress.getGatewayName" . | quote }}
+    namespace: {{ .Release.Namespace | quote }}
+    {{- end }}
   type: JSONPatch
   jsonPatches:
     - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
