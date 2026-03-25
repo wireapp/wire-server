@@ -1,1 +1,0 @@
-Adjust the `default` Nix flake `devShell` such that `nix develop` is usable.

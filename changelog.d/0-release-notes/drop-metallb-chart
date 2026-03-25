@@ -1,2 +1,0 @@
-Remove the old `metallb` wrapper chart. This hasn't been published or updated
-for quite some time. Even the Docker images weren't available anymore.

@@ -1,1 +1,0 @@
-The fields `code`, `label`, and `message` where added to the inconsistent group state error response of `POST /mls/commit-bundels`

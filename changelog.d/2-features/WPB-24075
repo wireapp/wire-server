@@ -1,1 +1,0 @@
-Add Wire Meetings delete invitation endpoint `POST /meetings/:domain/:id/invitations/delete`
