@@ -47,22 +47,21 @@ You need to refer to this object in the `gateway.className` paramter.
 
 ### Migrating from the `nginx-ingress-services` chart
 
-The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever possible.
-Operators should be able to reuse most of their existing values files with minimal changes:
+The chart preserves the `values.yaml` structure of the `nginx-ingress-services` chart wherever
+possible. Most existing values files should work with minimal changes.
 
-Please add a `gateway` config block to your `values` yaml. And consider at least
+Add a `gateway` block to your values and review at least the following keys:
 
-- `gateway.create`: if set to `false` you have to create a `Gateway` object yourself. Make sure to set `gateway.name` to your 
-- `gateway.className`: set this to `Gateway` class you created during installtion (see above).
-- `proxyProtocol.enabled`: set this to `true` if our load balancer uses the PROXY protocol
-- `gateway.listeners.https.hostname`: Please set this to `*.<your-domain>`. This assumes that all domains confiured `config.dns.*` are subdomains of `<your-domain>`.
-   If this is not the case then please create your own gateway (Set `gateway.create` to `false`).
-- `gateway.patchPolicies.targetGatewayClass`: depends on your setup (see below)
-- `gateway.envoyProxy.create` and `gateway.manageServiceType`: depends your setup
+- `gateway.className` — set to the `GatewayClass` name created during installation (see above).
+- `gateway.create` — if `false`, you must create a `Gateway` object yourself and set `gateway.name` to its name.
+- `gateway.listeners.https.hostname` — set to `*.<your-domain>`. This assumes all domains under
+  `config.dns.*` are subdomains of `<your-domain>`. If that is not the case, create your own
+  `Gateway` and set `gateway.create: false`.
+- `gateway.proxyProtocol.enabled` — set to `true` if your load balancer sends PROXY protocol headers.
+- `gateway.patchPolicies.targetGatewayClass` — depends on your setup; see [EnvoyPatchPolicy](#envoypatchpolicy).
+- `gateway.envoyProxy.create` and `gateway.manageServiceType` — depend on your setup; see the parameter table below.
 
-For more details please see below.
-
-Feel free to remove `secrets.tlsClientCA`. This key is not longer needed.
+`secrets.tlsClientCA` is no longer needed and can be removed.
 
 ### Behaviour changes
 
