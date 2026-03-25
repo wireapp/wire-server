@@ -343,7 +343,6 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 - [x] move the phases out of README
 - [x] clean up PR: no stray files
 - [x] remove CLAUDE.md
-- [ ] make a note on nginx-ingress-services
 
 ---
 
