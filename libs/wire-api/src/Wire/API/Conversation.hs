@@ -322,8 +322,8 @@ conversationSchema ::
   Maybe Version ->
   ValueSchema NamedSwaggerDoc OwnConversation
 conversationSchema v =
-  namedObjectWithDocModifier -- TODO!###
-    ("OwnConversation" <> foldMap (Text.toUpper . versionText) v)
+  versionedObjectWithDocModifier
+    v
     (DS.description ?~ "A conversation object as returned from the server")
     (ownConversationObjectSchema v)
 
@@ -539,8 +539,8 @@ conversationsResponseSchema ::
 conversationsResponseSchema v =
   let notFoundDoc = DS.description ?~ "These conversations either don't exist or are deleted."
       failedDoc = DS.description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
-   in namedObjectWithDocModifier -- TODO!###
-        ("ConversationsResponse" <> foldMap (Text.toUpper . versionText) v)
+   in versionedObjectWithDocModifier
+        v
         (DS.description ?~ "Response object for getting metadata of a list of conversations")
         $ ConversationsResponse
           <$> crFound .= field "found" (array (conversationSchema v))
@@ -1147,7 +1147,7 @@ data ConversationAccessData = ConversationAccessData
 
 conversationAccessDataSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc ConversationAccessData
 conversationAccessDataSchema v =
-  object ("ConversationAccessData" <> foldMap (Text.toUpper . versionText) v) $
+  versionedObject v $
     ConversationAccessData
       <$> cupAccess .= field "access" (set schema)
       <*> cupAccessRoles .= accessRolesVersionedSchema v

@@ -62,6 +62,10 @@ module Wire.API.Routes.Version
     Until,
     From,
 
+    -- * Versioned schema-profunctor things.
+    versionedObject,
+    versionedObjectWithDocModifier,
+
     -- * Swagger
     module Wire.API.Routes.SpecialiseToVersion,
   )
@@ -71,6 +75,7 @@ import Control.Error (note)
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import Data.Aeson qualified as Aeson
+import Data.Aeson.Types qualified as Aeson
 import Data.Bifunctor
 import Data.Binary.Builder qualified as Builder
 import Data.ByteString.Conversion (ToByteString (builder), toByteString')
@@ -320,3 +325,24 @@ expandVersionExp (VersionExpConst v) = Set.singleton v
 expandVersionExp VersionExpDevelopment = Set.fromList developmentVersions
 
 $(promoteOrdInstances [''Version])
+
+versionedObject ::
+  forall doc doc' a b.
+  (Typeable a, HasObject doc doc') =>
+  Maybe Version ->
+  SchemaP doc Aeson.Object [Aeson.Pair] a b ->
+  SchemaP doc' Aeson.Value Aeson.Value a b
+versionedObject version = namedObject (mkVersionedSchemaName @a version)
+
+versionedObjectWithDocModifier ::
+  forall doc doc' a.
+  (Typeable a, HasObject doc doc') =>
+  Maybe Version ->
+  (doc' -> doc') ->
+  ObjectSchema doc a ->
+  ValueSchema doc' a
+versionedObjectWithDocModifier v = namedObjectWithDocModifier (mkVersionedSchemaName @a v)
+
+mkVersionedSchemaName :: forall a. (Typeable a) => Maybe Version -> Text
+mkVersionedSchemaName (Just v) = versionText v <> "/" <> mkSchemaName @a
+mkVersionedSchemaName Nothing = mkSchemaName @a

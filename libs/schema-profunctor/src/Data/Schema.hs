@@ -55,6 +55,7 @@ module Data.Schema
     namedObjectWithDocModifier,
     objectOver,
     namedObjectOver,
+    mkSchemaName,
     jsonObject,
     jsonValue,
     field,
