@@ -125,7 +125,7 @@ login (MkLogin li pw label code) typ = do
     verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppT r) ()
     verifyLoginCode mbCode uid = do
       luid <- lift $ qualifyLocal uid
-      (lift $ liftSem $ enforceVerificationCodeEither luid mbCode Login)
+      lift (liftSem $ enforceVerificationCodeEither luid mbCode Login)
         >>= \case
           Left VerificationCodeNoPendingCode -> lift (decrRetryLimit uid) >> throwE LoginCodeInvalid
           Left VerificationCodeRequired -> lift (decrRetryLimit uid) >> throwE LoginCodeRequired

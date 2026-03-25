@@ -238,7 +238,7 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
     verifyCode mbCode luid1 =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      (lift $ liftSem $ Authentication.enforceVerificationCodeEither luid1 mbCode Code.Login)
+      lift (liftSem $ Authentication.enforceVerificationCodeEither luid1 mbCode Code.Login)
         >>= \case
           Left VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
           Left VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed

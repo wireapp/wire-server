@@ -292,7 +292,7 @@ reauthenticate luid@(tUnqualified -> uid) body = do
     >>= either (throwE . reauthError) (const $ pure ())
   case reAuthCodeAction body of
     Just action ->
-      (lift $ liftSem $ Authentication.enforceVerificationCodeEither luid (reAuthCode body) action)
+      lift (liftSem $ Authentication.enforceVerificationCodeEither luid (reAuthCode body) action)
         >>= \case
           Left VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
           Left VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
