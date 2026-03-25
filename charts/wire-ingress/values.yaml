@@ -86,6 +86,11 @@ gateway:
   # in the EnvoyGateway ConfigMap (see README).
   patchPolicies:
     enabled: true
+    # Set to true when the GatewayClass uses mergeGateways: true.
+    # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass
+    # rather than the individual Gateway. Default false targets the Gateway,
+    # which is correct for single-Gateway (non-merged) deployments.
+    targetGatewayClass: false
 
 # NOTE: Please provide names. Here are naming suggestions:
 # You need to reference those in the nginz helm chart nginx_conf.deeplink.endpoints
