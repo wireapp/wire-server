@@ -62,7 +62,6 @@ import Data.Misc (PlainTextPassword6)
 import Data.OpenApi qualified as S
 import Data.Schema as Schema
 import Data.Text qualified as T
-import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
 import Data.These.Combinators
