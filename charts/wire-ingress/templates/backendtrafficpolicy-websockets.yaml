@@ -1,0 +1,25 @@
+{{- if .Values.websockets.enabled }}
+{{/* Disables the stream idle timeout for WebSocket connections.
+     Envoy's default stream_idle_timeout is 5 minutes; once an HTTP connection
+     is upgraded to WebSocket, the timer fires if no frames flow in either
+     direction, closing the connection. Wire clients can be idle much longer
+     than that (infrequent push notifications), causing unnecessary reconnects.
+     Setting streamIdleTimeout to "0s" disables the idle timer entirely.
+     Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1). */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: {{ include "wire-ingress.fullname" . }}-nginz-websockets
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ include "wire-ingress.fullname" . }}-nginz-websockets
+  timeout:
+    http:
+      streamIdleTimeout: "0s"
+{{- end }}
