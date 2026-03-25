@@ -341,8 +341,8 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 - [x] test now if integration test pass
 - [x] Write the migration guide section of this README
 - [x] move the phases out of README
-- [ ] clean up PR: no stray files
-- [ ] remove CLAUDE.md
+- [x] clean up PR: no stray files
+- [x] remove CLAUDE.md
 - [ ] make a note on nginx-ingress-services
 
 ---
