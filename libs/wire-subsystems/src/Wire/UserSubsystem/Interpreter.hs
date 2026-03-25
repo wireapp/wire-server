@@ -71,7 +71,7 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
-import Wire.AppStore
+import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -108,7 +108,6 @@ import Witherable (wither)
 
 runUserSubsystem ::
   ( Member UserStore r,
-    Member AppStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -131,63 +130,65 @@ runUserSubsystem ::
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
     Member UserGroupStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (Input (Local any)) r
   ) =>
-  InterpreterFor AuthenticationSubsystem r ->
+  InterpreterFor AuthenticationSubsystem (AppSubsystem ': r) ->
+  InterpreterFor AppSubsystem r ->
   Sem (UserSubsystem ': r) a ->
   Sem r a
-runUserSubsystem authInterpreter = interpret $
-  \case
-    GetUserProfiles self others ->
-      getUserProfilesImpl self others
-    GetLocalUserProfiles others ->
-      getLocalUserProfilesImpl others
-    GetAccountsBy getBy ->
-      getAccountsByImpl getBy
-    GetAccountsByEmailNoFilter emails ->
-      getAccountsByEmailNoFilterImpl emails
-    GetSelfProfile self ->
-      getSelfProfileImpl self
-    GetUserProfilesWithErrors self others ->
-      getUserProfilesWithErrorsImpl self others
-    UpdateUserProfile self mconn mb update ->
-      updateUserProfileImpl self mconn mb update
-    CheckHandle uhandle ->
-      checkHandleImpl uhandle
-    CheckHandles hdls cnt ->
-      checkHandlesImpl hdls cnt
-    UpdateHandle uid mconn mb uhandle ->
-      updateHandleImpl uid mconn mb uhandle
-    LookupLocaleWithDefault luid ->
-      lookupLocaleOrDefaultImpl luid
-    GuardRegisterActivateUserEmailDomain email ->
-      guardRegisterActivateUserEmailDomainImpl email
-    GuardUpgradePersonalUserToTeamEmailDomain email ->
-      guardUpgradePersonalUserToTeamEmailDomainImpl email
-    IsBlocked email ->
-      isBlockedImpl email
-    BlockListDelete email ->
-      blockListDeleteImpl email
-    BlockListInsert email ->
-      blockListInsertImpl email
-    UpdateTeamSearchVisibilityInbound status ->
-      updateTeamSearchVisibilityInboundImpl status
-    SearchUsers luid query mDomain mMaxResults mTypes ->
-      searchUsersImpl luid query mDomain mMaxResults mTypes
-    BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
-      browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
-    InternalUpdateSearchIndex uid ->
-      syncUserIndex uid
-    AcceptTeamInvitation luid pwd code ->
-      authInterpreter $
+runUserSubsystem authInterpreter appInterpreter =
+  interpret $
+    appInterpreter . authInterpreter . \case
+      GetUserProfiles self others ->
+        getUserProfilesImpl self others
+      GetLocalUserProfilesFiltered upf others ->
+        getLocalUserProfilesFilteredImpl upf others
+      GetAccountsBy getBy ->
+        getAccountsByImpl getBy
+      GetAccountsByEmailNoFilter emails ->
+        getAccountsByEmailNoFilterImpl emails
+      GetSelfProfile self ->
+        getSelfProfileImpl self
+      GetUserProfilesWithErrors self others ->
+        getUserProfilesWithErrorsImpl self others
+      UpdateUserProfile self mconn mb update ->
+        updateUserProfileImpl self mconn mb update
+      CheckHandle uhandle ->
+        checkHandleImpl uhandle
+      CheckHandles hdls cnt ->
+        checkHandlesImpl hdls cnt
+      UpdateHandle uid mconn mb uhandle ->
+        updateHandleImpl uid mconn mb uhandle
+      LookupLocaleWithDefault luid ->
+        lookupLocaleOrDefaultImpl luid
+      GuardRegisterActivateUserEmailDomain email ->
+        guardRegisterActivateUserEmailDomainImpl email
+      GuardUpgradePersonalUserToTeamEmailDomain email ->
+        guardUpgradePersonalUserToTeamEmailDomainImpl email
+      IsBlocked email ->
+        isBlockedImpl email
+      BlockListDelete email ->
+        blockListDeleteImpl email
+      BlockListInsert email ->
+        blockListInsertImpl email
+      UpdateTeamSearchVisibilityInbound status ->
+        updateTeamSearchVisibilityInboundImpl status
+      SearchUsers luid query mDomain mMaxResults mTypes ->
+        searchUsersImpl luid query mDomain mMaxResults mTypes
+      BrowseTeam uid browseTeamFilters mMaxResults mPagingState ->
+        browseTeamImpl uid browseTeamFilters mMaxResults mPagingState
+      InternalUpdateSearchIndex uid ->
+        syncUserIndex uid
+      AcceptTeamInvitation luid pwd code ->
         acceptTeamInvitationImpl luid pwd code
-    InternalFindTeamInvitation mEmailKey code ->
-      internalFindTeamInvitationImpl mEmailKey code
-    GetUserExportData uid -> getUserExportDataImpl uid
-    RemoveEmailEither luid -> removeEmailEitherImpl luid
-    UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
-    CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
-    UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+      InternalFindTeamInvitation mEmailKey code ->
+        internalFindTeamInvitationImpl mEmailKey code
+      GetUserExportData uid -> getUserExportDataImpl uid
+      RemoveEmailEither luid -> removeEmailEitherImpl luid
+      UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
+      CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
+      UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -312,7 +313,7 @@ blockListInsertImpl = BlockList.insert . mkEmailKey
 lookupLocaleOrDefaultImpl :: (Member UserStore r, Member (Input UserSubsystemConfig) r) => Local UserId -> Sem r (Maybe Locale)
 lookupLocaleOrDefaultImpl luid = do
   mLangCountry <- UserStore.lookupLocale (tUnqualified luid)
-  defLocale <- inputs defaultLocale
+  defLocale <- inputs (.defaultLocale)
   pure (toLocale defLocale <$> mLangCountry)
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -320,15 +321,16 @@ lookupLocaleOrDefaultImpl luid = do
 getUserProfilesImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Error FederationError) r,
     Member (FederationAPIAccess fedM) r,
     Member DeleteQueue r,
     Member Now r,
+    Member (Input (Local any)) r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
+    Member AppSubsystem r,
     Member TeamSubsystem r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
@@ -343,19 +345,21 @@ getUserProfilesImpl self others =
       (getUserProfilesFromDomain self)
       (bucketQualified others)
 
-getLocalUserProfilesImpl ::
-  forall r.
+getLocalUserProfilesFilteredImpl ::
+  forall r any.
   ( Member UserStore r,
-    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
     Member (Concurrency Unsafe) r,
-    Member TeamSubsystem r
+    Member (Input (Local any)) r,
+    Member TeamSubsystem r,
+    Member AppSubsystem r
   ) =>
+  UserProfileFilter ->
   Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
+getLocalUserProfilesFilteredImpl upf = getUserProfilesLocalPart upf Nothing
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,
@@ -364,12 +368,13 @@ getUserProfilesFromDomain ::
     Member DeleteQueue r,
     Member Now r,
     Member UserStore r,
-    Member AppStore r,
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
+    Member (Input (Local any)) r,
     Member (Concurrency Unsafe) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member AppSubsystem r
   ) =>
   Local UserId ->
   Qualified [UserId] ->
@@ -377,7 +382,7 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self =
   foldQualified
     self
-    (getUserProfilesLocalPart (Just self))
+    (getUserProfilesLocalPart Everything (Just self))
     getUserProfilesRemotePart
 
 getUserProfilesRemotePart ::
@@ -393,19 +398,21 @@ getUserProfilesRemotePart ruids = do
   runFederated ruids $ fedClient @'Brig @"get-users-by-ids" (tUnqualified ruids)
 
 getUserProfilesLocalPart ::
-  forall r.
+  forall r any.
   ( Member UserStore r,
-    Member AppStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
     Member Now r,
     Member (Concurrency Unsafe) r,
+    Member (Input (Local any)) r,
+    Member AppSubsystem r,
     Member TeamSubsystem r
   ) =>
+  UserProfileFilter ->
   Maybe (Local UserId) ->
   Local [UserId] ->
   Sem r [UserProfile]
-getUserProfilesLocalPart requestingUser luids = do
+getUserProfilesLocalPart upf requestingUser luids = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
   requestingUserInfo <- join <$> traverse getRequestingUserInfo requestingUser
   let canSeeEmails = maybe False (isAdminOrOwner . view (newTeamMember . nPermissions) . snd) requestingUserInfo
@@ -414,9 +421,10 @@ getUserProfilesLocalPart requestingUser luids = do
         EmailVisibleToSelf -> EmailVisibleToSelf
         EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
-  -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
-  -- not just single rows.
-  catMaybes <$> unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileImpl emailVisibilityConfigWithViewer)
+  injectAppsIntoUserProfiles . filter goUpf . catMaybes
+    -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
+    -- not just single rows.
+    =<< unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)
   where
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
@@ -432,10 +440,15 @@ getUserProfilesLocalPart requestingUser luids = do
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> internalGetTeamMember (tUnqualified self) tid
 
-getLocalUserProfileImpl ::
+    goUpf :: UserProfile -> Bool
+    goUpf prof = case upf of
+      Everything -> True
+      AppsOnly -> prof.profileType == UserTypeApp
+      RegularOnly -> prof.profileType == UserTypeRegular
+
+getLocalUserProfileInternal ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member DeleteQueue r,
     Member Now r,
     Member (Input UserSubsystemConfig) r,
@@ -444,18 +457,17 @@ getLocalUserProfileImpl ::
   EmailVisibilityConfigWithViewer ->
   Local UserId ->
   Sem r (Maybe UserProfile)
-getLocalUserProfileImpl emailVisibilityConfigWithViewer luid = do
+getLocalUserProfileInternal emailVisibilityConfigWithViewer luid = do
   let domain = tDomain luid
-  locale <- inputs defaultLocale
+  locale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   runMaybeT $ do
     storedUser <- MaybeT $ getUser (tUnqualified luid)
     guard $ not (hasPendingInvitation storedUser)
     lhs :: UserLegalHoldStatus <- do
       teamMember <- lift $ join <$> (internalGetTeamMember storedUser.id `mapM` storedUser.teamId)
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) teamMember
-    userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
     let user = mkUserFromStored domain locale storedUser
-        usrProfile = mkUserProfile emailVisibilityConfigWithViewer userType user lhs
+        usrProfile = mkUserProfile emailVisibilityConfigWithViewer user Nothing lhs
     lift $ deleteLocalIfExpired user
     pure $ usrProfile
 
@@ -467,7 +479,7 @@ getSelfProfileImpl ::
   Local UserId ->
   Sem r (Maybe SelfProfile)
 getSelfProfileImpl self = do
-  defLocale <- inputs defaultLocale
+  defLocale <- inputs Wire.UserSubsystem.UserSubsystemConfig.defaultLocale
   mStoredUser <- getUser (tUnqualified self)
   mHackedUser <- traverse hackForBlockingHandleChangeForE2EIdTeams mStoredUser
   let mUser = mkUserFromStored (tDomain self) defLocale <$> mHackedUser
@@ -499,9 +511,8 @@ deleteLocalIfExpired user =
         enqueueUserDeletion (qUnqualified user.userQualifiedId)
 
 getUserProfilesWithErrorsImpl ::
-  forall r fedM.
+  forall r fedM any.
   ( Member UserStore r,
-    Member AppStore r,
     Member (Concurrency 'Unsafe) r, -- FUTUREWORK: subsystems should implement concurrency inside interpreters, not depend on this dangerous effect.
     Member (Input UserSubsystemConfig) r,
     Member (FederationAPIAccess fedM) r,
@@ -510,13 +521,16 @@ getUserProfilesWithErrorsImpl ::
     RunClient (fedM 'Brig),
     FederationMonad fedM,
     Typeable fedM,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local any)) r,
+    Member AppSubsystem r
   ) =>
   Local UserId ->
   [Qualified UserId] ->
   Sem r ([(Qualified UserId, FederationError)], [UserProfile])
 getUserProfilesWithErrorsImpl self others = do
-  aggregate ([], []) <$> unsafePooledMapConcurrentlyN 8 go (bucketQualified others)
+  (errs, profs_) <- aggregate ([], []) <$> unsafePooledMapConcurrentlyN 8 go (bucketQualified others)
+  (errs,) <$> injectAppsIntoUserProfiles profs_
   where
     go :: Qualified [UserId] -> Sem r (Either (FederationError, Qualified [UserId]) [UserProfile])
     go bucket = runError (getUserProfilesFromDomain self bucket) <&> mapLeft (,bucket)
@@ -537,6 +551,28 @@ getUserProfilesWithErrorsImpl self others = do
 
     renderBucketError :: (FederationError, Qualified [UserId]) -> [(Qualified UserId, FederationError)]
     renderBucketError (e, qlist) = (,e) . (flip Qualified (qDomain qlist)) <$> qUnqualified qlist
+
+-- | Consult `AppSubsystem` to get `AppInfo`s info for `UserProfile`'s
+-- `app` attribute.
+--
+-- NOTE ON PERFORMANCE: this function calls `getApp` once per user
+-- profile.  we could call `getApps` once instead, build a map from
+-- that, and look up `AppInfo` for all profiles in memory.  There is a
+-- trade-off between memory usage and database IO, and we should
+-- measure this before we make a change.
+injectAppsIntoUserProfiles ::
+  (Member AppSubsystem r, Member (Input (Local x0)) r) =>
+  [UserProfile] -> Sem r [UserProfile]
+injectAppsIntoUserProfiles = mapM \uprof -> do
+  mbluid :: Maybe (Local UserId) <- do
+    localDom <- input
+    pure $ foldQualified localDom Just (const Nothing) uprof.profileQualifiedId
+
+  mbApp :: Maybe AppInfo <- case (uprof.profileDeleted, uprof.profileType, mbluid, uprof.profileTeam) of
+    (False, UserTypeApp, Just luid, Just tid) -> Just <$> getApp luid tid (tUnqualified luid)
+    _ -> pure Nothing
+
+  pure (uprof {profileApp = mbApp})
 
 -- | Some fields cannot be overwritten by clients for scim-managed users; some others if e2eid
 -- is used.  If a client attempts to overwrite any of these, throw `UserSubsystem*ManagedByScim`.
@@ -578,7 +614,6 @@ guardLockedHandleField user updateOrigin handle = do
 
 updateUserProfileImpl ::
   ( Member UserStore r,
-    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member Events r,
     Member GalleyAPIAccess r,
@@ -643,7 +678,6 @@ updateHandleImpl ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member UserStore r,
-    Member AppStore r,
     Member IndexedUserStore r,
     Member Metrics r
   ) =>
@@ -710,7 +744,6 @@ checkHandlesImpl check num = reverse <$> collectFree [] check num
 syncUserIndex ::
   forall r.
   ( Member UserStore r,
-    Member AppStore r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
     Member Metrics r
@@ -734,9 +767,8 @@ syncUserIndex uid =
           teamSearchVisibilityInbound
           indexUser.teamId
       tm <- maybe (pure Nothing) selectTeamMember indexUser.teamId
-      userType <- getUserType indexUser.userId indexUser.teamId indexUser.serviceId
       let mRole = tm >>= mkRoleWithWriteTime
-          userDoc = indexUserToDoc vis (Just userType) (value <$> mRole) indexUser
+          userDoc = indexUserToDoc vis (value <$> mRole) indexUser
           version = ES.ExternalGT . ES.ExternalDocVersion . docVersion $ indexUserToVersion mRole indexUser
       Metrics.incCounter indexUpdateCounter
       IndexedUserStore.upsert (userIdToDocId uid) userDoc version
@@ -764,7 +796,6 @@ searchUsersImpl ::
   forall r fedM.
   ( Member UserStore r,
     Member GalleyAPIAccess r,
-    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
     Member FederationConfigStore r,
@@ -801,7 +832,6 @@ searchUsersImpl searcherId searchTerm maybeDomain maybeMaxResults mTypes = do
 searchLocally ::
   forall r.
   ( Member GalleyAPIAccess r,
-    Member AppStore r,
     Member UserStore r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r
@@ -880,7 +910,6 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
               || (not config.searchSameTeamOnly)
       if isContactVisible && fromMaybe True storedUser.searchable
         then do
-          userType <- lift $ getUserType storedUser.id storedUser.teamId storedUser.serviceId
           pure $
             Contact
               { contactQualifiedId = Qualified storedUser.id (tDomain searcher),
@@ -888,7 +917,7 @@ searchLocally searcher searchTerm maybeMaxResults mTypes = do
                 contactHandle = Handle.fromHandle <$> storedUser.handle,
                 contactColorId = Just . fromIntegral . fromColourId $ storedUser.accentId,
                 contactTeam = storedUser.teamId,
-                contactType = userType
+                contactType = inferUserType storedUser.serviceId storedUser.userType
               }
         else hoistMaybe Nothing
 
@@ -1054,7 +1083,6 @@ getAccountsByImpl (tSplit -> (domain, GetBy {..})) = do
 acceptTeamInvitationImpl ::
   ( Member (Input UserSubsystemConfig) r,
     Member UserStore r,
-    Member AppStore r,
     Member GalleyAPIAccess r,
     Member (Error UserSubsystemError) r,
     Member InvitationStore r,
@@ -1119,7 +1147,6 @@ getUserExportDataImpl uid = fmap hush . runError @() $ do
 removeEmailEitherImpl ::
   ( Member UserKeyStore r,
     Member UserStore r,
-    Member AppStore r,
     Member Events r,
     Member IndexedUserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -1154,7 +1181,6 @@ checkUserIsAdminImpl uid = do
 
 setUserSearchableImpl ::
   ( Member UserStore r,
-    Member AppStore r,
     Member (Error UserSubsystemError) r,
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
@@ -1170,20 +1196,3 @@ setUserSearchableImpl luid uid searchable = do
   ensurePermissions (tUnqualified luid) tid [SetMemberSearchable]
   UserStore.setUserSearchable uid searchable
   syncUserIndex uid
-
--- * Helpers
-
-getUserType ::
-  forall r.
-  (Member AppStore r) =>
-  UserId ->
-  Maybe TeamId ->
-  Maybe ServiceId ->
-  Sem r UserType
-getUserType uid mTid mbServiceId = case mbServiceId of
-  Just _ -> pure UserTypeBot
-  Nothing -> do
-    mmApp <- mapM (getApp uid) mTid
-    case join mmApp of
-      Just _ -> pure UserTypeApp
-      Nothing -> pure UserTypeRegular

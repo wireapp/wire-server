@@ -9,11 +9,17 @@ genargs() {
             echo "$service"/"$service"_test_dyn_"$i"
         done
     done
+    return 0
 }
 
 migrate_schema() {
-    cmd="$1-schema --keyspace $2 ${*:3}"
+    local service="$1"
+    local keyspace="$2"
+    shift 2
+    local extra_args="$*"
+    cmd="$service-schema --keyspace $keyspace $extra_args"
     $cmd
+    return $?
 }
 
 export -f migrate_schema

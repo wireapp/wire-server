@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "proxy"
+data:
+  proxy.yaml: |
+    logFormat: {{ .Values.proxy.config.logFormat }}
+    logLevel: {{ .Values.proxy.config.logLevel }}
+    logNetStrings: {{ .Values.proxy.config.logNetStrings }}
+    disabledAPIVersions: {{ toJson .Values.proxy.config.disabledAPIVersions }}
+    proxy:
+      host: 0.0.0.0
+      port: {{ .Values.proxy.service.internalPort }}
+    httpPoolSize: 1000
+    maxConns: 5000
+    secretsConfig: /etc/wire/proxy/secrets/proxy.config

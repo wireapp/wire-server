@@ -9,7 +9,7 @@ class Response:
         self.method = method
         self.url = url
         self.request = request
-        self.response = response
+        self.http_response = response
 
     def __enter__(self):
         return self
@@ -28,13 +28,13 @@ class Response:
             print(json.dumps(req, indent=2))
 
         # print response status code and JSON if present
-        print("status code:", self.response.status_code)
+        print("status code:", self.http_response.status_code)
         print("response body:")
         try:
-            resp = self.response.json()
+            resp = self.http_response.json()
             print(json.dumps(resp, indent=2))
         except requests.exceptions.JSONDecodeError:
-            print(self.response.text)
+            print(self.http_response.text)
 
     def check(self, prop=None, *, status=None):
         with self:
@@ -46,12 +46,12 @@ class Response:
 
     @property
     def status_code(self):
-        return self.response.status_code
+        return self.http_response.status_code
 
     @property
     def text(self):
-        return self.response.text
+        return self.http_response.text
 
     def json(self):
         with self:
-            return self.response.json(object_hook=frozendict)
+            return self.http_response.json(object_hook=frozendict)

@@ -33,7 +33,6 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.Effects
 import Galley.Options
 import Imports
 import Polysemy

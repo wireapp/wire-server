@@ -27,6 +27,7 @@ where
 
 import Control.Lens
 import Data.Aeson qualified as A
+import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Handle
 import Data.Id
 import Data.Kind
@@ -93,7 +94,7 @@ type SternAPI =
            ( Summary "Displays active users info given a list of ids"
                :> "users"
                :> "by-ids"
-               :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
+               :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" (CommaSeparatedList UserId)
                :> Get '[JSON] [User]
            )
     :<|> Named
@@ -101,7 +102,7 @@ type SternAPI =
            ( Summary "Displays active users info given a list of handles"
                :> "users"
                :> "by-handles"
-               :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "handles" [Handle]
+               :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "handles" (CommaSeparatedList Handle)
                :> Get '[JSON] [User]
            )
     :<|> Named
@@ -118,7 +119,7 @@ type SternAPI =
            ( Summary "Displays connections of many users given a list of ids"
                :> "users"
                :> "connections"
-               :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
+               :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" (CommaSeparatedList UserId)
                :> Get '[JSON] [ConnectionStatus]
            )
     :<|> Named
@@ -200,7 +201,7 @@ type SternAPI =
            ( Summary "internal wire.com process: https://wearezeta.atlassian.net/wiki/spaces/~463749889/pages/256738296/EJPD+official+requests+process"
                :> "ejpd-info"
                :> QueryParam' [Optional, Strict, Description "If 'true', this gives you more more exhaustive information about this user (including social network)"] "include_contacts" Bool
-               :> QueryParam' [Required, Strict, Description "Handles of the users, separated by commas (NB: all chars need to be lower case!)"] "handles" [Handle]
+               :> QueryParam' [Required, Strict, Description "Handles of the users, separated by commas (NB: all chars need to be lower case!)"] "handles" (CommaSeparatedList Handle)
                :> Get '[JSON] EJPD.EJPDResponseBody
            )
     :<|> Named
@@ -255,8 +256,8 @@ type SternAPI =
     :<|> Named "put-route-sso-config" (MkFeatureStatusPutRoute SSOConfig)
     :<|> Named "get-route-search-visibility-available-config" (MkFeatureGetRoute SearchVisibilityAvailableConfig)
     :<|> Named "put-route-search-visibility-available-config" (MkFeatureStatusPutRoute SearchVisibilityAvailableConfig)
-    :<|> Named "get-route-validate-saml-emails-config" (MkFeatureGetRoute ValidateSAMLEmailsConfig)
-    :<|> Named "put-route-validate-saml-emails-config" (MkFeatureStatusPutRoute ValidateSAMLEmailsConfig)
+    :<|> Named "get-route-validate-saml-emails-config" (MkFeatureGetRoute RequireExternalEmailVerificationConfig)
+    :<|> Named "put-route-validate-saml-emails-config" (MkFeatureStatusPutRoute RequireExternalEmailVerificationConfig)
     :<|> Named "get-route-digital-signatures-config" (MkFeatureGetRoute DigitalSignaturesConfig)
     :<|> Named "put-route-digital-signatures-config" (MkFeatureStatusPutRoute DigitalSignaturesConfig)
     :<|> Named "get-route-file-sharing-config" (MkFeatureGetRoute FileSharingConfig)

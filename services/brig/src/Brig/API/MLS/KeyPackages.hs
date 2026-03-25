@@ -55,6 +55,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.Team.LegalHold
+import Wire.API.User (AccountStatus (..))
 import Wire.API.User.Client
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -112,24 +113,27 @@ claimLocalKeyPackages ::
   CipherSuiteTag ->
   Local UserId ->
   ExceptT ClientError (AppT r) KeyPackageBundle
-claimLocalKeyPackages qusr skipOwn suite target = do
+claimLocalKeyPackages qusr skipOwn suite qTarget = do
+  let target = tUnqualified qTarget
+  su <- lift (liftSem $ getUser target) >>= maybe (throwE (ClientUserNotFound target)) pure
+  when (not su.activated || maybe True ((/=) Active) su.status) $ throwE (ClientUserNotFound target)
   -- while we do not support federation + MLS together with legalhold, to make sure that
   -- the remote backend is complicit with our legalhold policies, we disallow anyone
   -- fetching key packages for users under legalhold
   --
   -- This way we prevent both locally and on the remote to add a user under legalhold to an MLS
   -- conversation
-  assertUserNotUnderLegalHold
+  assertUserNotUnderLegalHold su
 
   -- skip own client when the target is the requesting user itself
-  let own = guard (qusr == tUntagged target) *> skipOwn
-  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients (tUnqualified target)))
+  let own = guard (qusr == tUntagged qTarget) *> skipOwn
+  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients target))
   foldQualified
-    target
+    qTarget
     ( \lusr ->
         guardLegalhold
           (ProtectedUser (tUnqualified lusr))
-          (mkUserClients [(tUnqualified target, clients)])
+          (mkUserClients [(target, clients)])
     )
     (\_ -> pure ())
     qusr
@@ -140,27 +144,23 @@ claimLocalKeyPackages qusr skipOwn suite target = do
     mkEntry own c =
       runMaybeT $ do
         guard $ Just c /= own
-        uncurry (KeyPackageBundleEntry (tUntagged target) c)
-          <$> wrapClientM (Data.claimKeyPackage target c suite)
+        uncurry (KeyPackageBundleEntry (tUntagged qTarget) c)
+          <$> wrapClientM (Data.claimKeyPackage qTarget c suite)
 
     -- FUTUREWORK: shouldn't this be defined elsewhere for general use?
-    assertUserNotUnderLegalHold :: ExceptT ClientError (AppT r) ()
-    assertUserNotUnderLegalHold = do
-      -- this is okay because there can only be one StoredUser per UserId
-      mSu <- lift $ liftSem $ getUser (tUnqualified target)
-      case mSu of
-        Nothing -> pure () -- Legalhold is a team feature.
-        Just su ->
-          for_ su.teamId $ \tid -> do
-            resp <- lift $ liftSem $ getUserLegalholdStatus target tid
-            -- if an admin tries to put a user under legalhold
-            -- the user has to first reject to be put under legalhold
-            -- before they can join conversations again
-            case resp.ulhsrStatus of
-              UserLegalHoldPending -> throwE ClientLegalHoldIncompatible
-              UserLegalHoldEnabled -> throwE ClientLegalHoldIncompatible
-              UserLegalHoldDisabled -> pure ()
-              UserLegalHoldNoConsent -> pure ()
+    assertUserNotUnderLegalHold :: StoredUser -> ExceptT ClientError (AppT r) ()
+    assertUserNotUnderLegalHold su =
+      for_ su.teamId $ \tid -> do
+        mLhStatus <- lift $ liftSem $ getUserLegalholdStatus qTarget tid
+        -- if an admin tries to put a user under legalhold
+        -- the user has to first reject to be put under legalhold
+        -- before they can join conversations again
+        case ulhsrStatus <$> mLhStatus of
+          Just UserLegalHoldPending -> throwE ClientLegalHoldIncompatible
+          Just UserLegalHoldEnabled -> throwE ClientLegalHoldIncompatible
+          Just UserLegalHoldDisabled -> pure ()
+          Just UserLegalHoldNoConsent -> pure ()
+          Nothing -> pure ()
 
 claimRemoteKeyPackages ::
   (Member ClientStore r) =>

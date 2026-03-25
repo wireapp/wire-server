@@ -55,7 +55,6 @@ import Galley.API.MLS.Propagate
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (sendWelcomes)
-import Galley.Effects
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -79,21 +78,25 @@ import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.Message
 import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Version
 import Wire.API.Team.LegalHold
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem
 import Wire.NotificationSubsystem
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamStore qualified as TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -139,6 +142,7 @@ enableOutOfSyncCheckFromVersion v
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -180,6 +184,7 @@ postMLSCommitBundle ::
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -212,6 +217,8 @@ postMLSCommitBundleFromLocalUser ::
     Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,
@@ -248,6 +255,7 @@ postMLSCommitBundleToLocalConv ::
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
+    Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSBundleStaticErrors r,

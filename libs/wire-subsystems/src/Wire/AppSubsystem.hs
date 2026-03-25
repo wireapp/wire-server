@@ -19,14 +19,15 @@
 
 module Wire.AppSubsystem where
 
+import Data.Default
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Data.RetryAfter
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
-import Wire.API.App qualified as Apps
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.Error
@@ -35,11 +36,17 @@ data AppSubsystemConfig = AppSubsystemConfig
   { defaultLocale :: Locale
   }
 
+instance Default AppSubsystemConfig where
+  def = AppSubsystemConfig def
+
 data AppSubsystemError
   = AppSubsystemErrorNoPerm
   | AppSubsystemErrorNoUser -- The user having created the app not found
   | AppSubsystemErrorAppUserNotFound -- The user used to "enact" the app not found
   | AppSubsystemErrorNoApp
+  deriving (Eq, Show)
+
+instance Exception AppSubsystemError
 
 appSubsystemErrorToHttpError :: AppSubsystemError -> HttpError
 appSubsystemErrorToHttpError =
@@ -50,14 +57,15 @@ appSubsystemErrorToHttpError =
     AppSubsystemErrorNoApp -> Wai.mkError status404 "app-not-found" "App not found"
 
 data AppSubsystem m a where
-  CreateApp :: Local UserId -> TeamId -> Apps.NewApp -> AppSubsystem m Apps.CreatedApp
-  GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m Apps.GetApp
-  GetApps :: Local UserId -> TeamId -> AppSubsystem m Apps.GetAppList
-  UpdateApp :: Local UserId -> TeamId -> UserId -> Apps.PutApp -> AppSubsystem m ()
+  CreateApp :: Local UserId -> TeamId -> NewApp -> AppSubsystem m CreatedApp
+  GetApp :: Local UserId -> TeamId -> UserId -> AppSubsystem m AppInfo
+  GetApps :: Local UserId -> TeamId -> AppSubsystem m [(UserId, AppInfo)]
+  UpdateApp :: Local UserId -> TeamId -> UserId -> PutApp -> AppSubsystem m ()
   RefreshAppCookie ::
     Local UserId ->
     TeamId ->
     UserId ->
+    Maybe PlainTextPassword6 ->
     AppSubsystem m (Either RetryAfter SomeUserToken)
   DeleteApp ::
     TeamId ->
@@ -65,3 +73,6 @@ data AppSubsystem m a where
     AppSubsystem m ()
 
 makeSem ''AppSubsystem
+
+getAppIds :: (Member AppSubsystem r) => Local UserId -> TeamId -> Sem r [UserId]
+getAppIds self tid = fst <$$> getApps self tid

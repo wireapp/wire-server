@@ -11105,7 +11105,7 @@
     },
     "/clients/{cid}/access-token": {
       "post": {
-        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"create-access-token\"]\n\nCreate an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. The access token will be returned as JWT DPoP token in the `DPoP` header.",
+        "description": " [<a href=\"https://docs.wire.com/developer/developer/servant.html#named-and-internal-route-ids\">internal route ID:</a> \"create-access-token\"]\n\nCreate an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. The access token will be returned in the JSON response body as a JWT DPoP token.",
         "operationId": "create-access-token",
         "parameters": [
           {

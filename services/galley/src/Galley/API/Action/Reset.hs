@@ -24,7 +24,6 @@ import Data.Id
 import Data.Qualified
 import Galley.API.Action.Kick
 import Galley.API.MLS.Util
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -46,12 +45,16 @@ import Wire.API.MLS.Group.Serialisation qualified as Group
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.VersionInfo
+import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation as Data
 
 resetLocalMLSMainConversation ::

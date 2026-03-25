@@ -59,6 +59,7 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.IdentityProvider (IdPList (..), team)
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.IndexedUserStore qualified as IU
@@ -104,8 +105,8 @@ spec = describe "UserSubsystem.Interpreter" do
               mkExpectedProfiles domain users =
                 [ mkUserProfileWithEmail
                     Nothing
-                    (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                     (mkUserFromStored domain miniLocale targetUser)
+                    Nothing
                     defUserLegalHoldStatus
                 | targetUser <- users
                 ]
@@ -129,6 +130,7 @@ spec = describe "UserSubsystem.Interpreter" do
             result =
               run
                 . runErrorUnsafe @UserSubsystemError
+                . runErrorUnsafe @AppSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runErrorUnsafe @TeamCollaboratorsError
@@ -164,8 +166,8 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfiles
                 === [ mkUserProfile
                         (fmap (const $ (,) <$> viewer.teamId <*> Just teamMember) config.emailVisibilityConfig)
-                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                         (mkUserFromStored domain config.defaultLocale targetUser)
+                        Nothing
                         defUserLegalHoldStatus
                     ]
 
@@ -181,8 +183,8 @@ spec = describe "UserSubsystem.Interpreter" do
            in retrievedProfile
                 === [ mkUserProfile
                         (fmap (const Nothing) config.emailVisibilityConfig)
-                        (if isJust targetUser.serviceId then UserTypeBot else UserTypeRegular)
                         (mkUserFromStored domain config.defaultLocale targetUser)
+                        Nothing
                         defUserLegalHoldStatus
                     ]
 
@@ -802,9 +804,12 @@ spec = describe "UserSubsystem.Interpreter" do
               localBackend = def {users = [storedUser]}
            in updateResult === Left UserSubsystemInvalidHandle
 
-    prop "update / read supported-protocols" \(storedUser, config, newSupportedProtocols) ->
-      not (hasPendingInvitation storedUser) ==>
-        let luid :: Local UserId
+    prop "update / read supported-protocols" \(storedUser_, config, newSupportedProtocols) ->
+      not (hasPendingInvitation storedUser_) ==>
+        let storedUser :: StoredUser
+            storedUser = storedUser_ {userType = Just UserTypeRegular}
+
+            luid :: Local UserId
             luid = toLocalUnsafe dom storedUser.id
               where
                 dom = Domain "localdomain"
@@ -1100,10 +1105,7 @@ spec = describe "UserSubsystem.Interpreter" do
             searchee = searcheeNoHandle {handle = Just searcheeHandle} :: StoredUser
 
             storedUserToDoc :: StoredUser -> UserDoc
-            storedUserToDoc user =
-              let indexUser = storedUserToIndexUser user
-                  userType = if isJust user.serviceId then UserTypeBot else UserTypeRegular
-               in indexUserToDoc defaultSearchVisibilityInbound (Just userType) Nothing indexUser
+            storedUserToDoc user = indexUserToDoc defaultSearchVisibilityInbound Nothing (storedUserToIndexUser user)
 
             indexFromStoredUsers :: [StoredUser] -> UserIndex
             indexFromStoredUsers storedUsers = do
@@ -1133,6 +1135,6 @@ spec = describe "UserSubsystem.Interpreter" do
                         contactName = fromName searchee.name,
                         contactHandle = fromHandle <$> searchee.handle,
                         contactColorId = Just . fromIntegral $ searchee.accentId.fromColourId,
-                        contactType = UserTypeRegular
+                        contactType = fromMaybe UserTypeRegular searchee.userType
                       }
               pure $ result.searchResults === [expectedContact | fromMaybe True searchee.searchable]

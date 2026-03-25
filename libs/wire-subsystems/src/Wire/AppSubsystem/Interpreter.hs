@@ -21,12 +21,12 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
 import Data.Json.Util
-import Data.Map qualified as Map
+import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.Misc
 import Data.Qualified
 import Data.RetryAfter
 import Data.Set qualified as Set
-import Data.UUID.V4
-import Data.ZAuth.Token
+import Data.ZAuth.Token (Token (..), Type (U))
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -34,7 +34,6 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
-import Wire.API.App qualified as Apps
 import Wire.API.Event.Team
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
@@ -44,10 +43,12 @@ import Wire.AppStore (AppStore, StoredApp (..))
 import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
+import Wire.AuthenticationSubsystem.Cookie (revokeAllCookies)
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
+import Wire.Sem.Random
 import Wire.StoredUser
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.Util
@@ -58,7 +59,6 @@ import Wire.UserSubsystem (UserSubsystem, internalUpdateSearchIndex)
 runAppSubsystem ::
   ( Member UserStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
@@ -66,50 +66,53 @@ runAppSubsystem ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member UserSubsystem r
+    Member Random r
   ) =>
+  InterpreterFor UserSubsystem (AuthenticationSubsystem ': r) ->
+  InterpreterFor AuthenticationSubsystem r ->
   Sem (AppSubsystem ': r) a ->
   Sem r a
-runAppSubsystem = interpret \case
-  CreateApp lusr tid new -> createAppImpl lusr tid new
-  GetApp lusr tid uid -> getAppImpl lusr tid uid
-  GetApps lusr tid -> getAppsImpl lusr tid
-  UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
-  RefreshAppCookie lusr tid appId -> runError $ refreshAppCookieImpl lusr tid appId
-  DeleteApp tid appId -> deleteAppImpl tid appId
+runAppSubsystem runUser runAuth =
+  interpret $
+    runAuth . runUser . \case
+      CreateApp lusr tid new -> createAppImpl lusr tid new
+      GetApp lusr tid uid -> getAppImpl lusr tid uid
+      GetApps lusr tid -> getAppsImpl lusr tid
+      UpdateApp lusr tid uid put -> updateAppImpl lusr tid uid put
+      RefreshAppCookie lusr tid appId password -> runError $ refreshAppCookieImpl lusr tid appId password
+      DeleteApp tid appId -> deleteAppImpl tid appId
 
 createAppImpl ::
   ( Member UserStore r,
+    Member AppStore r,
     Member TinyLog r,
-    Member (Embed IO) r,
     Member (Error AppSubsystemError) r,
     Member (Input AppSubsystemConfig) r,
     Member GalleyAPIAccess r,
-    Member AppStore r,
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member AuthenticationSubsystem r,
-    Member UserSubsystem r
+    Member UserSubsystem r,
+    Member Random r
   ) =>
   Local UserId ->
   TeamId ->
-  Apps.NewApp ->
-  Sem r Apps.CreatedApp
-createAppImpl lusr tid (Apps.NewApp new password6) = do
-  verifyUserPasswordError lusr password6
+  NewApp ->
+  Sem r CreatedApp
+createAppImpl lusr tid newApp = do
+  verifyUserPasswordError lusr newApp.password
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
-  u <- appNewStoredUser creator new
+  u <- appNewStoredUser creator newApp
   let app =
         StoredApp
           { id = u.id,
             teamId = tid,
-            meta = new.meta,
-            category = new.category,
-            description = new.description,
+            meta = mempty, -- unused, can be removed from postgres schema at some point.
+            category = newApp.category,
+            description = newApp.description,
             creator = tUnqualified lusr
           }
 
@@ -130,8 +133,12 @@ createAppImpl lusr tid (Apps.NewApp new password6) = do
 
   c :: Cookie (Token U) <- newCookie u.id Nothing PersistentCookie Nothing RevokeSameLabel
   pure
-    Apps.CreatedApp
-      { user = newStoredUserToUser (tUntagged (qualifyAs lusr u)),
+    CreatedApp
+      { user =
+          let usr :: User = newStoredUserToUser (tUntagged (qualifyAs lusr u))
+              mbApp :: Maybe AppInfo = Just $ storedAppToAppInfo app
+              lh = UserLegalHoldDisabled -- FUTUREWORK: this needs to be changed as soon as apps can be put under LH.
+           in mkUserProfile EmailVisibleIfOnTeam usr mbApp lh,
         cookie = mkSomeToken c.cookieValue
       }
 
@@ -158,21 +165,18 @@ getAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Sem r Apps.GetApp
+  Sem r AppInfo
 getAppImpl lusr tid uid = do
   void $ ensureTeamMember lusr tid
   storedApp <- Store.getApp uid tid >>= note AppSubsystemErrorNoApp
-  u <- Store.getUser uid >>= note AppSubsystemErrorAppUserNotFound
-  pure $
-    Apps.GetApp
-      { name = u.name,
-        pict = fromMaybe (Pict []) u.pict,
-        assets = fromMaybe [] u.assets,
-        accentId = u.accentId,
-        meta = storedApp.meta,
-        category = storedApp.category,
-        description = storedApp.description
-      }
+  pure $ storedAppToAppInfo storedApp
+
+storedAppToAppInfo :: StoredApp -> AppInfo
+storedAppToAppInfo app =
+  AppInfo
+    { category = app.category,
+      description = app.description
+    }
 
 getAppsImpl ::
   ( Member AppStore r,
@@ -182,30 +186,10 @@ getAppsImpl ::
   ) =>
   Local UserId ->
   TeamId ->
-  Sem r Apps.GetAppList
+  Sem r [(UserId, AppInfo)]
 getAppsImpl lusr tid = do
   void $ ensureTeamMember lusr tid
-  storedApps <- Store.getApps tid
-  us <- Store.getUsers ((.id) <$> storedApps)
-  let mkApp (storedApp, u) =
-        ( u.id,
-          Apps.GetApp
-            { name = u.name,
-              pict = fromMaybe (Pict []) u.pict,
-              assets = fromMaybe [] u.assets,
-              accentId = u.accentId,
-              meta = storedApp.meta,
-              category = storedApp.category,
-              description = storedApp.description
-            }
-        )
-  pure . Apps.GetAppList $ mkApp <$> matchAndZip storedApps us
-  where
-    matchAndZip :: [StoredApp] -> [StoredUser] -> [(StoredApp, StoredUser)]
-    matchAndZip as us = mapMaybe f as
-      where
-        f a = (a,) <$> Map.lookup a.id umap
-        umap = Map.fromList $ (\u -> (u.id, u)) <$> us
+  Store.getApps tid <&> map \storedApp -> (storedApp.id, storedAppToAppInfo storedApp)
 
 updateAppImpl ::
   ( Member AppStore r,
@@ -216,7 +200,7 @@ updateAppImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
-  Apps.PutApp ->
+  PutApp ->
   Sem r ()
 updateAppImpl lusr tid appid upd = do
   (_updater, umem) <- ensureTeamMember lusr tid
@@ -239,37 +223,40 @@ refreshAppCookieImpl ::
   Local UserId ->
   TeamId ->
   UserId ->
+  Maybe PlainTextPassword6 ->
   Sem r SomeUserToken
-refreshAppCookieImpl (tUnqualified -> uid) tid appId = do
+refreshAppCookieImpl (tUnqualified -> uid) tid appId mbPassword = do
+  reauthenticateEither uid mbPassword
+    >>= either (const $ throw AppSubsystemErrorNoPerm) (const $ pure ())
+
   mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)
   void $ Store.getApp appId tid >>= note AppSubsystemErrorNoApp
 
+  revokeAllCookies appId
   c :: Cookie (Token U) <-
     newCookieLimited appId Nothing PersistentCookie Nothing RevokeSameLabel
       >>= either throw pure
   pure $ mkSomeToken c.cookieValue
 
 appNewStoredUser ::
-  ( Member (Embed IO) r,
-    Member (Input AppSubsystemConfig) r
-  ) =>
+  (Member (Input AppSubsystemConfig) r, Member Random r) =>
   StoredUser ->
-  Apps.GetApp ->
+  NewApp ->
   Sem r NewStoredUser
 appNewStoredUser creator new = do
-  uid <- liftIO nextRandom
+  uid <- newId
   defLoc <- inputs defaultLocale
   let loc = toLocale defLoc (creator.language, creator.country)
   pure
     NewStoredUser
-      { id = Id uid,
+      { id = uid,
         userType = UserTypeApp,
         email = Nothing,
         ssoId = Nothing,
         name = new.name,
         textStatus = Nothing,
-        pict = new.pict,
+        pict = Pict [],
         assets = new.assets,
         accentId = new.accentId,
         password = Nothing,

@@ -23,8 +23,6 @@ import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Map qualified as Map
 import Data.Qualified
-import Galley.API.Push
-import Galley.Effects
 import Imports
 import Network.AMQP qualified as Q
 import Polysemy
@@ -42,6 +40,7 @@ import Wire.API.Message
 import Wire.API.Push.V2 (RecipientClients (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore.MLS.Types
+import Wire.ExternalAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

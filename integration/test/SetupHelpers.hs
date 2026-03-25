@@ -498,7 +498,7 @@ registerTestIdPWithMetaWithPrivateCredsForZHost ::
   App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
 registerTestIdPWithMetaWithPrivateCredsForZHost owner mbZhost = do
   SampleIdP idpmeta pCreds _ _ <- makeSampleIdPMetadata
-  (,(idpmeta, pCreds)) <$> createIdpWithZHost owner mbZhost idpmeta
+  (,(idpmeta, pCreds)) <$> createIdpWithZHostV2 owner mbZhost idpmeta
 
 registerTestIdPWithMetaWithPrivateCreds :: (HasCallStack, MakesValue owner) => owner -> App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
 registerTestIdPWithMetaWithPrivateCreds = flip registerTestIdPWithMetaWithPrivateCredsForZHost Nothing

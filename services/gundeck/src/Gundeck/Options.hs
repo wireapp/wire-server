@@ -84,7 +84,9 @@ data Settings = Settings
     -- notifications from the database if notifications have inlined payloads.
     _internalPageSize :: Maybe Int32,
     -- | The name of the RabbitMQ queue to be used to forward events to Cells.
-    _cellsEventQueue :: !(Maybe Text)
+    _cellsEventQueue :: !(Maybe Text),
+    -- | Determines if consumable notifications are enabled
+    _consumableNotifications :: !Bool
   }
   deriving (Show, Generic)
 

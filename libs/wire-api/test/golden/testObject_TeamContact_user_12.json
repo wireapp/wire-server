@@ -10,8 +10,9 @@
     "role": null,
     "saml_idp": "\u001a:",
     "scim_external_id": null,
+    "searchable": true,
     "sso": null,
     "team": "00000001-0000-0001-0000-000000000000",
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }

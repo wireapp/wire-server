@@ -21,7 +21,7 @@ kill_all_cannons() {
   }
 
   while IFS= read -r cannon; do
-    if [ -n "$cannon" ]; then
+    if [[ -n "$cannon" ]]; then
       echo "Deleting $cannon"
       # If a single delete fails, we skip it but keep going.
       kubectl -n "$NAMESPACE" delete pod "$cannon" || {
@@ -59,7 +59,7 @@ while true; do
   # Check which is oldest
   FIRST_POD=$(echo "$ALL_PODS" | head -n 1 | awk '{ print $1 }')
 
-  if [ -z "$FIRST_POD" ]; then
+  if [[ -z "$FIRST_POD" ]]; then
     echo "Could not determine the oldest pod from the list. Doing nothing..."
     sleep 60
     continue

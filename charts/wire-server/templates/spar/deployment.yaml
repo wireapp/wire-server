@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spar
+  labels:
+    app: spar
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.spar.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.spar.replicaCount }}
+  selector:
+    matchLabels:
+      app: spar
+  template:
+    metadata:
+      labels:
+        app: spar
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/spar/configmap.yaml") . | sha256sum }}
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: spar
+      volumes:
+        - name: "spar-config"
+          configMap:
+            name: "spar"
+        {{- if eq (include "useCassandraTLS" .Values.spar.config.cassandra) "true" }}
+        - name: "spar-cassandra"
+          secret:
+            secretName: {{ (include "spar.tlsSecretRef" .Values.spar.config | fromYaml).name }}
+        {{- end}}
+      containers:
+        - name: spar
+          image: "{{ .Values.spar.image.repository }}:{{ .Values.spar.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.spar.imagePullPolicy | quote }}
+        {{- if eq (include "includeSecurityContext" .) "true" }}
+          securityContext:
+            {{- toYaml .Values.spar.podSecurityContext | nindent 12 }}
+        {{- end }}
+          volumeMounts:
+          - name: "spar-config"
+            mountPath: "/etc/wire/spar/conf"
+          {{- if eq (include "useCassandraTLS" .Values.spar.config.cassandra) "true" }}
+          - name: "spar-cassandra"
+            mountPath: "/etc/wire/spar/cassandra"
+          {{- end }}
+          env:
+          {{- with .Values.spar.config.proxy }}
+          {{- if .httpProxy }}
+          - name: http_proxy
+            value: {{ .httpProxy | quote }}
+          - name: HTTP_PROXY
+            value: {{ .httpProxy | quote }}
+          {{- end }}
+          {{- if .httpsProxy }}
+          - name: https_proxy
+            value: {{ .httpsProxy | quote }}
+          - name: HTTPS_PROXY
+            value: {{ .httpsProxy | quote }}
+          {{- end }}
+          {{- if .noProxyList }}
+          - name: no_proxy
+            value: {{ join "," .noProxyList | quote }}
+          - name: NO_PROXY
+            value: {{ join "," .noProxyList | quote }}
+          {{- end }}
+          {{- end }} 
+          ports:
+            - containerPort: {{ .Values.spar.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.spar.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.spar.service.internalPort }}
+          resources:
+{{ toYaml .Values.spar.resources | indent 12 }}

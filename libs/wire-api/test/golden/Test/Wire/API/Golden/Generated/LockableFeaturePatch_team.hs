@@ -56,8 +56,8 @@ testObject_LockableFeaturePatch_team_10 = LockableFeaturePatch (Just FeatureStat
 testObject_LockableFeaturePatch_team_11 :: LockableFeaturePatch SearchVisibilityAvailableConfig
 testObject_LockableFeaturePatch_team_11 = LockableFeaturePatch (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just SearchVisibilityAvailableConfig)
 
-testObject_LockableFeaturePatch_team_12 :: LockableFeaturePatch ValidateSAMLEmailsConfig
-testObject_LockableFeaturePatch_team_12 = LockableFeaturePatch (Just FeatureStatusDisabled) Nothing (Just ValidateSAMLEmailsConfig)
+testObject_LockableFeaturePatch_team_12 :: LockableFeaturePatch RequireExternalEmailVerificationConfig
+testObject_LockableFeaturePatch_team_12 = LockableFeaturePatch (Just FeatureStatusDisabled) Nothing (Just RequireExternalEmailVerificationConfig)
 
 testObject_LockableFeaturePatch_team_13 :: LockableFeaturePatch DigitalSignaturesConfig
 testObject_LockableFeaturePatch_team_13 = LockableFeaturePatch (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just DigitalSignaturesConfig)

@@ -666,12 +666,15 @@ instance ToSchema GroupInfoDiagnostics where
         <*> (.clients) .= field "clients" (array indexedClientSchema)
         <*> (.convId) .= convOrSubConvIdObjectSchema
         <*> (.domain) .= field "domain" schema
+        <* const (400 :: Int) .= field "code" schema
+        <* const ("inconsistent-group-state" :: Text) .= field "label" schema
+        <* const ("Submitted group info is inconsistent with the backend group state" :: Text) .= field "message" schema
 
 instance IsSwaggerError GroupInfoDiagnostics where
   addToOpenApi =
     addErrorResponseToSwagger (HTTP.statusCode groupInfoDiagnosticsStatus) $
       mempty
-        & S.description .~ "Submitted group info is inconsistent with the backend group state"
+        & S.description .~ "Submitted group info is inconsistent with the backend group state (label `inconsistent-group-state`)"
         & S.content .~ singleton mediaType mediaTypeObject
     where
       mediaType = contentType $ Proxy @JSON

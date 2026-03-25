@@ -28,10 +28,10 @@ import Testlib.Prelude
 -- | Test the /sso/get-by-email endpoint with multi-ingress setup
 testGetSsoCodeByEmailWithMultiIngress ::
   (HasCallStack) =>
-  TaggedBool "validateSAMLemails" ->
+  TaggedBool "requireExternalEmailVerification" ->
   TaggedBool "idpScimToken" ->
   App ()
-testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBool isIdPScimToken) = do
+testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerification) (TaggedBool isIdPScimToken) = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
@@ -65,13 +65,13 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
       assertSuccess =<< setTeamFeatureStatus domain tid "sso" "enabled"
 
       -- The test should work for both: SCIM user with and without email confirmation
-      let status = if validateSAMLemails then "enabled" else "disabled"
+      let status = if requireExternalEmailVerification then "enabled" else "disabled"
       assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
       -- Create IdP for ernie domain
       SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdErnie <-
-        createIdpWithZHost owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString
@@ -79,7 +79,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
       -- Create IdP for bert domain
       SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdBert <-
-        createIdpWithZHost owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` bertZHost
           resp.json %. "id" >>= asString
@@ -98,7 +98,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
       createScimUser domain scimToken scimUser >>= assertSuccess
 
       if isIdPScimToken
-        then when validateSAMLemails $ do
+        then when requireExternalEmailVerification $ do
           -- Activate the email so the user can be found by email
           activateEmail domain userEmail
         else
@@ -124,15 +124,15 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool validateSAMLemails) (TaggedBoo
         ssoCodeStr `shouldMatch` idpIdBert
 
 -- | Test the /sso/get-by-email endpoint with regular (non-multi-ingress) setup
-testGetSsoCodeByEmailRegular :: (HasCallStack) => (TaggedBool "validateSAMLemails") -> (TaggedBool "idpScimToken") -> App ()
-testGetSsoCodeByEmailRegular (TaggedBool validateSAMLemails) (TaggedBool isIdPScimToken) =
+testGetSsoCodeByEmailRegular :: (HasCallStack) => (TaggedBool "requireExternalEmailVerification") -> (TaggedBool "idpScimToken") -> App ()
+testGetSsoCodeByEmailRegular (TaggedBool requireExternalEmailVerification) (TaggedBool isIdPScimToken) =
   withModifiedBackend def {sparCfg = setField "enableIdPByEmailDiscovery" True}
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
       -- The test should work for both: SCIM user with and without email confirmation
-      let status = if validateSAMLemails then "enabled" else "disabled"
+      let status = if requireExternalEmailVerification then "enabled" else "disabled"
       assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
       -- Create IdP without domain binding
@@ -156,7 +156,7 @@ testGetSsoCodeByEmailRegular (TaggedBool validateSAMLemails) (TaggedBool isIdPSc
       createScimUser domain scimToken scimUser >>= assertSuccess
 
       if isIdPScimToken
-        then when validateSAMLemails $ do
+        then when requireExternalEmailVerification $ do
           -- Activate the email so the user can be found by email
           activateEmail domain userEmail
         else
@@ -267,7 +267,7 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
       -- Create IdP for ernie domain
       SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
       idpIdErnie <-
-        createIdpWithZHost owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
           resp.json %. "id" >>= asString

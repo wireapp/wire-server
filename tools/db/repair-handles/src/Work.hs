@@ -232,7 +232,7 @@ main = do
         $ Log.setLogLevel level Log.defSettings
     initCas cas l =
       Cas.init
-        . Cas.setLogger (Cas.mkLogger l)
+        . Cas.setLogger (Cas.mkLogger Nothing l)
         . Cas.setContacts (cas ^. cHosts) []
         . Cas.setPortNumber (fromIntegral $ cas ^. cPort)
         . Cas.setKeyspace (cas ^. cKeyspace)

@@ -17,7 +17,7 @@ mkdir -p .local/charts
 rm -rf "${CHART_DEST:?}/$CHART"
 cp -r "$CHART_SOURCE/$CHART" "$CHART_DEST/"
 
-if [ -f "$CHART_SOURCE/$CHART/requirements.yaml" ]; then
+if [[ -f "$CHART_SOURCE/$CHART/requirements.yaml" ]]; then
   # very hacky bash, I'm sorry
   for subpath in $(grep "file://" "$CHART_SOURCE/$CHART/requirements.yaml" | awk '{ print $2 }' | xargs -n 1 | cut -c 8-)
   do

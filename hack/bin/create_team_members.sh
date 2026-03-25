@@ -59,12 +59,12 @@ while getopts ":a:t:h:c:" opt; do
 done
 shift $((OPTIND -1))
 
-if [ "$#" -ne 0 ]; then
+if [[ "$#" -ne 0 ]]; then
   echo "$USAGE" 1>&2
   exit 1
 fi
 
-if [ ! -e "$CSV_FILE" ]; then
+if [[ ! -e "$CSV_FILE" ]]; then
     echo -e "\n\n*** I need the name of an existing csv file.\n\n"
     echo "$USAGE" 1>&2
     exit 1

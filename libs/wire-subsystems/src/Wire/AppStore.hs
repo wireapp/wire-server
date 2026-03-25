@@ -26,8 +26,8 @@ import Data.Range
 import Data.UUID
 import Imports
 import Polysemy
-import Wire.API.App as App
 import Wire.API.PostgresMarshall
+import Wire.API.User
 import Wire.Arbitrary
 
 data StoredApp = StoredApp
@@ -58,7 +58,7 @@ instance PostgresMarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp where
     ( postgresMarshall app.id,
       postgresMarshall app.teamId,
       postgresMarshall app.meta,
-      postgresMarshall (categoryToText app.category),
+      postgresMarshall (fromCategory app.category),
       postgresMarshall (fromRange app.description),
       postgresMarshall app.creator
     )
@@ -69,7 +69,7 @@ instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp wher
       <$> postgresUnmarshall uid
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
-      <*> (postgresUnmarshall =<< maybe (Left $ "Category " <> category <> " not found") Right (categoryFromText category))
+      <*> postgresUnmarshall (Category category)
       <*> (maybe (Left "description out of bounds") Right . checked @0 @300 =<< postgresUnmarshall description)
       <*> postgresUnmarshall creator
 

@@ -44,7 +44,7 @@ while getopts ":n:h:c" opt; do
 done
 shift $((OPTIND -1))
 
-if [ "$#" -ne 0 ]; then
+if [[ "$#" -ne 0 ]]; then
   echo "$USAGE" 1>&2
   exit 1
 fi
@@ -65,7 +65,7 @@ do
     UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
     TEAM=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"team\":\"\([a-z0-9-]*\)\".*/\1/')
 
-    if [ "$CSV" == "false" ]
+    if [[ "$CSV" == "false" ]]
         then echo -e "Succesfully created a team admin user: $UUID on team: $TEAM with email: $EMAIL and password: $PASSWORD"
         else echo -e "$UUID,$EMAIL,$PASSWORD"
     fi

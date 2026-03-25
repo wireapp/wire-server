@@ -102,6 +102,6 @@ activate brig (k, c) =
 setSamlEmailValidation :: (HasCallStack) => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do
   galley <- view teGalley
-  let req = put $ galley . paths p . json (Feature.Feature @Feature.ValidateSAMLEmailsConfig status Feature.ValidateSAMLEmailsConfig)
-      p = ["/i/teams", toByteString' tid, "features", Feature.featureNameBS @Feature.ValidateSAMLEmailsConfig]
+  let req = put $ galley . paths p . json (Feature.Feature @Feature.RequireExternalEmailVerificationConfig status Feature.RequireExternalEmailVerificationConfig)
+      p = ["/i/teams", toByteString' tid, "features", Feature.featureNameBS @Feature.RequireExternalEmailVerificationConfig]
   call req !!! const 200 === statusCode

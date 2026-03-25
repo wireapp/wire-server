@@ -17,7 +17,7 @@ export GOLDEN_TESTDIR="test/unit/Test/Wire/API/Golden/Generated"
 
 # trap cleanup EXIT
 function cleanup() {
-    [ -z "$GOLDEN_TMPDIR" ] || rm -rf "$GOLDEN_TMPDIR"
+    [[ -z "$GOLDEN_TMPDIR" ]] || rm -rf "$GOLDEN_TMPDIR"
 }
 
 gen_imports() {

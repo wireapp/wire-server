@@ -1,0 +1,25 @@
+{{- $backgroundWorker := index .Values "background-worker" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: background-worker
+  labels:
+    app: background-worker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    {{- if ge (.Capabilities.KubeVersion.Minor|int) 26 }}
+    service.kubernetes.io/topology-mode: Auto
+    {{- else }}
+    service.kubernetes.io/topology-aware-hints: auto
+    {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ $backgroundWorker.service.externalPort }}
+      targetPort: {{ $backgroundWorker.service.internalPort }}
+  selector:
+    app: background-worker
+    release: {{ .Release.Name }}

@@ -29,17 +29,18 @@ import Data.Profunctor (dimap)
 import Data.Range (Range, fromRange)
 import Data.Time.Clock
 import Data.UUID (UUID, nil)
+import Data.Vector qualified as V
 import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error (throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
-import Wire.API.User.Identity (EmailAddress)
+import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.MeetingsStore
 import Wire.Postgres (PGConstraints)
 
@@ -54,6 +55,14 @@ interpretMeetingsStoreToPostgres =
       updateMeetingImpl meetingId title startDate endDate schedule
     GetMeeting meetingId ->
       getMeetingImpl meetingId
+    ListMeetingsByUser userId cutoffTime ->
+      listMeetingsByUserImpl userId cutoffTime
+    ListMeetingsByConversation convId cutoffTime ->
+      listMeetingsByConversationImpl convId cutoffTime
+    AddInvitedEmails meetingId email ->
+      addInvitedEmailsImpl meetingId email
+    RemoveInvitedEmails meetingId emails ->
+      removeInvitedEmailsImpl meetingId emails
 
 -- * Create
 
@@ -168,10 +177,7 @@ instance {-# OVERLAPPING #-} PostgresMarshall UpdateStoredMeetingWithoutRecurren
     )
 
 updateMeetingImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   MeetingId ->
   Maybe (Range 1 256 Text) ->
   Maybe UTCTime ->
@@ -263,3 +269,104 @@ getMeetingStatement =
       FROM meetings
       WHERE id = $1 :: uuid
     |]
+
+-- * List
+
+listMeetingsByUserImpl ::
+  (PGConstraints r) =>
+  UserId ->
+  UTCTime ->
+  Sem r [StoredMeeting]
+listMeetingsByUserImpl userId cutoffTime = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [StoredMeeting]
+    session = statement (toUUID userId, cutoffTime) $ V.toList <$> listStatement
+    listStatement :: Statement (UUID, UTCTime) (V.Vector StoredMeeting)
+    listStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+          WHERE creator = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
+          ORDER BY start_time ASC
+        |]
+
+listMeetingsByConversationImpl ::
+  (PGConstraints r) =>
+  ConvId ->
+  UTCTime ->
+  Sem r [StoredMeeting]
+listMeetingsByConversationImpl convId cutoffTime = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [StoredMeeting]
+    session = statement (toUUID convId, cutoffTime) $ V.toList <$> listStatement
+    listStatement :: Statement (UUID, UTCTime) (V.Vector StoredMeeting)
+    listStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+          WHERE conversation_id = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
+          ORDER BY start_time ASC
+        |]
+
+addInvitedEmailsImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  [EmailAddress] ->
+  Sem r ()
+addInvitedEmailsImpl meetingId emails = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = statement (V.fromList (fromEmail <$> emails), toUUID meetingId) addEmailStatement
+
+    addEmailStatement :: Statement (V.Vector Text, UUID) ()
+    addEmailStatement =
+      [resultlessStatement|
+        UPDATE meetings
+        SET invited_emails = array(SELECT DISTINCT unnest(array_cat(invited_emails, $1 :: text[]))),
+            updated_at = NOW()
+        WHERE id = ($2 :: uuid)
+      |]
+
+removeInvitedEmailsImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  [EmailAddress] ->
+  Sem r ()
+removeInvitedEmailsImpl meetingId emails = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = statement (V.fromList (fromEmail <$> emails), toUUID meetingId) removeEmailStatement
+    removeEmailStatement :: Statement (V.Vector Text, UUID) ()
+    removeEmailStatement =
+      [resultlessStatement|
+        UPDATE meetings M
+        SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[]))),
+            updated_at = NOW()
+        WHERE id = ($2 :: uuid)
+      |]

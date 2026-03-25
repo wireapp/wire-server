@@ -42,7 +42,6 @@ import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.OpenApi.Internal.Orphans ()
-import Wire.API.App
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
@@ -1169,7 +1168,7 @@ type CreateAccessToken =
     ( Summary "Create a JWT DPoP access token"
         :> Description
              ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
-               \The access token will be returned as JWT DPoP token in the `DPoP` header."
+               \The access token will be returned in the JSON response body as a JWT DPoP token."
              )
         :> ZLocalUser
         :> "clients"
@@ -2128,17 +2127,17 @@ type AppsAPI =
                :> Capture "tid" TeamId
                :> "apps"
                :> Capture "uid" UserId
-               :> Get '[JSON] GetApp
+               :> Get '[JSON] UserProfile
            )
     :<|> Named
            "get-apps"
-           ( Summary "Get all apps in a team"
+           ( Summary "Get all apps owned by the given team (not including collaborators)"
                :> From 'V15
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "apps"
-               :> Get '[JSON] GetAppList
+               :> Get '[JSON] [UserProfile]
            )
     :<|> Named
            "put-app"
@@ -2162,5 +2161,6 @@ type AppsAPI =
                :> "apps"
                :> Capture "app" UserId
                :> "cookies"
+               :> ReqBody '[JSON] RefreshAppCookieRequest
                :> Post '[JSON] RefreshAppCookieResponse
            )

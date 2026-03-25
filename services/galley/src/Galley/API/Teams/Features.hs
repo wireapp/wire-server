@@ -45,8 +45,6 @@ import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Effects
-import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
 import Galley.Options
 import Galley.Types.Error (InternalError)
 import Imports
@@ -65,21 +63,31 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
-import Wire.BrigAPIAccess (updateSearchVisibilityInbound)
+import Wire.BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess, updateSearchVisibilityInbound)
 import Wire.CodeStore
-import Wire.ConversationStore (MLSCommitLockStore)
+import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
 import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
+import Wire.FireAndForget
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamFeatureStore
+import Wire.TeamMemberStore (TeamMemberStore)
+import Wire.TeamStore (TeamStore)
+import Wire.TeamStore qualified as SearchVisibilityData
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
@@ -305,7 +313,7 @@ instance SetFeatureConfig SSOConfig where
 instance SetFeatureConfig SearchVisibilityAvailableConfig where
   type
     SetFeatureForTeamConstraints SearchVisibilityAvailableConfig (r :: EffectRow) =
-      ( Member SearchVisibilityStore r,
+      ( Member TeamStore r,
         Member (Input Opts) r
       )
 
@@ -314,7 +322,7 @@ instance SetFeatureConfig SearchVisibilityAvailableConfig where
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
 
-instance SetFeatureConfig ValidateSAMLEmailsConfig
+instance SetFeatureConfig RequireExternalEmailVerificationConfig
 
 instance SetFeatureConfig DigitalSignaturesConfig
 

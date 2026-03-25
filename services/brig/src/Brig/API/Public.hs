@@ -102,7 +102,6 @@ import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
-import Wire.API.App
 import Wire.API.Connection qualified as Public
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
@@ -140,7 +139,7 @@ import Wire.API.SystemSettings
 import Wire.API.Team qualified as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.Member (HiddenPerm (..), IsPerm (..), hasPermission)
-import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
+import Wire.API.User (RegisterError (RegisterErrorAllowlistError), UserProfile)
 import Wire.API.User qualified as Public
 import Wire.API.User.Activation qualified as Public
 import Wire.API.User.Auth qualified as Public
@@ -180,7 +179,6 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
-import Wire.PasswordStore (PasswordStore, lookupHashedPassword)
 import Wire.PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
@@ -237,22 +235,23 @@ internalEndpointsSwaggerDocsAPIs =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just (VersionNumber V15)) =
+versionedSwaggerDocsAPI (Just (VersionNumber V16)) =
   swaggerSchemaUIServer $
-    ( serviceSwagger @VersionAPITag @'V15
-        <> serviceSwagger @BrigAPITag @'V15
-        <> serviceSwagger @GalleyAPITag @'V15
-        <> serviceSwagger @SparAPITag @'V15
-        <> serviceSwagger @CargoholdAPITag @'V15
-        <> serviceSwagger @CannonAPITag @'V15
-        <> serviceSwagger @GundeckAPITag @'V15
-        <> serviceSwagger @ProxyAPITag @'V15
-        <> serviceSwagger @OAuthAPITag @'V15
+    ( serviceSwagger @VersionAPITag @'V16
+        <> serviceSwagger @BrigAPITag @'V16
+        <> serviceSwagger @GalleyAPITag @'V16
+        <> serviceSwagger @SparAPITag @'V16
+        <> serviceSwagger @CargoholdAPITag @'V16
+        <> serviceSwagger @CannonAPITag @'V16
+        <> serviceSwagger @GundeckAPITag @'V16
+        <> serviceSwagger @ProxyAPITag @'V16
+        <> serviceSwagger @OAuthAPITag @'V16
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $((unTypeCode . embedText) =<< makeRelativeToProject "docs/swagger.md")
-      & S.servers .~ [S.Server ("/" <> toUrlPiece V15) Nothing mempty]
+      & S.servers .~ [S.Server ("/" <> toUrlPiece V16) Nothing mempty]
       & cleanupSwagger
+versionedSwaggerDocsAPI (Just (VersionNumber V15)) = swaggerPregenUIServer $(pregenSwagger V15)
 versionedSwaggerDocsAPI (Just (VersionNumber V14)) = swaggerPregenUIServer $(pregenSwagger V14)
 versionedSwaggerDocsAPI (Just (VersionNumber V13)) = swaggerPregenUIServer $(pregenSwagger V13)
 versionedSwaggerDocsAPI (Just (VersionNumber V12)) = swaggerPregenUIServer $(pregenSwagger V12)
@@ -386,7 +385,6 @@ servantSitemap ::
     Member NotificationSubsystem r,
     Member Now r,
     Member PasswordResetCodeStore r,
-    Member PasswordStore r,
     Member PropertySubsystem r,
     Member PublicKeyBundle r,
     Member SFT r,
@@ -1171,12 +1169,11 @@ removeEmail = lift . liftSem . User.removeEmailEither >=> reint
       Left e -> lift . liftSem . throw $ e
       Right () -> pure Nothing
 
-checkPasswordExists :: (Member PasswordStore r) => UserId -> (Handler r) Bool
-checkPasswordExists = fmap isJust . lift . liftSem . lookupHashedPassword
+checkPasswordExists :: (Member UserStore r) => UserId -> (Handler r) Bool
+checkPasswordExists = fmap isJust . lift . liftSem . UserStore.lookupHashedPassword
 
 changePassword ::
-  ( Member PasswordStore r,
-    Member UserStore r,
+  ( Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -1438,7 +1435,6 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
-    Member PasswordStore r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
@@ -1523,7 +1519,8 @@ activate ::
     Member UserSubsystem r,
     Member Events r,
     Member PasswordResetCodeStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1539,7 +1536,8 @@ activateKey ::
     Member Events r,
     Member UserSubsystem r,
     Member PasswordResetCodeStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
@@ -1769,24 +1767,31 @@ updateUserGroupChannels lusr gid appendOnly upd =
 checkUserGroupNameAvailable :: Local UserId -> CheckUserGroupName -> Handler r UserGroupNameAvailability
 checkUserGroupNameAvailable _ _ = pure $ UserGroupNameAvailability True
 
-createApp :: (_) => Local UserId -> TeamId -> NewApp -> Handler r CreatedApp
+createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r Public.CreatedApp
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
-getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r GetApp
-getApp lusr tid uid = lift . liftSem $ AppSubsystem.getApp lusr tid uid
+getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r UserProfile
+getApp lusr _tid uid = lift . liftSem $ do
+  prof <- getLocalUserProfileFiltered404 AppsOnly (qualifyAs lusr uid)
+  if prof.profileDeleted
+    then throw UserSubsystemProfileNotFound
+    else pure prof
 
-getApps :: (_) => Local UserId -> TeamId -> Handler r GetAppList
-getApps lusr tid = lift . liftSem $ AppSubsystem.getApps lusr tid
+getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
+getApps lusr tid =
+  lift . liftSem $ do
+    appIds <- AppSubsystem.getAppIds lusr tid
+    getLocalUserProfilesFiltered AppsOnly (qualifyAs lusr appIds)
 
-putApp :: (_) => Local UserId -> TeamId -> UserId -> PutApp -> Handler r ()
+putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put
 
-refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Handler r RefreshAppCookieResponse
-refreshAppCookie lusr tid appId = do
-  mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId
+refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Public.RefreshAppCookieRequest -> Handler r Public.RefreshAppCookieResponse
+refreshAppCookie lusr tid appId req = do
+  mc <- lift . liftSem $ AppSubsystem.refreshAppCookie lusr tid appId req.password
   case mc of
     Left delay -> throwE $ loginError (LoginThrottled delay)
-    Right c -> pure $ RefreshAppCookieResponse c
+    Right c -> pure $ Public.RefreshAppCookieResponse c
 
 -- Deprecated
 

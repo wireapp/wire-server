@@ -9,28 +9,43 @@ import tempfile
 import shutil
 import pickle
 import uuid
+import hashlib
 
+# Constants for template placeholders
+GROUP_IN_PLACEHOLDER = "<group-in>"
+GROUP_OUT_PLACEHOLDER = "<group-out>"
 
 def cid2str(client_identity):
-    u = client_identity["user"]
-    c = client_identity["client"]
-    d = client_identity["domain"]
+    # Sanitize path components to prevent path injection
+    def sanitize_path_component(s):
+        # Replace dangerous characters that could be used for path traversal
+        return str(s).replace('/', '_').replace('\\', '_').replace('..', '__').replace(':', '_')
+    u = sanitize_path_component(client_identity["user"])
+    c = sanitize_path_component(client_identity["client"])
+    d = sanitize_path_component(client_identity["domain"])
     return f"{u}:{c}@{d}"
 
 
-def mlscli(state, client_identity, args, stdin=None):
+def safe_client_dir_name(client_identity):
+    # Create a safe directory name using hash of client identity
+    # This prevents path injection while maintaining uniqueness
+    identity_str = json.dumps(client_identity, sort_keys=True)
+    return hashlib.sha256(identity_str.encode('utf-8')).hexdigest()[:16]
+
+
+def mlscli(state, args, stdin=None):
     cdir = state.client_dir
 
     subst = {}
-    if "<group-in>" in args:
+    if GROUP_IN_PLACEHOLDER in args:
         group_in_file = random_path(state)
         with open(group_in_file, "wb") as f:
             f.write(state.group_state)
-        subst["<group-in>"] = group_in_file
+        subst[GROUP_IN_PLACEHOLDER] = group_in_file
 
-    want_group_out = "<group-out>" in args
+    want_group_out = GROUP_OUT_PLACEHOLDER in args
     if want_group_out:
-        subst["<group-out>"] = random_path(state)
+        subst[GROUP_OUT_PLACEHOLDER] = random_path(state)
 
     args_substd = []
     for arg in args:
@@ -67,7 +82,7 @@ def mlscli(state, client_identity, args, stdin=None):
         raise ValueError(msg)
 
     if want_group_out:
-        with open(subst["<group-out>"], "br") as f:
+        with open(subst[GROUP_OUT_PLACEHOLDER], "br") as f:
             state.group_state = f.read()
 
     return stdout_data
@@ -161,24 +176,24 @@ class ClientState:
         return f'{self.__class__.__name__}({values})'
 
 def key_package_file(state, ref):
-    return os.path.join(state.client_dir, cid2str(state.client_identity), ref.hex())
+    return os.path.join(state.client_dir, safe_client_dir_name(state.client_identity), ref.hex())
 
 
 def init_mls_client(state):
     # the arg after 'init' determines will be clientidentity in all keypackages created with the cli thereafter
-    mlscli(state, state.client_identity, ["init", cid2str(state.client_identity)])
+    mlscli(state, ["init", cid2str(state.client_identity)])
 
 
 def get_public_key(state):
-    return mlscli(state, state.client_identity, ["public-key"])
+    return mlscli(state, ["public-key"])
 
 
 def generate_key_package(state):
-    kp = mlscli(state, state.client_identity, ["key-package", "create"])
+    kp = mlscli(state, ["key-package", "create"])
     kp_path = random_path(state)
     with open(kp_path, "wb") as f:
         f.write(kp)
-    ref = mlscli(state, state.client_identity, ["key-package", "ref", kp_path])
+    ref = mlscli(state, ["key-package", "ref", kp_path])
     dest = key_package_file(state, ref)
     shutil.move(kp_path, dest)
 
@@ -186,7 +201,7 @@ def generate_key_package(state):
 
 
 def create_group(state, group_id):
-    group_state = mlscli(state, state.client_identity, ["group", "create", group_id])
+    group_state = mlscli(state, ["group", "create", group_id])
     state.group_state = group_state
 
 
@@ -199,16 +214,16 @@ def add_member(state, kpfiles):
         "member",
         "add",
         "--group",
-        "<group-in>",
+        GROUP_IN_PLACEHOLDER,
         "--welcome-out",
         welcome_file,
         "--group-info-out",
         pgs_file,
         "--group-out",
-        "<group-out>",
+        GROUP_OUT_PLACEHOLDER,
     ] + kpfiles
 
-    msg = mlscli(state, state.client_identity, args)
+    msg = mlscli(state, args)
 
     welcome = b""
     if os.path.exists(welcome_file):
@@ -247,10 +262,10 @@ def consume_welcome(state, welcome):
         "group",
         "from-welcome",
         "--group-out",
-        "<group-out>",
+        GROUP_OUT_PLACEHOLDER,
         "-",
     ]
-    mlscli(state, state.client_identity, args, stdin=welcome)
+    mlscli(state, args, stdin=welcome)
 
 
 def consume_message(state, msg, removal_key_file, ignore_stale=False):
@@ -258,21 +273,21 @@ def consume_message(state, msg, removal_key_file, ignore_stale=False):
         [
             "consume",
             "--group",
-            "<group-in>",
+            GROUP_IN_PLACEHOLDER,
             "--group-out",
-            "<group-out>",
+            GROUP_OUT_PLACEHOLDER,
             "--signer-key",
             removal_key_file,
         ]
         + (["--ignore-stale"] if ignore_stale else [])
         + ["-"]
     )
-    return mlscli(state, state.client_identity, args, stdin=msg)
+    return mlscli(state, args, stdin=msg)
 
 
 def create_application_message(state, message_content):
-    args = ["message", "--group", "<group-in>", message_content]
-    msg = mlscli(state, state.client_identity, args)
+    args = ["message", "--group", GROUP_IN_PLACEHOLDER, message_content]
+    msg = mlscli(state, args)
     message_package = {
         "sender": state.client_identity,
         "message": msg,

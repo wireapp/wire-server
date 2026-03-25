@@ -143,9 +143,9 @@ toV2Push p =
     pload :: NonEmpty Object
     pload = NonEmpty.singleton p.json
     recipients :: [V2.Recipient]
-    recipients = map toRecipient $ toList p.recipients
-    toRecipient :: Recipient -> V2.Recipient
-    toRecipient r =
+    recipients = map toV2Recipient $ toList p.recipients
+    toV2Recipient :: Recipient -> V2.Recipient
+    toV2Recipient r =
       (recipient r.recipientUserId p.route)
         { V2._recipientClients = r.recipientClients
         }

@@ -71,6 +71,8 @@ interpretUserStoreCassandra casClient =
       UpdateUserTeam uid tid -> updateUserTeamImpl uid tid
       GetRichInfo uid -> getRichInfoImpl uid
       LookupRichInfos uids -> lookupRichInfosImpl uids
+      UpsertHashedPassword uid pw -> upsertHashedPasswordImpl uid pw
+      LookupHashedPassword uid -> lookupHashedPasswordImpl uid
       GetUserAuthenticationInfo uid -> getUserAuthenticationInfoImpl uid
       DeleteEmail uid -> deleteEmailImpl uid
       SetUserSearchable uid searchable -> setUserSearchableImpl uid searchable
@@ -89,6 +91,21 @@ createUserImpl new mbConv = retry x5 . batch $ do
     addPrepQuery insertServiceUser (pid, sid, BotId new.id, cid, mbTid)
     for_ mbTid $ \tid ->
       addPrepQuery insertServiceTeam (pid, sid, BotId new.id, cid, tid)
+
+upsertHashedPasswordImpl :: (MonadClient m) => UserId -> Password -> m ()
+upsertHashedPasswordImpl u p = do
+  retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+  where
+    userPasswordUpdate :: PrepQuery W (Password, UserId) ()
+    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
+
+lookupHashedPasswordImpl :: (MonadClient m) => UserId -> m (Maybe Password)
+lookupHashedPasswordImpl u =
+  (runIdentity =<<)
+    <$> retry x1 (query1 selectPassword (params LocalQuorum (Identity u)))
+  where
+    selectPassword :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
+    selectPassword = "SELECT password FROM user WHERE id = ?"
 
 getUserAuthenticationInfoImpl :: UserId -> Client (Maybe (Maybe Password, AccountStatus))
 getUserAuthenticationInfoImpl uid = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
@@ -132,6 +149,7 @@ getIndexUserBaseQuery =
   [sql|
     SELECT
     id,
+    user_type,
     team, writetime(team),
     name, writetime(name),
     status, writetime(status),

@@ -1218,10 +1218,8 @@ getAllTeamCollaborators owner tid = do
 
 data NewApp = NewApp
   { name :: String,
-    pict :: Maybe [Value],
     assets :: Maybe [Value],
     accentId :: Maybe Int,
-    meta :: Value,
     category :: String,
     description :: String
   }
@@ -1230,10 +1228,8 @@ instance Default NewApp where
   def =
     NewApp
       { name = "",
-        pict = Nothing,
         assets = Nothing,
         accentId = Nothing,
-        meta = object [],
         category = "other",
         description = ""
       }
@@ -1244,16 +1240,11 @@ createApp creator tid new = do
   submit "POST" $
     req
       & addJSONObject
-        [ "app"
-            .= object
-              [ "name" .= new.name,
-                "picture" .= new.pict,
-                "assets" .= new.assets,
-                "accent_id" .= new.accentId,
-                "metadata" .= new.meta,
-                "category" .= new.category,
-                "description" .= new.description
-              ],
+        [ "name" .= new.name,
+          "assets" .= new.assets,
+          "accent_id" .= new.accentId,
+          "category" .= new.category,
+          "description" .= new.description,
           "password" .= defPassword
         ]
 
@@ -1275,10 +1266,10 @@ putAppMetadata tid owner appId appMetadata = do
   req <- baseRequest owner Brig Versioned path
   submit "PUT" (req & addJSON appMetadata)
 
-refreshAppCookie :: (MakesValue u) => u -> String -> String -> App Response
-refreshAppCookie u tid appId = do
+refreshAppCookie :: (MakesValue u) => u -> String -> String -> Maybe Value -> App Response
+refreshAppCookie u tid appId mbBody = do
   req <- baseRequest u Brig Versioned $ joinHttpPath ["teams", tid, "apps", appId, "cookies"]
-  submit "POST" req
+  submit "POST" $ req & maybe id addJSON mbBody
 
 -- | https://staging-nginz-https.zinfra.io/v12/api/swagger-ui/#/default/check-user-handle
 checkHandle :: (MakesValue user) => user -> String -> App Response

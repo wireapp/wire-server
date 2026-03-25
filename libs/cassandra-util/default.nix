@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , base
+, bytestring
 , conduit
 , cql
 , cql-io
@@ -33,6 +34,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     base
+    bytestring
     conduit
     cql
     cql-io

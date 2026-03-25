@@ -182,12 +182,20 @@ newtype instance FeatureDefaults SearchVisibilityInboundConfig
   deriving (FromJSON, ToJSON) via Defaults (Feature SearchVisibilityInboundConfig)
   deriving (ParseFeatureDefaults) via OptionalField SearchVisibilityInboundConfig
 
-newtype instance FeatureDefaults ValidateSAMLEmailsConfig
-  = ValidateSAMLEmailsDefaults (Feature ValidateSAMLEmailsConfig)
+newtype instance FeatureDefaults RequireExternalEmailVerificationConfig
+  = RequireExternalEmailVerificationDefaults (Feature RequireExternalEmailVerificationConfig)
   deriving stock (Eq, Show)
   deriving newtype (Default, GetFeatureDefaults)
-  deriving (FromJSON, ToJSON) via Defaults (Feature ValidateSAMLEmailsConfig)
-  deriving (ParseFeatureDefaults) via OptionalField ValidateSAMLEmailsConfig
+  deriving (FromJSON, ToJSON) via Defaults (Feature RequireExternalEmailVerificationConfig)
+
+instance ParseFeatureDefaults (FeatureDefaults RequireExternalEmailVerificationConfig) where
+  parseFeatureDefaults obj =
+    do
+      -- Accept the legacy typo in config input for backward compatibility,
+      -- but prefer the canonical feature key when both are present.
+      mCanonical :: Maybe (FeatureDefaults RequireExternalEmailVerificationConfig) <- obj .:? featureKey @RequireExternalEmailVerificationConfig
+      mLegacy :: Maybe (FeatureDefaults RequireExternalEmailVerificationConfig) <- obj .:? "validateSAMLEmails"
+      pure $ fromMaybe def (mCanonical <|> mLegacy)
 
 data instance FeatureDefaults DigitalSignaturesConfig = DigitalSignaturesDefaults
   deriving stock (Eq, Show)

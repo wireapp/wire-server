@@ -13,20 +13,46 @@ elasticsearch:
 #    name: <secret-name>
 #    key: <ca-attribute>
   insecureSkipTlsVerify: false
+
 cassandra:
   # host:
   port: 9042
   keyspace: brig
-#  To enable TLS provide a CA:
-#  tlsCa: <CA in PEM format (can be self-signed)>
+  # To enable TLS provide a CA:
+  # tlsCa: <CA in PEM format (can be self-signed)>
+  #
+  # Or refer to an existing secret (containing the CA):
+  # tlsCaSecretRef:
+  #   name: <secret-name>
+  #   key: <ca-attribute>
+
+# Postgres connection settings
 #
-#  Or refer to an existing secret (containing the CA):
-#  tlsCaSecretRef:
-#    name: <secret-name>
-#    key: <ca-attribute>
+# Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+# To set the password via a brig secret see `secrets.pgPassword`.
+#
+# `additionalVolumeMounts` and `additionalVolumes` under `migrateData` can be used to mount
+# additional files (e.g. certificates) into the brig-index-migrate-data container. This way
+# does not work for password files (parameter `passfile`), because
+# libpq-connect requires access rights (mask 0600) for them that we cannot
+# provide for random uids.
+#
+# Below is an example configuration we're using for our CI tests.
+postgresql:
+  host: postgresql # DNS name without protocol
+  port: "5432"
+  user: wire-server
+  dbname: wire-server
+postgresqlPool:
+  size: 100
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
 galley:
   host: galley
   port: 8080
+
 image:
   repository: quay.io/wire/brig-index
   tag: do-not-use
@@ -39,5 +65,9 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+
+migrateData:
+  additionalVolumes: []
+  additionalVolumeMounts: []
 
 secrets: {}

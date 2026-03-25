@@ -19,10 +19,23 @@ module Wire.MockInterpreters.UserKeyStore where
 
 import Data.Id
 import Data.Map qualified as M
+import Data.Map qualified as Map
 import Imports
 import Polysemy
 import Polysemy.State
+import Wire.StoredUser
 import Wire.UserKeyStore
+
+runInMemoryUserKeyStoreIntepreterWithStoredUsers :: [StoredUser] -> InterpreterFor UserKeyStore r
+runInMemoryUserKeyStoreIntepreterWithStoredUsers initialUsers =
+  let emailKeys = Map.fromList $ mapMaybe (\u -> (,u.id) . mkEmailKey <$> u.email) initialUsers
+   in runInMemoryUserKeyStoreIntepreter emailKeys
+
+runInMemoryUserKeyStoreIntepreter :: Map EmailKey UserId -> InterpreterFor UserKeyStore r
+runInMemoryUserKeyStoreIntepreter keys =
+  evalState keys
+    . inMemoryUserKeyStoreInterpreter
+    . raiseUnder
 
 inMemoryUserKeyStoreInterpreter ::
   (Member (State (Map EmailKey UserId)) r) =>

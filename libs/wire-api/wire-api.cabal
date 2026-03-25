@@ -69,7 +69,6 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Wire.API.Allowlists
-    Wire.API.App
     Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.BackgroundJobs
@@ -616,6 +615,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user
+    Test.Wire.API.Golden.Manual.App
     Test.Wire.API.Golden.Manual.CannonId
     Test.Wire.API.Golden.Manual.ClientCapability
     Test.Wire.API.Golden.Manual.ClientCapabilityList
@@ -675,6 +675,7 @@ test-suite wire-api-golden-tests
     , bytestring-conversion
     , containers               >=0.5
     , currency-codes
+    , http-api-data
     , imports
     , iso3166-country-codes
     , iso639

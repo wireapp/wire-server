@@ -110,7 +110,7 @@ data GalleyAPIAccess m a where
     TeamId ->
     GalleyAPIAccess m (LockableFeature LegalholdConfig)
   GetUserLegalholdStatus ::
-    Local UserId -> TeamId -> GalleyAPIAccess m UserLegalHoldStatusResponse
+    Local UserId -> TeamId -> GalleyAPIAccess m (Maybe UserLegalHoldStatusResponse)
   GetTeamSearchVisibility ::
     TeamId ->
     GalleyAPIAccess m TeamSearchVisibility

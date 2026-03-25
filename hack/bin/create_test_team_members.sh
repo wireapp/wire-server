@@ -66,14 +66,14 @@ while getopts ":a:t:s:n:h:d:c" opt; do
 done
 shift $((OPTIND -1))
 
-if [ "$#" -ne 0 ]; then
+if [[ "$#" -ne 0 ]]; then
   echo "$USAGE" 1>&2
   exit 1
 fi
 
 # Warn about sending emails
 
-if [ "$TARGET_EMAIL_DOMAIN" == "" ]; then
+if [[ "$TARGET_EMAIL_DOMAIN" == "" ]]; then
     echo -e "\n\n*** Please provide an email domain if you want to run this script.\n\n"
     echo "$USAGE" 1>&2
     exit 1
@@ -101,7 +101,7 @@ do
 
     if ( ( echo "$INVITATION_ID" | grep -q '"code"' ) &&
          ( echo "$INVITATION_ID" | grep -q '"label"' ) ) ; then
-      echo "Got an error while creating $EMAIL, aborting: $INVITATION_ID"
+      echo "Got an error while creating $EMAIL, aborting: $INVITATION_ID" 1>&2
       exit 1
     fi
 
@@ -123,13 +123,13 @@ do
     TEAM_MEMBER_UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
     TEAM=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"team\":\"\([a-z0-9-]*\)\".*/\1/')
 
-    if [ "$TEAM" != "$TEAM_UUID" ]; then
-        echo "unexpected error: user got assigned to no / the wrong team?!"
+    if [[ "$TEAM" != "$TEAM_UUID" ]]; then
+        echo "unexpected error: user got assigned to no / the wrong team?!" 1>&2
         echo "${CURL_OUT}"
         exit 1
     fi
 
-    if [ "$CSV" == "false" ]
+    if [[ "$CSV" == "false" ]]
         then echo -e "Succesfully created a team member: $TEAM_MEMBER_UUID on team: $TEAM_UUID with email: $EMAIL and password: $PASSWORD"
         else echo -e "$UUID,$EMAIL,$PASSWORD"
     fi

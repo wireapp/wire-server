@@ -82,6 +82,7 @@ library
     Galley.API.Create
     Galley.API.CustomBackend
     Galley.API.Federation
+    Galley.API.Federation.Handlers
     Galley.API.Internal
     Galley.API.LegalHold
     Galley.API.LegalHold.Conflicts
@@ -92,7 +93,6 @@ library
     Galley.API.Message
     Galley.API.MLS
     Galley.API.MLS.CheckClients
-    Galley.API.MLS.Commit
     Galley.API.MLS.Commit.Core
     Galley.API.MLS.Commit.ExternalCommit
     Galley.API.MLS.Commit.InternalCommit
@@ -126,7 +126,6 @@ library
     Galley.API.Public.TeamConversation
     Galley.API.Public.TeamMember
     Galley.API.Public.TeamNotification
-    Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
     Galley.API.Teams.Export
@@ -136,24 +135,10 @@ library
     Galley.API.Update
     Galley.App
     Galley.Cassandra
-    Galley.Cassandra.CustomBackend
-    Galley.Cassandra.Queries
-    Galley.Cassandra.SearchVisibility
-    Galley.Cassandra.Store
-    Galley.Cassandra.Team
-    Galley.Cassandra.TeamNotifications
-    Galley.Cassandra.Util
-    Galley.Data.TeamNotifications
-    Galley.Effects
-    Galley.Effects.CustomBackendStore
     Galley.Effects.Queue
-    Galley.Effects.SearchVisibilityStore
-    Galley.Effects.TeamMemberStore
-    Galley.Effects.TeamNotificationStore
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Intra.Util
     Galley.Keys
     Galley.Monad
     Galley.Options
@@ -297,8 +282,6 @@ library
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
     , servant
-    , servant-client
-    , servant-client-core
     , servant-server
     , singletons
     , sop-core

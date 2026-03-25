@@ -45,6 +45,7 @@ data WithWritetime a = WithWriteTime {value :: a, writetime :: Writetime a}
 
 data IndexUser = IndexUser
   { userId :: UserId,
+    userType :: UserType,
     teamId :: Maybe TeamId,
     name :: Name,
     accountStatus :: Maybe AccountStatus,
@@ -66,6 +67,7 @@ data IndexUser = IndexUser
 type instance
   TupleType IndexUser =
     ( UserId,
+      UserType,
       Maybe TeamId, Maybe (Writetime TeamId),
       Name, Writetime Name,
       Maybe AccountStatus, Maybe (Writetime AccountStatus),
@@ -84,6 +86,7 @@ type instance
 indexUserFromTuple :: TupleType IndexUser -> IndexUser
 indexUserFromTuple
     ( userId,
+      userType,
       teamId, tTeam,
       name, tName,
       accountStatus, tStatus,
@@ -121,13 +124,13 @@ indexUserToVersion :: Maybe (WithWritetime Role) -> IndexUser -> IndexVersion
 indexUserToVersion role iu =
   mkIndexVersion [Just $ Writetime iu.updatedAt, const () <$$> fmap writetime role]
 
-indexUserToDoc :: SearchVisibilityInbound -> Maybe UserType -> Maybe Role -> IndexUser -> UserDoc
-indexUserToDoc searchVisInbound mUserType mRole IndexUser {..} =
+indexUserToDoc :: SearchVisibilityInbound -> Maybe Role -> IndexUser -> UserDoc
+indexUserToDoc searchVisInbound mRole IndexUser {..} =
   if shouldIndex
     then
       UserDoc
         { udId = userId,
-          udType = mUserType,
+          udType = Just userType,
           udSearchable = searchable,
           udEmailUnvalidated = unverifiedEmail,
           udSso = sso =<< ssoId,

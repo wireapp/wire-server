@@ -1094,6 +1094,9 @@ testGroupInfoMismatch = do
           length clients `shouldMatchInt` 3
           resp.json %. "commit" `shouldMatchBase64` mp2.message
           resp.json %. "group_info" `shouldMatchBase64` (fromJust mp1.groupInfo)
+          resp.json %. "code" `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "inconsistent-group-state"
+          resp.json %. "message" `shouldMatch` "Submitted group info is inconsistent with the backend group state"
 
       -- check that epoch is still 1
       bindResponse (getConversation alice convId) $ \resp -> do
@@ -1114,6 +1117,9 @@ testGroupInfoMismatch = do
           length clients `shouldMatchInt` 3
           resp.json %. "commit" `shouldMatchBase64` mp3.message
           resp.json %. "group_info" `shouldMatchBase64` (fromJust mp1.groupInfo)
+          resp.json %. "code" `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "inconsistent-group-state"
+          resp.json %. "message" `shouldMatch` "Submitted group info is inconsistent with the backend group state"
 
       -- check that epoch is still 1
       bindResponse (getConversation alice convId) $ \resp -> do
@@ -1183,3 +1189,23 @@ testAddUsersDirectlyShouldFail = do
   addMembers alice conv def {users = [bob]} `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
+
+testGroupIdParseError :: (HasCallStack) => App ()
+testGroupIdParseError = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
+  void $ uploadNewKeyPackage def bob1
+  conv <- postConversation alice1 defMLS >>= getJSON 201
+  convId0 <- objConvId conv
+
+  -- break group ID
+  let convId = convId0 {groupId = fmap (\gid -> "k" <> tail gid) convId0.groupId} :: ConvId
+
+  createGroup def alice1 convId
+
+  mp <- createAddCommit alice1 convId [alice, bob]
+  bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-protocol-error"
+    msg <- resp.json %. "message" & asString
+    assertBool "unexpected error message" $ "Could not parse group ID:" `isPrefixOf` msg

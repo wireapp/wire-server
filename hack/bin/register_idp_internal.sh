@@ -8,13 +8,13 @@ set -e
 backend="http://localhost:8080"
 
 metadata_file=$1
-if [ ! -e "${metadata_file}" ]; then
+if [[ ! -e "${metadata_file}" ]]; then
     echo "*** no metadata: '$1'"
     exit 80
 fi
 
 z_user=$2
-if [ -z "${z_user}" ]; then
+if [[ -z "${z_user}" ]]; then
     echo "*** no z_user uuid"
     exit 80
 fi

@@ -40,6 +40,7 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Char
 import Data.Foldable
 import Data.Hex
+import Data.IORef
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -50,6 +51,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import GHC.Stack as Stack
 import qualified Network.HTTP.Client as HTTP
+import System.Environment
 import System.FilePath
 import Testlib.JSON
 import Testlib.Printing
@@ -269,6 +271,19 @@ shouldMatchOneOf a b = do
     pb <- prettyJSON b
     assertFailure $ "Expected:\n" <> pa <> "\n to match at least one of:\n" <> pb
 
+shouldNotMatchOneOf ::
+  (MakesValue a, MakesValue b, HasCallStack) =>
+  a ->
+  b ->
+  App ()
+shouldNotMatchOneOf a b = do
+  lb <- asList b
+  xa <- make a
+  when (xa `elem` lb) $ do
+    pa <- prettyJSON a
+    pb <- prettyJSON b
+    assertFailure $ "Expected:\n" <> pa <> "\n to not match any of:\n" <> pb
+
 ----------------------------------------------------------------------
 -- Shape DSL
 
@@ -293,38 +308,64 @@ data Shape
 
 -- | Assert that @actual@ conforms to @shape@.  Provides a JSON-path-like
 -- location in the failure message (e.g. @.assets[0].key@).
-shouldMatchShape ::
+shouldMatchShapeExact ::
   (MakesValue a, HasCallStack) =>
   -- | The actual value
   a ->
   -- | The expected shape
   Shape ->
   App ()
-shouldMatchShape a shape = do
+shouldMatchShapeExact = shouldMatchShapeImpl Reject
+
+-- | Assert that @actual@ conforms to @shape@.  Provides a JSON-path-like
+-- location in the failure message (e.g. @.assets[0].key@).
+shouldMatchShapeLenient ::
+  (MakesValue a, HasCallStack) =>
+  -- | The actual value
+  a ->
+  -- | The expected shape
+  Shape ->
+  App ()
+shouldMatchShapeLenient = shouldMatchShapeImpl Allow
+
+-- | Assert that @actual@ conforms to @shape@.  Provides a JSON-path-like
+-- location in the failure message (e.g. @.assets[0].key@).
+shouldMatchShapeImpl ::
+  (MakesValue a, HasCallStack) =>
+  UnknownAttributes ->
+  -- | The actual value
+  a ->
+  -- | The expected shape
+  Shape ->
+  App ()
+shouldMatchShapeImpl unknownAttributes a shape = do
   val <- make a
-  case matchShape "" val shape of
+  case matchShape unknownAttributes "" val shape of
     Nothing -> pure ()
     Just err -> assertFailure $ "Shape mismatch" <> err
+
+data UnknownAttributes = Allow | Reject
+  deriving (Eq, Show)
 
 -- | Internal recursive shape-matcher.  Returns 'Nothing' on success and
 -- @'Just' errorMessage@ on failure.  The @path@ argument accumulates the
 -- JSON-path-like location prefix.
-matchShape :: String -> Value -> Shape -> Maybe String
-matchShape _ _ SAny = Nothing
-matchShape _ Aeson.Null SNull = Nothing
-matchShape path _ SNull = Just $ " at " <> matchShapeLoc path <> ": expected null"
-matchShape _ (Aeson.Bool _) SBool = Nothing
-matchShape path _ SBool = Just $ " at " <> matchShapeLoc path <> ": expected bool"
-matchShape _ (Aeson.String _) SString = Nothing
-matchShape path _ SString = Just $ " at " <> matchShapeLoc path <> ": expected string"
-matchShape _ (Aeson.Number _) SNumber = Nothing
-matchShape path _ SNumber = Just $ " at " <> matchShapeLoc path <> ": expected number"
-matchShape path (Aeson.Array arr) (SArray elemShape) =
+matchShape :: UnknownAttributes -> String -> Value -> Shape -> Maybe String
+matchShape _ _ _ SAny = Nothing
+matchShape _ _ Aeson.Null SNull = Nothing
+matchShape _ path _ SNull = Just $ " at " <> matchShapeLoc path <> ": expected null"
+matchShape _ _ (Aeson.Bool _) SBool = Nothing
+matchShape _ path _ SBool = Just $ " at " <> matchShapeLoc path <> ": expected bool"
+matchShape _ _ (Aeson.String _) SString = Nothing
+matchShape _ path _ SString = Just $ " at " <> matchShapeLoc path <> ": expected string"
+matchShape _ _ (Aeson.Number _) SNumber = Nothing
+matchShape _ path _ SNumber = Just $ " at " <> matchShapeLoc path <> ": expected number"
+matchShape unknownAttributes path (Aeson.Array arr) (SArray elemShape) =
   listToMaybe
-    . mapMaybe (\(i, v) -> matchShape (path <> "[" <> show (i :: Int) <> "]") v elemShape)
+    . mapMaybe (\(i, v) -> matchShape unknownAttributes (path <> "[" <> show (i :: Int) <> "]") v elemShape)
     $ zip [0 ..] (toList arr)
-matchShape path _ (SArray _) = Just $ " at " <> matchShapeLoc path <> ": expected array"
-matchShape path (Aeson.Object obj) (SObject fields) =
+matchShape _ path _ (SArray _) = Just $ " at " <> matchShapeLoc path <> ": expected array"
+matchShape unknownAttributes path (Aeson.Object obj) (SObject fields) =
   let objPairs = [(Key.toString k, v) | (k, v) <- Aeson.toList obj]
       actualKeys = map fst objPairs
       expectedKeys = map fst fields
@@ -332,15 +373,15 @@ matchShape path (Aeson.Object obj) (SObject fields) =
       missingKeys = expectedKeys \\ actualKeys
       go (k, s) = case lookup k objPairs of
         Nothing -> Nothing -- already checked above
-        Just v -> matchShape (path <> "." <> k) v s
-   in case (unexpectedKeys, missingKeys) of
-        (k : _, _) ->
-          Just $ " at " <> matchShapeLoc path <> ": unexpected key \"" <> k <> "\""
-        (_, k : _) ->
-          Just $ " at " <> matchShapeLoc path <> ": missing key \"" <> k <> "\""
+        Just v -> matchShape unknownAttributes (path <> "." <> k) v s
+   in case (unknownAttributes, unexpectedKeys, missingKeys) of
+        (Reject, ks@(_ : _), _) ->
+          Just $ " at " <> matchShapeLoc path <> ": unexpected keys \"" <> show ks <> "\""
+        (_, _, ks@(_ : _)) ->
+          Just $ " at " <> matchShapeLoc path <> ": missing keys \"" <> show ks <> "\""
         _ ->
           listToMaybe . mapMaybe go $ fields
-matchShape path _ (SObject _) = Just $ " at " <> matchShapeLoc path <> ": expected object"
+matchShape _ path _ (SObject _) = Just $ " at " <> matchShapeLoc path <> ": expected object"
 
 -- | Format a path for use in error messages, using the document root (@$@)
 -- when the path is empty.
@@ -400,24 +441,37 @@ super `shouldNotContain` sub = do
   when (sub `isInfixOf` super) $ do
     assertFailure $ "String or List:\n" <> show super <> "\nDoes contain:\n" <> show sub
 
-printFailureDetails :: AssertionFailure -> IO String
-printFailureDetails (AssertionFailure stack mbResponse ctx msg) = do
+printFailureDetails :: Env -> AssertionFailure -> IO String
+printFailureDetails env (AssertionFailure stack mbResponse ctx msg) = do
   s <- prettierCallStack stack
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "assertion failure:"
       : colored red msg
       : "\n" <> s
       : toList (fmap prettyResponse mbResponse)
         <> toList (fmap prettyContext ctx)
+        <> ct
 
-printAppFailureDetails :: AppFailure -> IO String
-printAppFailureDetails (AppFailure msg stack) = do
+printAppFailureDetails :: Env -> AppFailure -> IO String
+printAppFailureDetails env (AppFailure msg stack) = do
   s <- prettierCallStack stack
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     colored yellow "app failure:"
       : colored red msg
       : "\n"
       : [s]
+        <> ct
+
+renderCurlTrace :: IORef [String] -> IO [String]
+renderCurlTrace trace = do
+  isTestVerbose >>= \case
+    True -> ("HTTP trace in curl pseudo-syntax:" :) <$> readIORef trace
+    False -> pure ["Set WIRE_INTEGRATION_TEST_VERBOSITY=1 if you want to see complete trace of the HTTP traffic in curl pseudo-syntax."]
+
+isTestVerbose :: (MonadIO m) => m Bool
+isTestVerbose = liftIO $ (Just "1" ==) <$> lookupEnv "WIRE_INTEGRATION_TEST_VERBOSITY"
 
 prettyContext :: String -> String
 prettyContext ctx = do
@@ -426,12 +480,14 @@ prettyContext ctx = do
       colored blue ctx
     ]
 
-printExceptionDetails :: SomeException -> IO String
-printExceptionDetails e = do
+printExceptionDetails :: Env -> SomeException -> IO String
+printExceptionDetails env e = do
+  ct <- renderCurlTrace env.curlTrace
   pure . unlines $
     [ colored yellow "exception:",
       colored red (displayException e)
     ]
+      <> ct
 
 prettierCallStack :: CallStack -> IO String
 prettierCallStack cstack = do

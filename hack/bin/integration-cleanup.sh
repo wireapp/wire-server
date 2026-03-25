@@ -21,7 +21,7 @@ namespaces=$(kubectl get namespaces -o json | jq -r --argjson now "$NOW" '
   | $name
 ')
 
-if [ -z "$namespaces" ]; then
+if [[ -z "$namespaces" ]]; then
     echo "Nothing to clean up."
 else
     while read -r namespace; do

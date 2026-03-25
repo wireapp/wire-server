@@ -51,8 +51,6 @@ import Galley.API.Teams.Features
 import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.App
-import Galley.Effects
-import Galley.Effects.CustomBackendStore
 import Galley.Monad
 import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
@@ -76,6 +74,7 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -88,20 +87,26 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
-import Wire.ConversationStore qualified as E
+import Wire.ConversationStore qualified as ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
+import Wire.CustomBackendStore
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
 import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
+import Wire.ListItems
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
@@ -145,9 +150,10 @@ iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 ejpdGetConvInfo ::
   forall r.
   ( Member ConversationStore r,
+    Member ConversationSubsystem r,
     Member (Error InternalError) r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member P.TinyLog r
   ) =>
   UserId ->
@@ -174,7 +180,7 @@ ejpdGetConvInfo uid = do
               One2OneConv -> Nothing
               SelfConv -> Nothing
               ConnectConv -> Nothing
-      renderedPage <- mapMaybe mk <$> getConversations (fst $ partitionQualified luid convids)
+      renderedPage <- mapMaybe mk <$> ConversationStore.getConversations (fst $ partitionQualified luid convids)
       if MTP.mtpHasMore page
         then do
           newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
@@ -196,7 +202,7 @@ conversationAPI =
     <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
     <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
     <@> mkNamedAPI @"get-conversation-by-id" Query.getLocalConversationInternal
-    <@> mkNamedAPI @"is-conversation-out-of-sync" E.isConversationOutOfSync
+    <@> mkNamedAPI @"is-conversation-out-of-sync" ConversationStore.isConversationOutOfSync
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
 legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
@@ -357,7 +363,7 @@ rmUser ::
     Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member (ListItems p2 TeamId) r,
     Member ProposalStore r,
@@ -424,18 +430,18 @@ rmUser lusr conn = do
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
       let qUser = tUntagged lusr
-      cc <- getConversations ids
+      cc <- ConversationStore.getConversations ids
       now <- Now.get
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
-        One2OneConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> E.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        One2OneConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` c.localMembers -> do
               runError (removeUser (qualifyAs lusr c) RemoveUserIncludeMain (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
-              E.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
+              ConversationStore.deleteMembers c.id_ (UserList [tUnqualified lusr] [])
               let e =
                     Event
                       { evtConv = tUntagged (qualifyAs lusr c.id_),
@@ -535,5 +541,5 @@ iGetMLSClientListForConv ::
   GroupId ->
   Sem r ClientList
 iGetMLSClientListForConv gid = do
-  cm <- E.lookupMLSClients gid
+  cm <- ConversationStore.lookupMLSClients gid
   pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs (unClientMap cm)))

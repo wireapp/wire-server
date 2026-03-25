@@ -27,8 +27,8 @@ function valid_url() {
 # 4. save the resulting URLs as a json array to a file
 # this file can then be served from nginx running besides sft
 function upstream() {
-    name=$1
-    entries=$(dig +short +retries=3 +search SRV "${name}" | sort)
+    local srv_name="$1"
+    entries=$(dig +short +retries=3 +search SRV "${srv_name}" | sort)
     unset servers
     comma=""
     IFS=$'\t\n'
@@ -43,7 +43,7 @@ function upstream() {
         fi
     done
     # shellcheck disable=SC2128
-    if [ -n "$servers" ]; then
+    if [[ -n "$servers" ]]; then
         echo '{"sft_servers_all": ['"${servers[*]}"']}' | jq >${new}
     else
         printf "" >>${new}
@@ -51,7 +51,7 @@ function upstream() {
 }
 
 function routing_disco() {
-    srv_name=$1
+    local srv_name="$1"
     ivl=$(echo | awk '{ srand(); printf("%f", 2.5 + rand() * 1.5) }')
 
     [[ -f $old ]] || touch -d "1970-01-01" $old
@@ -68,6 +68,7 @@ function routing_disco() {
 
     echo done, sleeping "$ivl"
     sleep "$ivl"
+    return 0
 }
 
 while true; do

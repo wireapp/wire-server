@@ -1,5 +1,9 @@
 {
     "accent_id": -1,
+    "app": {
+        "category": "other",
+        "description": "bloob"
+    },
     "assets": [],
     "deleted": true,
     "email": "some@example",
@@ -13,6 +17,7 @@
         "domain": "go.7.w-3r8iy2.a",
         "id": "00000002-0000-0002-0000-000000000001"
     },
+    "searchable": true,
     "service": {
         "id": "00000001-0000-0000-0000-000000000001",
         "provider": "00000001-0000-0001-0000-000100000001"
@@ -21,6 +26,5 @@
         "proteus"
     ],
     "team": "00000000-0000-0002-0000-000200000002",
-    "type": "app",
-    "searchable": true
+    "type": "app"
 }

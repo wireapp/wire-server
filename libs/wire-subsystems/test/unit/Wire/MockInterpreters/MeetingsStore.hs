@@ -18,6 +18,7 @@
 module Wire.MockInterpreters.MeetingsStore where
 
 import Data.Id
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Imports
 import Polysemy
@@ -67,3 +68,37 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                   updatedAt = now
                 }
         modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)
+  ListMeetingsByUser userId cutoffTime ->
+    gets $
+      filter (\sm -> sm.creator == userId && sm.endTime >= cutoffTime)
+        . List.sortOn (.startTime)
+        . Map.elems
+  ListMeetingsByConversation convId cutoffTime ->
+    gets $
+      filter (\sm -> sm.conversationId == convId && sm.endTime >= cutoffTime)
+        . List.sortOn (.startTime)
+        . Map.elems
+  AddInvitedEmails mid newEmails -> do
+    sm <- gets (Map.lookup mid)
+    case sm of
+      Nothing -> pure ()
+      Just meeting -> do
+        now <- Now.get
+        let updatedMeeting =
+              meeting
+                { invitedEmails = meeting.invitedEmails ++ newEmails,
+                  updatedAt = now
+                }
+        modify (Map.insert mid updatedMeeting)
+  RemoveInvitedEmails mid emailsToRemove -> do
+    sm <- gets (Map.lookup mid)
+    case sm of
+      Nothing -> pure ()
+      Just meeting -> do
+        now <- Now.get
+        let updatedMeeting =
+              meeting
+                { invitedEmails = filter (`notElem` emailsToRemove) meeting.invitedEmails,
+                  updatedAt = now
+                }
+        modify (Map.insert mid updatedMeeting)

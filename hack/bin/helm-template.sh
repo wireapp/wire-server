@@ -17,12 +17,12 @@ CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
 certificatesfile="${DIR}/../helm_vars/${chart}/certificates.yaml"
 declare -a options=()
-if [ -f "$valuesfile" ]; then
+if [[ -f "$valuesfile" ]]; then
     options+=(-f "$valuesfile")
 fi
-if [ -f "$certificatesfile" ]; then
+if [[ -f "$certificatesfile" ]]; then
     options+=(-f "$certificatesfile")
 fi
 
 "$DIR/update.sh" "$CHARTS_DIR/$chart"
-helm template "$chart" "$CHARTS_DIR/$chart" "${options[*]}"
+helm template "$chart" "$CHARTS_DIR/$chart" "${options[@]}"

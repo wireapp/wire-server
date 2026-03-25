@@ -17,30 +17,28 @@
 
 module Galley.API.MLS.Enabled where
 
-import Control.Lens (view)
-import Galley.Env
 import Imports hiding (getFirst)
 import Polysemy
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MLS.Keys
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 
-isMLSEnabled :: (Member (Input Env) r) => Sem r Bool
-isMLSEnabled = inputs (isJust . view mlsKeys)
+isMLSEnabled :: (Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r) => Sem r Bool
+isMLSEnabled = inputs (isJust)
 
 -- | Fail if MLS is not enabled. Only use this function at the beginning of an
 -- MLS endpoint, NOT in utility functions.
 assertMLSEnabled ::
-  ( Member (Input Env) r,
+  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS 'MLSNotEnabled) r
   ) =>
   Sem r ()
 assertMLSEnabled = void getMLSPrivateKeys
 
 getMLSPrivateKeys ::
-  ( Member (Input Env) r,
+  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS 'MLSNotEnabled) r
   ) =>
   Sem r (MLSKeysByPurpose MLSPrivateKeys)
-getMLSPrivateKeys = noteS @'MLSNotEnabled =<< inputs (view mlsKeys)
+getMLSPrivateKeys = noteS @'MLSNotEnabled =<< input

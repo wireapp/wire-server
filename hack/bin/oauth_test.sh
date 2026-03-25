@@ -30,7 +30,7 @@ while getopts ":u:" opt; do
 done
 shift $((OPTIND - 1))
 
-if [ -z "$USER" ]; then
+if [[ -z "$USER" ]]; then
   echo 'missing option -u <user_id>' 1>&2
   echo "$USAGE" 1>&2
   exit 1

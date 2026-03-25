@@ -1,0 +1,17 @@
+{{- $turn := $.Values.brig.turn | default dict }}
+{{- if eq ($turn.serversSource | default "files") "files" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "turn"
+  labels:
+    app: brig
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  turn-servers.txt: |2
+{{- include "brig.turn-servers.txt" . | indent 4 }}
+  turn-servers-v2.txt: |2
+{{- include "brig.turn-servers-v2.txt" . | indent 4 }}
+{{- end }}

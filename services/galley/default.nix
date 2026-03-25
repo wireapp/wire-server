@@ -178,8 +178,6 @@ mkDerivation {
     retry
     safe-exceptions
     servant
-    servant-client
-    servant-client-core
     servant-server
     singletons
     sop-core

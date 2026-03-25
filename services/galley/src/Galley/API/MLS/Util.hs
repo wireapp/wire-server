@@ -24,7 +24,6 @@ import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Text qualified as T
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -133,5 +132,5 @@ getConvFromGroupId ::
   GroupId ->
   Sem r (ConvType, Qualified ConvOrSubConvId)
 getConvFromGroupId gid = case groupIdToConv gid of
-  Left e -> throw (mlsProtocolError (T.pack e))
+  Left e -> throw (mlsProtocolError ("Could not parse group ID: " <> T.pack e))
   Right (_, parts) -> pure (parts.convType, parts.qConvId)

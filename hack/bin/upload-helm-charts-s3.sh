@@ -31,7 +31,7 @@ Options:
 
 exit_usage() {
     echo "$USAGE"
-    exit 1
+    return 1
 }
 
 # To be somewhat backwards-compatible, transform long options to short ones
@@ -113,7 +113,7 @@ CHART_DIR=$TOP_LEVEL_DIR/.local/charts
 cd "$TOP_LEVEL_DIR"
 
 # If ./upload-helm-charts-s3.sh is run with a parameter, only synchronize one chart
-if [ -n "$chart_dir" ] && [ -d "$chart_dir" ]; then
+if [[ -n "$chart_dir" ]] && [[ -d "$chart_dir" ]]; then
     chart_name=$(basename "$chart_dir")
     echo "only syncing $chart_name"
     charts=( "$chart_name" )
@@ -190,7 +190,7 @@ fi
 # echo $cur_hash
 # remote_hash=$(aws s3api head-object --bucket public.wire.com --key charts/${tgz} | jq '.ETag' -r| tr -d '"')
 # echo $remote_hash
-# if [ "$cur_hash" != "$remote_hash" ]; then
+# if [[ "$cur_hash" != "$remote_hash" ]]; then
 #     echo "ERROR: Current hash should be the same as the remote hash. Please bump the version of chart {$chart}."
 #     exit 1
 # fi

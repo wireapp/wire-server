@@ -23,8 +23,6 @@ import Galley.API.Action
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Update
-import Galley.Effects
-import Galley.Env
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -38,18 +36,23 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.BackendNotificationQueueAccess
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationSubsystem
-import Wire.FederationSubsystem
+import Wire.ExternalAccess (ExternalAccess)
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
-import Wire.TeamCollaboratorsSubsystem
+import Wire.Sem.Random (Random)
 import Wire.TeamSubsystem (TeamSubsystem)
 
 resetMLSConversation ::
-  ( Member (Input Env) r,
+  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Now r,
     Member (Input (Local ())) r,
     Member (ErrorS MLSNotEnabled) r,
@@ -60,7 +63,6 @@ resetMLSConversation ::
     Member (Error InternalError) r,
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS MLSFederatedResetNotSupported) r,
-    Member (ErrorS GroupIdVersionNotSupported) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -73,9 +75,7 @@ resetMLSConversation ::
     Member Random r,
     Member Resource r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
     Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -95,8 +95,7 @@ resetMLSConversation lusr reset = do
     lusr
     ( \lcnv ->
         void $
-          updateLocalConversation
-            @'ConversationResetTag
+          updateLocalConversationReset
             lcnv
             (tUntagged lusr)
             Nothing
@@ -112,7 +111,6 @@ resetRemoteMLSConversation ::
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r,
     Member (ErrorS MLSFederatedResetNotSupported) r,
-    Member (ErrorS GroupIdVersionNotSupported) r,
     Member (ErrorS MLSStaleMessage) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,

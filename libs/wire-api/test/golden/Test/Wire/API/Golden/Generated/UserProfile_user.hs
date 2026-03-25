@@ -25,6 +25,7 @@ import Data.Id
 import Data.Json.Util
 import Data.LegalHold
 import Data.Qualified
+import Data.Range
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Provider.Service
@@ -52,6 +53,7 @@ testObject_UserProfile_user_1 =
       profileLegalholdStatus = UserLegalHoldDisabled,
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
+      profileApp = Nothing,
       profileSearchable = True
     }
 
@@ -84,5 +86,11 @@ testObject_UserProfile_user_2 =
       profileLegalholdStatus = UserLegalHoldNoConsent,
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeApp,
+      profileApp =
+        Just $
+          AppInfo
+            { category = Category "other",
+              description = unsafeRange "bloob"
+            },
       profileSearchable = True
     }

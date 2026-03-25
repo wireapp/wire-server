@@ -82,10 +82,7 @@ import Galley.API.Teams.Features.Get
 import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
-import Galley.Effects
 import Galley.Effects.Queue qualified as E
-import Galley.Effects.SearchVisibilityStore qualified as SearchVisibilityData
-import Galley.Effects.TeamMemberStore qualified as E
 import Galley.Options
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
@@ -96,14 +93,12 @@ import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
 import Wire.API.Conversation (ConvType (..), ConversationRemoveMembers (..))
 import Wire.API.Conversation qualified
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
-import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -128,13 +123,16 @@ import Wire.API.User qualified as U
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
-import Wire.FederationSubsystem
+import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.ListItems
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
@@ -142,6 +140,9 @@ import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal qualified as Journal
+import Wire.TeamMemberStore qualified as E
+import Wire.TeamNotificationStore (TeamNotificationStore)
+import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -149,7 +150,7 @@ import Wire.UserList
 
 getTeamH ::
   forall r.
-  (Member (ErrorS 'TeamNotFound) r, Member (Queue DeleteItem) r, Member TeamStore r, Member TeamSubsystem r) =>
+  (Member (ErrorS 'TeamNotFound) r, Member (E.Queue DeleteItem) r, Member TeamStore r, Member TeamSubsystem r) =>
   UserId ->
   TeamId ->
   Sem r Public.Team
@@ -192,7 +193,7 @@ getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 -- one.)
 getManyTeams ::
   ( Member TeamStore r,
-    Member (Queue DeleteItem) r,
+    Member (E.Queue DeleteItem) r,
     Member (ListItems LegacyPaging TeamId) r,
     Member TeamSubsystem r
   ) =>
@@ -205,7 +206,7 @@ getManyTeams zusr =
 
 lookupTeam ::
   ( Member TeamStore r,
-    Member (Queue DeleteItem) r,
+    Member (E.Queue DeleteItem) r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -258,7 +259,7 @@ createBindingTeam tid zusr body = do
   pure tid
 
 updateTeamStatus ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member (ErrorS 'InvalidTeamStatusUpdate) r,
     Member (ErrorS 'TeamNotFound) r,
     Member Now r,
@@ -330,13 +331,13 @@ updateTeamH zusr zcon tid updateData = do
 
 deleteTeam ::
   forall r.
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member (Error AuthenticationError) r,
     Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member (Queue DeleteItem) r,
+    Member (E.Queue DeleteItem) r,
     Member TeamStore r,
     Member TeamSubsystem r
   ) =>
@@ -366,7 +367,7 @@ internalDeleteBindingTeam ::
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotAOneMemberTeam) r,
     Member (ErrorS 'DeleteQueueFull) r,
-    Member (Queue DeleteItem) r,
+    Member (E.Queue DeleteItem) r,
     Member TeamStore r,
     Member TeamSubsystem r
   ) =>
@@ -401,8 +402,8 @@ getTeamConversationRoles zusr tid = do
 
 getTeamMembers ::
   ( Member (ErrorS 'NotATeamMember) r,
-    Member BrigAPIAccess r,
-    Member (TeamMemberStore CassandraPaging) r,
+    Member E.BrigAPIAccess r,
+    Member (E.TeamMemberStore CassandraPaging) r,
     Member P.TinyLog r,
     Member TeamSubsystem r
   ) =>
@@ -511,7 +512,7 @@ uncheckedGetTeamMember tid uid =
 
 addTeamMember ::
   forall r.
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'NoAddToBinding) r,
@@ -561,7 +562,7 @@ addTeamMember lzusr zcon tid nmem = do
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
   forall r.
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
@@ -589,7 +590,7 @@ uncheckedAddTeamMember tid nmem = do
 
 uncheckedUpdateTeamMember ::
   forall r.
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
@@ -646,7 +647,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
 
 updateTeamMember ::
   forall r.
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
@@ -700,7 +701,7 @@ updateTeamMember lzusr zcon tid newMem = do
         && permissionsRole targetPermissions /= Just RoleOwner
 
 deleteTeamMember ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error InvalidInput) r,
@@ -728,7 +729,7 @@ deleteTeamMember ::
 deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid remove (Just body)
 
 deleteNonBindingTeamMember ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error InvalidInput) r,
@@ -756,7 +757,7 @@ deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon ti
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember' ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error AuthenticationError) r,
     Member (Error InvalidInput) r,
@@ -962,24 +963,16 @@ getTeamConversation zusr tid cid = do
   pure $ newTeamConversation teamConv
 
 deleteTeamConversation ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member CodeStore r,
+  ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS ('ActionDenied 'Public.DeleteConversation)) r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member ProposalStore r,
     Member ConversationSubsystem r,
-    Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   ConnId ->
@@ -993,7 +986,7 @@ deleteTeamConversation lusr zcon _tid cid = do
 getSearchVisibility ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member SearchVisibilityStore r,
+    Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -1009,7 +1002,7 @@ setSearchVisibility ::
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member SearchVisibilityStore r,
+    Member TeamStore r,
     Member TeamSubsystem r
   ) =>
   (TeamId -> Sem r Bool) ->
@@ -1092,7 +1085,7 @@ ensureNotElevated targetPermissions member =
     $ throwS @'InvalidPermissions
 
 ensureNotTooLarge ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (Input Opts) r
   ) =>
@@ -1131,7 +1124,7 @@ ensureNotTooLargeForLegalHold tid teamSize =
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
 
 addTeamMemberInternal ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member NotificationSubsystem r,
@@ -1204,7 +1197,7 @@ getBindingTeamMembers zusr = do
 -- RegisterError`.
 canUserJoinTeam ::
   forall r.
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member LegalHoldStore r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input FanoutLimit) r,
@@ -1221,17 +1214,17 @@ canUserJoinTeam tid = do
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
-  (Member SearchVisibilityStore r) =>
+  (Member TeamStore r) =>
   TeamId ->
   Sem r TeamSearchVisibilityView
 getSearchVisibilityInternal =
   fmap TeamSearchVisibilityView
-    . SearchVisibilityData.getSearchVisibility
+    . E.getSearchVisibility
 
 setSearchVisibilityInternal ::
   forall r.
   ( Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member SearchVisibilityStore r
+    Member TeamStore r
   ) =>
   (TeamId -> Sem r Bool) ->
   TeamId ->
@@ -1240,7 +1233,7 @@ setSearchVisibilityInternal ::
 setSearchVisibilityInternal availableForTeam tid (TeamSearchVisibilityView searchVisibility) = do
   unlessM (availableForTeam tid) $
     throwS @'TeamSearchVisibilityNotEnabled
-  SearchVisibilityData.setSearchVisibility tid searchVisibility
+  E.setSearchVisibility tid searchVisibility
 
 userIsTeamOwner ::
   ( Member (ErrorS 'TeamMemberNotFound) r,
@@ -1260,7 +1253,7 @@ userIsTeamOwner tid uid = do
 -- Queues a team for async deletion
 queueTeamDeletion ::
   ( Member (ErrorS 'DeleteQueueFull) r,
-    Member (Queue DeleteItem) r
+    Member (E.Queue DeleteItem) r
   ) =>
   TeamId ->
   UserId ->

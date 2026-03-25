@@ -32,6 +32,7 @@ excludeLogEntries() {
     grep -v '^{".*Info"' |
         grep -v '^{".*Debug"' |
         grep -v '^20.*, D, .*socket: [0-9]\+>$'
+    return 0
 }
 
 cleanup() {
@@ -43,12 +44,14 @@ cleanup() {
         sed '/^Progress [0-9]\+/d' |
         sed '/^\s\+$/d' |
         sed 's/:\s\+{/:\n{/g'
+    return 0
 }
 
 grepper() {
     # print 10 lines before/after for context
     rg "$problem_markers" --color=always -A 10 -B 10
     echo -e "\033[0m"
+    return 0
 }
 
 cleanup | excludeLogEntries | grepper

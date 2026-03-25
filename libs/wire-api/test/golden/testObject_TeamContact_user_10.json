@@ -10,11 +10,12 @@
     "role": "member",
     "saml_idp": "P-\u0019",
     "scim_external_id": null,
+    "searchable": true,
     "sso": {
         "issuer": "https://example.com/issuer/123",
         "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
     },
     "team": null,
-    "user_groups": [],
-    "searchable": true
+    "type": "regular",
+    "user_groups": []
 }

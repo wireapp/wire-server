@@ -250,9 +250,15 @@ library
     Wire.ConversationStore.MLS.Types
     Wire.ConversationStore.Postgres
     Wire.ConversationSubsystem
+    Wire.ConversationSubsystem.CreateInternal
+    Wire.ConversationSubsystem.Fetch
+    Wire.ConversationSubsystem.Internal
     Wire.ConversationSubsystem.Interpreter
+    Wire.ConversationSubsystem.Notify
     Wire.ConversationSubsystem.One2One
     Wire.ConversationSubsystem.Util
+    Wire.CustomBackendStore
+    Wire.CustomBackendStore.Cassandra
     Wire.DeleteQueue
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
@@ -315,6 +321,7 @@ library
     Wire.LegalHoldStore.Cassandra.Queries
     Wire.LegalHoldStore.Env
     Wire.ListItems
+    Wire.ListItems.Team.Cassandra
     Wire.MeetingsStore
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
@@ -371,6 +378,10 @@ library
     Wire.TeamInvitationSubsystem.Interpreter
     Wire.TeamJournal
     Wire.TeamJournal.Aws
+    Wire.TeamMemberStore
+    Wire.TeamMemberStore.Cassandra
+    Wire.TeamNotificationStore
+    Wire.TeamNotificationStore.Cassandra
     Wire.TeamStore
     Wire.TeamStore.Cassandra
     Wire.TeamStore.Cassandra.Queries

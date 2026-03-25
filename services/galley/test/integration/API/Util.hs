@@ -2614,6 +2614,7 @@ mkProfile quid name =
       profileLegalholdStatus = defUserLegalHoldStatus,
       profileSupportedProtocols = defSupportedProtocols,
       profileType = UserTypeRegular,
+      profileApp = Nothing,
       profileSearchable = True
     }
 

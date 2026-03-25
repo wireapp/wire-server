@@ -73,3 +73,49 @@ type MeetingsAPI =
                :> CanThrow 'MeetingNotFound
                :> Get '[JSON] Meeting
            )
+    :<|> Named
+           "list-meetings"
+           ( Summary "List all meetings for the authenticated user"
+               :> From 'V16
+               :> ZLocalUser
+               :> "meetings"
+               :> "list"
+               :> Get '[JSON] [Meeting]
+           )
+    :<|> Named
+           "add-meeting-invitation"
+           ( Summary "Add an email to the invited emails"
+               :> From 'V16
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "invitations"
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> ReqBody '[JSON] MeetingEmailsInvitation
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 "Invitation added"]
+                    ()
+           )
+    :<|> Named
+           "remove-meeting-invitation"
+           ( Summary "Remove emails from the invited emails"
+               :> From 'V16
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "invitations"
+               :> "delete"
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> ReqBody '[JSON] MeetingEmailsInvitation
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 "Invitations removed"]
+                    ()
+           )

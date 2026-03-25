@@ -23,7 +23,6 @@ module Galley.API.Message
     postRemoteOtrMessage,
     legacyClientMismatchStrategy,
     Unqualify (..),
-    userToProtectee,
     MessageMetadata (..),
 
     -- * Only exported for tests
@@ -50,8 +49,6 @@ import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
-import Galley.API.Push
-import Galley.Effects
 import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
@@ -82,8 +79,9 @@ import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem qualified as ConvSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess
 import Wire.FederationAPIAccess
-import Wire.NotificationSubsystem (NotificationSubsystem)
+import Wire.NotificationSubsystem (BotMap, NotificationSubsystem, newMessagePush, runMessagePush)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation

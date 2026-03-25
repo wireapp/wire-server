@@ -22,7 +22,6 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Qualified
-import Galley.Effects
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -45,7 +44,7 @@ getUserStatus ::
   forall r.
   ( Member (Error InternalError) r,
     Member (ErrorS 'TeamMemberNotFound) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
     Member TeamSubsystem r
   ) =>

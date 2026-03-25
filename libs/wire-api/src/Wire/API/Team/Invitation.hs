@@ -38,7 +38,7 @@ import Data.Json.Util
 import Data.Misc
 import Data.OpenApi qualified as S
 import Data.SOP
-import Data.Schema
+import Data.Schema as DS
 import Data.Text.Encoding qualified as TE
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
@@ -74,19 +74,19 @@ instance ToSchema InvitationRequest where
 
 invitationRequestSchema :: Bool -> ValueSchema NamedSwaggerDoc InvitationRequest
 invitationRequestSchema allowExisting =
-  objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
+  objectWithDocModifier "InvitationRequest" (DS.description ?~ "A request to join a team on Wire.") $
     InvitationRequest
       <$> locale
-        .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
+        .= optFieldWithDocModifier "locale" (DS.description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
       <*> (.role)
-        .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
+        .= optFieldWithDocModifier "role" (DS.description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
       <*> (.inviteeName)
-        .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
+        .= optFieldWithDocModifier "name" (DS.description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
       <*> (.inviteeEmail)
-        .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+        .= fieldWithDocModifier "email" (DS.description ?~ "Email of the invitee.") schema
       <*> (.allowExisting)
         .= ( fromMaybe allowExisting
-               <$> optFieldWithDocModifier "allow_existing" (description ?~ "Whether invitations to existing users are allowed.") schema
+               <$> optFieldWithDocModifier "allow_existing" (DS.description ?~ "Whether invitations to existing users are allowed.") schema
            )
 
 --------------------------------------------------------------------------------
@@ -112,29 +112,29 @@ instance ToSchema Invitation where
   schema =
     objectWithDocModifier
       "Invitation"
-      (description ?~ "An invitation to join a team on Wire. If invitee is invited from an existing personal account, inviter email is included.")
+      (DS.description ?~ "An invitation to join a team on Wire. If invitee is invited from an existing personal account, inviter email is included.")
       invitationObjectSchema
 
 invitationObjectSchema :: ObjectSchema SwaggerDoc Invitation
 invitationObjectSchema =
   Invitation
     <$> (.team)
-      .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
+      .= fieldWithDocModifier "team" (DS.description ?~ "Team ID of the inviting team") schema
     <*> (.role)
       -- clients, when leaving "role" empty, can leave the default role choice to us
-      .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
+      .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (DS.description ?~ "Role of the invited user") schema)
     <*> (.invitationId)
-      .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
+      .= fieldWithDocModifier "id" (DS.description ?~ "UUID used to refer the invitation") schema
     <*> (.createdAt)
-      .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
+      .= fieldWithDocModifier "created_at" (DS.description ?~ "Timestamp of invitation creation") schema
     <*> (.createdBy)
-      .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
+      .= optFieldWithDocModifier "created_by" (DS.description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
     <*> (.inviteeEmail)
-      .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
+      .= fieldWithDocModifier "email" (DS.description ?~ "Email of the invitee") schema
     <*> (.inviteeName)
-      .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
+      .= optFieldWithDocModifier "name" (DS.description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
     <*> (fmap (TE.decodeUtf8 . serializeURIRef') . (.inviteeUrl))
-      .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
+      .= optFieldWithDocModifier "url" (DS.description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
   where
     urlSchema = parsedText "URIRef_Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
 
@@ -191,10 +191,10 @@ data InvitationList = InvitationList
 
 instance ToSchema InvitationList where
   schema =
-    objectWithDocModifier "InvitationList" (description ?~ "A list of sent team invitations.") $
+    objectWithDocModifier "InvitationList" (DS.description ?~ "A list of sent team invitations.") $
       InvitationList
         <$> ilInvitations .= field "invitations" (array schema)
-        <*> ilHasMore .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema
+        <*> ilHasMore .= fieldWithDocModifier "has_more" (DS.description ?~ "Indicator that the server has more invitations than returned.") schema
 
 --------------------------------------------------------------------------------
 -- AcceptTeamInvitation
@@ -208,10 +208,10 @@ data AcceptTeamInvitation = AcceptTeamInvitation
 
 instance ToSchema AcceptTeamInvitation where
   schema =
-    objectWithDocModifier "AcceptTeamInvitation" (description ?~ "Accept an invitation to join a team on Wire.") $
+    objectWithDocModifier "AcceptTeamInvitation" (DS.description ?~ "Accept an invitation to join a team on Wire.") $
       AcceptTeamInvitation
-        <$> code .= fieldWithDocModifier "code" (description ?~ "Invitation code to accept.") schema
-        <*> password .= fieldWithDocModifier "password" (description ?~ "The user account password.") schema
+        <$> (.code) .= fieldWithDocModifier "code" (DS.description ?~ "Invitation code to accept.") schema
+        <*> (.password) .= fieldWithDocModifier "password" (DS.description ?~ "The user account password.") schema
 
 data InvitationUserView = InvitationUserView
   { invitation :: Invitation,

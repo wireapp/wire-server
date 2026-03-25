@@ -45,9 +45,6 @@ import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
-import Galley.App
-import Galley.Effects
-import Galley.Effects.TeamMemberStore
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Error
 import Imports
@@ -63,7 +60,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
@@ -76,21 +72,24 @@ import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.ConversationStore
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
-import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
-import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamMemberStore
 import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -102,7 +101,7 @@ createSettings ::
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceInvalidKey) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
@@ -132,7 +131,7 @@ createSettings lzusr tid newService = do
 getSettings ::
   forall r.
   ( Member (ErrorS 'NotATeamMember) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r
@@ -168,24 +167,19 @@ removeSettingsInternalPaging ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -217,22 +211,17 @@ removeSettings ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -277,23 +266,18 @@ removeSettings' ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member FireAndForget r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -333,19 +317,14 @@ grantConsent ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -384,22 +363,17 @@ requestDevice ::
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -482,22 +456,17 @@ approveDevice ::
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'UserLegalHoldNotPending) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
@@ -564,21 +533,16 @@ disableForUser ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -633,19 +597,14 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member Now r,
-    Member LegalHoldStore r,
+    Member LegalHoldData.LegalHoldStore r,
     Member TeamStore r,
     Member ProposalStore r,
     Member Random r,
     Member P.TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -724,7 +683,7 @@ blockNonConsentingConnections uid = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-unsetTeamLegalholdWhitelistedH :: (Member LegalHoldStore r) => TeamId -> Sem r ()
+unsetTeamLegalholdWhitelistedH :: (Member LegalHoldData.LegalHoldStore r) => TeamId -> Sem r ()
 unsetTeamLegalholdWhitelistedH tid = do
   () <-
     error
@@ -754,18 +713,13 @@ handleGroupConvPolicyConflicts ::
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member ExternalAccess r,
-    Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input Env) r,
     Member Now r,
     Member ProposalStore r,
     Member P.TinyLog r,
     Member Random r,
     Member TeamStore r,
-    Member TeamCollaboratorsSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

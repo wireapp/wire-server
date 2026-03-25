@@ -433,6 +433,7 @@ instance MonadThrow MockGundeck where
   -- as well crash badly here, as long as it doesn't go unnoticed...)
 
 instance MonadPushAll MockGundeck where
+  mpaConsumableNotificationsEnabled = pure True
   mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
   mpaCellsEventQueue = pure $ Just "cells"
   mpaMkNotificationId = mockMkNotificationId

@@ -62,21 +62,24 @@ run_integration_tests() {
       -i "$TOP_LEVEL/services/integration.yaml" \
       "${@:2}"
   fi
+  
+  return 0
 }
 
 run_all_integration_tests() {
   for d in "$TOP_LEVEL/services/"*/; do
     package=$(basename "$d")
     service_dir="$TOP_LEVEL/services/$package"
-    if [ -d "$service_dir/test/integration" ] || [ -d "$service_dir/test-integration" ]; then
+    if [[ -d "$service_dir/test/integration" ]] || [[ -d "$service_dir/test-integration" ]]; then
       run_integration_tests "$package"
     fi
   done
   run_integration_tests "stern"
+  return 0
 }
 
-if [ "$package" == "all" ]; then
-  if [ -n "${2:-}" ]; then
+if [[ "$package" == "all" ]]; then
+  if [[ -n "${2:-}" ]]; then
     echo -e "\e[31mCannot pass additional args to all integrations tests.\e[0m" >&2
     exit 1
   fi

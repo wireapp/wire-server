@@ -137,7 +137,6 @@ import Wire.InvitationStore (InvitationStore, StoredInvitation)
 import Wire.InvitationStore qualified as InvitationStore
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
-import Wire.PasswordStore (PasswordStore, lookupHashedPassword, upsertHashedPassword)
 import Wire.PropertySubsystem as PropertySubsystem
 import Wire.RateLimit
 import Wire.Sem.Concurrency
@@ -688,7 +687,8 @@ activate ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -703,7 +703,8 @@ activateNoVerifyEmailDomain ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -718,7 +719,8 @@ activateWithCurrency ::
     Member Events r,
     Member PasswordResetCodeStore r,
     Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member UserKeyStore r
   ) =>
   Bool ->
   ActivationTarget ->
@@ -884,8 +886,7 @@ mkActivationKey (ActivateEmail e) =
 -- Password Management
 
 changePassword ::
-  ( Member PasswordStore r,
-    Member UserStore r,
+  ( Member UserStore r,
     Member HashPassword r,
     Member RateLimit r,
     Member AuthenticationSubsystem r
@@ -897,12 +898,12 @@ changePassword uid cp = do
   activated <- lift $ liftSem $ UserStore.isActivated uid
   unless activated $
     throwE ChangePasswordNoIdentity
-  currpw <- lift $ liftSem $ lookupHashedPassword uid
+  currpw <- lift $ liftSem $ UserStore.lookupHashedPassword uid
   let newpw = cp.newPassword
       rateLimitKey = RateLimitUser uid
   hashedNewPw <- lift . liftSem $ HashPassword.hashPassword8 rateLimitKey newpw
   case (currpw, cp.oldPassword) of
-    (Nothing, _) -> lift . liftSem $ upsertHashedPassword uid hashedNewPw
+    (Nothing, _) -> lift . liftSem $ UserStore.upsertHashedPassword uid hashedNewPw
     (Just _, Nothing) -> throwE InvalidCurrentPassword
     (Just pw, Just pw') -> do
       -- We are updating the pwd here anyway, so we don't care about the pwd status
@@ -910,7 +911,7 @@ changePassword uid cp = do
         throwE InvalidCurrentPassword
       whenM (lift . liftSem $ HashPassword.verifyPassword rateLimitKey newpw pw) $
         throwE ChangePasswordMustDiffer
-      lift $ liftSem (upsertHashedPassword uid hashedNewPw >> Auth.revokeAllCookies uid)
+      lift $ liftSem (UserStore.upsertHashedPassword uid hashedNewPw >> Auth.revokeAllCookies uid)
 
 -------------------------------------------------------------------------------
 -- User Deletion
@@ -933,7 +934,6 @@ deleteSelfUser ::
     Member (Embed HttpClientIO) r,
     Member UserKeyStore r,
     Member NotificationSubsystem r,
-    Member PasswordStore r,
     Member UserStore r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
@@ -977,7 +977,7 @@ deleteSelfUser luid@(tUnqualified -> uid) pwd = do
       lift . liftSem . Log.info $
         field "user" (toByteString uid)
           . msg (val "Attempting account deletion with a password")
-      actual <- lift $ liftSem $ lookupHashedPassword uid
+      actual <- lift $ liftSem $ UserStore.lookupHashedPassword uid
       case actual of
         Nothing -> throwE DeleteUserInvalidPassword
         Just p -> do

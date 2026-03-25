@@ -29,8 +29,6 @@ import Data.IORef (atomicModifyIORef, newIORef)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Qualified (Local, tUnqualified)
-import Galley.Effects
-import Galley.Effects.TeamMemberStore (listTeamMembers)
 import Imports hiding (atomicModifyIORef, newEmptyMVar, newIORef, putMVar, readMVar, takeMVar, threadDelay, tryPutMVar)
 import Polysemy
 import Polysemy.Async
@@ -47,6 +45,7 @@ import Wire.Sem.Concurrency.IO
 import Wire.Sem.Paging qualified as E
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 import Wire.SparAPIAccess qualified as Spar
+import Wire.TeamMemberStore (TeamMemberStore, listTeamMembers)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
@@ -85,7 +84,7 @@ lookupInviter cache uid = flip onException ensureCache $ do
 
 getUserRecord ::
   ( Member BrigAPIAccess r,
-    Member SparAPIAccess r,
+    Member Spar.SparAPIAccess r,
     Member (ErrorS TeamMemberNotFound) r,
     Member (Final IO) r,
     Member Resource r
@@ -123,7 +122,7 @@ getTeamMembersCSV ::
     Member (ErrorS 'AccessDenied) r,
     Member (TeamMemberStore InternalPaging) r,
     Member (Final IO) r,
-    Member SparAPIAccess r,
+    Member Spar.SparAPIAccess r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->

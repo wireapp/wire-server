@@ -26,7 +26,6 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Galley.API.MLS.CheckClients
-import Galley.Effects
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -37,8 +36,10 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.OutOfSync
 import Wire.API.MLS.SubConversation
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.StoredConversation
 
 checkConversationOutOfSync ::

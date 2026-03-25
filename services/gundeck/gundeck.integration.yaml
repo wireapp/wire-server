@@ -55,6 +55,7 @@ settings:
   # brig, cannon, cargohold, galley, gundeck, proxy, spar.
   disabledAPIVersions: []
   cellsEventQueue: "cells_events"
+  consumableNotifications: false
 
 logLevel: Warn
 logNetStrings: false

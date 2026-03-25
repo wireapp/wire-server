@@ -21,6 +21,7 @@ module Test.Apps where
 
 import API.Brig
 import qualified API.BrigInternal as BrigI
+import API.Common
 import API.Galley
 import Data.Aeson.QQ.Simple
 import SetupHelpers
@@ -87,24 +88,26 @@ testCreateApp = do
   void $ getApp regularMember tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     (resp.json %. "name") `shouldMatch` "chappie"
-    (resp.json %. "description") `shouldMatch` "some description of this app"
-    (resp.json %. "category") `shouldMatch` "ai"
+    (resp.json %. "app.description") `shouldMatch` "some description of this app"
+    (resp.json %. "app.category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
   outsideUser <- randomUser domain def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "app-no-permission"
+    -- this may change soon, see
+    -- https://wearezeta.atlassian.net/browse/WPB-23995,
+    -- https://wearezeta.atlassian.net/browse/WPB-23840
+    resp.status `shouldMatchInt` 200
 
-  -- Another team's owner nor member can't get the app
   (owner2, tid2, [regularMember2]) <- createTeam domain 2
-  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
-  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
-  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 403
+  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
 
-  -- Category must be any of the values for the Category enum
+  -- Category can be any text; sanitization must happen by clients.
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
-    resp.status `shouldMatchInt` 400
+    resp.status `shouldMatchInt` 200
+    deleteTeamMember tid owner (resp.json %. "user") >>= assertSuccess
 
   let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
       foundUserType searcher exactMatchTerm aTypes =
@@ -113,6 +116,7 @@ testCreateApp = do
           foundDocs :: [Value] <- resp.json %. "documents" >>= asList
           docsInTeam :: [Value] <- do
             -- make sure that matches from previous test runs don't get in the way.
+            -- related: https://wearezeta.atlassian.net/browse/WPB-23995
             catMaybes
               <$> forM
                 foundDocs
@@ -142,6 +146,7 @@ testRefreshAppCookie = do
   charlie <- randomUser OwnDomain def
 
   let new = def {name = "flexo"} :: NewApp
+      goodPassword = Just (object ["password" .= defPassword])
 
   (appId, cookie) <- bindResponse (createApp alice tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -149,24 +154,37 @@ testRefreshAppCookie = do
     cookie <- resp.json %. "cookie" & asString
     pure (appId, cookie)
 
-  bindResponse (refreshAppCookie bob tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie bob tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  bindResponse (refreshAppCookie charlie tid appId) $ \resp -> do
+  bindResponse (refreshAppCookie charlie tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  cookie' <- bindResponse (refreshAppCookie alice tid appId) $ \resp -> do
+  forM_
+    [ (Nothing, 415),
+      (Just Null, 400),
+      (Just (object []), 403),
+      (Just (object ["password" .= "this is not a good password"]), 403)
+    ]
+    $ \(badPassword, stat) -> do
+      -- the status codes and error labels differ here, but the
+      -- important thing is that the request fails.
+      refreshAppCookie alice tid appId badPassword >>= assertStatus stat
+
+  cookie' <- bindResponse (refreshAppCookie alice tid appId goodPassword) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "cookie" & asString
 
-  for_ [cookie, cookie'] $ \c ->
-    void $ bindResponse (renewToken OwnDomain c) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      resp.json %. "user" `shouldMatch` appId
-      resp.json %. "token_type" `shouldMatch` "Bearer"
-      resp.json %. "access_token" & asString
+  renewToken OwnDomain cookie `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+
+  renewToken OwnDomain cookie' `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user" `shouldMatch` appId
+    resp.json %. "token_type" `shouldMatch` "Bearer"
+    void $ resp.json %. "access_token" & asString
 
 testDeleteAppFromTeam :: (HasCallStack) => App ()
 testDeleteAppFromTeam = do
@@ -228,14 +246,11 @@ testPutApp = do
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
-      `shouldMatchShape` SObject
+      `shouldMatchShapeLenient` SObject
         [ ("accent_id", SNumber),
           ("assets", SArray (SObject [("key", SString), ("size", SString), ("type", SString)])),
           ("name", SString),
-          ("category", SString),
-          ("description", SString),
-          ("metadata", SObject []),
-          ("picture", SArray SAny)
+          ("app", SObject [("category", SString), ("description", SString)])
         ]
 
   let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
@@ -249,13 +264,9 @@ testRetrieveUsersIncludingApps = do
           [ ("accent_id", SNumber),
             ("assets", SArray SAny),
             ("id", SString),
-            ("locale", SString),
-            ("managed_by", SString),
             ("name", SString),
-            ("picture", SArray SAny),
             ("qualified_id", SObject [("domain", SString), ("id", SString)]),
             ("searchable", SBool),
-            ("status", SString),
             ("supported_protocols", SArray SString),
             ("team", SString),
             ("type", SString)
@@ -270,17 +281,14 @@ testRetrieveUsersIncludingApps = do
           ]
       appShape =
         SObject
-          [ ("accent_id", SNumber),
-            ("assets", SArray SAny),
-            ("category", SString),
-            ("description", SString),
-            ("metadata", SObject []),
-            ("name", SString),
-            ("picture", SArray SAny)
+          [ ("category", SString),
+            ("description", SString)
           ]
-      appWithIdShape = case appShape of
-        SObject attrs ->
-          SObject (("id", SString) : attrs)
+      appWithIdShape =
+        SObject
+          [ ("id", SString),
+            ("app", appShape)
+          ]
       searchResultShape =
         SObject
           [ ("accent_id", SNumber),
@@ -301,7 +309,7 @@ testRetrieveUsersIncludingApps = do
     resp.status `shouldMatchInt` 200
     pure resp.json
   appCreated
-    `shouldMatchShape` SObject
+    `shouldMatchShapeLenient` SObject
       [ ("cookie", SString),
         ("user", userShape)
       ]
@@ -324,25 +332,25 @@ testRetrieveUsersIncludingApps = do
   getTeamMember owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
-    resp.json `shouldMatchShape` memberShape
+    resp.json `shouldMatchShapeLenient` memberShape
 
   -- [`GET /teams/:tid/apps`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-apps) (route id: "get-apps")
   getApps owner tid `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     apps <- resp.json & maybe (error "this shouldn't happen") pure
-    apps `shouldMatchShape` SArray appWithIdShape
+    apps `shouldMatchShapeLenient` SArray appWithIdShape
 
   -- [`GET /teams/:tid/apps/:uid`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-app) (route id: "get-app")
   getApp owner tid appId `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json `shouldMatchShape` appShape
+    resp.json `shouldMatchShapeLenient` userShape
 
   -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
   listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
       %. "found.0"
-      `shouldMatchShape` SObject
+      `shouldMatchShapeLenient` SObject
         [ ("accent_id", SNumber),
           ("assets", SArray SAny),
           ("id", SString),
@@ -367,4 +375,4 @@ testRetrieveUsersIncludingApps = do
       resp.status `shouldMatchInt` 200
       hits :: [Value] <- resp.json %. "documents" & asList
       length hits `shouldMatchInt` 2 -- owner doesn't find itself
-      (`shouldMatchShape` searchResultShape) `mapM_` hits
+      (`shouldMatchShapeLenient` searchResultShape) `mapM_` hits

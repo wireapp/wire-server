@@ -20,12 +20,24 @@ module Galley.API.Action
     ConversationActionTag (..),
     ConversationJoin (..),
     ConversationMemberUpdate (..),
-    HasConversationActionEffects,
     HasConversationActionGalleyErrors,
 
     -- * Performing actions
-    updateLocalConversation,
-    updateLocalConversationUnchecked,
+    updateLocalConversationUncheckedJoin,
+    updateLocalConversationUncheckedRemoveMembers,
+    updateLocalConversationJoin,
+    updateLocalConversationLeave,
+    updateLocalConversationMemberUpdate,
+    updateLocalConversationDelete,
+    updateLocalConversationRename,
+    updateLocalConversationMessageTimerUpdate,
+    updateLocalConversationReceiptModeUpdate,
+    updateLocalConversationAccessData,
+    updateLocalConversationRemoveMembers,
+    updateLocalConversationUpdateProtocol,
+    updateLocalConversationUpdateAddPermission,
+    updateLocalConversationReset,
+    updateLocalConversationHistoryUpdate,
     NoChanges (..),
     LocalConversationUpdate (..),
     notifyTypingIndicator,
@@ -69,9 +81,6 @@ import Galley.API.MLS.Conversation
 import Galley.API.MLS.Migration
 import Galley.API.MLS.Removal
 import Galley.API.Teams.Features.Get
-import Galley.Effects
-import Galley.Env (Env)
-import Galley.Options (Opts)
 import Galley.Types.Error
 import Imports hiding ((\\))
 import Polysemy
@@ -98,343 +107,632 @@ import Wire.API.Federation.API.Galley qualified as F
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.FederationStatus
+import Wire.API.History
 import Wire.API.MLS.Group.Serialisation qualified as Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (AddRemoveConvMember, ModifyConvName))
 import Wire.API.User as User
+import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
+import Wire.ExternalAccess
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
 import Wire.FireAndForget qualified as E
+import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore qualified as E
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
+import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
-type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
-  HasConversationActionEffects 'ConversationJoinTag r =
-    ( -- TODO: Replace with subsystems
-      Member BrigAPIAccess r,
-      Member (Error FederationError) r,
-      Member (Error InternalError) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS 'NotConnected) r,
-      Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
-      Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-      Member (ErrorS 'InvalidOperation) r,
-      Member (ErrorS 'ConvAccessDenied) r,
-      Member (ErrorS 'ConvNotFound) r,
-      Member (ErrorS 'TooManyMembers) r,
-      Member (ErrorS 'MissingLegalholdConsent) r,
-      Member (ErrorS 'GroupIdVersionNotSupported) r,
-      Member (Error NonFederatingBackends) r,
-      Member (Error UnreachableBackends) r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member (Input ConversationSubsystemConfig) r,
-      Member Now r,
-      Member LegalHoldStore r,
-      Member ConversationStore r,
-      Member ProposalStore r,
-      Member Random r,
-      Member TeamStore r,
-      Member TinyLog r,
-      Member ConversationStore r,
-      Member (Error NoChanges) r
-    )
-  HasConversationActionEffects 'ConversationLeaveTag r =
-    ( Member (Error InternalError) r,
-      Member (Error NoChanges) r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member Now r,
-      Member (Input Env) r,
-      Member (Input ConversationSubsystemConfig) r,
-      Member ProposalStore r,
-      Member ConversationStore r,
-      Member Random r,
-      Member TinyLog r
-    )
-  HasConversationActionEffects 'ConversationRemoveMembersTag r =
-    ( Member (Error NoChanges) r,
-      Member ConversationStore r,
-      Member ProposalStore r,
-      Member (Input Env) r,
-      Member (Input ConversationSubsystemConfig) r,
-      Member Now r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member (Error InternalError) r,
-      Member Random r,
-      Member TinyLog r,
-      Member (Error NoChanges) r
-    )
-  HasConversationActionEffects 'ConversationMemberUpdateTag r =
-    ( Member (ErrorS 'ConvMemberNotFound) r,
-      Member ConversationStore r
-    )
-  HasConversationActionEffects 'ConversationDeleteTag r =
-    ( Member BrigAPIAccess r,
-      Member CodeStore r,
-      Member ConversationStore r,
-      Member (Error FederationError) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member ProposalStore r,
-      Member TeamStore r
-    )
-  HasConversationActionEffects 'ConversationRenameTag r =
-    ( Member (Error InvalidInput) r,
-      Member ConversationStore r,
-      Member TeamStore r,
-      Member (ErrorS InvalidOperation) r
-    )
-  HasConversationActionEffects 'ConversationAccessDataTag r =
-    ( Member BrigAPIAccess r,
-      Member CodeStore r,
-      Member (Error InternalError) r,
-      Member (Error InvalidInput) r,
-      Member (Error NoChanges) r,
-      Member (ErrorS 'InvalidTargetAccess) r,
-      Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member FireAndForget r,
-      Member NotificationSubsystem r,
-      Member (Input Env) r,
-      Member (Input ConversationSubsystemConfig) r,
-      Member ProposalStore r,
-      Member TeamStore r,
-      Member TinyLog r,
-      Member Now r,
-      Member ConversationStore r,
-      Member Random r
-    )
-  HasConversationActionEffects 'ConversationHistoryUpdateTag r =
-    ( Member ConversationStore r,
-      Member (ErrorS HistoryNotSupported) r
-    )
-  HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
-    ( Member ConversationStore r,
-      Member (Error NoChanges) r
-    )
-  HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
-    ( Member ConversationStore r,
-      Member (Error NoChanges) r,
-      Member (ErrorS MLSReadReceiptsNotAllowed) r
-    )
-  HasConversationActionEffects 'ConversationUpdateProtocolTag r =
-    ( Member ConversationStore r,
-      Member (ErrorS 'ConvInvalidProtocolTransition) r,
-      Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
-      Member (Error NoChanges) r,
-      Member BrigAPIAccess r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member (Input Env) r,
-      Member (Input Opts) r,
-      Member Now r,
-      Member ProposalStore r,
-      Member Random r,
-      Member TeamFeatureStore r,
-      Member TinyLog r,
-      Member FeaturesConfigSubsystem r
-    )
-  HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
-    ( Member (Error NoChanges) r,
-      Member ConversationStore r,
-      Member (ErrorS 'InvalidTargetAccess) r
-    )
-  HasConversationActionEffects 'ConversationResetTag r =
-    ( Member (Input Env) r,
-      Member Now r,
-      Member (ErrorS ConvNotFound) r,
-      Member (ErrorS InvalidOperation) r,
-      Member ConversationStore r,
-      Member ExternalAccess r,
-      Member (FederationAPIAccess FederatorClient) r,
-      Member NotificationSubsystem r,
-      Member ProposalStore r,
-      Member Random r,
-      Member Resource r,
-      Member TinyLog r,
-      Member (ErrorS MLSStaleMessage) r
-    )
+class IsConversationAction (tag :: ConversationActionTag) where
+  type HasConversationActionEffects tag (r :: EffectRow) :: Constraint
 
-type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
-  HasConversationActionGalleyErrors 'ConversationJoinTag =
-    '[ ErrorS ('ActionDenied 'LeaveConversation),
-       ErrorS ('ActionDenied 'AddConversationMember),
-       ErrorS 'GroupIdVersionNotSupported,
-       ErrorS 'NotATeamMember,
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound,
-       ErrorS 'NotConnected,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'TooManyMembers,
-       ErrorS 'MissingLegalholdConsent
-     ]
-  HasConversationActionGalleyErrors 'ConversationLeaveTag =
-    '[ ErrorS ('ActionDenied 'LeaveConversation),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationRemoveMembersTag =
-    '[ ErrorS ('ActionDenied 'RemoveConversationMember),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationMemberUpdateTag =
-    '[ ErrorS ('ActionDenied 'ModifyOtherConversationMember),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvMemberNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationDeleteTag =
-    '[ ErrorS ('ActionDenied 'DeleteConversation),
-       ErrorS 'NotATeamMember,
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationRenameTag =
-    '[ ErrorS ('ActionDenied 'ModifyConversationName),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag =
-    '[ ErrorS ('ActionDenied 'ModifyConversationMessageTimer),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
-    '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
-       ErrorS 'InvalidOperation,
-       ErrorS 'MLSReadReceiptsNotAllowed,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationAccessDataTag =
-    '[ ErrorS ('ActionDenied 'RemoveConversationMember),
-       ErrorS ('ActionDenied 'ModifyConversationAccess),
-       ErrorS 'InvalidOperation,
-       ErrorS 'InvalidTargetAccess,
-       ErrorS 'ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
-    '[ ErrorS ('ActionDenied 'LeaveConversation),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvInvalidProtocolTransition,
-       ErrorS 'MLSMigrationCriteriaNotSatisfied,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
-    '[ ErrorS ('ActionDenied 'ModifyAddPermission),
-       ErrorS 'InvalidOperation,
-       ErrorS 'ConvNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
-       ErrorS 'InvalidTargetAccess
-     ]
-  HasConversationActionGalleyErrors 'ConversationResetTag =
-    '[ ErrorS (ActionDenied LeaveConversation),
-       ErrorS GroupIdVersionNotSupported,
-       ErrorS MLSStaleMessage,
-       ErrorS InvalidOperation,
-       ErrorS ConvNotFound
-     ]
-  HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
-    '[ ErrorS (ActionDenied ModifyConversationAccess),
-       ErrorS GroupIdVersionNotSupported,
-       ErrorS HistoryNotSupported,
-       ErrorS MLSStaleMessage,
-       ErrorS InvalidOperation,
-       ErrorS ConvNotFound
-     ]
+  type HasConversationActionGalleyErrors tag :: EffectRow
+
+  performAction ::
+    forall r.
+    ( HasConversationActionEffects tag r,
+      SingI tag
+    ) =>
+    Local StoredConversation ->
+    Qualified UserId ->
+    Maybe ConnId ->
+    ConversationAction tag ->
+    Sem r (PerformActionResult tag)
+
+  ensureAllowed ::
+    forall mem r x.
+    ( IsConvMember mem,
+      HasConversationActionEffects tag r,
+      Member (ErrorS ConvNotFound) r,
+      Member (Error FederationError) r,
+      Member TeamSubsystem r
+    ) =>
+    Local x ->
+    ConversationAction tag ->
+    StoredConversation ->
+    ActorContext mem ->
+    Sem r ()
+
+  skipConversationRoleCheck :: StoredConversation -> Maybe TeamMember -> Bool
+  skipConversationRoleCheck _ _ = False
+
+  -- allowChannelManagePermission is necessary to let team admins act as "channel admins" even if their conversation_role isn't wire_admin,
+  -- but only for the intended actions. It’s placed here so we bypass only the generic role check and still enforce
+  -- all channel- and protocol-specific rules afterwards.
+  allowChannelManagePermission :: Bool
+  allowChannelManagePermission = False
+
+instance IsConversationAction 'ConversationJoinTag where
+  type
+    HasConversationActionEffects 'ConversationJoinTag r =
+      ( -- TODO: Replace with subsystems
+        Member BackendNotificationQueueAccess r,
+        Member ConversationSubsystem r,
+        Member TeamCollaboratorsSubsystem r,
+        Member FederationSubsystem r,
+        Member TeamSubsystem r,
+        Member (Input ConversationSubsystemConfig) r,
+        Member E.BrigAPIAccess r,
+        Member (Error FederationError) r,
+        Member (ErrorS 'NotATeamMember) r,
+        Member (ErrorS 'NotConnected) r,
+        Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+        Member (ErrorS 'InvalidOperation) r,
+        Member (ErrorS 'ConvAccessDenied) r,
+        Member (ErrorS 'TooManyMembers) r,
+        Member (ErrorS 'MissingLegalholdConsent) r,
+        Member (ErrorS 'GroupIdVersionNotSupported) r,
+        Member (Error UnreachableBackends) r,
+        Member ExternalAccess r,
+        Member (E.FederationAPIAccess FederatorClient) r,
+        Member NotificationSubsystem r,
+        Member Now r,
+        Member LegalHoldStore r,
+        Member ProposalStore r,
+        Member Random r,
+        Member TeamStore r,
+        Member TinyLog r,
+        Member E.ConversationStore r,
+        Member (Error NoChanges) r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationJoinTag =
+      '[ ErrorS ('ActionDenied 'AddConversationMember),
+         ErrorS 'GroupIdVersionNotSupported,
+         ErrorS 'NotATeamMember,
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound,
+         ErrorS 'NotConnected,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'TooManyMembers,
+         ErrorS 'MissingLegalholdConsent
+       ]
+
+  performAction lconv qusr _conId action = do
+    (extraTargets, action') <- performConversationJoin qusr lconv action
+    pure
+      PerformActionResult
+        { extraTargets = extraTargets,
+          action = action',
+          extraConversationData = def
+        }
+
+  ensureAllowed _ action conv (ActorContext Nothing (Just tm)) =
+    case action of
+      ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
+      ConversationJoin _ _ ExternalAdd -> ensureManageChannelsPermission conv tm
+  ensureAllowed loc action conv (ActorContext (Just origUser) _mTm) =
+    mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
+      ensureConvRoleNotElevated origUser (role action)
+      checkGroupIdSupport loc conv action
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  skipConversationRoleCheck conv =
+    \case
+      Nothing -> False
+      Just _ -> conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationLeaveTag where
+  type
+    HasConversationActionEffects 'ConversationLeaveTag r =
+      ( Member (Input ConversationSubsystemConfig) r,
+        Member BackendNotificationQueueAccess r,
+        Member ExternalAccess r,
+        Member E.ConversationStore r,
+        Member NotificationSubsystem r,
+        Member ProposalStore r,
+        Member Random r,
+        Member Now r,
+        Member (Error FederationError) r,
+        Member TinyLog r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationLeaveTag =
+      '[ ErrorS ('ActionDenied 'LeaveConversation),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv qusr _conId () = do
+    leaveConversation qusr lconv
+    pure $ mkPerformActionResult ()
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+instance IsConversationAction 'ConversationRemoveMembersTag where
+  type
+    HasConversationActionEffects 'ConversationRemoveMembersTag r =
+      ( Member (Error NoChanges) r,
+        Member E.ConversationStore r,
+        Member (Input ConversationSubsystemConfig) r,
+        Member (Error FederationError) r,
+        Member TinyLog r,
+        Member BackendNotificationQueueAccess r,
+        Member ExternalAccess r,
+        Member ProposalStore r,
+        Member Now r,
+        Member Random r,
+        Member NotificationSubsystem r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationRemoveMembersTag =
+      '[ ErrorS ('ActionDenied 'RemoveConversationMember),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv _qusr _conId action = do
+    let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
+    when (null presentVictims) noChanges
+    traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
+    -- send remove proposals in the MLS case
+    traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
+    pure $ mkPerformActionResult action -- FUTUREWORK: should we return the filtered action here?
+
+  ensureAllowed _ _action conv (ActorContext Nothing (Just tm)) =
+    ensureManageChannelsPermission conv tm
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationMemberUpdateTag where
+  type
+    HasConversationActionEffects 'ConversationMemberUpdateTag r =
+      ( Member (ErrorS 'ConvMemberNotFound) r,
+        Member E.ConversationStore r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationMemberUpdateTag =
+      '[ ErrorS ('ActionDenied 'ModifyOtherConversationMember),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound,
+         ErrorS 'ConvMemberNotFound
+       ]
+
+  performAction lconv _qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    void $ ensureOtherMember lconv (cmuTarget action) storedConv
+    E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
+    pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationDeleteTag where
+  type
+    HasConversationActionEffects 'ConversationDeleteTag r =
+      ( Member (ErrorS 'NotATeamMember) r,
+        Member E.ConversationStore r,
+        Member ProposalStore r,
+        Member CodeStore r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationDeleteTag =
+      '[ ErrorS ('ActionDenied 'DeleteConversation),
+         ErrorS 'NotATeamMember,
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv _qusr _conId () = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    let deleteGroup groupId = do
+          E.removeAllMLSClients groupId
+          E.deleteAllProposals groupId
+
+    let cid = storedConv.id_
+    for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
+      sconvs <- E.listSubConversations cid
+      for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
+        let gidSub = cnvmlsGroupId mlsData
+        E.deleteSubConversation cid subid
+        deleteGroup gidSub
+      deleteGroup gidParent
+
+    key <- E.makeKey (tUnqualified lcnv)
+    E.deleteCode key
+    case convTeam storedConv of
+      Nothing -> E.deleteConversation (tUnqualified lcnv)
+      Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
+
+    pure $ mkPerformActionResult ()
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed loc _action conv (ActorContext (Just origUser) _mTm) =
+    for_ (convTeam conv) $ \tid -> do
+      lusr <- ensureLocal loc (convMemberId loc origUser)
+      void $ TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= noteS @'NotATeamMember
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationRenameTag where
+  type
+    HasConversationActionEffects 'ConversationRenameTag r =
+      ( Member TeamSubsystem r,
+        Member (ErrorS InvalidOperation) r,
+        Member (Error InvalidInput) r,
+        Member E.ConversationStore r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationRenameTag =
+      '[ ErrorS ('ActionDenied 'ModifyConversationName),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    zusrMembership <- join <$> forM storedConv.metadata.cnvmTeam (TeamSubsystem.internalGetTeamMember (qUnqualified qusr))
+    for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
+    cn <- rangeChecked (cupName action)
+    E.setConversationName (tUnqualified lcnv) cn
+    pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action conv (ActorContext Nothing (Just tm)) =
+    ensureManageChannelsPermission conv tm
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationAccessDataTag where
+  type
+    HasConversationActionEffects 'ConversationAccessDataTag r =
+      ( Member E.BrigAPIAccess r,
+        Member CodeStore r,
+        Member (Error NoChanges) r,
+        Member (ErrorS 'InvalidTargetAccess) r,
+        Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+        Member ExternalAccess r,
+        Member E.FireAndForget r,
+        Member NotificationSubsystem r,
+        Member (Input ConversationSubsystemConfig) r,
+        Member ProposalStore r,
+        Member TinyLog r,
+        Member Now r,
+        Member E.ConversationStore r,
+        Member Random r,
+        Member (Error FederationError) r,
+        Member BackendNotificationQueueAccess r,
+        Member ConversationSubsystem r,
+        Member TeamSubsystem r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationAccessDataTag =
+      '[ ErrorS ('ActionDenied 'RemoveConversationMember),
+         ErrorS ('ActionDenied 'ModifyConversationAccess),
+         ErrorS 'InvalidOperation,
+         ErrorS 'InvalidTargetAccess,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv qusr _conId action = do
+    (bm, act) <- performConversationAccessData qusr lconv action
+    pure
+      PerformActionResult
+        { extraTargets = bm,
+          action = act,
+          extraConversationData = def
+        }
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc action conv (ActorContext (Just origUser) mTm) = do
+    -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
+    -- so on; users not supposed to be able to make other conversations
+    -- have 'PrivateAccessRole'
+    when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
+      throwS @'InvalidTargetAccess
+    -- Team conversations incur another round of checks
+    case convTeam conv of
+      Just _ -> do
+        -- Access mode change might result in members being removed from the
+        -- conversation, so the user must have the necessary permission flag,
+        -- unless the actor is a team member with ManageChannels on a channel.
+        unless (maybe False (hasManageChannelsPermission conv) mTm) $ ensureActionAllowed SRemoveConversationMember origUser
+      Nothing ->
+        -- not a team conv, so one of the other access roles has to allow this.
+        when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
+          throwS @'InvalidTargetAccess
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationHistoryUpdateTag where
+  type
+    HasConversationActionEffects 'ConversationHistoryUpdateTag r =
+      ( Member E.ConversationStore r,
+        Member (ErrorS HistoryNotSupported) r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationHistoryUpdateTag =
+      '[ ErrorS (ActionDenied ModifyConversationAccess),
+         ErrorS HistoryNotSupported,
+         ErrorS InvalidOperation,
+         ErrorS ConvNotFound
+       ]
+
+  performAction lconv _qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    when (storedConv.metadata.cnvmGroupConvType /= Just Channel) $ do
+      throwS @HistoryNotSupported
+    E.setConversationHistory (tUnqualified lcnv) action
+    pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+instance IsConversationAction 'ConversationMessageTimerUpdateTag where
+  type
+    HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
+      ( Member E.ConversationStore r,
+        Member (Error NoChanges) r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag =
+      '[ ErrorS ('ActionDenied 'ModifyConversationMessageTimer),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv _qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    when (Data.convMessageTimer storedConv == cupMessageTimer action) noChanges
+    E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
+    pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _) _) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationReceiptModeUpdateTag where
+  type
+    HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
+      ( Member (ErrorS MLSReadReceiptsNotAllowed) r,
+        Member E.ConversationStore r,
+        Member (Error NoChanges) r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag =
+      '[ ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
+         ErrorS 'InvalidOperation,
+         ErrorS 'MLSReadReceiptsNotAllowed,
+         ErrorS 'ConvNotFound
+       ]
+
+  performAction lconv _qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    when (Data.convReceiptMode storedConv == Just (cruReceiptMode action)) noChanges
+    E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
+    pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
+    -- cannot update receipt mode of MLS conversations
+    when (convProtocolTag conv == ProtocolMLSTag) $
+      throwS @MLSReadReceiptsNotAllowed
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+instance IsConversationAction 'ConversationUpdateProtocolTag where
+  type
+    HasConversationActionEffects 'ConversationUpdateProtocolTag r =
+      ( Member FeaturesConfigSubsystem r,
+        Member BackendNotificationQueueAccess r,
+        Member NotificationSubsystem r,
+        Member E.BrigAPIAccess r,
+        Member ExternalAccess r,
+        Member TinyLog r,
+        Member (Error NoChanges) r,
+        Member E.ConversationStore r,
+        Member Now r,
+        Member Random r,
+        Member (Input ConversationSubsystemConfig) r,
+        Member ProposalStore r,
+        Member (ErrorS ConvInvalidProtocolTransition) r,
+        Member (E.FederationAPIAccess FederatorClient) r,
+        Member (ErrorS MLSMigrationCriteriaNotSatisfied) r,
+        Member (Error FederationError) r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationUpdateProtocolTag =
+      '[ ErrorS ('ActionDenied 'LeaveConversation),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound,
+         ErrorS 'ConvInvalidProtocolTransition,
+         ErrorS 'MLSMigrationCriteriaNotSatisfied
+       ]
+
+  performAction lconv qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
+      (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
+        let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
+            epoch = Epoch 0
+        E.updateToMixedProtocol (tUnqualified lcnv) gid epoch
+        pure $ mkPerformActionResult action
+      (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
+        mig <- getFeatureForTeam tid
+        now <- Now.get
+        mlsConv <- mkMLSConversation storedConv >>= noteS @'ConvInvalidProtocolTransition
+        ok <- checkMigrationCriteria now mlsConv mig
+        unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
+        removeExtraneousClients qusr lconv
+        E.updateToMLSProtocol (tUnqualified lcnv)
+        pure $ mkPerformActionResult action
+      (ProtocolProteusTag, ProtocolProteusTag, _) ->
+        noChanges
+      (ProtocolMixedTag, ProtocolMixedTag, _) ->
+        noChanges
+      (ProtocolMLSTag, ProtocolMLSTag, _) ->
+        noChanges
+      (_, _, _) -> throwS @'ConvInvalidProtocolTransition
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+instance IsConversationAction 'ConversationUpdateAddPermissionTag where
+  type
+    HasConversationActionEffects 'ConversationUpdateAddPermissionTag r =
+      ( Member (ErrorS 'InvalidTargetAccess) r,
+        Member (Error NoChanges) r,
+        Member E.ConversationStore r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationUpdateAddPermissionTag =
+      '[ ErrorS ('ActionDenied 'ModifyAddPermission),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound,
+         ErrorS 'InvalidTargetAccess
+       ]
+
+  performAction lconv _qusr _conId action = do
+    let lcnv = fmap (.id_) lconv
+        storedConv = tUnqualified lconv
+    when (storedConv.metadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
+    E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
+    pure $ mkPerformActionResult action
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action conv (ActorContext (Just _origUser) _mTm) = do
+    unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
+
+  allowChannelManagePermission = True
+
+instance IsConversationAction 'ConversationResetTag where
+  type
+    HasConversationActionEffects 'ConversationResetTag r =
+      ( Member BackendNotificationQueueAccess r,
+        Member (E.FederationAPIAccess FederatorClient) r,
+        Member ExternalAccess r,
+        Member ConversationSubsystem r,
+        Member E.ConversationStore r,
+        Member NotificationSubsystem r,
+        Member ProposalStore r,
+        Member E.MLSCommitLockStore r,
+        Member Resource r,
+        Member (Input ConversationSubsystemConfig) r,
+        Member (ErrorS MLSStaleMessage) r,
+        Member (ErrorS ConvNotFound) r,
+        Member (ErrorS InvalidOperation) r,
+        Member Random r,
+        Member Now r,
+        Member TinyLog r
+      )
+
+  type
+    HasConversationActionGalleyErrors 'ConversationResetTag =
+      '[ ErrorS (ActionDenied LeaveConversation),
+         ErrorS MLSStaleMessage,
+         ErrorS InvalidOperation,
+         ErrorS ConvNotFound
+       ]
+
+  performAction lconv qusr _conId action = do
+    newGroupId <- resetLocalMLSMainConversation qusr lconv action
+    pure
+      PerformActionResult
+        { extraTargets = mempty,
+          action = action,
+          extraConversationData = ExtraConversationData (Just newGroupId)
+        }
+
+  ensureAllowed _ _action _conv (ActorContext Nothing (Just _tm)) =
+    throwS @'ConvNotFound
+  ensureAllowed _loc _action _conv (ActorContext (Just _origUser) _mTm) =
+    pure ()
+  ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 noChanges :: (Member (Error NoChanges) r) => Sem r a
 noChanges = throw NoChanges
-
-ensureAllowed ::
-  forall tag mem r x.
-  ( IsConvMember mem,
-    HasConversationActionEffects tag r,
-    Member (ErrorS ConvNotFound) r,
-    Member (Error FederationError) r,
-    Member TeamSubsystem r
-  ) =>
-  Sing tag ->
-  Local x ->
-  ConversationAction tag ->
-  StoredConversation ->
-  ActorContext mem ->
-  Sem r ()
-ensureAllowed tag _ action conv (ActorContext Nothing (Just tm)) = do
-  case tag of
-    SConversationRenameTag -> ensureManageChannelsPermission conv tm
-    SConversationJoinTag -> do
-      case action of
-        ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
-        ConversationJoin _ _ ExternalAdd -> ensureManageChannelsPermission conv tm
-    SConversationRemoveMembersTag -> ensureManageChannelsPermission conv tm
-    _ -> throwS @'ConvNotFound
-ensureAllowed tag loc action conv (ActorContext (Just origUser) mTm) = do
-  case tag of
-    SConversationJoinTag ->
-      mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
-        ensureConvRoleNotElevated origUser (role action)
-        checkGroupIdSupport loc conv action
-    SConversationDeleteTag ->
-      for_ (convTeam conv) $ \tid -> do
-        lusr <- ensureLocal loc (convMemberId loc origUser)
-        void $ TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid >>= noteS @'NotATeamMember
-    SConversationAccessDataTag -> do
-      -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
-      -- so on; users not supposed to be able to make other conversations
-      -- have 'PrivateAccessRole'
-      when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
-        throwS @'InvalidTargetAccess
-      -- Team conversations incur another round of checks
-      case convTeam conv of
-        Just _ -> do
-          -- Access mode change might result in members being removed from the
-          -- conversation, so the user must have the necessary permission flag,
-          -- unless the actor is a team member with ManageChannels on a channel.
-          unless (maybe False (hasManageChannelsPermission conv) mTm) $ ensureActionAllowed SRemoveConversationMember origUser
-        Nothing ->
-          -- not a team conv, so one of the other access roles has to allow this.
-          when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
-            throwS @'InvalidTargetAccess
-    SConversationUpdateAddPermissionTag -> do
-      unless (conv.metadata.cnvmGroupConvType == Just Channel) $ throwS @'InvalidTargetAccess
-    SConversationReceiptModeUpdateTag -> do
-      -- cannot update receipt mode of MLS conversations
-      when (convProtocolTag conv == ProtocolMLSTag) $
-        throwS @MLSReadReceiptsNotAllowed
-    _ -> pure ()
-ensureAllowed _ _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
 data PerformActionResult tag
   = PerformActionResult
@@ -451,144 +749,9 @@ mkPerformActionResult action =
       extraConversationData = def
     }
 
--- | Returns additional members that resulted from the action (e.g. ConversationJoin)
--- and also returns the (possible modified) action that was performed
-performAction ::
-  forall tag r.
-  ( HasConversationActionEffects tag r,
-    Member BackendNotificationQueueAccess r,
-    Member TeamCollaboratorsSubsystem r,
-    Member (Error FederationError) r,
-    Member ConversationSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r,
-    Member FederationSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
-  Sing tag ->
-  Qualified UserId ->
-  Local StoredConversation ->
-  ConversationAction tag ->
-  Sem r (PerformActionResult tag)
-performAction tag origUser lconv action = do
-  let lcnv = fmap (.id_) lconv
-      storedConv = tUnqualified lconv
-  case tag of
-    SConversationJoinTag -> do
-      (extraTargets, action') <- performConversationJoin origUser lconv action
-      pure
-        PerformActionResult
-          { extraTargets = extraTargets,
-            action = action',
-            extraConversationData = def
-          }
-    SConversationLeaveTag -> do
-      leaveConversation origUser lconv
-      pure $ mkPerformActionResult action
-    SConversationRemoveMembersTag -> do
-      let presentVictims = filter (isConvMemberL lconv) (toList . crmTargets $ action)
-      when (null presentVictims) noChanges
-      traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
-      -- send remove proposals in the MLS case
-      traverse_ (removeUser lconv RemoveUserExcludeMain) presentVictims
-      pure $ mkPerformActionResult action -- FUTUREWORK: should we return the filtered action here?
-    SConversationMemberUpdateTag -> do
-      void $ ensureOtherMember lconv (cmuTarget action) storedConv
-      E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
-      pure $ mkPerformActionResult action
-    SConversationDeleteTag -> do
-      let deleteGroup groupId = do
-            E.removeAllMLSClients groupId
-            E.deleteAllProposals groupId
-
-      let cid = storedConv.id_
-      for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
-        sconvs <- E.listSubConversations cid
-        for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
-          let gidSub = cnvmlsGroupId mlsData
-          E.deleteSubConversation cid subid
-          deleteGroup gidSub
-        deleteGroup gidParent
-
-      key <- E.makeKey (tUnqualified lcnv)
-      E.deleteCode key
-      case convTeam storedConv of
-        Nothing -> E.deleteConversation (tUnqualified lcnv)
-        Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
-
-      pure $ mkPerformActionResult action
-    SConversationRenameTag -> do
-      zusrMembership <- join <$> forM storedConv.metadata.cnvmTeam (TeamSubsystem.internalGetTeamMember (qUnqualified origUser))
-      for_ zusrMembership $ \tm -> unless (tm `hasPermission` ModifyConvName) $ throwS @'InvalidOperation
-      cn <- rangeChecked (cupName action)
-      E.setConversationName (tUnqualified lcnv) cn
-      pure $ mkPerformActionResult action
-    SConversationMessageTimerUpdateTag -> do
-      when (Data.convMessageTimer storedConv == cupMessageTimer action) noChanges
-      E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
-      pure $ mkPerformActionResult action
-    SConversationReceiptModeUpdateTag -> do
-      when (Data.convReceiptMode storedConv == Just (cruReceiptMode action)) noChanges
-      E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
-      pure $ mkPerformActionResult action
-    SConversationAccessDataTag -> do
-      (bm, act) <- performConversationAccessData origUser lconv action
-      pure
-        PerformActionResult
-          { extraTargets = bm,
-            action = act,
-            extraConversationData = def
-          }
-    SConversationUpdateProtocolTag -> do
-      case (protocolTag (tUnqualified lconv).protocol, action, convTeam (tUnqualified lconv)) of
-        (ProtocolProteusTag, ProtocolMixedTag, Just _) -> do
-          let gid = Serialisation.newGroupId (convType (tUnqualified lconv)) $ Conv <$> tUntagged lcnv
-              epoch = Epoch 0
-          E.updateToMixedProtocol (tUnqualified lcnv) gid epoch
-          pure $ mkPerformActionResult action
-        (ProtocolMixedTag, ProtocolMLSTag, Just tid) -> do
-          mig <- getFeatureForTeam tid
-          now <- Now.get
-          mlsConv <- mkMLSConversation storedConv >>= noteS @'ConvInvalidProtocolTransition
-          ok <- checkMigrationCriteria now mlsConv mig
-          unless ok $ throwS @'MLSMigrationCriteriaNotSatisfied
-          removeExtraneousClients origUser lconv
-          E.updateToMLSProtocol (tUnqualified lcnv)
-          pure $ mkPerformActionResult action
-        (ProtocolProteusTag, ProtocolProteusTag, _) ->
-          noChanges
-        (ProtocolMixedTag, ProtocolMixedTag, _) ->
-          noChanges
-        (ProtocolMLSTag, ProtocolMLSTag, _) ->
-          noChanges
-        (_, _, _) -> throwS @'ConvInvalidProtocolTransition
-    SConversationUpdateAddPermissionTag -> do
-      when (storedConv.metadata.cnvmChannelAddPermission == Just (addPermission action)) noChanges
-      E.updateChannelAddPermissions (tUnqualified lcnv) (addPermission action)
-      pure $ mkPerformActionResult action
-    SConversationResetTag -> do
-      newGroupId <- resetLocalMLSMainConversation origUser lconv action
-      pure
-        PerformActionResult
-          { extraTargets = mempty,
-            action = action,
-            extraConversationData = ExtraConversationData (Just newGroupId)
-          }
-    SConversationHistoryUpdateTag -> do
-      when (storedConv.metadata.cnvmGroupConvType /= Just Channel) $ do
-        throwS @HistoryNotSupported
-      E.setConversationHistory (tUnqualified lcnv) action
-      pure $ mkPerformActionResult action
-
 performConversationJoin ::
   forall r.
-  ( HasConversationActionEffects 'ConversationJoinTag r,
-    Member BackendNotificationQueueAccess r,
-    Member ConversationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r
-  ) =>
+  (HasConversationActionEffects 'ConversationJoinTag r) =>
   Qualified UserId ->
   Local StoredConversation ->
   ConversationJoin ->
@@ -738,12 +901,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
         Nothing -> pure ()
 
 performConversationAccessData ::
-  ( HasConversationActionEffects 'ConversationAccessDataTag r,
-    Member (Error FederationError) r,
-    Member BackendNotificationQueueAccess r,
-    Member ConversationSubsystem r,
-    Member TeamSubsystem r
-  ) =>
+  (HasConversationActionEffects 'ConversationAccessDataTag r) =>
   Qualified UserId ->
   Local StoredConversation ->
   ConversationAccessData ->
@@ -791,7 +949,7 @@ performConversationAccessData qusr lconv action = do
         then pure bm
         else pure $ bm {bmBots = mempty}
 
-    maybeRemoveGuests :: (Member BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveGuests :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
       if Set.member GuestAccessRole (cupAccessRoles action)
         then pure bm
@@ -820,22 +978,392 @@ performConversationAccessData qusr lconv action = do
             pure $ bm {bmLocals = Set.fromList noTeamMembers}
           Nothing -> pure bm
 
+updateLocalConversationJoin ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationJoinTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member E.BrigAPIAccess r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error UnreachableBackends) r,
+    Member ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member LegalHoldStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member E.ConversationStore r,
+    Member (Error NoChanges) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationJoin ->
+  Sem r LocalConversationUpdate
+updateLocalConversationJoin =
+  updateLocalConversation @'ConversationJoinTag
+
+updateLocalConversationLeave ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationLeaveTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member ProposalStore r,
+    Member E.ConversationStore r,
+    Member Random r,
+    Member TinyLog r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Sem r LocalConversationUpdate
+updateLocalConversationLeave lcnvId qusr connId =
+  updateLocalConversation @'ConversationLeaveTag lcnvId qusr connId ()
+
+updateLocalConversationMemberUpdate ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationMemberUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member (ErrorS ConvMemberNotFound) r,
+    Member E.ConversationStore r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationMemberUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationMemberUpdate =
+  updateLocalConversation @'ConversationMemberUpdateTag
+
+updateLocalConversationDelete ::
+  ( Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationDeleteTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member CodeStore r,
+    Member E.ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member ProposalStore r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Sem r LocalConversationUpdate
+updateLocalConversationDelete lcnvId uid connId =
+  updateLocalConversation @'ConversationDeleteTag lcnvId uid connId ()
+
+updateLocalConversationRename ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRenameTag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member (Error InvalidInput) r,
+    Member E.ConversationStore r,
+    Member (ErrorS InvalidOperation) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationRename ->
+  Sem r LocalConversationUpdate
+updateLocalConversationRename =
+  updateLocalConversation @'ConversationRenameTag
+
+updateLocalConversationMessageTimerUpdate ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationMessageTimerUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member E.ConversationStore r,
+    Member (Error NoChanges) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationMessageTimerUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationMessageTimerUpdate =
+  updateLocalConversation @'ConversationMessageTimerUpdateTag
+
+updateLocalConversationReceiptModeUpdate ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationReceiptModeUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member E.ConversationStore r,
+    Member (Error NoChanges) r,
+    Member (ErrorS MLSReadReceiptsNotAllowed) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationReceiptModeUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationReceiptModeUpdate =
+  updateLocalConversation @'ConversationReceiptModeUpdateTag
+
+updateLocalConversationAccessData ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationAccessDataTag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Error NoChanges) r,
+    Member TinyLog r,
+    Member E.ConversationStore r,
+    Member E.BrigAPIAccess r,
+    Member CodeStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member E.FireAndForget r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'InvalidTargetAccess) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationAccessData ->
+  Sem r LocalConversationUpdate
+updateLocalConversationAccessData =
+  updateLocalConversation @'ConversationAccessDataTag
+
+updateLocalConversationRemoveMembers ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRemoveMembersTag))) r,
+    Member ConversationSubsystem r,
+    Member (Error NoChanges) r,
+    Member TinyLog r,
+    Member E.ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationRemoveMembers ->
+  Sem r LocalConversationUpdate
+updateLocalConversationRemoveMembers =
+  updateLocalConversation @'ConversationRemoveMembersTag
+
+updateLocalConversationUpdateProtocol ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationUpdateProtocolTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Error NoChanges) r,
+    Member (E.FederationAPIAccess FederatorClient) r,
+    Member TinyLog r,
+    Member E.ConversationStore r,
+    Member E.BrigAPIAccess r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS 'ConvInvalidProtocolTransition) r,
+    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ProtocolTag ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUpdateProtocol =
+  updateLocalConversation @'ConversationUpdateProtocolTag
+
+updateLocalConversationUpdateAddPermission ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationUpdateAddPermissionTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (Error NoChanges) r,
+    Member E.ConversationStore r,
+    Member TeamSubsystem r,
+    Member (ErrorS 'InvalidTargetAccess) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  AddPermissionUpdate ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUpdateAddPermission =
+  updateLocalConversation @'ConversationUpdateAddPermissionTag
+
+updateLocalConversationReset ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationResetTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member (E.FederationAPIAccess FederatorClient) r,
+    Member TinyLog r,
+    Member E.ConversationStore r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member ProposalStore r,
+    Member Now r,
+    Member Random r,
+    Member Resource r,
+    Member E.MLSCommitLockStore r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS MLSStaleMessage) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  MLSReset ->
+  Sem r LocalConversationUpdate
+updateLocalConversationReset =
+  updateLocalConversation @'ConversationResetTag
+
+updateLocalConversationHistoryUpdate ::
+  ( Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationHistoryUpdateTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member E.ConversationStore r,
+    Member TeamSubsystem r,
+    Member (ErrorS HistoryNotSupported) r
+  ) =>
+  Local ConvId ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  History ->
+  Sem r LocalConversationUpdate
+updateLocalConversationHistoryUpdate =
+  updateLocalConversation @'ConversationHistoryUpdateTag
+
+updateLocalConversationUncheckedJoin ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationJoinTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member FederationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member E.BrigAPIAccess r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'TooManyMembers) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error UnreachableBackends) r,
+    Member ExternalAccess r,
+    Member (E.FederationAPIAccess FederatorClient) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member LegalHoldStore r,
+    Member ProposalStore r,
+    Member Random r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member E.ConversationStore r,
+    Member (Error NoChanges) r
+  ) =>
+  Local StoredConversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationJoin ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUncheckedJoin =
+  updateLocalConversationUnchecked @'ConversationJoinTag
+
+updateLocalConversationUncheckedRemoveMembers ::
+  ( Member BackendNotificationQueueAccess r,
+    Member (Error FederationError) r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationRemoveMembersTag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member (Input ConversationSubsystemConfig) r,
+    Member (Error NoChanges) r,
+    Member E.ConversationStore r,
+    Member ProposalStore r,
+    Member Now r,
+    Member ExternalAccess r,
+    Member NotificationSubsystem r,
+    Member Random r,
+    Member TinyLog r
+  ) =>
+  Local StoredConversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  ConversationRemoveMembers ->
+  Sem r LocalConversationUpdate
+updateLocalConversationUncheckedRemoveMembers =
+  updateLocalConversationUnchecked @'ConversationRemoveMembersTag
+
 updateLocalConversation ::
   forall tag r.
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
+  ( Member E.ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
+    IsConversationAction tag,
     SingI tag,
-    Member FederationSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -861,18 +1389,14 @@ updateLocalConversation lcnv qusr con action = do
 updateLocalConversationUnchecked ::
   forall tag r.
   ( SingI tag,
-    Member BackendNotificationQueueAccess r,
+    IsConversationAction tag,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member ConversationSubsystem r,
     HasConversationActionEffects tag r,
-    Member TeamCollaboratorsSubsystem r,
-    Member FederationSubsystem r,
-    Member E.MLSCommitLockStore r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local StoredConversation ->
   Qualified UserId ->
@@ -884,7 +1408,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
       conv = tUnqualified lconv
   mTeamMember <- foldQualified lconv (getTeamMembership conv) (const $ pure Nothing) qusr
   ensureConversationActionAllowed (sing @tag) lcnv conv mTeamMember
-  par <- performAction (sing @tag) qusr lconv action
+  par <- performAction @tag lconv qusr con action
   sendConversationActionNotifications
     (sing @tag)
     qusr
@@ -906,32 +1430,13 @@ updateLocalConversationUnchecked lconv qusr con action = do
       -- permission unless we intentionally skip it (channel overrides or
       -- special join case).
       unless
-        (skipConversationRoleCheck tag conv mTeamMember || (hasChannelManagePerm && channelAdminOverride tag))
+        (skipConversationRoleCheck @tag conv mTeamMember || (hasChannelManagePerm && allowChannelManagePermission @tag))
         (for_ mMem (ensureActionAllowed (sConversationActionPermission tag)))
 
       checkConversationType (fromSing tag) conv
 
       -- extra action-specific checks
-      ensureAllowed tag loc action conv (ActorContext mMem mTeamMember)
-
-    skipConversationRoleCheck :: Sing tag -> StoredConversation -> Maybe TeamMember -> Bool
-    skipConversationRoleCheck SConversationJoinTag conv (Just _) = conv.metadata.cnvmChannelAddPermission == Just AddPermission.Everyone
-    skipConversationRoleCheck _ _ _ = False
-
-    -- channelAdminOverride is necessary to let team admins act as "channel admins" even if their conversation_role isn't wire_admin,
-    -- but only for the intended actions. It’s placed here so we bypass only the generic role check and still enforce
-    -- all channel- and protocol-specific rules afterwards.
-    channelAdminOverride :: Sing tag -> Bool
-    channelAdminOverride = \case
-      SConversationJoinTag -> True
-      SConversationRemoveMembersTag -> True
-      SConversationMemberUpdateTag -> True
-      SConversationRenameTag -> True
-      SConversationMessageTimerUpdateTag -> True
-      SConversationAccessDataTag -> True
-      SConversationUpdateAddPermissionTag -> True
-      SConversationDeleteTag -> True
-      _ -> False
+      ensureAllowed @tag loc action conv (ActorContext mMem mTeamMember)
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
@@ -940,7 +1445,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
   ( Member (Error NoChanges) r,
-    Member ConversationStore r
+    Member E.ConversationStore r
   ) =>
   Local ConvId ->
   UserList UserId ->
@@ -953,7 +1458,7 @@ addMembersToLocalConversation lcnv users role joinType = do
   let action = ConversationJoin neUsers role joinType
   pure (bmFromMembers lmems rmems, action)
 
-setOutOfSyncFlag :: (Member ConversationStore r) => Local StoredConversation -> UserList UserId -> Sem r ()
+setOutOfSyncFlag :: (Member E.ConversationStore r) => Local StoredConversation -> UserList UserId -> Sem r ()
 setOutOfSyncFlag (tUnqualified -> conv) newMembers =
   let goingOutOfSync
         | ulNull newMembers = False
@@ -968,11 +1473,11 @@ setOutOfSyncFlag (tUnqualified -> conv) newMembers =
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 updateLocalStateOfRemoteConv ::
-  ( Member BrigAPIAccess r,
+  ( Member E.BrigAPIAccess r,
     Member NotificationSubsystem r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
-    Member ConversationStore r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Remote F.ConversationUpdate ->
@@ -1057,8 +1562,8 @@ updateLocalStateOfRemoteConv rcu con = do
     pushConversationEvent con () event (qualifyAs loc targets) [] $> event
 
 addLocalUsersToRemoteConv ::
-  ( Member BrigAPIAccess r,
-    Member ConversationStore r,
+  ( Member E.BrigAPIAccess r,
+    Member E.ConversationStore r,
     Member P.TinyLog r
   ) =>
   Remote ConvId ->
@@ -1097,7 +1602,7 @@ notifyTypingIndicator ::
   ( Member Now r,
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
-    Member (FederationAPIAccess FederatorClient) r
+    Member (E.FederationAPIAccess FederatorClient) r
   ) =>
   StoredConversation ->
   Qualified UserId ->

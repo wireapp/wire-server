@@ -30,8 +30,8 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error)
 import Polysemy.Input
-import Wire.API.App qualified as App
 import Wire.API.PostgresMarshall
+import Wire.API.User qualified as User
 import Wire.AppStore
 import Wire.Postgres
 
@@ -72,10 +72,17 @@ getAppImpl ::
   TeamId ->
   Sem r (Maybe StoredApp)
 getAppImpl uid tid =
-  runStatement (uid, tid) $
-    dimapPG
-      [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
+  eraseMetadata <$$> do
+    runStatement (uid, tid) $
+      dimapPG
+        [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
         from apps where user_id = ($1 :: uuid) and team_id = ($2 :: uuid) |]
+
+-- `metadata` is unused, can be removed from postgres schema.  for now
+-- we just ignore it instead of removing it from the database to avoid
+-- migration issues.  ~~fisx
+eraseMetadata :: StoredApp -> StoredApp
+eraseMetadata sap = sap {meta = mempty}
 
 getAppsImpl ::
   ( Member (Input Pool) r,
@@ -85,9 +92,10 @@ getAppsImpl ::
   TeamId ->
   Sem r [StoredApp]
 getAppsImpl tid =
-  runStatement tid $
-    dimapPG
-      [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
+  eraseMetadata <$$> do
+    runStatement tid $
+      dimapPG
+        [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
         from apps where team_id = ($1 :: uuid) |]
 
 updateAppImpl ::
@@ -100,7 +108,7 @@ updateAppImpl ::
   StoredAppUpdate ->
   Sem r (Either AppStoreError ())
 updateAppImpl (toUUID -> teamId) (toUUID -> appId) upd = do
-  found <- case (App.categoryToText <$> upd.category, fromRange <$> upd.description) of
+  found <- case (User.fromCategory <$> upd.category, fromRange <$> upd.description) of
     (Just cat, Just desc) ->
       runStatement (cat, desc, appId, teamId) $
         [maybeStatement|

@@ -19,6 +19,9 @@ module Galley.API.Meetings
   ( createMeeting,
     updateMeeting,
     getMeeting,
+    listMeetings,
+    addMeetingInvitation,
+    removeMeetingInvitation,
   )
 where
 
@@ -104,3 +107,51 @@ getMeeting zUser domain meetingId = do
   case maybeMeeting of
     Nothing -> throwS @'MeetingNotFound
     Just meeting -> pure meeting
+
+listMeetings ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member TeamStore.TeamStore r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'InvalidOperation) r
+  ) =>
+  Local UserId ->
+  Sem r [Meeting]
+listMeetings lUser = do
+  checkMeetingsEnabled (tUnqualified lUser)
+  Meetings.listMeetings lUser
+
+addMeetingInvitation ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r,
+    Member TeamStore.TeamStore r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'InvalidOperation) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  MeetingEmailsInvitation ->
+  Sem r ()
+addMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+  checkMeetingsEnabled (tUnqualified zUser)
+  let qMeetingId = Qualified meetingId domain
+  success <- Meetings.addInvitedEmails zUser qMeetingId emails
+  unless success $ throwS @'MeetingNotFound
+
+removeMeetingInvitation ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r,
+    Member TeamStore.TeamStore r,
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'InvalidOperation) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  MeetingEmailsInvitation ->
+  Sem r ()
+removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+  checkMeetingsEnabled (tUnqualified zUser)
+  let qMeetingId = Qualified meetingId domain
+  success <- Meetings.removeInvitedEmails zUser qMeetingId emails
+  unless success $ throwS @'MeetingNotFound

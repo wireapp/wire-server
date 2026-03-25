@@ -24,6 +24,7 @@ import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.Meeting
+import Wire.API.User.EmailAddress (EmailAddress)
 import Wire.StoredConversation (StoredConversation)
 
 data MeetingsSubsystem m a where
@@ -40,5 +41,18 @@ data MeetingsSubsystem m a where
     Local UserId ->
     Qualified MeetingId ->
     MeetingsSubsystem m (Maybe Meeting)
+  ListMeetings ::
+    Local UserId ->
+    MeetingsSubsystem m [Meeting]
+  AddInvitedEmails ::
+    Local UserId ->
+    Qualified MeetingId ->
+    [EmailAddress] ->
+    MeetingsSubsystem m Bool
+  RemoveInvitedEmails ::
+    Local UserId ->
+    Qualified MeetingId ->
+    [EmailAddress] ->
+    MeetingsSubsystem m Bool
 
 makeSem ''MeetingsSubsystem

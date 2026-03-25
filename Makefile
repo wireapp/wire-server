@@ -23,6 +23,7 @@ KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 PSQL_DB               ?= backendA
 export PSQL_DB
+DEPENDENCY_TRACK_PROJECT_NAME ?= wire-server
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -76,6 +77,7 @@ endif
   # `/dist` and `.ghc.environment` shouldn't be created or used by anybody any more, we're just making sure here.
 	-rm -rf dist .ghc.environment
 	-rm -f "bill-of-materials.$(HELM_SEMVER).json"
+	-rm -rf tmp/sboms
 
 .PHONY: clean-hint
 clean-hint:
@@ -122,7 +124,7 @@ endif
 .PHONY: ci-safe
 ci-safe:
 	make c package=all
-	./hack/bin/cabal-run-integration.sh integration
+	make ci-fast
 
 .PHONY: ci
 ci:
@@ -347,9 +349,9 @@ postgres-schema-impl:
 
 .PHONY: cqlsh
 cqlsh:
-	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
+	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep 'cassandra' | perl -ne '/^(\S+)\s/ && print $$1'))
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
+	docker exec -it $(CASSANDRA_CONTAINER) cqlsh
 
 .PHONY: psql
 psql:
@@ -565,6 +567,11 @@ charts-serve-all: $(foreach chartName,$(CHARTS_RELEASE),chart-$(chartName))
 .PHONY: charts-release
 charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName))
 
+# Prepare .local/charts to be read by `helmfile`
+.PHONY: .local/charts
+.local/charts: charts-release
+	./hack/bin/prepare-local-charts.sh $(CHARTS_RELEASE)
+
 .PHONY: clean-charts
 clean-charts:
 	rm -rf .local/charts
@@ -674,6 +681,28 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
+# Render the wire-server manifest from an explicit values file.
+# Usage:
+#   make render-manifest VALUES_FILE=/tmp/values.yaml
+#   make render-manifest VALUES_FILE=/tmp/values.yaml OUTPUT_FILE=/tmp/rendered.yaml
+# (you can get the live values e.g. like this: helm get values wire-server -n wire -a)
+render-manifest: clean-charts charts-integration
+	./hack/bin/render-manifest.sh "$(VALUES_FILE)"
+
+# Render wire-server from live values and compare it with the live manifest.
+# Usage:
+#   helm get values wire-server -n wire -a > /tmp/staging/live-values.yaml
+#   helm get manifest wire-server -n wire > /tmp/staging/live-manifest.yaml
+#   make diff-live-manifest LIVE_VALUES_FILE=/tmp/staging/live-values.yaml LIVE_MANIFEST_FILE=/tmp/staging/live-manifest.yaml
+diff-live-manifest: clean-charts charts-integration
+	OUTPUT_FILE="/tmp/wire-server.yaml" ./hack/bin/render-manifest.sh "$(LIVE_VALUES_FILE)"; \
+	DIFF_OUTPUT_FILE="$(DIFF_OUTPUT_FILE)" ./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
+
+render-ci-manifest: clean-charts charts-integration
+	VALUES_FILE="$${VALUES_FILE:-$$(mktemp).yaml}"; \
+  ./hack/bin/helm-render-ci-values.sh \
+  ./hack/bin/render-manifest.sh "$$VALUES_FILE"
+
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \
 	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
@@ -686,6 +715,66 @@ upload-bombon: sbom.json
 		--project-version $(HELM_SEMVER) \
 		--auto-create \
 		--bom-file ./sbom.json
+
+# SBOM creation and uploading (Helm charts, Helmfile, docker-compose)
+#
+# For non-Nix environments (Kubernetes, docker-compose) and Helm charts we can
+# use the usual tools and do not need tom-bombadil.
+#
+# There is a Nix `devShell` which provides an environment for these targets, `sbom`.
+# E.g. to run the `sboms` target:
+# `nix develop .\#sbom --command make sboms HELM_SEMVER=... DOCKER_TAG=...`
+#
+# Why don't we simply add this `nix develop` call to the Makefile targets?
+# Targets should be independently executable and creating a Nix env in a Nix
+# env doesn't play well.
+
+# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+.PHONY: sboms
+sboms: sboms-helm sboms-docker-compose sboms-helmfile
+
+# Generate SBOMs for Helm charts
+.PHONY: sboms-helm
+sboms-helm: .local/charts
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-helm-sboms.sh tmp/sboms/helm $(HELM_SEMVER)
+
+# Generate SBOMs for Docker Compose
+.PHONY: sboms-docker-compose
+sboms-docker-compose:
+	./hack/bin/create-docker-compose-sboms.sh tmp/sboms/docker-compose
+
+# Generate SBOMs for Helmfile
+.PHONY: sboms-helmfile
+sboms-helmfile: .local/charts
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-helmfile-sboms.sh tmp/sboms/helmfile $(HELM_SEMVER)
+
+# Validate all SBOM files using cyclonedx
+.PHONY: validate-sboms
+validate-sboms:
+	@echo "Validating SBOM files..."
+	@find tmp/sboms -name '*.json' -type f -not -path '*/.oci-cache/*' | while read sbom; do \
+		echo "Validating: $$sbom"; \
+		cyclonedx validate --input-file "$$sbom" --fail-on-errors; \
+	done
+	@echo "All SBOMs validated successfully"
+
+# Upload all SBOMs to Dependency Track
+# Requires DEPENDENCY_TRACK_API_KEY environment variable
+.PHONY: upload-sboms
+upload-sboms:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/upload-all-sboms.sh $(DEPENDENCY_TRACK_PROJECT_NAME) "$(HELM_SEMVER)"
 
 .PHONY: openapi-validate
 openapi-validate:

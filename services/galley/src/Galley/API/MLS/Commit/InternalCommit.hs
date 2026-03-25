@@ -37,7 +37,6 @@ import Galley.API.MLS.IncomingMessage
 import Galley.API.MLS.One2One
 import Galley.API.MLS.Proposal
 import Galley.API.MLS.Util
-import Galley.Effects
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -65,6 +64,7 @@ import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Util
 import Wire.FederationSubsystem
 import Wire.ProposalStore
+import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 
@@ -259,7 +259,6 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 addMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
@@ -276,7 +275,7 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
-          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+          . updateLocalConversationUncheckedJoin lconv qusr con
           . (\uids -> ConversationJoin uids roleNameWireMember def)
       )
       . nonEmpty
@@ -288,8 +287,6 @@ addMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
 removeMembers ::
   ( HasProposalActionEffects r,
     Member ConversationSubsystem r,
-    Member MLSCommitLockStore r,
-    Member FederationSubsystem r,
     Member TeamSubsystem r
   ) =>
   Qualified UserId ->
@@ -304,7 +301,7 @@ removeMembers qusr con lConvOrSub users = case tUnqualified lConvOrSub of
       ( handleNoChanges
           . handleMLSProposalFailures @ProposalErrors
           . fmap pure
-          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+          . updateLocalConversationUncheckedRemoveMembers lconv qusr con
           . flip ConversationRemoveMembers EdReasonRemoved
       )
       . nonEmpty

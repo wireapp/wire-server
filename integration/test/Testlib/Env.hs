@@ -133,7 +133,7 @@ mkGlobalEnv cfgFile = do
         gFederationV1Domain = intConfig.federationV1.originDomain,
         gFederationV2Domain = intConfig.federationV2.originDomain,
         gDynamicDomains = (.domain) <$> Map.elems intConfig.dynamicBackends,
-        gDefaultAPIVersion = 15,
+        gDefaultAPIVersion = 16,
         gManager = manager,
         gServicesCwdBase = devEnvProjectRoot <&> (</> "services"),
         gBackendResourcePool = resourcePool,
@@ -169,6 +169,7 @@ mkEnv currentTestName ge = do
   liftIO $ do
     pks <- newIORef (zip [1 ..] somePrekeys)
     lpks <- newIORef someLastPrekeys
+    curlTrace <- newIORef []
     pure
       Env
         { serviceMap = gServiceMap ge,
@@ -201,7 +202,8 @@ mkEnv currentTestName ge = do
           dnsMockServerConfig = ge.gDNSMockServerConfig,
           cellsEventQueue = ge.gCellsEventQueue,
           cellsEventWatchersLock = ge.gCellsEventWatchersLock,
-          cellsEventWatchers = ge.gCellsEventWatchers
+          cellsEventWatchers = ge.gCellsEventWatchers,
+          curlTrace
         }
 
 allCiphersuites :: [Ciphersuite]
