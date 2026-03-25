@@ -180,24 +180,17 @@ header. Envoy's virtual-host matching is exact, so the trailing dot causes a `ro
 error. Adding the FQDN as an additional domain in the route configuration allows Envoy to match
 both the bare hostname and the FQDN.
 
-The policy targets `kind: GatewayClass` (using `gateway.className`) and patches the
-`RouteConfiguration` named `<namespace>/<gateway>/federator`. This approach works correctly with
-`mergeGateways: true` because route configuration names are per-namespace even when multiple
-Gateways share a single Envoy proxy.
+The policy patches the `RouteConfiguration` named `<namespace>/<gateway>/federator`. Route
+configuration names are per-namespace even when multiple Gateways share a single Envoy proxy, so
+the name is predictable from chart values.
 
-`EnvoyPatchPolicy` is an Envoy Gateway extension API. It must be explicitly enabled in the
-EnvoyGateway ConfigMap before deploying this chart with `federator.enabled: true`:
+**`gateway.patchPolicies.targetGatewayClass`** controls what the policy targets:
 
-```yaml
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: EnvoyGateway
-metadata:
-  name: envoy-gateway
-  namespace: envoy-gateway-system
-spec:
-  extensionApis:
-    enableEnvoyPatchPolicy: true
-```
+- **`false` (default)** — targets `kind: Gateway` by name. Use for standard single-Gateway
+  deployments, including integration tests.
+- **`true`** — targets `kind: GatewayClass` (using `gateway.className`). **Required when
+  `gateway.envoyProxy.spec.mergeGateways: true`.** With merged Gateways, all Gateways of the same
+  GatewayClass share one Envoy proxy.
 
 > **Future note:** If future versions of the Wire federator stop sending FQDNs in the
 > `:authority` header, this patch policy will no longer be needed. `gateway.patchPolicies.enabled`
@@ -613,7 +606,7 @@ An opaque Secret containing credentials for custom ACME challenge solvers, refer
 - [x] organize the parameter listing in this README better 
 - [x] rework patch policies so merged gateways work
 - [x] test now if diya / elna federation works
-- [ ] test now if integration test pass
+- [x] test now if integration test pass
 - [ ] Write the migration guide section of this README
 - [ ] move the phases out of README
 - [ ] clean up PR: no stray files
