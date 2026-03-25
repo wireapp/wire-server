@@ -470,7 +470,7 @@ forgetLock ws = Feature ws.status ws.config
 withLockStatus :: LockStatus -> Feature a -> LockableFeature a
 withLockStatus ls (Feature s c) = LockableFeature s ls c
 
-instance (ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
+instance (Typeable cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
   schema =
     object $
       Feature
@@ -482,7 +482,7 @@ instance (ToSchema cfg, ToObjectSchema cfg) => ToSchema (Feature cfg) where
             (schema :: ValueSchema NamedSwaggerDoc FeatureTTL)
 
 instance
-  (Typeable cfg, Typeable v, ToObjectSchema (Versioned v cfg), ToSchema (Versioned v cfg)) =>
+  (Typeable cfg, Typeable v, ToObjectSchema (Versioned v cfg)) =>
   ToSchema (Versioned v (Feature cfg))
   where
   schema = Versioned . fmap unVersioned <$> (fmap Versioned . unVersioned) .= schema @(Feature (Versioned v cfg))
