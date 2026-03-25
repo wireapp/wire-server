@@ -26,7 +26,7 @@ import Data.Range
 import Imports
 import Polysemy
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
-import Wire.API.Team.Feature (AllTeamFeatures, IsFeatureConfig (..), LockableFeature (..), npProject')
+import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), IsFeatureConfig (..), LockableFeature (..), SndFactorPasswordChallengeConfig, npProject')
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
@@ -69,7 +69,11 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
   GetConfiguredFeatureFlags ->
     pure def
-  GetVerificationCodeEnabled _ -> error "GetVerificationCodeEnabled not implemented in miniGalleyAPIAccess"
+  GetVerificationCodeEnabled _ ->
+    pure $
+      case npProject' (Proxy @SndFactorPasswordChallengeConfig) configs of
+        LockableFeature FeatureStatusEnabled _ _ -> True
+        LockableFeature FeatureStatusDisabled _ _ -> False
   GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"

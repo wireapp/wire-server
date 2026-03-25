@@ -23,7 +23,6 @@ module Brig.User.Auth
     renewAccess,
     validateTokens,
     revokeAccess,
-    verifyCode,
 
     -- * Internal
     ssoLogin,
@@ -45,7 +44,6 @@ import Cassandra
 import Control.Error hiding (bool)
 import Data.ByteString.Conversion (toByteString)
 import Data.Code qualified as Code
-import Data.Default
 import Data.Handle (Handle)
 import Data.Id
 import Data.List.NonEmpty qualified as NE
@@ -63,7 +61,6 @@ import Polysemy.TinyLog qualified as Log
 import System.Logger (field, msg, val, (~~))
 import Util.Timeout
 import Wire.API.Team.Feature
-import Wire.API.Team.Feature qualified as Public
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
@@ -73,6 +70,7 @@ import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
+import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -88,22 +86,16 @@ import Wire.UserKeyStore
 import Wire.UserStore
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-import Wire.VerificationCode qualified as VerificationCode
-import Wire.VerificationCodeGen qualified as VerificationCodeGen
-import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
-import Wire.VerificationCodeSubsystem qualified as VerificationCodeSubsystem
 
 login ::
   forall r.
-  ( Member GalleyAPIAccess r,
-    Member (Input (Local ())) r,
+  ( Member (Input (Local ())) r,
     Member ActivationCodeStore r,
     Member Events r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
@@ -133,45 +125,12 @@ login (MkLogin li pw label code) typ = do
     verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppT r) ()
     verifyLoginCode mbCode uid = do
       luid <- lift $ qualifyLocal uid
-      verifyCode mbCode Login luid
-        `catchE` \case
-          VerificationCodeNoPendingCode -> lift (decrRetryLimit uid) >> throwE LoginCodeInvalid
-          VerificationCodeRequired -> lift (decrRetryLimit uid) >> throwE LoginCodeRequired
-          VerificationCodeNoEmail -> lift (decrRetryLimit uid) >> throwE LoginFailed
-
-verifyCode ::
-  forall r.
-  (Member GalleyAPIAccess r, Member VerificationCodeSubsystem r, Member UserSubsystem r) =>
-  Maybe Code.Value ->
-  VerificationAction ->
-  Local UserId ->
-  ExceptT VerificationCodeError (AppT r) ()
-verifyCode mbCode action luid = do
-  (mbEmail, mbTeamId) <- getEmailAndTeamId luid
-  featureEnabled <- lift $ do
-    mbFeatureEnabled <- liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` mbTeamId
-    pure $ fromMaybe ((def @(Feature Public.SndFactorPasswordChallengeConfig)).status == Public.FeatureStatusEnabled) mbFeatureEnabled
-  account <- lift . liftSem $ User.getAccountNoFilter luid
-  let isSsoUser = maybe False isSamlUser account
-  when (featureEnabled && not isSsoUser) $ do
-    case (mbCode, mbEmail) of
-      (Just code, Just email) -> do
-        let key = VerificationCodeGen.mkKey email
-            scope = VerificationCode.scopeFromAction action
-        codeValid <- isJust <$> lift (liftSem $ VerificationCodeSubsystem.verifyCode key scope code)
-        unless codeValid $ throwE VerificationCodeNoPendingCode
-      (Nothing, _) -> throwE VerificationCodeRequired
-      (_, Nothing) -> throwE VerificationCodeNoEmail
-  where
-    getEmailAndTeamId ::
-      Local UserId ->
-      ExceptT e (AppT r) (Maybe EmailAddress, Maybe TeamId)
-    getEmailAndTeamId u = do
-      mbAccount <- lift . liftSem $ User.getAccountNoFilter u
-      pure
-        ( userEmail =<< mbAccount,
-          userTeam =<< mbAccount
-        )
+      lift (liftSem $ enforceVerificationCodeEither luid mbCode Login)
+        >>= \case
+          Left VerificationCodeNoPendingCode -> lift (decrRetryLimit uid) >> throwE LoginCodeInvalid
+          Left VerificationCodeRequired -> lift (decrRetryLimit uid) >> throwE LoginCodeRequired
+          Left VerificationCodeNoEmail -> lift (decrRetryLimit uid) >> throwE LoginFailed
+          Right () -> pure ()
 
 decrRetryLimit :: UserId -> (AppT r) ()
 decrRetryLimit = wrapClient . withRetryLimit (\k b -> withBudget k b $ pure ())

@@ -70,6 +70,8 @@ inMemoryUserSubsystemInterpreter =
       _ -> error "GetLocalUserProfilesFiltered : unsupported filter (userSubsystemInterpreter)"
     GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
+    GetAccountsBy (tUnqualified -> GetBy _ _ _ uids []) ->
+      mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy _ -> error "GetAccountsBy: implement on demand (userSubsystemInterpreter)"
     UpdateUserProfile {} -> error "UpdateUserProfile: implement on demand (userSubsystemInterpreter)"
     CheckHandle _ -> error "CheckHandle: implement on demand (userSubsystemInterpreter)"

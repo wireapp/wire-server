@@ -52,7 +52,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
-import Wire.AuthenticationSubsystem.Error (zauthError)
+import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..), zauthError)
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
 import Wire.ClientStore (ClientStore)
@@ -73,7 +73,6 @@ import Wire.UserSubsystem (UpdateOriginType (..), UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.UserSubsystemConfig
-import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 accessH ::
   ( Member TinyLog r,
@@ -134,15 +133,13 @@ sendLoginCode _ =
   throwStd (errorToWai @'E.InvalidPhone)
 
 login ::
-  ( Member GalleyAPIAccess r,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
     Member Events r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
     Member ActivationCodeStore r,
-    Member VerificationCodeSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Concurrency Unsafe) r,
@@ -286,11 +283,7 @@ getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode _ = throwStd loginCodeNotFound
 
 reauthenticate ::
-  ( Member GalleyAPIAccess r,
-    Member VerificationCodeSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member UserSubsystem r
-  ) =>
+  (Member AuthenticationSubsystem r) =>
   Local UserId ->
   ReAuthUser ->
   Handler r ()
@@ -299,11 +292,12 @@ reauthenticate luid@(tUnqualified -> uid) body = do
     >>= either (throwE . reauthError) (const $ pure ())
   case reAuthCodeAction body of
     Just action ->
-      Auth.verifyCode (reAuthCode body) action luid
-        `catchE` \case
-          VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
-          VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
-          VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
+      lift (liftSem $ Authentication.enforceVerificationCodeEither luid (reAuthCode body) action)
+        >>= \case
+          Left VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
+          Left VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
+          Left VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
+          Right () -> pure ()
     Nothing -> pure ()
 
 --------------------------------------------------------------------------------

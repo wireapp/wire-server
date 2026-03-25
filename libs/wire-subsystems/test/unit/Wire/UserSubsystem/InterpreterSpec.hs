@@ -77,6 +77,7 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 import Wire.Util
+import Wire.VerificationCodeSubsystem
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -132,6 +133,7 @@ spec = describe "UserSubsystem.Interpreter" do
                 . runErrorUnsafe @UserSubsystemError
                 . runErrorUnsafe @AppSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @VerificationCodeSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runErrorUnsafe @TeamCollaboratorsError
                 . runError @FederationError

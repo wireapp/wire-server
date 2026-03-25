@@ -61,7 +61,6 @@ import Brig.IO.Intra (guardLegalhold)
 import Brig.IO.Intra qualified as Intra
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
-import Brig.User.Auth qualified as UserAuth
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra (MonadClient)
 import Control.Error
@@ -104,6 +103,7 @@ import Wire.API.UserEvent
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
+import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.DeleteQueue
@@ -118,7 +118,6 @@ import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-import Wire.VerificationCodeSubsystem (VerificationCodeSubsystem)
 
 lookupLocalClient :: (Member ClientStore r) => UserId -> ClientId -> AppT r (Maybe Client)
 lookupLocalClient uid = liftSem . ClientStore.lookupClient uid
@@ -170,7 +169,6 @@ addClient ::
     Member DeleteQueue r,
     Member EmailSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member Events r,
     Member ClientStore r
   ) =>
@@ -191,7 +189,6 @@ addClientWithReAuthPolicy ::
     Member Events r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
     Member ClientStore r
   ) =>
   Data.ReAuthPolicy ->
@@ -241,10 +238,12 @@ addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
     verifyCode mbCode luid1 =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
-      UserAuth.verifyCode mbCode Code.Login luid1 `catchE` \case
-        VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
-        VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
-        VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+      lift (liftSem $ Authentication.enforceVerificationCodeEither luid1 mbCode Code.Login)
+        >>= \case
+          Left VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
+          Left VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
+          Left VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+          Right () -> pure ()
 
 updateClient ::
   (Member NotificationSubsystem r, Member ClientStore r) =>
