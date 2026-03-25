@@ -902,8 +902,8 @@ newConvSchema ::
   ObjectSchema SwaggerDoc (Maybe (Set AccessRole)) ->
   ValueSchema NamedSwaggerDoc NewConv
 newConvSchema v sch =
-  namedObjectWithDocModifier -- TODO!### we probably want versionedObject etc. as well?  just pass the maybe-version and do the same thing every time?
-    ("NewConv" <> foldMap (Text.toUpper . versionText) v)
+  versionedObjectWithDocModifier
+    v
     (DS.description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv
       <$> newConvUsers

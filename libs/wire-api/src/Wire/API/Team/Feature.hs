@@ -407,7 +407,7 @@ defUnlockedFeature =
 
 instance (Typeable cfg, IsFeatureConfig cfg) => ToSchema (LockableFeature cfg) where
   schema =
-    object $ -- TODO!###
+    object $
       LockableFeature
         <$> (.status) .= field "status" schema
         <*> (.lockStatus) .= field "lockStatus" schema
@@ -438,7 +438,7 @@ instance Default (LockableFeaturePatch cfg) where
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
 instance (Typeable cfg, ToSchema cfg) => ToSchema (LockableFeaturePatch cfg) where
   schema =
-    object $ -- TODO!###
+    object $
       LockableFeaturePatch
         <$> (.status) .= maybe_ (optField "status" schema)
         <*> (.lockStatus) .= maybe_ (optField "lockStatus" schema)

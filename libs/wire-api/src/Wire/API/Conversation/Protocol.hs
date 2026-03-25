@@ -229,10 +229,6 @@ protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
 protocolTag (ProtocolMixed _) = ProtocolMixedTag
 
--- TODO!### interesting, we intentionally made 3 different schemas all
--- have the name "Protocol" here until now.  was there a reason?
--- maybe a good one?
-
 instance ToSchema ProtocolTag where
   schema =
     enum @Text $

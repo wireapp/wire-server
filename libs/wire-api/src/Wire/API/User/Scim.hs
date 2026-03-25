@@ -434,8 +434,7 @@ data CreateScimToken = CreateScimToken
 
 createScimTokenSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateScimToken
 createScimTokenSchema mVersion =
-  -- TODO!### interesting!
-  namedObject ("CreateScimToken" <> foldMap (Text.toUpper . versionText) mVersion) $
+  versionedObject mVersion $
     CreateScimToken
       <$> (.description) .= field "description" schema
       <*> password .= optField "password" (maybeWithDefault A.Null schema)
