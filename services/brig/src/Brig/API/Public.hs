@@ -774,8 +774,7 @@ addClient lusr con new = do
   lift $ liftSem $ ClientSubsystem.addClient lusr (Just con) new
 
 deleteClient ::
-  ( Member AuthenticationSubsystem r,
-    Member ClientStore r,
+  ( 
     Member ClientSubsystem r
   ) =>
   UserId ->
@@ -784,7 +783,7 @@ deleteClient ::
   Public.RmClient ->
   (Handler r) ()
 deleteClient usr con clt body =
-  API.rmClient usr con clt (Public.rmPassword body) !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.removeClient usr con clt (Public.rmPassword body)
 
 listClients :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.Client]
 listClients zusr =

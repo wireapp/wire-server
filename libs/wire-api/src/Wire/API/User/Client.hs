@@ -628,6 +628,7 @@ instance ToSchema PubClient where
       PubClient
         <$> pubClientId .= field "id" schema
         <*> pubClientClass .= maybe_ (optField "class" schema)
+
 toPubClient :: Client -> PubClient
 toPubClient client =
   PubClient

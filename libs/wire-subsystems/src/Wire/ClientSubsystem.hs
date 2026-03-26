@@ -4,6 +4,7 @@ module Wire.ClientSubsystem where
 
 import Data.Default
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Data.Time.Clock
 import Imports
@@ -42,5 +43,6 @@ data ClientSubsystem m a where
   UpsertClient :: Local UserId -> ClientId -> NewClient -> Maybe ClientCapabilityList -> ClientSubsystem m (Client, [Client], Word)
   OnClientEvent :: UserId -> Maybe ConnId -> ClientEvent -> ClientSubsystem m ()
   EnqueueClientDeletion :: UserId -> Maybe ConnId -> Client -> ClientSubsystem m ()
+  RemoveClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ClientSubsystem m ()
 
 makeSem ''ClientSubsystem

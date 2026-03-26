@@ -26,7 +26,6 @@ import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
-import Wire.API.User.Client
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -58,6 +57,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
+import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
 -- NOTE: These federation tests require deploying two sets of (some) services

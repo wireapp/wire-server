@@ -19,7 +19,6 @@
 module Brig.API.Client
   ( -- * Clients
     updateClient,
-    rmClient,
     legalHoldClientRequested,
     removeLegalHoldClient,
     createAccessToken,
@@ -54,10 +53,9 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.HavePendingInvitations
-import Data.Id (ClientId, ConnId, UserId)
+import Data.Id (ClientId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map hiding ((\\))
-import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import Data.Set ((\\))
 import Data.Set qualified as Set
@@ -82,8 +80,6 @@ import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
-import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
@@ -130,32 +126,6 @@ updateClient uid cid req = do
     !>> ClientDataError
     !>> clientErrorToHttpError
 
--- nb. We must ensure that the set of clients known to brig is always
--- a superset of the clients known to galley.
-rmClient ::
-  ( Member ClientSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  ConnId ->
-  ClientId ->
-  Maybe PlainTextPassword6 ->
-  ExceptT ClientError (AppT r) ()
-rmClient u con clt pw =
-  maybe (throwE ClientNotFound) fn =<< lift (liftSem $ ClientStore.lookupClient u clt)
-  where
-    fn client = do
-      case clientType client of
-        -- Legal hold clients can't be removed
-        LegalHoldClientType -> throwE ClientLegalHoldCannotBeRemoved
-        -- Temporary clients don't need to re-auth
-        TemporaryClientType -> pure ()
-        -- All other clients must authenticate
-        _ ->
-          (lift . liftSem $ Authentication.reauthenticateEither u pw)
-            >>= either (throwE . ClientDataError . ClientReAuthError) (const $ pure ())
-      lift . liftSem $ enqueueClientDeletion u (Just con) client
 
 claimPrekey ::
   ( Member ClientSubsystem r,

@@ -12,6 +12,7 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util (ToJSONObject (..), toUTCTimeMillis)
 import Data.Map qualified as Map
+import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time.Clock
@@ -92,6 +93,7 @@ runClientSubsystem runAuth runUser =
       UpsertClient luid client new capabilities -> mapError ClientDataError $ upsertClient def luid client new capabilities
       OnClientEvent uid con event -> onClientEvent uid con event
       EnqueueClientDeletion uid con client -> execDelete uid con client
+      RemoveClient uid conn cid mPwd -> rmClient uid conn cid mPwd
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -334,3 +336,31 @@ execDelete u con c = do
   for_ (clientCookie c) $ \l -> Authentication.revokeCookies u [] [l]
   DeleteQueue.enqueueClientDeletion c.clientId u con
   ClientStore.delete u c.clientId
+
+-- nb. We must ensure that the set of clients known to brig is always
+-- a superset of the clients known to galley.
+rmClient ::
+  ( Member AuthenticationSubsystem r,
+    Member ClientStore r,
+    Member (Error ClientError) r,
+    Member DeleteQueue r
+  ) =>
+  UserId ->
+  ConnId ->
+  ClientId ->
+  Maybe PlainTextPassword6 ->
+  Sem r ()
+rmClient u con clt pw =
+  maybe (throw ClientNotFound) fn =<< ClientStore.lookupClient u clt
+  where
+    fn client = do
+      case clientType client of
+        -- Legal hold clients can't be removed
+        LegalHoldClientType -> throw ClientLegalHoldCannotBeRemoved
+        -- Temporary clients don't need to re-auth
+        TemporaryClientType -> pure ()
+        -- All other clients must authenticate
+        _ ->
+          (Authentication.reauthenticateEither u pw)
+            >>= either (throw . ClientDataError . ClientReAuthError) (const $ pure ())
+      execDelete u (Just con) client
