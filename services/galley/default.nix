@@ -275,7 +275,6 @@ mkDerivation {
     wire-subsystems
     yaml
   ];
-  testHaskellDepends = [ base imports tasty ];
   description = "Conversations";
   license = lib.licenses.agpl3Only;
 }

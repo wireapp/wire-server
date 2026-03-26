@@ -484,18 +484,3 @@ executable galley-schema
 
   if flag(static)
     ld-options: -static
-
-test-suite galley-tests
-  import:         common-all
-  type:           exitcode-stdio-1.0
-  main-is:        ../unit.hs
-  other-modules:
-    Paths_galley
-    Run
-
-  ghc-options:    -threaded -with-rtsopts=-N -Wno-x-partial
-  hs-source-dirs: test/unit
-  build-depends:
-    , base
-    , imports
-    , tasty
