@@ -49,7 +49,7 @@ import Wire.NotificationSubsystem
 import Wire.Sem.Logger qualified as Log
 import Wire.Sem.Now qualified as Now
 import Wire.UserSubsystem (UserSubsystem)
-import Wire.UserSubsystem qualified as User
+import Wire.UserSubsystem qualified as UserSubsystem
 import Wire.Util
 
 data ClientSubsystemConfig = ClientSubsystemConfig
@@ -115,7 +115,7 @@ addClient ::
   Sem r Client
 addClient policy luid@(tUnqualified -> uid) con new = do
   conf <- input
-  usr <- User.getAccountNoFilter luid >>= maybe (throw (ClientUserNotFound uid)) pure
+  usr <- UserSubsystem.getAccountNoFilter luid >>= maybe (throw (ClientUserNotFound uid)) pure
   verifyCode (newClientVerificationCode new)
   let mCapabilities :: Maybe ClientCapabilityList
       mCapabilities = updateLhDevice $ newClientCapabilities new

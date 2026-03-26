@@ -39,8 +39,8 @@ data ClientSubsystem m a where
   LookupPublicClientsBulk :: [Qualified UserId] -> ClientSubsystem m (QualifiedUserMap (Set PubClient))
   AddClient :: Local UserId -> Maybe ConnId -> NewClient -> ClientSubsystem m Client
   AddClientWithPolicy :: ReAuthPolicy -> Local UserId -> Maybe ConnId -> NewClient -> ClientSubsystem m Client
-  UpsertClient :: Local UserId -> ClientId -> NewClient -> Maybe ClientCapabilityList -> ClientSubsystem r (Client, [Client], Word)
-  OnClientEvent :: UserId -> Maybe ConnId -> ClientEvent -> ClientSubsystem r ()
+  UpsertClient :: Local UserId -> ClientId -> NewClient -> Maybe ClientCapabilityList -> ClientSubsystem m (Client, [Client], Word)
+  OnClientEvent :: UserId -> Maybe ConnId -> ClientEvent -> ClientSubsystem m ()
   EnqueueClientDeletion :: UserId -> Maybe ConnId -> Client -> ClientSubsystem m ()
 
 makeSem ''ClientSubsystem

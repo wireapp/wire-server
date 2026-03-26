@@ -100,8 +100,8 @@ runClientSubsystemTest users action =
    in ClientSubsystemTestResult {authState, result, deletions, events, pushes}
 
 spec :: Spec
-spec = focus $ describe "ClientSubsystem.Interpreter" do
-  prop "adds and looksup a client" $ \user ->
+spec = describe "ClientSubsystem.Interpreter" do
+  prop "adds and looks up a client" $ \user ->
     let luid = toLocalUnsafe testDomain user.id
         new = Wire.API.User.Client.newClient PermanentClientType validLastPrekey
         clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
@@ -123,15 +123,21 @@ spec = focus $ describe "ClientSubsystem.Interpreter" do
             added <- addClient luid Nothing new
             stored <- lookupLocalClients user.id
             pure (added, stored)
-     in case testResult.result of
-          Left clientErr -> expectationFailure ("unexpected ClientError: " <> show clientErr)
-          Right value -> value `shouldBe` (expectedClient, [expectedClient])
-          .&&. (testResult.authState.verificationCodeCalls `shouldBe` 1)
-          .&&. (testResult.authState.reAuthCalls `shouldBe` 0)
-          .&&. (testResult.authState.revokeCookiesCalls `shouldBe` 0)
-          .&&. (length testResult.deletions `shouldBe` 0)
-          .&&. (length testResult.events `shouldBe` 0)
-          .&&. (length testResult.pushes `shouldBe` 1)
+        auth = testResult.authState
+     in counterexample ("unexpected result: " <> show testResult.result) $
+          case testResult.result of
+            Left clientErr ->
+              counterexample ("unexpected ClientError: " <> show clientErr) False
+            Right value ->
+              conjoin
+                [ value === (expectedClient, [expectedClient]),
+                  verificationCodeCalls auth === 1,
+                  reAuthCalls auth === 0,
+                  revokeCookiesCalls auth === 0,
+                  length testResult.deletions === 0,
+                  length testResult.events === 0,
+                  length testResult.pushes === 1
+                ]
 
 validLastPrekey :: LastPrekey
 validLastPrekey =
