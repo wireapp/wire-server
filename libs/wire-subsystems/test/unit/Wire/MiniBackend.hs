@@ -423,6 +423,13 @@ defaultAuthenticationSubsystemConfig =
 defaultLocalDomain :: Local ()
 defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
 
+defaultClientSubsystemConfig :: ClientSubsystemConfig
+defaultClientSubsystemConfig =
+  ClientSubsystemConfig
+    { userMaxPermClients = 7,
+      consumableNotificationsEnabled = False
+    }
+
 inputEffectsInterpreters ::
   forall r a.
   UserSubsystemConfig ->
@@ -432,7 +439,7 @@ inputEffectsInterpreters ::
   Sem r a
 inputEffectsInterpreters usrCfg appCfg teamIdps =
   runInputConst defaultLocalDomain
-    . runInputConst undefined
+    . runInputConst defaultClientSubsystemConfig
     . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst (VerificationCodeThrottleTTL 60)
     . runInputConst teamIdps
