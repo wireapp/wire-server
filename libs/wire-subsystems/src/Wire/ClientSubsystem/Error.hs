@@ -19,6 +19,7 @@ data ClientDataError
   | MLSNotEnabled
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
+  deriving (Show, Eq)
 
 data ClientError
   = ClientNotFound
@@ -35,6 +36,9 @@ data ClientError
   | ClientMissingLegalholdConsent
   | ClientCodeAuthenticationFailed
   | ClientCodeAuthenticationRequired
+  deriving (Show)
+
+instance Exception ClientError
 
 clientErrorToHttpError :: ClientError -> HttpError
 clientErrorToHttpError =
