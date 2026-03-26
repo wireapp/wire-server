@@ -195,7 +195,7 @@ qualifiedSchema ::
   ValueSchema doc a ->
   ValueSchema NamedSwaggerDoc (Qualified a)
 qualifiedSchema _name fieldName sch =
-  object $ qualifiedObjectSchema fieldName sch -- TODO!###
+  object $ qualifiedObjectSchema fieldName sch
 
 qualifiedObjectSchema ::
   (HasSchemaRef d) =>
