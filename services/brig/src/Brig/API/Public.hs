@@ -774,9 +774,7 @@ addClient lusr con new = do
   lift $ liftSem $ ClientSubsystem.addClient lusr (Just con) new
 
 deleteClient ::
-  ( 
-    Member ClientSubsystem r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   ConnId ->
   ClientId ->

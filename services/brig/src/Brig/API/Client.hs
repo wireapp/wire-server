@@ -126,7 +126,6 @@ updateClient uid cid req = do
     !>> ClientDataError
     !>> clientErrorToHttpError
 
-
 claimPrekey ::
   ( Member ClientSubsystem r,
     Member ClientStore r

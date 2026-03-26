@@ -139,6 +139,31 @@ spec = describe "ClientSubsystem.Interpreter" do
                   length testResult.pushes === 1
                 ]
 
+  prop "removes client" $ \user conn ->
+    let uid = user.id
+        luid = toLocalUnsafe testDomain user.id
+        new = Wire.API.User.Client.newClient PermanentClientType validLastPrekey
+        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        testResult =
+          runClientSubsystemTest [user] do
+            added <- addClient luid Nothing new
+            removeClient uid conn clientId Nothing
+            stored <- lookupLocalClients user.id
+            pure (added, stored)
+        auth = testResult.authState
+     in counterexample ("unexpected result: " <> show testResult.result) $
+          case testResult.result of
+            Left clientErr ->
+              counterexample ("unexpected ClientError: " <> show clientErr) False
+            Right (_, clients) ->
+              conjoin
+                [ length clients === 0,
+                  revokeCookiesCalls auth === 0,
+                  length testResult.deletions === 1,
+                  length testResult.events === 0,
+                  length testResult.pushes === 1
+                ]
+
 validLastPrekey :: LastPrekey
 validLastPrekey =
   lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
