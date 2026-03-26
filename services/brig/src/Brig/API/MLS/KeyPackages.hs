@@ -29,7 +29,6 @@ module Brig.API.MLS.KeyPackages
   )
 where
 
-import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages.Validation
@@ -59,6 +58,7 @@ import Wire.API.User (AccountStatus (..))
 import Wire.API.User.Client
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ClientSubsystem.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
 import Wire.StoredUser
 import Wire.UserStore (UserStore, getUser)
@@ -98,7 +98,7 @@ claimKeyPackagesV7 lusr mClient target mSuite = do
   suite <- getCipherSuite mSuite
   foldQualified
     lusr
-    (withExceptT clientError . claimLocalKeyPackages (tUntagged lusr) mClient suite)
+    (withExceptT clientErrorToHttpError . claimLocalKeyPackages (tUntagged lusr) mClient suite)
     (claimRemoteKeyPackages lusr (tagCipherSuite suite))
     target
 
@@ -170,7 +170,7 @@ claimRemoteKeyPackages ::
   Handler r KeyPackageBundle
 claimRemoteKeyPackages lusr suite target = do
   bundle <-
-    withExceptT clientError
+    withExceptT clientErrorToHttpError
       . (handleFailure =<<)
       $ withExceptT ClientFederationError
       $ runBrigFederatorClient (tDomain target)
@@ -185,7 +185,7 @@ claimRemoteKeyPackages lusr suite target = do
   for_ bundle.entries $ \e -> do
     let cid = mkClientIdentity e.user e.client
     kpRaw <-
-      withExceptT (const . clientDataError $ KeyPackageDecodingError)
+      withExceptT (const . clientDataErrorToHttpError $ KeyPackageDecodingError)
         . except
         . decodeMLS'
         . kpData
@@ -193,7 +193,7 @@ claimRemoteKeyPackages lusr suite target = do
     (refVal, _, _) <- validateUploadedKeyPackage cid kpRaw
     unless (refVal == e.ref)
       . throwE
-      . clientDataError
+      . clientDataErrorToHttpError
       $ InvalidKeyPackageRef
 
   pure bundle

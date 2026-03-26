@@ -36,7 +36,8 @@ import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Error
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
-import Wire.ClientSubsystem (ClientSubsystem (..))
+import Wire.ClientSubsystem (ClientSubsystem (..), ReAuthPolicy (..))
+import Wire.ClientSubsystem.Error
 import Wire.DeleteQueue (DeleteQueue)
 import Wire.DeleteQueue qualified as DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem)
@@ -51,32 +52,6 @@ import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 import Wire.Util
 
-data ClientDataError
-  = TooManyClients
-  | ClientReAuthError !ReAuthError
-  | ClientMissingAuth
-  | MalformedPrekeys
-  | MLSPublicKeyDuplicate
-  | MLSNotEnabled
-  | KeyPackageDecodingError
-  | InvalidKeyPackageRef
-
-data ClientError
-  = ClientNotFound
-  | ClientDataError !ClientDataError
-  | ClientUserNotFound !UserId
-  | ClientLegalHoldCannotBeRemoved
-  | ClientLegalHoldCannotBeAdded
-  | -- | this error is thrown if legalhold if incompatible with different features
-    --   for now, this is the case for MLS and federation
-    ClientLegalHoldIncompatible
-  | ClientFederationError FederationError
-  | ClientCapabilitiesCannotBeRemoved
-  | ClientMissingLegalholdConsentOldClients
-  | ClientMissingLegalholdConsent
-  | ClientCodeAuthenticationFailed
-  | ClientCodeAuthenticationRequired
-
 data ClientSubsystemConfig = ClientSubsystemConfig
   { userMaxPermClients :: Int,
     consumableNotificationsEnabled :: Bool
@@ -90,28 +65,33 @@ runClientSubsystem ::
     RunClient (m 'Brig),
     FederationMonad m,
     Typeable m,
-    Member UserSubsystem r,
     Member (Error ClientError) r,
     Member Now.Now r,
-    Member AuthenticationSubsystem r,
     Member NotificationSubsystem r,
     Member GalleyAPIAccess r,
     Member Events r,
     Member EmailSubsystem r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member (Input ClientSubsystemConfig) r
   ) =>
-  ClientSubsystemConfig ->
+  InterpreterFor AuthenticationSubsystem (UserSubsystem ': r) ->
+  InterpreterFor UserSubsystem r ->
   InterpreterFor ClientSubsystem r
-runClientSubsystem conf = interpret $ \case
-  InternalGetActivityTimestamps uid -> internalGetActivityTimestamps uid
-  LookupLocalClient uid cid -> lookupLocalClient uid cid
-  LookupLocalClients uid -> lookupLocalClients uid
-  LookupLocalPublicClientsBulk uids -> lookupLocalPublicClientsBulk uids
-  LookupPublicClient quid cid -> lookupPubClient quid cid
-  LookupPublicClients quid -> lookupPubClients quid
-  LookupPublicClientsBulk quids -> lookupPubClientsBulk quids
-  AddClient luid conn new -> addClient conf reAuthForNewClients luid conn new
-  OnClientEvent uid con event -> onClientEvent uid con event
+runClientSubsystem runAuth runUser =
+  interpret $
+    runUser . runAuth . \case
+      InternalGetActivityTimestamps uid -> internalGetActivityTimestamps uid
+      LookupLocalClient uid cid -> lookupLocalClient uid cid
+      LookupLocalClients uid -> lookupLocalClients uid
+      LookupLocalPublicClientsBulk uids -> lookupLocalPublicClientsBulk uids
+      LookupPublicClient quid cid -> lookupPubClient quid cid
+      LookupPublicClients quid -> lookupPubClients quid
+      LookupPublicClientsBulk quids -> lookupPubClientsBulk quids
+      AddClient luid conn new -> addClient def luid conn new
+      AddClientWithPolicy policy luid conn new -> addClient policy luid conn new
+      UpsertClient luid client new capabilities -> mapError ClientDataError $ upsertClient def luid client new capabilities
+      OnClientEvent uid con event -> onClientEvent uid con event
+      EnqueueClientDeletion uid con client -> execDelete uid con client
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -125,15 +105,16 @@ addClient ::
     Member GalleyAPIAccess r,
     Member Events r,
     Member EmailSubsystem r,
-    Member DeleteQueue r
+    Member DeleteQueue r,
+    Member (Input ClientSubsystemConfig) r
   ) =>
-  ClientSubsystemConfig ->
   ReAuthPolicy ->
   Local UserId ->
   Maybe ConnId ->
   NewClient ->
   Sem r Client
-addClient conf policy luid@(tUnqualified -> uid) con new = do
+addClient policy luid@(tUnqualified -> uid) con new = do
+  conf <- input
   usr <- User.getAccountNoFilter luid >>= maybe (throw (ClientUserNotFound uid)) pure
   verifyCode (newClientVerificationCode new)
   let mCapabilities :: Maybe ClientCapabilityList
@@ -145,7 +126,7 @@ addClient conf policy luid@(tUnqualified -> uid) con new = do
               then Just . ClientCapabilityList . maybe (Set.singleton implicitConsent) (Set.insert implicitConsent . fromClientCapabilityList)
               else id
           implicitConsent = ClientSupportsLegalholdImplicitConsent
-  (client0, old, count) <- mapError ClientDataError (addClientWithReAuthPolicy' policy luid clientId new conf.userMaxPermClients mCapabilities)
+  (client0, old, count) <- mapError ClientDataError (upsertClient policy luid clientId new mCapabilities)
   let client = client0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   when (conf.consumableNotificationsEnabled && supportsConsumableNotifications client) $
     setupConsumableNotifications uid client.clientId
@@ -169,35 +150,22 @@ addClient conf policy luid@(tUnqualified -> uid) con new = do
         Left VerificationCodeNoEmail -> throw ClientCodeAuthenticationFailed
         Right () -> pure ()
 
--- | Re-authentication policy.
---
--- For a potential new client, a policy is a function that takes as arguments
--- the number of existing clients of the same type, and whether the client
--- already exists, and returns whether the user should be forced to
--- re-authenticate.
-type ReAuthPolicy = Int -> Bool -> Bool
-
--- | Default re-authentication policy.
---
--- Re-authenticate if there is at least one other client.
-reAuthForNewClients :: ReAuthPolicy
-reAuthForNewClients count upsert = count > 0 && not upsert
-
-addClientWithReAuthPolicy' ::
+upsertClient ::
   forall r.
   ( Member AuthenticationSubsystem r,
     Member ClientStore r,
     Member Now.Now r,
-    Member (Error ClientDataError) r
+    Member (Error ClientDataError) r,
+    Member (Input ClientSubsystemConfig) r
   ) =>
   ReAuthPolicy ->
   Local UserId ->
   ClientId ->
   NewClient ->
-  Int ->
   Maybe ClientCapabilityList ->
   Sem r (Client, [Client], Word)
-addClientWithReAuthPolicy' reAuthPolicy u newId c maxPermClients caps = do
+upsertClient (ReAuthPolicy reAuthPolicy) u newId c caps = do
+  conf <- input
   clients <- ClientStore.lookupClients (tUnqualified u)
   let typed = filter ((== newClientType c) . clientType) clients
       count = length typed
@@ -205,16 +173,16 @@ addClientWithReAuthPolicy' reAuthPolicy u newId c maxPermClients caps = do
   when (reAuthPolicy count upsert) do
     (Authentication.reauthenticateEither (tUnqualified u) (newClientPassword c))
       >>= either (throw . ClientReAuthError) pure
-  let capacity = fmap (+ (-count)) limit
+  let capacity = fmap (+ (-count)) (limit conf)
   unless (maybe True (> 0) capacity || upsert) $ throw TooManyClients
   new <- insert (tUnqualified u)
   let !total = fromIntegral (length clients + if upsert then 0 else 1)
-      old = maybe (filter (not . exists) typed) (const []) limit
+      old = maybe (filter (not . exists) typed) (const []) (limit conf)
   pure (new, old, total)
   where
-    limit :: Maybe Int
-    limit = case newClientType c of
-      PermanentClientType -> Just maxPermClients
+    limit :: ClientSubsystemConfig -> Maybe Int
+    limit conf = case newClientType c of
+      PermanentClientType -> Just conf.userMaxPermClients
       TemporaryClientType -> Nothing
       LegalHoldClientType -> Nothing
 

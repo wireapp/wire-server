@@ -18,8 +18,6 @@
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
   ( -- * Clients
-    addClient,
-    addClientWithReAuthPolicy,
     updateClient,
     rmClient,
     pubClient,
@@ -38,12 +36,10 @@ module Brig.API.Client
   )
 where
 
-import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
-import Brig.Data.Client qualified as Data
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
@@ -51,16 +47,13 @@ import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra (guardLegalhold)
-import Brig.IO.Intra qualified as Intra
 import Brig.Options qualified as Opt
 import Brig.Types.Intra
-import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Monad.Trans.Except (except)
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
-import Data.Code as Code
 import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id (ClientId, ConnId, UserId)
@@ -86,112 +79,24 @@ import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.LegalHold.Internal
-import Wire.API.User
-import Wire.API.User qualified as Code
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
 import Wire.AuthenticationSubsystem qualified as Authentication
-import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
-import Wire.DeleteQueue
-import Wire.EmailSubsystem (EmailSubsystem, sendNewClientEmail)
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-addClient ::
-  ( Member GalleyAPIAccess r,
-    Member NotificationSubsystem r,
-    Member UserSubsystem r,
-    Member DeleteQueue r,
-    Member EmailSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member Events r,
-    Member ClientStore r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  NewClient ->
-  ExceptT ClientError (AppT r) Client
-addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
-
--- nb. We must ensure that the set of clients known to brig is always
--- a superset of the clients known to galley.
-addClientWithReAuthPolicy ::
-  forall r.
-  ( Member GalleyAPIAccess r,
-    Member NotificationSubsystem r,
-    Member DeleteQueue r,
-    Member EmailSubsystem r,
-    Member Events r,
-    Member UserSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
-  Data.ReAuthPolicy ->
-  Local UserId ->
-  Maybe ConnId ->
-  NewClient ->
-  ExceptT ClientError (AppT r) Client
-addClientWithReAuthPolicy policy luid@(tUnqualified -> u) con new = do
-  usr <-
-    (lift . liftSem $ User.getAccountNoFilter luid)
-      >>= maybe (throwE (ClientUserNotFound u)) pure
-  verifyCode (newClientVerificationCode new) luid
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
-  let mCaps :: Maybe ClientCapabilityList
-      mCaps = updlhdev $ newClientCapabilities new
-        where
-          updlhdev :: Maybe ClientCapabilityList -> Maybe ClientCapabilityList
-          updlhdev =
-            if newClientType new == LegalHoldClientType
-              then Just . ClientCapabilityList . maybe (Set.singleton lhcaps) (Set.insert lhcaps . fromClientCapabilityList)
-              else id
-          lhcaps = ClientSupportsLegalholdImplicitConsent
-  (clt0, old, count) <-
-    (Data.addClientWithReAuthPolicy policy luid clientId' new maxPermClients mCaps)
-      !>> ClientDataError
-  let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
-  consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
-  when (consumableNotificationsEnabled && supportsConsumableNotifications clt) $ lift $ liftSem $ do
-    setupConsumableNotifications u clt.clientId
-  lift $ do
-    for_ old $ execDelete u con
-    liftSem $ GalleyAPIAccess.newClient u clt.clientId
-    liftSem $ Intra.onClientEvent u con (ClientAdded clt)
-    when (clientType clt == LegalHoldClientType) $ liftSem $ Events.generateUserEvent u con (UserLegalHoldEnabled u)
-    when (count > 1) $
-      for_ (userEmail usr) $
-        \email ->
-          liftSem $ sendNewClientEmail email (userDisplayName usr) clt (userLocale usr)
-  pure clt
-  where
-    clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
-
-    verifyCode ::
-      Maybe Code.Value ->
-      Local UserId ->
-      ExceptT ClientError (AppT r) ()
-    verifyCode mbCode luid1 =
-      -- this only happens inside the login flow (in particular, when logging in from a new device)
-      -- the code obtained for logging in is used a second time for adding the device
-      lift (liftSem $ Authentication.enforceVerificationCodeEither luid1 mbCode Code.Login)
-        >>= \case
-          Left VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
-          Left VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
-          Left VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
-          Right () -> pure ()
 
 updateClient ::
   (Member NotificationSubsystem r, Member ClientStore r) =>
@@ -200,7 +105,7 @@ updateClient ::
   UpdateClient ->
   (Handler r) ()
 updateClient uid cid req = do
-  client <- (lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientError
+  client <- (lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientErrorToHttpError
   consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
   lift . liftSem $ for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
   for_ req.updateClientCapabilities $ \caps -> do
@@ -211,7 +116,7 @@ updateClient uid cid req = do
         when (consumableNotificationsEnabled && ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
           setupConsumableNotifications uid cid
         lift . liftSem . ClientStore.updateCapabilities uid cid . Just $ caps
-      else throwE $ clientError ClientCapabilitiesCannotBeRemoved
+      else throwE $ clientErrorToHttpError ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
       prekeys = lk ++ req.updateClientPrekeys
   ( do
@@ -224,12 +129,12 @@ updateClient uid cid req = do
         Nothing -> pure ()
     )
     !>> ClientDataError
-    !>> clientError
+    !>> clientErrorToHttpError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient ::
-  ( Member DeleteQueue r,
+  ( Member ClientSubsystem r,
     Member AuthenticationSubsystem r,
     Member ClientStore r
   ) =>
@@ -251,11 +156,10 @@ rmClient u con clt pw =
         _ ->
           (lift . liftSem $ Authentication.reauthenticateEither u pw)
             >>= either (throwE . ClientDataError . ClientReAuthError) (const $ pure ())
-      lift $ execDelete u (Just con) client
+      lift . liftSem $ enqueueClientDeletion u (Just con) client
 
 claimPrekey ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+  ( Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   LegalholdProtectee ->
@@ -270,8 +174,7 @@ claimPrekey protectee u d c = do
     else wrapClientE $ claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+  ( Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   LegalholdProtectee ->
@@ -315,8 +218,7 @@ claimRemotePrekeyBundle quser = do
 claimMultiPrekeyBundlesInternal ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+    Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   LegalholdProtectee ->
@@ -346,8 +248,7 @@ claimMultiPrekeyBundlesInternal protectee quc = do
 
 claimMultiPrekeyBundlesV3 ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+    Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   LegalholdProtectee ->
@@ -383,8 +284,7 @@ claimMultiPrekeyBundlesV3 protectee quc = do
 claimMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+    Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   LegalholdProtectee ->
@@ -414,8 +314,7 @@ claimMultiPrekeyBundles protectee quc = do
 claimLocalMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+    Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   LegalholdProtectee ->
@@ -458,29 +357,13 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- Utilities
 
--- | Enqueue an orderly deletion of an existing client.
-execDelete ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  Maybe ConnId ->
-  Client ->
-  AppT r ()
-execDelete u con c = do
-  for_ (clientCookie c) $ \l -> liftSem $ Auth.revokeCookies u [] [l]
-  liftSem $ enqueueClientDeletion c.clientId u con
-  liftSem $ ClientStore.delete u c.clientId
-
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed
 -- not exist, since there must be no client without prekeys,
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
+  ( Member ClientSubsystem r,
     Member ClientStore r
   ) =>
   UserId ->
@@ -499,7 +382,7 @@ noPrekeys u c = do
         field "user" (toByteString u)
           ~~ field "client" (toByteString c)
           ~~ msg (val "No prekey found. Deleting client.")
-      execDelete u Nothing client
+      liftSem $ enqueueClientDeletion u Nothing client
 
 pubClient :: Client -> PubClient
 pubClient c =
@@ -520,9 +403,8 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent = LegalHoldClientRequested eventData
 
 removeLegalHoldClient ::
-  ( Member DeleteQueue r,
+  ( Member ClientSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r,
     Member ClientStore r
   ) =>
   UserId ->
@@ -532,7 +414,7 @@ removeLegalHoldClient uid = do
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case
-  forM_ legalHoldClients (execDelete uid Nothing)
+  liftSem $ forM_ legalHoldClients (enqueueClientDeletion uid Nothing)
   liftSem $ Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::

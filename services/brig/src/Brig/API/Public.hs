@@ -163,8 +163,9 @@ import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
-import Wire.ClientSubsystem
+import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
+import Wire.ClientSubsystem.Error
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
@@ -679,9 +680,8 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+  ( Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   UserId ->
@@ -692,32 +692,30 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+  ( Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
   (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
-  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
+  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientErrorToHttpError
   ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: (Member ClientStore r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
+  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
 getPrekeyBundleH :: (Member ClientStore r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
+  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -726,7 +724,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
-  API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
+  API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientErrorToHttpError
 
 getMultiUserPrekeyBundleHInternal ::
   (MonadReader Env m, MonadError HttpError m) =>
@@ -743,40 +741,30 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
-  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientError
+  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientErrorToHttpError
 
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMapV4
 getMultiUserPrekeyBundleH zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
-  API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
+  API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientErrorToHttpError
 
 addClient ::
-  ( Member GalleyAPIAccess r,
-    Member DeleteQueue r,
-    Member NotificationSubsystem r,
-    Member EmailSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member Events r,
-    Member UserSubsystem r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.NewClient ->
@@ -784,14 +772,13 @@ addClient ::
 addClient lusr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
-    throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient lusr (Just con) new
-    !>> clientError
+    throwE (clientErrorToHttpError ClientLegalHoldCannotBeAdded)
+  lift $ liftSem $ ClientSubsystem.addClient lusr (Just con) new
 
 deleteClient ::
   ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -799,44 +786,44 @@ deleteClient ::
   Public.RmClient ->
   (Handler r) ()
 deleteClient usr con clt body =
-  API.rmClient usr con clt (Public.rmPassword body) !>> clientError
+  API.rmClient usr con clt (Public.rmPassword body) !>> clientErrorToHttpError
 
 listClients :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.Client]
 listClients zusr =
-  lift $ liftSem $ lookupLocalClients zusr
+  lift $ liftSem $ ClientSubsystem.lookupLocalClients zusr
 
 getClient :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) (Maybe Public.Client)
-getClient zusr clientId = lift $ liftSem $ lookupLocalClient zusr clientId
+getClient zusr clientId = lift $ liftSem $ ClientSubsystem.lookupLocalClient zusr clientId
 
 getUserClientsUnqualified :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
-  (lift $ liftSem $ ClientSubsystem.lookupPublicClients (Qualified uid localdomain)) !>> clientError
+  (lift $ liftSem $ ClientSubsystem.lookupPublicClients (Qualified uid localdomain)) !>> clientErrorToHttpError
 
 getUserClientsQualified :: (Member ClientSubsystem r) => Qualified UserId -> (Handler r) [Public.PubClient]
-getUserClientsQualified quid = (lift $ liftSem $ ClientSubsystem.lookupPublicClients quid) !>> clientError
+getUserClientsQualified quid = (lift $ liftSem $ ClientSubsystem.lookupPublicClients quid) !>> clientErrorToHttpError
 
 getUserClientUnqualified :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
-  x <- (lift $ liftSem $ lookupPublicClient (Qualified uid localdomain) cid) !>> clientError
+  x <- (lift $ liftSem $ ClientSubsystem.lookupPublicClient (Qualified uid localdomain) cid) !>> clientErrorToHttpError
   ifNothing (notFound "client not found") x
 
 listClientsBulk :: (Member ClientSubsystem r) => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
-  (lift $ liftSem $ ClientSubsystem.lookupPublicClientsBulk (fromRange limitedUids)) !>> clientError
+  (lift $ liftSem $ ClientSubsystem.lookupPublicClientsBulk (fromRange limitedUids)) !>> clientErrorToHttpError
 
 listClientsBulkV2 :: (Member ClientSubsystem r) => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: (Member ClientSubsystem r) => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientQualified quid cid = do
-  x <- (lift $ liftSem $ ClientSubsystem.lookupPublicClient quid cid) !>> clientError
+  x <- (lift $ liftSem $ ClientSubsystem.lookupPublicClient quid cid) !>> clientErrorToHttpError
   ifNothing (notFound "client not found") x
 
 getClientCapabilities :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
-  mclient <- lift $ liftSem $ lookupLocalClient uid cid
+  mclient <- lift $ liftSem $ ClientSubsystem.lookupLocalClient uid cid
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
 getRichInfo ::

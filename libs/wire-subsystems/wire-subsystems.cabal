@@ -232,6 +232,7 @@ library
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
     Wire.ClientSubsystem
+    Wire.ClientSubsystem.Error
     Wire.ClientSubsystem.Interpreter
     Wire.CodeStore
     Wire.CodeStore.Cassandra

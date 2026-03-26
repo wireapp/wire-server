@@ -28,6 +28,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.AuthenticationSubsystem.Error
 import Wire.Error
 
 throwStd :: (MonadError HttpError m) => Wai.Error -> m a
@@ -98,34 +99,6 @@ loginError (LoginBlocked wait) =
 loginError LoginCodeRequired = StdError (errorToWai @'E.CodeAuthenticationRequired)
 loginError LoginCodeInvalid = StdError (errorToWai @'E.CodeAuthenticationFailed)
 
-authError :: AuthError -> HttpError
-authError AuthInvalidUser = StdError (errorToWai @'E.BadCredentials)
-authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
-authError AuthSuspended = StdError (errorToWai @'E.AccountSuspended)
-authError AuthEphemeral = StdError (errorToWai @'E.AccountEphemeral)
-authError AuthPendingInvitation = StdError (errorToWai @'E.AccountPending)
-
-reauthError :: ReAuthError -> HttpError
-reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)
-reauthError (ReAuthError e) = authError e
-reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
-reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
-reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
-
-clientError :: ClientError -> HttpError
-clientError ClientNotFound = StdError (errorToWai @'E.ClientNotFound)
-clientError (ClientDataError e) = clientDataError e
-clientError (ClientUserNotFound _) = StdError (errorToWai @'E.InvalidUser)
-clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
-clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
-clientError ClientLegalHoldIncompatible = StdError $ Wai.mkError status409 "mls-legal-hold-not-allowed" "A user who is under legal-hold may not participate in MLS conversations"
-clientError (ClientFederationError e) = fedError e
-clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
-clientError ClientMissingLegalholdConsentOldClients = StdError (errorToWai @'E.MissingLegalholdConsentOldClients)
-clientError ClientMissingLegalholdConsent = StdError (errorToWai @'E.MissingLegalholdConsent)
-clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
-clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
-
 -- Note that UnknownError, FfiError, and ImplementationError semantically should rather be 500s than 400s.
 -- However, the errors returned from the FFI are not always correct,
 -- and we don't want to bombard our environments with 500 log messages, so we treat them as 400s, for now.
@@ -185,16 +158,6 @@ certEnrollmentError MissingName = StdError $ Wai.mkError status400 "missing-name
 fedError :: FederationError -> HttpError
 fedError = StdError . federationErrorToWai
 
-clientDataError :: ClientDataError -> HttpError
-clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
-clientDataError (ClientReAuthError e) = reauthError e
-clientDataError ClientMissingAuth = StdError (errorToWai @'E.MissingAuth)
-clientDataError MalformedPrekeys = StdError (errorToWai @'E.MalformedPrekeys)
-clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.MLSDuplicatePublicKey)
-clientDataError KeyPackageDecodingError = StdError (errorToWai @'E.KeyPackageDecodingError)
-clientDataError InvalidKeyPackageRef = StdError (errorToWai @'E.InvalidKeyPackageRef)
-clientDataError MLSNotEnabled = StdError (errorToWai @'E.MLSNotEnabled)
-
 deleteUserError :: DeleteUserError -> HttpError
 deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)
 deleteUserError DeleteUserInvalidCode = StdError (errorToWai @'E.InvalidCode)
@@ -217,9 +180,6 @@ verificationCodeThrottledError (VerificationCodeThrottled t) =
     [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 -- WAI Errors -----------------------------------------------------------------
-
-clientCapabilitiesCannotBeRemoved :: Wai.Error
-clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
 -- One of two cases:
 -- (1) the email is in use by any other account or invitation;
@@ -305,31 +265,6 @@ invalidRange :: LText -> Wai.Error
 invalidRange = Wai.mkError status400 "client-error"
 
 --- Legalhold
-can'tDeleteLegalHoldClient :: Wai.Error
-can'tDeleteLegalHoldClient =
-  Wai.mkError
-    status400
-    "client-error"
-    "LegalHold clients cannot be deleted. LegalHold must be disabled on this user by an admin"
-
-can'tAddLegalHoldClient :: Wai.Error
-can'tAddLegalHoldClient =
-  Wai.mkError
-    status400
-    "client-error"
-    "LegalHold clients cannot be added manually. LegalHold must be enabled on this user by an admin"
 
 legalHoldNotEnabled :: Wai.Error
 legalHoldNotEnabled = Wai.mkError status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
-
-verificationCodeRequired :: Wai.Error
-verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
-
-verificationCodeNoPendingCode :: Wai.Error
-verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
-
-verificationCodeNoEmail :: Wai.Error
-verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."
-
-verificationCodeAuthFailed :: Wai.Error
-verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."

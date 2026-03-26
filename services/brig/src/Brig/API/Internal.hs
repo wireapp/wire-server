@@ -34,7 +34,6 @@ import Brig.API.Types
 import Brig.API.User qualified as API
 import Brig.App as App
 import Brig.Data.Activation
-import Brig.Data.Client qualified as Data
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
@@ -102,7 +101,8 @@ import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
-import Wire.DeleteQueue (DeleteQueue)
+import Wire.ClientSubsystem (ClientSubsystem, ReAuthPolicy (ReAuthPolicy))
+import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.DomainRegistrationStore hiding (domain)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EnterpriseLoginSubsystem
@@ -147,7 +147,6 @@ import Wire.VerificationCodeSubsystem
 servantSitemap ::
   forall r p.
   ( Member BlockListStore r,
-    Member DeleteQueue r,
     Member (Concurrency 'Unsafe) r,
     Member (Embed HttpClientIO) r,
     Member FederationConfigStore r,
@@ -187,7 +186,8 @@ servantSitemap ::
     Member Random r,
     Member SAMLEmailSubsystem r,
     Member AppSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -231,7 +231,6 @@ accountAPI ::
   ( Member BlockListStore r,
     Member GalleyAPIAccess r,
     Member AuthenticationSubsystem r,
-    Member DeleteQueue r,
     Member (UserPendingActivationStore p) r,
     Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
@@ -256,7 +255,8 @@ accountAPI ::
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
     Member (Concurrency Unsafe) r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -537,15 +537,7 @@ getDomainRegistrationH domain =
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  ( Member GalleyAPIAccess r,
-    Member NotificationSubsystem r,
-    Member DeleteQueue r,
-    Member EmailSubsystem r,
-    Member Events r,
-    Member UserSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -553,20 +545,19 @@ addClientInternalH ::
   (Handler r) Client
 addClientInternalH usr mSkipReAuth new connId = do
   let policy
-        | mSkipReAuth == Just True = \_ _ -> False
-        | otherwise = Data.reAuthForNewClients
+        | mSkipReAuth == Just True = ReAuthPolicy $ \_ _ -> False
+        | otherwise = def
   lusr <- qualifyLocal usr
-  API.addClientWithReAuthPolicy policy lusr connId new !>> clientError
+  lift $ liftSem $ ClientSubsystem.addClientWithPolicy policy lusr connId new
 
 legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientRequest -> (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
 removeLegalHoldClientH ::
-  ( Member DeleteQueue r,
-    Member Events r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+  ( Member Events r,
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   UserId ->
   (Handler r) NoContent
