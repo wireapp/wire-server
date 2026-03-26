@@ -29,14 +29,14 @@ import Wire.ConversationSubsystem
 botAPI :: API BotAPI GalleyEffects
 botAPI =
   mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
-    <@> mkNamedAPI @"get-bot-conversation" getBotConversationEndpoint
+    <@> mkNamedAPI @"get-bot-conversation" getBotConversationH
 
-getBotConversationEndpoint ::
+getBotConversationH ::
   forall r.
   (Member ConversationSubsystem r) =>
   BotId ->
   ConvId ->
   Sem r BotConvView
-getBotConversationEndpoint bid cnv = do
+getBotConversationH bid cnv = do
   guardSecondFactorDisabled (botUserId bid) cnv
   getBotConversation bid cnv
