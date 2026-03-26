@@ -83,6 +83,7 @@ test-suite schemas-tests
   other-modules:
     Paths_schema_profunctor
     Test.Data.Schema
+    Test.Data.Schema.Names
 
   hs-source-dirs:     test/unit
   default-extensions:

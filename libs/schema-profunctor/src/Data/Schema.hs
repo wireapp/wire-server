@@ -56,6 +56,7 @@ module Data.Schema
     objectOver,
     namedObjectOver,
     mkSchemaName,
+    mkSchemaNameWith,
     jsonObject,
     jsonValue,
     field,
@@ -102,7 +103,6 @@ import Control.Monad.Trans.Cont
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
-import Data.Typeable (typeRep)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -110,13 +110,15 @@ import Data.Monoid hiding (Product)
 import Data.OpenApi qualified as S
 import Data.OpenApi.Declare qualified as S
 import Data.Profunctor (Star (..))
-import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
+import Data.Typeable (Proxy (..), typeRep)
 import Data.Vector qualified as V
 import Imports hiding (Product)
 import Numeric.Natural
+import Type.Reflection (SomeTypeRep (..), tyConModule, tyConName)
+import Type.Reflection qualified as TR
 
 type Declare = S.Declare (S.Definitions S.Schema)
 
@@ -450,12 +452,47 @@ namedObjectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
     s = mkObject name (schemaDoc sch)
 
 -- | Object and enum schema names by default are the fully qualified
--- name of the haskell type.  If that's not unique, we should probably
--- change those type names.  This will avoid collisions in the hash
--- table keeping track of all the schema references in openapi3.
--- track of all the schema references in openapi3.
+-- name of the haskell type, including type parameters.  If that's not
+-- unique, we should probably change those type names.  This will avoid
+-- collisions in the hash table keeping track of all the schema references
+-- in the openapi3 package.
+--
+-- See test suite for examples.
 mkSchemaName :: forall a. (Typeable a) => Text
-mkSchemaName = T.pack $ show $ typeRep (Proxy @a)
+mkSchemaName = T.pack $ sanitizeSchemaName $ mkSchemaNameInternal @a
+
+mkSchemaNameWith :: forall a. (Typeable a) => Text -> Text
+mkSchemaNameWith extra = T.pack $ sanitizeSchemaName $ T.unpack extra <> " " <> (mkSchemaNameInternal @a)
+
+-- | Vacuum's yaml parser chokes on '/', ':' etc in schema names.
+-- Let's indulge it, and use a conservative positive filter.
+sanitizeSchemaName :: String -> String
+sanitizeSchemaName =
+  mconcat
+    . map
+      ( \c ->
+          if c `elem` ("_,.()[]" ++ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] :: [Char])
+            then [c]
+            else "_" ++ show (ord c) ++ "_"
+      )
+
+mkSchemaNameInternal :: forall a. (Typeable a) => String
+mkSchemaNameInternal = humanReadable ++ " (" <> unique ++ ")"
+  where
+    humanReadable = show $ typeRep (Proxy @a)
+    unique = renderTypeRep (TR.typeRep @a)
+
+    renderTypeRep :: forall t. TR.TypeRep t -> String
+    renderTypeRep tr =
+      case TR.splitApps tr of
+        (tyCon, []) ->
+          -- Simple type with no arguments
+          tyConModule tyCon <> "." <> tyConName tyCon
+        (tyCon, args) ->
+          -- Type constructor applied to arguments
+          let conName = tyConModule tyCon <> "." <> tyConName tyCon
+              argNames = map (\(SomeTypeRep arg) -> renderTypeRep arg) args
+           in conName <> " " <> intercalate " " argNames
 
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.

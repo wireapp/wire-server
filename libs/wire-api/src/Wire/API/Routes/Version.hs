@@ -344,5 +344,5 @@ versionedObjectWithDocModifier ::
 versionedObjectWithDocModifier v = namedObjectWithDocModifier (mkVersionedSchemaName @a v)
 
 mkVersionedSchemaName :: forall a. (Typeable a) => Maybe Version -> Text
-mkVersionedSchemaName (Just v) = versionText v <> "/" <> mkSchemaName @a
+mkVersionedSchemaName (Just v) = mkSchemaNameWith @a (versionText v)
 mkVersionedSchemaName Nothing = mkSchemaName @a

@@ -33,6 +33,7 @@ import Data.Proxy
 import Data.Schema hiding (getName)
 import Data.Text qualified as Text
 import Imports
+import Test.Data.Schema.Names
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -69,7 +70,8 @@ tests =
       testRmClientWrong,
       testRmClient,
       testEnumType,
-      testNullable
+      testNullable,
+      testSchemaNames
     ]
 
 testFooToJSON :: TestTree
@@ -112,7 +114,7 @@ testFooSchema =
       (s ^. S.required)
     assertEqual
       "Schema for \"a\" should be referenced"
-      (Just (S.Ref (S.Reference "A")))
+      (Just (S.Ref (S.Reference "A (Test.Data.Schema.A)")))
       (s ^. S.properties . at "a")
     case s ^. S.properties . at "str" of
       Nothing -> assertFailure "\"str\" field should be present"
