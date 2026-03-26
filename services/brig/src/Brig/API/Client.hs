@@ -20,7 +20,6 @@ module Brig.API.Client
   ( -- * Clients
     updateClient,
     rmClient,
-    pubClient,
     legalHoldClientRequested,
     removeLegalHoldClient,
     createAccessToken,
@@ -383,13 +382,6 @@ noPrekeys u c = do
           ~~ field "client" (toByteString c)
           ~~ msg (val "No prekey found. Deleting client.")
       liftSem $ enqueueClientDeletion u Nothing client
-
-pubClient :: Client -> PubClient
-pubClient c =
-  PubClient
-    { pubClientId = c.clientId,
-      pubClientClass = clientClass c
-    }
 
 legalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> AppT r ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =

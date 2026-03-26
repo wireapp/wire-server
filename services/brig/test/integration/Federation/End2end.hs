@@ -21,12 +21,12 @@ import API.MLS.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import Brig.API.Client (pubClient)
 import Brig.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Wire.API.User.Client
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -58,7 +58,6 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User hiding (assetKey)
-import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
 -- NOTE: These federation tests require deploying two sets of (some) services
@@ -345,7 +344,7 @@ testListUserClients brig1 brig2 = do
       nclients = map mkClient prekeys
   clients <- traverse (responseJsonError <=< addClient brig2 (userId bob)) nclients
   resp <- getUserClientsQualified brig1 (userId alice) (qDomain (userQualifiedId bob)) (userId bob)
-  let expected = map pubClient clients
+  let expected = map toPubClient clients
       actual = responseJsonUnsafe resp
   liftIO $ Set.fromList actual @?= Set.fromList expected
 

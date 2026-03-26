@@ -118,13 +118,6 @@ handleClientStore = \case
               <=< (Map.lookup cid . Map.findWithDefault mempty uid . (.byUser))
           )
 
-toPubClient :: Client -> PubClient
-toPubClient client =
-  PubClient
-    { pubClientId = client.clientId,
-      pubClientClass = client.clientClass
-    }
-
 modifyStoredClient ::
   (Member (State ClientStoreState) r) =>
   UserId ->
