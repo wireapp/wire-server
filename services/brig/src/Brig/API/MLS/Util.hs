@@ -17,13 +17,12 @@
 
 module Brig.API.MLS.Util where
 
-import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
-import Brig.Data.Client
 import Brig.Options
 import Control.Error
 import Imports
+import Wire.ClientSubsystem.Error
 
 isMLSEnabled :: Handler r Bool
 isMLSEnabled = fromMaybe False <$> asks (.settings.enableMLS)
@@ -31,4 +30,4 @@ isMLSEnabled = fromMaybe False <$> asks (.settings.enableMLS)
 assertMLSEnabled :: Handler r ()
 assertMLSEnabled =
   unlessM isMLSEnabled $
-    throwE (clientDataError MLSNotEnabled)
+    throwE (clientDataErrorToHttpError MLSNotEnabled)

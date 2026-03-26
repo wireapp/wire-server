@@ -21,7 +21,6 @@ module Brig.API.Federation (federationSitemap, FederationAPI) where
 
 import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
-import Brig.API.Error
 import Brig.API.Handler (Handler)
 import Brig.API.Internal qualified as Internal
 import Brig.API.MLS.CipherSuite
@@ -66,9 +65,10 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
-import Wire.AuthenticationSubsystem
 import Wire.ClientStore (ClientStore)
-import Wire.DeleteQueue
+import Wire.ClientSubsystem
+import Wire.ClientSubsystem qualified as ClientSubsystem
+import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.Error
 import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore qualified as E
@@ -89,9 +89,8 @@ federationSitemap ::
     Member NotificationSubsystem r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
@@ -184,30 +183,28 @@ getUsersByIds _ uids = do
   lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
 
 claimPrekey ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+  ( Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   Domain ->
   (UserId, ClientId) ->
   (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
-  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
+  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientErrorToHttpError
 
 claimPrekeyBundle :: (Member ClientStore r) => Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =
-  API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
+  API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientErrorToHttpError
 
 claimMultiPrekeyBundle ::
   ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   Domain ->
   UserClients ->
   Handler r UserClientPrekeyMap
-claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
+claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientErrorToHttpError
 
 fedClaimKeyPackages ::
   ( Member GalleyAPIAccess r,
@@ -289,8 +286,8 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
     isTeamAllowed (Just _) Nothing = False
     isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
 
-getUserClients :: (Member ClientStore r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
-getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
+getUserClients _ (GetUserClients uids) = lift (liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError
 
 getMLSClients :: (Member ClientStore r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do

@@ -32,4 +32,4 @@ inMemoryNotificationSubsystemInterpreter = interpret \case
   CleanupUser {} -> error "CleanupUser: Implement on demand"
   UnregisterPushClient {} -> error "UnregisterPushClient: Implement on demand"
   GetPushTokens {} -> error "GetPushTokens: Implement on demand"
-  SetupConsumableNotifications {} -> error "SetupConsumableNotifications: Implement on demand"
+  SetupConsumableNotifications {} -> pure ()

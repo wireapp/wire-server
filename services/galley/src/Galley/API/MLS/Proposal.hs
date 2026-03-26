@@ -67,7 +67,6 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.LegalHoldStore (LegalHoldStore)
@@ -76,6 +75,7 @@ import Wire.ProposalStore
 import Wire.Sem.Now (Now)
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
+import Wire.Util
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),

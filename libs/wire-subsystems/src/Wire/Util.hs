@@ -18,6 +18,7 @@
 module Wire.Util where
 
 import Cassandra hiding (Set)
+import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Embed
@@ -35,3 +36,8 @@ embedClientInput :: (Member (Embed IO) r, Member (Input ClientState) r) => Clien
 embedClientInput a = do
   client <- input
   embedClient client a
+
+qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
+qualifyLocal a = do
+  l <- input
+  pure $ qualifyAs l a

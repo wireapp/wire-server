@@ -1,1 +1,1 @@
-Move verification code action to AuthenticationSubsystem (#5154)
+Moved code from galley to ClientSubsystem (#5154, #5147)

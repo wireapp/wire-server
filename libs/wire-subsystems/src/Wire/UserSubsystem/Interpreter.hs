@@ -130,16 +130,16 @@ runUserSubsystem ::
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
     Member UserGroupStore r,
-    Member ClientSubsystem r,
     Member (Input (Local any)) r
   ) =>
-  InterpreterFor AuthenticationSubsystem (AppSubsystem ': r) ->
-  InterpreterFor AppSubsystem r ->
+  InterpreterFor AuthenticationSubsystem (AppSubsystem ': ClientSubsystem ': r) ->
+  InterpreterFor AppSubsystem (ClientSubsystem ': r) ->
+  InterpreterFor ClientSubsystem r ->
   Sem (UserSubsystem ': r) a ->
   Sem r a
-runUserSubsystem authInterpreter appInterpreter =
+runUserSubsystem authInterpreter appInterpreter clientInterpreter =
   interpret $
-    appInterpreter . authInterpreter . \case
+    clientInterpreter . appInterpreter . authInterpreter . \case
       GetUserProfiles self others ->
         getUserProfilesImpl self others
       GetLocalUserProfilesFiltered upf others ->

@@ -51,7 +51,6 @@ where
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.API.Error (internalServerError)
-import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
@@ -62,7 +61,7 @@ import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
 import Control.Error (ExceptT, runExceptT)
-import Control.Lens (view, (?~), (^.), (^?))
+import Control.Lens (view, (^.), (^?))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
@@ -98,6 +97,7 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserEvent
+import Wire.ClientSubsystem.Error
 import Wire.Events
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -417,25 +417,6 @@ notifyContacts event orig route conn = do
       | mems ^. Team.teamMemberListType == Team.ListComplete =
           view Team.userId <$> mems ^. Team.teamMembers
     screenMemberList _ = []
-
-toApsData :: Event -> Maybe V2.ApsData
-toApsData (ConnectionEvent (ConnectionUpdated uc name)) =
-  case (ucStatus uc, name) of
-    (MissingLegalholdConsent, _) -> Nothing
-    (Pending, n) -> apsConnRequest <$> n
-    (Accepted, n) -> apsConnAccept <$> n
-    (Blocked, _) -> Nothing
-    (Ignored, _) -> Nothing
-    (Sent, _) -> Nothing
-    (Cancelled, _) -> Nothing
-  where
-    apsConnRequest n =
-      V2.apsData (V2.ApsLocKey "push.notification.connection.request") [fromName n]
-        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
-    apsConnAccept n =
-      V2.apsData (V2.ApsLocKey "push.notification.connection.accepted") [fromName n]
-        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
-toApsData _ = Nothing
 
 -------------------------------------------------------------------------------
 -- Conversation Management

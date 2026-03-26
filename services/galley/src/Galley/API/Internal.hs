@@ -116,6 +116,7 @@ import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore
 import Wire.UserList
+import Wire.Util
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =

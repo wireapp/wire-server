@@ -62,7 +62,7 @@ data VerificationCodeError
   = VerificationCodeRequired
   | VerificationCodeNoPendingCode
   | VerificationCodeNoEmail
-  deriving (Eq, Show)
+  deriving (Show, Eq)
 
 instance Exception VerificationCodeError
 
@@ -83,6 +83,20 @@ zauthError ZAuth.Falsified = authTokenFalsified
 zauthError ZAuth.Invalid = authTokenInvalid
 zauthError ZAuth.Unsupported = authTokenUnsupported
 
+reauthError :: ReAuthError -> HttpError
+reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)
+reauthError (ReAuthError e) = authError e
+reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
+reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
+reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
+
+authError :: AuthError -> HttpError
+authError AuthInvalidUser = StdError (errorToWai @'E.BadCredentials)
+authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
+authError AuthSuspended = StdError (errorToWai @'E.AccountSuspended)
+authError AuthEphemeral = StdError (errorToWai @'E.AccountEphemeral)
+authError AuthPendingInvitation = StdError (errorToWai @'E.AccountPending)
+
 authTokenExpired :: Wai.Error
 authTokenExpired = Wai.mkError status403 "invalid-credentials" "Zauth token expired"
 
@@ -94,3 +108,15 @@ authTokenFalsified = Wai.mkError status403 "invalid-credentials" "Zauth token fa
 
 authTokenUnsupported :: Wai.Error
 authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported token operation for this token type"
+
+verificationCodeAuthFailed :: Wai.Error
+verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."
+
+verificationCodeRequired :: Wai.Error
+verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeNoPendingCode :: Wai.Error
+verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
+
+verificationCodeNoEmail :: Wai.Error
+verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."

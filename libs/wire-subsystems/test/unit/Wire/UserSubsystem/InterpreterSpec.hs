@@ -61,6 +61,7 @@ import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
+import Wire.ClientSubsystem.Error (ClientError)
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.IndexedUserStore qualified as IU
 import Wire.InvitationStore (InsertInvitation, StoredInvitation)
@@ -130,6 +131,7 @@ spec = describe "UserSubsystem.Interpreter" do
             localBackend = def {users = [viewer]}
             result =
               run
+                . runErrorUnsafe @ClientError
                 . runErrorUnsafe @UserSubsystemError
                 . runErrorUnsafe @AppSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError

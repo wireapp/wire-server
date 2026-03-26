@@ -72,7 +72,7 @@ import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.State
 import Polysemy.TinyLog
-import Servant.Client.Core
+import Servant.Client.Core hiding (ClientError)
 import System.Logger qualified as Log
 import Test.QuickCheck
 import Type.Reflection
@@ -219,7 +219,8 @@ type AllErrors =
     Error AuthenticationSubsystemError,
     Error VerificationCodeSubsystemError,
     Error RateLimitExceeded,
-    Error TeamCollaboratorsError
+    Error TeamCollaboratorsError,
+    Error ClientError
   ]
 
 type MiniBackendEffects =
@@ -227,7 +228,7 @@ type MiniBackendEffects =
     `Append` '[TeamCollaboratorsSubsystem]
     `Append` MiniBackendLowerEffects
 
-type AuthUserAppRecursiveEffects = '[AuthenticationSubsystem, UserSubsystem, AppSubsystem]
+type AuthUserAppRecursiveEffects = '[AuthenticationSubsystem, UserSubsystem, AppSubsystem, ClientSubsystem]
 
 ----------------------------------------------------------------------
 -- lower effect interpreters (hierarchically)
@@ -252,8 +253,7 @@ data MiniBackendParams r = MiniBackendParams
 -- organize along effect types ("all `State`s"), but the domain ("everything about block
 -- lists").
 type MiniBackendLowerEffects =
-  '[ ClientSubsystem,
-     TeamSubsystem,
+  '[ TeamSubsystem,
      EmailSubsystem,
      NotificationSubsystem,
      VerificationCodeSubsystem,
@@ -334,7 +334,6 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
     . interpretTeamSubsystemToGalleyAPI
-    . runClientSubsystem
 
 type StateEffects =
   '[ State [Push],
@@ -383,6 +382,7 @@ type InputEffects =
      Input (Map TeamId IdPList),
      Input VerificationCodeThrottleTTL,
      Input AuthenticationSubsystemConfig,
+     Input ClientSubsystemConfig,
      Input (Local ())
    ]
 
@@ -423,6 +423,13 @@ defaultAuthenticationSubsystemConfig =
 defaultLocalDomain :: Local ()
 defaultLocalDomain = (toLocalUnsafe (Domain "localdomain") ())
 
+defaultClientSubsystemConfig :: ClientSubsystemConfig
+defaultClientSubsystemConfig =
+  ClientSubsystemConfig
+    { userMaxPermClients = 7,
+      consumableNotificationsEnabled = False
+    }
+
 inputEffectsInterpreters ::
   forall r a.
   UserSubsystemConfig ->
@@ -432,6 +439,7 @@ inputEffectsInterpreters ::
   Sem r a
 inputEffectsInterpreters usrCfg appCfg teamIdps =
   runInputConst defaultLocalDomain
+    . runInputConst defaultClientSubsystemConfig
     . runInputConst defaultAuthenticationSubsystemConfig
     . runInputConst (VerificationCodeThrottleTTL 60)
     . runInputConst teamIdps
@@ -661,7 +669,15 @@ runNoFederationStackUserSubsystemErrorEither localBackend teams cfg =
   run . userSubsystemErrorEitherUnsafe . interpretNoFederationStack localBackend teams def cfg
 
 userSubsystemErrorEitherUnsafe :: Sem AllErrors a -> Sem '[] (Either UserSubsystemError a)
-userSubsystemErrorEitherUnsafe = runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runError
+userSubsystemErrorEitherUnsafe =
+  runErrorUnsafe
+    . runErrorUnsafe
+    . runErrorUnsafe
+    . runErrorUnsafe
+    . runErrorUnsafe
+    . runErrorUnsafe
+    . runErrorUnsafe
+    . runError
 
 interpretNoFederationStack ::
   (Members AllErrors r) =>
@@ -708,18 +724,21 @@ interpretMaybeFederationStackState mb =
 -- diplicate this function whenever we need it.
 runRecursiveAuthUserApp ::
   (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) =>
-  Sem (AuthenticationSubsystem ': UserSubsystem ': AppSubsystem ': r) a ->
+  Sem (AuthenticationSubsystem ': UserSubsystem ': AppSubsystem ': ClientSubsystem ': r) a ->
   Sem r a
-runRecursiveAuthUserApp = runApp . runUser . runAuth
+runRecursiveAuthUserApp = runClient . runApp . runUser . runAuth
   where
     runAuth :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor AuthenticationSubsystem r
     runAuth = interpretAuthenticationSubsystem runUser
 
     runUser :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor UserSubsystem r
-    runUser = runUserSubsystem runAuth runApp
+    runUser = runUserSubsystem runAuth runApp runClient
 
     runApp :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor AppSubsystem r
     runApp = runAppSubsystem runUser runAuth
+
+    runClient :: forall r. (Members AllErrors r, Members (TeamCollaboratorsSubsystem ': MiniBackendLowerEffects) r) => InterpreterFor ClientSubsystem r
+    runClient = runClientSubsystem runAuth runUser
 
 liftInvitationInfoStoreState :: (Member (State MiniBackend) r) => Sem (State (Map InvitationCode StoredInvitation) : r) a -> Sem r a
 liftInvitationInfoStoreState = interpret \case
@@ -782,7 +801,7 @@ liftIndexedUserStoreState = interpret $ \case
   Put newUserIndex -> modify $ \b -> (b :: MiniBackend) {userIndex = newUserIndex}
 
 runAllErrorsUnsafe :: forall a. (HasCallStack) => Sem AllErrors a -> a
-runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
+runAllErrorsUnsafe = run . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe . runErrorUnsafe
 
 emptyFederationAPIAcesss :: InterpreterFor (FederationAPIAccess MiniFederationMonad) r
 emptyFederationAPIAcesss = interpret $ \case

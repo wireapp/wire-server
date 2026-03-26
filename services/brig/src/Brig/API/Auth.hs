@@ -52,7 +52,7 @@ import Wire.ActivationCodeStore (ActivationCodeStore)
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
-import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..), zauthError)
+import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth
 import Wire.BlockListStore
 import Wire.ClientStore (ClientStore)
