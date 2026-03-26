@@ -287,7 +287,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
     isTeamAllowed (Just teams) (Just tid) = tid `elem` teams
 
 getUserClients :: (Member ClientSubsystem r) => Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
-getUserClients _ (GetUserClients uids) = (lift $ liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError
+getUserClients _ (GetUserClients uids) = lift (liftSem $ ClientSubsystem.lookupLocalPublicClientsBulk uids) !>> clientErrorToHttpError
 
 getMLSClients :: (Member ClientStore r) => Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do

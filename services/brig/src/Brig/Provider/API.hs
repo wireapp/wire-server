@@ -861,14 +861,12 @@ addBot zuid zcon cid add = do
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
     lbid <- qualifyLocal (botUserId bid)
-    ( lift $
-        liftSem $
+    lift (liftSem $
           ClientSubsystem.upsertClient
             lbid
             bcl
             newClt
-            (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
-      )
+            (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
   -- Add the bot to the conversation
