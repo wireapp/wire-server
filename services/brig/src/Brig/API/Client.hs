@@ -19,7 +19,6 @@
 module Brig.API.Client
   ( -- * Clients
     updateClient,
-    legalHoldClientRequested,
     createAccessToken,
 
     -- * Prekeys
@@ -350,7 +349,6 @@ noPrekeys u c = do
           ~~ field "client" (toByteString c)
           ~~ msg (val "No prekey found. Deleting client.")
       liftSem $ enqueueClientDeletion u Nothing client
-
 
 createAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>

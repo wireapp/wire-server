@@ -27,6 +27,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 qualified as V2
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User as User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -95,6 +96,7 @@ runClientSubsystem runAuth runUser =
       EnqueueClientDeletion uid con client -> execDelete uid con client
       RemoveClient uid conn cid mPwd -> rmClient uid conn cid mPwd
       RemoveLegalHoldClient uid -> removeLegalHoldClient uid
+      PublishLegalHoldClientRequested uid req -> publishLegalHoldClientRequested uid req
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -382,13 +384,15 @@ removeLegalHoldClient uid = do
   forM_ legalHoldClients (execDelete uid Nothing)
   Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
-legalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> AppT r ()
-legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
-  liftSem $ Events.generateUserEvent targetUser Nothing lhClientEvent
+publishLegalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> Sem r ()
+publishLegalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
+  Events.generateUserEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
+
     eventData :: LegalHoldClientRequestedData
     eventData = LegalHoldClientRequestedData targetUser lastPrekey' clientId
+
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData

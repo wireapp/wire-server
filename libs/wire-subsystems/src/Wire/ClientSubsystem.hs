@@ -9,6 +9,7 @@ import Data.Qualified
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
 import Wire.API.UserEvent
 import Wire.API.UserMap
@@ -45,5 +46,6 @@ data ClientSubsystem m a where
   EnqueueClientDeletion :: UserId -> Maybe ConnId -> Client -> ClientSubsystem m ()
   RemoveClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ClientSubsystem m ()
   RemoveLegalHoldClient :: UserId -> ClientSubsystem m ()
+  PublishLegalHoldClientRequested :: UserId -> LegalHoldClientRequest -> ClientSubsystem m ()
 
 makeSem ''ClientSubsystem

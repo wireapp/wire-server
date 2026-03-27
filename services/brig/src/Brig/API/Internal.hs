@@ -24,7 +24,6 @@ module Brig.API.Internal
 where
 
 import Brig.API.Auth
-import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
@@ -547,9 +546,9 @@ addClientInternalH usr mSkipReAuth new connId = do
   lusr <- qualifyLocal usr
   lift $ liftSem $ ClientSubsystem.addClientWithPolicy policy lusr connId new
 
-legalHoldClientRequestedH :: (Member Events r) => UserId -> LegalHoldClientRequest -> (Handler r) NoContent
+legalHoldClientRequestedH :: (Member ClientSubsystem r) => UserId -> LegalHoldClientRequest -> (Handler r) NoContent
 legalHoldClientRequestedH targetUser clientRequest = do
-  lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
+  lift $ liftSem $ NoContent <$ ClientSubsystem.publishLegalHoldClientRequested targetUser clientRequest
 
 removeLegalHoldClientH ::
   (Member ClientSubsystem r) =>
