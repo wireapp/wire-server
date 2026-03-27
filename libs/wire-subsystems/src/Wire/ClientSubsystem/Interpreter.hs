@@ -381,3 +381,14 @@ removeLegalHoldClient uid = do
   -- maybe log if this isn't the case
   forM_ legalHoldClients (execDelete uid Nothing)
   Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
+
+legalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> AppT r ()
+legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
+  liftSem $ Events.generateUserEvent targetUser Nothing lhClientEvent
+  where
+    clientId :: ClientId
+    clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
+    eventData :: LegalHoldClientRequestedData
+    eventData = LegalHoldClientRequestedData targetUser lastPrekey' clientId
+    lhClientEvent :: UserEvent
+    lhClientEvent = LegalHoldClientRequested eventData
