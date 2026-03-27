@@ -7,19 +7,12 @@ GIT_ROOT="$(git rev-parse --show-toplevel)"
 
 OUTPUT_DIR_BASE="${1:-.}"
 VERSION="${2:-}"
-IMAGES_ATTR="${3:-imagesNoDocs}"
 
 if [[ -z "$VERSION" ]]; then
-  echo "Usage: $0 <output-dir-base> <version> [images-attr]"
+  echo "Usage: $0 <output-dir-base> <version>"
   echo "  output-dir-base: Base directory to write SBOM files"
   echo "                   Will create subdirectories: runtime/ and buildtime/"
   echo "  version:         Version to use for SBOMs (e.g., 5.28.22)"
-  echo "  images-attr:     Nix attribute for images (default: imagesNoDocs)"
-  echo ""
-  echo "Available image attributes:"
-  echo "  - imagesNoDocs (production images, optimized)"
-  echo "  - imagesUnoptimizedNoDocs (dev images, faster builds)"
-  echo "  - images (full images with docs)"
   exit 1
 fi
 
@@ -31,18 +24,21 @@ mkdir -p "$OUTPUT_DIR_RUNTIME" "$OUTPUT_DIR_BUILDTIME"
 # Get current git commit hash for linking to source
 GIT_COMMIT=$(git rev-parse HEAD)
 
+# Get system architecture for the flake reference
+SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
+
 # Track errors during processing
 error_count=0
 
-# Function to generate SBOM with metadata and conversion
-# Parameters: flake_ref, output_file, docker_image, oci_purl, sbom_type
+# Function to generate SBOM with metadata and convert it
+# Parameters: flake_ref, output_file, component_name, purl, sbom_type
 #   sbom_type must be either "runtime" or "buildtime"
 # Uses global variables: VERSION, GIT_COMMIT
 generate_sbom() {
   local flake_ref="$1"
   local output_file="$2"
-  local docker_image="$3"
-  local oci_purl="$4"
+  local component_name="$3"
+  local purl="$4"
   local sbom_type="$5"
 
   # Validate sbom_type parameter
@@ -69,8 +65,8 @@ generate_sbom() {
     local source_url="https://github.com/wireapp/wire-server/tree/${GIT_COMMIT}"
 
     # Remove invalid CPEs (those with empty version fields) and add our metadata
-    jq --arg docker_image "$docker_image" \
-       --arg oci_purl "$oci_purl" \
+    jq --arg component_name "$component_name" \
+       --arg purl "$purl" \
        --arg source_url "$source_url" \
        --arg version "$VERSION" \
        '# Remove CPE from metadata.component if it has empty version (::)
@@ -78,10 +74,10 @@ generate_sbom() {
           .metadata.component |= del(.cpe)
         else . end |
         # Add our metadata
+        .metadata.component.name = $component_name |
         .metadata.component.version = $version |
-        .metadata.component.purl = $oci_purl |
+        .metadata.component.purl = $purl |
         .metadata.component.externalReferences += [
-          {"type": "distribution", "url": ("docker://" + $docker_image), "comment": "Docker image"},
           {"type": "vcs", "url": $source_url, "comment": "Source repository"}
         ]' \
        "$output_file" > "$temp_file"
@@ -101,44 +97,44 @@ generate_sbom() {
   return 1
 }
 
-echo "Generating SBOMs for Nix-built Docker images..."
-echo "Images attribute: $IMAGES_ATTR"
+echo "Generating SBOMs for Nix devShells..."
 echo "Version: $VERSION"
+echo "System: $SYSTEM"
 echo "Output directory (runtime): $OUTPUT_DIR_RUNTIME"
 echo "Output directory (buildtime): $OUTPUT_DIR_BUILDTIME"
 echo ""
 
-# Get list of image names from the imagesNoDocs attrset (excluding 'all')
-echo "Discovering images from $IMAGES_ATTR..."
-mapfile -t image_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#wireServer.${IMAGES_ATTR}" --apply 'images: builtins.concatStringsSep "\n" (builtins.filter (name: name != "all") (builtins.attrNames images))' --raw 2>&1 | grep -v warning)
+# Get list of devShell names from the devShells attrset
+echo "Discovering devShells..."
+mapfile -t devshell_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#devShells.${SYSTEM}" --apply 'shells: builtins.concatStringsSep "\n" (builtins.attrNames shells)' --raw 2>&1 | grep -v warning)
 
-echo "Found ${#image_names[@]} images to process"
+echo "Found ${#devshell_names[@]} devShells to process"
 echo ""
 
-# Process each image
-for image_name in "${image_names[@]}"; do
+# Process each devShell
+for devshell_name in "${devshell_names[@]}"; do
   # Skip empty lines
-  [[ -z "$image_name" ]] && continue
+  [[ -z "$devshell_name" ]] && continue
 
-  echo "Processing image: $image_name"
+  echo "Processing devShell: $devshell_name"
 
-  # Create flake reference for the image
-  flake_ref="$GIT_ROOT#wireServer.${IMAGES_ATTR}.${image_name}"
+  # Create flake reference for the devShell
+  flake_ref="$GIT_ROOT#devShells.${SYSTEM}.${devshell_name}"
   echo "  Flake reference: $flake_ref"
 
-  # Create docker image reference and metadata
-  docker_image="quay.io/wire/${image_name}:${VERSION}"
-  oci_purl="pkg:oci/wire-${image_name}@${VERSION}?repository_url=quay.io/wire"
+  # Create component metadata
+  component_name="wire-server-devshell-${devshell_name}"
+  purl="pkg:nix/wire-server/${devshell_name}@${VERSION}"
 
   # Generate runtime-only SBOM
-  runtime_output_file="$OUTPUT_DIR_RUNTIME/sbom-nix-docker-${image_name}.${VERSION}.cyclonedx.json"
-  if ! generate_sbom "$flake_ref" "$runtime_output_file" "$docker_image" "$oci_purl" "runtime"; then
+  runtime_output_file="$OUTPUT_DIR_RUNTIME/sbom-nix-devshell-${devshell_name}.${VERSION}.cyclonedx.json"
+  if ! generate_sbom "$flake_ref" "$runtime_output_file" "$component_name" "$purl" "runtime"; then
     ((error_count++))
   fi
 
   # Generate buildtime SBOM (includes build dependencies)
-  buildtime_output_file="$OUTPUT_DIR_BUILDTIME/sbom-nix-docker-${image_name}.${VERSION}.cyclonedx.json"
-  if ! generate_sbom "$flake_ref" "$buildtime_output_file" "$docker_image" "$oci_purl" "buildtime"; then
+  buildtime_output_file="$OUTPUT_DIR_BUILDTIME/sbom-nix-devshell-${devshell_name}.${VERSION}.cyclonedx.json"
+  if ! generate_sbom "$flake_ref" "$buildtime_output_file" "$component_name" "$purl" "buildtime"; then
     ((error_count++))
   fi
 
@@ -148,7 +144,7 @@ done
 echo "SBOM generation complete."
 echo "Runtime SBOMs:   $OUTPUT_DIR_RUNTIME"
 echo "Buildtime SBOMs: $OUTPUT_DIR_BUILDTIME"
-echo "Total images processed: ${#image_names[@]}"
+echo "Total devShells processed: ${#devshell_names[@]}"
 
 if [[ $error_count -gt 0 ]]; then
   echo "WARNING: $error_count error(s) occurred during SBOM generation" >&2
