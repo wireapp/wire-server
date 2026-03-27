@@ -25,7 +25,7 @@ import Wire.EmailSubsystem
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter
-import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess hiding (newClient)
 import Wire.InternalEvent
 import Wire.MockInterpreters
 import Wire.NotificationSubsystem
@@ -103,7 +103,7 @@ spec :: Spec
 spec = describe "ClientSubsystem.Interpreter" do
   prop "adds and looks up a client" $ \user ->
     let luid = toLocalUnsafe testDomain user.id
-        new = Wire.API.User.Client.newClient PermanentClientType validLastPrekey
+        new = newClient PermanentClientType validLastPrekey
         clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
         expectedClient =
           Client
@@ -142,7 +142,7 @@ spec = describe "ClientSubsystem.Interpreter" do
   prop "removes client" $ \user conn ->
     let uid = user.id
         luid = toLocalUnsafe testDomain user.id
-        new = Wire.API.User.Client.newClient PermanentClientType validLastPrekey
+        new = newClient PermanentClientType validLastPrekey
         clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
         testResult =
           runClientSubsystemTest [user] do
@@ -161,6 +161,47 @@ spec = describe "ClientSubsystem.Interpreter" do
                   revokeCookiesCalls auth === 0,
                   length testResult.deletions === 1,
                   length testResult.events === 0,
+                  length testResult.pushes === 1
+                ]
+
+  prop "legal hold client cannot be removed" $ \user conn ->
+    let uid = user.id
+        luid = toLocalUnsafe testDomain user.id
+        new = newClient LegalHoldClientType validLastPrekey
+        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        testResult =
+          runClientSubsystemTest [user] do
+            void $ addClient luid Nothing new
+            removeClient uid conn clientId Nothing
+     in counterexample ("unexpected result: " <> show testResult.result) $
+          case testResult.result of
+            Left ClientLegalHoldCannotBeRemoved -> property True
+            Left clientErr ->
+              counterexample ("unexpected ClientError: " <> show clientErr) False
+            Right _ ->
+              counterexample "legal hold client removal was expected to fail, but it succeeded" False
+
+  prop "adds and removes legal hold client" $ \user ->
+    let uid = user.id
+        luid = toLocalUnsafe testDomain user.id
+        new = newClient LegalHoldClientType validLastPrekey
+        testResult =
+          runClientSubsystemTest [user] do
+            added <- addClient luid Nothing new
+            removeLegalHoldClient uid
+            stored <- lookupLocalClients user.id
+            pure (added, stored)
+        auth = testResult.authState
+     in counterexample ("unexpected result: " <> show testResult.result) $
+          case testResult.result of
+            Left clientErr ->
+              counterexample ("unexpected ClientError: " <> show clientErr) False
+            Right (_, clients) ->
+              conjoin
+                [ length clients === 0,
+                  revokeCookiesCalls auth === 0,
+                  length testResult.deletions === 1,
+                  length testResult.events === 2,
                   length testResult.pushes === 1
                 ]
 
