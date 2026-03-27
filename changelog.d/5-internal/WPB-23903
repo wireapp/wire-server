@@ -1,0 +1,1 @@
+New `wire-ingress` Helm chart — Gateway API / Envoy Gateway replacement for `nginx-ingress-services`. Not yet production-ready.
