@@ -13,8 +13,10 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck.Property
 import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.API.UserEvent
 import Wire.ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
@@ -203,6 +205,33 @@ spec = describe "ClientSubsystem.Interpreter" do
                   length testResult.deletions === 1,
                   length testResult.events === 2,
                   length testResult.pushes === 1
+                ]
+
+  prop "requests a legal hold client" $ \user ->
+    let uid = user.id
+        req = LegalHoldClientRequest uid validLastPrekey
+        testResult =
+          runClientSubsystemTest [user] do
+            publishLegalHoldClientRequested uid req
+        isLhRequested (UserEvent (LegalHoldClientRequested _)) = property True
+        isLhRequested e = counterexample ("unexpected event: " <> show e) False
+        isSingelLhEvent events = case events of
+          [] -> counterexample "expected one event, but got none" False
+          [event] ->
+            conjoin
+              [ event.userId === uid,
+                isLhRequested event.event
+              ]
+          _ -> counterexample "expected one event, but got many" False
+     in counterexample ("unexpected result: " <> show testResult.result) $
+          case testResult.result of
+            Left clientErr ->
+              counterexample ("unexpected ClientError: " <> show clientErr) False
+            Right () ->
+              conjoin
+                [ length testResult.deletions === 0,
+                  isSingelLhEvent testResult.events,
+                  length testResult.pushes === 0
                 ]
 
 validLastPrekey :: LastPrekey
