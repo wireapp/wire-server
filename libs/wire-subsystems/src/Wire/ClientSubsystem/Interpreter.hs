@@ -94,6 +94,7 @@ runClientSubsystem runAuth runUser =
       OnClientEvent uid con event -> onClientEvent uid con event
       EnqueueClientDeletion uid con client -> execDelete uid con client
       RemoveClient uid conn cid mPwd -> rmClient uid conn cid mPwd
+      RemoveLegalHoldClient uid -> removeLegalHoldClient uid
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -364,3 +365,19 @@ rmClient u con clt pw =
           (Authentication.reauthenticateEither u pw)
             >>= either (throw . ClientDataError . ClientReAuthError) (const $ pure ())
       execDelete u (Just con) client
+
+removeLegalHoldClient ::
+  ( Member Events r,
+    Member ClientStore r,
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  Sem r ()
+removeLegalHoldClient uid = do
+  clients <- ClientStore.lookupClients uid
+  -- Should only be one; but just in case we'll treat it as a list
+  let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
+  -- maybe log if this isn't the case
+  forM_ legalHoldClients (execDelete uid Nothing)
+  Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)

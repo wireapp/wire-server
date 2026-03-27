@@ -44,5 +44,6 @@ data ClientSubsystem m a where
   OnClientEvent :: UserId -> Maybe ConnId -> ClientEvent -> ClientSubsystem m ()
   EnqueueClientDeletion :: UserId -> Maybe ConnId -> Client -> ClientSubsystem m ()
   RemoveClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ClientSubsystem m ()
+  RemoveLegalHoldClient :: UserId -> ClientSubsystem m ()
 
 makeSem ''ClientSubsystem

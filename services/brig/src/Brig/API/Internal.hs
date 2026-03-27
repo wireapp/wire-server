@@ -552,14 +552,11 @@ legalHoldClientRequestedH targetUser clientRequest = do
   lift $ NoContent <$ API.legalHoldClientRequested targetUser clientRequest
 
 removeLegalHoldClientH ::
-  ( Member Events r,
-    Member ClientStore r,
-    Member ClientSubsystem r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   (Handler r) NoContent
 removeLegalHoldClientH uid = do
-  lift $ NoContent <$ API.removeLegalHoldClient uid
+  lift $ liftSem $ NoContent <$ ClientSubsystem.removeLegalHoldClient uid
 
 internalListClientsH :: (Member ClientStore r) => UserSet -> (Handler r) UserClients
 internalListClientsH (UserSet usrs) =

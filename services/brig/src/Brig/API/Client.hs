@@ -20,7 +20,6 @@ module Brig.API.Client
   ( -- * Clients
     updateClient,
     legalHoldClientRequested,
-    removeLegalHoldClient,
     createAccessToken,
 
     -- * Prekeys
@@ -362,21 +361,6 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     eventData = LegalHoldClientRequestedData targetUser lastPrekey' clientId
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
-
-removeLegalHoldClient ::
-  ( Member ClientSubsystem r,
-    Member Events r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  AppT r ()
-removeLegalHoldClient uid = do
-  clients <- liftSem $ ClientStore.lookupClients uid
-  -- Should only be one; but just in case we'll treat it as a list
-  let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
-  -- maybe log if this isn't the case
-  liftSem $ forM_ legalHoldClients (enqueueClientDeletion uid Nothing)
-  liftSem $ Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>
