@@ -54,7 +54,6 @@ module Spar.API
   )
 where
 
-import Brig.Types.Intra
 import Cassandra as Cas
 import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS

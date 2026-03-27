@@ -40,9 +40,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
-import Brig.Types.Connection
-import Brig.Types.Intra
-import Brig.Types.User
 import Brig.User.EJPD qualified
 import Brig.User.Search.Index qualified as Search
 import Control.Error hiding (bool)

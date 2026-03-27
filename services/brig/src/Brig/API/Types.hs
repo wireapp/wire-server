@@ -31,7 +31,6 @@ module Brig.API.Types
 where
 
 import Brig.Data.Activation (ActivationError (..))
-import Brig.Types.Intra
 import Data.Code
 import Data.Id
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))

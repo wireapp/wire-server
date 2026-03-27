@@ -75,8 +75,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), User
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
-import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra hiding (Set)
 import Control.Error

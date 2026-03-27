@@ -9,7 +9,6 @@
 , base
 , base64-bytestring
 , bilge
-, brig-types
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -93,7 +92,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -147,7 +145,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -210,7 +207,6 @@ mkDerivation {
     aeson
     aeson-qq
     base
-    brig-types
     bytestring-conversion
     containers
     cookie

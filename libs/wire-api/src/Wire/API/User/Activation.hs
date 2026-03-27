@@ -19,21 +19,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.Activation
-  ( -- * ActivationTarget
-    ActivationTarget (..),
+  ( ActivationTarget (..),
     ActivationKey (..),
-
-    -- * ActivationCode
     ActivationCode (..),
-
-    -- * Activate
+    ActivationPair,
     Activate (..),
     ActivationResponse (..),
-
-    -- * SendActivationCode
     SendActivationCode (..),
-
-    -- * Activation
     Activation (..),
   )
 where
@@ -103,6 +95,11 @@ instance FromHttpApiData ActivationCode where
   parseQueryParam = fmap ActivationCode . parseUrlPiece
 
 deriving instance C.Cql ActivationCode
+
+--------------------------------------------------------------------------------
+
+-- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
+type ActivationPair = (ActivationKey, ActivationCode)
 
 --------------------------------------------------------------------------------
 -- Activate

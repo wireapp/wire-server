@@ -57,7 +57,6 @@ module Galley.API.Teams
   )
 where
 
-import Brig.Types.Team (TeamSize (..))
 import Cassandra (PageWithState (pwsResults), pwsHasMore)
 import Cassandra qualified as C
 import Control.Lens
@@ -119,6 +118,7 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
+import Wire.API.Team.Size
 import Wire.API.User qualified as U
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E

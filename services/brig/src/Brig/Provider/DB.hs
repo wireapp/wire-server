@@ -17,7 +17,7 @@
 
 module Brig.Provider.DB where
 
-import Brig.Types.Provider.Tag
+import Brig.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
 import Data.Id

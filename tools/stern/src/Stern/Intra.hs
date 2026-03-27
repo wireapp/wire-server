@@ -74,7 +74,6 @@ where
 import Bilge hiding (head, options, patch, path, paths, requestId)
 import Bilge qualified
 import Bilge.RPC
-import Brig.Types.Intra
 import Control.Error
 import Control.Lens (view, (^.))
 import Data.Aeson hiding (Error)

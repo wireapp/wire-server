@@ -48,8 +48,6 @@ module Spar.Intra.Brig
 where
 
 import Bilge
-import Brig.Types.Intra
-import Brig.Types.User
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Code as Code

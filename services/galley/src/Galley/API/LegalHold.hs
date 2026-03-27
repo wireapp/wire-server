@@ -30,7 +30,6 @@ module Galley.API.LegalHold
   )
 where
 
-import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Control.Exception (assert)
 import Control.Lens (view, (^.))
 import Data.ByteString.Conversion (toByteString)
@@ -71,6 +70,7 @@ import Wire.API.Team.LegalHold qualified as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Member
+import Wire.API.User hiding (userId)
 import Wire.API.User.Client.Prekey
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess

@@ -4,7 +4,6 @@ index-state: 2023-10-03T15:17:00Z
 packages:
     integration
   , libs/bilge/
-  , libs/brig-types/
   , libs/cargohold-types/
   , libs/cassandra-util/
   , libs/extended/

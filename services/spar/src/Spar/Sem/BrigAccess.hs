@@ -45,7 +45,6 @@ module Spar.Sem.BrigAccess
   )
 where
 
-import Brig.Types.Intra
 import Data.Code as Code
 import Data.Handle (Handle)
 import Data.HavePendingInvitations
