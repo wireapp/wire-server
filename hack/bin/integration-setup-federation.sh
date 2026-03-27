@@ -7,13 +7,23 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 # Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
-# This controls if integration tests run against ingress-nginx ofr envoy-gateway
+# This controls if integration tests run against ingress-nginx or envoy-gateway
 WIRE_INGRESS_MODE=${WIRE_INGRESS_MODE:-envoy}
 export WIRE_INGRESS_MODE
 ENVOY_GATEWAY_NAMESPACE=${ENVOY_GATEWAY_NAMESPACE:-envoy-gateway-system}
 export ENVOY_GATEWAY_NAMESPACE
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
+
+changed_files=$(git --no-pager diff-tree --no-commit-id -r --name-only HEAD)
+
+if [[ "$WIRE_INGRESS_MODE" != "nginx" ]] && echo "$changed_files" | grep -q "^charts/nginx-ingress-services"; then
+  echo "ERROR: Changes detected in charts/nginx-ingress-services but WIRE_INGRESS_MODE is '${WIRE_INGRESS_MODE}'."
+  echo "This failure is intentional: changes to nginx-ingress-services are not exercised by the"
+  echo "integration test suite when running in envoy mode, and would be merged without any test coverage."
+  echo "To test these changes, re-run with WIRE_INGRESS_MODE=nginx."
+  exit 1
+fi
 
 # shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
@@ -28,7 +38,6 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
 charts=(fake-aws databases-ephemeral rabbitmq wire-server ingress-nginx-controller nginx-ingress-services wire-ingress)
-# charts=(fake-aws databases-ephemeral rabbitmq wire-server ingress-nginx-controller nginx-ingress-services)
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
