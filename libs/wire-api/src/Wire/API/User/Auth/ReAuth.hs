@@ -29,6 +29,7 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Wire.API.User
+import Wire.Arbitrary
 
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
@@ -47,3 +48,6 @@ instance ToSchema ReAuthUser where
         <$> reAuthPassword .= optField "password" (maybeWithDefault A.Null schema)
         <*> reAuthCode .= optField "verification_code" (maybeWithDefault A.Null schema)
         <*> reAuthCodeAction .= optField "action" (maybeWithDefault A.Null schema)
+
+instance Arbitrary ReAuthUser where
+  arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary

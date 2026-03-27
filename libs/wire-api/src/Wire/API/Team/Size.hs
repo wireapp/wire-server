@@ -26,6 +26,8 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Numeric.Natural
+import Test.QuickCheck (arbitrarySizedNatural)
+import Wire.Arbitrary
 
 newtype TeamSize = TeamSize Natural
   deriving (Show, Eq)
@@ -38,3 +40,6 @@ instance ToSchema TeamSize where
     where
       unTeamSize :: TeamSize -> Natural
       unTeamSize (TeamSize n) = n
+
+instance Arbitrary TeamSize where
+  arbitrary = TeamSize <$> arbitrarySizedNatural

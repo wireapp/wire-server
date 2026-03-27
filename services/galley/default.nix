@@ -14,7 +14,6 @@
 , base64-bytestring
 , bilge
 , binary
-, brig-types
 , bytestring
 , bytestring-conversion
 , call-stack
@@ -137,7 +136,6 @@ mkDerivation {
     async
     base
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     cassandra-util
@@ -213,7 +211,6 @@ mkDerivation {
     base64-bytestring
     bilge
     binary
-    brig-types
     bytestring
     bytestring-conversion
     call-stack

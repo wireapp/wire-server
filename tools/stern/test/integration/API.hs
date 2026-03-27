@@ -24,7 +24,6 @@ module API (tests) where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)

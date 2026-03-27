@@ -27,7 +27,6 @@ module Stern.API
   )
 where
 
-import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((.~))
 import Control.Monad.Except

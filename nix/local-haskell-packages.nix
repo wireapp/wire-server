@@ -5,7 +5,6 @@
 { gitignoreSource }: hsuper: hself: {
   integration = hself.callPackage ../integration/default.nix { inherit gitignoreSource; };
   bilge = hself.callPackage ../libs/bilge/default.nix { inherit gitignoreSource; };
-  brig-types = hself.callPackage ../libs/brig-types/default.nix { inherit gitignoreSource; };
   cargohold-types = hself.callPackage ../libs/cargohold-types/default.nix { inherit gitignoreSource; };
   cassandra-util = hself.callPackage ../libs/cassandra-util/default.nix { inherit gitignoreSource; };
   deriving-swagger2 = hself.callPackage ../libs/deriving-swagger2/default.nix { inherit gitignoreSource; };

@@ -17,7 +17,6 @@
 
 module Galley.API.MLS.Migration where
 
-import Brig.Types.Intra
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Time

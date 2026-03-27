@@ -27,7 +27,6 @@ module Brig.Data.Activation
 where
 
 import Brig.App (AppT, liftSem, qualifyLocal, wrapClientE)
-import Brig.Types.Intra
 import Cassandra
 import Control.Error
 import Data.Id

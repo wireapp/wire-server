@@ -241,7 +241,6 @@ library
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.21.1
-    , brig-types                            >=0.73.1
     , bytestring                            >=0.9
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
@@ -409,7 +408,6 @@ executable galley-integration
     , base64-bytestring
     , bilge
     , binary
-    , brig-types
     , bytestring
     , bytestring-conversion
     , call-stack

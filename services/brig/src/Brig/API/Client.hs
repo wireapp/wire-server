@@ -48,7 +48,6 @@ import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Federation.Client qualified as Federation
 import Brig.IO.Intra (guardLegalhold)
 import Brig.Options qualified as Opt
-import Brig.Types.Intra
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Monad.Trans.Except (except)
@@ -79,6 +78,7 @@ import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.LegalHold.Internal
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey

@@ -52,8 +52,6 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)
-import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra qualified as C
@@ -971,7 +969,7 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
-    Auth.toWebCookie =<< case userStatus acc of
+    Auth.toWebCookie =<< case Public.userStatus acc of
       Public.Ephemeral ->
         lift . liftSem $
           AuthenticationSubsystem.newCookie @_ @ZAuth.U userId Nothing Public.SessionCookie newUserLabel RevokeSameLabel
@@ -981,7 +979,7 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
-    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> Public.ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -1575,7 +1573,7 @@ sendVerificationCode req = do
       sendMail email code.codeValue (Just (Public.userLocale account)) action
     _ -> pure ()
   where
-    getAccount :: Public.EmailAddress -> (Handler r) (Maybe User)
+    getAccount :: Public.EmailAddress -> (Handler r) (Maybe Public.User)
     getAccount email = lift . liftSem $ do
       mbUserId <- lookupKey $ mkEmailKey email
       mbLUserId <- qualifyLocal' `traverse` mbUserId
@@ -1588,7 +1586,7 @@ sendVerificationCode req = do
         Public.Login -> sendLoginVerificationMail email value mbLocale
         Public.DeleteTeam -> sendTeamDeletionVerificationMail email value mbLocale
 
-    getFeatureStatus :: Maybe User -> (Handler r) Bool
+    getFeatureStatus :: Maybe Public.User -> (Handler r) Bool
     getFeatureStatus mbAccount = do
       mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled

@@ -33,7 +33,6 @@ import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Template
-import Brig.Types.Team (TeamSize)
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
@@ -68,6 +67,7 @@ import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
+import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore

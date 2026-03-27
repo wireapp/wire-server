@@ -39,7 +39,6 @@ module Spar.Intra.BrigApp
   )
 where
 
-import Brig.Types.Intra
 import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion

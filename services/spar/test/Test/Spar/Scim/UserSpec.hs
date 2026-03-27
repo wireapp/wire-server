@@ -18,7 +18,6 @@
 module Test.Spar.Scim.UserSpec where
 
 import Arbitrary ()
-import Brig.Types.Intra
 import Control.Monad.Except (runExceptT)
 import Data.Handle (parseHandle)
 import Data.HavePendingInvitations

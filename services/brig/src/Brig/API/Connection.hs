@@ -43,7 +43,6 @@ import Brig.Data.Types (resultHasMore, resultList)
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
 import Brig.Options
-import Brig.Types.Connection
 import Control.Error
 import Control.Monad.Catch (throwM)
 import Data.Id as Id

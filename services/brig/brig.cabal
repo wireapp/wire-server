@@ -134,6 +134,7 @@ library
     Brig.Provider.DB
     Brig.Provider.Email
     Brig.Provider.RPC
+    Brig.Provider.Tag
     Brig.Provider.Template
     Brig.Queue
     Brig.Queue.Stomp
@@ -223,7 +224,6 @@ library
     , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
     , bloodhound                            >=0.13
-    , brig-types                            >=0.91.1
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
@@ -391,7 +391,6 @@ executable brig-integration
     , bilge
     , bloodhound
     , brig
-    , brig-types
     , bytestring             >=0.9
     , bytestring-conversion
     , case-insensitive
@@ -512,7 +511,6 @@ test-suite brig-tests
     , base
     , binary
     , brig
-    , brig-types
     , bytestring
     , containers
     , data-timeout

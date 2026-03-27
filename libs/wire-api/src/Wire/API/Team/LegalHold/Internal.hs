@@ -32,6 +32,7 @@ import Data.Misc
 import Data.OpenApi qualified as Swagger
 import Data.Schema qualified as Schema
 import Imports
+import Test.QuickCheck
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team.LegalHold
@@ -82,6 +83,9 @@ viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr t k) =
   ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr t (serviceKeyPEM k)
 
+instance Arbitrary LegalHoldService where
+  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
 -- | This request is used by Galley to notify Brig that a LegalHold client was requested.
 data LegalHoldClientRequest = LegalHoldClientRequest
   { lhcrRequester :: !UserId,
@@ -89,6 +93,12 @@ data LegalHoldClientRequest = LegalHoldClientRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (Swagger.ToSchema, FromJSON, ToJSON) via Schema.Schema LegalHoldClientRequest
+
+instance Arbitrary LegalHoldClientRequest where
+  arbitrary =
+    LegalHoldClientRequest
+      <$> arbitrary
+      <*> arbitrary
 
 instance Schema.ToSchema LegalHoldClientRequest where
   schema =

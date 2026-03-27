@@ -23,7 +23,6 @@ module Util.Email where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Types.Activation
 import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch)
 import Data.ByteString.Conversion

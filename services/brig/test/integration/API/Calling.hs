@@ -156,7 +156,7 @@ testCallsConfigMultipleV2 b turnUpdaterV2 = do
         toTurnURI SchemeTurn "localhost" 3478 (Just TransportTCP)
           :| [toTurnURI SchemeTurns "localhost" 3479 $ Just TransportTCP]
   modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 _changes _expected
-  -- Ensure limit=1 returns only the udp server (see brig-types/tests for other use cases involving 'limit')
+  -- Ensure limit=1 returns only the udp server
   let _changes = "turn:localhost:3478?transport=udp\nturns:localhost:3479?transport=tcp"
   let _expected2 =
         toTurnURI SchemeTurn "localhost" 3478 (Just TransportUDP)

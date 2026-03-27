@@ -19,7 +19,6 @@
 , bilge
 , binary
 , bloodhound
-, brig-types
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -173,7 +172,6 @@ mkDerivation {
     base64-bytestring
     bilge
     bloodhound
-    brig-types
     bytestring
     bytestring-conversion
     cassandra-util
@@ -280,7 +278,6 @@ mkDerivation {
     base16-bytestring
     bilge
     bloodhound
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -370,7 +367,6 @@ mkDerivation {
     aeson
     base
     binary
-    brig-types
     bytestring
     containers
     data-timeout

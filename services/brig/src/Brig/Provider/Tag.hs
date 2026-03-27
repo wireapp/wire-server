@@ -20,7 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Provider.Tag
+module Brig.Provider.Tag
   ( Bucket (..),
     defBucket,
     foldTags,
