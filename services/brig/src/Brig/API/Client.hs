@@ -72,18 +72,14 @@ import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
-import Wire.API.UserEvent
 import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
-import Wire.Events (Events)
-import Wire.Events qualified as Events
 import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
