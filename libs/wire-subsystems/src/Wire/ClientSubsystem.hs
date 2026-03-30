@@ -3,14 +3,17 @@
 module Wire.ClientSubsystem where
 
 import Data.Default
+import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap
 
@@ -48,5 +51,7 @@ data ClientSubsystem m a where
   RemoveLegalHoldClient :: UserId -> ClientSubsystem m ()
   PublishLegalHoldClientRequested :: UserId -> LegalHoldClientRequest -> ClientSubsystem m ()
   UpdateClient :: UserId -> ClientId -> UpdateClient -> ClientSubsystem m ()
+  -- Prekeys
+  ClaimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)
 
 makeSem ''ClientSubsystem

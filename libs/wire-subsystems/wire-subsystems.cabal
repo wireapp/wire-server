@@ -140,6 +140,7 @@ common common-all
     , iproute
     , iso639
     , lens
+    , lens-aeson
     , lrucaching
     , memory
     , mime

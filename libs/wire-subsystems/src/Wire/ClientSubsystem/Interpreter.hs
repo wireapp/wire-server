@@ -7,6 +7,7 @@ module Wire.ClientSubsystem.Interpreter
 where
 
 import Control.Monad
+import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -28,6 +29,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 qualified as V2
+import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User as User
 import Wire.API.User.Client hiding (UpdateClient)
@@ -47,7 +49,7 @@ import Wire.DeleteQueue qualified as DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EmailSubsystem qualified as Email
 import Wire.Events as Events
-import Wire.FederationAPIAccess (FederationAPIAccess, runFederatedEither)
+import Wire.FederationAPIAccess (FederationAPIAccess, runFederated, runFederatedEither)
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Logger qualified as Log
@@ -76,7 +78,8 @@ runClientSubsystem ::
     Member Events r,
     Member EmailSubsystem r,
     Member DeleteQueue r,
-    Member (Input ClientSubsystemConfig) r
+    Member (Input ClientSubsystemConfig) r,
+    Member (Error FederationError) r
   ) =>
   InterpreterFor AuthenticationSubsystem (UserSubsystem ': r) ->
   InterpreterFor UserSubsystem r ->
@@ -100,6 +103,7 @@ runClientSubsystem runAuth runUser =
       RemoveLegalHoldClient uid -> removeLegalHoldClient uid
       PublishLegalHoldClientRequested uid req -> publishLegalHoldClientRequested uid req
       UpdateClient uid cid payload -> updateClient uid cid payload
+      ClaimPrekey protectee uid domain cid -> claimPrekey protectee uid domain cid
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -431,3 +435,93 @@ updateClient uid cid req = do
   case mErr of
     Just DuplicateMLSPublicKey -> throw (ClientDataError MLSPublicKeyDuplicate)
     Nothing -> pure ()
+
+---------------------------------------------------------------------------------------
+-- Prekeys
+
+claimPrekey ::
+  ( Member (Input (Local ())) r,
+    Member TinyLog r,
+    Member ClientStore r,
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r,
+    Member GalleyAPIAccess r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r
+  ) =>
+  LegalholdProtectee ->
+  UserId ->
+  Domain ->
+  ClientId ->
+  Sem r (Maybe ClientPrekey)
+claimPrekey protectee uid domain cid = do
+  isDomainLocal <- isLocalDomain domain
+  if isDomainLocal
+    then claimLocalPrekey protectee uid cid
+    else claimRemotePrekey (Qualified uid domain) cid
+
+claimLocalPrekey ::
+  ( Member ClientStore r,
+    Member TinyLog r,
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r,
+    Member GalleyAPIAccess r
+  ) =>
+  LegalholdProtectee ->
+  UserId ->
+  ClientId ->
+  Sem r (Maybe ClientPrekey)
+claimLocalPrekey protectee user client = do
+  GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(user, [client])])
+  prekey <- ClientStore.claimPrekey user client
+  when (isNothing prekey) (noPrekeys user client)
+  pure prekey
+
+claimRemotePrekey ::
+  ( Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r
+  ) =>
+  Qualified UserId ->
+  ClientId ->
+  Sem r (Maybe ClientPrekey)
+claimRemotePrekey (Qualified user domain) client = do
+  Log.info $ msg @Text "Brig-federation: claiming remote prekey"
+  runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey" (user, client)
+
+-- Utilities
+
+-- | Defensive measure when no prekey is found for a
+-- requested client: Ensure that the client does indeed
+-- not exist, since there must be no client without prekeys,
+-- thus repairing any inconsistencies related to distributed
+-- (and possibly duplicated) client data.
+noPrekeys ::
+  ( Member ClientStore r,
+    Member TinyLog r,
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  ClientId ->
+  Sem r ()
+noPrekeys uid cid = do
+  mclient <- ClientStore.lookupClient uid cid
+  case mclient of
+    Nothing -> do
+      Log.warn $
+        field "user" (toByteString uid)
+          ~~ field "client" (toByteString cid)
+          ~~ msg (val "No prekey found. Client is missing, so doing nothing.")
+    Just client -> do
+      Log.warn $
+        field "user" (toByteString uid)
+          ~~ field "client" (toByteString cid)
+          ~~ msg (val "No prekey found. Deleting client.")
+      execDelete uid Nothing client

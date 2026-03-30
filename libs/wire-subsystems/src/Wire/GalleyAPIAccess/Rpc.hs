@@ -18,7 +18,9 @@
 module Wire.GalleyAPIAccess.Rpc where
 
 import Bilge hiding (head, options, requestId)
+import Control.Lens
 import Data.Aeson
+import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
@@ -43,6 +45,7 @@ import Util.Options
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -55,6 +58,8 @@ import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User (UserIds (UserIds))
+import Wire.API.User.Client (UserClients)
+import Wire.ClientSubsystem.Interpreter (ClientError (..))
 import Wire.GalleyAPIAccess (GalleyAPIAccess (..), MLSOneToOneEstablished (..), ShowOrHideInvitationUrl (..))
 import Wire.ParseException
 import Wire.Rpc
@@ -62,7 +67,8 @@ import Wire.Rpc
 interpretGalleyAPIAccessToRpc ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member TinyLog r
+    Member TinyLog r,
+    Member (Error ClientError) r
   ) =>
   Set Version ->
   Endpoint ->
@@ -104,6 +110,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           InternalGetConversation id' -> internalGetConversation id'
           GetTeamContacts uid -> getTeamContacts uid
           GetConversationConfig -> getConversationConfig
+          GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
 
 getUserLegalholdStatus ::
   ( Member TinyLog r,
@@ -802,3 +809,33 @@ getConversationConfig = do
           . paths ["i", "conversations", "config"]
           . expect2xx
       )
+
+guardLegalhold ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r,
+    Member (Error ClientError) r,
+    Member (Error ParseException) r
+  ) =>
+  LegalholdProtectee ->
+  UserClients ->
+  Sem r ()
+guardLegalhold protectee userClients = do
+  res <- galleyRequest req
+  case Bilge.statusCode res of
+    200 -> pure ()
+    403 -> case Bilge.responseJsonMaybe @Value res >>= (^? key "label") of
+      Just "missing-legalhold-consent" -> throw ClientMissingLegalholdConsent
+      Just "missing-legalhold-consent-old-clients" -> throw ClientMissingLegalholdConsentOldClients
+      _ ->
+        -- only happens if galley misbehaves (fisx: this could also be a parse error if we
+        -- used a more constraining type to send back & forth between brig and galley, but
+        -- merging brig and galley would make this train of thought go away more naturally).
+        throw ClientMissingLegalholdConsent
+    404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
+    sc -> throw $ ParseException "galley" ("expected status codes 200, 403, or 404, but got: " <> show sc)
+  where
+    req =
+      method PUT
+        . paths ["i", "guard-legalhold-policy-conflicts"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)

@@ -22,8 +22,6 @@ module Brig.API.Client
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
     claimLocalPrekeyBundle,
-    claimPrekey,
-    claimLocalPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
     claimMultiPrekeyBundlesV3,
@@ -39,7 +37,6 @@ import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Federation.Client qualified as Federation
-import Brig.IO.Intra (guardLegalhold)
 import Brig.Options qualified as Opt
 import Cassandra (MonadClient)
 import Control.Error
@@ -80,46 +77,6 @@ import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-claimPrekey ::
-  ( Member ClientSubsystem r,
-    Member ClientStore r
-  ) =>
-  LegalholdProtectee ->
-  UserId ->
-  Domain ->
-  ClientId ->
-  ExceptT ClientError (AppT r) (Maybe ClientPrekey)
-claimPrekey protectee u d c = do
-  isLocalDomain <- (d ==) <$> viewFederationDomain
-  if isLocalDomain
-    then claimLocalPrekey protectee u c
-    else wrapClientE $ claimRemotePrekey (Qualified u d) c
-
-claimLocalPrekey ::
-  ( Member ClientSubsystem r,
-    Member ClientStore r
-  ) =>
-  LegalholdProtectee ->
-  UserId ->
-  ClientId ->
-  ExceptT ClientError (AppT r) (Maybe ClientPrekey)
-claimLocalPrekey protectee user client = do
-  guardLegalhold protectee (mkUserClients [(user, [client])])
-  lift $ do
-    prekey <- liftSem $ ClientStore.claimPrekey user client
-    when (isNothing prekey) (noPrekeys user client)
-    pure prekey
-
-claimRemotePrekey ::
-  ( MonadReader Env m,
-    Log.MonadLogger m,
-    MonadClient m
-  ) =>
-  Qualified UserId ->
-  ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
-claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
 claimPrekeyBundle :: (Member ClientStore r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
