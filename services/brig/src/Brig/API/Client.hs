@@ -19,7 +19,7 @@
 module Brig.API.Client
   ( -- * Clients
     updateClient,
-    createAccessToken,
+    createAccessToken, -- move this to oauth module?
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
@@ -32,7 +32,6 @@ module Brig.API.Client
   )
 where
 
-import Brig.API.Handler (Handler)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -55,8 +54,6 @@ import Data.Id (ClientId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map hiding ((\\))
 import Data.Qualified
-import Data.Set ((\\))
-import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports hiding ((\\))
@@ -76,49 +73,15 @@ import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
-import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
+import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
-import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-updateClient ::
-  (Member NotificationSubsystem r, Member ClientStore r) =>
-  UserId ->
-  ClientId ->
-  UpdateClient ->
-  (Handler r) ()
-updateClient uid cid req = do
-  client <- (lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientErrorToHttpError
-  consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
-  lift . liftSem $ for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
-  for_ req.updateClientCapabilities $ \caps -> do
-    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
-      then do
-        -- first set up the notification queues then save the data is more robust than the other way around
-        let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
-        when (consumableNotificationsEnabled && ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
-          setupConsumableNotifications uid cid
-        lift . liftSem . ClientStore.updateCapabilities uid cid . Just $ caps
-      else throwE $ clientErrorToHttpError ClientCapabilitiesCannotBeRemoved
-  let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
-      prekeys = lk ++ req.updateClientPrekeys
-  ( do
-      unless (all checkPrekeyBundle prekeys) $
-        throwE MalformedPrekeys
-      lift . liftSem $ ClientStore.updatePrekeys uid cid prekeys
-      mErr <- lift . liftSem $ ClientStore.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
-      case mErr of
-        Just DuplicateMLSPublicKey -> throwE MLSPublicKeyDuplicate
-        Nothing -> pure ()
-    )
-    !>> ClientDataError
-    !>> clientErrorToHttpError
 
 claimPrekey ::
   ( Member ClientSubsystem r,

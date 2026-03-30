@@ -527,9 +527,9 @@ servantSitemap =
       Named @"add-client@v6" addClient
         :<|> Named @"add-client@v7" addClient
         :<|> Named @"add-client" addClient
-        :<|> Named @"update-client@v6" API.updateClient
-        :<|> Named @"update-client@v7" API.updateClient
-        :<|> Named @"update-client" API.updateClient
+        :<|> Named @"update-client@v6" updateClient
+        :<|> Named @"update-client@v7" updateClient
+        :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients@v6" listClients
         :<|> Named @"list-clients@v7" listClients
@@ -772,6 +772,9 @@ addClient lusr con new = do
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientErrorToHttpError ClientLegalHoldCannotBeAdded)
   lift $ liftSem $ ClientSubsystem.addClient lusr (Just con) new
+
+updateClient :: (Member ClientSubsystem r) => UserId -> ClientId -> Public.UpdateClient -> Handler r ()
+updateClient uid cid payload = lift $ liftSem $ ClientSubsystem.updateClient uid cid payload
 
 deleteClient ::
   (Member ClientSubsystem r) =>

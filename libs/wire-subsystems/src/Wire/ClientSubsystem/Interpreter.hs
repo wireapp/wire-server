@@ -14,9 +14,10 @@ import Data.Json.Util (ToJSONObject (..), toUTCTimeMillis)
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
+import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Time.Clock
-import Imports
+import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -29,7 +30,8 @@ import Wire.API.Federation.Error
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User as User
-import Wire.API.User.Client
+import Wire.API.User.Client hiding (UpdateClient)
+import Wire.API.User.Client qualified as Data
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap
@@ -97,6 +99,7 @@ runClientSubsystem runAuth runUser =
       RemoveClient uid conn cid mPwd -> rmClient uid conn cid mPwd
       RemoveLegalHoldClient uid -> removeLegalHoldClient uid
       PublishLegalHoldClientRequested uid req -> publishLegalHoldClientRequested uid req
+      UpdateClient uid cid payload -> updateClient uid cid payload
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -396,3 +399,35 @@ publishLegalHoldClientRequested targetUser (LegalHoldClientRequest _requester la
 
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
+
+updateClient ::
+  ( Member NotificationSubsystem r,
+    Member ClientStore r,
+    Member (Error ClientError) r,
+    Member (Input ClientSubsystemConfig) r
+  ) =>
+  UserId ->
+  ClientId ->
+  Data.UpdateClient ->
+  Sem r ()
+updateClient uid cid req = do
+  conf <- input
+  client <- ClientStore.lookupClient uid cid >>= maybe (throw ClientNotFound) pure
+  for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
+  for_ req.updateClientCapabilities $ \caps -> do
+    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
+      then do
+        -- first set up the notification queues then save the data is more robust than the other way around
+        let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
+        when (conf.consumableNotificationsEnabled && ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ do
+          setupConsumableNotifications uid cid
+        ClientStore.updateCapabilities uid cid . Just $ caps
+      else throw ClientCapabilitiesCannotBeRemoved
+  let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
+      prekeys = lk ++ req.updateClientPrekeys
+  unless (all checkPrekeyBundle prekeys) $ throw (ClientDataError MalformedPrekeys)
+  ClientStore.updatePrekeys uid cid prekeys
+  mErr <- ClientStore.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
+  case mErr of
+    Just DuplicateMLSPublicKey -> throw (ClientDataError MLSPublicKeyDuplicate)
+    Nothing -> pure ()

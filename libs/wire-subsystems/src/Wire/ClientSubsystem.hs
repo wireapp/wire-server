@@ -47,5 +47,6 @@ data ClientSubsystem m a where
   RemoveClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ClientSubsystem m ()
   RemoveLegalHoldClient :: UserId -> ClientSubsystem m ()
   PublishLegalHoldClientRequested :: UserId -> LegalHoldClientRequest -> ClientSubsystem m ()
+  UpdateClient :: UserId -> ClientId -> UpdateClient -> ClientSubsystem r ()
 
 makeSem ''ClientSubsystem
