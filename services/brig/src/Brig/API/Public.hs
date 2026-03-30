@@ -796,27 +796,27 @@ getClient zusr clientId = lift $ liftSem $ ClientSubsystem.lookupLocalClient zus
 getUserClientsUnqualified :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
-  lift (liftSem $ ClientSubsystem.lookupPublicClients (Qualified uid localdomain)) !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.lookupPublicClients (Qualified uid localdomain)
 
 getUserClientsQualified :: (Member ClientSubsystem r) => Qualified UserId -> (Handler r) [Public.PubClient]
-getUserClientsQualified quid = lift (liftSem $ ClientSubsystem.lookupPublicClients quid) !>> clientErrorToHttpError
+getUserClientsQualified quid = lift $ liftSem $ ClientSubsystem.lookupPublicClients quid
 
 getUserClientUnqualified :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
-  x <- lift (liftSem $ ClientSubsystem.lookupPublicClient (Qualified uid localdomain) cid) !>> clientErrorToHttpError
+  x <- lift $ liftSem $ ClientSubsystem.lookupPublicClient (Qualified uid localdomain) cid
   ifNothing (notFound "client not found") x
 
 listClientsBulk :: (Member ClientSubsystem r) => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
-  lift (liftSem $ ClientSubsystem.lookupPublicClientsBulk (fromRange limitedUids)) !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.lookupPublicClientsBulk (fromRange limitedUids)
 
 listClientsBulkV2 :: (Member ClientSubsystem r) => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: (Member ClientSubsystem r) => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientQualified quid cid = do
-  x <- lift (liftSem $ ClientSubsystem.lookupPublicClient quid cid) !>> clientErrorToHttpError
+  x <- lift $ liftSem $ ClientSubsystem.lookupPublicClient quid cid
   ifNothing (notFound "client not found") x
 
 getClientCapabilities :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
