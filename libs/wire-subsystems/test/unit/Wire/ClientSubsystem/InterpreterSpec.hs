@@ -1,5 +1,6 @@
 module Wire.ClientSubsystem.InterpreterSpec (spec) where
 
+import Data.Aeson qualified as A
 import Data.Default
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
@@ -13,6 +14,7 @@ import Polysemy.State
 import System.Logger.Message (Msg)
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import Test.QuickCheck qualified as QC
 import Test.QuickCheck.Property
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Push.V2 qualified as V2
@@ -20,6 +22,7 @@ import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
+import Wire.Arbitrary
 import Wire.ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
@@ -39,6 +42,7 @@ import Wire.Sem.Concurrency.Sequential
 import Wire.Sem.Logger
 import Wire.Sem.Now (Now)
 import Wire.StoredUser
+import Wire.Util
 
 data ClientSubsystemTestResult a = ClientSubsystemTestResult
   { authState :: MockAuthenticationState,
@@ -134,25 +138,29 @@ assertClientEvent uid mConn expected miniEvent =
       miniEvent.event === expected
     ]
 
-assertClientPush :: UserId -> Maybe ConnId -> Event -> Push -> Property
+assertClientPush :: UserId -> Maybe ConnId -> EventType -> Push -> Property
 assertClientPush uid mConn expected push =
-  conjoin
-    [ push.origin === Just uid,
-      push.conn === mConn,
-      push.transient === False,
-      push.route === V2.RouteAny,
-      push.nativePriority === Nothing,
-      push.recipients === [Recipient uid V2.RecipientClientsAll],
-      push.apsData === toApsData expected,
-      push.isCellsEvent === False
-    ]
+  case A.fromJSON @Event (A.Object push.json) of
+    A.Success actual ->
+      conjoin
+        [ push.origin === Just uid,
+          push.conn === mConn,
+          push.transient === False,
+          push.route === V2.RouteAny,
+          push.nativePriority === Nothing,
+          push.recipients === [Recipient uid V2.RecipientClientsAll],
+          push.apsData === Nothing,
+          push.isCellsEvent === False,
+          eventType actual === expected
+        ]
+    _ -> counterexample ("Failed to decode push: " <> show push) False
 
 spec :: Spec
 spec = describe "ClientSubsystem.Interpreter" do
-  prop "adds and looks up a client" $ \user ->
+  prop "adds and looks up a client" $ \user (FakeLastPrekey lpk) ->
     let luid = toLocalUnsafe testDomain user.id
-        new = newClient PermanentClientType validLastPrekey
-        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        new = newClient PermanentClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
         expectedClient =
           Client
             { clientId,
@@ -166,7 +174,6 @@ spec = describe "ClientSubsystem.Interpreter" do
               clientMLSPublicKeys = mempty,
               clientLastActive = Nothing
             }
-        expectedPushEvent = ClientEvent (ClientAdded expectedClient)
         testResult =
           runClientSubsystemTest [user] do
             added <- addClient luid Nothing new
@@ -181,14 +188,14 @@ spec = describe "ClientSubsystem.Interpreter" do
               auth.revokeCookiesCalls === 0,
               testResult.deletions === [],
               testResult.events === [],
-              assertSingle "push" testResult.pushes (assertClientPush user.id Nothing expectedPushEvent)
+              assertSingle "push" testResult.pushes (assertClientPush user.id Nothing EventTypeClientAdded)
             ]
 
-  prop "removes client" $ \user conn ->
+  prop "removes client" $ \user conn (FakeLastPrekey lpk) ->
     let uid = user.id
         luid = toLocalUnsafe testDomain user.id
-        new = newClient PermanentClientType validLastPrekey
-        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        new = newClient PermanentClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
         expectedClient =
           Client
             { clientId,
@@ -202,7 +209,6 @@ spec = describe "ClientSubsystem.Interpreter" do
               clientMLSPublicKeys = mempty,
               clientLastActive = Nothing
             }
-        expectedPushEvent = ClientEvent (ClientAdded expectedClient)
         testResult =
           runClientSubsystemTest [user] do
             added <- addClient luid Nothing new
@@ -219,14 +225,14 @@ spec = describe "ClientSubsystem.Interpreter" do
               auth.revokeCookiesCalls === 0,
               testResult.deletions === [DeleteClient clientId uid (Just conn)],
               testResult.events === [],
-              assertSingle "push" testResult.pushes (assertClientPush uid Nothing expectedPushEvent)
+              assertSingle "push" testResult.pushes (assertClientPush uid Nothing EventTypeClientAdded)
             ]
 
-  prop "legal hold client cannot be removed" $ \user conn ->
+  prop "legal hold client cannot be removed" $ \user conn (FakeLastPrekey lpk) ->
     let uid = user.id
         luid = toLocalUnsafe testDomain user.id
-        new = newClient LegalHoldClientType validLastPrekey
-        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        new = newClient LegalHoldClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
         testResult =
           runClientSubsystemTest [user] do
             void $ addClient luid Nothing new
@@ -234,38 +240,24 @@ spec = describe "ClientSubsystem.Interpreter" do
      in counterexample ("unexpected result: " <> show testResult.result) $
           case testResult.result of
             Left ClientLegalHoldCannotBeRemoved ->
-              let expectedClient =
-                    Client
-                      { clientId,
-                        clientType = LegalHoldClientType,
-                        clientTime = toUTCTimeMillis defaultTime,
-                        clientClass = Just LegalHoldClient,
-                        clientLabel = Nothing,
-                        clientCookie = Nothing,
-                        clientModel = Nothing,
-                        clientCapabilities = ClientCapabilityList (Set.singleton ClientSupportsLegalholdImplicitConsent),
-                        clientMLSPublicKeys = mempty,
-                        clientLastActive = Nothing
-                      }
-                  expectedPushEvent = ClientEvent (ClientAdded expectedClient)
-               in conjoin
-                    [ testResult.authState.verificationCodeCalls === 1,
-                      testResult.authState.reAuthCalls === 0,
-                      testResult.authState.revokeCookiesCalls === 0,
-                      testResult.deletions === [],
-                      assertSingle "event" testResult.events (assertClientEvent uid Nothing (UserEvent (UserLegalHoldEnabled uid))),
-                      assertSingle "push" testResult.pushes (assertClientPush uid Nothing expectedPushEvent)
-                    ]
+              conjoin
+                [ testResult.authState.verificationCodeCalls === 1,
+                  testResult.authState.reAuthCalls === 0,
+                  testResult.authState.revokeCookiesCalls === 0,
+                  testResult.deletions === [],
+                  assertSingle "event" testResult.events (assertClientEvent uid Nothing (UserEvent (UserLegalHoldEnabled uid))),
+                  assertSingle "push" testResult.pushes (assertClientPush uid Nothing EventTypeClientAdded)
+                ]
             Left clientErr ->
               counterexample ("unexpected ClientError: " <> show clientErr) False
             Right _ ->
               counterexample "legal hold client removal was expected to fail, but it succeeded" False
 
-  prop "adds and removes legal hold client" $ \user ->
+  prop "adds and removes legal hold client" $ \user (FakeLastPrekey lpk) ->
     let uid = user.id
         luid = toLocalUnsafe testDomain user.id
-        new = newClient LegalHoldClientType validLastPrekey
-        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        new = newClient LegalHoldClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
         expectedClient =
           Client
             { clientId,
@@ -279,7 +271,6 @@ spec = describe "ClientSubsystem.Interpreter" do
               clientMLSPublicKeys = mempty,
               clientLastActive = Nothing
             }
-        expectedPushEvent = ClientEvent (ClientAdded expectedClient)
         testResult =
           runClientSubsystemTest [user] do
             added <- addClient luid Nothing new
@@ -299,17 +290,17 @@ spec = describe "ClientSubsystem.Interpreter" do
                 === [ MkMiniEvent uid Nothing (UserEvent (UserLegalHoldDisabled uid)),
                       MkMiniEvent uid Nothing (UserEvent (UserLegalHoldEnabled uid))
                     ],
-              assertSingle "push" testResult.pushes (assertClientPush uid Nothing expectedPushEvent)
+              assertSingle "push" testResult.pushes (assertClientPush uid Nothing EventTypeClientAdded)
             ]
 
-  prop "requests a legal hold client" $ \user ->
+  prop "requests a legal hold client" $ \user (FakeLastPrekey lpk) ->
     let uid = user.id
-        req = LegalHoldClientRequest uid validLastPrekey
-        clientId = clientIdFromPrekey (unpackLastPrekey validLastPrekey)
+        req = LegalHoldClientRequest uid lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
         expectedEvent =
           UserEvent
             ( LegalHoldClientRequested
-                (LegalHoldClientRequestedData uid validLastPrekey clientId)
+                (LegalHoldClientRequestedData uid lpk clientId)
             )
         testResult =
           runClientSubsystemTest [user] do
@@ -321,6 +312,53 @@ spec = describe "ClientSubsystem.Interpreter" do
               testResult.pushes === []
             ]
 
-validLastPrekey :: LastPrekey
-validLastPrekey =
-  lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
+  prop "update client" $ \user (FakeUpdateClient update) (FakeLastPrekey lpk) ->
+    let uid = user.id
+        luid = toLocalUnsafe testDomain uid
+        new = newClient PermanentClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
+        expectedClient =
+          Client
+            { clientId,
+              clientType = PermanentClientType,
+              clientTime = toUTCTimeMillis defaultTime,
+              clientClass = Nothing,
+              clientLabel = update.updateClientLabel,
+              clientCookie = Nothing,
+              clientModel = Nothing,
+              clientCapabilities = fromMaybe mempty update.updateClientCapabilities,
+              clientMLSPublicKeys = update.updateClientMLSPublicKeys,
+              clientLastActive = Nothing
+            }
+        testResult =
+          runClientSubsystemTest [user] do
+            void $ addClient luid Nothing new
+            updateClient uid clientId update
+            stored <- lookupLocalClients user.id
+            pure (head stored)
+        auth = testResult.authState
+     in expectRight testResult.result $ \value ->
+          conjoin
+            [ value === expectedClient,
+              auth.verificationCodeCalls === 1,
+              auth.reAuthCalls === 0,
+              auth.revokeCookiesCalls === 0,
+              testResult.deletions === [],
+              testResult.events === [],
+              assertSingle "push" testResult.pushes (assertClientPush uid Nothing EventTypeClientAdded)
+            ]
+
+newtype FakeUpdateClient = FakeUpdateClient {unFakeUpdateClient :: UpdateClient}
+  deriving (Show, Eq, Generic)
+
+instance Arbitrary FakeUpdateClient where
+  arbitrary = do
+    update <- arbitrary
+    (FakeLastPrekey lpk) <- arbitrary
+    keys <- QC.sublistOf somePrekeys
+    pure $
+      FakeUpdateClient $
+        update
+          { updateClientLastKey = const lpk <$> update.updateClientLastKey,
+            updateClientPrekeys = keys
+          }
