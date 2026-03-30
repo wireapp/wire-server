@@ -17,9 +17,7 @@
 
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
-  ( -- * Clients
-    updateClient,
-    createAccessToken, -- move this to oauth module?
+  ( createClientDPoPAccessToken, -- move this to oauth module?
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
@@ -309,7 +307,7 @@ noPrekeys u c = do
           ~~ msg (val "No prekey found. Deleting client.")
       liftSem $ enqueueClientDeletion u Nothing client
 
-createAccessToken ::
+createClientDPoPAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>
   Local UserId ->
   ClientId ->
@@ -317,7 +315,7 @@ createAccessToken ::
   Link ->
   Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken luid cid method link proof = do
+createClientDPoPAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
   (tid, handle, displayName) <- do

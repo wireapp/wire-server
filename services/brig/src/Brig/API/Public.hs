@@ -543,7 +543,7 @@ servantSitemap =
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
-        :<|> Named @"create-access-token" (createAccessToken @UserClientAPI @CreateAccessToken POST)
+        :<|> Named @"create-access-token" (createClientDPoPAccessToken @UserClientAPI @CreateAccessToken POST)
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -874,7 +874,7 @@ newNonce uid cid = do
   lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
 
-createAccessToken ::
+createClientDPoPAccessToken ::
   forall api endpoint r.
   ( Member JwtTools r,
     Member Now r,
@@ -889,9 +889,9 @@ createAccessToken ::
   ClientId ->
   Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method luid cid proof = do
+createClientDPoPAccessToken method luid cid proof = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
-  API.createAccessToken luid cid method link proof !>> certEnrollmentError
+  API.createClientDPoPAccessToken luid cid method link proof !>> certEnrollmentError
 
 upgradePersonalToTeam ::
   ( Member (ConnectionStore InternalPaging) r,
