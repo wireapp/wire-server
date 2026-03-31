@@ -17,5 +17,4 @@ includes = ["*.sh"]
 excludes = [
   "dist-newstyle/",
   "services/nginz/third_party/*",
-  "services/restund/*",
 ]

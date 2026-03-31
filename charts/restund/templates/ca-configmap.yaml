@@ -1,9 +1,0 @@
-{{- if .Values.federate.dtls.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "restund.federateCAName" . }}
-data:
-  CA:
-    {{ .Values.federate.dtls.ca | quote }}
-{{- end }}
