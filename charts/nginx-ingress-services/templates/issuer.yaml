@@ -3,7 +3,7 @@ apiVersion: cert-manager.io/v1
 {{- if or (eq .Values.tls.issuer.kind "Issuer") (eq .Values.tls.issuer.kind "ClusterIssuer") }}
 kind: "{{ .Values.tls.issuer.kind }}"
 {{- else }}
-{{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .tls.issuer.kind )}}
+{{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .tls.issuer.kind ) }}
 {{- end }}
 metadata:
   name: {{ include "nginx-ingress-services.getIssuerName" . | quote }}
@@ -20,7 +20,7 @@ spec:
     email: {{ required "Missing value: certmasterEmail" .Values.certManager.certmasterEmail | quote }}
     # NOTE: this secret doesnt need to be created, it only gets a name with this
     privateKeySecretRef:
-      name: {{ include "nginx-ingress-services.getIssuerName" . -}}-account-key
+      name: {{ include "nginx-ingress-services.getIssuerName" . }}-account-key
     solvers:
 {{- if .Values.certManager.customSolvers }}
 {{ toYaml .Values.certManager.customSolvers | indent 6 }}
@@ -29,4 +29,4 @@ spec:
           ingress:
             class: nginx
 {{- end }}
-{{- end -}}
+{{- end }}

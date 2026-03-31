@@ -35,6 +35,13 @@ syncCACertToSecret: false
 prometheus:
   enabled: true
 
-# Size of the datacenter
+# Size of datacenter
 datacenter:
   size: 1
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "1"
+  limits:
+    memory: "512Mi"

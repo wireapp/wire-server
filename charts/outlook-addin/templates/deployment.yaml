@@ -7,6 +7,7 @@ metadata:
     {{- include "outlook.labels" . | nindent 4 }}
 spec:
   replicas: 3
+  automountServiceAccountToken: false
   selector:
     matchLabels:
       app: {{ include "outlook.fullname" . }}
@@ -45,3 +46,9 @@ spec:
             httpGet:
               path: /
               port: http
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"

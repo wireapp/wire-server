@@ -104,10 +104,10 @@ data:
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateConversationsOptions:
-{{toYaml .migrateConversationsOptions | indent 6 }}
+{{ toYaml .migrateConversationsOptions | indent 6 }}
 
     backendNotificationPusher:
-{{toYaml .backendNotificationPusher | indent 6 }}
+{{ toYaml .backendNotificationPusher | indent 6 }}
     {{- with .backgroundJobs }}
     backgroundJobs:
 {{ toYaml . | indent 6 }}

@@ -17,7 +17,7 @@ spec:
     - name: "gundeck-cassandra"
       secret:
         secretName: {{ (include "gundeck.tlsSecretRef" .Values.gundeck.config | fromYaml).name }}
-    {{- end}}
+    {{- end }}
     {{- if eq (include "gundeck.configureRedisCa" .Values.gundeck.config) "true" }}
     - name: "redis-ca"
       secret:

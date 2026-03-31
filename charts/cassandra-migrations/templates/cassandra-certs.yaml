@@ -14,8 +14,8 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
-{{- end}}
+   ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
+{{- end }}
 {{- if ne (trim (include "tlsCaGalley" .)) "" }}
 ---
 apiVersion: v1
@@ -33,8 +33,8 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
-{{- end}}
+   ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
+{{- end }}
 {{- if ne (trim (include "tlsCaGundeck" .)) "" }}
 ---
 apiVersion: v1
@@ -52,8 +52,8 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
-{{- end}}
+   ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
+{{- end }}
 {{- if ne (trim (include "tlsCaSpar" .)) "" }}
 ---
 apiVersion: v1
@@ -71,5 +71,5 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
 data:
-  ca.pem: {{ include "tlsCaSpar" . | b64enc | quote }}
-{{- end}}
+   ca.pem: {{ include "tlsCaSpar" . | b64enc | quote }}
+{{- end }}
