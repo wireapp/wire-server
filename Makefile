@@ -699,8 +699,8 @@ diff-live-manifest: clean-charts charts-integration
 	DIFF_OUTPUT_FILE="$(DIFF_OUTPUT_FILE)" ./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
 
 render-ci-manifest: clean-charts charts-integration
-	VALUES_FILE="$${VALUES_FILE:-$$(mktemp).yaml}"; \
-	VALUES_FILE="$$VALUES_FILE" ./hack/bin/helm-render-ci-values.sh; \
+	VALUES_FILE="$${VALUES_FILE:-$$(mktemp).yaml}"; export VALUES_FILE; \
+	./hack/bin/helm-render-ci-values.sh && \
 	./hack/bin/render-manifest.sh "$$VALUES_FILE"
 
 sbom.json:
