@@ -359,6 +359,6 @@ instance Arbitrary FakeUpdateClient where
     pure $
       FakeUpdateClient $
         update
-          { updateClientLastKey = const lpk <$> update.updateClientLastKey,
+          { updateClientLastKey = lpk <$ update.updateClientLastKey,
             updateClientPrekeys = keys
           }
