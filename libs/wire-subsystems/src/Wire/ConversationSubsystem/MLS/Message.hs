@@ -68,7 +68,6 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
-import Wire.ConversationSubsystem.Legalhold (getUserStatus)
 import Wire.ConversationSubsystem.MLS.Commit.Core (getCommitData)
 import Wire.ConversationSubsystem.MLS.Commit.ExternalCommit
 import Wire.ConversationSubsystem.MLS.Commit.InternalCommit
@@ -92,7 +91,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamStore qualified as TeamStore
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem (TeamSubsystem, getUserStatus)
 
 -- FUTUREWORK
 -- - Check that the capabilities of a leaf node in an add proposal contains all

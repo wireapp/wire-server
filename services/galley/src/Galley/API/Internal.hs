@@ -85,7 +85,7 @@ import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem as Conv
 import Wire.ConversationSubsystem.LegalholdConflicts (LegalholdConflicts, LegalholdConflictsOldClients)
 import Wire.CustomBackendStore
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getAllTeamFeaturesForServer, getFeatureForTeam)
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.ListItems
@@ -102,6 +102,7 @@ import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore
+import Wire.UserClientIndexStore as UserClientIndexStore
 import Wire.UserList
 import Wire.Util
 
@@ -234,7 +235,7 @@ miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
   mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
     <@> mkNamedAPI @"get-team-id" lookupBindingTeam
-    <@> mkNamedAPI @"test-get-clients" Conv.getClients
+    <@> mkNamedAPI @"test-get-clients" UserClientIndexStore.getClientsId
     <@> mkNamedAPI @"test-add-client" createClient
     <@> mkNamedAPI @"test-delete-client" rmClient
     <@> mkNamedAPI @"add-service" createService
@@ -345,6 +346,7 @@ rmUser ::
     Member (Error FederationError) r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
+    Member TeamSubsystem r,
     Member Now r,
     Member (ListItems p2 TeamId) r,
     Member P.TinyLog r,
@@ -380,7 +382,7 @@ rmUser lusr conn = do
           getFeatureForTeam @_ @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+                    FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
                 )
               . (.status)
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify

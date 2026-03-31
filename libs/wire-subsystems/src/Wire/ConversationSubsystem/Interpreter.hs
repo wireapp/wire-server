@@ -25,9 +25,7 @@ module Wire.ConversationSubsystem.Interpreter
   )
 where
 
-import Data.Proxy (Proxy (..))
 import Data.Qualified
-import Data.Singletons (fromSing)
 import Galley.Types.Error (InternalError, InvalidInput (..))
 import Imports
 import Polysemy
@@ -52,14 +50,10 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Action.Notify qualified as ActionNotify
-import Wire.ConversationSubsystem.Clients qualified as Clients
 import Wire.ConversationSubsystem.Create qualified as Create
 import Wire.ConversationSubsystem.CreateInternal qualified as CreateInternal
-import Wire.ConversationSubsystem.Features qualified as Features
 import Wire.ConversationSubsystem.Federation qualified as Federation
 import Wire.ConversationSubsystem.Fetch qualified as Fetch
-import Wire.ConversationSubsystem.Internal qualified as Internal
-import Wire.ConversationSubsystem.Legalhold qualified as Legalhold
 import Wire.ConversationSubsystem.MLS qualified as MLS
 import Wire.ConversationSubsystem.MLS.Enabled qualified as MLSEnabled
 import Wire.ConversationSubsystem.MLS.GroupInfo qualified as MLSGroupInfo
@@ -221,8 +215,6 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ ConvStore.getConversations convIds
   GetConversationIds lusr maxIds pagingState ->
     liftT $ Fetch.getConversationIdsImpl lusr maxIds pagingState
-  InternalGetClientIds uids ->
-    liftT $ Internal.internalGetClientIds uids
   InternalGetLocalMember cid uid ->
     liftT $ ConvStore.getLocalMember cid uid
   PostMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle ->
@@ -304,10 +296,6 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ MLSReset.resetMLSConversation lusr reset
   GetSubConversation lusr cnv sub ->
     liftT $ MLSSubConversation.getSubConversation lusr cnv sub
-  GetUserStatus lusr tid uid ->
-    liftT $ Legalhold.getUserStatus lusr tid uid
-  GuardSecondFactorDisabled uid cid ->
-    liftT $ Features.guardSecondFactorDisabled uid cid
   GetBotConversation bid cnv ->
     liftT $ Query.getBotConversation bid cnv
   GetUnqualifiedOwnConversation lusr cnv ->
@@ -316,6 +304,8 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ Query.getOwnConversation lusr qcnv
   GetConversation lusr qcnv ->
     liftT $ Query.getConversation lusr qcnv
+  InternalGetConversation cnv ->
+    liftT $ ConvStore.getConversation cnv
   GetConversationRoles lusr cnv ->
     liftT $ Query.getConversationRoles lusr cnv
   GetGroupInfo lusr qcnv ->
@@ -418,32 +408,8 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ Query.getConversations lusr mids mstart msize
   SearchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable ->
     liftT $ Query.searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable
-  FeatureEnabledForTeam (Proxy :: Proxy cfg) tid ->
-    liftT $ Features.featureEnabledForTeam @cfg tid
-  GetAllTeamFeaturesForUser uid ->
-    liftT $ Features.getAllTeamFeaturesForUser uid
-  GetSingleFeatureForUser uid ->
-    liftT $ Features.getSingleFeatureForUser uid
-  PermissionCheck p mTeam ->
-    liftT $ Util.permissionCheck p mTeam
-  PermissionCheckSAbs (PermissionCheckArgs p mTeam) ->
-    liftT $ Util.permissionCheck (fromSing p) mTeam
-  EnsureReAuthorised u secret mbAction mbCode ->
-    liftT $ Util.ensureReAuthorised u secret mbAction mbCode
   QualifyLocal a ->
     liftT $ Util.qualifyLocal a
-  AssertOnTeam uid tid ->
-    liftT $ Util.assertOnTeam uid tid
-  CheckConsent teamsOfUsers other ->
-    liftT $ Util.checkConsent teamsOfUsers other
-  GetLHStatusForUsers uids ->
-    liftT $ Util.getLHStatusForUsers uids
-  EnsureConnectedToLocals u uids ->
-    liftT $ Util.ensureConnectedToLocals u uids
-  GetTeamMembersForFanout tid ->
-    liftT $ Util.getTeamMembersForFanout tid
-  AssertTeamExists tid ->
-    liftT $ Util.assertTeamExists tid
   InternalGetMember qcnv usr ->
     liftT $ Query.internalGetMember qcnv usr
   GetConversationMeta cnv ->
@@ -454,16 +420,12 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ Query.isMLSOne2OneEstablished lself qother
   GetLocalConversationInternal cid ->
     liftT $ Query.getLocalConversationInternal cid
-  RmClient usr cid ->
-    liftT $ Clients.rmClient usr cid
-  GetClients usr ->
-    liftT $ Clients.getClients usr
+  RemoveClient lc qusr c ->
+    liftT $ MLSRemoval.removeClient lc qusr c
   AddBot lusr zcon b ->
     liftT $ Update.addBot lusr zcon b
   RmBot lusr zcon b ->
     liftT $ Update.rmBot lusr zcon b
-  GetFeatureInternal tid ->
-    liftT $ Features.getFeatureInternal tid
   UpdateCellsState cnv state ->
     liftT $ Update.updateCellsState cnv state
   RemoveUser lc includeMain qusr ->

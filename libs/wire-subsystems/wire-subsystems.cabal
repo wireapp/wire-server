@@ -263,12 +263,10 @@ library
     Wire.ConversationSubsystem.Clients
     Wire.ConversationSubsystem.Create
     Wire.ConversationSubsystem.CreateInternal
-    Wire.ConversationSubsystem.Features
     Wire.ConversationSubsystem.Federation
     Wire.ConversationSubsystem.Fetch
     Wire.ConversationSubsystem.Internal
     Wire.ConversationSubsystem.Interpreter
-    Wire.ConversationSubsystem.Legalhold
     Wire.ConversationSubsystem.LegalholdConflicts
     Wire.ConversationSubsystem.Mapping
     Wire.ConversationSubsystem.Message

@@ -87,7 +87,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
 import Wire.TeamStore
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem (TeamSubsystem, getTeamMembersForFanout)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore
 
@@ -360,7 +360,6 @@ postBroadcast lusr con msg = runError $ do
 
     maybeFetchAllMembersInTeam ::
       ( Member (ErrorS 'BroadcastLimitExceeded) r,
-        Member (Input FanoutLimit) r,
         Member TeamSubsystem r
       ) =>
       TeamId ->

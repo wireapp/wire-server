@@ -42,6 +42,7 @@ import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
 import Hasql.Pool qualified as Hasql
 import Imports
+import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Async
 import Polysemy.Conc
@@ -50,6 +51,8 @@ import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
 import Polysemy.TinyLog (TinyLog)
+import Wire.API.Error (ErrorS, errorToWai)
+import Wire.API.Error.Galley
 import Wire.API.Federation.Client qualified
 import Wire.API.Federation.Error
 import Wire.API.Team.Collaborator
@@ -205,6 +208,10 @@ type BrigLowerLevelEffects =
      Error VerificationCodeSubsystemError,
      Error PropertySubsystemError,
      Error RateLimitExceeded,
+     ErrorS 'TeamMemberNotFound,
+     ErrorS 'TeamNotFound,
+     Error Wai.Error,
+     Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      DomainVerificationChallengeStore,
      DomainRegistrationStore,
@@ -426,6 +433,10 @@ runBrigToIO e (AppT ma) = do
               . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
+              . rethrowHttpErrorIO
+              . mapError StdError -- Wai.Error
+              . mapError (const $ errorToWai @'TeamNotFound) -- ErrorS 'TeamNotFound
+              . mapError (const $ errorToWai @'TeamMemberNotFound) -- ErrorS 'TeamMemberNotFound
               . mapError rateLimitExceededToHttpError
               . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError

@@ -86,11 +86,12 @@ createSettings ::
   ( Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceInvalidKey) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member ConversationSubsystem r,
     Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
@@ -105,7 +106,7 @@ createSettings lzusr tid newService = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
-  void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
     LegalHoldData.validateServiceKey newService.newLegalHoldServiceKey
       >>= noteS @'LegalHoldServiceInvalidKey
@@ -146,6 +147,9 @@ removeSettingsInternalPaging ::
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Error AuthenticationError) r,
     Member FireAndForget r,
     Member ConversationSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
@@ -177,6 +181,9 @@ removeSettings ::
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Error AuthenticationError) r,
     Member FireAndForget r,
     Member ConversationSubsystem r,
     Member P.TinyLog r,
@@ -198,7 +205,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
-  void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword Nothing Nothing
   removeSettings' @p tid
   where
@@ -224,6 +231,7 @@ removeSettings' ::
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member FireAndForget r,
     Member ConversationSubsystem r,
+    Member TeamSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
@@ -297,6 +305,8 @@ requestDevice ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member ConversationSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
@@ -318,7 +328,7 @@ requestDevice lzusr tid uid = do
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
-  void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldUserSettings zusrMembership
   member <- noteS @'TeamMemberNotFound =<< TeamSubsystem.internalGetTeamMember uid tid
   case member ^. legalHoldStatus of
     UserLegalHoldEnabled -> throwS @'UserLegalHoldAlreadyEnabled
@@ -379,6 +389,7 @@ approveDevice ::
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'UserLegalHoldNotPending) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member ConversationSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
@@ -402,7 +413,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.approveDevice")
   unless (zusr == tUnqualified luid) $ throwS @'AccessDenied
-  assertOnTeam (tUnqualified luid) tid
+  TeamSubsystem.assertOnTeam (tUnqualified luid) tid
   ensureReAuthorised zusr mPassword Nothing Nothing
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
@@ -443,6 +454,9 @@ disableForUser ::
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Error AuthenticationError) r,
     Member ConversationSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
@@ -461,7 +475,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid
-  void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldUserSettings zusrMembership
 
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
@@ -498,6 +512,7 @@ changeLegalholdStatusAndHandlePolicyConflicts ::
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member ConversationSubsystem r,
+    Member TeamSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -548,7 +563,7 @@ blockNonConsentingConnections ::
     Member TeamStore r,
     Member P.TinyLog r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
-    Member ConversationSubsystem r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r ()
@@ -569,7 +584,7 @@ blockNonConsentingConnections uid = do
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- getUsersTeams others
-        filterM (fmap (== ConsentNotGiven) . checkConsent teamsOfUsers) others
+        filterM (fmap (== TeamSubsystem.ConsentNotGiven) . TeamSubsystem.checkConsent teamsOfUsers) others
 
     blockConflicts :: UserId -> [UserId] -> Sem r [String]
     blockConflicts _ [] = pure []
@@ -603,7 +618,8 @@ unsetTeamLegalholdWhitelistedH tid = do
 handleGroupConvPolicyConflicts ::
   ( Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member ConversationSubsystem r
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->
@@ -615,7 +631,7 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
 
       membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
         let mems = conv.localMembers
-        uidsLHStatus <- getLHStatusForUsers ((.id_) <$> mems)
+        uidsLHStatus <- TeamSubsystem.getLHStatusForUsers ((.id_) <$> mems)
         pure $
           zipWith
             ( \mem (mid, status) ->
@@ -636,10 +652,10 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
           (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
         . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
         $ if any
-          ((== ConsentGiven) . consentGiven . snd)
+          ((== TeamSubsystem.ConsentGiven) . TeamSubsystem.consentGiven . snd)
           (filter ((== roleNameWireAdmin) . (.convRoleName) . fst) membersAndLHStatus)
           then do
-            for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+            for_ (filter ((== TeamSubsystem.ConsentNotGiven) . TeamSubsystem.consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
               let lusr = qualifyAs luid memberNoConsent.id_
               removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
           else do

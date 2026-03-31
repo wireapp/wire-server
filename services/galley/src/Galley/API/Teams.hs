@@ -297,11 +297,12 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       (_, _) -> throwS @'InvalidTeamStatusUpdate
 
 updateTeamH ::
-  ( Member ConversationSubsystem r,
-    Member NotificationSubsystem r,
+  ( Member NotificationSubsystem r,
     Member Now r,
     Member TeamStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (ErrorS (MissingPermission (Just SetTeamData))) r,
+    Member (ErrorS NotATeamMember) r
   ) =>
   UserId ->
   ConnId ->
@@ -310,7 +311,7 @@ updateTeamH ::
   Sem r ()
 updateTeamH zusr zcon tid updateData = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
-  void $ permissionCheckS SSetTeamData zusrMembership
+  void $ TeamSubsystem.permissionCheckS SSetTeamData zusrMembership
   E.setTeamData tid updateData
   now <- Now.get
   admins <- E.getTeamAdmins tid
@@ -328,12 +329,15 @@ updateTeamH zusr zcon tid updateData = do
 
 deleteTeam ::
   forall r.
-  ( Member ConversationSubsystem r,
-    Member (ErrorS 'DeleteQueueFull) r,
+  ( Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS OperationDenied) r,
+    Member (Error AuthenticationError) r,
     Member (E.Queue DeleteItem) r,
+    Member (ErrorS NotATeamMember) r,
     Member TeamStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member E.BrigAPIAccess r
   ) =>
   UserId ->
   ConnId ->
@@ -351,7 +355,7 @@ deleteTeam zusr zcon tid body = do
       queueTeamDeletion tid zusr (Just zcon)
   where
     checkPermissions team = do
-      void $ permissionCheck DeleteTeam =<< TeamSubsystem.internalGetTeamMember zusr tid
+      void $ TeamSubsystem.permissionCheck DeleteTeam =<< TeamSubsystem.internalGetTeamMember zusr tid
       when (tdTeam team ^. teamBinding == Binding) $ do
         ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
@@ -507,7 +511,6 @@ uncheckedGetTeamMember tid uid =
 addTeamMember ::
   forall r.
   ( Member E.BrigAPIAccess r,
-    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'NoAddToBinding) r,
@@ -516,6 +519,9 @@ addTeamMember ::
     Member (ErrorS 'TooManyTeamAdmins) r,
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NotConnected) r,
     Member (Input Opts) r,
     Member Now r,
     Member LegalHoldStore r,
@@ -541,12 +547,12 @@ addTeamMember lzusr zcon tid nmem = do
   -- verify permissions
   zusrMembership <-
     TeamSubsystem.internalGetTeamMember zusr tid
-      >>= permissionCheck AddTeamMember
+      >>= TeamSubsystem.permissionCheck AddTeamMember
   let targetPermissions = nmem ^. nPermissions
   targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
-  ensureConnectedToLocals zusr [uid]
+  E.ensureConnectedToLocals zusr [uid]
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem
@@ -640,12 +646,13 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
 updateTeamMember ::
   forall r.
   ( Member E.BrigAPIAccess r,
-    Member ConversationSubsystem r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member NotificationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
@@ -670,7 +677,7 @@ updateTeamMember lzusr zcon tid newMem = do
   -- get the team and verify permissions
   user <-
     TeamSubsystem.internalGetTeamMember zusr tid
-      >>= permissionCheck SetMemberPermissions
+      >>= TeamSubsystem.permissionCheck SetMemberPermissions
 
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
@@ -699,6 +706,8 @@ deleteTeamMember ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (Error AuthenticationError) r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
@@ -724,6 +733,8 @@ deleteNonBindingTeamMember ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (Error AuthenticationError) r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
@@ -749,6 +760,8 @@ deleteTeamMember' ::
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (Error AuthenticationError) r,
     Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member FeaturesConfigSubsystem r,
@@ -770,7 +783,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   targetMember <- TeamSubsystem.internalGetTeamMember remove tid
-  void $ permissionCheck RemoveTeamMember zusrMember
+  void $ TeamSubsystem.permissionCheck RemoveTeamMember zusrMember
   do
     dm <- noteS @'NotATeamMember zusrMember
     tm <- noteS @'TeamMemberNotFound targetMember
@@ -800,7 +813,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
           admins <- E.getTeamAdmins tid
           uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Left admins)
         FeatureStatusDisabled -> do
-          mems <- getTeamMembersForFanout tid
+          mems <- TeamSubsystem.getTeamMembersForFanout tid
           uncheckedDeleteTeamMember lusr (Just zcon) tid remove (Right mems)
       pure TeamMemberDeleteCompleted
 
@@ -957,7 +970,8 @@ deleteTeamConversation lusr zcon _tid cid = do
 
 getSearchVisibility ::
   ( Member TeamStore r,
-    Member ConversationSubsystem r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -965,14 +979,15 @@ getSearchVisibility ::
   Sem r TeamSearchVisibilityView
 getSearchVisibility luid tid = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
-  void $ permissionCheck ViewTeamSearchVisibility zusrMembership
+  void $ TeamSubsystem.permissionCheck ViewTeamSearchVisibility zusrMembership
   getSearchVisibilityInternal tid
 
 setSearchVisibility ::
   forall r.
   ( Member TeamStore r,
     Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member ConversationSubsystem r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamSubsystem r
   ) =>
   (TeamId -> Sem r Bool) ->
@@ -982,7 +997,7 @@ setSearchVisibility ::
   Sem r ()
 setSearchVisibility availableForTeam luid tid req = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
-  void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeTeamSearchVisibility zusrMembership
   setSearchVisibilityInternal availableForTeam tid req
 
 -- Internal -----------------------------------------------------------------
@@ -1143,13 +1158,13 @@ getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member TeamStore r,
-    Member ConversationSubsystem r
+    Member TeamSubsystem r
   ) =>
   UserId ->
   Sem r TeamMemberList
 getBindingTeamMembers zusr = do
   tid <- E.lookupBindingTeam zusr
-  getTeamMembersForFanout tid
+  TeamSubsystem.getTeamMembersForFanout tid
 
 -- This could be extended for more checks, for now we test only legalhold
 --
@@ -1242,6 +1257,8 @@ updateTeamCollaborator ::
   forall r.
   ( Member ConversationStore r,
     Member P.TinyLog r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamCollaboratorsSubsystem r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r
@@ -1256,7 +1273,7 @@ updateTeamCollaborator lusr tid rusr perms = do
     Log.field "targets" (toByteString rusr)
       . Log.field "action" (Log.val "Teams.updateTeamCollaborator")
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
-  void $ permissionCheck UpdateTeamCollaborator zusrMember
+  void $ TeamSubsystem.permissionCheck UpdateTeamCollaborator zusrMember
   when (Set.null $ Set.intersection (Set.fromList [Collaborator.CreateTeamConversation, Collaborator.ImplicitConnection]) perms) $
     removeFromConvsAndPushConvLeaveEvent lusr Nothing tid rusr
   internalUpdateTeamCollaborator rusr tid perms
@@ -1269,6 +1286,8 @@ removeTeamCollaborator ::
     Member ConversationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member FeaturesConfigSubsystem r,
     Member TeamStore r,
     Member TeamCollaboratorsSubsystem r,
@@ -1283,12 +1302,12 @@ removeTeamCollaborator lusr tid rusr = do
     Log.field "targets" (toByteString rusr)
       . Log.field "action" (Log.val "Teams.removeTeamCollaborator")
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
-  void $ permissionCheck RemoveTeamCollaborator zusrMember
+  void $ TeamSubsystem.permissionCheck RemoveTeamCollaborator zusrMember
   toNotify <-
     (getFeatureForTeam @_ @LimitedEventFanoutConfig tid)
       >>= ( \case
               FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-              FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+              FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
           )
         . (.status)
   uncheckedDeleteTeamMember lusr Nothing tid rusr toNotify

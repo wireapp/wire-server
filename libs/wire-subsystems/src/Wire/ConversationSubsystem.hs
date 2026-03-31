@@ -20,12 +20,9 @@
 module Wire.ConversationSubsystem
   ( module Wire.ConversationSubsystem,
     Util.BotsAndMembers (..),
-    Util.ConsentGiven (..),
     Util.canDeleteMember,
-    Util.consentGiven,
     Util.isMember,
     Util.userLHEnabled,
-    Features.toTeamStatus,
     MLSRemoval.RemoveUserIncludeMain (..),
     LegalholdConflicts.guardLegalholdPolicyConflicts,
   )
@@ -35,13 +32,10 @@ import Data.Code qualified as Code
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Id
-import Data.LegalHold (UserLegalHoldStatus)
-import Data.Misc (IpAddr, PlainTextPassword6)
-import Data.Proxy (Proxy (..))
+import Data.Misc (IpAddr)
 import Data.Qualified
 import Data.Range
-import Data.Singletons (Demote, Sing, SingKind)
-import Galley.Types.Clients (Clients)
+import Data.Singletons (Sing)
 import Imports
 import Polysemy
 import Wire.API.Bot (AddBot, RemoveBot)
@@ -75,22 +69,14 @@ import Wire.API.Routes.Public.Galley.Messaging (MessageNotSent, PostOtrResponse)
 import Wire.API.Routes.Public.Util (UpdateResult)
 import Wire.API.Routes.Version
 import Wire.API.ServantProto (RawProto (..))
-import Wire.API.Team.Feature (AllTeamFeatures, GuestLinksConfig, LockableFeature)
-import Wire.API.Team.LegalHold (UserLegalHoldStatusResponse)
-import Wire.API.Team.Member (IsPerm, TeamMemberList)
-import Wire.API.User (VerificationAction)
+import Wire.API.Team.Feature (GuestLinksConfig, LockableFeature)
 import Wire.ConversationStore.MLS.Types (ListGlobalSelfConvs)
-import Wire.ConversationSubsystem.Features qualified as Features
 import Wire.ConversationSubsystem.LegalholdConflicts qualified as LegalholdConflicts
 import Wire.ConversationSubsystem.MLS.IncomingMessage (IncomingBundle, IncomingMessage)
 import Wire.ConversationSubsystem.MLS.Removal qualified as MLSRemoval
 import Wire.ConversationSubsystem.Util qualified as Util
-import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfig)
 import Wire.NotificationSubsystem (LocalConversationUpdate)
 import Wire.StoredConversation (BotMember, LocalMember, StoredConversation)
-
-data PermissionCheckArgs teamAssociation where
-  PermissionCheckArgs :: forall k (p :: k) teamAssociation. (SingKind k, IsPerm teamAssociation (Demote k)) => Sing p -> Maybe teamAssociation -> PermissionCheckArgs teamAssociation
 
 data ConversationSubsystem m a where
   NotifyConversationAction ::
@@ -146,7 +132,6 @@ data ConversationSubsystem m a where
     Range 1 1000 Int32 ->
     Maybe ConversationPagingState ->
     ConversationSubsystem r ConvIdsPage
-  InternalGetClientIds :: [UserId] -> ConversationSubsystem m Clients
   InternalGetLocalMember ::
     ConvId ->
     UserId ->
@@ -169,13 +154,11 @@ data ConversationSubsystem m a where
   GetLocalConversationInternal ::
     ConvId ->
     ConversationSubsystem m Conversation
-  RmClient ::
-    UserId ->
+  RemoveClient ::
+    Local StoredConversation ->
+    Qualified UserId ->
     ClientId ->
     ConversationSubsystem m ()
-  GetClients ::
-    UserId ->
-    ConversationSubsystem m [ClientId]
   AddBot ::
     Local UserId ->
     ConnId ->
@@ -186,10 +169,6 @@ data ConversationSubsystem m a where
     Maybe ConnId ->
     RemoveBot ->
     ConversationSubsystem m (UpdateResult Event)
-  GetFeatureInternal ::
-    (GetFeatureConfig cfg) =>
-    TeamId ->
-    ConversationSubsystem m (LockableFeature cfg)
   UpdateCellsState ::
     ConvId ->
     CellsState ->
@@ -371,20 +350,6 @@ data ConversationSubsystem m a where
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))
-  FeatureEnabledForTeam ::
-    forall cfg m.
-    (GetFeatureConfig cfg) =>
-    Proxy cfg ->
-    TeamId ->
-    ConversationSubsystem m Bool
-  GetAllTeamFeaturesForUser ::
-    UserId ->
-    ConversationSubsystem m AllTeamFeatures
-  GetSingleFeatureForUser ::
-    forall cfg m.
-    (GetFeatureConfig cfg) =>
-    UserId ->
-    ConversationSubsystem m (LockableFeature cfg)
   ResetMLSConversation ::
     Local UserId ->
     MLSReset ->
@@ -394,15 +359,6 @@ data ConversationSubsystem m a where
     Qualified ConvId ->
     SubConvId ->
     ConversationSubsystem m PublicSubConversation
-  GetUserStatus ::
-    Local UserId ->
-    TeamId ->
-    UserId ->
-    ConversationSubsystem m UserLegalHoldStatusResponse
-  GuardSecondFactorDisabled ::
-    UserId ->
-    ConvId ->
-    ConversationSubsystem m ()
   GetBotConversation ::
     BotId ->
     ConvId ->
@@ -426,6 +382,9 @@ data ConversationSubsystem m a where
     Local UserId ->
     Qualified ConvId ->
     ConversationSubsystem m Public.Conversation
+  InternalGetConversation ::
+    ConvId ->
+    ConversationSubsystem m (Maybe StoredConversation)
   GetConversationRoles ::
     Local UserId ->
     ConvId ->
@@ -710,42 +669,9 @@ data ConversationSubsystem m a where
     ConversationAction (tag :: ConversationActionTag) ->
     ExtraConversationData ->
     ConversationSubsystem m LocalConversationUpdate
-  PermissionCheck ::
-    (IsPerm teamAssociation perm) =>
-    perm -> Maybe teamAssociation -> ConversationSubsystem m teamAssociation
-  PermissionCheckSAbs ::
-    PermissionCheckArgs teamAssociation ->
-    ConversationSubsystem m teamAssociation
-  EnsureReAuthorised ::
-    UserId ->
-    Maybe PlainTextPassword6 ->
-    Maybe Code.Value ->
-    Maybe VerificationAction ->
-    ConversationSubsystem m ()
   QualifyLocal ::
     a ->
     ConversationSubsystem m (Local a)
-  AssertOnTeam ::
-    UserId ->
-    TeamId ->
-    ConversationSubsystem m ()
-  CheckConsent ::
-    Map UserId TeamId ->
-    UserId ->
-    ConversationSubsystem m Util.ConsentGiven
-  GetLHStatusForUsers ::
-    [UserId] ->
-    ConversationSubsystem m [(UserId, UserLegalHoldStatus)]
-  EnsureConnectedToLocals ::
-    UserId ->
-    [UserId] ->
-    ConversationSubsystem m ()
-  GetTeamMembersForFanout ::
-    TeamId ->
-    ConversationSubsystem m TeamMemberList
-  AssertTeamExists ::
-    TeamId ->
-    ConversationSubsystem m ()
   InternalUpsertOne2OneConversation ::
     UpsertOne2OneConversationRequest ->
     ConversationSubsystem m ()
@@ -765,6 +691,3 @@ data ConversationSubsystem m a where
     ConversationSubsystem m ()
 
 makeSem ''ConversationSubsystem
-
-permissionCheckS :: forall k (p :: k) teamAssociation r. (Member ConversationSubsystem r, SingKind k, IsPerm teamAssociation (Demote k)) => Sing p -> Maybe teamAssociation -> Sem r teamAssociation
-permissionCheckS p mTeam = send (PermissionCheckSAbs (PermissionCheckArgs p mTeam))

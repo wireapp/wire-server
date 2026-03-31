@@ -55,6 +55,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.FeatureConfig
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
@@ -94,15 +95,15 @@ patchFeatureInternal ::
     SetFeatureForTeamConstraints cfg r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
+    Member TeamSubsystem r,
     GetFeatureConfigEffects r
   ) =>
   TeamId ->
   LockableFeaturePatch cfg ->
   Sem r (LockableFeature cfg)
 patchFeatureInternal tid patch = do
-  assertTeamExists tid
+  TeamSubsystem.assertTeamExists tid
   dbFeature <- getDbFeatureRawInternal tid
   defFeature :: LockableFeature cfg <- resolveServerFeature
   let dbFeatureWithDefaults = dbFeature.applyDbFeature defFeature
@@ -127,9 +128,10 @@ setFeature ::
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
@@ -139,7 +141,7 @@ setFeature ::
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
-  void $ permissionCheck ChangeTeamFeature zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeTeamFeature zusrMembership
   setFeatureUnchecked tid feat
 
 setFeatureInternal ::
@@ -150,14 +152,14 @@ setFeatureInternal ::
     Member (Error TeamFeatureError) r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
-    Member ConversationSubsystem r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeatureInternal tid feat = do
-  assertTeamExists tid
+  TeamSubsystem.assertTeamExists tid
   setFeatureUnchecked tid feat
 
 setFeatureUnchecked ::
@@ -169,7 +171,7 @@ setFeatureUnchecked ::
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member NotificationSubsystem r,
-    Member ConversationSubsystem r
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
@@ -183,13 +185,13 @@ updateLockStatus ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member TeamFeatureStore r,
-    Member ConversationSubsystem r
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockStatus ->
   Sem r LockStatusResponse
 updateLockStatus tid lockStatus = do
-  assertTeamExists tid
+  TeamSubsystem.assertTeamExists tid
   setFeatureLockStatus @cfg tid lockStatus
   pure $ LockStatusResponse lockStatus
 
@@ -210,14 +212,14 @@ pushFeatureEvent ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member NotificationSubsystem r,
-    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
     Member P.TinyLog r
   ) =>
   TeamId ->
   Event ->
   Sem r ()
 pushFeatureEvent tid event = do
-  memList <- getTeamMembersForFanout tid
+  memList <- TeamSubsystem.getTeamMembersForFanout tid
   if ((memList ^. teamMemberListType) == ListTruncated)
     then do
       P.warn $
@@ -245,9 +247,9 @@ setFeatureForTeam ::
     SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
     Member P.TinyLog r,
-    Member ConversationSubsystem r,
     Member NotificationSubsystem r,
-    Member TeamFeatureStore r
+    Member TeamFeatureStore r,
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockableFeature cfg ->
@@ -389,7 +391,7 @@ instance SetFeatureConfig SndFactorPasswordChallengeConfig
 instance SetFeatureConfig SearchVisibilityInboundConfig where
   type SetFeatureForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAPIAccess r)
   prepareFeature tid feat = do
-    updateSearchVisibilityInbound $ toTeamStatus tid feat
+    updateSearchVisibilityInbound $ Multi.TeamStatus tid feat.status
 
 instance SetFeatureConfig MLSConfig where
   type

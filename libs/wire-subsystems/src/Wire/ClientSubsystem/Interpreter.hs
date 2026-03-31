@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Wire.ClientSubsystem.Interpreter
   ( runClientSubsystem,
     ClientError (..),
@@ -19,6 +21,8 @@ import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Time.Clock
 import Imports hiding ((\\))
+import Data.Time.Clock (UTCTime)
+import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input

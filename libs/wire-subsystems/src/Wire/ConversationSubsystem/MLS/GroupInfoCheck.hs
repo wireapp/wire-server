@@ -42,8 +42,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem.Features
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 
 data GroupInfoMismatch = GroupInfoMismatch
   {clients :: [(Int, ClientIdentity)]}

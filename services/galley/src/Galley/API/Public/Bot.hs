@@ -25,6 +25,7 @@ import Wire.API.Provider.Bot
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
 import Wire.ConversationSubsystem
+import Wire.FeaturesConfigSubsystem
 
 botAPI :: API BotAPI GalleyEffects
 botAPI =
@@ -33,7 +34,9 @@ botAPI =
 
 getBotConversationH ::
   forall r.
-  (Member ConversationSubsystem r) =>
+  ( Member ConversationSubsystem r,
+    Member FeaturesConfigSubsystem r
+  ) =>
   BotId ->
   ConvId ->
   Sem r BotConvView

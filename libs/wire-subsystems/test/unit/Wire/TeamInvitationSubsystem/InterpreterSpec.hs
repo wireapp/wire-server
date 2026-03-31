@@ -26,6 +26,7 @@ import Data.Id
 import Data.LegalHold
 import Data.Map qualified as Map
 import Data.Qualified
+import Data.Tagged (Tagged)
 import Data.Text.Encoding
 import Data.Time
 import Imports
@@ -38,6 +39,8 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.EnterpriseLogin
+import Wire.API.Error (ErrorS)
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -62,8 +65,7 @@ import Wire.UserSubsystem
 import Wire.Util
 
 type AllEffects =
-  [ Error TeamInvitationSubsystemError,
-    EnterpriseLoginSubsystem,
+  [ EnterpriseLoginSubsystem,
     TinyLog,
     TeamSubsystem,
     GalleyAPIAccess,
@@ -75,6 +77,9 @@ type AllEffects =
     State (Map (InvitationCode) StoredInvitation),
     Now,
     State UTCTime,
+    Error TeamInvitationSubsystemError,
+    ErrorS 'TeamMemberNotFound,
+    ErrorS 'TeamNotFound,
     EmailSubsystem,
     State (Map EmailAddress [SentMail]),
     UserSubsystem,
@@ -89,7 +94,7 @@ data RunAllEffectsArgs = RunAllEffectsArgs
   }
   deriving (Eq, Show)
 
-runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either TeamInvitationSubsystemError a
+runAllEffects :: RunAllEffectsArgs -> Sem AllEffects a -> Either LocalErrors a
 runAllEffects args =
   run
     . runInMemoryUserKeyStoreIntepreterWithStoredUsers args.initialUsers
@@ -97,6 +102,7 @@ runAllEffects args =
     . inMemoryUserSubsystemInterpreter
     . evalState mempty
     . noopEmailSubsystemInterpreter
+    . runLocalErrors
     . evalState defaultTime
     . interpretNowAsState
     . evalState mempty
@@ -109,7 +115,26 @@ runAllEffects args =
     . interpretTeamSubsystemToGalleyAPI
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
-    . runError
+
+data LocalErrors
+  = ETeamMemberNotFound
+  | ETeamNotFound
+  | ESubsystem TeamInvitationSubsystemError
+  deriving stock (Eq, Show)
+
+runLocalErrors ::
+  Sem (Error TeamInvitationSubsystemError ': ErrorS 'TeamMemberNotFound ': ErrorS 'TeamNotFound ': r) a ->
+  Sem r (Either LocalErrors a)
+runLocalErrors = fmap toLocalErrors . runError . runError . runError
+  where
+    toLocalErrors ::
+      Either (Tagged 'TeamNotFound ()) (Either (Tagged 'TeamMemberNotFound ()) (Either TeamInvitationSubsystemError a)) ->
+      Either LocalErrors a
+    toLocalErrors = \case
+      Right (Right (Right a)) -> Right a
+      Right (Right (Left e)) -> Left (ESubsystem e)
+      Right (Left _) -> Left ETeamMemberNotFound
+      Left _ -> Left ETeamNotFound
 
 spec :: Spec
 spec = do
@@ -192,7 +217,7 @@ spec = do
 
               -- run the test
               --
-              outcome :: Either TeamInvitationSubsystemError ()
+              outcome :: Either LocalErrors ()
               outcome = runAllEffects args . runTeamInvitationSubsystem cfg $ do
                 void $ inviteUser inviterLuid tid invReq
 
@@ -201,11 +226,11 @@ spec = do
               teamNotAllowedOrWrongTeamIdFails =
                 outcome === case domRegUpd.teamInvite of
                   Allowed -> Right ()
-                  NotAllowed -> Left TeamInvitationNotAllowedForEmail
+                  NotAllowed -> Left (ESubsystem TeamInvitationNotAllowedForEmail)
                   Team allowedTid ->
                     if allowedTid == tid
                       then Right ()
-                      else Left TeamInvitationNotAllowedForEmail
+                      else Left (ESubsystem TeamInvitationNotAllowedForEmail)
 
               backendRedirectOrNoRegistrationFails = case domRegUpd.domainRedirect of
                 Backend _ _ ->
@@ -213,7 +238,7 @@ spec = do
                   teamNotAllowedOrWrongTeamIdFails
                 NoRegistration ->
                   if isJust preExistingPersonalAccount
-                    then outcome === Left TeamInvitationNotAllowedForEmail
+                    then outcome === Left (ESubsystem TeamInvitationNotAllowedForEmail)
                     else teamNotAllowedOrWrongTeamIdFails
                 _ -> teamNotAllowedOrWrongTeamIdFails
 
@@ -283,7 +308,7 @@ spec = do
                     constGuardResult = Nothing
                   }
 
-              outcome :: Either TeamInvitationSubsystemError ()
+              outcome :: Either LocalErrors ()
               outcome = runAllEffects interpreterArgs . runTeamInvitationSubsystem config $ do
                 void $ inviteUser inviterLuid tid invitationRequest
-           in pure $ outcome === Left TeamInvitationBlockedDomain
+           in pure $ outcome === Left (ESubsystem TeamInvitationBlockedDomain)

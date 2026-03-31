@@ -154,7 +154,7 @@ import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem (TeamSubsystem, permissionCheck)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)

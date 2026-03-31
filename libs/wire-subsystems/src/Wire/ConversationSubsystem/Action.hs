@@ -118,7 +118,6 @@ import Wire.ConversationSubsystem.Action.Kick
 import Wire.ConversationSubsystem.Action.Leave
 import Wire.ConversationSubsystem.Action.Notify
 import Wire.ConversationSubsystem.Action.Reset
-import Wire.ConversationSubsystem.Features
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.Migration
 import Wire.ConversationSubsystem.MLS.Removal
@@ -139,7 +138,7 @@ import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem (ConsentGiven (..), TeamSubsystem, consentGiven)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 import Wire.Util
@@ -839,7 +838,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
           throwS @'MissingLegalholdConsent
 
         convUsersLHStatus <- do
-          uidsStatus <- getLHStatusForUsers ((.id_) <$> convUsers)
+          uidsStatus <- TeamSubsystem.getLHStatusForUsers ((.id_) <$> convUsers)
           pure $ zipWith (\mem (_, status) -> (mem, status)) convUsers uidsStatus
 
         if any
