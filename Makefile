@@ -700,8 +700,8 @@ diff-live-manifest: clean-charts charts-integration
 
 render-ci-manifest: clean-charts charts-integration
 	VALUES_FILE="$${VALUES_FILE:-$$(mktemp).yaml}"; \
-  ./hack/bin/helm-render-ci-values.sh \
-  ./hack/bin/render-manifest.sh "$$VALUES_FILE"
+	VALUES_FILE="$$VALUES_FILE" ./hack/bin/helm-render-ci-values.sh; \
+	./hack/bin/render-manifest.sh "$$VALUES_FILE"
 
 sbom.json:
 	nix -Lv build '.#wireServer.bomDependencies' && \
