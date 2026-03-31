@@ -8,6 +8,7 @@ metadata:
     app: stern-integration
     release: {{ .Release.Name }}
 spec:
+  automountServiceAccountToken: false
   volumes:
     - name: "stern-integration"
       configMap:
@@ -53,6 +54,8 @@ spec:
       requests:
         memory: "128Mi"
         cpu: "1"
+      limits:
+        memory: "256Mi"
     env:
     - name: TEST_XML
       value: /tmp/result.xml

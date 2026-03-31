@@ -28,6 +28,7 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/cargohold/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ .Values.cargohold.serviceAccount.name }}
+      automountServiceAccountToken: false
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"

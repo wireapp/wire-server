@@ -1,11 +1,11 @@
 
-{{- $nginx_conf := .Values.nginx_conf }}
+{{- $nginxConf := .Values.nginx_conf }}
 
-{{- if hasKey $nginx_conf "external_env_domain" }}
-  {{- $external_env_domain := $nginx_conf.external_env_domain }}
+{{- if hasKey $nginxConf "external_env_domain" }}
+  {{- $externalEnvDomain := $nginxConf.external_env_domain }}
   {{- range $nginx_conf.additional_external_env_domains }}
-    {{- if eq $external_env_domain . }}
-      {{- fail (printf "Error: external_env_domain (%s) cannot be part of additional_external_env_domains list." $external_env_domain) }}
+    {{- if eq $externalEnvDomain . }}
+      {{- fail (printf "Error: external_env_domain (%s) cannot be part of additional_external_env_domains list." $externalEnvDomain) }}
     {{- end }}
   {{- end }}
 {{- end }}
@@ -59,13 +59,13 @@ data:
     </html>
   {{- end }}
 
-  {{- if (hasKey $nginx_conf "additional_external_env_domains") }}
-    {{- range $domain, $config := $nginx_conf.multi_ingress_deeplink }}
-      {{- if (has $domain $nginx_conf.additional_external_env_domains) }}
+  {{- if (hasKey $nginxConf "additional_external_env_domains") }}
+    {{- range $domain, $config := $nginxConf.multi_ingress_deeplink }}
+  {{- if (has $domain $nginxConf.additional_external_env_domains) }}
         {{- $backendURL := $config.endpoints.backendURL }}
-  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
-  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
-  {{ $deeplink_json }}: |
+  {{- $deeplinkJson := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplinkHtml := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplinkJson }}: |
     {{- $deeplink := dict
       "endpoints" (dict
         "backendURL" $config.endpoints.backendURL
@@ -84,6 +84,20 @@ data:
       "needsAuthentication" $config.apiProxy.needsAuthentication
     ) }}
     {{- end }}
+    {{ toJson $deeplink | indent 4 }}
+    {{ printf "\n" }}
+  {{ $deeplinkHtml }}: |
+    <html>
+      <head>
+        <title>Deeplink for {{ $domain }}</title>
+      </head>
+      <body>
+        <a href="wire://access/?config={{ $config.endpoints.backendURL }}/deeplink.json">Click here for access</a>
+      </body>
+    </html>
+      {{- end }}
+    {{- end }}
+  {{- end }}
     {{ toJson $deeplink | indent 4 }}
     {{ printf "\n" }}
   {{ $deeplink_html }}: |
