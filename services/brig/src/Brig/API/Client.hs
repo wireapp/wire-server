@@ -17,7 +17,7 @@
 
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
-  ( createClientDPoPAccessToken, -- move this to oauth module?
+  ( createClientDPoPAccessToken,
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
