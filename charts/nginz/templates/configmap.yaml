@@ -3,7 +3,7 @@
 
 {{- if hasKey $nginxConf "external_env_domain" }}
   {{- $externalEnvDomain := $nginxConf.external_env_domain }}
-  {{- range $nginx_conf.additional_external_env_domains }}
+  {{- range $nginxConf.additional_external_env_domains }}
     {{- if eq $externalEnvDomain . }}
       {{- fail (printf "Error: external_env_domain (%s) cannot be part of additional_external_env_domains list." $externalEnvDomain) }}
     {{- end }}
