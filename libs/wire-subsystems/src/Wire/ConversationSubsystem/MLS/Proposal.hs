@@ -66,6 +66,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.LegalHoldStore (LegalHoldStore)

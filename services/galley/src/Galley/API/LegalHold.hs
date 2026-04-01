@@ -159,7 +159,8 @@ removeSettingsInternalPaging ::
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -191,7 +192,8 @@ removeSettings ::
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member LegalHoldData.LegalHoldStore r
+    Member LegalHoldData.LegalHoldStore r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
@@ -236,7 +238,8 @@ removeSettings' ::
     Member (TeamMemberStore p) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member (Embed IO) r
+    Member (Embed IO) r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   Sem r ()
@@ -314,7 +317,8 @@ requestDevice ::
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -397,7 +401,8 @@ approveDevice ::
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -462,7 +467,8 @@ disableForUser ::
     Member P.TinyLog r,
     Member TeamStore r,
     Member (Embed IO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   TeamId ->

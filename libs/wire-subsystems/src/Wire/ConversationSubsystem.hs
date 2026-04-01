@@ -669,9 +669,6 @@ data ConversationSubsystem m a where
     ConversationAction (tag :: ConversationActionTag) ->
     ExtraConversationData ->
     ConversationSubsystem m LocalConversationUpdate
-  QualifyLocal ::
-    a ->
-    ConversationSubsystem m (Local a)
   InternalUpsertOne2OneConversation ::
     UpsertOne2OneConversationRequest ->
     ConversationSubsystem m ()

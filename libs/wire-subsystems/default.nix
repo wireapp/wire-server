@@ -19,7 +19,6 @@
 , bilge
 , bimap
 , bloodhound
-, brig-types
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -158,7 +157,6 @@ mkDerivation {
     bilge
     bimap
     bloodhound
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -283,7 +281,6 @@ mkDerivation {
     base64-bytestring
     bilge
     bloodhound
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive

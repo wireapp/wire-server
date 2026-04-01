@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationSubsystem.Clients
-  ( getClients,
-    rmClient,
+  ( rmClient,
   )
 where
 
@@ -42,9 +41,9 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
-import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore, getConversation)
-import Wire.ConversationSubsystem qualified as ConvSubsystem
+import Wire.ConversationSubsystem.MLS.Removal (removeClient)
+import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore (ProposalStore)
@@ -52,15 +51,6 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.UserClientIndexStore qualified as E
 import Wire.Util
-
-getClients ::
-  ( Member BrigAPIAccess r,
-    Member E.UserClientIndexStore r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
-  UserId ->
-  Sem r [ClientId]
-getClients usr = clientIds usr <$> internalGetClientIds [usr]
 
 -- | Remove a client from conversations it is part of according to the
 -- conversation protocol (Proteus or MLS). In addition, remove the client from

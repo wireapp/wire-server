@@ -101,7 +101,6 @@ import Wire.TeamStore
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-import Wire.UserClientIndexStore
 import Wire.UserClientIndexStore as UserClientIndexStore
 import Wire.UserList
 import Wire.Util
@@ -139,7 +138,8 @@ iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 ejpdGetConvInfo ::
   forall r.
   ( Member ConversationStore r,
-    Member ConversationSubsystem r
+    Member ConversationSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   Sem r [EJPDConvInfo]

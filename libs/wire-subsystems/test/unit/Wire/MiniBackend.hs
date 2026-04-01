@@ -363,7 +363,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . mockUserClientIndexStore
     . mockBrigAPIAccess
     . runInputConst conversationCfg
-    . runClientSubsystem
+    . runClientSubsystem undefined undefined
   where
     -- Mock BrigAPIAccess interpreter for tests
     mockBrigAPIAccess :: forall r'. InterpreterFor BrigAPIAccess r'

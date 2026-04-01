@@ -1223,8 +1223,8 @@ userIsTeamOwner ::
   ( Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member ConversationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   UserId ->

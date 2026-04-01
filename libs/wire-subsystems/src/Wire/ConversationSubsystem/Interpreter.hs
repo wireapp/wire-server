@@ -71,7 +71,6 @@ import Wire.ConversationSubsystem.Notify qualified as Notify
 import Wire.ConversationSubsystem.One2One qualified as One2One
 import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Update qualified as Update
-import Wire.ConversationSubsystem.Util qualified as Util
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
@@ -346,8 +345,6 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ mapErrors $ Query.getConversations lusr mids mstart msize
   SearchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable ->
     liftT $ mapErrors $ Query.searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable
-  QualifyLocal a ->
-    liftT $ mapErrors $ Util.qualifyLocal a
   InternalGetMember qcnv usr ->
     liftT $ mapErrors $ Query.internalGetMember qcnv usr
   GetConversationMeta cnv ->
