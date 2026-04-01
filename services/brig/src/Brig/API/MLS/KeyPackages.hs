@@ -37,7 +37,6 @@ import Brig.API.Types
 import Brig.App
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Federation.Client
-import Brig.IO.Intra
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.CommaSeparatedList
@@ -60,6 +59,7 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem.Error
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.StoredUser
 import Wire.UserStore (UserStore, getUser)
 
@@ -131,9 +131,11 @@ claimLocalKeyPackages qusr skipOwn suite qTarget = do
   foldQualified
     qTarget
     ( \lusr ->
-        guardLegalhold
-          (ProtectedUser (tUnqualified lusr))
-          (mkUserClients [(target, clients)])
+        lift $
+          liftSem $
+            GalleyAPIAccess.guardLegalHold
+              (ProtectedUser (tUnqualified lusr))
+              (mkUserClients [(target, clients)])
     )
     (\_ -> pure ())
     qusr

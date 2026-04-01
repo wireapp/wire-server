@@ -211,7 +211,6 @@ mkDerivation {
     jose
     jwt-tools
     lens
-    lens-aeson
     memory
     metrics-core
     metrics-wai

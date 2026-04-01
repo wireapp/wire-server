@@ -22,8 +22,6 @@ module Brig.API.Client
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
     claimLocalPrekeyBundle,
-    claimPrekey,
-    claimLocalPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
     claimMultiPrekeyBundlesV3,
@@ -39,9 +37,7 @@ import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Federation.Client qualified as Federation
-import Brig.IO.Intra (guardLegalhold)
 import Brig.Options qualified as Opt
-import Cassandra (MonadClient)
 import Control.Error
 import Control.Monad.Trans.Except (except)
 import Data.ByteString (toStrict)
@@ -75,63 +71,25 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
+import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 
-claimPrekey ::
-  ( Member ClientSubsystem r,
-    Member ClientStore r
-  ) =>
-  LegalholdProtectee ->
-  UserId ->
-  Domain ->
-  ClientId ->
-  ExceptT ClientError (AppT r) (Maybe ClientPrekey)
-claimPrekey protectee u d c = do
-  isLocalDomain <- (d ==) <$> viewFederationDomain
-  if isLocalDomain
-    then claimLocalPrekey protectee u c
-    else wrapClientE $ claimRemotePrekey (Qualified u d) c
-
-claimLocalPrekey ::
-  ( Member ClientSubsystem r,
-    Member ClientStore r
-  ) =>
-  LegalholdProtectee ->
-  UserId ->
-  ClientId ->
-  ExceptT ClientError (AppT r) (Maybe ClientPrekey)
-claimLocalPrekey protectee user client = do
-  guardLegalhold protectee (mkUserClients [(user, [client])])
-  lift $ do
-    prekey <- liftSem $ ClientStore.claimPrekey user client
-    when (isNothing prekey) (noPrekeys user client)
-    pure prekey
-
-claimRemotePrekey ::
-  ( MonadReader Env m,
-    Log.MonadLogger m,
-    MonadClient m
-  ) =>
-  Qualified UserId ->
-  ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
-claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
-
-claimPrekeyBundle :: (Member ClientStore r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
+claimPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
     else claimRemotePrekeyBundle (Qualified uid domain)
 
-claimLocalPrekeyBundle :: (Member ClientStore r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
+claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients u))
-  guardLegalhold protectee (mkUserClients [(u, clients)])
+  lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (liftSem . ClientStore.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) PrekeyBundle
@@ -142,7 +100,8 @@ claimMultiPrekeyBundlesInternal ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member GalleyAPIAccess r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -172,7 +131,8 @@ claimMultiPrekeyBundlesInternal protectee quc = do
 claimMultiPrekeyBundlesV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member ClientSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member GalleyAPIAccess r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -208,7 +168,8 @@ claimMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member GalleyAPIAccess r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -238,13 +199,14 @@ claimLocalMultiPrekeyBundles ::
   forall r.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member GalleyAPIAccess r
   ) =>
   LegalholdProtectee ->
   UserClients ->
   ExceptT ClientError (AppT r) UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
-  guardLegalhold protectee userClients
+  lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee userClients
   lift
     . fmap mkUserClientPrekeyMap
     . foldMap (getChunk . Map.fromList)

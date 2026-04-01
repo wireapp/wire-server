@@ -16,7 +16,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- FUTUREWORK: Remove this module all together.
-module Brig.Federation.Client where
+module Brig.Federation.Client
+  ( runBrigFederatorClient,
+    getUserHandleInfo,
+    getUsersByIds,
+    claimPrekeyBundle,
+    notifyUserDeleted,
+    sendConnectionAction,
+    claimMultiPrekeyBundle,
+  )
+where
 
 import Brig.App
 import Control.Monad
@@ -42,7 +51,6 @@ import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
-import Wire.API.UserMap
 
 getUserHandleInfo ::
   ( MonadReader Env m,
@@ -67,15 +75,6 @@ getUsersByIds domain uids = do
   lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   runBrigFederatorClient domain $ fedClient @'Brig @"get-users-by-ids" uids
 
-claimPrekey ::
-  (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
-  Qualified UserId ->
-  ClientId ->
-  ExceptT FederationError m (Maybe ClientPrekey)
-claimPrekey (Qualified user domain) client = do
-  lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  runBrigFederatorClient domain $ fedClient @'Brig @"claim-prekey" (user, client)
-
 claimPrekeyBundle ::
   ( MonadReader Env m,
     MonadIO m,
@@ -98,18 +97,6 @@ claimMultiPrekeyBundle ::
 claimMultiPrekeyBundle domain uc = do
   lift . Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   runBrigFederatorClient domain $ fedClient @'Brig @"claim-multi-prekey-bundle" uc
-
-getUserClients ::
-  ( MonadReader Env m,
-    MonadIO m,
-    Log.MonadLogger m
-  ) =>
-  Domain ->
-  GetUserClients ->
-  ExceptT FederationError m (UserMap (Set PubClient))
-getUserClients domain guc = do
-  lift $ Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
-  runBrigFederatorClient domain $ fedClient @'Brig @"get-user-clients" guc
 
 sendConnectionAction ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>

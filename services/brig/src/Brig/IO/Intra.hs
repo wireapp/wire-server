@@ -40,9 +40,6 @@ module Brig.IO.Intra
     -- * Account Deletion
     rmUser,
 
-    -- * Legalhold
-    guardLegalhold,
-
     -- * Low Level API for Notifications
     notify,
   )
@@ -60,12 +57,10 @@ import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Control.Error (ExceptT, runExceptT)
-import Control.Lens (view, (^.), (^?))
+import Control.Error (runExceptT)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
-import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
-import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Default
@@ -91,13 +86,9 @@ import Wire.API.Federation.Error
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
-import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
-import Wire.API.User.Client
 import Wire.API.UserEvent
-import Wire.ClientSubsystem.Error
 import Wire.Events
 import Wire.NotificationSubsystem
 import Wire.Rpc
@@ -630,27 +621,3 @@ getTeamContacts u = do
     req =
       paths ["i", "users", toByteString' u, "team", "members"]
         . expect [status200, status404]
-
-guardLegalhold ::
-  LegalholdProtectee ->
-  UserClients ->
-  ExceptT ClientError (AppT r) ()
-guardLegalhold protectee userClients = do
-  res <- lift . wrapHttp $ galleyRequest PUT req
-  case Bilge.statusCode res of
-    200 -> pure ()
-    403 -> case Bilge.responseJsonMaybe @Value res >>= (^? key "label") of
-      Just "missing-legalhold-consent" -> throwE ClientMissingLegalholdConsent
-      Just "missing-legalhold-consent-old-clients" -> throwE ClientMissingLegalholdConsentOldClients
-      _ ->
-        -- only happens if galley misbehaves (fisx: this could also be a parse error if we
-        -- used a more constraining type to send back & forth between brig and galley, but
-        -- merging brig and galley would make this train of thought go away more naturally).
-        throwE ClientMissingLegalholdConsent
-    404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
-    _ -> throwM internalServerError
-  where
-    req =
-      paths ["i", "guard-legalhold-policy-conflicts"]
-        . header "Content-Type" "application/json"
-        . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)

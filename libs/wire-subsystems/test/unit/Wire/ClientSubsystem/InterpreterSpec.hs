@@ -17,13 +17,15 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck qualified as QC
 import Test.QuickCheck.Property
 import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error (FederationError)
 import Wire.API.Push.V2 qualified as V2
+import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.Arbitrary
-import Wire.ClientStore
+import Wire.ClientStore hiding (claimPrekey)
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
 import Wire.ClientSubsystem.Interpreter
@@ -67,6 +69,7 @@ type ClientSubsystemTestEffects =
     Logger (Msg -> Msg),
     Concurrency 'Unsafe,
     Error ClientError,
+    Error FederationError,
     State [Push],
     State [MiniEvent],
     State [InternalNotification],
@@ -92,6 +95,7 @@ runClientSubsystemTest users action =
           . runState @[MiniEvent] []
           . runState @[Push] []
           . runError
+          . runError
           . sequentiallyPerformConcurrency
           . noopLogger
           . noFederationAPIAccess @_ @FederatorClient
@@ -106,7 +110,7 @@ runClientSubsystemTest users action =
           . evalState emptyClientStoreState
           . runInMemoryClientStoreInterpreterWithState
           $ interpreted
-   in ClientSubsystemTestResult {authState, result, deletions, events, pushes}
+   in ClientSubsystemTestResult {authState, result = fromRight (error "unexpected federation error") result, deletions, events, pushes}
 
 expectRight ::
   (Show e, Show a) =>
@@ -347,6 +351,20 @@ spec = describe "ClientSubsystem.Interpreter" do
               testResult.events === [],
               assertSingle "push" testResult.pushes (assertClientPush uid Nothing EventTypeClientAdded)
             ]
+
+  prop "claim prekey" $ \user (FakeLastPrekey lpk) ->
+    let uid = user.id
+        domain = testDomain
+        luid = toLocalUnsafe domain uid
+        new = newClient PermanentClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
+        testResult =
+          runClientSubsystemTest [user] do
+            void $ addClient luid Nothing new
+            claimPrekey (ProtectedUser uid) uid domain clientId
+     in expectRight testResult.result $ \case
+          Nothing -> counterexample "expected a client prekey, but got nothing" False
+          Just pk -> pk.prekeyClient === clientId
 
 newtype FakeUpdateClient = FakeUpdateClient {unFakeUpdateClient :: UpdateClient}
   deriving (Show, Eq, Generic)
