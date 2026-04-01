@@ -298,8 +298,7 @@ type MiniBackendLowerEffects =
      Random,
      Now,
      ErrorS 'TeamMemberNotFound,
-     ErrorS 'TeamNotFound,
-     Error FederationError
+     ErrorS 'TeamNotFound
    ]
     `Append` InputEffects
     `Append` '[ Metrics
@@ -323,8 +322,6 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . stateEffectsInterpreters mb
     . ignoreMetrics
     . inputEffectsInterpreters usrCfg appCfg localBackend.teamIdps
-    . fmap (either (error . show) Imports.id)
-    . runError @FederationError
     . fmap (either (error . show) Imports.id)
     . runError @(Tagged 'TeamNotFound ())
     . fmap (either (error . show) Imports.id)
