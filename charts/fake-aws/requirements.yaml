@@ -26,6 +26,14 @@ dependencies:
     - fake-aws-s3
     - aws-mocks
     - demo
+- name: fake-aws-s3-legacy-minio
+  version: "0.0.42"
+  repository: "file://../fake-aws-s3-legacy-minio"
+  condition: fake-aws-s3-legacy-minio.enabled,global.fake-aws-s3-legacy-minio.enabled
+  tags:
+    - fake-aws-s3-legacy-minio
+    - aws-mocks
+    - demo
 - name: fake-aws-ses
   version: "0.0.42"
   repository: "file://../fake-aws-ses"

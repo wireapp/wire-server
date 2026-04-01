@@ -83,17 +83,17 @@ nginx-ingress-{{ .Values.ingressName }}
 {{- end -}}
 
 {{/*
-Name of the minio ingress. Extracted as helper to reduce the complexity in the template
-itself. The default name is 'minio-ingress' for backwards compatibility (it has
-been this name since version 5.7.0.)
+Name of the S3 ingress. Extracted as helper to reduce the complexity in the template
+itself. The default name is 's3-ingress' for consistency with the current RustFS-backed
+fake S3 setup.
 Why do we need to be able to change this name? For multi-ingress setups, we'll
 have multiple of these ingresses (which need unique names).
 */}}
-{{- define "nginx-ingress-services.getMinioIngressName" -}}
+{{- define "nginx-ingress-services.getS3IngressName" -}}
 {{- if (eq .Values.ingressName "") -}}
-minio-ingress
+s3-ingress
 {{- else -}}
-minio-ingress-{{ .Values.ingressName }}
+s3-ingress-{{ .Values.ingressName }}
 {{- end -}}
 {{- end -}}
 
