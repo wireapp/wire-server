@@ -30,7 +30,6 @@ This repository contains the following source code:
    - **cannon**: WebSocket Push Notifications
    - **cargohold**: Asset (image, file, ...) Storage
    - **proxy**: 3rd Party API Integration
-   - **restund**: STUN/TURN server for use in Audio/Video calls
    - **spar**: Single-Sign-On (SSO)
 
 - **tools**

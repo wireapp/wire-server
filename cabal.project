@@ -56,7 +56,6 @@ packages:
   , tools/db/repair-brig-clients-table/
   , tools/db/service-backfill/
   , tools/rabbitmq-consumer
-  , tools/rex/
   , tools/stern/
   , tools/mlsstats/
   , tools/test-stats/
