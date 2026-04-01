@@ -39,7 +39,12 @@ import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import Network.Wai.Utilities.Error
 import Polysemy
+import Polysemy.Error (runError)
+import Servant.Client.Core (RunClient)
+import System.Logger.Class qualified as Log
+import Wire.API.Component
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
@@ -48,6 +53,7 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
@@ -301,7 +307,11 @@ createConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
     Member UserStore r,
-    Member NotificationSubsystem r
+    Member NotificationSubsystem r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
   ) =>
   Local UserId ->
   ConnId ->
@@ -317,7 +327,11 @@ updateConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member FederationConfigStore r,
-    Member UserStore r
+    Member UserStore r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
   ) =>
   Local UserId ->
   Remote UserId ->
@@ -349,13 +363,19 @@ checkLimitForLocalAction u oldRel action =
 -- | Check if the local backend federates with the remote user's team. Throw an
 -- exception if it does not federate.
 ensureFederatesWith ::
-  (Member FederationConfigStore r) =>
+  ( Member FederationConfigStore r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
+  ) =>
   Remote UserId ->
   ConnectionM r ()
 ensureFederatesWith remote = do
+  lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   profiles <-
-    withExceptT ConnectFederationError $
-      getUsersByIds (tDomain remote) [tUnqualified remote]
+    either (throwE . ConnectFederationError) pure
+      =<< (lift $ liftSem $ runError (runFederated remote $ fedClient @'Brig @"get-users-by-ids" [tUnqualified remote]))
   let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
   unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
     throwE ConnectTeamFederationError

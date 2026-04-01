@@ -1359,7 +1359,11 @@ createConnection ::
     Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
   ) =>
   UserId ->
   ConnId ->
@@ -1393,7 +1397,11 @@ updateConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
   ) =>
   UserId ->
   ConnId ->

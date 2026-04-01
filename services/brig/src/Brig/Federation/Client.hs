@@ -20,7 +20,6 @@ module Brig.Federation.Client
   ( runBrigFederatorClient,
     notifyUserDeleted,
     sendConnectionAction,
-    getUsersByIds,
   )
 where
 
@@ -43,19 +42,6 @@ import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
-import Wire.API.User
-
-getUsersByIds ::
-  ( MonadReader Env m,
-    MonadIO m,
-    Log.MonadLogger m
-  ) =>
-  Domain ->
-  [UserId] ->
-  ExceptT FederationError m [UserProfile]
-getUsersByIds domain uids = do
-  lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
-  runBrigFederatorClient domain $ fedClient @'Brig @"get-users-by-ids" uids
 
 sendConnectionAction ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
