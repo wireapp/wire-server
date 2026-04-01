@@ -35,8 +35,8 @@ import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
 import Polysemy.Error (Error)
-import System.Logger.Class qualified as Log
 import Servant.Client.Core (RunClient)
+import System.Logger.Class qualified as Log
 import Wire.API.Component
 import Wire.API.Federation.API (FederationMonad, fedClient)
 import Wire.API.Federation.Error

@@ -81,10 +81,6 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
-import Wire.GalleyAPIAccess
-import Wire.API.Federation.API
-import Servant.Client.Core (RunClient)
-import Wire.FederationAPIAccess
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
@@ -100,6 +96,7 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
+import Servant.Client.Core (RunClient)
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
@@ -108,6 +105,7 @@ import Wire.API.Connection qualified as Public
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
 import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
@@ -176,7 +174,9 @@ import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore (FederationConfigStore)
+import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
@@ -765,10 +765,17 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
 
 getMultiUserPrekeyBundleHV3 ::
+  forall r m.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -778,10 +785,16 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientErrorToHttpError
 
 getMultiUserPrekeyBundleH ::
+  forall r m.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
