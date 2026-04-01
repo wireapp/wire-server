@@ -71,24 +71,46 @@ data:
 
     settings:
       httpPoolSize: {{ .settings.httpPoolSize }}
+      {{- if .Values.global.settings.intraListing }}
+      intraListing: {{ .Values.global.settings.intraListing }}
+      {{- else }}
       intraListing: {{ .settings.intraListing }}
+      {{- end }}
+      {{- if .Values.global.settings.maxTeamSize }}
+      maxTeamSize: {{ .Values.global.settings.maxTeamSize }}
+      {{- else }}
       maxTeamSize: {{ .settings.maxTeamSize }}
+      {{- end }}
+      {{- if .Values.global.settings.maxConvSize }}
+      maxConvSize: {{ .Values.global.settings.maxConvSize }}
+      {{- else }}
       maxConvSize: {{ .settings.maxConvSize }}
+      {{- end }}
       {{- if .settings.maxFanoutSize }}
       maxFanoutSize: {{ .settings.maxFanoutSize }}
       {{- end }}
-      {{- if .settings.exposeInvitationURLsTeamAllowlist }}
+      {{- if .Values.global.settings.exposeInvitationURLsTeamAllowlist }}
+      exposeInvitationURLsTeamAllowlist: {{ .Values.global.settings.exposeInvitationURLsTeamAllowlist }}
+      {{- else if .settings.exposeInvitationURLsTeamAllowlist }}
       exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
       {{- end }}
-      {{- if .settings.conversationCodeURI }}
-      conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
-      {{- else if .settings.multiIngress }}
-      multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
+      {{- if or .Values.global.settings.conversationCodeURI .settings.conversationCodeURI }}
+      {{- if .Values.global.settings.conversationCodeURI }}
+      conversationCodeURI: {{ .Values.global.settings.conversationCodeURI | quote }}
       {{- else }}
-      {{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set"}}
+      conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
       {{- end }}
-      {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
-      {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
+      {{- else if or .Values.global.settings.multiIngress .settings.multiIngress }}
+      {{- if .Values.global.settings.multiIngress }}
+      multiIngress: {{- toYaml .Values.global.settings.multiIngress | nindent 8 }}
+      {{- else }}
+      multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
+      {{- end }}
+      {{- else }}
+      {{ fail "Either global.settings.conversationCodeURI, global.settings.multiIngress, galley.config.settings.conversationCodeURI, or galley.config.settings.multiIngress have to be set"}}
+      {{- end }}
+      {{- if (or (and .Values.global.settings.conversationCodeURI .Values.global.settings.multiIngress) (and .settings.conversationCodeURI .settings.multiIngress)) }}
+      {{ fail "conversationCodeURI and multiIngress are mutually exclusive in both global.settings and galley.config.settings" }}
       {{- end }}
       federationDomain: {{ $.Values.galley.config.settings.federationDomain }}
       {{- if .settings.federationProtocols }}
@@ -104,11 +126,21 @@ data:
       {{- end }}
       disabledAPIVersions: {{ toJson .settings.disabledAPIVersions }}
       {{- if .settings.featureFlags }}
-      {{- if .settings.guestLinkTTLSeconds }}
+      {{- if .Values.global.settings.guestLinkTTLSeconds }}
+      guestLinkTTLSeconds: {{ .Values.global.settings.guestLinkTTLSeconds }}
+      {{- else if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
       {{- end }}
+      {{- if .Values.global.settings.passwordHashingOptions }}
+      passwordHashingOptions: {{- toYaml .Values.global.settings.passwordHashingOptions | nindent 8 }}
+      {{- else }}
       passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.settings.passwordHashingRateLimit }}
+      passwordHashingRateLimit: {{- toYaml .Values.global.settings.passwordHashingRateLimit | nindent 8 }}
+      {{- else }}
       passwordHashingRateLimit: {{ toYaml .settings.passwordHashingRateLimit | nindent 8 }}
+      {{- end }}
       {{- if .settings.checkGroupInfo }}
       checkGroupInfo: {{ .settings.checkGroupInfo }}
       {{- end }}

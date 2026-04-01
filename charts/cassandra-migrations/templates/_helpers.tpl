@@ -1,21 +1,25 @@
 {{- define "cassandraGalleyHost" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- default (.Values.cassandra.host) $cassandraGalley.host }}
+{{- $cassandra := default dict .Values.cassandra }}
+{{- default ($cassandra.host) $cassandraGalley.host }}
 {{- end -}}
 
 {{- define "cassandraBrigHost" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- default (.Values.cassandra.host) $cassandraBrig.host }}
+{{- $cassandra := default dict .Values.cassandra }}
+{{- default ($cassandra.host) $cassandraBrig.host }}
 {{- end -}}
 
 {{- define "cassandraGundeckHost" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- default (.Values.cassandra.host) $cassandraGundeck.host }}
+{{- $cassandra := default dict .Values.cassandra }}
+{{- default ($cassandra.host) $cassandraGundeck.host }}
 {{- end -}}
 
 {{- define "cassandraSparHost" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- default (.Values.cassandra.host) $cassandraSpar.host }}
+{{- $cassandra := default dict .Values.cassandra }}
+{{- default ($cassandra.host) $cassandraSpar.host }}
 {{- end -}}
 
 {{/*
@@ -34,16 +38,18 @@ Thus the order of priority is:
 
 {{- define "cassandraGalleyReplicationArg" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if (or .Values.cassandra.replicationMap $cassandraGalley.replicationMap) -}}
-{{- default (.Values.cassandra.replicationMap) $cassandraGalley.replicationMap -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraGalley.replicationMap) -}}
+{{- default ($cassandra.replicationMap) $cassandraGalley.replicationMap -}}
 {{- else -}}
-{{- default (default (.Values.cassandra.replicaCount) .Values.cassandra.replicationFactor) $cassandraGalley.replicationFactor -}}
+{{- default (default ($cassandra.replicaCount) $cassandra.replicationFactor) $cassandraGalley.replicationFactor -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "cassandraGalleyReplicationType" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{- if (or .Values.cassandra.replicationMap $cassandraGalley.replicationMap) -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraGalley.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
 {{- printf "--replication-factor" -}}
@@ -53,16 +59,18 @@ Thus the order of priority is:
 
 {{- define "cassandraGundeckReplicationArg" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if (or .Values.cassandra.replicationMap $cassandraGundeck.replicationMap) -}}
-{{- default (.Values.cassandra.replicationMap) $cassandraGundeck.replicationMap -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraGundeck.replicationMap) -}}
+{{- default ($cassandra.replicationMap) $cassandraGundeck.replicationMap -}}
 {{- else -}}
-{{- default (default (.Values.cassandra.replicaCount) .Values.cassandra.replicationFactor) $cassandraGundeck.replicationFactor -}}
+{{- default (default ($cassandra.replicaCount) $cassandra.replicationFactor) $cassandraGundeck.replicationFactor -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "cassandraGundeckReplicationType" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{- if (or .Values.cassandra.replicationMap $cassandraGundeck.replicationMap) -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraGundeck.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
 {{- printf "--replication-factor" -}}
@@ -72,16 +80,18 @@ Thus the order of priority is:
 
 {{- define "cassandraBrigReplicationArg" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if (or .Values.cassandra.replicationMap $cassandraBrig.replicationMap) -}}
-{{- default (.Values.cassandra.replicationMap) $cassandraBrig.replicationMap -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraBrig.replicationMap) -}}
+{{- default ($cassandra.replicationMap) $cassandraBrig.replicationMap -}}
 {{- else -}}
-{{- default (default (.Values.cassandra.replicaCount) .Values.cassandra.replicationFactor) $cassandraBrig.replicationFactor -}}
+{{- default (default ($cassandra.replicaCount) $cassandra.replicationFactor) $cassandraBrig.replicationFactor -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "cassandraBrigReplicationType" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{- if (or .Values.cassandra.replicationMap $cassandraBrig.replicationMap) -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraBrig.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
 {{- printf "--replication-factor" -}}
@@ -91,16 +101,18 @@ Thus the order of priority is:
 
 {{- define "cassandraSparReplicationArg" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if (or .Values.cassandra.replicationMap $cassandraSpar.replicationMap) -}}
-{{- default (.Values.cassandra.replicationMap) $cassandraSpar.replicationMap -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraSpar.replicationMap) -}}
+{{- default ($cassandra.replicationMap) $cassandraSpar.replicationMap -}}
 {{- else -}}
-{{- default (default (.Values.cassandra.replicaCount) .Values.cassandra.replicationFactor) $cassandraSpar.replicationFactor -}}
+{{- default (default ($cassandra.replicaCount) $cassandra.replicationFactor) $cassandraSpar.replicationFactor -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "cassandraSparReplicationType" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{- if (or .Values.cassandra.replicationMap $cassandraSpar.replicationMap) -}}
+{{ $cassandra := default dict .Values.cassandra }}
+{{- if (or $cassandra.replicationMap $cassandraSpar.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
 {{- printf "--replication-factor" -}}
@@ -123,7 +135,8 @@ configuration if the specific one does not exist:
 */}}
 
 {{- define "useTlsGalley" -}}
-{{ $cassandraGalley := default .Values.cassandra .Values.cassandraGalley }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraGalley := default $cassandra .Values.cassandraGalley }}
 {{- if or $cassandraGalley.tlsCa $cassandraGalley.tlsCaSecretRef -}}
 true
 {{- else}}
@@ -132,7 +145,8 @@ false
 {{- end -}}
 
 {{- define "tlsCaGalley" -}}
-{{ $cassandraGalley := default .Values.cassandra .Values.cassandraGalley }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraGalley := default $cassandra .Values.cassandraGalley }}
 {{- if hasKey $cassandraGalley "tlsCa" -}}
 {{- $cassandraGalley.tlsCa }}
 {{ else }}
@@ -140,7 +154,8 @@ false
 {{- end -}}
 
 {{- define "tlsSecretRefGalley" -}}
-{{ $cassandraGalley := default .Values.cassandra .Values.cassandraGalley }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraGalley := default $cassandra .Values.cassandraGalley }}
 {{- if $cassandraGalley.tlsCaSecretRef -}}
 {{ $cassandraGalley.tlsCaSecretRef | toYaml }}
 {{- else }}
@@ -149,7 +164,8 @@ false
 {{- end -}}
 
 {{- define "useTlsBrig" -}}
-{{ $cassandraBrig := default .Values.cassandra .Values.cassandraBrig }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraBrig := default $cassandra .Values.cassandraBrig }}
 {{- if or $cassandraBrig.tlsCa $cassandraBrig.tlsCaSecretRef -}}
 true
 {{- else}}
@@ -158,7 +174,8 @@ false
 {{- end -}}
 
 {{- define "tlsCaBrig" -}}
-{{ $cassandraBrig := default .Values.cassandra .Values.cassandraBrig }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraBrig := default $cassandra .Values.cassandraBrig }}
 {{- if hasKey $cassandraBrig "tlsCa" -}}
 {{- $cassandraBrig.tlsCa }}
 {{ else }}
@@ -166,7 +183,8 @@ false
 {{- end -}}
 
 {{- define "tlsSecretRefBrig" -}}
-{{ $cassandraBrig := default .Values.cassandra .Values.cassandraBrig }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraBrig := default $cassandra .Values.cassandraBrig }}
 {{- if $cassandraBrig.tlsCaSecretRef -}}
 {{ $cassandraBrig.tlsCaSecretRef | toYaml }}
 {{- else }}
@@ -175,7 +193,8 @@ false
 {{- end -}}
 
 {{- define "useTlsSpar" -}}
-{{ $cassandraSpar := default .Values.cassandra .Values.cassandraSpar }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraSpar := default $cassandra .Values.cassandraSpar }}
 {{- if or $cassandraSpar.tlsCa $cassandraSpar.tlsCaSecretRef -}}
 true
 {{- else}}
@@ -184,7 +203,8 @@ false
 {{- end -}}
 
 {{- define "tlsCaSpar" -}}
-{{ $cassandraSpar := default .Values.cassandra .Values.cassandraSpar }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraSpar := default $cassandra .Values.cassandraSpar }}
 {{- if hasKey $cassandraSpar "tlsCa" -}}
 {{- $cassandraSpar.tlsCa }}
 {{ else }}
@@ -192,7 +212,8 @@ false
 {{- end -}}
 
 {{- define "tlsSecretRefSpar" -}}
-{{ $cassandraSpar := default .Values.cassandra .Values.cassandraSpar }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraSpar := default $cassandra .Values.cassandraSpar }}
 {{- if $cassandraSpar.tlsCaSecretRef -}}
 {{ $cassandraSpar.tlsCaSecretRef | toYaml }}
 {{- else }}
@@ -201,7 +222,8 @@ false
 {{- end -}}
 
 {{- define "useTlsGundeck" -}}
-{{ $cassandraGundeck := default .Values.cassandra .Values.cassandraGundeck }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraGundeck := default $cassandra .Values.cassandraGundeck }}
 {{- if or $cassandraGundeck.tlsCa $cassandraGundeck.tlsCaSecretRef -}}
 true
 {{- else}}
@@ -210,7 +232,8 @@ false
 {{- end -}}
 
 {{- define "tlsCaGundeck" -}}
-{{ $cassandraGundeck := default .Values.cassandra .Values.cassandraGundeck }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraGundeck := default $cassandra .Values.cassandraGundeck }}
 {{- if hasKey $cassandraGundeck "tlsCa" -}}
 {{- $cassandraGundeck.tlsCa }}
 {{ else }}
@@ -218,7 +241,8 @@ false
 {{- end -}}
 
 {{- define "tlsSecretRefGundeck" -}}
-{{ $cassandraGundeck := default .Values.cassandra .Values.cassandraGundeck }}
+{{ $cassandra := default dict .Values.cassandra }}
+{{ $cassandraGundeck := default $cassandra .Values.cassandraGundeck }}
 {{- if $cassandraGundeck.tlsCaSecretRef -}}
 {{ $cassandraGundeck.tlsCaSecretRef | toYaml }}
 {{- else }}

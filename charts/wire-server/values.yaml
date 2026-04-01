@@ -12,6 +12,49 @@ tags:
   mlsstats: false
   integration: false
 
+# Global settings shared across multiple services
+global:
+  settings:
+    maxTeamSize: 10000
+    maxConvSize: 500
+    intraListing: true
+    exposeInvitationURLsTeamAllowlist: []
+    guestLinkTTLSeconds: 31536000
+    passwordHashingOptions:
+      algorithm: scrypt # or argon2id
+      # When algorithm is argon2id, these can be configured:
+      # iterations: <iterations>
+      # parallelism: <paralellism>
+      # memory: <memory used in KiB>
+    passwordHashingRateLimit:
+      ipAddrLimit:
+        burst: 5
+        inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
+      userLimit:
+        burst: 5
+        inverseRate: 60000000 # 1 min, makes it 60 req/hour
+      internalLimit:
+        burst: 10
+        inverseRate: 0 # No rate limiting for internal use
+      ipv4CidrBlock: 32 # Only block individual IP addresses
+      ipv6CidrBlock: 64 # Block /64 range at a time.
+      ipAddressExceptions: []
+      maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
+    # Either `conversationCodeURI` or `multiIngress` must be set
+    #
+    # `conversationCodeURI` is the URI prefix for conversation invitation links
+    # It should be of form https://{ACCOUNT_PAGES}/conversation-join/
+    conversationCodeURI: null
+    #
+    # `multiIngress` is a `Z-Host` depended setting of conversationCodeURI.
+    # Use this only if you want to expose the instance on multiple ingresses.
+    # If set it must a map from `Z-Host` to URI prefix
+    # Example:
+    # multiIngress:
+    #    wire.example: https://accounts.wire.example/conversation-join/
+    #    example.net: https://accounts.example.net/conversation-join/
+    multiIngress: null
+
 galley:
   replicaCount: 3
   image:
@@ -1041,31 +1084,8 @@ background-worker:
       teamFeatures: cassandra
 
     settings:
-      maxTeamSize: 10000
       maxFanoutSize: 500
-      exposeInvitationURLsTeamAllowlist: []
-      maxConvSize: 500
-      intraListing: true
-      conversationCodeURI: null
-      multiIngress: null
       federationProtocols: null
-      guestLinkTTLSeconds: 31536000
-      passwordHashingOptions:
-        algorithm: scrypt # or argon2id
-      passwordHashingRateLimit:
-        ipAddrLimit:
-          burst: 5
-          inverseRate: 300000000 # 5 mins, makes it 12 reqs/hour
-        userLimit:
-          burst: 5
-          inverseRate: 60000000 # 1 min, makes it 60 req/hour
-        internalLimit:
-          burst: 10
-          inverseRate: 0 # No rate limiting for internal use
-        ipv4CidrBlock: 32 # Only block individual IP addresses
-        ipv6CidrBlock: 64 # Block /64 range at a time.
-        ipAddressExceptions: []
-        maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
 
   secrets:
     {}
