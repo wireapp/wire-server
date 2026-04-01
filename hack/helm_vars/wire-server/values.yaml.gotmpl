@@ -613,8 +613,9 @@ federator:
     optSettings:
       useSystemCAStore: false
     logLevel: Debug
-  {{- if .Values.uploadXml }}
   tests:
+    nginxIngressHost: {{ .Values.federationDomain1 }}
+  {{- if .Values.uploadXml }}
     config:
       uploadXml:
         baseUrl: {{ .Values.uploadXml.baseUrl }}
@@ -689,8 +690,15 @@ background-worker:
       password: {{ .Values.rabbitmqPassword }}
 
 integration:
+  envoy:
+    enabled: {{ ne (env "WIRE_INGRESS_MODE") "nginx" }}
+    controllerNamespace: {{ env "ENVOY_GATEWAY_NAMESPACE" }}
+    gateway:
+      className: "envoy"
+  {{- if eq (env "WIRE_INGRESS_MODE") "nginx" }}
   ingress:
     class: "nginx-{{ .Release.Namespace }}"
+  {{- end }}
   config:
     cassandra:
       host: {{ .Values.cassandraHost }}

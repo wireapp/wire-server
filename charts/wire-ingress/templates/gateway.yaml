@@ -1,0 +1,63 @@
+{{- if .Values.gateway.create }}
+{{- if not .Values.gateway.className }}
+{{- fail "gateway.className must be set when gateway.create is true (set it to the name of your GatewayClass, e.g. 'envoy')" }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "wire-ingress.getGatewayName" . | quote }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  gatewayClassName: {{ .Values.gateway.className | quote }}
+  {{- $envoyProxyName := "" }}
+  {{- if .Values.gateway.envoyProxy.create }}
+  {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.getGatewayName" .) }}
+  {{- else if .Values.gateway.envoyProxy.name }}
+  {{- $envoyProxyName = .Values.gateway.envoyProxy.name }}
+  {{- end }}
+  {{- if (or .Values.gateway.infrastructure.annotations $envoyProxyName) }}
+  infrastructure:
+    {{- if .Values.gateway.infrastructure.annotations }}
+    annotations:
+      {{- toYaml .Values.gateway.infrastructure.annotations | nindent 6 }}
+    {{- end }}
+    {{- if $envoyProxyName }}
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: {{ $envoyProxyName | quote }}
+    {{- end }}
+  {{- end }}
+  listeners:
+    - name: https
+      port: {{ .Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "gateway.listeners.https.hostname is required (see values.yaml for details)" .Values.gateway.listeners.https.hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
+            kind: Secret
+    {{- if .Values.federator.enabled }}
+    - name: federator
+      port: {{ .Values.gateway.listeners.https.port }}
+      protocol: HTTPS
+      hostname: {{ required "config.dns.federator is required when federator.enabled is true" .Values.config.dns.federator | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ required "federator.tls.secretName is required when federator.enabled is true" .Values.federator.tls.secretName | quote }}
+            kind: Secret
+    {{- end }}
+    {{- if .Values.gateway.listeners.http.enabled }}
+    - name: http
+      port: {{ .Values.gateway.listeners.http.port }}
+      protocol: HTTP
+      {{- if .Values.gateway.listeners.http.hostname }}
+      hostname: {{ .Values.gateway.listeners.http.hostname | quote }}
+      {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,208 @@
+# Default values for wire-ingress
+gateway:
+  # If true, a Gateway resource is created by this chart.
+  # If false, set gateway.name to reference an existing Gateway.
+  create: true
+  # Name of the Gateway. Defaults to <release-name>-wire-ingress-gateway if empty.
+  name: ""
+  # Name of the GatewayClass installed by the Envoy Gateway controller.
+  className: ""
+  envoyProxy:
+    # If true, an EnvoyProxy resource is created by this chart and the Gateway
+    # references it via infrastructure.parametersRef.
+    # Set to false when the GatewayClass already has a cluster-level EnvoyProxy
+    # (e.g. a shared load balancer managed by the cluster operator), or when you
+    # want to reference an existing EnvoyProxy via envoyProxy.name.
+    create: true
+    # Name of the EnvoyProxy resource.
+    # When create: true  — the created resource uses this name (defaults to the Gateway name).
+    # When create: false — if non-empty, the Gateway references this existing EnvoyProxy
+    #                      via infrastructure.parametersRef (must be in the same namespace).
+    #                      If empty, no parametersRef is set on the Gateway (GatewayClass
+    #                      level EnvoyProxy takes effect).
+    name: ""
+    # Free-form EnvoyProxy spec, merged verbatim at the spec root.
+    # Only used when create: true.
+    # See https://gateway.envoyproxy.io/docs/api/extension_types/#envoyproxyspec
+    # Example - shared load balancer across Gateways (single wire-ingress chart):
+    #   spec:
+    #     mergeGateways: true
+    # Example - ClusterIP service (integration tests / no external LB):
+    #   spec:
+    #     provider:
+    #       type: Kubernetes
+    #       kubernetes:
+    #         envoyService:
+    #           type: ClusterIP
+    spec: {}
+  # Convenience shorthand for provider.kubernetes.envoyService.type.
+  # Only takes effect when manageServiceType: true.
+  # Do not combine with envoyProxy.spec.provider.kubernetes.envoyService.
+  # Namespace where the Envoy Gateway controller runs its proxy pods.
+  # Change only if you installed Envoy Gateway into a non-default namespace.
+  controllerNamespace: envoy-gateway-system
+  manageServiceType: true
+  serviceType: LoadBalancer
+  # Annotations to add to the Service created by Envoy Gateway.
+  # Requires Gateway API CRDs v1.1+.
+  # Example for AWS NLB:
+  #   infrastructure:
+  #     annotations:
+  #       service.beta.kubernetes.io/aws-load-balancer-type: external
+  #       service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+  infrastructure:
+    annotations: {}
+  # Enable if your load balancer sends PROXY protocol headers (e.g. Hetzner with
+  # load-balancer.hetzner.cloud/uses-proxyprotocol: "true"). Creates a
+  # ClientTrafficPolicy targeting the Gateway.
+  proxyProtocol:
+    enabled: false
+    # If true, connections without a PROXY protocol header are also accepted.
+    # Use this only if some traffic bypasses the load balancer (e.g. direct node access).
+    optional: false
+  listeners:
+    https:
+      port: 443
+      # Required. Hostname restriction for the HTTPS listener.
+      # Must be a wildcard or exact hostname covering this deployment's domains,
+      # e.g. "*.example.com". This prevents OverlappingTLSConfig with the federator
+      # listener (which uses the federation domain on the same port) — without an
+      # explicit hostname both listeners are catch-all and Envoy degrades ALPN to
+      # HTTP/1.1-only.
+      # If your domains in config.dns span multiple subdomains, you need a custom
+      # Gateway object with multiple listeners. See the Gateway API docs.
+      hostname: ""
+    # Enable the HTTP listener if you want to use HTTP01 challenges via cert-manager's
+    # gatewayHTTPRoute solver. Requires cert-manager >= 1.14.
+    # See the README for configuration details.
+    http:
+      enabled: false
+      port: 80
+      # Optional hostname restriction for the HTTP listener. Set alongside
+      # listeners.https.hostname when using mergeGateways.
+      hostname: ""
+  # Set to false to skip creating EnvoyPatchPolicy resources.
+  # EnvoyPatchPolicy requires extensionApis.enableEnvoyPatchPolicy: true
+  # in the EnvoyGateway ConfigMap (see README).
+  patchPolicies:
+    enabled: true
+    # Set to true when the GatewayClass uses mergeGateways: true.
+    # With mergeGateways, EnvoyPatchPolicy must target the GatewayClass
+    # rather than the individual Gateway. Default false targets the Gateway,
+    # which is correct for single-Gateway (non-merged) deployments.
+    targetGatewayClass: false
+
+# NOTE: Please provide names. Here are naming suggestions:
+# You need to reference those in the nginz helm chart nginx_conf.deeplink.endpoints
+# config:
+#   dns:
+#     https: nginz-https.<domain>
+#     ssl: nginz-ssl.<domain>       # ignored if websockets.enabled == false
+#     webapp: webapp.<domain>       # ignored if webapp.enabled == false
+#     fakeS3: assets.<domain>       # ignored if fakeS3.enabled == false
+#     federator: federator.<domain> # ignored unless federator.enabled == true
+#     certificateDomain: federator.<domain>  # domain to use in the federator CSR
+#     teamSettings: teams.<domain>  # ignored unless teamSettings.enabled == true
+#     accountPages: account.<domain> # ignored unless accountPages.enabled == true
+
+websockets:
+  enabled: true
+webapp:
+  enabled: true
+fakeS3:
+  enabled: true
+teamSettings:
+  enabled: false
+accountPages:
+  enabled: false
+
+service:
+  webapp:
+    externalPort: 8080
+  teamSettings:
+    externalPort: 8080
+  accountPages:
+    externalPort: 8080
+  s3:
+    externalPort: 9000
+    serviceName: fake-aws-s3
+  # Set this to false if minio is not provided by the fake-aws-s3 chart
+  useFakeS3: true
+  federator:
+    # Must match service.externalFederatorPort in the federator chart.
+    externalPort: 8081
+  nginz:
+    # Update this if you've overwritten the default HTTP port in nginz.
+    httpPort: 8080
+    # Update this if you've overwritten the default WebSocket port in nginz.
+    wsPort: 8081
+
+# Federator
+
+federator:
+  enabled: false
+  integrationTestHelper: false
+  tls:
+    # If true, a cert-manager Certificate is created for the federator TLS secret.
+    # Independent of the global tls.useCertManager setting.
+    useCertManager: true
+    # Name of the TLS Secret for the federator listener.
+    # When useCertManager is true, cert-manager writes the certificate into this secret.
+    # When useCertManager is false, the secret must exist before deploying.
+    secretName: "federator-certificate-secret"
+    duration: 2160h
+    renewBefore: 360h
+    privateKey:
+      rotationPolicy: Always
+    # Issuer for federator certificate (mTLS with Client Auth EKU).
+    # If not set, uses global tls.issuer configuration.
+    issuer: {}
+      # name: ""
+      # kind: ""
+      # group: ""
+
+# TLS settings
+
+tls:
+  secret:
+    # If true, a kubernetes.io/tls Secret is created from secrets.tlsWildcardCert
+    # and secrets.tlsWildcardKey. Set to false if the secret is managed externally.
+    create: true
+    # Override the name of the Secret. If not set, the name is derived from the release name.
+    nameOverride: ""
+
+  # If set to true create Certificate object that request from tls.issuer
+  useCertManager: false
+  privateKey:
+    rotationPolicy: Always
+    algorithm: ECDSA
+    size: 384  # 521 is not supported by Let's Encrypt
+
+  createIssuer: true
+  issuer:
+    name: letsencrypt-http01
+    kind: Issuer  # Issuer | ClusterIssuer
+
+certManager:
+  # If true, uses the Let's Encrypt staging API (certificates are NOT trusted):
+  #   https://acme-staging-v02.api.letsencrypt.org/directory
+  # If false (default), uses the production API (certificates are trusted):
+  #   https://acme-v02.api.letsencrypt.org/directory
+  inTestMode: false
+  certmasterEmail:
+  customSolvers:
+
+# For TLS (manual mode, tls.useCertManager: false, tls.secret.create: false):
+# secrets:
+#   tlsWildcardCert: |
+#     -----BEGIN CERTIFICATE-----
+#     ...
+#     -----END CERTIFICATE-----
+#   tlsWildcardKey: |
+#     -----BEGIN PRIVATE KEY-----
+#     ...
+#     -----END PRIVATE KEY-----
+#
+# When federator.enabled is true, a ConfigMap named `federator-ca` with a `ca.crt` key
+# must exist in the release namespace. It is created by the wire-server chart
+# and is referenced by the ClientTrafficPolicy for mTLS.

@@ -77,7 +77,7 @@ data:
       apiPort: 5380
       dohPort: 5381
 
-    originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+    originDomain: {{ include "integration.federationOriginDomain" (list .Release.Namespace .Values.envoy.enabled .Values.envoy.controllerNamespace) }}
 
     rabbitmq:
       host: rabbitmq
@@ -158,12 +158,12 @@ data:
 
       rabbitMqVHost: /
 
-      originDomain: federation-test-helper.{{ .Release.Namespace }}-fed2.svc.cluster.local
+      originDomain: {{ include "integration.federationOriginDomain" (list (printf "%s-fed2" .Release.Namespace) .Values.envoy.enabled .Values.envoy.controllerNamespace) }}
 
     dynamicBackends:
       {{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
       {{ $name }}:
-        domain: {{ $dynamicBackend.federatorExternalHostPrefix }}.{{ $.Release.Namespace }}.svc.cluster.local
+        domain: {{ include "integration.dynamicBackendDomain" (list $dynamicBackend $.Release.Namespace $.Values.envoy.enabled $.Values.envoy.controllerNamespace) }}
         federatorExternalPort: {{ $dynamicBackend.federatorExternalPort }}
         mlsPrivateKeyPaths:
           removal:

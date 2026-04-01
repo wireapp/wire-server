@@ -7,8 +7,23 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 # Available $HELMFILE_ENV profiles: default, default-ssl, kind, kind-ssl
 HELMFILE_ENV=${HELMFILE_ENV:-default}
+# This controls if integration tests run against ingress-nginx or envoy-gateway
+WIRE_INGRESS_MODE=${WIRE_INGRESS_MODE:-envoy}
+export WIRE_INGRESS_MODE
+ENVOY_GATEWAY_NAMESPACE=${ENVOY_GATEWAY_NAMESPACE:-envoy-gateway-system}
+export ENVOY_GATEWAY_NAMESPACE
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
+
+changed_files=$(git --no-pager diff-tree --no-commit-id -r --name-only HEAD)
+
+if [[ "$WIRE_INGRESS_MODE" != "nginx" ]] && echo "$changed_files" | grep -q "^charts/nginx-ingress-services"; then
+  echo "ERROR: Changes detected in charts/nginx-ingress-services but WIRE_INGRESS_MODE is '${WIRE_INGRESS_MODE}'."
+  echo "This failure is intentional: changes to nginx-ingress-services are not exercised by the"
+  echo "integration test suite when running in envoy mode, and would be merged without any test coverage."
+  echo "To test these changes, re-run with WIRE_INGRESS_MODE=nginx."
+  exit 1
+fi
 
 # shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
@@ -22,17 +37,24 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 # script beforehand on all relevant charts to download the nested dependencies
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral rabbitmq wire-server ingress-nginx-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral rabbitmq wire-server ingress-nginx-controller nginx-ingress-services wire-ingress)
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 export NAMESPACE_1="$NAMESPACE"
-export FEDERATION_DOMAIN_BASE_1="$NAMESPACE_1.svc.cluster.local"
-export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE_1"
-
 export NAMESPACE_2="$NAMESPACE-fed2"
-export FEDERATION_DOMAIN_BASE_2="$NAMESPACE_2.svc.cluster.local"
-export FEDERATION_DOMAIN_2="federation-test-helper.$FEDERATION_DOMAIN_BASE_2"
+
+if [[ "$WIRE_INGRESS_MODE" == "nginx" ]]; then
+  export FEDERATION_DOMAIN_BASE_1="${NAMESPACE_1}.svc.cluster.local"
+  export FEDERATION_DOMAIN_1="federation-test-helper.${FEDERATION_DOMAIN_BASE_1}"
+  export FEDERATION_DOMAIN_BASE_2="${NAMESPACE_2}.svc.cluster.local"
+  export FEDERATION_DOMAIN_2="federation-test-helper.${FEDERATION_DOMAIN_BASE_2}"
+else
+  export FEDERATION_DOMAIN_BASE_1="${ENVOY_GATEWAY_NAMESPACE}.svc.cluster.local"
+  export FEDERATION_DOMAIN_1="${NAMESPACE_1}-fed.${FEDERATION_DOMAIN_BASE_1}"
+  export FEDERATION_DOMAIN_BASE_2="${ENVOY_GATEWAY_NAMESPACE}.svc.cluster.local"
+  export FEDERATION_DOMAIN_2="${NAMESPACE_2}-fed.${FEDERATION_DOMAIN_BASE_2}"
+fi
 
 echo "Fetch federation-ca secret from cert-manager namespace"
 FEDERATION_CA_CERTIFICATE=$(kubectl -n cert-manager get secrets federation-ca -o json -o jsonpath="{.data['tls\.crt']}" | base64 -d)

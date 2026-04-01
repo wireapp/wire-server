@@ -1,0 +1,33 @@
+{{- if (and .Values.federator.enabled .Values.federator.integrationTestHelper) }}
+# This is used only for integration tests.
+# Envoy Gateway runs proxy pods in {controllerNamespace}, not in the release namespace.
+# Kubernetes Services cannot select pods across namespaces, so we create a ClusterIP
+# Service in {controllerNamespace} that selects the proxy pods by their owning-gateway
+# labels (set by Envoy Gateway). This service becomes the SRV target for Wire federation
+# discovery:
+#   _wire-server-federator._tcp.<namespace>-fed.{controllerNamespace}.svc.cluster.local
+#
+# targetPort must match the port the Envoy proxy pod actually listens on.
+# When gateway.listeners.https.port is privileged (<1024), Envoy Gateway remaps it
+# by adding 10000 on the container (e.g. 443→10443). Set gateway.listeners.https.port
+# to the actual container port in your values (e.g. 10443) to avoid this.
+{{- $httpsPort := int .Values.gateway.listeners.https.port }}
+{{- if lt $httpsPort 1024 }}
+{{- fail (printf "service-test-fed: gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Namespace }}-fed
+  namespace: {{ .Values.gateway.controllerNamespace }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: wire-server-federator
+    port: 443
+    protocol: TCP
+    targetPort: {{ $httpsPort }}
+  selector:
+    gateway.envoyproxy.io/owning-gateway-name: {{ include "wire-ingress.getGatewayName" . }}
+    gateway.envoyproxy.io/owning-gateway-namespace: {{ .Release.Namespace }}
+{{- end }}

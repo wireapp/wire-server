@@ -1,0 +1,42 @@
+teamSettings:
+  enabled: true
+accountPages:
+  enabled: true
+federator:
+  enabled: true
+  integrationTestHelper: true
+  tls:
+    useCertManager: true
+    issuer:
+      name: federation
+      kind: ClusterIssuer
+tls:
+  useCertManager: true
+  issuer:
+    name: federation
+    kind: ClusterIssuer
+  createIssuer: false
+
+gateway:
+  className: "envoy"
+  controllerNamespace: {{ env "ENVOY_GATEWAY_NAMESPACE" }}
+  manageServiceType: true
+  serviceType: ClusterIP
+  listeners:
+    https:
+      # Envoy Gateway remaps privileged ports (+10000) on the proxy pod container.
+      # We use 10443 directly so targetPort in the service-test-fed.yaml matches the
+      # actual container port without needing a separate override.
+      port: 10443
+      hostname: "*.{{ .Release.Namespace }}-integration.example.com"
+
+config:
+  dns:
+    https: "nginz-https.{{ .Release.Namespace }}-integration.example.com"
+    ssl: "nginz-ssl.{{ .Release.Namespace }}-integration.example.com"
+    webapp: "webapp.{{ .Release.Namespace }}-integration.example.com"
+    fakeS3: "assets.{{ .Release.Namespace }}-integration.example.com"
+    teamSettings: "teams.{{ .Release.Namespace }}-integration.example.com"
+    accountPages: "account.{{ .Release.Namespace }}-integration.example.com"
+    # federator: dynamically set by hack/helmfile.yaml.gotmpl
+    # certificateDomain: dynamically set by hack/helmfile.yaml.gotmpl

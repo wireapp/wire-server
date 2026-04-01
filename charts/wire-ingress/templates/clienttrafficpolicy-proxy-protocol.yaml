@@ -1,0 +1,18 @@
+{{- if .Values.gateway.proxyProtocol.enabled }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: {{ include "wire-ingress.getGatewayName" . }}-proxy-protocol
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ include "wire-ingress.getGatewayName" . | quote }}
+  proxyProtocol:
+    optional: {{ .Values.gateway.proxyProtocol.optional | default false }}
+{{- end }}

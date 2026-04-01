@@ -1,0 +1,40 @@
+{{- if and .Values.federator.enabled .Values.gateway.patchPolicies.enabled }}
+{{/* Adds the FQDN variant (trailing dot) of the federator hostname to the
+     virtual host's domain list so Envoy matches requests whose :authority
+     header carries a trailing dot.
+     Wire federator resolves federation targets via DNS SRV lookups; per
+     RFC 2782, SRV records return FQDNs (e.g. "federator.example.com.").
+     HTTP/2 passes that dot in :authority; without this patch the virtual
+     host only matches "federator.example.com" and returns route_not_found.
+     Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
+     Requires extensionApis.enableEnvoyPatchPolicy: true in the
+     EnvoyGateway ConfigMap. */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: {{ include "wire-ingress.fullname" . }}-federator-fqdn-domain
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    {{- if .Values.gateway.patchPolicies.targetGatewayClass }}
+    kind: GatewayClass
+    name: {{ .Values.gateway.className | quote }}
+    {{- else }}
+    kind: Gateway
+    name: {{ include "wire-ingress.getGatewayName" . | quote }}
+    namespace: {{ .Release.Namespace | quote }}
+    {{- end }}
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
+      # Route config name: <namespace>/<gateway-name>/federator
+      name: {{ printf "%s/%s/federator" .Release.Namespace (include "wire-ingress.getGatewayName" .) | quote }}
+      operation:
+        op: add
+        path: "/virtual_hosts/0/domains/-"
+        value: {{ printf "%s." .Values.config.dns.federator | quote }}
+{{- end }}

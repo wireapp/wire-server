@@ -583,7 +583,7 @@ retryRequestUntilDebug mProcessDebug reqAction err = do
 
 startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
 startNginzK8s domain sm = do
-  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  tmpDir <- liftIO $ createTempDirectory "/tmp" "nginz-"
   liftIO $
     copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
@@ -610,7 +610,7 @@ startNginzLocal resource = do
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
-  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  tmpDir <- liftIO $ createTempDirectory "/tmp" "nginz-"
   mBaseDir <- asks (.servicesCwdBase)
   basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
 
