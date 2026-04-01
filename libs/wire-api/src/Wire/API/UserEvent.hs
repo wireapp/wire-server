@@ -112,7 +112,7 @@ data EventType
   | EventTypeUserGroupUpdated
   | EventTypeUserGroupDeleted
   | EventTypeUserSessionRefreshSuggested
-  deriving stock (Eq, Enum, Bounded)
+  deriving stock (Show, Eq, Enum, Bounded)
 
 instance ToSchema EventType where
   schema =

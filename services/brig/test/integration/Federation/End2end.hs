@@ -21,7 +21,6 @@ import API.MLS.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import Brig.API.Client (pubClient)
 import Brig.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
@@ -345,7 +344,7 @@ testListUserClients brig1 brig2 = do
       nclients = map mkClient prekeys
   clients <- traverse (responseJsonError <=< addClient brig2 (userId bob)) nclients
   resp <- getUserClientsQualified brig1 (userId alice) (qDomain (userQualifiedId bob)) (userId bob)
-  let expected = map pubClient clients
+  let expected = map toPubClient clients
       actual = responseJsonUnsafe resp
   liftIO $ Set.fromList actual @?= Set.fromList expected
 

@@ -4,10 +4,12 @@ module Wire.ClientSubsystem where
 
 import Data.Default
 import Data.Id
+import Data.Misc
 import Data.Qualified
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
 import Wire.API.UserEvent
 import Wire.API.UserMap
@@ -42,5 +44,9 @@ data ClientSubsystem m a where
   UpsertClient :: Local UserId -> ClientId -> NewClient -> Maybe ClientCapabilityList -> ClientSubsystem m (Client, [Client], Word)
   OnClientEvent :: UserId -> Maybe ConnId -> ClientEvent -> ClientSubsystem m ()
   EnqueueClientDeletion :: UserId -> Maybe ConnId -> Client -> ClientSubsystem m ()
+  RemoveClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword6 -> ClientSubsystem m ()
+  RemoveLegalHoldClient :: UserId -> ClientSubsystem m ()
+  PublishLegalHoldClientRequested :: UserId -> LegalHoldClientRequest -> ClientSubsystem m ()
+  UpdateClient :: UserId -> ClientId -> UpdateClient -> ClientSubsystem m ()
 
 makeSem ''ClientSubsystem

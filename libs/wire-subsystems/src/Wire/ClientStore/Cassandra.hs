@@ -104,10 +104,13 @@ lookupPubClientsBulkImpl uids = liftClient $ do
   pure . UserMap $ Map.fromList userClientTuples
   where
     getClientSetWithUser :: (MonadClient m) => UserId -> m (UserId, Imports.Set PubClient)
-    getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
+    getClientSetWithUser u = (u,) . Set.fromList . map mkPubClient <$> executeQuery u
 
     executeQuery :: (MonadClient m) => UserId -> m [(ClientId, Maybe ClientClass)]
     executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
+
+    mkPubClient :: (ClientId, Maybe ClientClass) -> PubClient
+    mkPubClient = uncurry PubClient
 
 lookupClientsImpl :: (MonadClient m) => UserId -> m [Client]
 lookupClientsImpl u = do
@@ -362,6 +365,3 @@ toClient keys (cid, cty, tme, lbl, cls, cok, mdl, cps, lastActive) =
       clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys),
       clientLastActive = lastActive
     }
-
-toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
-toPubClient = uncurry PubClient

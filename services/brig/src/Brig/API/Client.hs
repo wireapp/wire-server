@@ -17,13 +17,7 @@
 
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
-  ( -- * Clients
-    updateClient,
-    rmClient,
-    pubClient,
-    legalHoldClientRequested,
-    removeLegalHoldClient,
-    createAccessToken,
+  ( createClientDPoPAccessToken,
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
@@ -36,7 +30,6 @@ module Brig.API.Client
   )
 where
 
-import Brig.API.Handler (Handler)
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -55,13 +48,10 @@ import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.HavePendingInvitations
-import Data.Id (ClientId, ConnId, UserId)
+import Data.Id (ClientId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict qualified as Map hiding ((\\))
-import Data.Misc (PlainTextPassword6)
 import Data.Qualified
-import Data.Set ((\\))
-import Data.Set qualified as Set
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports hiding ((\\))
@@ -77,86 +67,19 @@ import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.Team.LegalHold.Internal
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
-import Wire.API.UserEvent
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
-import Wire.AuthenticationSubsystem qualified as Authentication
-import Wire.ClientStore (ClientStore, DuplicateMLSPublicKey (..))
+import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
-import Wire.Events (Events)
-import Wire.Events qualified as Events
-import Wire.NotificationSubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-updateClient ::
-  (Member NotificationSubsystem r, Member ClientStore r) =>
-  UserId ->
-  ClientId ->
-  UpdateClient ->
-  (Handler r) ()
-updateClient uid cid req = do
-  client <- (lift (liftSem (ClientStore.lookupClient uid cid)) >>= maybe (throwE ClientNotFound) pure) !>> clientErrorToHttpError
-  consumableNotificationsEnabled <- asks (.settings.consumableNotifications)
-  lift . liftSem $ for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
-  for_ req.updateClientCapabilities $ \caps -> do
-    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
-      then do
-        -- first set up the notification queues then save the data is more robust than the other way around
-        let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
-        when (consumableNotificationsEnabled && ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ lift $ liftSem $ do
-          setupConsumableNotifications uid cid
-        lift . liftSem . ClientStore.updateCapabilities uid cid . Just $ caps
-      else throwE $ clientErrorToHttpError ClientCapabilitiesCannotBeRemoved
-  let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
-      prekeys = lk ++ req.updateClientPrekeys
-  ( do
-      unless (all checkPrekeyBundle prekeys) $
-        throwE MalformedPrekeys
-      lift . liftSem $ ClientStore.updatePrekeys uid cid prekeys
-      mErr <- lift . liftSem $ ClientStore.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
-      case mErr of
-        Just DuplicateMLSPublicKey -> throwE MLSPublicKeyDuplicate
-        Nothing -> pure ()
-    )
-    !>> ClientDataError
-    !>> clientErrorToHttpError
-
--- nb. We must ensure that the set of clients known to brig is always
--- a superset of the clients known to galley.
-rmClient ::
-  ( Member ClientSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  ConnId ->
-  ClientId ->
-  Maybe PlainTextPassword6 ->
-  ExceptT ClientError (AppT r) ()
-rmClient u con clt pw =
-  maybe (throwE ClientNotFound) fn =<< lift (liftSem $ ClientStore.lookupClient u clt)
-  where
-    fn client = do
-      case clientType client of
-        -- Legal hold clients can't be removed
-        LegalHoldClientType -> throwE ClientLegalHoldCannotBeRemoved
-        -- Temporary clients don't need to re-auth
-        TemporaryClientType -> pure ()
-        -- All other clients must authenticate
-        _ ->
-          (lift . liftSem $ Authentication.reauthenticateEither u pw)
-            >>= either (throwE . ClientDataError . ClientReAuthError) (const $ pure ())
-      lift . liftSem $ enqueueClientDeletion u (Just con) client
 
 claimPrekey ::
   ( Member ClientSubsystem r,
@@ -384,40 +307,7 @@ noPrekeys u c = do
           ~~ msg (val "No prekey found. Deleting client.")
       liftSem $ enqueueClientDeletion u Nothing client
 
-pubClient :: Client -> PubClient
-pubClient c =
-  PubClient
-    { pubClientId = c.clientId,
-      pubClientClass = clientClass c
-    }
-
-legalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> AppT r ()
-legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
-  liftSem $ Events.generateUserEvent targetUser Nothing lhClientEvent
-  where
-    clientId :: ClientId
-    clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
-    eventData :: LegalHoldClientRequestedData
-    eventData = LegalHoldClientRequestedData targetUser lastPrekey' clientId
-    lhClientEvent :: UserEvent
-    lhClientEvent = LegalHoldClientRequested eventData
-
-removeLegalHoldClient ::
-  ( Member ClientSubsystem r,
-    Member Events r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  AppT r ()
-removeLegalHoldClient uid = do
-  clients <- liftSem $ ClientStore.lookupClients uid
-  -- Should only be one; but just in case we'll treat it as a list
-  let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
-  -- maybe log if this isn't the case
-  liftSem $ forM_ legalHoldClients (enqueueClientDeletion uid Nothing)
-  liftSem $ Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
-
-createAccessToken ::
+createClientDPoPAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>
   Local UserId ->
   ClientId ->
@@ -425,7 +315,7 @@ createAccessToken ::
   Link ->
   Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken luid cid method link proof = do
+createClientDPoPAccessToken luid cid method link proof = do
   let domain = tDomain luid
   let uid = tUnqualified luid
   (tid, handle, displayName) <- do

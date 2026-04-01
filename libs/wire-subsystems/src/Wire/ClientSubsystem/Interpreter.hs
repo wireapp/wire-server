@@ -12,10 +12,12 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util (ToJSONObject (..), toUTCTimeMillis)
 import Data.Map qualified as Map
+import Data.Misc
 import Data.Qualified
+import Data.Set ((\\))
 import Data.Set qualified as Set
 import Data.Time.Clock
-import Imports
+import Imports hiding ((\\))
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -26,8 +28,10 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 qualified as V2
+import Wire.API.Team.LegalHold.Internal
 import Wire.API.User as User
-import Wire.API.User.Client
+import Wire.API.User.Client hiding (UpdateClient)
+import Wire.API.User.Client qualified as Data
 import Wire.API.User.Client.Prekey
 import Wire.API.UserEvent
 import Wire.API.UserMap
@@ -92,6 +96,10 @@ runClientSubsystem runAuth runUser =
       UpsertClient luid client new capabilities -> mapError ClientDataError $ upsertClient def luid client new capabilities
       OnClientEvent uid con event -> onClientEvent uid con event
       EnqueueClientDeletion uid con client -> execDelete uid con client
+      RemoveClient uid conn cid mPwd -> rmClient uid conn cid mPwd
+      RemoveLegalHoldClient uid -> removeLegalHoldClient uid
+      PublishLegalHoldClientRequested uid req -> publishLegalHoldClientRequested uid req
+      UpdateClient uid cid payload -> updateClient uid cid payload
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -334,3 +342,92 @@ execDelete u con c = do
   for_ (clientCookie c) $ \l -> Authentication.revokeCookies u [] [l]
   DeleteQueue.enqueueClientDeletion c.clientId u con
   ClientStore.delete u c.clientId
+
+-- nb. We must ensure that the set of clients known to brig is always
+-- a superset of the clients known to galley.
+rmClient ::
+  ( Member AuthenticationSubsystem r,
+    Member ClientStore r,
+    Member (Error ClientError) r,
+    Member DeleteQueue r
+  ) =>
+  UserId ->
+  ConnId ->
+  ClientId ->
+  Maybe PlainTextPassword6 ->
+  Sem r ()
+rmClient u con clt pw =
+  maybe (throw ClientNotFound) fn =<< ClientStore.lookupClient u clt
+  where
+    fn client = do
+      case clientType client of
+        -- Legal hold clients can't be removed
+        LegalHoldClientType -> throw ClientLegalHoldCannotBeRemoved
+        -- Temporary clients don't need to re-auth
+        TemporaryClientType -> pure ()
+        -- All other clients must authenticate
+        _ ->
+          (Authentication.reauthenticateEither u pw)
+            >>= either (throw . ClientDataError . ClientReAuthError) (const $ pure ())
+      execDelete u (Just con) client
+
+removeLegalHoldClient ::
+  ( Member Events r,
+    Member ClientStore r,
+    Member DeleteQueue r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  Sem r ()
+removeLegalHoldClient uid = do
+  clients <- ClientStore.lookupClients uid
+  -- Should only be one; but just in case we'll treat it as a list
+  let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
+  -- maybe log if this isn't the case
+  forM_ legalHoldClients (execDelete uid Nothing)
+  Events.generateUserEvent uid Nothing (UserLegalHoldDisabled uid)
+
+publishLegalHoldClientRequested :: (Member Events r) => UserId -> LegalHoldClientRequest -> Sem r ()
+publishLegalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
+  Events.generateUserEvent targetUser Nothing lhClientEvent
+  where
+    clientId :: ClientId
+    clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
+
+    eventData :: LegalHoldClientRequestedData
+    eventData = LegalHoldClientRequestedData targetUser lastPrekey' clientId
+
+    lhClientEvent :: UserEvent
+    lhClientEvent = LegalHoldClientRequested eventData
+
+updateClient ::
+  ( Member NotificationSubsystem r,
+    Member ClientStore r,
+    Member (Error ClientError) r,
+    Member (Input ClientSubsystemConfig) r
+  ) =>
+  UserId ->
+  ClientId ->
+  Data.UpdateClient ->
+  Sem r ()
+updateClient uid cid req = do
+  conf <- input
+  client <- ClientStore.lookupClient uid cid >>= maybe (throw ClientNotFound) pure
+  for_ req.updateClientLabel $ ClientStore.updateLabel uid cid . Just
+  for_ req.updateClientCapabilities $ \caps -> do
+    if client.clientCapabilities.fromClientCapabilityList `Set.isSubsetOf` caps.fromClientCapabilityList
+      then do
+        -- first set up the notification queues then save the data is more robust than the other way around
+        let addedCapabilities = caps.fromClientCapabilityList \\ client.clientCapabilities.fromClientCapabilityList
+        when (conf.consumableNotificationsEnabled && ClientSupportsConsumableNotifications `Set.member` addedCapabilities) $ do
+          setupConsumableNotifications uid cid
+        ClientStore.updateCapabilities uid cid . Just $ caps
+      else throw ClientCapabilitiesCannotBeRemoved
+  let lk = maybeToList (unpackLastPrekey <$> req.updateClientLastKey)
+      prekeys = lk ++ req.updateClientPrekeys
+  unless (all checkPrekeyBundle prekeys) $ throw (ClientDataError MalformedPrekeys)
+  ClientStore.updatePrekeys uid cid prekeys
+  mErr <- ClientStore.addMLSPublicKeys uid cid (Map.assocs req.updateClientMLSPublicKeys)
+  case mErr of
+    Just DuplicateMLSPublicKey -> throw (ClientDataError MLSPublicKeyDuplicate)
+    Nothing -> pure ()

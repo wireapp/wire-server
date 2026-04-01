@@ -47,6 +47,7 @@ module Wire.API.User.Client
     Client (..),
     clientSchema,
     PubClient (..),
+    toPubClient,
     ClientType (..),
     ClientClass (..),
     MLSPublicKeys,
@@ -627,6 +628,13 @@ instance ToSchema PubClient where
       PubClient
         <$> pubClientId .= field "id" schema
         <*> pubClientClass .= maybe_ (optField "class" schema)
+
+toPubClient :: Client -> PubClient
+toPubClient client =
+  PubClient
+    { pubClientId = client.clientId,
+      pubClientClass = client.clientClass
+    }
 
 --------------------------------------------------------------------------------
 -- Client Type/Class
