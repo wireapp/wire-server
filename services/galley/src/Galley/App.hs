@@ -81,7 +81,6 @@ import Polysemy.Resource
 import Polysemy.TinyLog (TinyLog, logErrors)
 import Polysemy.TinyLog qualified as P
 import Servant qualified
-import Servant.Server (Tagged (unTagged))
 import Ssl.Util
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
@@ -89,13 +88,11 @@ import System.Logger.Extended qualified as Logger
 import UnliftIO.Exception qualified as UnliftIO
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Role qualified as Role
 import Wire.API.Error
-import Wire.API.Error.Galley (AuthenticationError, GalleyError (..), GroupInfoDiagnostics, MLSOutOfSyncError, MLSProposalFailure, MLSProtocolError, NonFederatingBackends, OperationDenied, UnreachableBackends, UnreachableBackendsLegacy)
+import Wire.API.Error.Galley (GalleyError (..), NonFederatingBackends, OperationDenied, UnreachableBackends)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
-import Wire.API.Routes.API (ServerEffect (interpretServerEffect))
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
@@ -112,7 +109,7 @@ import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Interpreter (GroupInfoCheckEnabled (..), GuestLinkTTLSeconds, IntraListing (IntraListing), interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), GuestLinkTTLSeconds, IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
 import Wire.Error
@@ -244,58 +241,12 @@ type GalleyEffects =
      Now,
      GE.Queue DeleteItem,
      Error Meeting.MeetingError,
-     Error AuthenticationError,
-     Error MLSProtocolError,
-     Error MLSProposalFailure,
      Error DynError,
      Error RateLimitExceeded,
-     Error UnreachableBackendsLegacy,
-     Error GroupInfoDiagnostics,
-     Error MLSOutOfSyncError,
-     ErrorS 'MLSMigrationCriteriaNotSatisfied,
-     ErrorS 'ConvInvalidProtocolTransition,
-     ErrorS 'InvalidTargetAccess,
-     ErrorS 'MLSReadReceiptsNotAllowed,
-     ErrorS 'InvalidTarget,
-     ErrorS 'CreateConversationCodeConflict,
-     ErrorS 'TooManyMembers,
-     ErrorS 'MLSFederatedOne2OneNotSupported,
-     ErrorS 'GuestLinksDisabled,
-     ErrorS 'InvalidConversationPassword,
-     ErrorS 'CodeNotFound,
-     ErrorS 'MLSMissingGroupInfo,
+     Error ConversationSubsystemError,
+     ErrorS OperationDenied,
      ErrorS 'AccessDenied,
      ErrorS 'TeamMemberNotFound,
-     ErrorS 'MLSSubConvUnsupportedConvType,
-     ErrorS 'MLSFederatedResetNotSupported,
-     ErrorS 'BroadcastLimitExceeded,
-     ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'ConvMemberNotFound,
-     ErrorS 'GroupIdVersionNotSupported,
-     ErrorS 'MLSUnsupportedProposal,
-     ErrorS 'MLSInvalidLeafNodeIndex,
-     ErrorS 'MLSClientMismatch,
-     ErrorS 'MLSInvalidLeafNodeSignature,
-     ErrorS 'MLSSubConvClientNotInParent,
-     ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSSelfRemovalNotAllowed,
-     ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSProposalNotFound,
-     ErrorS 'MLSStaleMessage,
-     ErrorS 'MLSUnsupportedMessage,
-     ErrorS 'MLSIdentityMismatch,
-     ErrorS MLSLegalholdIncompatible,
-     ErrorS ('ActionDenied Role.ModifyAddPermission),
-     ErrorS ('ActionDenied Role.ModifyConversationAccess),
-     ErrorS ('ActionDenied Role.ModifyConversationReceiptMode),
-     ErrorS ('ActionDenied Role.ModifyConversationMessageTimer),
-     ErrorS ('ActionDenied Role.ModifyConversationName),
-     ErrorS ('ActionDenied Role.ModifyOtherConversationMember),
-     ErrorS ('ActionDenied Role.AddConversationMember),
-     ErrorS ('ActionDenied Role.DeleteConversation),
-     ErrorS ('ActionDenied Role.RemoveConversationMember),
-     ErrorS ('ActionDenied Role.LeaveConversation),
-     ErrorS OperationDenied,
      ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
@@ -554,58 +505,12 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'ConvAccessDenied
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'HistoryNotSupported
+        . mapError toResponse -- ErrorS 'TeamMemberNotFound
+        . mapError toResponse -- ErrorS 'AccessDenied
         . mapError toResponse -- ErrorS OperationDenied
-        . mapError toResponse -- ErrorS ('ActionDenied Role.LeaveConversation)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.RemoveConversationMember)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.DeleteConversation)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.AddConversationMember)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.ModifyOtherConversationMember)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.ModifyConversationName)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.ModifyConversationMessageTimer)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.ModifyConversationReceiptMode)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.ModifyConversationAccess)
-        . mapError toResponse -- ErrorS ('ActionDenied Role.ModifyAddPermission)
-        . mapError toResponse -- ErrorS MLSLegalholdIncompatible,
-        . mapError toResponse -- ErrorS 'MLSIdentityMismatch,
-        . mapError toResponse -- ErrorS 'MLSUnsupportedMessage,
-        . mapError toResponse -- ErrorS 'MLSStaleMessage,
-        . mapError toResponse -- ErrorS 'MLSProposalNotFound,
-        . mapError toResponse -- ErrorS 'MLSCommitMissingReferences,
-        . mapError toResponse -- ErrorS 'MLSSelfRemovalNotAllowed,
-        . mapError toResponse -- ErrorS 'MLSClientSenderUserMismatch,
-        . mapError toResponse -- ErrorS 'MLSSubConvClientNotInParent,
-        . mapError toResponse -- ErrorS 'MLSInvalidLeafNodeSignature,
-        . mapError toResponse -- ErrorS 'MLSClientMismatch,
-        . mapError toResponse -- ErrorS 'MLSInvalidLeafNodeIndex,
-        . mapError toResponse -- ErrorS 'MLSUnsupportedProposal,
-        . mapError toResponse -- ErrorS 'GroupIdVersionNotSupported,
-        . mapError toResponse -- ErrorS 'ConvMemberNotFound,
-        . mapError toResponse -- ErrorS 'MLSGroupConversationMismatch,
-        . mapError toResponse -- ErrorS 'BroadcastLimitExceeded,
-        . mapError toResponse -- ErrorS 'MLSFederatedResetNotSupported,
-        . mapError toResponse -- ErrorS 'MLSSubConvUnsupportedConvType,
-        . mapError toResponse -- ErrorS 'TeamMemberNotFound,
-        . mapError toResponse -- ErrorS 'AccessDenied,
-        . mapError toResponse -- ErrorS 'MLSMissingGroupInfo,
-        . mapError toResponse -- ErrorS 'CodeNotFound,
-        . mapError toResponse -- ErrorS 'InvalidConversationPassword,
-        . mapError toResponse -- ErrorS 'GuestLinksDisabled,
-        . mapError toResponse -- ErrorS 'MLSFederatedOne2OneNotSupported,
-        . mapError toResponse -- ErrorS 'TooManyMembers,
-        . mapError toResponse -- ErrorS 'CreateConversationCodeConflict,
-        . mapError toResponse -- ErrorS 'InvalidTarget,
-        . mapError toResponse -- ErrorS 'MLSReadReceiptsNotAllowed,
-        . mapError toResponse -- ErrorS 'InvalidTargetAccess,
-        . mapError toResponse -- ErrorS 'ConvInvalidProtocolTransition,
-        . mapError toResponse -- ErrorS 'MLSMigrationCriteriaNotSatisfied,
-        . mapError toResponse -- Error MLSOutOfSyncError,
-        . mapError toResponse -- Error GroupInfoDiagnostics,
-        . mapError toResponse -- Error UnreachableBackendsLegacy,
+        . mapError toResponse -- Error ConversationSubsystemError,
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
-        . interpretServerEffect -- Error MLSProposalFailure,
-        . mapError (\msg -> (dynError @(MapError 'MLSProtocolErrorTag)) {eMessage = unTagged msg}) -- Error MLSProtocolError,
-        . interpretServerEffect -- Error AuthenticationError
         . mapError meetingError
         . interpretQueue (e ^. deleteQueue)
         . nowToIO

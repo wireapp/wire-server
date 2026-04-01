@@ -22,12 +22,15 @@ module Wire.ConversationSubsystem.Interpreter
     GroupInfoCheckEnabled (..),
     IntraListing (..),
     Update.GuestLinkTTLSeconds (..),
+    ConversationSubsystemError (..),
   )
 where
 
 import Data.Qualified
+import Data.Tagged
 import Galley.Types.Error (InternalError, InvalidInput (..))
 import Imports
+import Network.Wai.Utilities.JSONResponse (JSONResponse)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -41,6 +44,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
+import Wire.API.Routes.API (ServerEffect (interpretServerEffect))
 import Wire.API.Team.Feature (LegalholdConfig)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults, FeatureFlags)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
@@ -88,76 +92,10 @@ import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 
 interpretConversationSubsystem ::
-  ( Member (Error FederationError) r,
-    Member (Error UnreachableBackends) r,
-    Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (Error AuthenticationError) r,
+  ( Member (Error ConversationSubsystemError) r,
+    Member (Error JSONResponse) r,
+    Member (Error DynError) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NoBindingTeamMembers) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
-    Member (ErrorS 'MLSLegalholdIncompatible) r,
-    Member (ErrorS 'MLSIdentityMismatch) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member (Error MLSProtocolError) r,
-    Member (Error GroupInfoDiagnostics) r,
-    Member (Error MLSOutOfSyncError) r,
-    Member (Error MLSProposalFailure) r,
-    Member (Error NonFederatingBackends) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (ErrorS 'HistoryNotSupported) r,
-    Member (Error UnreachableBackendsLegacy) r,
-    Member (ErrorS MLSGroupConversationMismatch) r,
-    Member (ErrorS ('ActionDenied ConvRole.LeaveConversation)) r,
-    Member (ErrorS ('ActionDenied ConvRole.RemoveConversationMember)) r,
-    Member (ErrorS ('ActionDenied ConvRole.DeleteConversation)) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
-    Member (ErrorS 'MLSFederatedResetNotSupported) r,
-    Member (ErrorS 'MLSSubConvUnsupportedConvType) r,
-    Member (ErrorS 'TeamMemberNotFound) r,
-    Member (ErrorS 'AccessDenied) r,
-    Member (ErrorS 'MLSMissingGroupInfo) r,
-    Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
-    Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
-    Member (ErrorS 'TooManyMembers) r,
-    Member (ErrorS 'CreateConversationCodeConflict) r,
-    Member (ErrorS 'InvalidTarget) r,
-    Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
-    Member (ErrorS 'InvalidTargetAccess) r,
-    Member (ErrorS 'ConvInvalidProtocolTransition) r,
-    Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
-    Member (ErrorS ('ActionDenied ConvRole.AddConversationMember)) r,
-    Member (ErrorS ('ActionDenied ConvRole.ModifyOtherConversationMember)) r,
-    Member (ErrorS ('ActionDenied ConvRole.ModifyConversationName)) r,
-    Member (ErrorS ('ActionDenied ConvRole.ModifyConversationMessageTimer)) r,
-    Member (ErrorS ('ActionDenied ConvRole.ModifyConversationReceiptMode)) r,
-    Member (ErrorS ('ActionDenied ConvRole.ModifyConversationAccess)) r,
-    Member (ErrorS ('ActionDenied ConvRole.ModifyAddPermission)) r,
     Member UserGroupStore r,
     Member (Input (Maybe Update.GuestLinkTTLSeconds)) r,
     Member HashPassword r,
@@ -196,245 +134,534 @@ interpretConversationSubsystem ::
   Sem r a
 interpretConversationSubsystem = interpretH $ \case
   NotifyConversationAction tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData ->
-    liftT $ Notify.notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
+    liftT $ mapErrors $ Notify.notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
   InternalCreateGroupConversation lusr conn newConv ->
-    liftT $ CreateInternal.createGroupConversationGeneric lusr conn newConv
+    liftT $ mapErrors $ CreateInternal.createGroupConversationGeneric lusr conn newConv
   CreateGroupConversationUpToV3 lusr conn newConv ->
-    liftT $ Create.createGroupConversationUpToV3 lusr conn newConv
+    liftT $ mapErrors $ Create.createGroupConversationUpToV3 lusr conn newConv
   CreateGroupOwnConversation lusr conn newConv ->
-    liftT $ Create.createGroupOwnConversation lusr conn newConv
+    liftT $ mapErrors $ Create.createGroupOwnConversation lusr conn newConv
   CreateGroupConversation lusr conn newConv ->
-    liftT $ Create.createGroupConversation lusr conn newConv
+    liftT $ mapErrors $ Create.createGroupConversation lusr conn newConv
   CreateProteusSelfConversation lusr ->
-    liftT $ Create.createProteusSelfConversation lusr
+    liftT $ mapErrors $ Create.createProteusSelfConversation lusr
   CreateOne2OneConversation lusr zcon j ->
-    liftT $ Create.createOne2OneConversation lusr zcon j
+    liftT $ mapErrors $ Create.createOne2OneConversation lusr zcon j
   CreateConnectConversation lusr conn j ->
-    liftT $ Create.createConnectConversation lusr conn j
+    liftT $ mapErrors $ Create.createConnectConversation lusr conn j
   GetConversations convIds ->
-    liftT $ ConvStore.getConversations convIds
+    liftT $ mapErrors $ ConvStore.getConversations convIds
   GetConversationIds lusr maxIds pagingState ->
-    liftT $ Fetch.getConversationIdsImpl lusr maxIds pagingState
+    liftT $ mapErrors $ Fetch.getConversationIdsImpl lusr maxIds pagingState
   InternalGetLocalMember cid uid ->
-    liftT $ ConvStore.getLocalMember cid uid
+    liftT $ mapErrors $ ConvStore.getLocalMember cid uid
   PostMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle ->
-    liftT $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle
+    liftT $ mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle
   PostMLSCommitBundleFromLocalUser v lusr c conn bundle ->
-    liftT $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle
+    liftT $ mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle
   PostMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg ->
-    liftT $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
+    liftT $ mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
-    liftT $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
+    liftT $ mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
   IsMLSEnabled ->
-    liftT $ MLSEnabled.isMLSEnabled
+    liftT $ mapErrors $ MLSEnabled.isMLSEnabled
   IterateConversations luid pageSize handleConvs -> do
     handleConvsT <- bindT handleConvs
     ins <- getInitialStateT
     void $ raise $ interpretConversationSubsystem $ Query.iterateConversations luid pageSize $ handleConvsT . ($>) ins
     pureT ()
   RemoveMemberFromLocalConv lcnv lusr con victim ->
-    liftT $ Update.removeMemberFromLocalConv lcnv lusr con victim
+    liftT $ mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
   FederationOnConversationCreated domain rc ->
-    liftT $ Federation.onConversationCreated domain rc
+    liftT $ mapErrors $ Federation.onConversationCreated domain rc
   FederationGetConversationsV1 domain req ->
-    liftT $ Federation.getConversationsV1 domain req
+    liftT $ mapErrors $ Federation.getConversationsV1 domain req
   FederationGetConversations domain req ->
-    liftT $ Federation.getConversations domain req
+    liftT $ mapErrors $ Federation.getConversations domain req
   FederationLeaveConversation domain lc ->
-    liftT $ Federation.leaveConversation domain lc
+    liftT $ mapErrors $ Federation.leaveConversation domain lc
   FederationSendMessage domain msr ->
-    liftT $ Federation.sendMessage domain msr
+    liftT $ mapErrors $ Federation.sendMessage domain msr
   FederationUpdateConversation domain uc ->
-    liftT $ Federation.updateConversation domain uc
+    liftT $ mapErrors $ Federation.updateConversation domain uc
   FederationMlsSendWelcome domain req ->
-    liftT $ Federation.mlsSendWelcome domain req
+    liftT $ mapErrors $ Federation.mlsSendWelcome domain req
   FederationSendMLSMessage domain msr ->
-    liftT $ Federation.sendMLSMessage domain msr
+    liftT $ mapErrors $ Federation.sendMLSMessage domain msr
   FederationSendMLSCommitBundle domain msr ->
-    liftT $ Federation.sendMLSCommitBundle domain msr
+    liftT $ mapErrors $ Federation.sendMLSCommitBundle domain msr
   FederationQueryGroupInfo domain req ->
-    liftT $ Federation.queryGroupInfo domain req
+    liftT $ mapErrors $ Federation.queryGroupInfo domain req
   FederationUpdateTypingIndicator domain req ->
-    liftT $ Federation.updateTypingIndicator domain req
+    liftT $ mapErrors $ Federation.updateTypingIndicator domain req
   FederationOnTypingIndicatorUpdated domain td ->
-    liftT $ Federation.onTypingIndicatorUpdated domain td
+    liftT $ mapErrors $ Federation.onTypingIndicatorUpdated domain td
   FederationGetSubConversationForRemoteUser domain req ->
-    liftT $ Federation.getSubConversationForRemoteUser domain req
+    liftT $ mapErrors $ Federation.getSubConversationForRemoteUser domain req
   FederationDeleteSubConversationForRemoteUser domain req ->
-    liftT $ Federation.deleteSubConversationForRemoteUser domain req
+    liftT $ mapErrors $ Federation.deleteSubConversationForRemoteUser domain req
   FederationLeaveSubConversation domain lscr ->
-    liftT $ Federation.leaveSubConversation domain lscr
+    liftT $ mapErrors $ Federation.leaveSubConversation domain lscr
   FederationGetOne2OneConversationV1 domain req ->
-    liftT $ Federation.getOne2OneConversationV1 domain req
+    liftT $ mapErrors $ Federation.getOne2OneConversationV1 domain req
   FederationGetOne2OneConversation domain req ->
-    liftT $ Federation.getOne2OneConversation domain req
+    liftT $ mapErrors $ Federation.getOne2OneConversation domain req
   FederationOnClientRemoved domain req ->
-    liftT $ Federation.onClientRemoved domain req
+    liftT $ mapErrors $ Federation.onClientRemoved domain req
   FederationOnMessageSent domain rm ->
-    liftT $ Federation.onMessageSent domain rm
+    liftT $ mapErrors $ Federation.onMessageSent domain rm
   FederationOnMLSMessageSent domain rmm ->
-    liftT $ Federation.onMLSMessageSent domain rmm
+    liftT $ mapErrors $ Federation.onMLSMessageSent domain rmm
   FederationOnConversationUpdatedV0 domain cu ->
-    liftT $ Federation.onConversationUpdatedV0 domain cu
+    liftT $ mapErrors $ Federation.onConversationUpdatedV0 domain cu
   FederationOnConversationUpdated domain cu ->
-    liftT $ Federation.onConversationUpdated domain cu
+    liftT $ mapErrors $ Federation.onConversationUpdated domain cu
   FederationOnUserDeleted domain udcn ->
-    liftT $ Federation.onUserDeleted domain udcn
+    liftT $ mapErrors $ Federation.onUserDeleted domain udcn
   PostOtrMessageUnqualified lusr con cnv ignore report msg ->
-    liftT $ Update.postOtrMessageUnqualified lusr con cnv ignore report msg
+    liftT $ mapErrors $ Update.postOtrMessageUnqualified lusr con cnv ignore report msg
   PostOtrBroadcastUnqualified lusr con ignore report msg ->
-    liftT $ Update.postOtrBroadcastUnqualified lusr con ignore report msg
+    liftT $ mapErrors $ Update.postOtrBroadcastUnqualified lusr con ignore report msg
   PostProteusMessage lusr con cnv msg ->
-    liftT $ Update.postProteusMessage lusr con cnv msg
+    liftT $ mapErrors $ Update.postProteusMessage lusr con cnv msg
   PostProteusBroadcast lusr con msg ->
-    liftT $ Update.postProteusBroadcast lusr con msg
+    liftT $ mapErrors $ Update.postProteusBroadcast lusr con msg
   DeleteLocalConversation lusr con lcnv ->
-    liftT $ Update.deleteLocalConversation lusr con lcnv
+    liftT $ mapErrors $ Update.deleteLocalConversation lusr con lcnv
   GetMLSPublicKeys fmt ->
-    liftT $ MLS.getMLSPublicKeys fmt
+    liftT $ mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->
-    liftT $ MLSReset.resetMLSConversation lusr reset
+    liftT $ mapErrors $ MLSReset.resetMLSConversation lusr reset
   GetSubConversation lusr cnv sub ->
-    liftT $ MLSSubConversation.getSubConversation lusr cnv sub
+    liftT $ mapErrors $ MLSSubConversation.getSubConversation lusr cnv sub
   GetBotConversation bid cnv ->
-    liftT $ Query.getBotConversation bid cnv
+    liftT $ mapErrors $ Query.getBotConversation bid cnv
   GetUnqualifiedOwnConversation lusr cnv ->
-    liftT $ Query.getUnqualifiedOwnConversation lusr cnv
+    liftT $ mapErrors $ Query.getUnqualifiedOwnConversation lusr cnv
   GetOwnConversation lusr qcnv ->
-    liftT $ Query.getOwnConversation lusr qcnv
+    liftT $ mapErrors $ Query.getOwnConversation lusr qcnv
   GetConversation lusr qcnv ->
-    liftT $ Query.getConversation lusr qcnv
+    liftT $ mapErrors $ Query.getConversation lusr qcnv
   InternalGetConversation cnv ->
-    liftT $ ConvStore.getConversation cnv
+    liftT $ mapErrors $ ConvStore.getConversation cnv
   GetConversationRoles lusr cnv ->
-    liftT $ Query.getConversationRoles lusr cnv
+    liftT $ mapErrors $ Query.getConversationRoles lusr cnv
   GetGroupInfo lusr qcnv ->
-    liftT $ MLSGroupInfo.getGroupInfo lusr qcnv
+    liftT $ mapErrors $ MLSGroupInfo.getGroupInfo lusr qcnv
   ConversationIdsPageFromUnqualified lusr mstart msize ->
-    liftT $ Query.conversationIdsPageFromUnqualified lusr mstart msize
+    liftT $ mapErrors $ Query.conversationIdsPageFromUnqualified lusr mstart msize
   ConversationIdsPageFromV2 listGlobalSelf lself req ->
-    liftT $ Query.conversationIdsPageFromV2 listGlobalSelf lself req
+    liftT $ mapErrors $ Query.conversationIdsPageFromV2 listGlobalSelf lself req
   ConversationIdsPageFrom lusr req ->
-    liftT $ Query.conversationIdsPageFrom lusr req
+    liftT $ mapErrors $ Query.conversationIdsPageFrom lusr req
   ListConversations luser req ->
-    liftT $ Query.listConversations luser req
+    liftT $ mapErrors $ Query.listConversations luser req
   GetConversationByReusableCode lusr key value ->
-    liftT $ Query.getConversationByReusableCode lusr key value
+    liftT $ mapErrors $ Query.getConversationByReusableCode lusr key value
   GetMLSSelfConversationWithError lusr ->
-    liftT $ Query.getMLSSelfConversationWithError lusr
+    liftT $ mapErrors $ Query.getMLSSelfConversationWithError lusr
   GetMLSOne2OneConversationV5 lself qother ->
-    liftT $ Query.getMLSOne2OneConversationV5 lself qother
+    liftT $ mapErrors $ Query.getMLSOne2OneConversationV5 lself qother
   GetMLSOne2OneConversationV6 lself qother ->
-    liftT $ Query.getMLSOne2OneConversationV6 lself qother
+    liftT $ mapErrors $ Query.getMLSOne2OneConversationV6 lself qother
   GetMLSOne2OneConversation lself qother fmt ->
-    liftT $ Query.getMLSOne2OneConversation lself qother fmt
+    liftT $ mapErrors $ Query.getMLSOne2OneConversation lself qother fmt
   GetLocalSelf lusr cnv ->
-    liftT $ Query.getLocalSelf lusr cnv
+    liftT $ mapErrors $ Query.getLocalSelf lusr cnv
   GetSelfMember lusr qcnv ->
-    liftT $ Query.getSelfMember lusr qcnv
+    liftT $ mapErrors $ Query.getSelfMember lusr qcnv
   GetConversationGuestLinksStatus uid cid ->
-    liftT $ Query.getConversationGuestLinksStatus uid cid
+    liftT $ mapErrors $ Query.getConversationGuestLinksStatus uid cid
   GetCode mcode lusr cnv ->
-    liftT $ Update.getCode mcode lusr cnv
+    liftT $ mapErrors $ Update.getCode mcode lusr cnv
   AddMembersUnqualified lusr con cnv invite ->
-    liftT $ Update.addMembersUnqualified lusr con cnv invite
+    liftT $ mapErrors $ Update.addMembersUnqualified lusr con cnv invite
   AddMembersUnqualifiedV2 lusr con cnv invite ->
-    liftT $ Update.addMembersUnqualifiedV2 lusr con cnv invite
+    liftT $ mapErrors $ Update.addMembersUnqualifiedV2 lusr con cnv invite
   AddMembers lusr zcon qcnv invite ->
-    liftT $ Update.addMembers lusr zcon qcnv invite
+    liftT $ mapErrors $ Update.addMembers lusr zcon qcnv invite
   ReplaceMembers lusr zcon qcnv invite ->
-    liftT $ Update.replaceMembers lusr zcon qcnv invite
+    liftT $ mapErrors $ Update.replaceMembers lusr zcon qcnv invite
   JoinConversationById lusr con cnv ->
-    liftT $ Update.joinConversationById lusr con cnv
+    liftT $ mapErrors $ Update.joinConversationById lusr con cnv
   JoinConversationByReusableCode lusr con req ->
-    liftT $ Update.joinConversationByReusableCode lusr con req
+    liftT $ mapErrors $ Update.joinConversationByReusableCode lusr con req
   CheckReusableCode addr code ->
-    liftT $ Update.checkReusableCode addr code
+    liftT $ mapErrors $ Update.checkReusableCode addr code
   AddCodeUnqualified mReq usr mbZHost mZcon cnv ->
-    liftT $ Update.addCodeUnqualified mReq usr mbZHost mZcon cnv
+    liftT $ mapErrors $ Update.addCodeUnqualified mReq usr mbZHost mZcon cnv
   AddCodeUnqualifiedWithReqBody lusr mname mconn cnv req ->
-    liftT $ Update.addCodeUnqualifiedWithReqBody lusr mname mconn cnv req
+    liftT $ mapErrors $ Update.addCodeUnqualifiedWithReqBody lusr mname mconn cnv req
   RmCodeUnqualified lusr con cnv ->
-    liftT $ Update.rmCodeUnqualified lusr con cnv
+    liftT $ mapErrors $ Update.rmCodeUnqualified lusr con cnv
   MemberTypingUnqualified lusr con cnv status ->
-    liftT $ Update.memberTypingUnqualified lusr con cnv status
+    liftT $ mapErrors $ Update.memberTypingUnqualified lusr con cnv status
   MemberTyping lusr con qcnv status ->
-    liftT $ Update.memberTyping lusr con qcnv status
+    liftT $ mapErrors $ Update.memberTyping lusr con qcnv status
   RemoveMemberUnqualified lusr con cnv uid ->
-    liftT $ Update.removeMemberUnqualified lusr con cnv uid
+    liftT $ mapErrors $ Update.removeMemberUnqualified lusr con cnv uid
   RemoveMemberQualified lusr con qcnv quid ->
-    liftT $ Update.removeMemberQualified lusr con qcnv quid
+    liftT $ mapErrors $ Update.removeMemberQualified lusr con qcnv quid
   UpdateOtherMemberUnqualified lusr con cnv uid update ->
-    liftT $ Update.updateOtherMemberUnqualified lusr con cnv uid update
+    liftT $ mapErrors $ Update.updateOtherMemberUnqualified lusr con cnv uid update
   UpdateOtherMember lusr con qcnv quid update ->
-    liftT $ Update.updateOtherMember lusr con qcnv quid update
+    liftT $ mapErrors $ Update.updateOtherMember lusr con qcnv quid update
   UpdateUnqualifiedConversationName lusr con cnv rename ->
-    liftT $ Update.updateUnqualifiedConversationName lusr con cnv rename
+    liftT $ mapErrors $ Update.updateUnqualifiedConversationName lusr con cnv rename
   UpdateConversationName lusr zcon qcnv rename ->
-    liftT $ Update.updateConversationName lusr zcon qcnv rename
+    liftT $ mapErrors $ Update.updateConversationName lusr zcon qcnv rename
   UpdateConversationMessageTimerUnqualified lusr con cnv update ->
-    liftT $ Update.updateConversationMessageTimerUnqualified lusr con cnv update
+    liftT $ mapErrors $ Update.updateConversationMessageTimerUnqualified lusr con cnv update
   UpdateConversationMessageTimer lusr zcon qcnv update ->
-    liftT $ Update.updateConversationMessageTimer lusr zcon qcnv update
+    liftT $ mapErrors $ Update.updateConversationMessageTimer lusr zcon qcnv update
   UpdateConversationReceiptModeUnqualified lusr con cnv update ->
-    liftT $ Update.updateConversationReceiptModeUnqualified lusr con cnv update
+    liftT $ mapErrors $ Update.updateConversationReceiptModeUnqualified lusr con cnv update
   UpdateConversationReceiptMode lusr zcon qcnv update ->
-    liftT $ Update.updateConversationReceiptMode lusr zcon qcnv update
+    liftT $ mapErrors $ Update.updateConversationReceiptMode lusr zcon qcnv update
   UpdateConversationAccessUnqualified lusr con cnv update ->
-    liftT $ Update.updateConversationAccessUnqualified lusr con cnv update
+    liftT $ mapErrors $ Update.updateConversationAccessUnqualified lusr con cnv update
   UpdateConversationAccess lusr zcon qcnv update ->
-    liftT $ Update.updateConversationAccess lusr zcon qcnv update
+    liftT $ mapErrors $ Update.updateConversationAccess lusr zcon qcnv update
   UpdateConversationHistory lusr zcon qcnv update ->
-    liftT $ Update.updateConversationHistory lusr zcon qcnv update
+    liftT $ mapErrors $ Update.updateConversationHistory lusr zcon qcnv update
   UpdateUnqualifiedSelfMember lusr con cnv update ->
-    liftT $ Update.updateUnqualifiedSelfMember lusr con cnv update
+    liftT $ mapErrors $ Update.updateUnqualifiedSelfMember lusr con cnv update
   UpdateSelfMember lusr zcon qcnv update ->
-    liftT $ Update.updateSelfMember lusr zcon qcnv update
+    liftT $ mapErrors $ Update.updateSelfMember lusr zcon qcnv update
   UpdateConversationProtocolWithLocalUser lusr conn qcnv update ->
-    liftT $ Update.updateConversationProtocolWithLocalUser lusr conn qcnv update
+    liftT $ mapErrors $ Update.updateConversationProtocolWithLocalUser lusr conn qcnv update
   UpdateChannelAddPermission lusr conn qcnv update ->
-    liftT $ Update.updateChannelAddPermission lusr conn qcnv update
+    liftT $ mapErrors $ Update.updateChannelAddPermission lusr conn qcnv update
   PostBotMessageUnqualified bid cnv ignore report msg ->
-    liftT $ Update.postBotMessageUnqualified bid cnv ignore report msg
+    liftT $ mapErrors $ Update.postBotMessageUnqualified bid cnv ignore report msg
   DeleteSubConversation lusr qcnv sub reset ->
-    liftT $ MLSSubConversation.deleteSubConversation lusr qcnv sub reset
+    liftT $ mapErrors $ MLSSubConversation.deleteSubConversation lusr qcnv sub reset
   GetSubConversationGroupInfo lusr qcnv sub ->
-    liftT $ MLSSubConversation.getSubConversationGroupInfo lusr qcnv sub
+    liftT $ mapErrors $ MLSSubConversation.getSubConversationGroupInfo lusr qcnv sub
   LeaveSubConversation lusr cli qcnv sub ->
-    liftT $ MLSSubConversation.leaveSubConversation lusr cli qcnv sub
+    liftT $ mapErrors $ MLSSubConversation.leaveSubConversation lusr cli qcnv sub
   SendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData ->
-    liftT $ ActionNotify.sendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData
+    liftT $ mapErrors $ ActionNotify.sendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData
   GetPaginatedConversations lusr mids mstart msize ->
-    liftT $ Query.getConversations lusr mids mstart msize
+    liftT $ mapErrors $ Query.getConversations lusr mids mstart msize
   SearchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable ->
-    liftT $ Query.searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable
+    liftT $ mapErrors $ Query.searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable
   QualifyLocal a ->
-    liftT $ Util.qualifyLocal a
+    liftT $ mapErrors $ Util.qualifyLocal a
   InternalGetMember qcnv usr ->
-    liftT $ Query.internalGetMember qcnv usr
+    liftT $ mapErrors $ Query.internalGetMember qcnv usr
   GetConversationMeta cnv ->
-    liftT $ Query.getConversationMeta cnv
+    liftT $ mapErrors $ Query.getConversationMeta cnv
   GetMLSOne2OneConversationInternal lself qother ->
-    liftT $ Query.getMLSOne2OneConversationInternal lself qother
+    liftT $ mapErrors $ Query.getMLSOne2OneConversationInternal lself qother
   IsMLSOne2OneEstablished lself qother ->
-    liftT $ Query.isMLSOne2OneEstablished lself qother
+    liftT $ mapErrors $ Query.isMLSOne2OneEstablished lself qother
   GetLocalConversationInternal cid ->
-    liftT $ Query.getLocalConversationInternal cid
+    liftT $ mapErrors $ Query.getLocalConversationInternal cid
   RemoveClient lc qusr c ->
-    liftT $ MLSRemoval.removeClient lc qusr c
+    liftT $ mapErrors $ MLSRemoval.removeClient lc qusr c
   AddBot lusr zcon b ->
-    liftT $ Update.addBot lusr zcon b
+    liftT $ mapErrors $ Update.addBot lusr zcon b
   RmBot lusr zcon b ->
-    liftT $ Update.rmBot lusr zcon b
+    liftT $ mapErrors $ Update.rmBot lusr zcon b
   UpdateCellsState cnv state ->
-    liftT $ Update.updateCellsState cnv state
+    liftT $ mapErrors $ Update.updateCellsState cnv state
   RemoveUser lc includeMain qusr ->
-    liftT $ MLSRemoval.removeUser lc includeMain qusr
+    liftT $ mapErrors $ MLSRemoval.removeUser lc includeMain qusr
   InternalUpsertOne2OneConversation req ->
-    liftT $ One2One.internalUpsertOne2OneConversation req
+    liftT $ mapErrors $ One2One.internalUpsertOne2OneConversation req
   AcceptConv lusr conn cnv ->
-    liftT $ Update.acceptConv lusr conn cnv
+    liftT $ mapErrors $ Update.acceptConv lusr conn cnv
   BlockConv lusr qcnv ->
-    liftT $ Update.blockConv lusr qcnv
+    liftT $ mapErrors $ Update.blockConv lusr qcnv
   UnblockConv lusr conn qcnv ->
-    liftT $ Update.unblockConv lusr conn qcnv
+    liftT $ mapErrors $ Update.unblockConv lusr conn qcnv
+
+data ConversationSubsystemError
+  = ConversationSubsystemErrorConvAccessDenied
+  | ConversationSubsystemErrorNotATeamMember
+  | ConversationSubsystemErrorperationDenied
+  | ConversationSubsystemErrorNotConnected
+  | ConversationSubsystemErrorMLSNotEnabled
+  | ConversationSubsystemErrorMLSNonEmptyMemberList
+  | ConversationSubsystemErrorMissingLegalholdConsent
+  | ConversationSubsystemErrorNonBindingTeam
+  | ConversationSubsystemErrorNoBindingTeamMembers
+  | ConversationSubsystemErrorTeamNotFound
+  | ConversationSubsystemErrorInvalidOperation
+  | ConversationSubsystemErrorConvNotFound
+  | ConversationSubsystemErrorChannelsNotEnabled
+  | ConversationSubsystemErrorNotAnMlsConversation
+  | ConversationSubsystemErrorMLSLegalholdIncompatible
+  | ConversationSubsystemErrorMLSIdentityMismatch
+  | ConversationSubsystemErrorMLSUnsupportedMessage
+  | ConversationSubsystemErrorMLSStaleMessage
+  | ConversationSubsystemErrorMLSProposalNotFound
+  | ConversationSubsystemErrorMLSCommitMissingReferences
+  | ConversationSubsystemErrorMLSSelfRemovalNotAllowed
+  | ConversationSubsystemErrorMLSClientSenderUserMismatch
+  | ConversationSubsystemErrorMLSSubConvClientNotInParent
+  | ConversationSubsystemErrorMLSInvalidLeafNodeSignature
+  | ConversationSubsystemErrorMLSClientMismatch
+  | ConversationSubsystemErrorMLSInvalidLeafNodeIndex
+  | ConversationSubsystemErrorMLSUnsupportedProposal
+  | ConversationSubsystemErrorGroupIdVersionNotSupported
+  | ConversationSubsystemErrorConvMemberNotFound
+  | ConversationSubsystemErrorHistoryNotSupported
+  | ConversationSubsystemErrorLSGroupConversationMismatch
+  | ConversationSubsystemErrorActionDeniedLeaveConversation
+  | ConversationSubsystemErrorActionDeniedRemoveConversationMember
+  | ConversationSubsystemErrorActionDeniedDeleteConversation
+  | ConversationSubsystemErrorBroadcastLimitExceeded
+  | ConversationSubsystemErrorMLSFederatedResetNotSupported
+  | ConversationSubsystemErrorMLSSubConvUnsupportedConvType
+  | ConversationSubsystemErrorTeamMemberNotFound
+  | ConversationSubsystemErrorAccessDenied
+  | ConversationSubsystemErrorMLSMissingGroupInfo
+  | ConversationSubsystemErrorCodeNotFound
+  | ConversationSubsystemErrorInvalidConversationPassword
+  | ConversationSubsystemErrorGuestLinksDisabled
+  | ConversationSubsystemErrorMLSFederatedOne2OneNotSupported
+  | ConversationSubsystemErrorTooManyMembers
+  | ConversationSubsystemErrorCreateConversationCodeConflict
+  | ConversationSubsystemErrorInvalidTarget
+  | ConversationSubsystemErrorMLSReadReceiptsNotAllowed
+  | ConversationSubsystemErrorInvalidTargetAccess
+  | ConversationSubsystemErrorConvInvalidProtocolTransition
+  | ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
+  | ConversationSubsystemErrorActionDeniedAddConversationMember
+  | ConversationSubsystemErrorActionDeniedModifyOtherConversationMember
+  | ConversationSubsystemErrorActionDeniedModifyConversationName
+  | ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer
+  | ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode
+  | ConversationSubsystemErrorActionDeniedModifyConversationAccess
+  | ConversationSubsystemErrorActionDeniedModifyAddPermission
+  | ConversationSubsystemErrorFederationError FederationError
+  | ConversationSubsystemErrorUnreachableBackends UnreachableBackends
+  | ConversationSubsystemErrorInternalError InternalError
+  | ConversationSubsystemErrorInvalidInput InvalidInput
+  | ConversationSubsystemErrorMLSProtocolError MLSProtocolError
+  | ConversationSubsystemErrorGroupInfoDiagnostics GroupInfoDiagnostics
+  | ConversationSubsystemErrorMLSOutOfSyncError MLSOutOfSyncError
+  | ConversationSubsystemErrorNonFederatingBackends NonFederatingBackends
+  | ConversationSubsystemErrorUnreachableBackendsLegacy UnreachableBackendsLegacy
+
+instance APIError ConversationSubsystemError where
+  toResponse =
+    \case
+      ConversationSubsystemErrorConvAccessDenied -> toResponse $ Tagged @'ConvAccessDenied ()
+      ConversationSubsystemErrorNotATeamMember -> toResponse $ Tagged @'NotATeamMember ()
+      ConversationSubsystemErrorperationDenied -> toResponse $ Tagged @OperationDenied ()
+      ConversationSubsystemErrorNotConnected -> toResponse $ Tagged @'NotConnected ()
+      ConversationSubsystemErrorMLSNotEnabled -> toResponse $ Tagged @'MLSNotEnabled ()
+      ConversationSubsystemErrorMLSNonEmptyMemberList -> toResponse $ Tagged @'MLSNonEmptyMemberList ()
+      ConversationSubsystemErrorMissingLegalholdConsent -> toResponse $ Tagged @'MissingLegalholdConsent ()
+      ConversationSubsystemErrorNonBindingTeam -> toResponse $ Tagged @'NonBindingTeam ()
+      ConversationSubsystemErrorNoBindingTeamMembers -> toResponse $ Tagged @'NoBindingTeamMembers ()
+      ConversationSubsystemErrorTeamNotFound -> toResponse $ Tagged @'TeamNotFound ()
+      ConversationSubsystemErrorInvalidOperation -> toResponse $ Tagged @'InvalidOperation ()
+      ConversationSubsystemErrorConvNotFound -> toResponse $ Tagged @'ConvNotFound ()
+      ConversationSubsystemErrorChannelsNotEnabled -> toResponse $ Tagged @'ChannelsNotEnabled ()
+      ConversationSubsystemErrorNotAnMlsConversation -> toResponse $ Tagged @'NotAnMlsConversation ()
+      ConversationSubsystemErrorMLSLegalholdIncompatible -> toResponse $ Tagged @'MLSLegalholdIncompatible ()
+      ConversationSubsystemErrorMLSIdentityMismatch -> toResponse $ Tagged @'MLSIdentityMismatch ()
+      ConversationSubsystemErrorMLSUnsupportedMessage -> toResponse $ Tagged @'MLSUnsupportedMessage ()
+      ConversationSubsystemErrorMLSStaleMessage -> toResponse $ Tagged @'MLSStaleMessage ()
+      ConversationSubsystemErrorMLSProposalNotFound -> toResponse $ Tagged @'MLSProposalNotFound ()
+      ConversationSubsystemErrorMLSCommitMissingReferences -> toResponse $ Tagged @'MLSCommitMissingReferences ()
+      ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> toResponse $ Tagged @'MLSSelfRemovalNotAllowed ()
+      ConversationSubsystemErrorMLSClientSenderUserMismatch -> toResponse $ Tagged @'MLSClientSenderUserMismatch ()
+      ConversationSubsystemErrorMLSSubConvClientNotInParent -> toResponse $ Tagged @'MLSSubConvClientNotInParent ()
+      ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> toResponse $ Tagged @'MLSInvalidLeafNodeSignature ()
+      ConversationSubsystemErrorMLSClientMismatch -> toResponse $ Tagged @'MLSClientMismatch ()
+      ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> toResponse $ Tagged @'MLSInvalidLeafNodeIndex ()
+      ConversationSubsystemErrorMLSUnsupportedProposal -> toResponse $ Tagged @'MLSUnsupportedProposal ()
+      ConversationSubsystemErrorGroupIdVersionNotSupported -> toResponse $ Tagged @'GroupIdVersionNotSupported ()
+      ConversationSubsystemErrorConvMemberNotFound -> toResponse $ Tagged @'ConvMemberNotFound ()
+      ConversationSubsystemErrorHistoryNotSupported -> toResponse $ Tagged @'HistoryNotSupported ()
+      ConversationSubsystemErrorLSGroupConversationMismatch -> toResponse $ Tagged @MLSGroupConversationMismatch ()
+      ConversationSubsystemErrorActionDeniedLeaveConversation -> toResponse $ Tagged @('ActionDenied ConvRole.LeaveConversation) ()
+      ConversationSubsystemErrorActionDeniedRemoveConversationMember -> toResponse $ Tagged @('ActionDenied ConvRole.RemoveConversationMember) ()
+      ConversationSubsystemErrorActionDeniedDeleteConversation -> toResponse $ Tagged @('ActionDenied ConvRole.DeleteConversation) ()
+      ConversationSubsystemErrorBroadcastLimitExceeded -> toResponse $ Tagged @'BroadcastLimitExceeded ()
+      ConversationSubsystemErrorMLSFederatedResetNotSupported -> toResponse $ Tagged @'MLSFederatedResetNotSupported ()
+      ConversationSubsystemErrorMLSSubConvUnsupportedConvType -> toResponse $ Tagged @'MLSSubConvUnsupportedConvType ()
+      ConversationSubsystemErrorTeamMemberNotFound -> toResponse $ Tagged @'TeamMemberNotFound ()
+      ConversationSubsystemErrorAccessDenied -> toResponse $ Tagged @'AccessDenied ()
+      ConversationSubsystemErrorMLSMissingGroupInfo -> toResponse $ Tagged @'MLSMissingGroupInfo ()
+      ConversationSubsystemErrorCodeNotFound -> toResponse $ Tagged @'CodeNotFound ()
+      ConversationSubsystemErrorInvalidConversationPassword -> toResponse $ Tagged @'InvalidConversationPassword ()
+      ConversationSubsystemErrorGuestLinksDisabled -> toResponse $ Tagged @'GuestLinksDisabled ()
+      ConversationSubsystemErrorMLSFederatedOne2OneNotSupported -> toResponse $ Tagged @'MLSFederatedOne2OneNotSupported ()
+      ConversationSubsystemErrorTooManyMembers -> toResponse $ Tagged @'TooManyMembers ()
+      ConversationSubsystemErrorCreateConversationCodeConflict -> toResponse $ Tagged @'CreateConversationCodeConflict ()
+      ConversationSubsystemErrorInvalidTarget -> toResponse $ Tagged @'InvalidTarget ()
+      ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> toResponse $ Tagged @'MLSReadReceiptsNotAllowed ()
+      ConversationSubsystemErrorInvalidTargetAccess -> toResponse $ Tagged @'InvalidTargetAccess ()
+      ConversationSubsystemErrorConvInvalidProtocolTransition -> toResponse $ Tagged @'ConvInvalidProtocolTransition ()
+      ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> toResponse $ Tagged @'MLSMigrationCriteriaNotSatisfied ()
+      ConversationSubsystemErrorActionDeniedAddConversationMember -> toResponse $ Tagged @('ActionDenied ConvRole.AddConversationMember) ()
+      ConversationSubsystemErrorActionDeniedModifyOtherConversationMember -> toResponse $ Tagged @('ActionDenied ConvRole.ModifyOtherConversationMember) ()
+      ConversationSubsystemErrorActionDeniedModifyConversationName -> toResponse $ Tagged @('ActionDenied ConvRole.ModifyConversationName) ()
+      ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer -> toResponse $ Tagged @('ActionDenied ConvRole.ModifyConversationMessageTimer) ()
+      ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode -> toResponse $ Tagged @('ActionDenied ConvRole.ModifyConversationReceiptMode) ()
+      ConversationSubsystemErrorActionDeniedModifyConversationAccess -> toResponse $ Tagged @('ActionDenied ConvRole.ModifyConversationAccess) ()
+      ConversationSubsystemErrorActionDeniedModifyAddPermission -> toResponse $ Tagged @('ActionDenied ConvRole.ModifyAddPermission) ()
+      ConversationSubsystemErrorFederationError x -> toResponse x
+      ConversationSubsystemErrorUnreachableBackends x -> toResponse x
+      ConversationSubsystemErrorInternalError x -> toResponse x
+      ConversationSubsystemErrorInvalidInput x -> toResponse x
+      ConversationSubsystemErrorMLSProtocolError x -> toResponse $ (dynError @(MapError 'MLSProtocolErrorTag)) {eMessage = unTagged x}
+      ConversationSubsystemErrorGroupInfoDiagnostics x -> toResponse x
+      ConversationSubsystemErrorMLSOutOfSyncError x -> toResponse x
+      ConversationSubsystemErrorNonFederatingBackends x -> toResponse x
+      ConversationSubsystemErrorUnreachableBackendsLegacy x -> toResponse x
+
+type ConversationSubsystemErrorEffects =
+  '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'NotATeamMember,
+     ErrorS OperationDenied,
+     ErrorS 'NotConnected,
+     ErrorS 'MLSNotEnabled,
+     ErrorS 'MLSNonEmptyMemberList,
+     ErrorS 'MissingLegalholdConsent,
+     ErrorS 'NonBindingTeam,
+     ErrorS 'NoBindingTeamMembers,
+     ErrorS 'TeamNotFound,
+     ErrorS 'InvalidOperation,
+     ErrorS 'ConvNotFound,
+     ErrorS 'ChannelsNotEnabled,
+     ErrorS 'NotAnMlsConversation,
+     ErrorS 'MLSLegalholdIncompatible,
+     ErrorS 'MLSIdentityMismatch,
+     ErrorS 'MLSUnsupportedMessage,
+     ErrorS 'MLSStaleMessage,
+     ErrorS 'MLSProposalNotFound,
+     ErrorS 'MLSCommitMissingReferences,
+     ErrorS 'MLSSelfRemovalNotAllowed,
+     ErrorS 'MLSClientSenderUserMismatch,
+     ErrorS 'MLSSubConvClientNotInParent,
+     ErrorS 'MLSInvalidLeafNodeSignature,
+     ErrorS 'MLSClientMismatch,
+     ErrorS 'MLSInvalidLeafNodeIndex,
+     ErrorS 'MLSUnsupportedProposal,
+     ErrorS 'GroupIdVersionNotSupported,
+     ErrorS 'ConvMemberNotFound,
+     ErrorS 'HistoryNotSupported,
+     ErrorS MLSGroupConversationMismatch,
+     ErrorS ('ActionDenied ConvRole.LeaveConversation),
+     ErrorS ('ActionDenied ConvRole.RemoveConversationMember),
+     ErrorS ('ActionDenied ConvRole.DeleteConversation),
+     ErrorS 'BroadcastLimitExceeded,
+     ErrorS 'MLSFederatedResetNotSupported,
+     ErrorS 'MLSSubConvUnsupportedConvType,
+     ErrorS 'TeamMemberNotFound,
+     ErrorS 'AccessDenied,
+     ErrorS 'MLSMissingGroupInfo,
+     ErrorS 'CodeNotFound,
+     ErrorS 'InvalidConversationPassword,
+     ErrorS 'GuestLinksDisabled,
+     ErrorS 'MLSFederatedOne2OneNotSupported,
+     ErrorS 'TooManyMembers,
+     ErrorS 'CreateConversationCodeConflict,
+     ErrorS 'InvalidTarget,
+     ErrorS 'MLSReadReceiptsNotAllowed,
+     ErrorS 'InvalidTargetAccess,
+     ErrorS 'ConvInvalidProtocolTransition,
+     ErrorS 'MLSMigrationCriteriaNotSatisfied,
+     ErrorS ('ActionDenied ConvRole.AddConversationMember),
+     ErrorS ('ActionDenied ConvRole.ModifyOtherConversationMember),
+     ErrorS ('ActionDenied ConvRole.ModifyConversationName),
+     ErrorS ('ActionDenied ConvRole.ModifyConversationMessageTimer),
+     ErrorS ('ActionDenied ConvRole.ModifyConversationReceiptMode),
+     ErrorS ('ActionDenied ConvRole.ModifyConversationAccess),
+     ErrorS ('ActionDenied ConvRole.ModifyAddPermission),
+     Error FederationError,
+     Error UnreachableBackends,
+     Error InternalError,
+     Error InvalidInput,
+     Error AuthenticationError,
+     Error MLSProtocolError,
+     Error GroupInfoDiagnostics,
+     Error MLSOutOfSyncError,
+     Error MLSProposalFailure,
+     Error NonFederatingBackends,
+     Error UnreachableBackendsLegacy
+   ]
+
+mapErrors ::
+  ( Member (Error ConversationSubsystemError) r,
+    Member (Error JSONResponse) r,
+    Member (Error DynError) r
+  ) =>
+  InterpretersFor ConversationSubsystemErrorEffects r
+mapErrors =
+  mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
+    . mapError (ConversationSubsystemErrorNonFederatingBackends)
+    . interpretServerEffect
+    . mapError (ConversationSubsystemErrorMLSOutOfSyncError)
+    . mapError (ConversationSubsystemErrorGroupInfoDiagnostics)
+    . mapError (ConversationSubsystemErrorMLSProtocolError)
+    . interpretServerEffect
+    . mapError (ConversationSubsystemErrorInvalidInput)
+    . mapError (ConversationSubsystemErrorInternalError)
+    . mapError (ConversationSubsystemErrorUnreachableBackends)
+    . mapError (ConversationSubsystemErrorFederationError)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyAddPermission)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationAccess)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyConversationName)
+    . mapError (const ConversationSubsystemErrorActionDeniedModifyOtherConversationMember)
+    . mapError (const ConversationSubsystemErrorActionDeniedAddConversationMember)
+    . mapError (const ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied)
+    . mapError (const ConversationSubsystemErrorConvInvalidProtocolTransition)
+    . mapError (const ConversationSubsystemErrorInvalidTargetAccess)
+    . mapError (const ConversationSubsystemErrorMLSReadReceiptsNotAllowed)
+    . mapError (const ConversationSubsystemErrorInvalidTarget)
+    . mapError (const ConversationSubsystemErrorCreateConversationCodeConflict)
+    . mapError (const ConversationSubsystemErrorTooManyMembers)
+    . mapError (const ConversationSubsystemErrorMLSFederatedOne2OneNotSupported)
+    . mapError (const ConversationSubsystemErrorGuestLinksDisabled)
+    . mapError (const ConversationSubsystemErrorInvalidConversationPassword)
+    . mapError (const ConversationSubsystemErrorCodeNotFound)
+    . mapError (const ConversationSubsystemErrorMLSMissingGroupInfo)
+    . mapError (const ConversationSubsystemErrorAccessDenied)
+    . mapError (const ConversationSubsystemErrorTeamMemberNotFound)
+    . mapError (const ConversationSubsystemErrorMLSSubConvUnsupportedConvType)
+    . mapError (const ConversationSubsystemErrorMLSFederatedResetNotSupported)
+    . mapError (const ConversationSubsystemErrorBroadcastLimitExceeded)
+    . mapError (const ConversationSubsystemErrorActionDeniedDeleteConversation)
+    . mapError (const ConversationSubsystemErrorActionDeniedRemoveConversationMember)
+    . mapError (const ConversationSubsystemErrorActionDeniedLeaveConversation)
+    . mapError (const ConversationSubsystemErrorLSGroupConversationMismatch)
+    . mapError (const ConversationSubsystemErrorHistoryNotSupported)
+    . mapError (const ConversationSubsystemErrorConvMemberNotFound)
+    . mapError (const ConversationSubsystemErrorGroupIdVersionNotSupported)
+    . mapError (const ConversationSubsystemErrorMLSUnsupportedProposal)
+    . mapError (const ConversationSubsystemErrorMLSInvalidLeafNodeIndex)
+    . mapError (const ConversationSubsystemErrorMLSClientMismatch)
+    . mapError (const ConversationSubsystemErrorMLSInvalidLeafNodeSignature)
+    . mapError (const ConversationSubsystemErrorMLSSubConvClientNotInParent)
+    . mapError (const ConversationSubsystemErrorMLSClientSenderUserMismatch)
+    . mapError (const ConversationSubsystemErrorMLSSelfRemovalNotAllowed)
+    . mapError (const ConversationSubsystemErrorMLSCommitMissingReferences)
+    . mapError (const ConversationSubsystemErrorMLSProposalNotFound)
+    . mapError (const ConversationSubsystemErrorMLSStaleMessage)
+    . mapError (const ConversationSubsystemErrorMLSUnsupportedMessage)
+    . mapError (const ConversationSubsystemErrorMLSIdentityMismatch)
+    . mapError (const ConversationSubsystemErrorMLSLegalholdIncompatible)
+    . mapError (const ConversationSubsystemErrorNotAnMlsConversation)
+    . mapError (const ConversationSubsystemErrorChannelsNotEnabled)
+    . mapError (const ConversationSubsystemErrorConvNotFound)
+    . mapError (const ConversationSubsystemErrorInvalidOperation)
+    . mapError (const ConversationSubsystemErrorTeamNotFound)
+    . mapError (const ConversationSubsystemErrorNoBindingTeamMembers)
+    . mapError (const ConversationSubsystemErrorNonBindingTeam)
+    . mapError (const ConversationSubsystemErrorMissingLegalholdConsent)
+    . mapError (const ConversationSubsystemErrorMLSNonEmptyMemberList)
+    . mapError (const ConversationSubsystemErrorMLSNotEnabled)
+    . mapError (const ConversationSubsystemErrorNotConnected)
+    . mapError (const ConversationSubsystemErrorperationDenied)
+    . mapError (const ConversationSubsystemErrorNotATeamMember)
+    . mapError (const ConversationSubsystemErrorConvAccessDenied)
