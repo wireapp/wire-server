@@ -193,7 +193,6 @@ type BrigLowerLevelEffects =
      BackgroundJobsPublisher,
      RateLimit,
      UserGroupStore,
-     Error ClientError,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -206,7 +205,6 @@ type BrigLowerLevelEffects =
      Error VerificationCodeSubsystemError,
      Error PropertySubsystemError,
      Error RateLimitExceeded,
-     Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      DomainVerificationChallengeStore,
      DomainRegistrationStore,
@@ -249,9 +247,11 @@ type BrigLowerLevelEffects =
      Rpc,
      Metrics,
      Embed Cas.Client,
+     Error ClientError,
      Error ParseException,
      Error ErrorCall,
      Error SomeException,
+     Error HttpError,
      TinyLog,
      Embed HttpClientIO,
      Embed IO,
@@ -379,9 +379,11 @@ runBrigToIO e (AppT ma) = do
               . embedToFinal
               . runEmbedded (runHttpClientIO e)
               . loggerToTinyLogReqId e.requestId e.appLogger
+              . rethrowHttpErrorIO
               . runError @SomeException
               . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
+              . mapError clientErrorToHttpError
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
@@ -424,7 +426,6 @@ runBrigToIO e (AppT ma) = do
               . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
-              . rethrowHttpErrorIO
               . mapError rateLimitExceededToHttpError
               . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError
@@ -437,7 +438,6 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
-              . mapError clientErrorToHttpError
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel

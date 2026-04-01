@@ -262,7 +262,6 @@ library
     , jose
     , jwt-tools
     , lens                                  >=3.8
-    , lens-aeson                            >=1.0
     , memory
     , metrics-core                          >=0.3
     , metrics-wai                           >=0.3

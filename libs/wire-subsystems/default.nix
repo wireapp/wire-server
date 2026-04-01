@@ -67,6 +67,7 @@
 , iproute
 , iso639
 , lens
+, lens-aeson
 , lib
 , lrucaching
 , memory
@@ -198,6 +199,7 @@ mkDerivation {
     iproute
     iso639
     lens
+    lens-aeson
     lrucaching
     memory
     mime
@@ -320,6 +322,7 @@ mkDerivation {
     iproute
     iso639
     lens
+    lens-aeson
     lrucaching
     memory
     mime

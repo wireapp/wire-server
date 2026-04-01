@@ -678,9 +678,7 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  ( Member ClientStore r,
-    Member ClientSubsystem r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -690,30 +688,29 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  ( Member ClientStore r,
-    Member ClientSubsystem r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
   (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
-  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientErrorToHttpError
+  mPrekey <- lift $ liftSem $ ClientSubsystem.claimPrekey (ProtectedUser zusr) user domain client
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: (Member ClientStore r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH :: (Member ClientStore r, Member GalleyAPIAccess r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
-getPrekeyBundleH :: (Member ClientStore r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH :: (Member ClientStore r, Member GalleyAPIAccess r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Public.UserClients ->
@@ -740,7 +737,8 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
 getMultiUserPrekeyBundleHV3 ::
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -752,7 +750,8 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
 getMultiUserPrekeyBundleH ::
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->

@@ -53,5 +53,6 @@ data ClientSubsystem m a where
   UpdateClient :: UserId -> ClientId -> UpdateClient -> ClientSubsystem m ()
   -- Prekeys
   ClaimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)
+  ClaimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)
 
 makeSem ''ClientSubsystem

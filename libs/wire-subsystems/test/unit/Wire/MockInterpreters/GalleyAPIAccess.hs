@@ -92,6 +92,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
           maxConvSize = 500,
           listClientsUsingBrig = False
         }
+  GuardLegalHold {} -> pure ()
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

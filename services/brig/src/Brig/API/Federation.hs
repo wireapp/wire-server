@@ -66,7 +66,7 @@ import Wire.API.User.Search hiding (searchPolicy)
 import Wire.API.UserEvent
 import Wire.API.UserMap (UserMap)
 import Wire.ClientStore (ClientStore)
-import Wire.ClientSubsystem
+import Wire.ClientSubsystem (ClientSubsystem)
 import Wire.ClientSubsystem qualified as ClientSubsystem
 import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.Error
@@ -183,23 +183,22 @@ getUsersByIds _ uids = do
   lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
 
 claimPrekey ::
-  ( Member ClientStore r,
-    Member ClientSubsystem r
-  ) =>
+  (Member ClientSubsystem r) =>
   Domain ->
   (UserId, ClientId) ->
   (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
-  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimLocalPrekey LegalholdPlusFederationNotImplemented user client
 
-claimPrekeyBundle :: (Member ClientStore r) => Domain -> UserId -> (Handler r) PrekeyBundle
+claimPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientErrorToHttpError
 
 claimMultiPrekeyBundle ::
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member GalleyAPIAccess r
   ) =>
   Domain ->
   UserClients ->

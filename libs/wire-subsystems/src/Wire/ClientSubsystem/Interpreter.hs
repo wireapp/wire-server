@@ -104,6 +104,7 @@ runClientSubsystem runAuth runUser =
       PublishLegalHoldClientRequested uid req -> publishLegalHoldClientRequested uid req
       UpdateClient uid cid payload -> updateClient uid cid payload
       ClaimPrekey protectee uid domain cid -> claimPrekey protectee uid domain cid
+      ClaimLocalPrekey protectee uid cid -> claimLocalPrekey protectee uid cid
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

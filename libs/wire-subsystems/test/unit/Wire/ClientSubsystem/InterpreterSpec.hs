@@ -17,6 +17,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck qualified as QC
 import Test.QuickCheck.Property
 import Wire.API.Federation.Client (FederatorClient)
+import Wire.API.Federation.Error (FederationError)
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.User.Client
@@ -67,6 +68,7 @@ type ClientSubsystemTestEffects =
     Logger (Msg -> Msg),
     Concurrency 'Unsafe,
     Error ClientError,
+    Error FederationError,
     State [Push],
     State [MiniEvent],
     State [InternalNotification],
@@ -92,6 +94,7 @@ runClientSubsystemTest users action =
           . runState @[MiniEvent] []
           . runState @[Push] []
           . runError
+          . runError
           . sequentiallyPerformConcurrency
           . noopLogger
           . noFederationAPIAccess @_ @FederatorClient
@@ -106,7 +109,7 @@ runClientSubsystemTest users action =
           . evalState emptyClientStoreState
           . runInMemoryClientStoreInterpreterWithState
           $ interpreted
-   in ClientSubsystemTestResult {authState, result, deletions, events, pushes}
+   in ClientSubsystemTestResult {authState, result = fromRight (error "unexpected federation error") result, deletions, events, pushes}
 
 expectRight ::
   (Show e, Show a) =>
