@@ -13,8 +13,8 @@ metadata:
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 type: Opaque
-data:
-   ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
+ data:
+  ca.pem: {{ include "tlsCaBrig" . | b64enc | quote }}
 {{- end }}
 {{- if ne (trim (include "tlsCaGalley" .)) "" }}
 ---
@@ -31,9 +31,9 @@ metadata:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
-type: Opaque
-data:
-   ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
+ type: Opaque
+  data:
+  ca.pem: {{ include "tlsCaGalley" . | b64enc | quote }}
 {{- end }}
 {{- if ne (trim (include "tlsCaGundeck" .)) "" }}
 ---
@@ -50,9 +50,9 @@ metadata:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
-type: Opaque
-data:
-   ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
+ type: Opaque
+  data:
+  ca.pem: {{ include "tlsCaGundeck" . | b64enc | quote }}
 {{- end }}
 {{- if ne (trim (include "tlsCaSpar" .)) "" }}
 ---
@@ -69,7 +69,7 @@ metadata:
     "helm.sh/hook": pre-install,pre-upgrade,post-install,post-upgrade
     "helm.sh/hook-weight": "0"
     "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
-type: Opaque
-data:
-   ca.pem: {{ include "tlsCaSpar" . | b64enc | quote }}
+ type: Opaque
+  data:
+  ca.pem: {{ include "tlsCaSpar" . | b64enc | quote }}
 {{- end }}
