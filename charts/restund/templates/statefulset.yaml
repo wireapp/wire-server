@@ -37,7 +37,6 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       hostNetwork: true
       serviceAccountName: {{ include "restund.fullname" . }}
-      automountServiceAccountToken: false
       volumes:
         - name: external-ip
           emptyDir: {}

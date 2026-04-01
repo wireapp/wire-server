@@ -34,13 +34,6 @@ restundUDPStatusPort: 33000
 restundHTTPStatusPort: 8080
 restundMetricsListenPort: 8443
 
-resources:
-  requests:
-    memory: "256Mi"
-    cpu: "100m"
-  limits:
-    memory: "512Mi"
-
 federate:
   enabled: false
   port: 9191
