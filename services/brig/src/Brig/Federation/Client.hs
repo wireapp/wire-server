@@ -19,10 +19,9 @@
 module Brig.Federation.Client
   ( runBrigFederatorClient,
     getUserHandleInfo,
-    getUsersByIds,
-    claimPrekeyBundle,
     notifyUserDeleted,
     sendConnectionAction,
+    getUsersByIds,
     claimMultiPrekeyBundle,
   )
 where
@@ -50,7 +49,6 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Client
-import Wire.API.User.Client.Prekey
 
 getUserHandleInfo ::
   ( MonadReader Env m,
@@ -74,17 +72,6 @@ getUsersByIds ::
 getUsersByIds domain uids = do
   lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   runBrigFederatorClient domain $ fedClient @'Brig @"get-users-by-ids" uids
-
-claimPrekeyBundle ::
-  ( MonadReader Env m,
-    MonadIO m,
-    Log.MonadLogger m
-  ) =>
-  Qualified UserId ->
-  ExceptT FederationError m PrekeyBundle
-claimPrekeyBundle (Qualified user domain) = do
-  lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
-  runBrigFederatorClient domain $ fedClient @'Brig @"claim-prekey-bundle" user
 
 claimMultiPrekeyBundle ::
   ( Log.MonadLogger m,

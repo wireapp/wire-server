@@ -81,6 +81,10 @@ import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range
 import Data.Schema ()
+import Wire.GalleyAPIAccess
+import Wire.API.Federation.API
+import Servant.Client.Core (RunClient)
+import Wire.FederationAPIAccess
 import Data.Text.Encoding qualified as Text
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token qualified as ZAuth
@@ -173,7 +177,6 @@ import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
@@ -367,7 +370,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
       & cleanupSwagger
 
 servantSitemap ::
-  forall r p.
+  forall r p m.
   ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
@@ -417,7 +420,12 @@ servantSitemap ::
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -697,12 +705,34 @@ getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- lift $ liftSem $ ClientSubsystem.claimPrekey (ProtectedUser zusr) user domain client
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: (Member ClientStore r, Member GalleyAPIAccess r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH ::
+  forall r m.
+  ( Member ClientStore r,
+    Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
-getPrekeyBundleH :: (Member ClientStore r, Member GalleyAPIAccess r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH ::
+  forall r m.
+  ( Member ClientStore r,
+    Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 

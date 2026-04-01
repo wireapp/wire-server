@@ -52,11 +52,16 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Polysemy.Error (Error)
+import Wire.Sem.Logger as SemLog
+import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
+import Servant.Client.Core (RunClient)
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
+import Wire.API.Component
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
@@ -71,6 +76,8 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
+import Wire.API.Federation.API
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency
@@ -79,12 +86,19 @@ import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 
-claimPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
+claimPrekeyBundle :: (Member ClientStore r, 
+  Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r,
+   Member GalleyAPIAccess r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
-    else claimRemotePrekeyBundle (Qualified uid domain)
+    else lift $ liftSem $ claimRemotePrekeyBundle (Qualified uid domain)
 
 claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
@@ -92,9 +106,19 @@ claimLocalPrekeyBundle protectee u = do
   lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (liftSem . ClientStore.claimPrekey u) clients)
 
-claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) PrekeyBundle
-claimRemotePrekeyBundle quser = do
-  Federation.claimPrekeyBundle quser !>> ClientFederationError
+claimRemotePrekeyBundle ::
+  ( Member TinyLog r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r
+  ) =>
+  Qualified UserId ->
+  Sem r PrekeyBundle
+claimRemotePrekeyBundle (Qualified user domain) = do
+  SemLog.info $ msg @Text "Brig-federation: claiming remote prekey bundle"
+  runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
 
 claimMultiPrekeyBundlesInternal ::
   forall r.

@@ -288,6 +288,7 @@ library
     , safe-exceptions                       >=0.1
     , schema-profunctor
     , servant
+    , servant-client-core
     , servant-openapi3
     , servant-server
     , servant-swagger-ui
