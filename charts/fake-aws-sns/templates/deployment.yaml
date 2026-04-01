@@ -28,19 +28,12 @@ spec:
       - name: fake-aws-sns
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         env:
-          - name: DEBUG
-            value: "1"
-          - name: DEFAULT_REGION
-            value: "eu-west-1"
-          - name: SERVICES
-            value: "sns"
+          - name: MOTO_PORT
+            value: "{{ .Values.service.internalPort }}"
         ports:
         - containerPort: {{ .Values.service.internalPort }}
           name: http
           protocol: TCP
-        volumeMounts:
-        - name: storage
-          mountPath: /data
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       - name: initiate-fake-aws-sns
@@ -73,6 +66,3 @@ spec:
               echo "Resources created, sleeping for 10, to keep this container (and thus the pod) alive"
               sleep 10
           done
-      volumes:
-        - emptyDir: {}
-          name: "storage"
