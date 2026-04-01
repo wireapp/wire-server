@@ -1244,8 +1244,14 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
+  forall r m.
   ( Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m,
+    Member (Error FederationError) r
   ) =>
   UserId ->
   Handle ->

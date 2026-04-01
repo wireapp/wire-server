@@ -18,7 +18,6 @@
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client
   ( runBrigFederatorClient,
-    getUserHandleInfo,
     notifyUserDeleted,
     sendConnectionAction,
     getUsersByIds,
@@ -33,11 +32,9 @@ import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Control.Retry
 import Control.Timeout
 import Data.Domain
-import Data.Handle
 import Data.Id
 import Data.Qualified
 import Data.Range (Range)
-import Data.Text qualified as T
 import Data.Time.Units
 import Imports
 import Network.AMQP qualified as Q
@@ -49,17 +46,6 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Client
-
-getUserHandleInfo ::
-  ( MonadReader Env m,
-    MonadIO m,
-    Log.MonadLogger m
-  ) =>
-  Remote Handle ->
-  ExceptT FederationError m (Maybe UserProfile)
-getUserHandleInfo (tUntagged -> Qualified handle domain) = do
-  lift $ Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  runBrigFederatorClient domain $ fedClient @'Brig @"get-user-by-handle" handle
 
 getUsersByIds ::
   ( MonadReader Env m,
