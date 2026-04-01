@@ -37,7 +37,8 @@ extract_images_from_chart() {
   # (we don't want to check the Helm chart, only extract its images)
   local output
   if [[ "$chart_name" == "wire-server" ]]; then
-    local tmpval=$(mktemp --suffix=.yaml)
+    local tmpval
+    tmpval=$(mktemp --suffix=.yaml)
     cat > "$tmpval" <<'EOF'
 nginz: {secrets: {zAuth: {publicKeys: placeholder}, basicAuth: placeholder}}
 brig:
