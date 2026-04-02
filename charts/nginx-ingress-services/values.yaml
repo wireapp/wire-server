@@ -15,6 +15,25 @@ fakeS3:
 federator:
   enabled: false
   integrationTestHelper: false
+  gatewayAPI:
+    # Set to true to use Envoy Gateway (Gateway API) instead of ingress-nginx.
+    # Requires Envoy Gateway to be installed cluster-wide.
+    # https://gateway.envoyproxy.io/
+    enabled: false
+    # Name of the GatewayClass created by Envoy Gateway (default: "envoy-gateway").
+    gatewayClassName: envoy-gateway
+    # Port number for the federator-ext service port.
+    # Must match federator chart value: service.externalFederatorPort (default 8081).
+    servicePort: 8081
+    # Kubernetes Service type for the Envoy proxy Service created alongside the Gateway.
+    # Use LoadBalancer for production; ClusterIP for in-cluster integration tests
+    # where federation-test-helper provides the SRV-discoverable endpoint.
+    serviceType: LoadBalancer
+    # Container port on which the Envoy proxy pod listens for HTTPS.
+    # Envoy Gateway (v1.1+) binds directly to the Gateway listener port (443)
+    # using NET_BIND_SERVICE. Override to 10443 for older versions that use
+    # a +10000 port offset for privileged ports.
+    envoyContainerPort: 443
   tls:
     duration: 2160h     # 90d Letsencrypt default; NOTE: changes are ignored if using Letsencrypt
     renewBefore: 360h   # 15d
