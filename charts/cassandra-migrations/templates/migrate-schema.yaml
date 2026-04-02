@@ -162,7 +162,7 @@ spec:
             - name: spar-cassandra-cert
               mountPath: "/certs/spar"
           {{- end }}
-        {{- end }}
+       {{- end }}
 
       containers:
         - name: job-done
