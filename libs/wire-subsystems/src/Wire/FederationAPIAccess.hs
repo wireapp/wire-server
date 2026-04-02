@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -17,15 +18,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.FederationAPIAccess where
+module Wire.FederationAPIAccess
+  ( module Wire.FederationAPIAccess,
+    FederationMonad,
+    Component (..),
+    RunClient,
+  )
+where
 
 import Data.Kind
 import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Error
+import Servant.Client.Core.RunClient (RunClient)
+import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
+
+type HasBrigFederationAccess m r =
+  ( Member (FederationAPIAccess m) r,
+    RunClient (m 'Brig),
+    FederationMonad m,
+    Typeable m
+  )
 
 data FederationAPIAccess (fedM :: Component -> Type -> Type) m a where
   RunFederatedEither ::

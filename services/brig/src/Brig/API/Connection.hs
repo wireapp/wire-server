@@ -64,6 +64,7 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
@@ -88,7 +89,8 @@ createConnection ::
     Member UserStore r,
     Member UserSubsystem r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   ConnId ->
@@ -232,7 +234,8 @@ updateConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Qualified UserId ->

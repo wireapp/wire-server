@@ -29,17 +29,16 @@ module Brig.API.Client
 where
 
 import Brig.API.Types
-import Brig.API.Util
 import Brig.App
 import Brig.Data.Nonce as Nonce
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
-import Brig.Federation.Client qualified as Federation
 import Brig.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
+import Data.Bifunctor
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Domain
@@ -52,12 +51,15 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Polysemy.Error (Error, mapError, runError)
+import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
-import Wire.API.Federation.Error
+import Wire.API.Component
+import Wire.API.Federation.API
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
@@ -71,20 +73,28 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Error
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
+import Wire.Sem.Logger as Sem.Log
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
 
-claimPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
+claimPrekeyBundle ::
+  ( Member ClientStore r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r,
+    Member GalleyAPIAccess r
+  ) =>
+  LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
-    else claimRemotePrekeyBundle (Qualified uid domain)
+    else ExceptT $ liftSem $ runError $ claimRemotePrekeyBundle (Qualified uid domain)
 
 claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
@@ -92,9 +102,16 @@ claimLocalPrekeyBundle protectee u = do
   lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (liftSem . ClientStore.claimPrekey u) clients)
 
-claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) PrekeyBundle
-claimRemotePrekeyBundle quser = do
-  Federation.claimPrekeyBundle quser !>> ClientFederationError
+claimRemotePrekeyBundle ::
+  ( Member TinyLog r,
+    HasBrigFederationAccess m r,
+    Member (Error ClientError) r
+  ) =>
+  Qualified UserId ->
+  Sem r PrekeyBundle
+claimRemotePrekeyBundle (Qualified user domain) = do
+  Sem.Log.info $ msg @Text "Brig-federation: claiming remote prekey bundle"
+  mapError ClientFederationError $ runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
 
 claimMultiPrekeyBundlesInternal ::
   forall r.
@@ -129,34 +146,27 @@ claimMultiPrekeyBundlesInternal protectee quc = do
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimMultiPrekeyBundlesV3 ::
+  forall r m.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientSubsystem r,
     Member ClientStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundlesV3 protectee quc = do
   (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
+  lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   remotePrekeys <-
-    mapExceptT wrapHttpClient $
-      traverseConcurrentlyWithErrors
-        claimRemote
-        remotes
-        !>> ClientFederationError
+    fmap (fmap tUntagged) . ExceptT . liftSem $
+      runError $
+        mapError ClientFederationError $
+          runFederatedConcurrently remotes $ \rucs ->
+            fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
   pure . qualifiedUserClientPrekeyMapFromList $ localPrekeys <> remotePrekeys
-  where
-    claimRemote ::
-      ( Log.MonadLogger m,
-        MonadIO m,
-        MonadReader Env m
-      ) =>
-      Remote UserClients ->
-      ExceptT FederationError m (Qualified UserClientPrekeyMap)
-    claimRemote ruc =
-      tUntagged . qualifyAs ruc
-        <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
 
 -- Similar to claimMultiPrekeyBundles except for the following changes
 -- 1) A new return type that contains both the client map and a list of
@@ -165,18 +175,25 @@ claimMultiPrekeyBundlesV3 protectee quc = do
 --    Remote federation errors at this step no-longer cause the entire call
 --    to fail, allowing partial results to be returned.
 claimMultiPrekeyBundles ::
-  forall r.
+  forall r m.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientSubsystem r,
     Member ClientStore r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV4
 claimMultiPrekeyBundles protectee quc = do
   (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
-  remotePrekeys <- mapExceptT wrapHttpClient $ lift $ traverseConcurrentlySem claimRemote remotes
+  lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
+  remotePrekeys <-
+    lift . liftSem $
+      fmap (fmap (bimap (first collapseRemoteUsers) tUntagged)) $
+        runFederatedConcurrentlyEither remotes $ \rucs ->
+          fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
   let prekeys =
         getQualifiedUserClientPrekeyMap $
           qualifiedUserClientPrekeyMapFromList $
@@ -190,10 +207,9 @@ claimMultiPrekeyBundles protectee quc = do
   where
     toQualifiedUser :: Remote UserClients -> [Qualified UserId]
     toQualifiedUser r = fmap (\u -> Qualified u $ tDomain r) . Map.keys . userClients . qUnqualified $ tUntagged r
-    claimRemote :: Remote UserClients -> ExceptT FederationError HttpClientIO (Qualified UserClientPrekeyMap)
-    claimRemote ruc =
-      tUntagged . qualifyAs ruc
-        <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
+
+    collapseRemoteUsers :: Remote [UserClients] -> Remote UserClients
+    collapseRemoteUsers rucs = toRemoteUnsafe (tDomain rucs) (mconcat $ tUnqualified rucs)
 
 claimLocalMultiPrekeyBundles ::
   forall r.

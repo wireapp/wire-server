@@ -158,6 +158,7 @@ import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
+import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -172,8 +173,9 @@ import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
@@ -367,7 +369,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
       & cleanupSwagger
 
 servantSitemap ::
-  forall r p.
+  forall r p m.
   ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
@@ -417,7 +419,10 @@ servantSitemap ::
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
-    Member ClientSubsystem r
+    Member ClientSubsystem r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    HasBrigFederationAccess m r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -697,12 +702,26 @@ getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- lift $ liftSem $ ClientSubsystem.claimPrekey (ProtectedUser zusr) user domain client
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: (Member ClientStore r, Member GalleyAPIAccess r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH ::
+  forall r m.
+  ( Member ClientStore r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
-getPrekeyBundleH :: (Member ClientStore r, Member GalleyAPIAccess r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH ::
+  forall r m.
+  ( Member ClientStore r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r,
+    Member GalleyAPIAccess r
+  ) =>
+  UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
 
@@ -735,10 +754,13 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
 
 getMultiUserPrekeyBundleHV3 ::
+  forall r m.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -748,10 +770,13 @@ getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientErrorToHttpError
 
 getMultiUserPrekeyBundleH ::
+  forall r m.
   ( Member (Concurrency 'Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -902,7 +927,10 @@ upgradePersonalToTeam ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -1214,8 +1242,11 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
+  forall r m.
   ( Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r
   ) =>
   UserId ->
   Handle ->
@@ -1310,7 +1341,8 @@ createConnection ::
     Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   ConnId ->
@@ -1344,7 +1376,8 @@ updateConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   ConnId ->

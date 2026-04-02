@@ -27,7 +27,6 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler (Handler)
 import Brig.API.User qualified as API
 import Brig.App
-import Brig.Federation.Client qualified as Federation
 import Brig.Options (searchSameTeamOnly)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
@@ -35,17 +34,27 @@ import Data.Qualified
 import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
+import Polysemy.Error (Error)
 import System.Logger.Class qualified as Log
+import Wire.API.Component
+import Wire.API.Federation.API (fedClient)
+import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
+import Wire.FederationAPIAccess
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
 
 getHandleInfo ::
-  (Member UserSubsystem r, Member UserStore r) =>
+  forall r m.
+  ( Member UserSubsystem r,
+    Member UserStore r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r
+  ) =>
   UserId ->
   Qualified Handle ->
   Handler r (Maybe Public.UserProfile)
@@ -57,12 +66,20 @@ getHandleInfo self handle = do
     getRemoteHandleInfo
     handle
 
-getRemoteHandleInfo :: Remote Handle -> Handler r (Maybe Public.UserProfile)
+getRemoteHandleInfo ::
+  forall r m.
+  ( HasBrigFederationAccess m r,
+    Member (Error FederationError) r
+  ) =>
+  Remote Handle ->
+  Handler r (Maybe Public.UserProfile)
 getRemoteHandleInfo handle = do
   lift . Log.info $
     Log.msg (Log.val "getHandleInfo - remote lookup")
       . Log.field "domain" (show (tDomain handle))
-  Federation.getUserHandleInfo handle !>> fedError
+  lift . liftSem $
+    runFederated handle $
+      fedClient @'Brig @"get-user-by-handle" (tUnqualified handle)
 
 getLocalHandleInfo ::
   (Member UserSubsystem r, Member UserStore r) =>

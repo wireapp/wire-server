@@ -53,11 +53,9 @@ import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore qualified as E
-import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Control.Error (runExceptT)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.Aeson
@@ -72,15 +70,19 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Imports
+import Network.AMQP qualified as Q
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message hiding ((.=))
+import Wire.API.Component
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
@@ -89,7 +91,9 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.BackendNotificationQueueAccess
 import Wire.Events
+import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
@@ -107,7 +111,10 @@ sendUserEvent ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -123,7 +130,10 @@ runEvents ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
@@ -216,7 +226,10 @@ dispatchNotifications ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -300,11 +313,13 @@ notifyUserDeletionLocals deleted conn event = do
             connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize
 
 notifyUserDeletionRemotes ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r,
+  forall r m.
+  ( Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Sem r ()
@@ -324,15 +339,21 @@ notifyUserDeletionRemotes deleted = do
           pure ()
         Just rangedUcs -> do
           luidDeleted <- qualifyLocal' deleted
-          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs (mapRange (qUnqualified . ucTo) rangedUcs))
+          let remotes = mapRange (qUnqualified . ucTo) rangedUcs
+              notif = UserDeletedConnectionsNotification (tUnqualified luidDeleted) remotes
+              client = fedQueueClient @'OnUserDeletedConnectionsTag notif
+          enqueueNotification Q.Persistent ucs client
           -- also sent connection cancelled events to the connections that are pending
           let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
           forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
 
     sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
     sendCancelledEvent luidDeleted ruc = do
-      embed (runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind)) >>= \case
-        -- should we abort the whole process if we fail to send the event to a remote backend?
+      let remoteUid :: Remote UserId = qUnqualified . ucTo <$> ruc
+          req = NewConnectionRequest (tUnqualified luidDeleted) Nothing (qUnqualified $ tUntagged remoteUid) RemoteRescind
+      Log.info $ msg @Text "Brig-federation: sending connection action to remote backend"
+      result <- runFederatedEither remoteUid $ fedClient @'Brig @"send-connection-action" req
+      case result of
         Left e ->
           Log.err $
             field "error" (show e)

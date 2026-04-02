@@ -19,8 +19,6 @@ module Brig.API.Util
   ( fetchUserIdentity,
     logInvitationCode,
     logEmail,
-    traverseConcurrentlySem,
-    traverseConcurrentlyWithErrors,
     exceptTToMaybe,
     ensureLocal,
   )
@@ -30,7 +28,6 @@ import Brig.API.Types
 import Brig.App
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except
-import Data.Bifunctor
 import Data.Id
 import Data.Maybe
 import Data.Text qualified as T
@@ -39,8 +36,6 @@ import Imports
 import Polysemy
 import System.Logger (Msg)
 import System.Logger qualified as Log
-import UnliftIO.Async
-import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 import Wire.API.User
 import Wire.UserSubsystem
@@ -59,27 +54,6 @@ logEmail email =
 
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)
-
--- | Traverse concurrently and fail on first error.
-traverseConcurrentlyWithErrors ::
-  (Traversable t, Exception e, MonadUnliftIO m) =>
-  (a -> ExceptT e m b) ->
-  t a ->
-  ExceptT e m (t b)
-traverseConcurrentlyWithErrors f =
-  ExceptT
-    . try
-    . ( traverse (either throwIO pure)
-          <=< pooledMapConcurrentlyN 8 (runExceptT . f)
-      )
-
-traverseConcurrentlySem ::
-  (Traversable t, MonadUnliftIO m) =>
-  (a -> ExceptT e m b) ->
-  t a ->
-  m (t (Either (a, e) b))
-traverseConcurrentlySem f =
-  pooledMapConcurrentlyN 8 $ \a -> first (a,) <$> runExceptT (f a)
 
 exceptTToMaybe :: (Monad m) => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
