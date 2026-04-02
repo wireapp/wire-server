@@ -38,7 +38,7 @@ Thus the order of priority is:
 
 {{- define "cassandraGalleyReplicationArg" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraGalley.replicationMap) -}}
 {{- default ($cassandra.replicationMap) $cassandraGalley.replicationMap -}}
 {{- else -}}
@@ -48,7 +48,7 @@ Thus the order of priority is:
 
 {{- define "cassandraGalleyReplicationType" -}}
 {{ $cassandraGalley := default dict .Values.cassandraGalley }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraGalley.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
@@ -59,7 +59,7 @@ Thus the order of priority is:
 
 {{- define "cassandraGundeckReplicationArg" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraGundeck.replicationMap) -}}
 {{- default ($cassandra.replicationMap) $cassandraGundeck.replicationMap -}}
 {{- else -}}
@@ -69,7 +69,7 @@ Thus the order of priority is:
 
 {{- define "cassandraGundeckReplicationType" -}}
 {{ $cassandraGundeck := default dict .Values.cassandraGundeck }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraGundeck.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
@@ -80,7 +80,7 @@ Thus the order of priority is:
 
 {{- define "cassandraBrigReplicationArg" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraBrig.replicationMap) -}}
 {{- default ($cassandra.replicationMap) $cassandraBrig.replicationMap -}}
 {{- else -}}
@@ -90,7 +90,7 @@ Thus the order of priority is:
 
 {{- define "cassandraBrigReplicationType" -}}
 {{ $cassandraBrig := default dict .Values.cassandraBrig }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraBrig.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
@@ -101,7 +101,7 @@ Thus the order of priority is:
 
 {{- define "cassandraSparReplicationArg" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraSpar.replicationMap) -}}
 {{- default ($cassandra.replicationMap) $cassandraSpar.replicationMap -}}
 {{- else -}}
@@ -111,7 +111,7 @@ Thus the order of priority is:
 
 {{- define "cassandraSparReplicationType" -}}
 {{ $cassandraSpar := default dict .Values.cassandraSpar }}
-{{ $cassandra := default dict .Values.cassandra }}
+{{- $cassandra := default dict .Values.cassandra }}
 {{- if (or $cassandra.replicationMap $cassandraSpar.replicationMap) -}}
 {{- printf "--replication-map" -}}
 {{- else -}}
