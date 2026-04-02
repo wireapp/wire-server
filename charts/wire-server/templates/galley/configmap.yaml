@@ -71,48 +71,48 @@ data:
 
     settings:
       httpPoolSize: {{ .settings.httpPoolSize }}
-      {{- if .Values.global.settings.intraListing }}
-      intraListing: {{ .Values.global.settings.intraListing }}
+      {{- if $.Values.global.settings.intraListing }}
+      intraListing: {{ $.Values.global.settings.intraListing }}
       {{- else }}
       intraListing: {{ .settings.intraListing }}
       {{- end }}
-      {{- if .Values.global.settings.maxTeamSize }}
-      maxTeamSize: {{ .Values.global.settings.maxTeamSize }}
+      {{- if $.Values.global.settings.maxTeamSize }}
+      maxTeamSize: {{ $.Values.global.settings.maxTeamSize }}
       {{- else }}
       maxTeamSize: {{ .settings.maxTeamSize }}
       {{- end }}
-      {{- if .Values.global.settings.maxConvSize }}
-      maxConvSize: {{ .Values.global.settings.maxConvSize }}
+      {{- if $.Values.global.settings.maxConvSize }}
+      maxConvSize: {{ $.Values.global.settings.maxConvSize }}
       {{- else }}
       maxConvSize: {{ .settings.maxConvSize }}
       {{- end }}
       {{- if .settings.maxFanoutSize }}
       maxFanoutSize: {{ .settings.maxFanoutSize }}
       {{- end }}
-      {{- if .Values.global.settings.exposeInvitationURLsTeamAllowlist }}
-      exposeInvitationURLsTeamAllowlist: {{ .Values.global.settings.exposeInvitationURLsTeamAllowlist }}
+      {{- if $.Values.global.settings.exposeInvitationURLsTeamAllowlist }}
+      exposeInvitationURLsTeamAllowlist: {{ $.Values.global.settings.exposeInvitationURLsTeamAllowlist }}
       {{- else if .settings.exposeInvitationURLsTeamAllowlist }}
       exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
       {{- end }}
-      {{- if or .Values.global.settings.conversationCodeURI .settings.conversationCodeURI }}
-      {{- if .Values.global.settings.conversationCodeURI }}
-      conversationCodeURI: {{ .Values.global.settings.conversationCodeURI | quote }}
+      {{- if or $.Values.global.settings.conversationCodeURI .settings.conversationCodeURI }}
+      {{- if $.Values.global.settings.conversationCodeURI }}
+      conversationCodeURI: {{ $.Values.global.settings.conversationCodeURI | quote }}
       {{- else }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
       {{- end }}
-      {{- else if or .Values.global.settings.multiIngress .settings.multiIngress }}
-      {{- if .Values.global.settings.multiIngress }}
-      multiIngress: {{- toYaml .Values.global.settings.multiIngress | nindent 8 }}
+      {{- else if or $.Values.global.settings.multiIngress .settings.multiIngress }}
+      {{- if $.Values.global.settings.multiIngress }}
+      multiIngress: {{- toYaml $.Values.global.settings.multiIngress | nindent 8 }}
       {{- else }}
       multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
       {{- end }}
       {{- else }}
       {{ fail "Either global.settings.conversationCodeURI, global.settings.multiIngress, galley.config.settings.conversationCodeURI, or galley.config.settings.multiIngress have to be set"}}
       {{- end }}
-      {{- if (or (and .Values.global.settings.conversationCodeURI .Values.global.settings.multiIngress) (and .settings.conversationCodeURI .settings.multiIngress)) }}
+      {{- if (or (and $.Values.global.settings.conversationCodeURI $.Values.global.settings.multiIngress) (and .settings.conversationCodeURI .settings.multiIngress)) }}
       {{ fail "conversationCodeURI and multiIngress are mutually exclusive in both global.settings and galley.config.settings" }}
       {{- end }}
-      federationDomain: {{ $.Values.galley.config.settings.federationDomain }}
+      federationDomain: {{ .settings.federationDomain }}
       {{- if .settings.federationProtocols }}
       federationProtocols: {{ .settings.federationProtocols }}
       {{- end }}
@@ -126,18 +126,18 @@ data:
       {{- end }}
       disabledAPIVersions: {{ toJson .settings.disabledAPIVersions }}
       {{- if .settings.featureFlags }}
-      {{- if .Values.global.settings.guestLinkTTLSeconds }}
-      guestLinkTTLSeconds: {{ .Values.global.settings.guestLinkTTLSeconds }}
+      {{- if $.Values.global.settings.guestLinkTTLSeconds }}
+      guestLinkTTLSeconds: {{ $.Values.global.settings.guestLinkTTLSeconds }}
       {{- else if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
       {{- end }}
-      {{- if .Values.global.settings.passwordHashingOptions }}
-      passwordHashingOptions: {{- toYaml .Values.global.settings.passwordHashingOptions | nindent 8 }}
+      {{- if $.Values.global.settings.passwordHashingOptions }}
+      passwordHashingOptions: {{- toYaml $.Values.global.settings.passwordHashingOptions | nindent 8 }}
       {{- else }}
       passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
       {{- end }}
-      {{- if .Values.global.settings.passwordHashingRateLimit }}
-      passwordHashingRateLimit: {{- toYaml .Values.global.settings.passwordHashingRateLimit | nindent 8 }}
+      {{- if $.Values.global.settings.passwordHashingRateLimit }}
+      passwordHashingRateLimit: {{- toYaml $.Values.global.settings.passwordHashingRateLimit | nindent 8 }}
       {{- else }}
       passwordHashingRateLimit: {{ toYaml .settings.passwordHashingRateLimit | nindent 8 }}
       {{- end }}
