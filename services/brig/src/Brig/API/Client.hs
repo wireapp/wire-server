@@ -38,6 +38,7 @@ import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
+import Data.Bifunctor
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.Domain
@@ -191,7 +192,7 @@ claimMultiPrekeyBundles protectee quc = do
   lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   remotePrekeys <-
     lift . liftSem $
-      fmap (fmap (bimap (Data.Bifunctor.first collapseRemoteUsers) tUntagged)) $
+      fmap (fmap (bimap (first collapseRemoteUsers) tUntagged)) $
         runFederatedConcurrentlyEither remotes $ \rucs ->
           fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
   let prekeys =
