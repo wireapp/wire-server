@@ -8,12 +8,12 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.proxy.replicaCount }}
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxUnavailable: 0
-      maxSurge: {{ .Values.proxy.replicaCount }}
+      maxSurge: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: proxy
@@ -24,8 +24,8 @@ spec:
         release: {{ .Release.Name }}
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
-        checksum/configmap: {{ include (print .Template.BasePath "/proxy/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print .Template.BasePath "/proxy/secret.yaml") . | sha256sum }}
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -43,11 +43,11 @@ spec:
             secretName: "proxy"
       containers:
         - name: proxy
-          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.proxy.imagePullPolicy | quote }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           {{- if eq (include "includeSecurityContext" .) "true" }}
           securityContext:
-            {{- toYaml .Values.proxy.podSecurityContext | nindent 12 }}
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
           {{- end }}
           volumeMounts:
           - name: "proxy-secrets"
@@ -55,7 +55,7 @@ spec:
           - name: "proxy-config"
             mountPath: "/etc/wire/proxy/conf"
           env:
-          {{- with .Values.proxy.config.proxy }}
+          {{- with .Values.config.proxy }}
           {{- if .httpProxy }}
           - name: http_proxy
             value: {{ .httpProxy | quote }}
@@ -74,18 +74,18 @@ spec:
           - name: NO_PROXY
             value: {{ join "," .noProxyList | quote }}
           {{- end }}
-          {{- end }} 
+          {{- end }}
           ports:
-            - containerPort: {{ .Values.proxy.service.internalPort }}
+            - containerPort: {{ .Values.service.internalPort }}
           livenessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.proxy.service.internalPort }}
+              port: {{ .Values.service.internalPort }}
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
-              port: {{ .Values.proxy.service.internalPort }}
+              port: {{ .Values.service.internalPort }}
           resources:
-{{ toYaml .Values.proxy.resources | indent 12 }}
+{{ toYaml .Values.resources | indent 12 }}

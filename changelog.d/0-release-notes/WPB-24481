@@ -1,0 +1,5 @@
+Operators upgrading from the previous wire-server chart release, where the service charts were consolidated into the umbrella chart, must now set `tags.proxy` explicitly again.
+
+If your currently installed values no longer contain a `proxy` tag because of that consolidation, add one before upgrading to this release and set it to the intended state:
+- `tags.proxy: true` to deploy the `proxy` chart
+- `tags.proxy: false` to keep the `proxy` chart disabled
