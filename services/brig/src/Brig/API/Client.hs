@@ -53,7 +53,7 @@ import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Error (Error, mapError)
+import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
@@ -87,15 +87,14 @@ claimPrekeyBundle ::
   ( Member ClientStore r,
     Member TinyLog r,
     HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r,
-    Member (Error ClientError) r
+    Member GalleyAPIAccess r
   ) =>
   LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
-    else lift $ liftSem $ claimRemotePrekeyBundle (Qualified uid domain)
+    else ExceptT $ liftSem $ runError $ claimRemotePrekeyBundle (Qualified uid domain)
 
 claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
@@ -153,8 +152,7 @@ claimMultiPrekeyBundlesV3 ::
     Member ClientStore r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member (Error ClientError) r
+    HasBrigFederationAccess m r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -163,10 +161,11 @@ claimMultiPrekeyBundlesV3 protectee quc = do
   (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
   lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   remotePrekeys <-
-    fmap (fmap tUntagged) . lift . liftSem $
-      mapError ClientFederationError $
-        runFederatedConcurrently remotes $ \rucs ->
-          fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
+    fmap (fmap tUntagged) . ExceptT . liftSem $
+      runError $
+        mapError ClientFederationError $
+          runFederatedConcurrently remotes $ \rucs ->
+            fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
   pure . qualifiedUserClientPrekeyMapFromList $ localPrekeys <> remotePrekeys
 
 -- Similar to claimMultiPrekeyBundles except for the following changes

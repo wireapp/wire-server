@@ -422,8 +422,7 @@ servantSitemap ::
     Member ClientSubsystem r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
-    HasBrigFederationAccess m r,
-    Member (Error ClientError) r
+    HasBrigFederationAccess m r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -708,8 +707,7 @@ getPrekeyBundleUnqualifiedH ::
   ( Member ClientStore r,
     Member TinyLog r,
     HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r,
-    Member (Error ClientError) r
+    Member GalleyAPIAccess r
   ) =>
   UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
@@ -721,8 +719,7 @@ getPrekeyBundleH ::
   ( Member ClientStore r,
     Member TinyLog r,
     HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r,
-    Member (Error ClientError) r
+    Member GalleyAPIAccess r
   ) =>
   UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
@@ -763,8 +760,7 @@ getMultiUserPrekeyBundleHV3 ::
     Member ClientSubsystem r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member (Error ClientError) r
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
