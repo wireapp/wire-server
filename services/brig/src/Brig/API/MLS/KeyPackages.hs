@@ -182,7 +182,7 @@ claimRemoteKeyPackages lusr suite target = do
             cipherSuite = suite
           }
   bundle <-
-    (lift $ liftSem $ runFederatedEither target $ fedClient @'Brig @"claim-key-packages" req) >>= \case
+    lift (liftSem $ runFederatedEither target $ fedClient @'Brig @"claim-key-packages" req) >>= \case
       Left e -> throwE $ clientErrorToHttpError $ ClientFederationError e
       Right Nothing -> throwE $ clientErrorToHttpError $ ClientUserNotFound (tUnqualified target)
       Right (Just bundle) -> pure bundle

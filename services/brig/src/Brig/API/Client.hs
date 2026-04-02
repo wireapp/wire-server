@@ -191,7 +191,7 @@ claimMultiPrekeyBundles protectee quc = do
   lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   remotePrekeys <-
     lift . liftSem $
-      fmap (fmap (bimap (\(rucs, fedErr) -> (collapseRemoteUsers rucs, fedErr)) tUntagged)) $
+      fmap (fmap (bimap (Data.Bifunctor.first collapseRemoteUsers) tUntagged)) $
         runFederatedConcurrentlyEither remotes $ \rucs ->
           fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
   let prekeys =

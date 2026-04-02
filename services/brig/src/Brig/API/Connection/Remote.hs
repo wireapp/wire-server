@@ -362,7 +362,7 @@ ensureFederatesWith remote = do
   lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   profiles <-
     either (throwE . ConnectFederationError) pure
-      =<< (lift $ liftSem $ runError (runFederated remote $ fedClient @'Brig @"get-users-by-ids" [tUnqualified remote]))
+      =<< lift (liftSem $ runError (runFederated remote $ fedClient @'Brig @"get-users-by-ids" [tUnqualified remote]))
   let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
   unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
     throwE ConnectTeamFederationError
