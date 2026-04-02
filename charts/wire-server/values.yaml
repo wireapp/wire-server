@@ -11,6 +11,7 @@ tags:
   backoffice: false
   mlsstats: false
   integration: false
+  proxy: false
 
 galley:
   replicaCount: 3
