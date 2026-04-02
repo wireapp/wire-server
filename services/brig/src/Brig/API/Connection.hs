@@ -55,15 +55,12 @@ import Galley.Types.Conversations.One2One
 import Imports
 import Polysemy
 import Polysemy.TinyLog
-import Servant.Client.Core (RunClient)
 import System.Logger.Class qualified as Log
 import System.Logger.Message
-import Wire.API.Component
 import Wire.API.Connection hiding (relationWithHistory)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.API
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
@@ -93,10 +90,7 @@ createConnection ::
     Member UserSubsystem r,
     Member (Embed HttpClientIO) r,
     Member TeamSubsystem r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   ConnId ->
@@ -241,10 +235,7 @@ updateConnection ::
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
     Member UserStore r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Qualified UserId ->

@@ -96,7 +96,6 @@ import Polysemy.Input (Input)
 import Polysemy.TinyLog (TinyLog)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant qualified
-import Servant.Client.Core (RunClient)
 import Servant.OpenApi.Internal.Orphans ()
 import Servant.Swagger.UI
 import System.Logger.Class qualified as Log
@@ -105,7 +104,6 @@ import Wire.API.Connection qualified as Public
 import Wire.API.EnterpriseLogin
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
-import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig qualified as BrigFederationAPI
 import Wire.API.Federation.API.Cargohold qualified as CargoholdFederationAPI
 import Wire.API.Federation.API.Galley qualified as GalleyFederationAPI
@@ -421,11 +419,8 @@ servantSitemap ::
     Member AppSubsystem r,
     Member ClientStore r,
     Member ClientSubsystem r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
-    Member (Error FederationError) r
+    Member (Error FederationError) r,
+    HasBrigFederationAccess m r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -709,10 +704,7 @@ getPrekeyBundleUnqualifiedH ::
   forall r m.
   ( Member ClientStore r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r,
     Member GalleyAPIAccess r
   ) =>
@@ -725,10 +717,7 @@ getPrekeyBundleH ::
   forall r m.
   ( Member ClientStore r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r,
     Member GalleyAPIAccess r
   ) =>
@@ -771,10 +760,7 @@ getMultiUserPrekeyBundleHV3 ::
     Member ClientSubsystem r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   UserId ->
@@ -791,10 +777,7 @@ getMultiUserPrekeyBundleH ::
     Member ClientSubsystem r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   Public.QualifiedUserClients ->
@@ -945,7 +928,8 @@ upgradePersonalToTeam ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -1260,10 +1244,7 @@ getHandleInfoUnqualifiedH ::
   forall r m.
   ( Member UserSubsystem r,
     Member UserStore r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   UserId ->
@@ -1360,10 +1341,7 @@ createConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member TeamSubsystem r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   ConnId ->
@@ -1398,10 +1376,7 @@ updateConnection ::
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
     Member UserStore r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   ConnId ->

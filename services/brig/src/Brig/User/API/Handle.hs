@@ -35,16 +35,15 @@ import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
 import Polysemy.Error (Error)
-import Servant.Client.Core (RunClient)
 import System.Logger.Class qualified as Log
 import Wire.API.Component
-import Wire.API.Federation.API (FederationMonad, fedClient)
+import Wire.API.Federation.API (fedClient)
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User qualified as Public
 import Wire.API.User.Search
 import Wire.API.User.Search qualified as Public
-import Wire.FederationAPIAccess (FederationAPIAccess, runFederated)
+import Wire.FederationAPIAccess
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
 import Wire.UserSubsystem
@@ -53,10 +52,7 @@ getHandleInfo ::
   forall r m.
   ( Member UserSubsystem r,
     Member UserStore r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   UserId ->
@@ -72,10 +68,7 @@ getHandleInfo self handle = do
 
 getRemoteHandleInfo ::
   forall r m.
-  ( Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+  ( HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   Remote Handle ->

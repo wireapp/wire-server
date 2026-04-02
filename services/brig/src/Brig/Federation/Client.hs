@@ -19,7 +19,6 @@
 module Brig.Federation.Client
   ( runBrigFederatorClient,
     notifyUserDeleted,
-    sendConnectionAction,
   )
 where
 
@@ -42,23 +41,6 @@ import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.BackendNotifications
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
-
-sendConnectionAction ::
-  (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
-  Local UserId ->
-  Maybe (Local TeamId) ->
-  Remote UserId ->
-  RemoteConnectionAction ->
-  ExceptT FederationError m NewConnectionResponse
-sendConnectionAction self mSelfTeam (tUntagged -> other) action = do
-  let req =
-        NewConnectionRequest
-          (tUnqualified self)
-          (tUnqualified <$> mSelfTeam)
-          (qUnqualified other)
-          action
-  lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
-  runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
 
 notifyUserDeleted ::
   ( MonadReader Env m,

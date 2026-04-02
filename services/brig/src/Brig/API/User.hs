@@ -128,6 +128,7 @@ import Wire.EmailSubsystem
 import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
@@ -269,7 +270,7 @@ createUserSpar new = do
       pure $ CreateUserTeam tid nm
 
 upgradePersonalToTeam ::
-  forall r.
+  forall r m.
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member UserSubsystem r,
@@ -279,7 +280,8 @@ upgradePersonalToTeam ::
     Member (Input (Local ())) r,
     Member Now r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   BindingNewTeamUser ->

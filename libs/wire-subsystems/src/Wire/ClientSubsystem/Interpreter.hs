@@ -23,7 +23,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
-import Servant.Client.Core (RunClient)
 import System.Logger.Message
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
@@ -49,7 +48,7 @@ import Wire.DeleteQueue qualified as DeleteQueue
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.EmailSubsystem qualified as Email
 import Wire.Events as Events
-import Wire.FederationAPIAccess (FederationAPIAccess, runFederated, runFederatedEither)
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Logger qualified as Log
@@ -67,10 +66,7 @@ runClientSubsystem ::
   ( Member ClientStore r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error ClientError) r,
     Member Now.Now r,
     Member NotificationSubsystem r,
@@ -238,10 +234,7 @@ lookupPubClient ::
   ( Member ClientStore r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   Qualified UserId -> ClientId -> Sem r (Maybe PubClient)
 lookupPubClient qid cid = do
@@ -252,10 +245,7 @@ lookupPubClients ::
   ( Member ClientStore r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   Qualified UserId -> Sem r [PubClient]
 lookupPubClients qid@(Qualified uid domain) = do
@@ -270,10 +260,7 @@ lookupPubClientsBulk ::
   ( Member ClientStore r,
     Member (Input (Local ())) r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   [Qualified UserId] -> Sem r (QualifiedUserMap (Set PubClient))
 lookupPubClientsBulk qualifiedUids = do
@@ -299,10 +286,7 @@ lookupLocalPublicClientsBulk = ClientStore.lookupPubClientsBulk
 
 getFederatedUserClients ::
   ( Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   Domain ->
   GetUserClients ->
@@ -447,10 +431,7 @@ claimPrekey ::
     Member DeleteQueue r,
     Member AuthenticationSubsystem r,
     Member GalleyAPIAccess r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   LegalholdProtectee ->
@@ -483,10 +464,7 @@ claimLocalPrekey protectee user client = do
 
 claimRemotePrekey ::
   ( Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   Qualified UserId ->

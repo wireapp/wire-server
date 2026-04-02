@@ -55,7 +55,6 @@ import Polysemy
 import Polysemy.Error (Error)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
-import Servant.Client.Core (RunClient)
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.Component
@@ -87,10 +86,7 @@ import Wire.UserSubsystem qualified as User
 claimPrekeyBundle ::
   ( Member ClientStore r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r,
     Member GalleyAPIAccess r
   ) =>
@@ -109,10 +105,7 @@ claimLocalPrekeyBundle protectee u = do
 
 claimRemotePrekeyBundle ::
   ( Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   Qualified UserId ->
@@ -160,10 +153,7 @@ claimMultiPrekeyBundlesV3 ::
     Member ClientStore r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m,
+    HasBrigFederationAccess m r,
     Member (Error FederationError) r
   ) =>
   LegalholdProtectee ->
@@ -191,10 +181,7 @@ claimMultiPrekeyBundles ::
     Member ClientStore r,
     Member GalleyAPIAccess r,
     Member TinyLog r,
-    Member (FederationAPIAccess m) r,
-    RunClient (m 'Brig),
-    FederationMonad m,
-    Typeable m
+    HasBrigFederationAccess m r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
