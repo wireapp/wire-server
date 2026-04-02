@@ -53,7 +53,6 @@ import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore qualified as E
-import Brig.Federation.Client (notifyUserDeleted)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
@@ -71,9 +70,11 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Imports
+import Network.AMQP qualified as Q
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message hiding ((.=))
@@ -90,6 +91,7 @@ import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.BackendNotificationQueueAccess
 import Wire.Events
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem
@@ -110,7 +112,9 @@ sendUserEvent ::
     Member (Input (Local ())) r,
     Member Now r,
     Member (ConnectionStore InternalPaging) r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -127,7 +131,9 @@ runEvents ::
     Member (Input (Local ())) r,
     Member Now r,
     Member (ConnectionStore InternalPaging) r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
@@ -221,7 +227,9 @@ dispatchNotifications ::
     Member (Input (Local ())) r,
     Member Now r,
     Member (ConnectionStore InternalPaging) r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -306,11 +314,12 @@ notifyUserDeletionLocals deleted conn event = do
 
 notifyUserDeletionRemotes ::
   forall r m.
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r,
+  ( Member TinyLog r,
     Member (Input (Local ())) r,
     Member (ConnectionStore InternalPaging) r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Sem r ()
@@ -330,7 +339,10 @@ notifyUserDeletionRemotes deleted = do
           pure ()
         Just rangedUcs -> do
           luidDeleted <- qualifyLocal' deleted
-          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs (mapRange (qUnqualified . ucTo) rangedUcs))
+          let remotes = mapRange (qUnqualified . ucTo) rangedUcs
+              notif = UserDeletedConnectionsNotification (tUnqualified luidDeleted) remotes
+              client = fedQueueClient @'OnUserDeletedConnectionsTag notif
+          enqueueNotification Q.Persistent ucs client
           -- also sent connection cancelled events to the connections that are pending
           let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
           forM_ remotePendingConnections $ sendCancelledEvent luidDeleted

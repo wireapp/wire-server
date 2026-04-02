@@ -62,6 +62,9 @@ import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
+import Wire.BackendNotificationQueueAccess.RabbitMq (interpretBackendNotificationQueueAccess)
+import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BlockListStore
@@ -190,6 +193,7 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      NotificationSubsystem,
+     BackendNotificationQueueAccess,
      BackgroundJobsPublisher,
      RateLimit,
      UserGroupStore,
@@ -370,6 +374,13 @@ runBrigToIO e (AppT ma) = do
           { userMaxPermClients = fromMaybe Opt.defUserMaxPermClients e.settings.userMaxPermClients,
             consumableNotificationsEnabled = e.settings.consumableNotifications
           }
+      backendNotificationQueueEnv =
+        BackendNotificationQueueAccess.Env
+          { channelMVar = e.rabbitmqChannel,
+            logger = e.appLogger,
+            local = localUnit,
+            requestId = e.requestId
+          }
 
   ( either throwM pure
       <=< ( runFinal
@@ -441,6 +452,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
+              . interpretBackendNotificationQueueAccess (Just backendNotificationQueueEnv)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents

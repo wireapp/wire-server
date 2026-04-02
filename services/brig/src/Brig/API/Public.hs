@@ -158,6 +158,7 @@ import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
+import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -420,6 +421,7 @@ servantSitemap ::
     Member ClientStore r,
     Member ClientSubsystem r,
     Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
     HasBrigFederationAccess m r
   ) =>
   ServerT BrigAPI (Handler r)
@@ -929,7 +931,9 @@ upgradePersonalToTeam ::
     Member UserSubsystem r,
     Member UserStore r,
     Member EmailSubsystem r,
-    HasBrigFederationAccess m r
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->

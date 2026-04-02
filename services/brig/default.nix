@@ -125,7 +125,6 @@
 , temporary
 , text
 , time
-, time-out
 , time-units
 , tinylog
 , transformers
@@ -247,8 +246,6 @@ mkDerivation {
     template-haskell
     text
     time
-    time-out
-    time-units
     tinylog
     transformers
     types-common
