@@ -1,0 +1,1 @@
+nginx-ingress-services: Add `ingressAnnotations` option to allow custom annotations on the main ingress resource (e.g., for TLS configuration via server-snippet).
