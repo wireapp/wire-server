@@ -25,36 +25,36 @@ kind: ConfigMap
 metadata:
   name: nginz-deeplink
 data:
-  {{- if and (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "external_env_domain") }}
-  {{- $deeplinkJson := .Values.nginx_conf.deeplink.endpoints.backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
-  {{- $deeplinkHtml := .Values.nginx_conf.deeplink.endpoints.backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{- if and (hasKey $nginxConf "deeplink") (hasKey $nginxConf "external_env_domain") }}
+  {{- $deeplinkJson := $nginxConf.deeplink.endpoints.backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplinkHtml := $nginxConf.deeplink.endpoints.backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
   {{ $deeplinkJson }}: |
     {{- $deeplink := dict
       "endpoints" (dict
-        "backendURL" .Values.nginx_conf.deeplink.endpoints.backendURL
-        "backendWSURL" .Values.nginx_conf.deeplink.endpoints.backendWSURL
-        "blackListURL" .Values.nginx_conf.deeplink.endpoints.blackListURL
-        "teamsURL" .Values.nginx_conf.deeplink.endpoints.teamsURL
-        "accountsURL" .Values.nginx_conf.deeplink.endpoints.accountsURL
-        "websiteURL" .Values.nginx_conf.deeplink.endpoints.websiteURL
+        "backendURL" $nginxConf.deeplink.endpoints.backendURL
+        "backendWSURL" $nginxConf.deeplink.endpoints.backendWSURL
+        "blackListURL" $nginxConf.deeplink.endpoints.blackListURL
+        "teamsURL" $nginxConf.deeplink.endpoints.teamsURL
+        "accountsURL" $nginxConf.deeplink.endpoints.accountsURL
+        "websiteURL" $nginxConf.deeplink.endpoints.websiteURL
       )
-      "title" .Values.nginx_conf.deeplink.title
+      "title" $nginxConf.deeplink.title
     }}
-    {{- if hasKey .Values.nginx_conf.deeplink "apiProxy" }}
+    {{- if hasKey $nginxConf.deeplink "apiProxy" }}
     {{- $_ := set $deeplink "apiProxy" (dict
-      "host" .Values.nginx_conf.deeplink.apiProxy.host
-      "port" .Values.nginx_conf.deeplink.apiProxy.port
-      "needsAuthentication" .Values.nginx_conf.deeplink.apiProxy.needsAuthentication
+      "host" $nginxConf.deeplink.apiProxy.host
+      "port" $nginxConf.deeplink.apiProxy.port
+      "needsAuthentication" $nginxConf.deeplink.apiProxy.needsAuthentication
     ) }}
     {{- end }}
     {{ toJson $deeplink | indent 4 }}
   {{ $deeplinkHtml }}: |
     <html>
       <head>
-        <title>Deeplink for {{ .Values.nginx_conf.deeplink.endpoints.backendURL }}</title>
+        <title>Deeplink for {{ $nginxConf.deeplink.endpoints.backendURL }}</title>
       </head>
       <body>
-        <a href="wire://access/?config={{ .Values.nginx_conf.deeplink.endpoints.backendURL }}/deeplink.json">Click here for access</a>
+        <a href="wire://access/?config={{ $nginxConf.deeplink.endpoints.backendURL }}/deeplink.json">Click here for access</a>
       </body>
     </html>
   {{- end }}
@@ -63,38 +63,38 @@ data:
     {{- range $domain, $config := $nginxConf.multi_ingress_deeplink }}
       {{- if (has $domain $nginxConf.additional_external_env_domains) }}
         {{- $backendURL := $config.endpoints.backendURL }}
-        {{- $deeplinkJson := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
-        {{- $deeplinkHtml := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
-        {{ $deeplinkJson }}: |
-          {{- $deeplink := dict
-            "endpoints" (dict
-              "backendURL" $config.endpoints.backendURL
-              "backendWSURL" $config.endpoints.backendWSURL
-              "blackListURL" $config.endpoints.blackListURL
-              "teamsURL" $config.endpoints.teamsURL
-              "accountsURL" $config.endpoints.accountsURL
-              "websiteURL" $config.endpoints.websiteURL
-            )
-            "title" $config.title
-          }}
-          {{- if hasKey $config "apiProxy" }}
-          {{- $_ := set $deeplink "apiProxy" (dict
-            "host" $config.apiProxy.host
-            "port" $config.apiProxy.port
-            "needsAuthentication" $config.apiProxy.needsAuthentication
-          ) }}
-          {{- end }}
-          {{ toJson $deeplink | indent 4 }}
-          {{ printf "\n" }}
-        {{ $deeplinkHtml }}: |
-          <html>
-            <head>
-              <title>Deeplink for {{ $domain }}</title>
-            </head>
-            <body>
-              <a href="wire://access/?config={{ $config.endpoints.backendURL }}/deeplink.json">Click here for access</a>
-            </body>
-          </html>
+  {{- $deeplinkJson := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplinkHtml := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplinkJson }}: |
+    {{- $deeplink := dict
+      "endpoints" (dict
+        "backendURL" $config.endpoints.backendURL
+        "backendWSURL" $config.endpoints.backendWSURL
+        "blackListURL" $config.endpoints.blackListURL
+        "teamsURL" $config.endpoints.teamsURL
+        "accountsURL" $config.endpoints.accountsURL
+        "websiteURL" $config.endpoints.websiteURL
+      )
+      "title" $config.title
+    }}
+    {{- if hasKey $config "apiProxy" }}
+    {{- $_ := set $deeplink "apiProxy" (dict
+      "host" $config.apiProxy.host
+      "port" $config.apiProxy.port
+      "needsAuthentication" $config.apiProxy.needsAuthentication
+    ) }}
+    {{- end }}
+    {{ toJson $deeplink | indent 4 }}
+    {{ printf "\n" }}
+  {{ $deeplinkHtml }}: |
+    <html>
+      <head>
+        <title>Deeplink for {{ $domain }}</title>
+      </head>
+      <body>
+        <a href="wire://access/?config={{ $config.endpoints.backendURL }}/deeplink.json">Click here for access</a>
+      </body>
+    </html>
       {{- end }}
     {{- end }}
   {{- end }}
