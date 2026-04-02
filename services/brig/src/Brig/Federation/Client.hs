@@ -17,15 +17,13 @@
 
 -- FUTUREWORK: Remove this module all together.
 module Brig.Federation.Client
-  ( runBrigFederatorClient,
-    notifyUserDeleted,
+  ( notifyUserDeleted,
   )
 where
 
 import Brig.App
 import Control.Monad
 import Control.Monad.Catch (MonadMask, throwM)
-import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Control.Retry
 import Control.Timeout
 import Data.Domain
@@ -39,8 +37,6 @@ import System.Logger.Class qualified as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.BackendNotifications
-import Wire.API.Federation.Client
-import Wire.API.Federation.Error
 
 notifyUserDeleted ::
   ( MonadReader Env m,
@@ -85,24 +81,3 @@ data NoRabbitMqChannel = NoRabbitMqChannel
   deriving (Show)
 
 instance Exception NoRabbitMqChannel
-
-runBrigFederatorClient ::
-  (MonadReader Env m, MonadIO m) =>
-  Domain ->
-  FederatorClient 'Brig a ->
-  ExceptT FederationError m a
-runBrigFederatorClient targetDomain action = do
-  ownDomain <- viewFederationDomain
-  endpoint <- asks (.federator) >>= maybe (throwE FederationNotConfigured) pure
-  mgr <- asks (.http2Manager)
-  rid <- asks (.requestId)
-  let env =
-        FederatorClientEnv
-          { ceOriginDomain = ownDomain,
-            ceTargetDomain = targetDomain,
-            ceFederator = endpoint,
-            ceHttp2Manager = mgr,
-            ceOriginRequestId = rid
-          }
-  liftIO (runFederatorClient env action)
-    >>= either (throwE . FederationCallFailure) pure
