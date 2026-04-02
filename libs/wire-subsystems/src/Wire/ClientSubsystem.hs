@@ -54,5 +54,7 @@ data ClientSubsystem m a where
   -- Prekeys
   ClaimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)
   ClaimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ClientSubsystem m (Maybe ClientPrekey)
+  ClaimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ClientSubsystem m PrekeyBundle
+  ClaimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ClientSubsystem m PrekeyBundle
 
 makeSem ''ClientSubsystem

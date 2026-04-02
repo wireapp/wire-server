@@ -101,6 +101,8 @@ runClientSubsystem runAuth runUser =
       UpdateClient uid cid payload -> updateClient uid cid payload
       ClaimPrekey protectee uid domain cid -> claimPrekey protectee uid domain cid
       ClaimLocalPrekey protectee uid cid -> claimLocalPrekey protectee uid cid
+      ClaimPrekeyBundle protectee domain uid -> claimPrekeyBundle protectee domain uid
+      ClaimLocalPrekeyBundle protectee uid -> claimLocalPrekeyBundle protectee uid
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -473,6 +475,38 @@ claimRemotePrekey ::
 claimRemotePrekey (Qualified user domain) client = do
   Log.info $ msg @Text "Brig-federation: claiming remote prekey"
   runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey" (user, client)
+
+claimPrekeyBundle ::
+  ( Member ClientStore r,
+    Member TinyLog r,
+    HasBrigFederationAccess m r,
+    Member GalleyAPIAccess r,
+    Member (Input (Local ())) r,
+    Member (Error ClientError) r
+  ) =>
+  LegalholdProtectee -> Domain -> UserId -> Sem r PrekeyBundle
+claimPrekeyBundle protectee domain uid = do
+  isDomainLocal <- isLocalDomain domain
+  if isDomainLocal
+    then claimLocalPrekeyBundle protectee uid
+    else claimRemotePrekeyBundle (Qualified uid domain)
+
+claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> Sem r PrekeyBundle
+claimLocalPrekeyBundle protectee u = do
+  clients <- map (.clientId) <$> ClientStore.lookupClients u
+  GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(u, clients)])
+  PrekeyBundle u . catMaybes <$> mapM (ClientStore.claimPrekey u) clients
+
+claimRemotePrekeyBundle ::
+  ( Member TinyLog r,
+    HasBrigFederationAccess m r,
+    Member (Error ClientError) r
+  ) =>
+  Qualified UserId ->
+  Sem r PrekeyBundle
+claimRemotePrekeyBundle (Qualified user domain) = do
+  Log.info $ msg @Text "Brig-federation: claiming remote prekey bundle"
+  mapError ClientFederationError $ runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
 
 -- Utilities
 
