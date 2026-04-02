@@ -83,3 +83,4 @@ postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
   teamFeatures: postgresql
+  user: postgresql

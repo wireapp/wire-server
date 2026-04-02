@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -161,6 +162,36 @@ toInputPassword pw8 =
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
+  describe "authenticateEither" do
+    prop "should allow authenticating for active users" $
+      \user0 password ->
+        let user = user0 {status = Just Active} :: StoredUser
+            passwords = Map.singleton user.id (hashPassword password)
+            res = runAllEffects testDomain [user] passwords Nothing $ do
+              authenticateEither user.id password
+         in res === Right (Right ())
+    prop "should fail authentication when wrong password is provided" $
+      \user0 mActualPassword inputPassword ->
+        let user = user0 {status = Just Active} :: StoredUser
+            passwords = foldMap @Maybe (Map.singleton user.id . hashPassword @6) mActualPassword
+            res = runAllEffects testDomain [user] passwords Nothing $ do
+              authenticateEither user.id inputPassword
+         in mActualPassword /= Just inputPassword ==> res === Right (Left AuthInvalidCredentials)
+
+    prop "should fail authentication when user is not active" $
+      \user password ->
+        let passwords = Map.singleton user.id (hashPassword password)
+            res = runAllEffects testDomain [user] passwords Nothing $ do
+              authenticateEither user.id password
+         in res
+              === Right
+                if
+                  | user.status == Just Active -> Right ()
+                  | user.status `elem` [Just Deleted, Nothing] -> Left AuthInvalidUser
+                  | user.status == Just Suspended -> Left AuthSuspended
+                  | user.status == Just Ephemeral -> Left AuthEphemeral
+                  | otherwise -> Left AuthPendingInvitation
+
   describe "password reset" do
     prop "password reset should work with the email being used as password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->

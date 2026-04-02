@@ -365,7 +365,8 @@ spec = do
             PostgresMigrationOpts
               { conversation = CassandraStorage,
                 conversationCodes = CassandraStorage,
-                teamFeatures = CassandraStorage
+                teamFeatures = CassandraStorage,
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -406,7 +407,8 @@ spec = do
             PostgresMigrationOpts
               { conversation = CassandraStorage,
                 conversationCodes = CassandraStorage,
-                teamFeatures = CassandraStorage
+                teamFeatures = CassandraStorage,
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

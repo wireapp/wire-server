@@ -58,6 +58,7 @@ import Data.Text.Encoding qualified as TE
 import Imports
 import Web.HttpApiData (FromHttpApiData (..), ToHttpApiData (..))
 import Wire.API.Asset (AssetKey (..))
+import Wire.API.PostgresMarshall
 import Wire.API.User.Orphans ()
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -69,7 +70,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 newtype Name = Name
   {fromName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromByteString, ToByteString)
+  deriving newtype (FromByteString, ToByteString, PostgresMarshall Text, PostgresUnmarshall Text)
   deriving (Arbitrary) via (Ranged 1 128 Text)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Name
 
@@ -88,7 +89,7 @@ deriving instance C.Cql Name
 newtype TextStatus = TextStatus
   {fromTextStatus :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromByteString, ToByteString)
+  deriving newtype (FromByteString, ToByteString, PostgresMarshall Text, PostgresUnmarshall Text)
   deriving (Arbitrary) via (Ranged 1 256 Text)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema TextStatus
 
@@ -105,7 +106,7 @@ deriving instance C.Cql TextStatus
 
 newtype ColourId = ColourId {fromColourId :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, ToSchema, Arbitrary)
+  deriving newtype (Num, ToSchema, Arbitrary, PostgresMarshall Int32, PostgresUnmarshall Int32)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ColourId
 
 defaultAccentId :: ColourId
@@ -193,12 +194,21 @@ instance ToSchema AssetSize where
 instance C.Cql AssetSize where
   ctype = C.Tagged C.IntColumn
 
-  fromCql (C.CqlInt 0) = pure AssetPreview
-  fromCql (C.CqlInt 1) = pure AssetComplete
+  fromCql (C.CqlInt n) = mapLeft Text.unpack $ postgresUnmarshall n
   fromCql n = Left $ "Unexpected asset size: " ++ show n
 
-  toCql AssetPreview = C.CqlInt 0
-  toCql AssetComplete = C.CqlInt 1
+  toCql = C.CqlInt . postgresMarshall
+
+instance PostgresMarshall Int32 AssetSize where
+  postgresMarshall = \case
+    AssetPreview -> 0
+    AssetComplete -> 1
+
+instance PostgresUnmarshall Int32 AssetSize where
+  postgresUnmarshall = \case
+    0 -> Right AssetPreview
+    1 -> Right AssetComplete
+    n -> Left $ "Unexpected asset size: " <> Text.show n
 
 --------------------------------------------------------------------------------
 -- ManagedBy
@@ -260,6 +270,12 @@ instance C.Cql ManagedBy where
 
   toCql = C.CqlInt . managedByToInt32
 
+instance PostgresMarshall Int32 ManagedBy where
+  postgresMarshall = managedByToInt32
+
+instance PostgresUnmarshall Int32 ManagedBy where
+  postgresUnmarshall = managedByFromInt32
+
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
 
@@ -281,6 +297,7 @@ managedByFromInt32 = \case
 newtype Pict = Pict {fromPict :: [A.Object]}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Pict
+  deriving (PostgresMarshall A.Value, PostgresUnmarshall A.Value) via StoreAsJSON Pict
 
 instance ToSchema Pict where
   schema =

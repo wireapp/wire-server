@@ -59,6 +59,7 @@ import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 import Wire.EmailSubsystem.Template (TeamOpts)
+import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -382,6 +383,7 @@ data Opts = Opts
     postgresql :: !(Map Text Text),
     postgresqlPassword :: !(Maybe FilePathSecrets),
     postgresqlPool :: !PoolConfig,
+    postgresMigration :: PostgresMigrationOpts,
     -- | SFT Federation
     multiSFT :: !(Maybe Bool),
     -- | RabbitMQ settings, required when federation is enabled.

@@ -48,6 +48,7 @@ import Data.Time.Format
 import Data.Time.LocalTime (TimeZone (..), utc)
 import Imports
 import Test.QuickCheck
+import Wire.API.PostgresMarshall
 import Wire.API.User.Orphans ()
 import Wire.Arbitrary
 
@@ -185,6 +186,14 @@ instance C.Cql Language where
     Nothing -> Left "Language: ISO 639-1 expected."
   fromCql _ = Left "Language: ASCII expected"
 
+instance PostgresMarshall Text Language where
+  postgresMarshall = lan2Text
+
+instance PostgresUnmarshall Text Language where
+  postgresUnmarshall =
+    mapLeft (\e -> "failed to parse Language: " <> Text.pack e)
+      . parseOnly languageParser
+
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
 
@@ -209,6 +218,14 @@ instance C.Cql Country where
     Just c' -> pure c'
     Nothing -> Left "Country: ISO 3166-1-alpha2 expected."
   fromCql _ = Left "Country: ASCII expected"
+
+instance PostgresMarshall Text Country where
+  postgresMarshall = con2Text
+
+instance PostgresUnmarshall Text Country where
+  postgresUnmarshall =
+    mapLeft (\e -> "failed to parse Country: " <> Text.pack e)
+      . parseOnly countryParser
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper

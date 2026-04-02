@@ -34,16 +34,28 @@ data StorageLocation
   deriving (Show)
 
 instance FromJSON StorageLocation where
-  parseJSON = withText "StorageLocation" $ \case
-    "cassandra" -> pure CassandraStorage
-    "migration-to-postgresql" -> pure MigrationToPostgresql
-    "postgresql" -> pure PostgresqlStorage
-    x -> fail $ "Invalid storage location: " <> Text.unpack x <> ". Valid options: cassandra, postgresql, migration-to-postgresql"
+  parseJSON =
+    withText "StorageLocation" $
+      either fail pure . parseStorageLocation . Text.unpack
+
+parseStorageLocation :: String -> Either String StorageLocation
+parseStorageLocation = \case
+  "cassandra" -> Right CassandraStorage
+  "migration-to-postgresql" -> Right MigrationToPostgresql
+  "postgresql" -> Right PostgresqlStorage
+  x -> Left $ "Invalid storage location: " <> x <> ". Valid options: cassandra, postgresql, migration-to-postgresql"
+
+storageLocationString :: StorageLocation -> String
+storageLocationString = \case
+  CassandraStorage -> "cassandra"
+  MigrationToPostgresql -> "migration-to-postgresql"
+  PostgresqlStorage -> "postgresql"
 
 data PostgresMigrationOpts = PostgresMigrationOpts
   { conversation :: StorageLocation,
     conversationCodes :: StorageLocation,
-    teamFeatures :: StorageLocation
+    teamFeatures :: StorageLocation,
+    user :: StorageLocation
   }
   deriving (Show)
 
@@ -53,3 +65,4 @@ instance FromJSON PostgresMigrationOpts where
       <$> o .: "conversation"
       <*> o .: "conversationCodes"
       <*> o .: "teamFeatures"
+      <*> o .: "user"

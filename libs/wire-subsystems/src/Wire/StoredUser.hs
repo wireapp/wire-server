@@ -39,6 +39,7 @@ import Wire.Arbitrary
 
 data StoredUser = StoredUser
   { id :: UserId,
+    -- | Remove 'Maybe' from this when Cassandra support is removed
     userType :: Maybe UserType,
     name :: Name,
     textStatus :: Maybe TextStatus,
