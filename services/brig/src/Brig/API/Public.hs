@@ -702,28 +702,14 @@ getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- lift $ liftSem $ ClientSubsystem.claimPrekey (ProtectedUser zusr) user domain client
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH ::
-  forall r m.
-  ( Member ClientStore r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r
-  ) =>
-  UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH :: (Member ClientSubsystem r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimPrekeyBundle (ProtectedUser zusr) domain uid
 
-getPrekeyBundleH ::
-  forall r m.
-  ( Member ClientStore r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r
-  ) =>
-  UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH :: (Member ClientSubsystem r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimPrekeyBundle (ProtectedUser zusr) domain uid
 
 getMultiUserPrekeyBundleUnqualifiedH ::
   ( Member (Concurrency 'Unsafe) r,

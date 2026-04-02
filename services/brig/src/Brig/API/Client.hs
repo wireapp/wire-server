@@ -21,8 +21,6 @@ module Brig.API.Client
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
-    claimLocalPrekeyBundle,
-    claimPrekeyBundle,
     claimMultiPrekeyBundles,
     claimMultiPrekeyBundlesV3,
   )
@@ -41,7 +39,6 @@ import Control.Monad.Trans.Except (except)
 import Data.Bifunctor
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id (ClientId, UserId)
 import Data.List.Split (chunksOf)
@@ -53,7 +50,7 @@ import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Error (Error, mapError, runError)
+import Polysemy.Error (mapError, runError)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
@@ -82,36 +79,6 @@ import Wire.Sem.Logger as Sem.Log
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-claimPrekeyBundle ::
-  ( Member ClientStore r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r
-  ) =>
-  LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
-claimPrekeyBundle protectee domain uid = do
-  isLocalDomain <- (domain ==) <$> viewFederationDomain
-  if isLocalDomain
-    then claimLocalPrekeyBundle protectee uid
-    else ExceptT $ liftSem $ runError $ claimRemotePrekeyBundle (Qualified uid domain)
-
-claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
-claimLocalPrekeyBundle protectee u = do
-  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients u))
-  lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(u, clients)])
-  PrekeyBundle u . catMaybes <$> lift (mapM (liftSem . ClientStore.claimPrekey u) clients)
-
-claimRemotePrekeyBundle ::
-  ( Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member (Error ClientError) r
-  ) =>
-  Qualified UserId ->
-  Sem r PrekeyBundle
-claimRemotePrekeyBundle (Qualified user domain) = do
-  Sem.Log.info $ msg @Text "Brig-federation: claiming remote prekey bundle"
-  mapError ClientFederationError $ runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
 
 claimMultiPrekeyBundlesInternal ::
   forall r.

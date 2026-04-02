@@ -190,9 +190,9 @@ claimPrekey ::
 claimPrekey _ (user, client) = do
   lift $ liftSem $ ClientSubsystem.claimLocalPrekey LegalholdPlusFederationNotImplemented user client
 
-claimPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => Domain -> UserId -> (Handler r) PrekeyBundle
+claimPrekeyBundle :: (Member ClientSubsystem r) => Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =
-  API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user
 
 claimMultiPrekeyBundle ::
   ( Member (Concurrency 'Unsafe) r,
