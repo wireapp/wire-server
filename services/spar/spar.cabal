@@ -626,7 +626,6 @@ test-suite spec
 
   build-depends:
       aeson
-    , aeson-qq
     , base
     , bytestring-conversion
     , containers
@@ -660,4 +659,5 @@ test-suite spec
     , wire-api
     , wire-subsystems
 
+  -- , aeson-qq
   default-language:   Haskell2010

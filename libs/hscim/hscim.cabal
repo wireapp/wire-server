@@ -86,14 +86,17 @@ library
     OverloadedStrings
     RankNTypes
     ScopedTypeVariables
+    TupleSections
     TypeApplications
     TypeFamilies
     TypeOperators
     TypeSynonymInstances
+    ViewPatterns
 
   ghc-options:        -Wall -Wredundant-constraints -Wunused-packages
   build-depends:
       aeson
+    , aeson-diff
     , aeson-qq
     , attoparsec
     , attoparsec-aeson
@@ -109,6 +112,7 @@ library
     , http-api-data
     , http-media
     , http-types
+    , imports
     , list-t
     , microlens
     , mmorph
@@ -128,6 +132,7 @@ library
     , time
     , utf8-string
     , uuid
+    , vector
     , wai
     , wai-extra
     , wai-utilities
@@ -220,9 +225,11 @@ test-suite spec
 
   build-depends:
       aeson
-    , attoparsec
+    , aeson-diff
+    , aeson-qq
     , base
     , bytestring
+    , case-insensitive
     , email-validate
     , hedgehog
     , hscim
@@ -232,10 +239,13 @@ test-suite spec
     , http-types
     , HUnit
     , hw-hspec-hedgehog
+    , imports
     , indexed-traversable
     , lens-aeson
     , microlens
     , network-uri
+    , QuickCheck
+    , scientific
     , servant
     , servant-server
     , stm-containers

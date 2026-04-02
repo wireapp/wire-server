@@ -43,7 +43,6 @@
 module Wire.API.User.Scim where
 
 import Control.Lens (makeLenses, to, (.~), (^.))
-import Control.Monad.Except (throwError)
 import Crypto.Hash (hash)
 import Crypto.Hash.Algorithms (SHA512)
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -57,12 +56,10 @@ import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
-import Data.Map qualified as Map
 import Data.Misc (PlainTextPassword6)
 import Data.OpenApi qualified as S
 import Data.Schema as Schema
 import Data.Text qualified as T
-import Data.Text qualified as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
 import Data.These.Combinators
@@ -74,21 +71,15 @@ import Servant.API (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Gen)
 import Test.QuickCheck qualified as QC
 import Web.HttpApiData (parseHeaderWithPrefix)
-import Web.Scim.AttrName (AttrName (..))
 import Web.Scim.Class.Auth qualified as Scim.Auth
 import Web.Scim.Class.Group qualified as Scim.Group
 import Web.Scim.Class.User qualified as Scim.User
-import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common qualified as Scim
-import Web.Scim.Schema.Error qualified as Scim
-import Web.Scim.Schema.PatchOp (Operation (..), Path (NormalPath))
-import Web.Scim.Schema.PatchOp qualified as Scim
-import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import Web.Scim.Schema.Schema qualified as Scim
 import Web.Scim.Schema.User qualified as Scim
 import Web.Scim.Schema.User qualified as Scim.User
 import Wire.API.Locale
-import Wire.API.Routes.Version
+import Wire.API.Routes.Version (Version (..), versionText)
 import Wire.API.Routes.Versioned
 import Wire.API.Team.Role (Role)
 import Wire.API.User.EmailAddress (EmailAddress, fromEmail)
@@ -308,40 +299,6 @@ instance QC.Arbitrary (Scim.User SparTag) where
       genExtra :: QC.Gen ScimUserExtra
       genExtra = QC.arbitrary
 
-instance Scim.Patchable ScimUserExtra where
-  applyOperation (ScimUserExtra (RI.RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema sch)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
-    | sch == RI.richInfoMapURN =
-        let rinf = RI.richInfoMap $ RI.fromRichInfoAssocList rinfRaw
-            unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . RI.mkRichInfoMapAndList . fmap (uncurry RI.RichField) . Map.assocs
-         in unrinf <$> case o of
-              Scim.Remove ->
-                pure $ Map.delete ciAttrName rinf
-              _AddOrReplace ->
-                case val of
-                  (Just (A.String textVal)) ->
-                    pure $ Map.insert ciAttrName textVal rinf
-                  _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
-    | sch == RI.richInfoAssocListURN =
-        let rinf = RI.richInfoAssocList $ RI.fromRichInfoAssocList rinfRaw
-            unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . RI.mkRichInfoMapAndList
-            matchesAttrName (RI.RichField k _) = k == ciAttrName
-         in unrinf <$> case o of
-              Scim.Remove ->
-                pure $ filter (not . matchesAttrName) rinf
-              _AddOrReplace ->
-                case val of
-                  (Just (A.String textVal)) ->
-                    let newField = RI.RichField ciAttrName textVal
-                        replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
-                        newRichInfo =
-                          if not $ any matchesAttrName rinf
-                            then rinf ++ [newField]
-                            else map replaceIfMatchesAttrName rinf
-                     in pure newRichInfo
-                  _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
-    | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
-  applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
-
 -- | SCIM user with all the data spar is actively processing.  Constructed by
 -- 'validateScimUser', or manually from data obtained from brig to pass them on to scim peers.
 -- The idea is that the type we get back from hscim is too general, and
@@ -434,7 +391,7 @@ data CreateScimToken = CreateScimToken
 
 createScimTokenSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateScimToken
 createScimTokenSchema mVersion =
-  object ("CreateScimToken" <> foldMap (Text.toUpper . versionText) mVersion) $
+  object ("CreateScimToken" <> foldMap (T.toUpper . versionText) mVersion) $
     CreateScimToken
       <$> (.description) .= field "description" schema
       <*> password .= optField "password" (maybeWithDefault A.Null schema)

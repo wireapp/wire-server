@@ -25,6 +25,7 @@ module Wire.API.User.RichInfo
     richInfoSize,
     richInfoMapURN,
     mkRichInfo,
+    makeRichInfoRedundant,
 
     -- * RichInfoMapAndList
     RichInfoMapAndList (richInfoMap, richInfoAssocList),
@@ -83,6 +84,9 @@ instance Semigroup RichInfo where
 mkRichInfo :: [RichField] -> RichInfo
 mkRichInfo = RichInfo . normalizeRichInfoAssocList . RichInfoAssocList
 
+makeRichInfoRedundant :: RichInfo -> RichInfoMapAndList
+makeRichInfoRedundant = fromRichInfoAssocList . unRichInfo
+
 --------------------------------------------------------------------------------
 -- RichInfoMapAndList
 
@@ -101,8 +105,9 @@ mkRichInfo = RichInfo . normalizeRichInfoAssocList . RichInfoAssocList
 --
 -- TODO: https://github.com/zinfra/backend-issues/issues/1627
 data RichInfoMapAndList = RichInfoMapAndList
-  { richInfoMap :: Map (CI Text) Text,
-    richInfoAssocList :: [RichField]
+  { richInfoMap :: Maybe (Map (CI Text) Text),
+    richInfoAssocList :: Maybe [RichField],
+    richInfoMapIsFullState :: Bool
   }
   deriving stock (Eq, Show, Generic)
 
@@ -193,33 +198,33 @@ richInfoMapAndListSchema :: CIObjectSchema SwaggerDoc RichInfoMapAndList
 richInfoMapAndListSchema =
   withParser
     ( RichInfoMapAndList
-        <$> richInfoMap
-          .= ( fromMaybe mempty
-                 <$> ciOptField richInfoMapURN (mapWithKeys CI.original CI.mk schema)
-             )
-        <*> richInfoAssocList
-          .= ( fromMaybe mempty
-                 <$> ciOptField
-                   richInfoAssocListURN
-                   ( unRichInfoAssocList
-                       <$> ciObject
-                         "RichInfoAssocList"
-                         ( RichInfoAssocList
-                             .= ciField
-                               "richInfo"
-                               (unnamed schema <> richInfoAssocListSchemaLegacy)
-                         )
-                   )
-             )
+        <$> richInfoMap .= maybe_ (ciOptField richInfoMapURN (mapWithKeys CI.original CI.mk schema))
+        <*> richInfoAssocList .= maybe_ (ciOptField richInfoAssocListURN assocListSchema)
+        <*> richInfoMapIsFullState .= pure False
     )
-    (pure . normalizeRichInfoMapAndList)
+    (\ri -> pure $ ri {richInfoMapIsFullState = isJust (richInfoMap ri)})
   where
+    assocListSchema :: ValueSchema SwaggerDoc [RichField]
+    assocListSchema = unnamed . ciObject "RichInfoAssocList" $ mkSchema mempty i o
+      where
+        i obj = do
+          mbAL <- schemaIn (ciOptField "richInfo" (unnamed (schema @RichInfoAssocList) <> richInfoAssocListSchemaLegacy)) obj
+          direct <- traverse A.parseJSON (Map.delete "richInfo" obj)
+          case (mbAL, Map.null direct) of
+            (Just al, True) -> pure $ unRichInfoAssocList al
+            (Nothing, False) -> pure $ map (uncurry RichField) (Map.toAscList direct)
+            (Just al, False) ->
+              let fields1 = unRichInfoAssocList al
+               in pure $ unRichInfoAssocList $ toRichInfoAssocList (RichInfoMapAndList (Just direct) (Just fields1) False)
+            (Nothing, True) -> pure []
+        o fields = schemaOut (RichInfoAssocList .= ciField "richInfo" (unnamed (schema @RichInfoAssocList) <> richInfoAssocListSchemaLegacy)) fields
+
     richInfoAssocListSchemaLegacy :: ValueSchema SwaggerDoc RichInfoAssocList
     richInfoAssocListSchemaLegacy = RichInfoAssocList <$> unRichInfoAssocList .= array (schema @RichField)
 
 -- | Uses 'normalizeRichInfoMapAndList'.
 mkRichInfoMapAndList :: [RichField] -> RichInfoMapAndList
-mkRichInfoMapAndList = normalizeRichInfoMapAndList . RichInfoMapAndList mempty
+mkRichInfoMapAndList = normalizeRichInfoMapAndList . (\al -> RichInfoMapAndList Nothing (Just al) False)
 
 -- | Remove fields with @""@ values; make both map and assoc list contain the union of their
 -- data; handle case insensitivity.  See also: 'normalizeRichInfo'.
@@ -232,8 +237,26 @@ normalizeRichInfoMapAndList = fromRichInfoAssocList . toRichInfoAssocList
 --
 -- Uses 'mkRichInfoAssocList'; used as one half of 'normalizeRichInfoAssocList'.
 toRichInfoAssocList :: RichInfoMapAndList -> RichInfoAssocList
-toRichInfoAssocList (RichInfoMapAndList mp al) =
-  mkRichInfoAssocList $ foldl' go al (Map.toAscList mp)
+toRichInfoAssocList (RichInfoMapAndList mbMp mbAl isFull) =
+  case (mbMp, mbAl) of
+    (Just mp, Just al)
+      | isFull ->
+          -- mp is the source of truth for the SET of keys
+          let updatedAl = mapMaybe (\(RichField k _) -> RichField k <$> Map.lookup k mp) al
+              addedAl = map (uncurry RichField) $ filter (\(k, _) -> not (k `elem` map richFieldType al)) (Map.toAscList mp)
+           in mkRichInfoAssocList (updatedAl <> addedAl)
+    (Just mp, Just al) ->
+      -- Union merge
+      toRichInfoAssocListUnion (RichInfoMapAndList (Just mp) (Just al) False)
+    (Just mp, Nothing) -> mkRichInfoAssocList $ map (uncurry RichField) (Map.toAscList mp)
+    (Nothing, Just al) -> mkRichInfoAssocList al
+    (Nothing, Nothing) -> mempty
+
+toRichInfoAssocListUnion :: RichInfoMapAndList -> RichInfoAssocList
+toRichInfoAssocListUnion (RichInfoMapAndList mbMp mbAl _) =
+  let al = fromMaybe [] mbAl
+      mp = fromMaybe mempty mbMp
+   in mkRichInfoAssocList $ foldl' go al (Map.toAscList mp)
   where
     go :: [RichField] -> (CI Text, Text) -> [RichField]
     go rfs (key, val) =
@@ -250,8 +273,9 @@ toRichInfoAssocList (RichInfoMapAndList mp al) =
 fromRichInfoAssocList :: RichInfoAssocList -> RichInfoMapAndList
 fromRichInfoAssocList (RichInfoAssocList riList) =
   RichInfoMapAndList
-    { richInfoMap = riMap,
-      richInfoAssocList = riList'
+    { richInfoMap = Just riMap,
+      richInfoAssocList = Just riList',
+      richInfoMapIsFullState = True
     }
   where
     riList' = normalizeRichInfoAssocListInt riList
