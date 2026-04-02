@@ -53,14 +53,13 @@ import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Error (Error)
+import Polysemy.Error (Error, mapError)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import System.Logger.Class qualified as Log
 import Wire.API.Component
 import Wire.API.Federation.API
-import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
 import Wire.API.Message qualified as Message
@@ -88,8 +87,8 @@ claimPrekeyBundle ::
   ( Member ClientStore r,
     Member TinyLog r,
     HasBrigFederationAccess m r,
-    Member (Error FederationError) r,
-    Member GalleyAPIAccess r
+    Member GalleyAPIAccess r,
+    Member (Error ClientError) r
   ) =>
   LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
@@ -107,13 +106,13 @@ claimLocalPrekeyBundle protectee u = do
 claimRemotePrekeyBundle ::
   ( Member TinyLog r,
     HasBrigFederationAccess m r,
-    Member (Error FederationError) r
+    Member (Error ClientError) r
   ) =>
   Qualified UserId ->
   Sem r PrekeyBundle
 claimRemotePrekeyBundle (Qualified user domain) = do
   Sem.Log.info $ msg @Text "Brig-federation: claiming remote prekey bundle"
-  runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
+  mapError ClientFederationError $ runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
 
 claimMultiPrekeyBundlesInternal ::
   forall r.
@@ -155,7 +154,7 @@ claimMultiPrekeyBundlesV3 ::
     Member GalleyAPIAccess r,
     Member TinyLog r,
     HasBrigFederationAccess m r,
-    Member (Error FederationError) r
+    Member (Error ClientError) r
   ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
@@ -165,8 +164,9 @@ claimMultiPrekeyBundlesV3 protectee quc = do
   lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   remotePrekeys <-
     fmap (fmap tUntagged) . lift . liftSem $
-      runFederatedConcurrently remotes $ \rucs ->
-        fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
+      mapError ClientFederationError $
+        runFederatedConcurrently remotes $ \rucs ->
+          fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
   pure . qualifiedUserClientPrekeyMapFromList $ localPrekeys <> remotePrekeys
 
 -- Similar to claimMultiPrekeyBundles except for the following changes
