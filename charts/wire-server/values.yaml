@@ -1040,6 +1040,29 @@ background-worker:
       conversationCodes: cassandra
       teamFeatures: cassandra
 
+    settings:
+      maxTeamSize: 10000
+      maxConvSize: 500
+      intraListing: true
+      conversationCodeURI: null
+      multiIngress: null
+      passwordHashingOptions:
+        algorithm: scrypt
+      passwordHashingRateLimit:
+        ipAddrLimit:
+          burst: 5
+          inverseRate: 300000000
+        userLimit:
+          burst: 5
+          inverseRate: 60000000
+        internalLimit:
+          burst: 10
+          inverseRate: 0
+        ipv4CidrBlock: 32
+        ipv6CidrBlock: 64
+        ipAddressExceptions: []
+        maxRateLimitedKeys: 100000
+
   secrets:
     {}
     # pgPassword: <postgres-password>
