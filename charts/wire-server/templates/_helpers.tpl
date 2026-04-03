@@ -184,10 +184,10 @@ multiIngress: {{- toYaml .multiIngress | nindent 8 }}
 {{- if (and .conversationCodeURI .multiIngress) }}
 {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
 {{- end }}
-{{- if .httpPoolSize }}
+{{- if hasKey . "httpPoolSize" }}
 httpPoolSize: {{ .httpPoolSize }}
 {{- end }}
-{{- if .federationDomain }}
+{{- if hasKey . "federationDomain" }}
 federationDomain: {{ .federationDomain }}
 {{- end }}
 {{- if .federationProtocols }}
@@ -202,7 +202,7 @@ concurrentDeletionEvents: {{ .concurrentDeletionEvents }}
 {{- if .deleteConvThrottleMillis }}
 deleteConvThrottleMillis: {{ .deleteConvThrottleMillis }}
 {{- end }}
-{{- if .disabledAPIVersions }}
+{{- if hasKey . "disabledAPIVersions" }}
 disabledAPIVersions: {{ toJson .disabledAPIVersions }}
 {{- end }}
 {{- if .guestLinkTTLSeconds }}
@@ -213,7 +213,7 @@ passwordHashingRateLimit: {{ toYaml .passwordHashingRateLimit | nindent 8 }}
 {{- if .checkGroupInfo }}
 checkGroupInfo: {{ .checkGroupInfo }}
 {{- end }}
-{{- if .meetings }}
+{{- if hasKey . "meetings" }}
 meetings:
   {{- toYaml .meetings | nindent 8 }}
 {{- end }}
