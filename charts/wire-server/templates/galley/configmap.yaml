@@ -92,7 +92,7 @@ data:
       {{- end }}
       federationDomain: {{ $.Values.galley.config.settings.federationDomain }}
       {{- if .settings.federationProtocols }}
-      federationProtocols: {{ .settings.federationProtocols }}
+      federationProtocols: {{ .settings.federationProtocols | toJson }}
       {{- end }}
       {{- if $.Values.galley.secrets.mlsPrivateKeys }}
       mlsPrivateKeyPaths:

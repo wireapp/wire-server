@@ -137,7 +137,7 @@ data:
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
       {{- end }}
       {{- if .settings.federationProtocols }}
-      federationProtocols: {{ .settings.federationProtocols }}
+      federationProtocols: {{ .settings.federationProtocols | toJson }}
       {{- end }}
       {{- if .settings.guestLinkTTLSeconds }}
       guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
