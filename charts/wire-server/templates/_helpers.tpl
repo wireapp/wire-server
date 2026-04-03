@@ -163,6 +163,180 @@
 {{- end -}}
 {{- end -}}
 
+{{/* SHARED SETTINGS */}}
+{{- define "wire-server.settings.common" -}}
+maxTeamSize: {{ .maxTeamSize }}
+maxConvSize: {{ .maxConvSize }}
+intraListing: {{ .intraListing }}
+{{- if .maxFanoutSize }}
+maxFanoutSize: {{ .maxFanoutSize }}
+{{- end }}
+{{- if .exposeInvitationURLsTeamAllowlist }}
+exposeInvitationURLsTeamAllowlist: {{ toYaml .exposeInvitationURLsTeamAllowlist | nindent 8 }}
+{{- end }}
+{{- if .conversationCodeURI }}
+conversationCodeURI: {{ .conversationCodeURI | quote }}
+{{- else if .multiIngress }}
+multiIngress: {{- toYaml .multiIngress | nindent 8 }}
+{{- else }}
+{{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set" }}
+{{- end }}
+{{- if (and .conversationCodeURI .multiIngress) }}
+{{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
+{{- end }}
+{{- if .httpPoolSize }}
+httpPoolSize: {{ .httpPoolSize }}
+{{- end }}
+{{- if .federationDomain }}
+federationDomain: {{ .federationDomain }}
+{{- end }}
+{{- if .federationProtocols }}
+federationProtocols: {{ .federationProtocols | toJson }}
+{{- end }}
+{{- if .mlsPrivateKeyPaths }}
+mlsPrivateKeyPaths: {{- toYaml .mlsPrivateKeyPaths | nindent 8 }}
+{{- end }}
+{{- if .concurrentDeletionEvents }}
+concurrentDeletionEvents: {{ .concurrentDeletionEvents }}
+{{- end }}
+{{- if .deleteConvThrottleMillis }}
+deleteConvThrottleMillis: {{ .deleteConvThrottleMillis }}
+{{- end }}
+{{- if .disabledAPIVersions }}
+disabledAPIVersions: {{ toJson .disabledAPIVersions }}
+{{- end }}
+{{- if .guestLinkTTLSeconds }}
+guestLinkTTLSeconds: {{ .guestLinkTTLSeconds }}
+{{- end }}
+passwordHashingOptions: {{ toYaml .passwordHashingOptions | nindent 8 }}
+passwordHashingRateLimit: {{ toYaml .passwordHashingRateLimit | nindent 8 }}
+{{- if .checkGroupInfo }}
+checkGroupInfo: {{ .checkGroupInfo }}
+{{- end }}
+{{- if .meetings }}
+meetings:
+  {{- toYaml .meetings | nindent 8 }}
+{{- end }}
+{{- if .featureFlags }}
+featureFlags:
+  sso: {{ .featureFlags.sso }}
+  legalhold: {{ .featureFlags.legalhold }}
+  teamSearchVisibility: {{ .featureFlags.teamSearchVisibility }}
+  classifiedDomains:
+    {{- toYaml .featureFlags.classifiedDomains | nindent 10 }}
+  {{- if .featureFlags.fileSharing }}
+  fileSharing:
+    {{- toYaml .featureFlags.fileSharing | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.enforceFileDownloadLocation }}
+  enforceFileDownloadLocation:
+    {{- toYaml .featureFlags.enforceFileDownloadLocation | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.sndFactorPasswordChallenge }}
+  sndFactorPasswordChallenge:
+    {{- toYaml .featureFlags.sndFactorPasswordChallenge | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.searchVisibilityInbound }}
+  searchVisibilityInbound:
+    {{- toYaml .featureFlags.searchVisibilityInbound | nindent 10 }}
+  {{- end }}
+  {{- /* Accept the legacy typo in Helm values, but always render the canonical Galley key. */}}
+  {{- $validateSAMLemails := .featureFlags.validateSAMLemails | default .featureFlags.validateSAMLEmails }}
+  {{- if $validateSAMLemails }}
+  validateSAMLemails:
+    {{- toYaml $validateSAMLemails | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.appLock }}
+  appLock:
+    {{- toYaml .featureFlags.appLock | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.conferenceCalling }}
+  conferenceCalling:
+    {{- toYaml .featureFlags.conferenceCalling | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.selfDeletingMessages }}
+  selfDeletingMessages:
+    {{- toYaml .featureFlags.selfDeletingMessages | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.conversationGuestLinks }}
+  conversationGuestLinks:
+    {{- toYaml .featureFlags.conversationGuestLinks | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.mls }}
+  mls:
+    {{- toYaml .featureFlags.mls | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.outlookCalIntegration }}
+  outlookCalIntegration:
+    {{- toYaml .featureFlags.outlookCalIntegration | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.mlsE2EId }}
+  mlsE2EId:
+    {{- toYaml .featureFlags.mlsE2EId | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.mlsMigration }}
+  mlsMigration:
+    {{- toYaml .featureFlags.mlsMigration | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.limitedEventFanout }}
+  limitedEventFanout:
+    {{- toYaml .featureFlags.limitedEventFanout | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.domainRegistration }}
+  domainRegistration:
+    {{- toYaml .featureFlags.domainRegistration | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.channels }}
+  channels:
+    {{- toYaml .featureFlags.channels | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.cells }}
+  cells:
+    {{- toYaml .featureFlags.cells | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.cellsInternal }}
+  cellsInternal:
+    {{- toYaml .featureFlags.cellsInternal | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.allowedGlobalOperations }}
+  allowedGlobalOperations:
+    {{- toYaml .featureFlags.allowedGlobalOperations | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.assetAuditLog }}
+  assetAuditLog:
+    {{- toYaml .featureFlags.assetAuditLog | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.consumableNotifications }}
+  consumableNotifications:
+    {{- toYaml .featureFlags.consumableNotifications | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.chatBubbles }}
+  chatBubbles:
+    {{- toYaml .featureFlags.chatBubbles | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.apps }}
+  apps:
+    {{- toYaml .featureFlags.apps | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.simplifiedUserConnectionRequestQRCode }}
+  simplifiedUserConnectionRequestQRCode:
+    {{- toYaml .featureFlags.simplifiedUserConnectionRequestQRCode | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.stealthUsers }}
+  stealthUsers:
+    {{- toYaml .featureFlags.stealthUsers | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.meetings }}
+  meetings:
+    {{- toYaml .featureFlags.meetings | nindent 10 }}
+  {{- end }}
+  {{- if .featureFlags.meetingsPremium }}
+  meetingsPremium:
+    {{- toYaml .featureFlags.meetingsPremium | nindent 10 }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
 {{/* Compute the SCIM base URI
 
 The rules are:

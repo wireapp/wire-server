@@ -117,34 +117,5 @@ data:
     {{- end }}
 
     settings:
-      maxTeamSize: {{ .settings.maxTeamSize }}
-      {{- if .settings.maxFanoutSize }}
-      maxFanoutSize: {{ .settings.maxFanoutSize }}
-      {{- end }}
-      {{- if .settings.exposeInvitationURLsTeamAllowlist }}
-      exposeInvitationURLsTeamAllowlist: {{ toYaml .settings.exposeInvitationURLsTeamAllowlist | nindent 8 }}
-      {{- end }}
-      maxConvSize: {{ .settings.maxConvSize }}
-      intraListing: {{ .settings.intraListing }}
-      {{- if .settings.conversationCodeURI }}
-      conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
-      {{- else if .settings.multiIngress }}
-      multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
-      {{- else }}
-      {{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set"}}
-      {{- end }}
-      {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
-      {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
-      {{- end }}
-      {{- if .settings.federationProtocols }}
-      federationProtocols: {{ .settings.federationProtocols | toJson }}
-      {{- end }}
-      {{- if .settings.guestLinkTTLSeconds }}
-      guestLinkTTLSeconds: {{ .settings.guestLinkTTLSeconds }}
-      {{- end }}
-      passwordHashingOptions: {{ toYaml .settings.passwordHashingOptions | nindent 8 }}
-      passwordHashingRateLimit: {{ toYaml .settings.passwordHashingRateLimit | nindent 8 }}
-      {{- if .settings.checkGroupInfo }}
-      checkGroupInfo: {{ .settings.checkGroupInfo }}
-      {{- end }}
+{{ include "wire-server.settings.common" .settings | indent 6 }}
   {{- end }}
