@@ -729,9 +729,9 @@ upload-bombon: sbom.json
 # Targets should be independently executable and creating a Nix env in a Nix
 # env doesn't play well.
 
-# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+# Generate all SBOMs (Helm + Docker Compose + Helmfile + Nix Docker Images + Nix DevShell)
 .PHONY: sboms
-sboms: sboms-helm sboms-docker-compose sboms-helmfile
+sboms: sboms-helm sboms-docker-compose sboms-helmfile sboms-nix-docker-images sboms-nix-devshell
 
 # Generate SBOMs for Helm charts
 .PHONY: sboms-helm
@@ -755,6 +755,26 @@ sboms-helmfile: .local/charts
 		exit 1; \
 	fi
 	./hack/bin/create-helmfile-sboms.sh tmp/sboms/helmfile $(HELM_SEMVER)
+
+# Generate SBOMs for Nix-built Docker images using sbomnix
+# This generates SBOMs from the Nix store paths of executables that go into Docker images
+.PHONY: sboms-nix-docker-images
+sboms-nix-docker-images:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-nix-docker-image-sboms.sh tmp/sboms/nix-docker-images $(HELM_SEMVER) imagesUnoptimizedNoDocs
+
+# Generate SBOMs for Nix devShells using sbomnix
+# This generates SBOMs from the Nix store paths of packages in the development environments
+.PHONY: sboms-nix-devshell
+sboms-nix-devshell:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-nix-devshell-sbom.sh tmp/sboms/nix-devshell $(HELM_SEMVER)
 
 # Validate all SBOM files using cyclonedx
 .PHONY: validate-sboms

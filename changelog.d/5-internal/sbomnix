@@ -1,0 +1,1 @@
+Use sbomnix to generate SBOMs for Nix-built Docker images and devShells. Adjust Helm chart values for inlined wire-server chart.
