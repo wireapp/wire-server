@@ -682,10 +682,10 @@ element label value = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 -- Uses the Typeable instance to automatically generate the schema name.
 enum ::
   forall v doc a b.
-  (Typeable a, With v, HasEnum v doc) =>
+  (Typeable b, With v, HasEnum v doc) =>
   SchemaP [A.Value] v (Alt Maybe v) a b ->
   SchemaP doc A.Value A.Value a b
-enum = namedEnum (mkSchemaName @a)
+enum = namedEnum (mkSchemaName @b)
 
 -- | Version of 'enum' that takes an explicit name.
 namedEnum ::
