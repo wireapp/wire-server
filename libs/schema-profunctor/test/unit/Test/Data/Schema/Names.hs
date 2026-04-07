@@ -45,62 +45,62 @@ testSimpleType :: TestTree
 testSimpleType =
   testCase "Simple type from current module" $
     assertEqual
-      "Should be fully qualified with module name"
-      "UserId (Test.Data.Schema.Names.UserId)"
+      mempty
+      "UserId_Mzg3ODM1MzE3"
       (mkSchemaName @UserId)
 
 testSimpleTypeFromStdLib :: TestTree
 testSimpleTypeFromStdLib =
   testCase "Simple type from standard library" $
     assertEqual
-      "Should be fully qualified"
-      "Int (GHC.Types.Int)"
+      mempty
+      "Int_Mjg5NjU2NjEw"
       (mkSchemaName @Int)
 
 testParameterizedTypeOne :: TestTree
 testParameterizedTypeOne =
   testCase "Parameterized type with one parameter" $ do
     assertEqual
-      "Maybe Int should include both type and parameter"
-      "Maybe Int (GHC.Internal.Maybe.Maybe GHC.Types.Int)"
+      mempty
+      "Maybe_Int_LTg4NDMwMDQ1"
       (mkSchemaName @(Maybe Int))
     assertEqual
-      "Qualified UserId should include both type and parameter"
-      "Qualified UserId (Test.Data.Schema.Names.Qualified Test.Data.Schema.Names.UserId)"
+      mempty
+      "Qualified_UserId_NjA2MzcwNjQ2"
       (mkSchemaName @(Qualified UserId))
 
 testParameterizedTypeTwo :: TestTree
 testParameterizedTypeTwo =
   testCase "Parameterized type with two parameters" $
     assertEqual
-      "Either should include all type parameters"
-      "Either Int UserId (GHC.Internal.Data.Either.Either GHC.Types.Int Test.Data.Schema.Names.UserId)"
+      mempty
+      "Either_Int_UserId_OTAzNzE0MzA4"
       (mkSchemaName @(Either Int UserId))
 
 testNestedParameterizedType :: TestTree
 testNestedParameterizedType =
   testCase "Nested parameterized types" $ do
     assertEqual
-      "Maybe (Qualified UserId) should be fully expanded"
-      "Maybe (Qualified UserId) (GHC.Internal.Maybe.Maybe Test.Data.Schema.Names.Qualified Test.Data.Schema.Names.UserId)"
+      mempty
+      "Maybe_Qualified_UserId_NjE1MjgxNDQz"
       (mkSchemaName @(Maybe (Qualified UserId)))
     assertEqual
-      "Qualified (Maybe Int) should be fully expanded"
-      "Qualified (Maybe Int) (Test.Data.Schema.Names.Qualified GHC.Internal.Maybe.Maybe GHC.Types.Int)"
+      mempty
+      "Qualified_Maybe_Int_LTU0NDY2MjU1"
       (mkSchemaName @(Qualified (Maybe Int)))
 
 testTupleType :: TestTree
 testTupleType =
   testCase "Tuple types" $
     assertEqual
-      "Tuple should include all element types"
-      "(Int,UserId) (GHC.Tuple.Tuple2 GHC.Types.Int Test.Data.Schema.Names.UserId)"
+      mempty
+      "Int_UserId_LTgwNjYzNzA2"
       (mkSchemaName @(Int, UserId))
 
 testListType :: TestTree
 testListType =
   testCase "List type" $
     assertEqual
-      "List should include element type"
-      "[UserId] (GHC.Types.List Test.Data.Schema.Names.UserId)"
+      mempty
+      "UserId_LTc0Mjg2NTY2"
       (mkSchemaName @[UserId])

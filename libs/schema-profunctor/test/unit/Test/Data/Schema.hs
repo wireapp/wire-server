@@ -114,7 +114,7 @@ testFooSchema =
       (s ^. S.required)
     assertEqual
       "Schema for \"a\" should be referenced"
-      (Just (S.Ref (S.Reference "A (Test.Data.Schema.A)")))
+      (Just (S.Ref (S.Reference "A_LTU1Nzc2NDkw")))
       (s ^. S.properties . at "a")
     case s ^. S.properties . at "str" of
       Nothing -> assertFailure "\"str\" field should be present"
