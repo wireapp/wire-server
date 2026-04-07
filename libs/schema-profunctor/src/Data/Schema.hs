@@ -464,17 +464,31 @@ mkSchemaName = T.pack $ sanitizeSchemaName $ mkSchemaNameInternal @a
 mkSchemaNameWith :: forall a. (Typeable a) => Text -> Text
 mkSchemaNameWith extra = T.pack $ sanitizeSchemaName $ T.unpack extra <> " " <> (mkSchemaNameInternal @a)
 
--- | Vacuum's yaml parser chokes on '/', ':' etc in schema names.
--- Let's indulge it, and use a conservative positive filter.
+-- | Vacuum's yaml parser chokes on '/' in schema names.  Let's
+-- indulge it, and use a conservative positive filter.
 sanitizeSchemaName :: String -> String
 sanitizeSchemaName =
-  mconcat
+  rmLeadingUnderscore
+    . rmTrailingUnderscore
+    . nubUnderscores
+    . mconcat
     . map
       ( \c ->
-          if c `elem` ("_,.()[]" ++ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] :: [Char])
+          if c `elem` (['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] ++ "._-" :: [Char])
             then [c]
-            else "_" ++ show (ord c) ++ "_"
+            else "_"
       )
+  where
+    rmLeadingUnderscore ('_' : n) = n
+    rmLeadingUnderscore n = n
+
+    rmTrailingUnderscore "_" = ""
+    rmTrailingUnderscore (c : n) = c : rmTrailingUnderscore n
+    rmTrailingUnderscore [] = ""
+
+    nubUnderscores ('_' : n@('_' : _)) = nubUnderscores n
+    nubUnderscores (c : n) = c : nubUnderscores n
+    nubUnderscores [] = ""
 
 mkSchemaNameInternal :: forall a. (Typeable a) => String
 mkSchemaNameInternal = humanReadable ++ " (" <> unique ++ ")"
