@@ -6,7 +6,9 @@
 , aeson
 , aeson-qq
 , base
+, base64-bytestring
 , bifunctors
+, bytestring
 , comonad
 , containers
 , gitignoreSource
@@ -30,7 +32,9 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     base
+    base64-bytestring
     bifunctors
+    bytestring
     comonad
     containers
     hashable
