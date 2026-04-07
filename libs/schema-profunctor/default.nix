@@ -10,6 +10,7 @@
 , comonad
 , containers
 , gitignoreSource
+, hashable
 , imports
 , insert-ordered-containers
 , lens
@@ -32,6 +33,7 @@ mkDerivation {
     bifunctors
     comonad
     containers
+    hashable
     imports
     lens
     openapi3

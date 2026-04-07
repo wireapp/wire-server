@@ -64,9 +64,12 @@ library
   build-depends:
       aeson         >=2.0.1.0
     , base          >=4       && <5
+    , base64-bytestring
     , bifunctors
+    , bytestring
     , comonad
     , containers
+    , hashable
     , imports
     , lens
     , openapi3

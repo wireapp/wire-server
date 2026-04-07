@@ -103,6 +103,10 @@ import Control.Monad.Trans.Cont
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Builder (integerDec, toLazyByteString)
+import Data.ByteString.Lazy qualified as LBS
+import Data.Hashable (hash)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -112,6 +116,7 @@ import Data.OpenApi.Declare qualified as S
 import Data.Profunctor (Star (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Typeable (Proxy (..), typeRep)
 import Data.Vector qualified as V
@@ -490,14 +495,36 @@ sanitizeSchemaName =
     nubUnderscores (c : n) = c : nubUnderscores n
     nubUnderscores [] = ""
 
-mkSchemaNameInternal :: forall a. (Typeable a) => String
-mkSchemaNameInternal = humanReadable ++ " (" <> unique ++ ")"
-  where
-    humanReadable = show $ typeRep (Proxy @a)
-    unique = renderTypeRep (TR.typeRep @a)
+-- Schema names must be unique in order to avoid name clashes in some
+-- hash table in openapi3.
+--
+-- Complete representations of the types for which we define schemas
+-- can get very long, and vacuum appears to have some length limit on
+-- schema names somewhere between 300 and 3000 (it's a bit vague about
+-- the details).  So we use a human-readable, but not necessarily
+-- unique name plus a hash of the complete string representation.
 
-    renderTypeRep :: forall t. TR.TypeRep t -> String
-    renderTypeRep tr =
+-- Since even the `typeRep` itself (without all the disambiguiating
+-- work), it doesn't do as a human-readable part (might still break
+-- vacuum's length limit, plus isn't always all that human-readable).
+-- So we nub it if it is longer than 50 characters (might be better
+-- than cutting off in keeping the interesting bits).
+mkSchemaNameInternal :: forall a. (Typeable a) => String
+mkSchemaNameInternal = shortTypeRepString ++ "_" <> uniqueId
+  where
+    shortTypeRepString :: String
+    shortTypeRepString = if length s > 50 then nub s else s
+      where
+        s = show $ typeRep (Proxy @a)
+
+    uniqueId =
+      let hashValue = hash $ uniqueTypeRepString (TR.typeRep @a)
+          hashBytes = LBS.toStrict $ toLazyByteString $ integerDec $ toInteger hashValue
+          encoded = Base64.encode hashBytes
+       in take 12 $ T.unpack $ T.decodeUtf8 encoded
+
+    uniqueTypeRepString :: forall t. TR.TypeRep t -> String
+    uniqueTypeRepString tr =
       case TR.splitApps tr of
         (tyCon, []) ->
           -- Simple type with no arguments
@@ -505,8 +532,8 @@ mkSchemaNameInternal = humanReadable ++ " (" <> unique ++ ")"
         (tyCon, args) ->
           -- Type constructor applied to arguments
           let conName = tyConModule tyCon <> "." <> tyConName tyCon
-              argNames = map (\(SomeTypeRep arg) -> renderTypeRep arg) args
-           in conName <> " " <> intercalate " " argNames
+              argNames = map (\(SomeTypeRep arg) -> uniqueTypeRepString arg) args
+           in conName <> " " <> unwords argNames
 
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.
