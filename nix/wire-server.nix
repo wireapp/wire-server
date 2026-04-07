@@ -516,10 +516,12 @@ in
         (ps: with ps; [
           black
           bokeh
+          capstone
           flake8
           ipdb
           ipython
           protobuf
+          pyelftools
           pylint
           pyyaml
           requests
