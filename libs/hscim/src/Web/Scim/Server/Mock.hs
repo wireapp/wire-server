@@ -35,6 +35,7 @@ import Data.Hashable
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
 import Data.Text (Text, pack)
 import Data.Time.Calendar
 import Data.Time.Clock
@@ -55,7 +56,7 @@ import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.ResourceType
-import Web.Scim.Schema.Schema (Schema (Group20, ListResponse20, User20))
+import Web.Scim.Schema.Schema
 import Web.Scim.Schema.User hiding (displayName)
 
 -- | Tag used in the mock server.
@@ -106,7 +107,9 @@ hoistSTM = hoist liftSTM
 instance UserTypes Mock where
   type UserId Mock = Id
   type UserExtra Mock = NoUserExtra
-  supportedSchemas = [User20]
+
+instance SupportsSchemas Mock where
+  supportedSchemas _ = Set.fromList [User20]
 
 instance UserDB Mock TestServer where
   getUsers () mbFilter = do
