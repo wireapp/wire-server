@@ -1,0 +1,80 @@
+on:
+  push:
+    branches:
+      - lwille/zauth-arm64
+
+name: Build zAuth Rust binary for ARM64
+jobs:
+  build-macos-arm:
+    runs-on: ubuntu-latest
+    env:
+      SDK_VERSION: 12.3
+      TARGET: aarch64-apple-darwin
+      OSXCROSS_TARGET: ${{ github.workspace }}/osxcross
+      CARGO_HOME: ${{ github.workspace }}/.cargo
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup osxcross
+        uses: Timmmm/setup-osxcross@v2
+        with:
+          osx-version: ${{ env.SDK_VERSION }}
+
+      - name: Install Rust (with macOS ARM64 target)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          target: aarch64-apple-darwin
+
+      - name: Verify target installed
+        run: rustup target list --installed
+
+      - name: Build zauth
+        run: |
+          cd libs/libzauth/libzauth-c
+          export TOOLCHAIN=/home/runner/work/_actions/Timmmm/setup-osxcross/v2/osxcross/target/bin
+          export CC=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang' | head -n 1)
+          export CXX=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-clang++' | head -n 1)
+          export AR=$(find "$TOOLCHAIN" \( -type f -o -type l \) -name 'aarch64-apple-darwin*-ar' | head -n 1)
+          export AR_aarch64_apple_darwin=$AR
+
+          if [ -z "$CC" ]; then
+            echo "Error: couldn't find aarch64 clang in $TOOLCHAIN"
+            ls -l "$TOOLCHAIN"
+            exit 1
+          fi
+
+          export OSXCROSS="$OSXCROSS_TARGET"
+          export SDKROOT="$OSXCROSS/SDK/MacOSX${SDK_VERSION}.sdk"
+          ls -l "$SDKROOT"
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          export CFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+          export LDFLAGS="-isysroot $SDKROOT -arch arm64 -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+          export CFLAGS_aarch64_apple_darwin="$CFLAGS"
+          export LDFLAGS_aarch64_apple_darwin="$LDFLAGS"
+          export PKG_CONFIG_ALLOW_CROSS=1
+          export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=$CC
+          export CC_aarch64_apple_darwin="$CC"
+
+          echo "Using CC=$CC"
+          $CC --version || (echo "clang executable broken" && exit 1)
+          cargo build --release --target aarch64-apple-darwin --verbose
+
+      - name: List built binaries
+        run: ls -lh libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release
+
+      - name: Upload zauth binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zauth-macos-arm64
+          path: libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release/zauth
+
+      - name: Upload config.log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsodium-config-log
+          path: libs/libzauth/libzauth-c/target/aarch64-apple-darwin/release/build/libsodium-sys-*/out/
