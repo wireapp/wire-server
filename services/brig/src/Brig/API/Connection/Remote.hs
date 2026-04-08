@@ -50,8 +50,8 @@ import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
+import Wire.UserStore as UserStore
+import Wire.UserSubsystem
 
 data LocalConnectionAction
   = LocalConnect
@@ -302,6 +302,7 @@ createConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member NotificationSubsystem r,
     HasBrigFederationAccess m r
   ) =>
@@ -312,6 +313,7 @@ createConnectionToRemoteUser ::
 createConnectionToRemoteUser self zcon other = do
   ensureNotSameAndActivated self (tUntagged other)
   ensureFederatesWith other
+  ensureNoApps self [tUntagged self, tUntagged other]
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 

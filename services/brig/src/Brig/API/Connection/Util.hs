@@ -20,6 +20,8 @@ module Brig.API.Connection.Util
     checkLimit,
     ensureIsActivated,
     ensureNotSameAndActivated,
+    ensureNotSameTeam,
+    ensureNoApps,
   )
 where
 
@@ -34,7 +36,10 @@ import Data.Qualified
 import Imports
 import Polysemy
 import Wire.API.Connection (Relation (..))
+import Wire.API.User
+import Wire.GalleyAPIAccess
 import Wire.UserStore
+import Wire.UserSubsystem
 
 type ConnectionM r = ExceptT ConnectionError (AppT r)
 
@@ -57,3 +62,25 @@ ensureIsActivated :: (Member UserStore r) => Local UserId -> MaybeT (AppT r) ()
 ensureIsActivated lusr = do
   active <- lift . liftSem $ isActivated (tUnqualified lusr)
   guard active
+
+ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
+ensureNotSameTeam self target = do
+  selfTeam <- lift $ liftSem $ getTeamId (tUnqualified self)
+  targetTeam <- lift $ liftSem $ getTeamId (tUnqualified target)
+  when (isJust selfTeam && selfTeam == targetTeam) $
+    throwE ConnectSameBindingTeamUsers
+
+ensureNoApps :: (Member UserSubsystem r) => Local UserId -> [Qualified UserId] -> (ConnectionM r) ()
+ensureNoApps _ [] = pure ()
+ensureNoApps asker uids@(_ : _) = do
+  apps :: [Qualified UserId] <-
+    catMaybes <$> do
+      let go prof = case prof.profileType of
+            UserTypeApp -> Just prof.profileQualifiedId
+            UserTypeRegular -> Nothing
+            UserTypeBot -> Nothing
+      lift $ liftSem $ go <$$> getUserProfiles asker uids
+
+  case apps of
+    [] -> pure ()
+    (hd : _) -> throwE (InvalidUser hd)
