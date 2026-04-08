@@ -28,19 +28,12 @@ spec:
       - name: fake-aws-ses
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         env:
-          - name: DEBUG
-            value: "1"
-          - name: DEFAULT_REGION
-            value: "eu-west-1"
-          - name: SERVICES
-            value: "ses"
+          - name: MOTO_PORT
+            value: "{{ .Values.service.internalPort }}"
         ports:
         - containerPort: {{ .Values.service.internalPort }}
           name: http
           protocol: TCP
-        volumeMounts:
-        - name: storage
-          mountPath: /data
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       - name: initiate-fake-aws-ses
@@ -71,6 +64,3 @@ spec:
               fi
               sleep 10
           done
-      volumes:
-        - emptyDir: {}
-          name: "storage"
