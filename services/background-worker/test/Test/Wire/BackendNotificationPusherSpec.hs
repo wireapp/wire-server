@@ -473,6 +473,7 @@ mockApi mockAdmin =
   AdminAPI
     { listQueuesByVHost = mockListQueuesByVHost mockAdmin,
       deleteQueue = mockListDeleteQueue mockAdmin,
+      addPolicy = todo ("Not required yet." :: String),
       listConnectionsByVHost = mockListConnectionsByVHost mockAdmin,
       deleteConnection = mockDeleteConnection mockAdmin
     }
