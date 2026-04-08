@@ -95,7 +95,8 @@ type ComputeFeatureConstraints cfg r = (Member FeaturesConfigSubsystem r)
 
 patchFeatureInternal ::
   forall cfg r.
-  ( SetFeatureConfig cfg,
+  ( Typeable cfg,
+    SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'TeamNotFound) r,
@@ -132,7 +133,8 @@ patchFeatureInternal tid patch = do
 
 setFeature ::
   forall cfg r.
-  ( SetFeatureConfig cfg,
+  ( Typeable cfg,
+    SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'NotATeamMember) r,
@@ -155,7 +157,8 @@ setFeature uid tid feat = do
 
 setFeatureInternal ::
   forall cfg r.
-  ( SetFeatureConfig cfg,
+  ( Typeable cfg,
+    SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (ErrorS 'TeamNotFound) r,
@@ -176,7 +179,8 @@ setFeatureInternal tid feat = do
 
 setFeatureUnchecked ::
   forall cfg r.
-  ( SetFeatureConfig cfg,
+  ( Typeable cfg,
+    SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
     Member (Error TeamFeatureError) r,
@@ -258,7 +262,8 @@ guardLockStatus = \case
 
 setFeatureForTeam ::
   forall cfg r.
-  ( SetFeatureConfig cfg,
+  ( Typeable cfg,
+    SetFeatureConfig cfg,
     SetFeatureForTeamConstraints cfg r,
     ComputeFeatureConstraints cfg r,
     Member P.TinyLog r,

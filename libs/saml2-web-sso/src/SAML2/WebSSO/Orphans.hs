@@ -66,7 +66,7 @@ instance ToSchema URI where
           $ (parseURI strictURIParserOptions . Text.encodeUtf8) uriText
 
 instance ToSchema Level where
-  schema = assert exhaustive $ enum @Text "Level" $ mconcat $ el <$> [minBound ..]
+  schema = assert exhaustive $ enum @Text $ mconcat $ el <$> [minBound ..]
     where
       el l = element (Text.pack (show l)) l
 

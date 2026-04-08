@@ -150,14 +150,12 @@ conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc 
 conversationActionSchema SConversationJoinTag = schema @ConversationJoin
 conversationActionSchema SConversationLeaveTag =
   objectWithDocModifier
-    "ConversationLeave"
     (S.description ?~ "The action of some users leaving a conversation on their own")
     $ pure ()
 conversationActionSchema SConversationRemoveMembersTag = schema
 conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
 conversationActionSchema SConversationDeleteTag =
   objectWithDocModifier
-    "ConversationDelete"
     (S.description ?~ "The action of deleting a conversation")
     (pure ())
 conversationActionSchema SConversationRenameTag = schema

@@ -35,7 +35,7 @@ newtype TeamSize = TeamSize Natural
 
 instance ToSchema TeamSize where
   schema =
-    objectWithDocModifier "TeamSize" (description ?~ "A simple object with a total number of team members.") $
+    objectWithDocModifier (description ?~ "A simple object with a total number of team members.") $
       TeamSize <$> (unTeamSize .= fieldWithDocModifier "teamSize" (description ?~ "Team size.") schema)
     where
       unTeamSize :: TeamSize -> Natural

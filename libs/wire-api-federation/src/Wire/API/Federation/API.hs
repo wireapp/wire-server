@@ -128,7 +128,7 @@ fedClientIn ::
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
 sendBundle ::
-  (KnownComponent c) =>
+  (Typeable c, KnownComponent c) =>
   PayloadBundle c ->
   FedQueueClient c ()
 sendBundle bundle = do
@@ -147,7 +147,8 @@ sendBundle bundle = do
 
 fedQueueClient ::
   forall {k} (tag :: k) c.
-  ( HasNotificationEndpoint tag,
+  ( Typeable c,
+    HasNotificationEndpoint tag,
     HasVersionRange tag,
     HasFedPath tag,
     KnownComponent (NotificationComponent k),

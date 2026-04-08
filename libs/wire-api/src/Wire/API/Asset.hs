@@ -127,7 +127,7 @@ mkAsset k = Asset k Nothing Nothing
 
 instance ToSchema Asset where
   schema =
-    object "Asset" $
+    object $
       Asset
         <$> _assetKey
           .= ( Qualified
@@ -231,7 +231,7 @@ newtype NewAssetToken = NewAssetToken
 
 instance ToSchema NewAssetToken where
   schema =
-    object "NewAssetToken" $
+    object $
       NewAssetToken <$> newAssetToken .= field "token" schema
 
 --------------------------------------------------------------------------------
@@ -308,7 +308,7 @@ defAssetSettings = AssetSettings False Nothing Nothing Nothing Nothing
 
 instance ToSchema AssetSettings where
   schema =
-    object "AssetSettings" $
+    object $
       AssetSettings
         <$> _setAssetPublic .= (fromMaybe False <$> optField "public" schema)
         <*> _setAssetRetention .= maybe_ (optField "retention" schema)
@@ -389,7 +389,7 @@ retentionToTextRep AssetExpiring = "expiring"
 
 instance ToSchema AssetRetention where
   schema =
-    enum @Text "AssetRetention" $
+    enum @Text $
       foldMap
         (\value -> element (retentionToTextRep value) value)
         [minBound .. maxBound]

@@ -138,7 +138,7 @@ rtcConfiguration = RTCConfiguration
 
 instance ToSchema RTCConfiguration where
   schema =
-    objectWithDocModifier "RTCConfiguration" (description ?~ "A subset of the WebRTC 'RTCConfiguration' dictionary") $
+    objectWithDocModifier (description ?~ "A subset of the WebRTC 'RTCConfiguration' dictionary") $
       RTCConfiguration
         <$> _rtcConfIceServers
           .= fieldWithDocModifier "ice_servers" (description ?~ "Array of 'RTCIceServer' objects") (nonEmptyArray schema)
@@ -163,7 +163,7 @@ newtype SFTServer = SFTServer
 
 instance ToSchema SFTServer where
   schema =
-    objectWithDocModifier "SftServer" (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
+    objectWithDocModifier (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
       SFTServer
         <$> (pure . _sftURL)
           .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
@@ -189,7 +189,7 @@ data AuthSFTServer = AuthSFTServer
 
 instance ToSchema AuthSFTServer where
   schema =
-    objectWithDocModifier "SftServer" (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
+    objectWithDocModifier (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
       AuthSFTServer
         <$> (pure . _authURL)
           .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
@@ -228,7 +228,7 @@ rtcIceServer = RTCIceServer
 
 instance ToSchema RTCIceServer where
   schema =
-    objectWithDocModifier "RTCIceServer" (description ?~ "A subset of the WebRTC 'RTCIceServer' object") $
+    objectWithDocModifier (description ?~ "A subset of the WebRTC 'RTCIceServer' object") $
       RTCIceServer
         <$> _iceURLs
           .= fieldWithDocModifier "urls" (description ?~ "Array of TURN server addresses of the form 'turn:<addr>:<port>'") (nonEmptyArray schema)
@@ -323,7 +323,7 @@ instance BC.FromByteString Scheme where
 
 instance ToSchema Scheme where
   schema =
-    enum @Text "Scheme" $
+    enum @Text $
       mconcat
         [ element "turn" SchemeTurn,
           element "turns" SchemeTurns
@@ -343,7 +343,7 @@ data TurnHostTag = TurnHostIpTag | TurnHostNameTag
 
 tagSchema :: ValueSchema NamedSwaggerDoc TurnHostTag
 tagSchema =
-  enum @Text "TurnHostTag" $
+  enum @Text $
     mconcat
       [ element "TurnHostIp" TurnHostIpTag,
         element "TurnHostName" TurnHostNameTag
@@ -351,7 +351,7 @@ tagSchema =
 
 turnHostSchema :: ValueSchema NamedSwaggerDoc TurnHost
 turnHostSchema =
-  object "TurnHost" $
+  object $
     fromTagged
       <$> toTagged
         .= bind
@@ -431,7 +431,7 @@ instance BC.FromByteString Transport where
 
 instance ToSchema Transport where
   schema =
-    enum @Text "Transport" $
+    enum @Text $
       mconcat
         [ element "udp" TransportUDP,
           element "tcp" TransportTCP

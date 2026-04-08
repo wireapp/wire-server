@@ -38,7 +38,7 @@ data LegalHoldLogin = LegalHoldLogin
 
 instance ToSchema LegalHoldLogin where
   schema =
-    object "LegalHoldLogin" $
+    object $
       LegalHoldLogin
         <$> lhlUserId .= field "user" schema
         <*> lhlPassword .= optField "password" (maybeWithDefault A.Null schema)

@@ -40,7 +40,7 @@ data SystemSettingsPublic = SystemSettingsPublic
 
 instance ToSchema SystemSettingsPublic where
   schema =
-    object "SystemSettingsPublic" $ settingsPublicObjectSchema
+    object $ settingsPublicObjectSchema
 
 settingsPublicObjectSchema :: ObjectSchema SwaggerDoc SystemSettingsPublic
 settingsPublicObjectSchema =
@@ -64,7 +64,7 @@ data SystemSettingsInternal = SystemSettingsInternal
 
 instance ToSchema SystemSettingsInternal where
   schema =
-    object "SystemSettingsInternal" $ settingsInternalObjectSchema
+    object $ settingsInternalObjectSchema
 
 settingsInternalObjectSchema :: ObjectSchema SwaggerDoc SystemSettingsInternal
 settingsInternalObjectSchema =
@@ -81,7 +81,7 @@ data SystemSettings = SystemSettings
 
 instance ToSchema SystemSettings where
   schema =
-    object "SystemSettings" $
+    object $
       SystemSettings
         <$> ssPublic .= settingsPublicObjectSchema
         <*> ssInternal .= settingsInternalObjectSchema

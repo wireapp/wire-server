@@ -528,7 +528,7 @@ getTeamFeatureFlag tid = do
 
 setTeamFeatureFlag ::
   forall cfg.
-  (IsFeatureConfig cfg) =>
+  (Typeable cfg, IsFeatureConfig cfg) =>
   TeamId ->
   Public.Feature cfg ->
   Handler ()
@@ -542,7 +542,7 @@ setTeamFeatureFlag tid status = do
 
 patchTeamFeatureFlag ::
   forall cfg.
-  (IsFeatureConfig cfg) =>
+  (Typeable cfg, IsFeatureConfig cfg) =>
   TeamId ->
   Public.LockableFeaturePatch cfg ->
   Handler ()

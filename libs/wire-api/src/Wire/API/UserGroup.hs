@@ -69,7 +69,7 @@ data NewUserGroup = NewUserGroup
 
 instance ToSchema NewUserGroup where
   schema =
-    object "NewUserGroup" $
+    object $
       NewUserGroup
         <$> (.name) .= field "name" schema
         <*> (.members) .= field "members" (vector schema)
@@ -83,7 +83,7 @@ data UserGroupUpdate = UserGroupUpdate
 
 instance ToSchema UserGroupUpdate where
   schema =
-    object "UserGroupUpdate" $
+    object $
       UserGroupUpdate
         <$> (.name) .= field "name" schema
 
@@ -96,7 +96,7 @@ newtype UserGroupAddUsers = UserGroupAddUsers
 
 instance ToSchema UserGroupAddUsers where
   schema =
-    object "UserGroupAddUsers" $
+    object $
       UserGroupAddUsers
         <$> (.members) .= field "members" (vector schema)
 
@@ -145,7 +145,7 @@ deriving via Schema (UserGroup_ (Const ())) instance OpenApi.ToSchema (UserGroup
 
 instance ToSchema (UserGroup_ (Const ())) where
   schema =
-    object "UserGroupMeta" $
+    object $
       UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
@@ -172,7 +172,7 @@ deriving via Schema (UserGroup_ Identity) instance OpenApi.ToSchema (UserGroup_ 
 
 instance ToSchema (UserGroup_ Identity) where
   schema =
-    object "UserGroup" $
+    object $
       UserGroup_
         <$> (.id_) .= field "id" schema
         <*> (.name) .= field "name" schema
@@ -192,7 +192,7 @@ newtype UpdateUserGroupMembers = UpdateUserGroupMembers
 
 instance ToSchema UpdateUserGroupMembers where
   schema =
-    object "UpdateUserGroupMembers" $
+    object $
       UpdateUserGroupMembers
         <$> (.members) .= field "members" (vector schema)
 
@@ -205,7 +205,7 @@ newtype UpdateUserGroupChannels = UpdateUserGroupChannels
 
 instance ToSchema UpdateUserGroupChannels where
   schema =
-    object "UpdateUserGroupChannels" $
+    object $
       UpdateUserGroupChannels
         <$> (.channels) .= field "channels" (vector schema)
 
@@ -218,7 +218,7 @@ newtype CheckUserGroupName = CheckUserGroupName
 
 instance ToSchema CheckUserGroupName where
   schema =
-    object "CheckUserGroupName" $
+    object $
       CheckUserGroupName
         <$> (.name) .= field "name" schema
 
@@ -231,6 +231,6 @@ newtype UserGroupNameAvailability = UserGroupNameAvailability
 
 instance ToSchema UserGroupNameAvailability where
   schema =
-    object "UserGroupNameAvailability" $
+    object $
       UserGroupNameAvailability
         <$> (.available) .= field "name_available" schema

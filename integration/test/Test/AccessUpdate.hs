@@ -29,7 +29,7 @@ import Testlib.Prelude
 import Testlib.ResourcePool
 
 -- These two commented out tests exist to test the Setup.hs code.
--- Both of these tests should not appear in the output.
+-- Neither of these tests should appear in the output.
 
 -- testBar :: HasCallStack => App ()
 -- testBar = pure ()
@@ -89,6 +89,7 @@ testAccessUpdateGuestRemoved proto = do
 
   bindResponse (getConversation alice conv) $ \res -> do
     res.status `shouldMatchInt` 200
+    (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
 -- @END

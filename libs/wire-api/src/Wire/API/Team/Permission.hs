@@ -69,7 +69,7 @@ data Permissions = Permissions
 
 permissionsSchema :: ValueSchema NamedSwaggerDoc Permissions
 permissionsSchema =
-  objectWithDocModifier "Permissions" (description ?~ docs) $
+  objectWithDocModifier (description ?~ docs) $
     Permissions
       <$> (permsToInt . self) .= fieldWithDocModifier "self" selfDoc (intToPerms <$> schema)
       <*> (permsToInt . copy) .= fieldWithDocModifier "copy" copyDoc (intToPerms <$> schema)

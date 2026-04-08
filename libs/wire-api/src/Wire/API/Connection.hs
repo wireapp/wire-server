@@ -86,7 +86,7 @@ data UserConnectionList = UserConnectionList
 
 instance ToSchema UserConnectionList where
   schema =
-    object "UserConnectionList" $
+    object $
       UserConnectionList
         <$> clConnections .= field "connections" (array schema)
         <*> clHasMore .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more connections than returned.") schema
@@ -113,7 +113,7 @@ data UserConnection = UserConnection
 
 instance ToSchema UserConnection where
   schema =
-    object "UserConnection" $
+    object $
       UserConnection
         <$> ucFrom .= field "from" schema
         <*> ucTo .= field "qualified_to" schema
@@ -197,7 +197,7 @@ relationDropHistory = \case
 
 instance ToSchema Relation where
   schema =
-    enum @Text "Relation" $
+    enum @Text $
       mconcat
         [ element "accepted" Accepted,
           element "blocked" Blocked,
@@ -282,7 +282,7 @@ data ConnectionRequest = ConnectionRequest
 
 instance ToSchema ConnectionRequest where
   schema =
-    object "ConnectionRequest" $
+    object $
       ConnectionRequest
         <$> crUser .= fieldWithDocModifier "user" (description ?~ "user ID of the user to request a connection with") schema
         <*> crName .= fieldWithDocModifier "name" (description ?~ "Name of the (pending) conversation being initiated (1 - 256) characters)") schema
@@ -297,6 +297,6 @@ newtype ConnectionUpdate = ConnectionUpdate
 
 instance ToSchema ConnectionUpdate where
   schema =
-    object "ConnectionUpdate" $
+    object $
       ConnectionUpdate
         <$> cuStatus .= fieldWithDocModifier "status" (description ?~ "New relation status") schema

@@ -38,7 +38,7 @@ data EdMemberLeftReason
 
 instance ToSchema EdMemberLeftReason where
   schema =
-    enum @Text "EdMemberLeftReason" $
+    enum @Text $
       mconcat
         [ element "left" EdReasonLeft,
           element "user-deleted" EdReasonDeleted,

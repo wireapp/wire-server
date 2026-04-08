@@ -144,7 +144,7 @@ dynError = dynError' $ seSing @e
 
 staticErrorSchema :: SStaticError e -> ValueSchema NamedSwaggerDoc (SStaticError e)
 staticErrorSchema e@(SStaticError c l m) =
-  objectWithDocModifier "Error" addExample $
+  objectWithDocModifier addExample $
     SStaticError
       <$> (c <$ (const code .= field "code" codeSchema))
       <*> (l <$ (const label .= field "label" labelSchema))
@@ -157,9 +157,9 @@ staticErrorSchema e@(SStaticError c l m) =
 
     addExample = S.schema . S.example ?~ A.toJSON e
     labelSchema :: ValueSchema SwaggerDoc Text
-    labelSchema = unnamed $ enum @Text "Label" (element label label)
+    labelSchema = unnamed $ enum @Text (element label label)
     codeSchema :: ValueSchema SwaggerDoc Natural
-    codeSchema = unnamed $ enum @Natural "Status" (element code code)
+    codeSchema = unnamed $ enum @Natural (element code code)
 
 instance (KnownError e) => ToSchema (SStaticError e) where
   schema = staticErrorSchema seSing

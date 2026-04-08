@@ -60,6 +60,7 @@ putTeamFeatureInternal ::
     HasGalley m,
     MonadHttp m,
     HasCallStack,
+    Typeable cfg,
     IsFeatureConfig cfg
   ) =>
   (Request -> Request) ->
@@ -76,7 +77,7 @@ putTeamFeatureInternal reqmod tid status = do
 
 putTeamFeature ::
   forall cfg.
-  (HasCallStack, IsFeatureConfig cfg) =>
+  (HasCallStack, Typeable cfg, IsFeatureConfig cfg) =>
   UserId ->
   TeamId ->
   Feature cfg ->

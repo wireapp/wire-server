@@ -51,7 +51,7 @@ data JobPayloadTag
 
 instance ToSchema JobPayloadTag where
   schema =
-    enum @Text "JobPayloadTag" $
+    enum @Text $
       mconcat
         [ element "sync-user-group-and-channel" JobSyncUserGroupAndChannelTag,
           element "sync-user-group" JobSyncUserGroupTag
@@ -78,7 +78,7 @@ data SyncUserGroupAndChannel = SyncUserGroupAndChannel
 
 instance ToSchema SyncUserGroupAndChannel where
   schema =
-    object "SyncUserGroupAndChannel" $
+    object $
       SyncUserGroupAndChannel
         <$> (.teamId) .= field "team_id" schema
         <*> (.userGroupId) .= field "user_group_id" schema
@@ -96,7 +96,7 @@ data SyncUserGroup = SyncUserGroup
 
 instance ToSchema SyncUserGroup where
   schema =
-    object "SyncUserGroup" $
+    object $
       SyncUserGroup
         <$> (.teamId) .= field "team_id" schema
         <*> (.userGroupId) .= field "user_group_id" schema
@@ -118,7 +118,7 @@ jobPayloadObjectSchema =
       JobSyncUserGroupTag -> tag _JobSyncUserGroup (field "payload" schema)
 
 instance ToSchema JobPayload where
-  schema = object "JobPayload" jobPayloadObjectSchema
+  schema = object jobPayloadObjectSchema
 
 deriving via (Schema JobPayload) instance Aeson.FromJSON JobPayload
 
@@ -138,7 +138,7 @@ data Job = Job
 
 instance ToSchema Job where
   schema =
-    object "Job" $
+    object $
       Job
         <$> jobId .= field "id" schema
         <*> requestId .= field "requestId" schema

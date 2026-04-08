@@ -119,7 +119,7 @@ data EventVia = EventViaUserAction | EventViaSCIM
 
 instance ToSchema EventVia where
   schema =
-    enum @Text "EventVia" $
+    enum @Text $
       mconcat
         [ element "scim" EventViaSCIM,
           element "user" EventViaUserAction
@@ -197,7 +197,7 @@ data EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "conversation.member-join" MemberJoin,
           element "conversation.member-leave" MemberLeave,
@@ -326,7 +326,7 @@ data MembersJoin = MembersJoin
 
 instance ToSchema MembersJoin where
   schema =
-    object "MembersJoin" $
+    object $
       MembersJoin
         <$> mMembers .= field "users" (array schema)
         <* (fmap smId . mMembers)
@@ -353,7 +353,7 @@ smId = qUnqualified . smQualifiedId
 
 instance ToSchema SimpleMember where
   schema =
-    object "SimpleMember" $
+    object $
       SimpleMember
         <$> smQualifiedId .= field "qualified_id" schema
         <* smId .= optional (field "id" schema)
@@ -374,7 +374,7 @@ data Connect = Connect
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Connect
 
 instance ToSchema Connect where
-  schema = object "Connect" connectObjectSchema
+  schema = object connectObjectSchema
 
 connectObjectSchema :: ObjectSchema SwaggerDoc Connect
 connectObjectSchema =
@@ -406,7 +406,7 @@ data MemberUpdateData = MemberUpdateData
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema MemberUpdateData
 
 instance ToSchema MemberUpdateData where
-  schema = object "MemberUpdateData" memberUpdateDataObjectSchema
+  schema = object memberUpdateDataObjectSchema
 
 memberUpdateDataObjectSchema :: ObjectSchema SwaggerDoc MemberUpdateData
 memberUpdateDataObjectSchema =
@@ -438,7 +438,6 @@ data OtrMessage = OtrMessage
 instance ToSchema OtrMessage where
   schema =
     objectWithDocModifier
-      "OtrMessage"
       (description ?~ "Encrypted message of a conversation")
       otrMessageObjectSchema
 
@@ -475,7 +474,7 @@ data ConversationReset = ConversationReset
 
 instance ToSchema ConversationReset where
   schema =
-    object "ConversationReset" $
+    object $
       ConversationReset
         <$> (.groupId) .= field "group_id" schema
         <*> (.newGroupId) .= maybe_ (optField "new_group_id" schema)
@@ -518,11 +517,11 @@ taggedEventDataSchema =
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =
-  object "QualifiedUserIdList_with_EdMemberLeftReason" $
+  object $
     (,) <$> fst .= field "reason" schema <*> snd .= qualifiedUserIdListObjectSchema
 
 instance ToSchema Event where
-  schema = object "Event" eventObjectSchema
+  schema = object eventObjectSchema
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
@@ -590,7 +589,7 @@ data CellsEventType
 
 instance ToSchema CellsEventType where
   schema =
-    enum @Text "CellsEventType" $
+    enum @Text $
       mconcat
         [ element "conversation.create" CellsConvCreate
         ]
@@ -599,7 +598,7 @@ makePrisms ''CellsEventData
 
 instance ToSchema CellsEvent where
   schema =
-    object "CellsEvent" $
+    object $
       mk
         <$> (cellsEventType &&& cellsEventData) .= taggedCellsEventDataSchema
         <*> convId .= field "qualified_conversation" schema

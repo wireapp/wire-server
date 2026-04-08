@@ -43,7 +43,7 @@ data ReAuthUser = ReAuthUser
 
 instance ToSchema ReAuthUser where
   schema =
-    object "ReAuthUser" $
+    object $
       ReAuthUser
         <$> reAuthPassword .= optField "password" (maybeWithDefault A.Null schema)
         <*> reAuthCode .= optField "verification_code" (maybeWithDefault A.Null schema)

@@ -31,7 +31,7 @@ data HavePendingInvitations
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema HavePendingInvitations
 
 instance ToSchema HavePendingInvitations where
-  schema = enum @Bool "HavePendingInvitations" $ mconcat [element True WithPendingInvitations, element False NoPendingInvitations]
+  schema = enum @Bool $ mconcat [element True WithPendingInvitations, element False NoPendingInvitations]
 
 fromBool :: Bool -> HavePendingInvitations
 fromBool True = WithPendingInvitations

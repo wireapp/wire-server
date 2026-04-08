@@ -35,11 +35,11 @@ data TypingStatus
 
 instance ToSchema TypingStatus where
   schema =
-    object "TypingData" $
+    object $
       field "status" typingStatusSchema
 
 typingStatusSchema :: ValueSchema NamedSwaggerDoc TypingStatus
 typingStatusSchema =
-  enum @Text "TypingStatus" $
+  enum @Text $
     element "started" StartedTyping
       <> element "stopped" StoppedTyping

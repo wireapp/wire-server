@@ -52,7 +52,7 @@ instance Arbitrary SortOrder where
 
 instance ToSchema SortOrder where
   schema =
-    enum @Text "SortOrder" $
+    enum @Text $
       mconcat
         [ element "asc" Asc,
           element "desc" Desc
@@ -127,7 +127,7 @@ instance Default SortBy where
 
 instance ToSchema SortBy where
   schema =
-    enum @Text "SortBy" $
+    enum @Text $
       mconcat
         [ element "name" SortByName,
           element "created_at" SortByCreatedAt

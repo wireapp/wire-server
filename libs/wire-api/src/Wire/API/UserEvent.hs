@@ -116,7 +116,7 @@ data EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "user.new" EventTypeUserCreated,
           element "user.activate" EventTypeUserActivated,
@@ -281,7 +281,6 @@ eventObjectSchema =
                   ( field
                       "user"
                       ( object
-                          "UserUpdatedData"
                           ( UserUpdatedData
                               <$> eupId .= field "id" schema
                               <*> eupName .= maybe_ (optField "name" schema)
@@ -304,7 +303,6 @@ eventObjectSchema =
                     ( field
                         "user"
                         ( object
-                            "UserIdentityUpdatedData"
                             ( UserIdentityUpdatedData
                                 <$> eiuId .= field "id" schema
                                 <*> eiuEmail .= maybe_ (optField "email" schema)
@@ -321,7 +319,6 @@ eventObjectSchema =
                   ( field
                       "user"
                       ( object
-                          "UserIdentityRemovedData"
                           ( UserIdentityRemovedData
                               <$> eirId .= field "id" schema
                               <*> eirEmail .= maybe_ (optField "email" schema)
@@ -407,7 +404,7 @@ eventObjectSchema =
               _ConnectionEvent
               ( ConnectionUpdated
                   <$> ucConn .= field "connection" schema
-                  <*> ucName .= maybe_ (optField "user" (object "UserName" (field "name" schema)))
+                  <*> ucName .= maybe_ (optField "user" (object (field "name" schema)))
               )
           EventTypeUserGroupCreated ->
             tag
@@ -442,7 +439,7 @@ instance ToJSONObject Event where
   toJSONObject = KM.fromList . fold . schemaOut eventObjectSchema
 
 instance ToSchema Event where
-  schema = object "UserEvent" eventObjectSchema
+  schema = object eventObjectSchema
 
 deriving via (Schema Event) instance A.ToJSON Event
 

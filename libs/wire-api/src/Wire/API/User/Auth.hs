@@ -103,7 +103,7 @@ data LoginId
 -- NB. this should fail if (e.g.) the email is present but unparseable even if
 -- the JSON contains a valid handle.
 instance ToSchema LoginId where
-  schema = object "LoginId" loginObjectSchema
+  schema = object loginObjectSchema
 
 loginObjectSchema :: ObjectSchema SwaggerDoc LoginId
 loginObjectSchema =
@@ -149,7 +149,7 @@ data PendingLoginCode = PendingLoginCode
 
 instance ToSchema PendingLoginCode where
   schema =
-    object "PendingLoginCode" $
+    object $
       PendingLoginCode
         <$> pendingLoginCode .= field "code" schema
         <*> pendingLoginTimeout .= field "expires_in" schema
@@ -170,7 +170,6 @@ data SendLoginCode = SendLoginCode
 instance ToSchema SendLoginCode where
   schema =
     objectWithDocModifier
-      "SendLoginCode"
       (description ?~ "Payload for requesting a login code to be sent")
       $ SendLoginCode
         <$> lcPhone
@@ -201,7 +200,6 @@ newtype LoginCodeTimeout = LoginCodeTimeout
 instance ToSchema LoginCodeTimeout where
   schema =
     objectWithDocModifier
-      "LoginCodeTimeout"
       (description ?~ "A response for a successfully sent login code")
       $ LoginCodeTimeout
         <$> fromLoginCodeTimeout
@@ -223,7 +221,6 @@ data CookieList = CookieList
 instance ToSchema CookieList where
   schema =
     objectWithDocModifier
-      "CookieList"
       (description ?~ "List of cookie information")
       $ CookieList
         <$> cookieList .= field "cookies" (array schema)
@@ -244,7 +241,7 @@ data Cookie a = Cookie
 
 instance ToSchema (Cookie ()) where
   schema =
-    object "Cookie" $
+    object $
       Cookie
         <$> cookieId .= field "id" schema
         <*> cookieType .= field "type" schema
@@ -326,7 +323,7 @@ instance Cql CookieType where
 
 instance ToSchema CookieType where
   schema =
-    enum @Text "CookieType" $
+    enum @Text $
       element "session" SessionCookie
         <> element "persistent" PersistentCookie
 
@@ -348,7 +345,7 @@ data Login = MkLogin
 
 instance ToSchema Login where
   schema =
-    object "Login" $
+    object $
       MkLogin
         <$> lId .= loginObjectSchema
         <*> lPassword .= field "password" schema
@@ -370,7 +367,6 @@ data RemoveCookies = RemoveCookies
 instance ToSchema RemoveCookies where
   schema =
     objectWithDocModifier
-      "RemoveCookies"
       (description ?~ "Data required to remove cookies")
       $ RemoveCookies
         <$> rmCookiesPassword
@@ -411,7 +407,7 @@ data AccessToken = AccessToken
 
 instance ToSchema AccessToken where
   schema =
-    object "AccessToken" $
+    object $
       AccessToken
         <$> user .= field "user" schema
         <*>
@@ -448,7 +444,7 @@ data TokenType = Bearer
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema TokenType
 
 instance ToSchema TokenType where
-  schema = enum @Text "TokenType" $ element "Bearer" Bearer
+  schema = enum @Text $ element "Bearer" Bearer
 
 --------------------------------------------------------------------------------
 -- Access

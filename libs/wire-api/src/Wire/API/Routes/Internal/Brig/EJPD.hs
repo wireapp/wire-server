@@ -128,15 +128,15 @@ toEJPDResponseItemLeaf EJPDResponseItemRoot {..} =
 ----------------------------------------------------------------------
 
 instance ToSchema EJPDRequestBody where
-  schema = object "EJPDRequestBody" do
+  schema = object do
     EJPDRequestBody <$> ejpdRequestBody .= field "EJPDRequest" (array schema)
 
 instance ToSchema EJPDResponseBody where
-  schema = object "EJPDResponseBody" do
+  schema = object do
     EJPDResponseBody <$> ejpdResponseBody .= field "EJPDResponse" (array schema)
 
 instance ToSchema EJPDResponseItemRoot where
-  schema = object "EJPDResponseItemRoot" do
+  schema = object do
     EJPDResponseItemRoot
       <$> ejpdResponseRootUserId .= field "UserId" schema
       <*> ejpdResponseRootTeamId .= maybe_ (optField "TeamId" schema)
@@ -151,7 +151,7 @@ instance ToSchema EJPDResponseItemRoot where
       <*> (fmap Set.toList . ejpdResponseRootAssets) .= (Set.fromList <$$> maybe_ (optField "Assets" (array schema)))
 
 instance ToSchema EJPDResponseItemLeaf where
-  schema = object "EJPDResponseItemLeaf" do
+  schema = object do
     EJPDResponseItemLeaf
       <$> ejpdResponseLeafUserId .= field "UserId" schema
       <*> ejpdResponseLeafTeamId .= maybe_ (optField "TeamId" schema)
@@ -165,20 +165,20 @@ instance ToSchema EJPDResponseItemLeaf where
 
 instance ToSchema EJPDContact where
   schema =
-    object "EJDPContact" do
+    object do
       EJPDContactFound
         <$> ejpdContactRelation .= field "contact_relation" schema
         <*> ejpdContactFound .= field "contact_item" schema
 
 instance ToSchema EJPDTeamContacts where
-  schema = object "EJPDTeamContacts" do
+  schema = object do
     EJPDTeamContacts
       <$> (Set.toList . ejpdTeamContacts) .= (Set.fromList <$> field "TeamContacts" (array schema))
       <*> ejpdTeamContactsListType .= field "ListType" schema
 
 instance ToSchema EJPDConvInfo where
   schema =
-    object "EJPDConvInfo" $
+    object $
       EJPDConvInfo
         <$> ejpdConvName .= field "conv_name" schema
         <*> ejpdConvId .= field "conv_id" schema

@@ -79,7 +79,7 @@ intToVersion intV = find (\v -> versionInt v == intV) [minBound ..]
 
 instance ToSchema Version where
   schema =
-    enum @Integer "Version" . mconcat $
+    enum @Integer . mconcat $
       [ element 0 V0,
         element 1 V1,
         element 2 V2,
@@ -96,7 +96,7 @@ data VersionInfo = VersionInfo
 
 instance ToSchema VersionInfo where
   schema =
-    objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
+    objectWithDocModifier (S.schema . S.example ?~ toJSON example) $
       VersionInfo
         -- if the supported_versions field does not exist, assume an old backend
         -- that only supports V0
@@ -147,7 +147,7 @@ deriving instance Ord VersionRange
 
 instance ToSchema VersionRange where
   schema =
-    object "VersionRange" $
+    object $
       VersionRange
         <$> _fromVersion .= field "from" schema
         <*> (versionFromUpperBound . _toVersionExcl)

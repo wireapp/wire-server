@@ -531,7 +531,7 @@ nonFederatingBackendsFromList domains =
 
 instance ToSchema NonFederatingBackends where
   schema =
-    object "NonFederatingBackends" $
+    object $
       withParser
         (nonFederatingBackendsToList .= field "non_federating_backends" (array schema))
         nonFederatingBackendsFromList
@@ -575,7 +575,7 @@ unreachableBackendsStatus = HTTP.mkStatus 533 "Unreachable backends"
 
 instance ToSchema UnreachableBackends where
   schema =
-    object "UnreachableBackends" $
+    object $
       UnreachableBackends
         <$> (.backends) .= field "unreachable_backends" (array schema)
 
@@ -651,14 +651,14 @@ instance APIError GroupInfoDiagnostics where
 
 indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, ClientIdentity)
 indexedClientSchema =
-  object "IndexedClient" $
+  object $
     (,)
       <$> fst .= field "index" schema
       <*> snd .= field "client" schema
 
 instance ToSchema GroupInfoDiagnostics where
   schema =
-    object "GroupInfoDiagnostics" $
+    object $
       GroupInfoDiagnostics
         <$> (.commit) .= field "commit" base64Schema
         <*> (.groupInfo) .= field "group_info" base64Schema
@@ -717,7 +717,7 @@ mlsOutOfSyncErrorObjectSchema =
     <$> (.missingUsers) .= field "missing_users" (array schema)
 
 instance ToSchema MLSOutOfSyncError where
-  schema = object "MLSOutOfSyncError" mlsOutOfSyncErrorObjectSchema
+  schema = object mlsOutOfSyncErrorObjectSchema
 
 instance IsSwaggerError MLSOutOfSyncError where
   addToOpenApi =

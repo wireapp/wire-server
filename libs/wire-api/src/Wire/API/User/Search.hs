@@ -58,7 +58,6 @@ import Data.Schema
 import Data.Text qualified as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Data.Text.Encoding qualified as TE
-import Data.Typeable (typeRep)
 import Imports
 import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
@@ -117,7 +116,7 @@ instance Traversable SearchResult where
 
 instance (ToSchema a, Typeable a) => ToSchema (SearchResult a) where
   schema =
-    object ("SearchResult_" <> T.pack (show $ typeRep $ Proxy @a)) $
+    object $
       SearchResult
         <$> searchFound .= fieldWithDocModifier "found" (S.description ?~ "Total number of hits") schema
         <*> searchReturned .= fieldWithDocModifier "returned" (S.description ?~ "Total number of hits returned") schema
@@ -158,7 +157,7 @@ data Contact = Contact
 
 instance ToSchema Contact where
   schema =
-    objectWithDocModifier "Contact" (description ?~ "Contact discovered through search") $
+    objectWithDocModifier (description ?~ "Contact discovered through search") $
       Contact
         <$> contactQualifiedId .= field "qualified_id" schema
         <* (qUnqualified . contactQualifiedId) .= optField "id" schema
@@ -182,7 +181,7 @@ data Sso = Sso
 
 instance ToSchema Sso where
   schema =
-    object "Sso" $
+    object $
       Sso
         <$> ssoIssuer .= field "issuer" schema
         <*> ssoNameId .= field "nameid" schema
@@ -212,7 +211,7 @@ data TeamContact = TeamContact
 
 instance ToSchema TeamContact where
   schema =
-    object "TeamContact" $
+    object $
       TeamContact
         <$> teamContactUserId .= field "id" schema
         <*> teamContactUserType .= field "type" schema
@@ -332,7 +331,7 @@ userTypeFilterToUserType UserTypeFilterApp = UserTypeApp
 
 instance ToSchema UserTypeFilter where
   schema =
-    enum @Text "UserTypeFilter" $
+    enum @Text $
       mconcat
         [ element "regular" UserTypeFilterRegular,
           element "app" UserTypeFilterApp
@@ -363,7 +362,7 @@ data FederatedUserSearchPolicy
 
 instance ToSchema FederatedUserSearchPolicy where
   schema =
-    enum @Text "FederatedUserSearchPolicy" $
+    enum @Text $
       element "no_search" NoSearch
         <> element "exact_handle_search" ExactHandleSearch
         <> element "full_search" FullSearch
@@ -389,7 +388,7 @@ data EmailVerificationFilter
 
 instance ToSchema EmailVerificationFilter where
   schema =
-    enum @Text "EmailVerificationFilter" $
+    enum @Text $
       element "unverified" EmailUnverified
         <> element "verified" EmailVerified
 
@@ -424,6 +423,6 @@ data SetSearchable = SetSearchable
 
 instance ToSchema SetSearchable where
   schema =
-    object "SetSearchable" $
+    object $
       SetSearchable
         <$> setSearchable .= field "set_searchable" schema

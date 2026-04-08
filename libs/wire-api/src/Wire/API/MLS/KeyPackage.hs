@@ -69,7 +69,7 @@ data KeyPackageUpload = KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
   schema =
-    object "KeyPackageUpload" $
+    object $
       KeyPackageUpload
         <$> keyPackages .= field "key_packages" (array rawKeyPackageSchema)
 
@@ -100,7 +100,7 @@ data KeyPackageBundleEntry = KeyPackageBundleEntry
 
 instance ToSchema KeyPackageBundleEntry where
   schema =
-    object "KeyPackageBundleEntry" $
+    object $
       KeyPackageBundleEntry
         <$> (.user) .= qualifiedObjectSchema "user" schema
         <*> (.client) .= field "client" schema
@@ -113,7 +113,7 @@ newtype KeyPackageBundle = KeyPackageBundle {entries :: Set KeyPackageBundleEntr
 
 instance ToSchema KeyPackageBundle where
   schema =
-    object "KeyPackageBundle" $
+    object $
       KeyPackageBundle
         <$> (.entries) .= field "key_packages" (set schema)
 
@@ -123,7 +123,7 @@ newtype KeyPackageCount = KeyPackageCount {unKeyPackageCount :: Int}
 
 instance ToSchema KeyPackageCount where
   schema =
-    object "OwnKeyPackages" $
+    object $
       KeyPackageCount <$> unKeyPackageCount .= field "count" schema
 
 newtype DeleteKeyPackages = DeleteKeyPackages
@@ -133,7 +133,7 @@ newtype DeleteKeyPackages = DeleteKeyPackages
 
 instance ToSchema DeleteKeyPackages where
   schema =
-    object "DeleteKeyPackages" $
+    object $
       DeleteKeyPackages
         <$> unDeleteKeyPackages
           .= field

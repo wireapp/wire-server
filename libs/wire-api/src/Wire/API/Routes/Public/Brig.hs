@@ -805,7 +805,6 @@ data DeprecatedMatchingResult = DeprecatedMatchingResult
 instance ToSchema DeprecatedMatchingResult where
   schema =
     objectWithDocModifier
-      "DeprecatedMatchingResult"
       (S.deprecated ?~ True)
       $ DeprecatedMatchingResult
         <$ const []

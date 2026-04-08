@@ -116,7 +116,7 @@ data Activate = Activate
 
 instance ToSchema Activate where
   schema =
-    objectWithDocModifier "Activate" objectDocs $
+    objectWithDocModifier objectDocs $
       Activate
         <$> (maybeActivationTargetToTuple . activateTarget) .= maybeActivationTargetObjectSchema
         <*> activateCode .= fieldWithDocModifier "code" codeDocs schema
@@ -179,7 +179,7 @@ data ActivationResponse = ActivationResponse
 
 instance ToSchema ActivationResponse where
   schema =
-    objectWithDocModifier "ActivationResponse" (description ?~ "Response body of a successful activation request") $
+    objectWithDocModifier (description ?~ "Response body of a successful activation request") $
       ActivationResponse
         <$> activatedIdentity .= userIdentityObjectSchema
         <*> activatedFirst .= (fromMaybe False <$> optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") schema)
@@ -199,7 +199,7 @@ data SendActivationCode = SendActivationCode
 
 instance ToSchema SendActivationCode where
   schema =
-    objectWithDocModifier "SendActivationCode" objectDesc $
+    objectWithDocModifier objectDesc $
       SendActivationCode
         <$> emailKey .= field "email" schema
         <*> locale

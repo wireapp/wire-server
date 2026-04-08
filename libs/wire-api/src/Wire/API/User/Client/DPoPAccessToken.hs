@@ -77,7 +77,7 @@ data AccessTokenType = DPoP
 
 instance ToSchema AccessTokenType where
   schema =
-    enum @Text "AccessTokenType" $
+    enum @Text $
       mconcat
         [ element "DPoP" DPoP
         ]
@@ -92,7 +92,7 @@ data DPoPAccessTokenResponse = DPoPAccessTokenResponse
 
 instance ToSchema DPoPAccessTokenResponse where
   schema =
-    object "DPoPAccessTokenResponse" $
+    object $
       DPoPAccessTokenResponse
         <$> datrToken .= field "token" schema
         <*> datrType .= field "type" schema

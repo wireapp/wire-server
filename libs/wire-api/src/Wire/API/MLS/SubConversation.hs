@@ -85,8 +85,8 @@ data PublicSubConversation = PublicSubConversation
 
 publicSubConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc PublicSubConversation
 publicSubConversationSchema v =
-  objectWithDocModifier
-    ("PublicSubConversation" <> foldMap (T.toUpper . versionText) v)
+  versionedObjectWithDocModifier
+    v
     (description ?~ "An MLS subconversation")
     $ PublicSubConversation
       <$> pscParentConvId .= field "parent_qualified_id" schema
@@ -150,7 +150,7 @@ convOrSubConvIdObjectSchema =
 
 instance ToSchema ConvOrSubConvId where
   schema =
-    object "ConvOrSubConvId" $
+    object $
       fromTagged
         <$> toTagged
           .= bind
@@ -168,12 +168,12 @@ instance ToSchema ConvOrSubConvId where
         ConvTag ->
           tag
             _Conv
-            (unnamed $ object "" $ field "conv_id" schema)
+            (unnamed $ object $ field "conv_id" schema)
         SubConvTag ->
           tag
             _SubConv
             ( unnamed $
-                object "" $
+                object $
                   ( (,)
                       <$> fst .= field "conv_id" schema
                       <*> snd .= field "subconv_id" schema
@@ -182,7 +182,7 @@ instance ToSchema ConvOrSubConvId where
 
       tagSchema :: ValueSchema NamedSwaggerDoc ConvOrSubTag
       tagSchema =
-        enum @Text "ConvOrSubTag" $
+        enum @Text $
           mconcat
             [ element "conv" ConvTag,
               element "subconv" SubConvTag

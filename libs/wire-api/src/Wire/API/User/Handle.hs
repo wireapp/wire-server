@@ -45,7 +45,7 @@ newtype UserHandleInfo = UserHandleInfo {userHandleId :: Qualified UserId}
 
 instance ToSchema UserHandleInfo where
   schema =
-    object "UserHandleInfo" $
+    object $
       UserHandleInfo
         <$> userHandleId .= field "qualified_user" schema
         <* (qUnqualified . userHandleId)
@@ -80,7 +80,7 @@ instance FromJSON CheckHandles where
 
 instance ToSchema CheckHandles where
   schema =
-    object "CheckHandles" $
+    object $
       CheckHandles
         <$> checkHandlesList .= field "handles" (fromRange .= rangedSchema (array schema))
         <*> checkHandlesNum .= field "return" schema

@@ -40,7 +40,7 @@ data CustomBackend = CustomBackend
 
 instance ToSchema CustomBackend where
   schema =
-    objectWithDocModifier "CustomBackend" (description ?~ "Description of a custom backend") $
+    objectWithDocModifier (description ?~ "Description of a custom backend") $
       CustomBackend
         <$> backendConfigJsonUrl .= fieldWithDocModifier "config_json_url" (description ?~ "the location of the custom backend's config.json file") schema
         <*> backendWebappWelcomeUrl .= fieldWithDocModifier "webapp_welcome_url" (description ?~ "the location of the custom webapp") schema

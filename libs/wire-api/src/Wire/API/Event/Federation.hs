@@ -51,7 +51,7 @@ data EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "federation.delete" FederationDelete
         ]
@@ -63,7 +63,7 @@ eventObjectSchema =
     <*> _eventDomain .= field "domain" schema
 
 instance ToSchema Event where
-  schema = object "Event" eventObjectSchema
+  schema = object eventObjectSchema
 
 instance ToJSONObject Event where
   toJSONObject =

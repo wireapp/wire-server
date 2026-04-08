@@ -34,9 +34,9 @@ data TeamStatus cfg = TeamStatus
   deriving (Show, Eq)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (TeamStatus cfg)
 
-instance ToSchema (TeamStatus cfg) where
+instance forall k (cfg :: k). (Typeable k, Typeable cfg) => ToSchema (TeamStatus cfg) where
   schema =
-    object "TeamStatus" $
+    object $
       TeamStatus
         <$> team .= field "team" schema
         <*> status .= field "status" schema

@@ -60,7 +60,7 @@ data RequestNewLegalHoldClientV0 = RequestNewLegalHoldClientV0
 
 instance ToSchema RequestNewLegalHoldClientV0 where
   schema =
-    object "RequestNewLegalHoldClientV0" $
+    object $
       RequestNewLegalHoldClientV0
         <$> (.userId) .= field "user_id" schema
         <*> (.teamId) .= field "team_id" schema
@@ -75,7 +75,7 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
 
 instance ToSchema RequestNewLegalHoldClient where
   schema =
-    object "RequestNewLegalHoldClient" $
+    object $
       RequestNewLegalHoldClient
         <$> (.userId) .= field "qualified_user_id" schema
         <*> (.teamId) .= field "team_id" schema
@@ -102,7 +102,7 @@ instance OpenApi.ToSchema NewLegalHoldClient where
 
 instance ToSchema NewLegalHoldClient where
   schema =
-    object "NewLegalHoldClient" $
+    object $
       NewLegalHoldClient
         <$> (.newLegalHoldClientPrekeys) .= field "prekeys" (array schema)
         <*> (.newLegalHoldClientLastKey) .= field "last_prekey" schema
@@ -124,7 +124,7 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
 
 instance ToSchema LegalHoldServiceConfirm where
   schema =
-    object "LegalHoldServiceConfirm" $
+    object $
       LegalHoldServiceConfirm
         <$> (.clientId) .= field "client_id" schema
         <*> (.userId) .= field "qualified_user_id" schema
@@ -144,7 +144,7 @@ data LegalHoldServiceConfirmV0 = LegalHoldServiceConfirmV0
 
 instance ToSchema LegalHoldServiceConfirmV0 where
   schema =
-    object "LegalHoldServiceConfirmV0" $
+    object $
       LegalHoldServiceConfirmV0
         <$> (.lhcClientId) .= field "client_id" schema
         <*> (.lhcUserId) .= field "user_id" schema
@@ -165,7 +165,7 @@ data LegalHoldServiceRemove = LegalHoldServiceRemove
 
 instance ToSchema LegalHoldServiceRemove where
   schema =
-    object "LegalHoldServiceRemove" $
+    object $
       LegalHoldServiceRemove
         <$> (.userId) .= field "qualified_user_id" schema
         <*> (.teamId) .= field "team_id" schema
@@ -180,7 +180,7 @@ data LegalHoldServiceRemoveV0 = LegalHoldServiceRemoveV0
 
 instance ToSchema LegalHoldServiceRemoveV0 where
   schema =
-    object "LegalHoldServiceRemoveV0" $
+    object $
       LegalHoldServiceRemoveV0
         <$> (.lhrUserId) .= field "user_id" schema
         <*> (.lhrTeamId) .= field "team_id" schema
@@ -193,7 +193,7 @@ newtype SupportedVersions = SupportedVersions {supported :: [Int]}
 
 instance ToSchema SupportedVersions where
   schema =
-    object "SupportedVersions " $
+    object $
       SupportedVersions
         <$> supported
           .= field "supported" (array schema)

@@ -88,7 +88,7 @@ data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
 
 instance ToSchema Role where
   schema =
-    enum @Text "Role" $
+    enum @Text $
       flip foldMap [minBound .. maxBound] $ \r ->
         element (roleName r) r
 

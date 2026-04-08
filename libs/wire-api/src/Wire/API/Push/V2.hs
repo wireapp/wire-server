@@ -104,7 +104,7 @@ data Route
 
 instance ToSchema Route where
   schema =
-    enum @Text "Route" $
+    enum @Text $
       mconcat
         [ element "any" RouteAny,
           element "direct" RouteDirect
@@ -144,7 +144,7 @@ instance Arbitrary RecipientClients where
 
 instance ToSchema Recipient where
   schema =
-    object "Recipient" $
+    object $
       Recipient
         <$> _recipientId .= field "user_id" schema
         <*> _recipientRoute .= field "route" schema
@@ -224,7 +224,7 @@ apsData lk la = ApsData lk la Nothing True
 
 instance ToSchema ApsData where
   schema =
-    object "ApsData" $
+    object $
       ApsData
         <$> _apsLocKey .= field "loc_key" schema
         <*> withDefault "loc_args" _apsLocArgs (array schema) []
@@ -305,7 +305,7 @@ singletonPayload = NonEmpty.singleton . toJSONObject
 
 instance ToSchema Push where
   schema =
-    object "Push" $
+    object $
       Push
         <$> _pushRecipients .= field "recipients" (set schema)
         <*> _pushOrigin .= maybe_ (optField "origin" schema)

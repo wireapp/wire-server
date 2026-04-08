@@ -147,7 +147,7 @@ data UncheckedPrekeyBundle = UncheckedPrekeyBundle
 
 instance ToSchema UncheckedPrekeyBundle where
   schema =
-    object "UncheckedPrekeyBundle" $
+    object $
       UncheckedPrekeyBundle
         <$> prekeyId .= field "id" schema
         <*> prekeyKey .= field "key" schema
@@ -285,7 +285,7 @@ data PrekeyBundle = PrekeyBundle
 
 instance ToSchema PrekeyBundle where
   schema =
-    object "PrekeyBundle" $
+    object $
       PrekeyBundle
         <$> prekeyUser .= field "user" schema
         <*> prekeyClients .= field "clients" (array schema)
@@ -303,7 +303,7 @@ data ClientPrekey = ClientPrekey
 
 instance ToSchema ClientPrekey where
   schema =
-    object "ClientPrekey" $
+    object $
       ClientPrekey
         <$> prekeyClient .= field "client" schema
         <*> prekeyData .= field "prekey" schema

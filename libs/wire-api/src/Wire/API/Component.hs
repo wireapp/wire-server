@@ -58,7 +58,7 @@ data Component
 
 instance ToSchema Component where
   schema =
-    enum @Text "Component" $
+    enum @Text $
       mconcat
         [ element "brig" Brig,
           element "galley" Galley,
