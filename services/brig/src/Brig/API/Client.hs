@@ -18,13 +18,6 @@
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
   ( createClientDPoPAccessToken,
-
-    -- * Prekeys
-    claimLocalMultiPrekeyBundles,
-    claimLocalPrekeyBundle,
-    claimPrekeyBundle,
-    claimMultiPrekeyBundles,
-    claimMultiPrekeyBundlesV3,
   )
 where
 
@@ -41,7 +34,6 @@ import Control.Monad.Trans.Except (except)
 import Data.Bifunctor
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.HavePendingInvitations
 import Data.Id (ClientId, UserId)
 import Data.List.Split (chunksOf)
@@ -53,7 +45,7 @@ import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Error (Error, mapError, runError)
+import Polysemy.Error (mapError, runError)
 import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
@@ -82,208 +74,6 @@ import Wire.Sem.Logger as Sem.Log
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
-
-claimPrekeyBundle ::
-  ( Member ClientStore r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r
-  ) =>
-  LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
-claimPrekeyBundle protectee domain uid = do
-  isLocalDomain <- (domain ==) <$> viewFederationDomain
-  if isLocalDomain
-    then claimLocalPrekeyBundle protectee uid
-    else ExceptT $ liftSem $ runError $ claimRemotePrekeyBundle (Qualified uid domain)
-
-claimLocalPrekeyBundle :: (Member ClientStore r, Member GalleyAPIAccess r) => LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
-claimLocalPrekeyBundle protectee u = do
-  clients <- map (.clientId) <$> lift (liftSem (ClientStore.lookupClients u))
-  lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee (mkUserClients [(u, clients)])
-  PrekeyBundle u . catMaybes <$> lift (mapM (liftSem . ClientStore.claimPrekey u) clients)
-
-claimRemotePrekeyBundle ::
-  ( Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member (Error ClientError) r
-  ) =>
-  Qualified UserId ->
-  Sem r PrekeyBundle
-claimRemotePrekeyBundle (Qualified user domain) = do
-  Sem.Log.info $ msg @Text "Brig-federation: claiming remote prekey bundle"
-  mapError ClientFederationError $ runFederated (toRemoteUnsafe domain ()) $ fedClient @'Brig @"claim-prekey-bundle" user
-
-claimMultiPrekeyBundlesInternal ::
-  forall r.
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientSubsystem r,
-    Member ClientStore r,
-    Member GalleyAPIAccess r
-  ) =>
-  LegalholdProtectee ->
-  QualifiedUserClients ->
-  ExceptT
-    ClientError
-    (AppT r)
-    ([Qualified UserClientPrekeyMap], [Remote UserClients])
-claimMultiPrekeyBundlesInternal protectee quc = do
-  loc <- qualifyLocal ()
-  let (locals, remotes) =
-        partitionQualifiedAndTag
-          loc
-          ( map
-              (fmap UserClients . uncurry (flip Qualified))
-              (Map.assocs (qualifiedUserClients quc))
-          )
-  localPrekeys <- traverse claimLocal locals
-  pure (localPrekeys, remotes)
-  where
-    claimLocal ::
-      Local UserClients ->
-      ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
-    claimLocal luc =
-      tUntagged . qualifyAs luc
-        <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
-
-claimMultiPrekeyBundlesV3 ::
-  forall r m.
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientSubsystem r,
-    Member ClientStore r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r
-  ) =>
-  LegalholdProtectee ->
-  QualifiedUserClients ->
-  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
-claimMultiPrekeyBundlesV3 protectee quc = do
-  (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
-  lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  remotePrekeys <-
-    fmap (fmap tUntagged) . ExceptT . liftSem $
-      runError $
-        mapError ClientFederationError $
-          runFederatedConcurrently remotes $ \rucs ->
-            fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
-  pure . qualifiedUserClientPrekeyMapFromList $ localPrekeys <> remotePrekeys
-
--- Similar to claimMultiPrekeyBundles except for the following changes
--- 1) A new return type that contains both the client map and a list of
---    users that prekeys couldn't be fetched for.
--- 2) A semantic change on federation errors when gathering remote clients.
---    Remote federation errors at this step no-longer cause the entire call
---    to fail, allowing partial results to be returned.
-claimMultiPrekeyBundles ::
-  forall r m.
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientSubsystem r,
-    Member ClientStore r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r
-  ) =>
-  LegalholdProtectee ->
-  QualifiedUserClients ->
-  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV4
-claimMultiPrekeyBundles protectee quc = do
-  (localPrekeys, remotes) <- claimMultiPrekeyBundlesInternal protectee quc
-  lift . liftSem $ Sem.Log.info $ msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  remotePrekeys <-
-    lift . liftSem $
-      fmap (fmap (bimap (first collapseRemoteUsers) tUntagged)) $
-        runFederatedConcurrentlyEither remotes $ \rucs ->
-          fedClient @'Brig @"claim-multi-prekey-bundle" (mconcat $ tUnqualified rucs)
-  let prekeys =
-        getQualifiedUserClientPrekeyMap $
-          qualifiedUserClientPrekeyMapFromList $
-            localPrekeys <> rights remotePrekeys
-      failed = lefts remotePrekeys >>= toQualifiedUser . fst
-  pure $
-    QualifiedUserClientPrekeyMapV4 prekeys $
-      if null failed
-        then Nothing
-        else pure failed
-  where
-    toQualifiedUser :: Remote UserClients -> [Qualified UserId]
-    toQualifiedUser r = fmap (\u -> Qualified u $ tDomain r) . Map.keys . userClients . qUnqualified $ tUntagged r
-
-    collapseRemoteUsers :: Remote [UserClients] -> Remote UserClients
-    collapseRemoteUsers rucs = toRemoteUnsafe (tDomain rucs) (mconcat $ tUnqualified rucs)
-
-claimLocalMultiPrekeyBundles ::
-  forall r.
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientSubsystem r,
-    Member ClientStore r,
-    Member GalleyAPIAccess r
-  ) =>
-  LegalholdProtectee ->
-  UserClients ->
-  ExceptT ClientError (AppT r) UserClientPrekeyMap
-claimLocalMultiPrekeyBundles protectee userClients = do
-  lift $ liftSem $ GalleyAPIAccess.guardLegalHold protectee userClients
-  lift
-    . fmap mkUserClientPrekeyMap
-    . foldMap (getChunk . Map.fromList)
-    . chunksOf 16
-    . Map.toList
-    . Message.userClients
-    $ userClients
-  where
-    getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe UncheckedPrekeyBundle)))
-    getChunk m = do
-      e <- ask
-      AppT $
-        lift $
-          Map.fromListWith (<>)
-            <$> unsafePooledMapConcurrentlyN
-              16
-              (\(u, cids) -> (u,) <$> lowerAppT e (getUserKeys u cids))
-              (Map.toList m)
-    getUserKeys ::
-      UserId ->
-      Set ClientId ->
-      (AppT r) (Map ClientId (Maybe UncheckedPrekeyBundle))
-    getUserKeys u =
-      sequenceA . Map.fromSet (getClientKeys u)
-    getClientKeys ::
-      UserId ->
-      ClientId ->
-      (AppT r) (Maybe UncheckedPrekeyBundle)
-    getClientKeys u c = do
-      key <- fmap prekeyData <$> liftSem (ClientStore.claimPrekey u c)
-      when (isNothing key) $ noPrekeys u c
-      pure key
-
--- Utilities
-
--- | Defensive measure when no prekey is found for a
--- requested client: Ensure that the client does indeed
--- not exist, since there must be no client without prekeys,
--- thus repairing any inconsistencies related to distributed
--- (and possibly duplicated) client data.
-noPrekeys ::
-  ( Member ClientSubsystem r,
-    Member ClientStore r
-  ) =>
-  UserId ->
-  ClientId ->
-  (AppT r) ()
-noPrekeys u c = do
-  mclient <- liftSem $ ClientStore.lookupClient u c
-  case mclient of
-    Nothing -> do
-      Log.warn $
-        field "user" (toByteString u)
-          ~~ field "client" (toByteString c)
-          ~~ msg (val "No prekey found. Client is missing, so doing nothing.")
-    Just client -> do
-      Log.warn $
-        field "user" (toByteString u)
-          ~~ field "client" (toByteString c)
-          ~~ msg (val "No prekey found. Deleting client.")
-      liftSem $ enqueueClientDeletion u Nothing client
 
 createClientDPoPAccessToken ::
   (Member JwtTools r, Member Now r, Member PublicKeyBundle r, Member UserSubsystem r) =>
