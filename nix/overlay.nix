@@ -1,5 +1,11 @@
 self: super: {
 
+  stdenv = super.overrideCC super.stdenv (super.gcc.override {
+    targetPlatform = super.targetPlatform // {
+      platform.gcc.arch = "x86-64-v3";
+    };
+  });
+
   zauth = self.callPackage ./pkgs/zauth { };
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
