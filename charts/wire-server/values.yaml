@@ -317,6 +317,12 @@ galley:
           defaults:
             status: disabled
             lockStatus: locked
+      mlsPrivateKeyPaths:
+        removal:
+          ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
+          ecdsa_secp256r1_sha256: "/etc/wire/galley/secrets/removal_ecdsa_secp256r1_sha256.pem"
+          ecdsa_secp384r1_sha384: "/etc/wire/galley/secrets/removal_ecdsa_secp384r1_sha384.pem"
+          ecdsa_secp521r1_sha512: "/etc/wire/galley/secrets/removal_ecdsa_secp521r1_sha512.pem"
     aws:
       region: "eu-west-1"
     proxy: {}
@@ -1003,6 +1009,29 @@ background-worker:
       conversation: cassandra
       conversationCodes: cassandra
       teamFeatures: cassandra
+
+    settings:
+      maxTeamSize: 10000
+      maxConvSize: 500
+      intraListing: true
+      conversationCodeURI: null
+      multiIngress: null
+      passwordHashingOptions:
+        algorithm: scrypt
+      passwordHashingRateLimit:
+        ipAddrLimit:
+          burst: 5
+          inverseRate: 300000000
+        userLimit:
+          burst: 5
+          inverseRate: 60000000
+        internalLimit:
+          burst: 10
+          inverseRate: 0
+        ipv4CidrBlock: 32
+        ipv6CidrBlock: 64
+        ipAddressExceptions: []
+        maxRateLimitedKeys: 100000
 
   secrets:
     {}

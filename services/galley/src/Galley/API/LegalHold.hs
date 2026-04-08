@@ -21,7 +21,6 @@ module Galley.API.LegalHold
     removeSettingsInternalPaging,
     removeSettings,
     removeSettings',
-    getUserStatus,
     grantConsent,
     requestDevice,
     approveDevice,
@@ -40,10 +39,7 @@ import Data.Misc
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range (toRange)
-import Galley.API.LegalHold.Get
 import Galley.API.LegalHold.Team
-import Galley.API.Query (iterateConversations)
-import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.External.LegalHoldService qualified as LHService
 import Galley.Types.Error
 import Imports
@@ -54,12 +50,10 @@ import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation (ConvType (..), ConversationMetadata (..))
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.Error
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
@@ -72,21 +66,13 @@ import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Member
 import Wire.API.User hiding (userId)
 import Wire.API.User.Client.Prekey
-import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
-import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Util
-import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
 import Wire.FireAndForget
 import Wire.LegalHoldStore qualified as LegalHoldData
-import Wire.NotificationSubsystem
-import Wire.ProposalStore (ProposalStore)
-import Wire.Sem.Now (Now)
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
 import Wire.TeamMemberStore
@@ -97,11 +83,11 @@ import Wire.Util
 
 createSettings ::
   forall r.
-  ( Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'LegalHoldNotEnabled) r,
+  ( Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceInvalidKey) r,
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldData.LegalHoldStore r,
     Member P.TinyLog r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
@@ -120,7 +106,7 @@ createSettings lzusr tid newService = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.createSettings")
-  void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   (key :: ServiceKey, fpr :: Fingerprint Rsa) <-
     LegalHoldData.validateServiceKey newService.newLegalHoldServiceKey
       >>= noteS @'LegalHoldServiceInvalidKey
@@ -153,37 +139,28 @@ getSettings lzusr tid = do
 
 removeSettingsInternalPaging ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error AuthenticationError) r,
-    Member (Error FederationError) r,
+  ( Member BrigAPIAccess r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldDisableUnimplemented) r,
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-    Member ExternalAccess r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Error AuthenticationError) r,
     Member FireAndForget r,
-    Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
     Member LegalHoldData.LegalHoldStore r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -197,35 +174,26 @@ removeSettings ::
     Bounded (PagingBounds p TeamMember),
     Member (TeamMemberStore p) r,
     Member TeamStore r,
-    Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error AuthenticationError) r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldDisableUnimplemented) r,
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-    Member ExternalAccess r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Error AuthenticationError) r,
     Member FireAndForget r,
-    Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member LegalHoldData.LegalHoldStore r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member LegalHoldData.LegalHoldStore r,
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   TeamId ->
@@ -239,7 +207,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
-  void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword Nothing Nothing
   removeSettings' @p tid
   where
@@ -257,30 +225,21 @@ removeSettings' ::
   forall p r.
   ( Paging p,
     Bounded (PagingBounds p TeamMember),
-    Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
-    Member ExternalAccess r,
     Member FireAndForget r,
-    Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member Now r,
-    Member (Input (Local ())) r,
+    Member TeamSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member (TeamMemberStore p) r,
     Member TeamStore r,
-    Member ProposalStore r,
-    Member Random r,
     Member P.TinyLog r,
     Member (Embed IO) r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input (Local ())) r
   ) =>
   TeamId ->
   Sem r ()
@@ -308,26 +267,17 @@ removeSettings' tid =
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
 -- out).
 grantConsent ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member BrigAPIAccess r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member Now r,
     Member LegalHoldData.LegalHoldStore r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member TeamStore r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   TeamId ->
@@ -346,10 +296,7 @@ grantConsent lusr tid = do
 -- | Request to provision a device on the legal hold service for a user
 requestDevice ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member BrigAPIAccess r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
@@ -357,27 +304,21 @@ requestDevice ::
     Member (ErrorS 'LegalHoldServiceBadResponse) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'MLSLegalholdIncompatible) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'NoUserLegalHoldConsent) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
     Member LegalHoldData.LegalHoldStore r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -391,7 +332,7 @@ requestDevice lzusr tid uid = do
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- TeamSubsystem.internalGetTeamMember zusr tid
-  void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldUserSettings zusrMembership
   member <- noteS @'TeamMemberNotFound =<< TeamSubsystem.internalGetTeamMember uid tid
   case member ^. legalHoldStatus of
     UserLegalHoldEnabled -> throwS @'UserLegalHoldAlreadyEnabled
@@ -406,7 +347,7 @@ requestDevice lzusr tid uid = do
   where
     disallowIfMLSUser :: Local UserId -> Sem r ()
     disallowIfMLSUser luid = do
-      void $ iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
+      iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
         when (any (\c -> c.metadata.cnvmType /= SelfConv && c.protocol /= ProtocolProteus) convs) $ do
           throwS @'MLSLegalholdIncompatible
 
@@ -440,11 +381,8 @@ requestDevice lzusr tid uid = do
 -- since they are replaced if needed when registering new LH devices.
 approveDevice ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
+  ( Member BrigAPIAccess r,
     Member (Error AuthenticationError) r,
-    Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
@@ -452,25 +390,19 @@ approveDevice ::
     Member (ErrorS 'LegalHoldNotEnabled) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
     Member (ErrorS 'NoLegalHoldDeviceAllocated) r,
-    Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'UserLegalHoldAlreadyEnabled) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
     Member (ErrorS 'UserLegalHoldNotPending) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
+    Member (ErrorS 'NotATeamMember) r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
     Member LegalHoldData.LegalHoldStore r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
     Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -486,7 +418,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.approveDevice")
   unless (zusr == tUnqualified luid) $ throwS @'AccessDenied
-  assertOnTeam (tUnqualified luid) tid
+  TeamSubsystem.assertOnTeam (tUnqualified luid) tid
   ensureReAuthorised zusr mPassword Nothing Nothing
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
@@ -521,31 +453,22 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
 
 disableForUser ::
   forall r.
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error AuthenticationError) r,
-    Member (Error FederationError) r,
+  ( Member BrigAPIAccess r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'LegalHoldServiceNotRegistered) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Error AuthenticationError) r,
     Member ConversationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
     Member LegalHoldData.LegalHoldStore r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member TeamStore r,
     Member (Embed IO) r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input (Local ())) r
   ) =>
   Local UserId ->
   TeamId ->
@@ -558,7 +481,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.disableForUser")
   zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lzusr) tid
-  void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeLegalHoldUserSettings zusrMembership
 
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> TeamSubsystem.internalGetTeamMember (tUnqualified luid) tid
@@ -589,25 +512,16 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 -- enabled, or disabled, make sure the affected connections are screened for policy conflict
 -- (anybody with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatusAndHandlePolicyConflicts ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
+  ( Member BrigAPIAccess r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member Now r,
+    Member TeamSubsystem r,
     Member LegalHoldData.LegalHoldStore r,
     Member TeamStore r,
-    Member ProposalStore r,
-    Member Random r,
-    Member P.TinyLog r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member P.TinyLog r
   ) =>
   TeamId ->
   Local UserId ->
@@ -676,7 +590,7 @@ blockNonConsentingConnections uid = do
       -- FUTUREWORK: Handle remoteUsers here when federation is implemented
       for (chunksOf 32 localUids) $ \others -> do
         teamsOfUsers <- getUsersTeams others
-        filterM (fmap (== ConsentNotGiven) . checkConsent teamsOfUsers) others
+        filterM (fmap (== TeamSubsystem.ConsentNotGiven) . TeamSubsystem.checkConsent teamsOfUsers) others
 
     blockConflicts :: UserId -> [UserId] -> Sem r [String]
     blockConflicts _ [] = pure []
@@ -708,61 +622,49 @@ unsetTeamLegalholdWhitelistedH tid = do
 -- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
 -- one from the database.
 handleGroupConvPolicyConflicts ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
+  ( Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member ExternalAccess r,
-    Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member Now r,
-    Member ProposalStore r,
-    Member P.TinyLog r,
-    Member Random r,
-    Member TeamStore r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member TeamSubsystem r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->
   Sem r ()
 handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
-  void $
-    iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
-      for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
-        let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.remoteMembers
+  iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
+    for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
+      let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.remoteMembers
 
-        membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
-          let mems = conv.localMembers
-          uidsLHStatus <- getLHStatusForUsers ((.id_) <$> mems)
-          pure $
-            zipWith
-              ( \mem (mid, status) ->
-                  assert (mem.id_ == mid) $
-                    if mem.id_ == tUnqualified luid
-                      then (mem, hypotheticalLHStatus)
-                      else (mem, status)
-              )
-              mems
-              uidsLHStatus
+      membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
+        let mems = conv.localMembers
+        uidsLHStatus <- TeamSubsystem.getLHStatusForUsers ((.id_) <$> mems)
+        pure $
+          zipWith
+            ( \mem (mid, status) ->
+                assert (mem.id_ == mid) $
+                  if mem.id_ == tUnqualified luid
+                    then (mem, hypotheticalLHStatus)
+                    else (mem, status)
+            )
+            mems
+            uidsLHStatus
 
-        let lcnv = qualifyAs luid conv.id_
-        -- we know that this is a group conversation, so invalid operation
-        -- and conversation not found errors cannot actually be thrown
-        mapToRuntimeError @'InvalidOperation
-          (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
-          . mapToRuntimeError @'ConvNotFound
-            (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
-          . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
-          $ if any
-            ((== ConsentGiven) . consentGiven . snd)
-            (filter ((== roleNameWireAdmin) . (.convRoleName) . fst) membersAndLHStatus)
-            then do
-              for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-                let lusr = qualifyAs luid memberNoConsent.id_
-                removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
-            else do
-              for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-                let lusr = qualifyAs luid legalholder.id_
-                removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
+      let lcnv = qualifyAs luid conv.id_
+      -- we know that this is a group conversation, so invalid operation
+      -- and conversation not found errors cannot actually be thrown
+      mapToRuntimeError @'InvalidOperation
+        (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
+        . mapToRuntimeError @'ConvNotFound
+          (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
+        . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
+        $ if any
+          ((== TeamSubsystem.ConsentGiven) . TeamSubsystem.consentGiven . snd)
+          (filter ((== roleNameWireAdmin) . (.convRoleName) . fst) membersAndLHStatus)
+          then do
+            for_ (filter ((== TeamSubsystem.ConsentNotGiven) . TeamSubsystem.consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+              let lusr = qualifyAs luid memberNoConsent.id_
+              removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
+          else do
+            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
+              let lusr = qualifyAs luid legalholder.id_
+              removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)

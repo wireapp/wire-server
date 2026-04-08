@@ -44,7 +44,7 @@ import Wire.API.UserGroup
 import Wire.BackgroundJobsPublisher
 import Wire.BackgroundJobsRunner (BackgroundJobsRunner (..))
 import Wire.ConversationStore (ConversationStore, getConversation, upsertMembers)
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem hiding (getConversation)
 import Wire.Sem.Random
 import Wire.StoredConversation
 import Wire.UserGroupStore (UserGroupStore, getUserGroup, getUserGroupChannels)

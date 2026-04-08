@@ -138,7 +138,7 @@ galleyRequest req = do
   ep <- input
   rpcWithRetries "galley" ep req
 
--- | Calls 'Galley.API.createSelfConversationH'.
+-- | Calls 'Wire.ConversationSubsystem.createSelfConversationH'.
 createSelfConv ::
   ( Member Rpc r,
     Member TinyLog r,
@@ -158,7 +158,7 @@ createSelfConv v u = do
         . zUser u
         . expect2xx
 
--- | Calls 'Galley.API.getConversationH'.
+-- | Calls 'Wire.ConversationSubsystem.getConversationH'.
 getConv ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -191,7 +191,7 @@ getConv v usr lcnv = do
         . zUser usr
         . expect [status200, status404]
 
--- | Calls 'Galley.API.getTeamConversationH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamConversationH'.
 getTeamConv ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -225,7 +225,7 @@ getTeamConv v usr tid cnv = do
         . zUser usr
         . expect [status200, status404]
 
--- | Calls 'Galley.API.addClientH'.
+-- | Calls 'Wire.ConversationSubsystem.addClientH'.
 newClient ::
   ( Member Rpc r,
     Member (Input Endpoint) r,
@@ -246,7 +246,7 @@ newClient u c = do
       . zUser u
       . expect2xx
 
--- | Calls 'Galley.API.canUserJoinTeamH'.
+-- | Calls 'Wire.ConversationSubsystem.canUserJoinTeamH'.
 checkUserCanJoinTeam ::
   ( Member Rpc r,
     Member (Input Endpoint) r,
@@ -270,7 +270,7 @@ checkUserCanJoinTeam tid = do
         . paths ["i", "teams", toByteString' tid, "members", "check"]
         . header "Content-Type" "application/json"
 
--- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
+-- | Calls 'Wire.ConversationSubsystem.uncheckedAddTeamMemberH'.
 addTeamMember ::
   ( Member Rpc r,
     Member (Input Endpoint) r,
@@ -300,7 +300,7 @@ addTeamMember u tid minvmeta role = do
         . expect [status200, status403]
         . lbytes (encode bdy)
 
--- | Calls 'Galley.API.createBindingTeamH'.
+-- | Calls 'Wire.ConversationSubsystem.createBindingTeamH'.
 createTeam ::
   ( Member Rpc r,
     Member (Input Endpoint) r,
@@ -324,7 +324,7 @@ createTeam u t teamid = do
         . expect2xx
         . lbytes (encode t)
 
--- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
+-- | Calls 'Wire.ConversationSubsystem.uncheckedGetTeamMemberH'.
 getTeamMember ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -349,7 +349,7 @@ getTeamMember u tid = do
         . zUser u
         . expect [status200, status404]
 
--- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
+-- | Calls 'Wire.ConversationSubsystem.uncheckedGetTeamMembersH'.
 --
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
@@ -442,7 +442,7 @@ memberIsTeamOwner tid uid = do
         . paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   pure $ responseStatus r /= status403
 
--- | Calls 'Galley.API.getBindingTeamIdH'.
+-- | Calls 'Wire.ConversationSubsystem.getBindingTeamIdH'.
 getTeamId ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -463,7 +463,7 @@ getTeamId u = do
         . paths ["i", "users", toByteString' u, "team"]
         . expect [status200, status404]
 
--- | Calls 'Galley.API.getTeamInternalH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamInternalH'.
 getTeam ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -481,7 +481,7 @@ getTeam tid = do
         . paths ["i", "teams", toByteString' tid]
         . expect2xx
 
--- | Calls 'Galley.API.getTeamInternalH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamInternalH'.
 getTeamName ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -499,7 +499,7 @@ getTeamName tid = do
         . paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
--- | Calls 'Galley.API.getTeamFeatureStatusH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamFeatureStatusH'.
 getTeamLegalHoldStatus ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -517,7 +517,7 @@ getTeamLegalHoldStatus tid = do
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @LegalholdConfig]
         . expect2xx
 
--- | Calls 'Galley.API.getSearchVisibilityInternalH'.
+-- | Calls 'Wire.ConversationSubsystem.getSearchVisibilityInternalH'.
 getTeamSearchVisibility ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -606,7 +606,7 @@ getConfiguredFeatureFlags = do
           . expect2xx
       )
 
--- | Calls 'Galley.API.updateTeamStatusH'.
+-- | Calls 'Wire.ConversationSubsystem.updateTeamStatusH'.
 changeTeamStatus ::
   ( Member Rpc r,
     Member (Input Endpoint) r,

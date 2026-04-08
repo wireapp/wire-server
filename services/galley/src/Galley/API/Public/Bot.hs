@@ -18,42 +18,28 @@
 module Galley.API.Public.Bot where
 
 import Data.Id
-import Data.Qualified
-import Galley.API.Query qualified as Query
-import Galley.API.Teams.Features qualified as Features
-import Galley.API.Update
 import Galley.App
 import Polysemy
-import Polysemy.Input
-import Wire.API.Error
-import Wire.API.Error.Galley
 import Wire.API.Event.Team qualified as Public ()
 import Wire.API.Provider.Bot
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
-import Wire.ConversationStore (ConversationStore)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
-import Wire.TeamStore (TeamStore)
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.ConversationSubsystem
+import Wire.FeaturesConfigSubsystem
 
 botAPI :: API BotAPI GalleyEffects
 botAPI =
   mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
-    <@> mkNamedAPI @"get-bot-conversation" getBotConversation
+    <@> mkNamedAPI @"get-bot-conversation" getBotConversationH
 
-getBotConversation ::
+getBotConversationH ::
   forall r.
-  ( Member ConversationStore r,
-    Member (Input (Local ())) r,
-    Member (ErrorS 'AccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member TeamStore r,
-    Member TeamSubsystem r,
+  ( Member ConversationSubsystem r,
     Member FeaturesConfigSubsystem r
   ) =>
   BotId ->
   ConvId ->
   Sem r BotConvView
-getBotConversation bid cnv = do
-  Features.guardSecondFactorDisabled (botUserId bid) cnv
-  Query.getBotConversation bid cnv
+getBotConversationH bid cnv = do
+  guardSecondFactorDisabled (botUserId bid) cnv
+  getBotConversation bid cnv

@@ -52,7 +52,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -109,8 +108,8 @@ import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
-import Wire.ConversationSubsystem (ConversationSubsystem)
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), GuestLinkTTLSeconds, IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
 import Wire.Error
@@ -233,6 +232,8 @@ type GalleyEffects =
      Input FanoutLimit,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
+     Input IntraListing,
+     Input (Maybe GuestLinkTTLSeconds),
      Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
      Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
@@ -242,7 +243,10 @@ type GalleyEffects =
      Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
+     Error ConversationSubsystemError,
      ErrorS OperationDenied,
+     ErrorS 'AccessDenied,
+     ErrorS 'TeamMemberNotFound,
      ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
@@ -292,7 +296,7 @@ type GalleyEffects =
 validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
-      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
+      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize
   when (settings'._maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
@@ -501,7 +505,10 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'ConvAccessDenied
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'HistoryNotSupported
+        . mapError toResponse -- ErrorS 'TeamMemberNotFound
+        . mapError toResponse -- ErrorS 'AccessDenied
         . mapError toResponse -- ErrorS OperationDenied
+        . mapError toResponse -- Error ConversationSubsystemError,
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . mapError meetingError
@@ -511,9 +518,11 @@ evalGalley e =
         . runInputConst (e ^. options)
         . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
         . runInputConst e._mlsKeys
+        . runInputConst e._options._settings._guestLinkTTLSeconds
+        . runInputConst (IntraListing e._options._settings._intraListing)
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
-        . runInputConst (currentFanoutLimit (e ^. options))
+        . runInputConst (currentFanoutLimitOpts (e ^. options))
         . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
         . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra

@@ -33,6 +33,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
+import Data.Tagged (Tagged)
 import Data.UUID qualified as UUID
 import Data.Vector qualified as V
 import Imports
@@ -46,6 +47,8 @@ import System.Timeout (timeout)
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import Wire.API.Error (ErrorS)
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Pagination
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll), Route (RouteAny))
 import Wire.API.Team.Member as TM
@@ -80,26 +83,34 @@ type AllDependencies =
                 BackgroundJobsPublisher.BackgroundJobsPublisher,
                 State [Push],
                 Random.Random,
-                Error UserGroupSubsystemError
+                Error UserGroupSubsystemError,
+                ErrorS 'TeamMemberNotFound,
+                ErrorS 'TeamNotFound
               ]
 
-runDependenciesFailOnError :: (HasCallStack) => [StoredUser] -> Map TeamId [TeamMember] -> Sem AllDependencies (IO ()) -> IO ()
-runDependenciesFailOnError usrs team = either (error . ("no assertion: " <>) . show) Imports.id . runDependencies usrs team
+runDependenciesFailOnError ::
+  (HasCallStack) =>
+  [StoredUser] ->
+  Map TeamId [TeamMember] ->
+  Sem AllDependencies (IO ()) ->
+  IO ()
+runDependenciesFailOnError usrs team =
+  either (error . ("no assertion: " <>) . show) Imports.id . runDependencies usrs team
 
 runDependencies ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
-  Either UserGroupSubsystemError a
+  Either LocalErrors a
 runDependencies initialUsers initialTeams =
-  run . runError . interpretDependencies initialUsers initialTeams
+  run . runLocalErrors . interpretDependencies initialUsers initialTeams
 
 interpretDependencies ::
   forall r a.
   [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem (AllDependencies `Append` r) a ->
-  Sem ('[Error UserGroupSubsystemError] `Append` r) a
+  Sem ('[Error UserGroupSubsystemError, ErrorS 'TeamMemberNotFound, ErrorS 'TeamNotFound] `Append` r) a
 interpretDependencies initialUsers initialTeams =
   Random.randomToNull
     . evalState mempty
@@ -116,10 +127,10 @@ runDependenciesWithReturnState ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
-  Either UserGroupSubsystemError ([Push], a)
+  Either LocalErrors ([Push], a)
 runDependenciesWithReturnState initialUsers initialTeams =
   run
-    . runError
+    . runLocalErrors
     . Random.randomToNull
     . runState mempty
     . noopBackgroundJobsPublisher
@@ -130,6 +141,26 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . miniGalleyAPIAccess initialTeams def
     . interpretTeamSubsystemToGalleyAPI
     . runInMemoryUserSubsytemInterpreter initialUsers mempty
+
+data LocalErrors
+  = ETeamMemberNotFound
+  | ETeamNotFound
+  | ESubsystem UserGroupSubsystemError
+  deriving stock (Eq, Show)
+
+runLocalErrors ::
+  Sem (Error UserGroupSubsystemError ': ErrorS 'TeamMemberNotFound ': ErrorS 'TeamNotFound ': r) a ->
+  Sem r (Either LocalErrors a)
+runLocalErrors = fmap toLocalErrors . runError . runError . runError
+  where
+    toLocalErrors ::
+      Either (Tagged 'TeamNotFound ()) (Either (Tagged 'TeamMemberNotFound ()) (Either UserGroupSubsystemError a)) ->
+      Either LocalErrors a
+    toLocalErrors = \case
+      Right (Right (Right a)) -> Right a
+      Right (Right (Left e)) -> Left (ESubsystem e)
+      Right (Left _) -> Left ETeamMemberNotFound
+      Left _ -> Left ETeamNotFound
 
 expectRight :: (Show err) => Either err Property -> Property
 expectRight = \case
@@ -231,7 +262,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
     prop "only team admins should be able to create a group" $
       \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName ->
-        expectLeft UserGroupNotATeamAdmin
+        expectLeft (ESubsystem UserGroupNotATeamAdmin)
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
@@ -243,7 +274,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
     prop "only team members are allowed in the group" $ \team otherUsers newUserGroupName ->
       let othersWithoutTeamMembers = filter (\u -> u.teamId /= Just team.tid) otherUsers
        in notNull othersWithoutTeamMembers
-            ==> expectLeft UserGroupMemberIsNotInTheSameTeam
+            ==> expectLeft (ESubsystem UserGroupMemberIsNotInTheSameTeam)
               . runDependencies (allUsers team <> otherUsers) (galleyTeam team)
               . interpretUserGroupSubsystem
             $ do
@@ -535,7 +566,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
     prop "only team admins should be able to update a group" $
       \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) newUserGroupName newUserGroupName2 ->
-        expectLeft UserGroupNotATeamAdmin
+        expectLeft (ESubsystem UserGroupNotATeamAdmin)
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
@@ -603,7 +634,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
 
     prop "only team admins can delete user groups" $
       \((WithMods team) :: WithMods '[AtLeastOneNonAdmin] ArbitraryTeam) groupName ->
-        expectLeft UserGroupNotATeamAdmin
+        expectLeft (ESubsystem UserGroupNotATeamAdmin)
           . runDependencies (allUsers team) (galleyTeam team)
           . interpretUserGroupSubsystem
           $ do
@@ -662,7 +693,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
        newGroupName
        (team2 :: ArbitraryTeam)
        (addOrRemove :: Bool) ->
-          expectLeft UserGroupMemberIsNotInTheSameTeam
+          expectLeft (ESubsystem UserGroupMemberIsNotInTheSameTeam)
             . runDependencies (allUsers team) (galleyTeam team)
             . interpretUserGroupSubsystem
             $ do
@@ -675,7 +706,7 @@ spec = timeoutHook $ describe "UserGroupSubsystem.Interpreter" do
        newGroupName
        (team2 :: ArbitraryTeam)
        (addOrRemove :: Bool) ->
-          expectLeft UserGroupNotFound
+          expectLeft (ESubsystem UserGroupNotFound)
             . runDependencies (allUsers team) (galleyTeam team)
             . interpretUserGroupSubsystem
             $ do

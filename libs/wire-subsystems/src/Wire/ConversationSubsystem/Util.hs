@@ -24,7 +24,6 @@ import Control.Lens (view, (^.))
 import Control.Monad.Extra (allM, anyM)
 import Control.Monad.Trans.Maybe
 import Data.Bifunctor
-import Data.Code qualified as Code
 import Data.Default
 import Data.Domain (Domain)
 import Data.Id as Id
@@ -34,7 +33,7 @@ import Data.List.Extra (chunksOf, nubOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
-import Data.Misc (PlainTextPassword6, PlainTextPassword8)
+import Data.Misc (PlainTextPassword8)
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
@@ -71,10 +70,8 @@ import Wire.API.Team.Collaborator qualified as CollaboratorPermission (Collabora
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Mem
-import Wire.API.Team.Member.Error
 import Wire.API.Team.Role
 import Wire.API.User hiding (userId)
-import Wire.API.User.Auth.ReAuth
 import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
@@ -94,7 +91,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem (ConsentGiven (..), TeamSubsystem, consentGiven, getLHStatus)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
@@ -195,20 +192,6 @@ ensureConnected self others = do
   ensureConnectedToLocals (tUnqualified self) (ulLocals others)
   ensureConnectedToRemotes self (ulRemotes others)
 
-ensureConnectedToLocals ::
-  ( Member (ErrorS 'NotConnected) r,
-    Member BrigAPIAccess r
-  ) =>
-  UserId ->
-  [UserId] ->
-  Sem r ()
-ensureConnectedToLocals _ [] = pure ()
-ensureConnectedToLocals u uids = do
-  (connsFrom, connsTo) <-
-    getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
-  unless (length connsFrom == length uids && length connsTo == length uids) $
-    throwS @'NotConnected
-
 ensureConnectedToRemotes ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'NotConnected) r
@@ -221,18 +204,6 @@ ensureConnectedToRemotes u remotes = do
   acceptedConns <- getConnections [tUnqualified u] (Just $ map tUntagged remotes) (Just Accepted)
   when (length acceptedConns /= length remotes) $
     throwS @'NotConnected
-
-ensureReAuthorised ::
-  ( Member BrigAPIAccess r,
-    Member (Error AuthenticationError) r
-  ) =>
-  UserId ->
-  Maybe PlainTextPassword6 ->
-  Maybe Code.Value ->
-  Maybe VerificationAction ->
-  Sem r ()
-ensureReAuthorised u secret mbAction mbCode =
-  reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
 ensureManageChannelsPermission :: (Member (ErrorS 'ConvNotFound) r) => StoredConversation -> TeamMember -> Sem r ()
 ensureManageChannelsPermission conv tm = do
@@ -322,72 +293,6 @@ checkGroupIdSupport loc conv joinAction = void $ runMaybeT $ do
   where
     failOnFirstError :: (Member (ErrorS GroupIdVersionNotSupported) r) => [Either e x] -> Sem r ()
     failOnFirstError = traverse_ $ either (\_ -> throwS @GroupIdVersionNotSupported) pure
-
--- | Same as 'permissionCheck', but for a statically known permission.
-permissionCheckS ::
-  forall teamAssociation perm (p :: perm) r.
-  ( SingKind perm,
-    IsPerm teamAssociation (Demote perm),
-    ( Member (ErrorS (PermError p)) r,
-      Member (ErrorS 'NotATeamMember) r
-    )
-  ) =>
-  Sing p ->
-  Maybe teamAssociation ->
-  Sem r teamAssociation
-permissionCheckS p =
-  \case
-    Just m -> do
-      if m `hasPermission` fromSing p
-        then pure m
-        else throwS @(PermError p)
-    -- FUTUREWORK: factor `noteS` out of this function.
-    Nothing -> throwS @'NotATeamMember
-
--- | If a team member is not given throw 'notATeamMember'; if the given team
--- member does not have the given permission, throw 'operationDenied'.
--- Otherwise, return the team member.
-permissionCheck ::
-  ( IsPerm teamAssociation perm,
-    ( Member (ErrorS OperationDenied) r,
-      Member (ErrorS 'NotATeamMember) r
-    )
-  ) =>
-  perm ->
-  Maybe teamAssociation ->
-  Sem r teamAssociation
--- FUTUREWORK: factor `noteS` out of this function.
-permissionCheck p = \case
-  Just m -> do
-    if m `hasPermission` p
-      then pure m
-      else throwS @OperationDenied
-  -- FUTUREWORK: factor `noteS` out of this function.
-  Nothing -> throwS @'NotATeamMember
-
-assertTeamExists ::
-  ( Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r
-  ) =>
-  TeamId ->
-  Sem r ()
-assertTeamExists tid = do
-  teamExists <- isJust <$> getTeam tid
-  if teamExists
-    then pure ()
-    else throwS @'TeamNotFound
-
-assertOnTeam ::
-  ( Member (ErrorS 'NotATeamMember) r,
-    Member TeamSubsystem r
-  ) =>
-  UserId ->
-  TeamId ->
-  Sem r ()
-assertOnTeam uid tid =
-  TeamSubsystem.internalGetTeamMember uid tid >>= \case
-    Nothing -> throwS @'NotATeamMember
-    Just _ -> pure ()
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
@@ -997,38 +902,6 @@ userLHEnabled = \case
   UserLegalHoldDisabled -> False
   UserLegalHoldNoConsent -> False
 
-data ConsentGiven = ConsentGiven | ConsentNotGiven
-  deriving (Eq, Ord, Show)
-
-consentGiven :: UserLegalHoldStatus -> ConsentGiven
-consentGiven = \case
-  UserLegalHoldDisabled -> ConsentGiven
-  UserLegalHoldPending -> ConsentGiven
-  UserLegalHoldEnabled -> ConsentGiven
-  UserLegalHoldNoConsent -> ConsentNotGiven
-
-checkConsent ::
-  (Member TeamSubsystem r) =>
-  Map UserId TeamId ->
-  UserId ->
-  Sem r ConsentGiven
-checkConsent teamsOfUsers other = do
-  consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
-
--- Get legalhold status of user. Defaults to 'defUserLegalHoldStatus' if user
--- doesn't belong to a team.
-getLHStatus ::
-  (Member TeamSubsystem r) =>
-  Maybe TeamId ->
-  UserId ->
-  Sem r UserLegalHoldStatus
-getLHStatus teamOfUser other = do
-  case teamOfUser of
-    Nothing -> pure defUserLegalHoldStatus
-    Just team -> do
-      mMember <- TeamSubsystem.internalGetTeamMember other team
-      pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
-
 anyLegalholdActivated ::
   ( Member (Input ConversationSubsystemConfig) r,
     Member TeamStore r,
@@ -1074,31 +947,6 @@ allLegalholdConsentGiven uids = do
       where
         eitherTeamMemberAndLHAllowedOrDefLHStatus teamsPage uid = do
           fromMaybe (consentGiven defUserLegalHoldStatus == ConsentGiven) <$> (for (Map.lookup uid teamsPage) isTeamLegalholdWhitelisted)
-
--- | Add to every uid the legalhold status
-getLHStatusForUsers ::
-  (Member TeamStore r, Member TeamSubsystem r) =>
-  [UserId] ->
-  Sem r [(UserId, UserLegalHoldStatus)]
-getLHStatusForUsers uids =
-  mconcat
-    <$> for
-      (chunksOf 32 uids)
-      ( \uidsChunk -> do
-          teamsOfUsers <- getUsersTeams uidsChunk
-          for uidsChunk $ \uid -> do
-            (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
-      )
-
-getTeamMembersForFanout ::
-  ( Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
-  ) =>
-  TeamId ->
-  Sem r TeamMemberList
-getTeamMembersForFanout tid = do
-  lim <- input
-  TeamSubsystem.internalGetTeamMembersWithLimit tid (Just lim)
 
 ensureMemberLimit ::
   ( Foldable f,

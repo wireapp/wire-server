@@ -17,10 +17,10 @@
 
 module Galley.API.Public.Messaging where
 
-import Galley.API.Update
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.ConversationSubsystem
 
 messagingAPI :: API MessagingAPI GalleyEffects
 messagingAPI =

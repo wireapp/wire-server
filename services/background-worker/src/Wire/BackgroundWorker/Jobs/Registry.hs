@@ -22,6 +22,7 @@ where
 
 import Bilge qualified
 import Bilge.Retry
+import Cassandra (ClientState)
 import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString qualified as BS
@@ -32,51 +33,66 @@ import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
-import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription, legalHoldServiceUnavailable)
+import Galley.Types.Error (InternalError, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
+import Hasql.Pool qualified as Hasql
 import Imports
 import Network.HTTP.Client qualified as Http
+import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Async (asyncToIOFinal)
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (resourceToIOFinal)
 import Polysemy.TinyLog qualified as P
 import Ssl.Util
 import System.Logger as Logger
 import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
+import Wire.API.Error (APIError (toResponse), DynError (..))
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
+import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
-import Wire.API.Team.FeatureFlags (FeatureDefaults (FeatureLegalHoldDisabledPermanently))
+import Wire.API.Team.Feature (LegalholdConfig)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults (FeatureLegalHoldDisabledPermanently), currentFanoutLimit)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BackgroundJobsRunner (runJob)
 import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
+import Wire.BackgroundWorker.Options (Settings (..))
 import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError)
+import Wire.CodeStore.Cassandra (interpretCodeStoreToCassandra)
+import Wire.CodeStore.DualWrite (interpretCodeStoreToCassandraAndPostgres)
+import Wire.CodeStore.Postgres (interpretCodeStoreToPostgres)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), GuestLinkTTLSeconds (..), IntraListing (..), interpretConversationSubsystem)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
 import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
 import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist (..))
 import Wire.FederationAPIAccess.Interpreter (FederationAPIAccessConfig (..), interpretFederationAPIAccess)
+import Wire.FederationSubsystem.Interpreter (runFederationSubsystem)
 import Wire.FireAndForget (interpretFireAndForget)
 import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
+import Wire.HashPassword.Interpreter (runHashPassword)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem.Interpreter
 import Wire.ParseException
 import Wire.PostgresMigrationOpts
+import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
+import Wire.RateLimit (RateLimitExceeded)
+import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
 import Wire.Sem.Concurrency (ConcurrencySafety (Unsafe))
 import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
@@ -174,45 +190,53 @@ dispatchJob job = do
             let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
                 makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
              in LegalHoldEnv {makeVerifiedRequest = makeReq, makeVerifiedRequestFreshManager = makeReqFresh}
+          convCodesStoreInterpreter =
+            case env.postgresMigration.conversationCodes of
+              CassandraStorage -> interpretCodeStoreToCassandra
+              MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+              PostgresqlStorage -> interpretCodeStoreToPostgres
       runFinal @IO
         . unsafelyPerformConcurrency @_ @'Unsafe
         . embedToFinal @IO
         . asyncToIOFinal
         . interpretRace
         . runDelay
+        . resourceToIOFinal
         . runError
+        . mapError @DynError (T.pack . show . (.eMessage))
+        . mapError @JSONResponse (T.pack . show . (.value))
+        . mapError @ConversationSubsystemError toResponse
         . mapError @ClientError (T.pack . displayException)
         . mapError @FederationError (T.pack . displayException)
         . mapError @UsageError (T.pack . show)
         . mapError @ParseException (T.pack . displayException)
-        . mapError (const ("Invalid input" :: Text) :: InvalidInput -> Text)
         . mapError @MigrationError (T.pack . show)
         . mapError @InternalError (TL.toStrict . internalErrorDescription)
         . mapError @UnreachableBackends (T.pack . show)
         . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
         . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
-        . mapError @(Tagged HistoryNotSupported ()) (const ("History not supported" :: Text))
-        . mapError @(Tagged OperationDenied ()) (const ("Operation denied" :: Text))
         . mapError @(Tagged 'NotATeamMember ()) (const ("Not a team member" :: Text))
         . mapError @(Tagged 'ConvAccessDenied ()) (const ("Conversation access denied" :: Text))
-        . mapError @(Tagged 'NotConnected ()) (const ("Not connected" :: Text))
-        . mapError @(Tagged 'MLSNotEnabled ()) (const ("MLS not enabled" :: Text))
-        . mapError @(Tagged 'MLSNonEmptyMemberList ()) (const ("MLS non-empty member list" :: Text))
-        . mapError @(Tagged 'MissingLegalholdConsent ()) (const ("Missing legalhold consent" :: Text))
-        . mapError @(Tagged 'NonBindingTeam ()) (const ("Non-binding team" :: Text))
-        . mapError @(Tagged 'NoBindingTeamMembers ()) (const ("No binding team members" :: Text))
         . mapError @(Tagged 'TeamNotFound ()) (const ("Team not found" :: Text))
-        . mapError @(Tagged 'InvalidOperation ()) (const ("Invalid operation" :: Text))
-        . mapError @(Tagged 'ConvNotFound ()) (const ("Conversation not found" :: Text))
-        . mapError @(Tagged 'ChannelsNotEnabled ()) (const ("Channels not enabled" :: Text))
-        . mapError @(Tagged 'NotAnMlsConversation ()) (const ("Not an MLS conversation" :: Text))
+        . mapError @(Tagged 'TeamMemberNotFound ()) (const ("Team member not found" :: Text))
+        . mapError @(Tagged 'AccessDenied ()) (const ("Access denied" :: Text))
+        . mapError @NonFederatingBackends (const ("Non federating backends" :: Text))
+        . mapError @UnreachableBackendsLegacy (const ("Unreachable backends legacy" :: Text))
+        . mapError @RateLimitExceeded (const ("Rate limit exceeded" :: Text))
         . interpretTinyLog env job.requestId job.jobId
-        . runInputConst env.hasqlPool
-        . runInputConst (toLocalUnsafe env.federationDomain ())
-        . runInputConst (FeatureLegalHoldDisabledPermanently)
-        . runInputConst env.cassandraGalley
-        . runInputConst legalHoldEnv
-        . runInputConst (ExposeInvitationURLsAllowlist [])
+        . runInputConst @Hasql.Pool env.hasqlPool
+        . runInputConst @(Local ()) (toLocalUnsafe env.federationDomain ())
+        . runInputConst @(FeatureDefaults LegalholdConfig) FeatureLegalHoldDisabledPermanently
+        . runInputConst @ClientState env.cassandraGalley
+        . runInputConst @LegalHoldEnv legalHoldEnv
+        . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.settings.exposeInvitationURLsTeamAllowlist)
+        . runInputConst @(Either HttpsUrl (Map Text HttpsUrl)) env.convCodeURI
+        . runInputConst @IntraListing (IntraListing env.settings.intraListing)
+        . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.settings.checkGroupInfo)
+        . runInputConst @(Maybe GuestLinkTTLSeconds) env.settings.guestLinkTTLSeconds
+        . runInputConst @FanoutLimit (currentFanoutLimit env.settings.maxTeamSize env.settings.maxFanoutSize)
+        . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
+        . interpretProposalStoreToCassandra
         . interpretServiceStoreToCassandra env.cassandraBrig
         . interpretUserGroupStoreToPostgres
         . interpretTeamFeatureStoreToCassandra
@@ -235,12 +259,20 @@ dispatchJob job = do
         . interpretBrigAccess env.brigEndpoint
         . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
         . runInputSem getConversationSubsystemConfig
+        . runInputSem @(Maybe (MLSKeysByPurpose MLSPrivateKeys)) (inputs @ConversationSubsystemConfig (.mlsKeys))
         . runInputSem getConfiguredFeatureFlags
+        . runHashPassword env.settings.passwordHashingOptions
+        . interpretRateLimit env.passwordHashingRateLimitEnv
+        . convCodesStoreInterpreter
         . interpretExternalAccess extEnv
         . interpretSparAPIAccessToRpc env.sparEndpoint
         . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig job.requestId)
         . interpretFederationAPIAccess federationAPIAccessConfig
         . interpretTeamSubsystem teamSubsystemConfig
+        . ( \m -> do
+              p <- inputs @ConversationSubsystemConfig (.federationProtocols)
+              runFederationSubsystem p m
+          )
         . runFeaturesConfigSubsystem
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
@@ -252,6 +284,7 @@ dispatchJob job = do
       Sem r ConversationSubsystemConfig
     getConversationSubsystemConfig = getConversationConfig
 
+    backendQueueEnv :: Env -> BackendNotificationQueueAccess.Env
     backendQueueEnv env =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,

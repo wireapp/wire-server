@@ -37,19 +37,11 @@ import Data.Qualified
 import Data.Range
 import Data.Singletons
 import Data.Time
-import Galley.API.Action
-import Galley.API.Clients qualified as Clients
-import Galley.API.Create qualified as Create
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
-import Galley.API.LegalHold.Conflicts
-import Galley.API.MLS.Removal
 import Galley.API.Public.Servant
-import Galley.API.Query qualified as Query
 import Galley.API.Teams
 import Galley.API.Teams qualified as Teams
 import Galley.API.Teams.Features
-import Galley.API.Teams.Features.Get
-import Galley.API.Update qualified as Update
 import Galley.App
 import Galley.Monad
 import Galley.Options hiding (brig)
@@ -74,7 +66,6 @@ import Wire.API.Event.LeaveReason
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.EJPD
@@ -83,30 +74,26 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
-import Wire.API.Team.FeatureFlags (FanoutLimit)
+import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess (BrigAPIAccess)
-import Wire.ConversationStore
+import Wire.ConversationStore hiding (getConversations)
 import Wire.ConversationStore qualified as ConversationStore
 import Wire.ConversationStore.MLS.Types
-import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.One2One
-import Wire.ConversationSubsystem.Util
+import Wire.ConversationSubsystem as Conv
+import Wire.ConversationSubsystem.LegalholdConflicts (LegalholdConflicts, LegalholdConflictsOldClients)
 import Wire.CustomBackendStore
-import Wire.ExternalAccess (ExternalAccess)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem)
+import Wire.FeaturesConfigSubsystem
 import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.ListItems
 import Wire.NotificationSubsystem
-import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-import Wire.Sem.Random (Random)
 import Wire.ServiceStore
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
@@ -114,7 +101,7 @@ import Wire.TeamStore
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-import Wire.UserClientIndexStore
+import Wire.UserClientIndexStore as UserClientIndexStore
 import Wire.UserList
 import Wire.Util
 
@@ -123,13 +110,13 @@ internalAPI =
   hoistAPI @InternalAPIBase Imports.id $
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" rmUser
-      <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> mkNamedAPI @"connect" createConnectConversation
       <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
       <@> miscAPI
-      <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
+      <@> mkNamedAPI @"upsert-one2one" internalUpsertOne2OneConversation
       <@> featureAPI
       <@> federationAPI
       <@> conversationAPI
@@ -145,23 +132,20 @@ getConversationConfigH = input
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
 
--- | An unpaginated, internal http interface to `Query.conversationIdsPageFrom`.  Used for
+-- | An unpaginated, internal http interface to `conversationIdsPageFrom`.  Used for
 -- EJPD reports.  Called locally with very little data for each conv, so we don't expect
 -- pagination to ever be needed.
 ejpdGetConvInfo ::
   forall r.
   ( Member ConversationStore r,
     Member ConversationSubsystem r,
-    Member (Error InternalError) r,
-    Member (Input (Local ())) r,
-    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
-    Member P.TinyLog r
+    Member (Input (Local ())) r
   ) =>
   UserId ->
   Sem r [EJPDConvInfo]
 ejpdGetConvInfo uid = do
   luid <- qualifyLocal uid
-  firstPage <- Query.conversationIdsPageFrom luid initialPageRequest
+  firstPage <- conversationIdsPageFrom luid initialPageRequest
   getPages luid firstPage
   where
     initialPageRequest = mkPageRequest (MTP.MultiTablePagingState MTP.PagingLocals Nothing)
@@ -184,7 +168,7 @@ ejpdGetConvInfo uid = do
       renderedPage <- mapMaybe mk <$> ConversationStore.getConversations (fst $ partitionQualified luid convids)
       if MTP.mtpHasMore page
         then do
-          newPage <- Query.conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
+          newPage <- conversationIdsPageFrom luid (mkPageRequest . MTP.mtpPagingState $ page)
           morePages <- getPages luid newPage
           pure $ renderedPage <> morePages
         else pure renderedPage
@@ -195,14 +179,14 @@ federationAPI =
 
 conversationAPI :: API IConversationAPI GalleyEffects
 conversationAPI =
-  mkNamedAPI @"conversation-get-member" Query.internalGetMember
-    <@> mkNamedAPI @"conversation-accept-v2" Update.acceptConv
-    <@> mkNamedAPI @"conversation-block" Update.blockConv
-    <@> mkNamedAPI @"conversation-unblock" Update.unblockConv
-    <@> mkNamedAPI @"conversation-meta" Query.getConversationMeta
-    <@> mkNamedAPI @"conversation-mls-one-to-one" Query.getMLSOne2OneConversationInternal
-    <@> mkNamedAPI @"conversation-mls-one-to-one-established" Query.isMLSOne2OneEstablished
-    <@> mkNamedAPI @"get-conversation-by-id" Query.getLocalConversationInternal
+  mkNamedAPI @"conversation-get-member" internalGetMember
+    <@> mkNamedAPI @"conversation-accept-v2" acceptConv
+    <@> mkNamedAPI @"conversation-block" blockConv
+    <@> mkNamedAPI @"conversation-unblock" unblockConv
+    <@> mkNamedAPI @"conversation-meta" getConversationMeta
+    <@> mkNamedAPI @"conversation-mls-one-to-one" getMLSOne2OneConversationInternal
+    <@> mkNamedAPI @"conversation-mls-one-to-one-established" isMLSOne2OneEstablished
+    <@> mkNamedAPI @"get-conversation-by-id" getLocalConversationInternal
     <@> mkNamedAPI @"is-conversation-out-of-sync" ConversationStore.isConversationOutOfSync
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
@@ -244,20 +228,20 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler Imports.id (base tid)
         <@> mkNamedAPI @"finalize-delete-team" (\lusr mconn -> TeamSubsystem.internalFinalizeDeleteTeam lusr mconn tid $> NoContent)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @SearchVisibilityAvailableConfig) tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam (Proxy @SearchVisibilityAvailableConfig)) tid)
           )
 
 miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
   mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
     <@> mkNamedAPI @"get-team-id" lookupBindingTeam
-    <@> mkNamedAPI @"test-get-clients" Clients.getClients
+    <@> mkNamedAPI @"test-get-clients" UserClientIndexStore.getClientsId
     <@> mkNamedAPI @"test-add-client" createClient
-    <@> mkNamedAPI @"test-delete-client" Clients.rmClient
+    <@> mkNamedAPI @"test-delete-client" rmClient
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
-    <@> mkNamedAPI @"i-add-bot" Update.addBot
-    <@> mkNamedAPI @"delete-bot" Update.rmBot
+    <@> mkNamedAPI @"i-add-bot" addBot
+    <@> mkNamedAPI @"delete-bot" rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
     <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend
 
@@ -341,7 +325,7 @@ featureAPI =
     <@> mkNamedAPI @"get-configured-feature-flags" getConfiguredFeatureFlags
 
 cellsAPI :: API ICellsAPI GalleyEffects
-cellsAPI = mkNamedAPI @"set-cells-state" Update.updateCellsState
+cellsAPI = mkNamedAPI @"set-cells-state" updateCellsState
 
 getConfiguredFeatureFlags ::
   forall r.
@@ -360,20 +344,13 @@ rmUser ::
     Member ConversationStore r,
     Member (Error DynError) r,
     Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member ExternalAccess r,
     Member NotificationSubsystem r,
     Member ConversationSubsystem r,
-    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+    Member TeamSubsystem r,
     Member Now r,
     Member (ListItems p2 TeamId) r,
-    Member ProposalStore r,
     Member P.TinyLog r,
-    Member Random r,
     Member TeamStore r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
     Member FeaturesConfigSubsystem r
   ) =>
   Local UserId ->
@@ -383,7 +360,7 @@ rmUser lusr conn = do
   let nRange1000 = toRange (Proxy @1000) :: Range 1 1000 Int32
   tids <- listTeams (tUnqualified lusr) Nothing maxBound
   leaveTeams tids
-  allConvIds <- Query.conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
+  allConvIds <- conversationIdsPageFrom lusr (GetPaginatedConversationIds Nothing nRange1000)
   goConvPages nRange1000 allConvIds
 
   deleteClients (tUnqualified lusr)
@@ -396,7 +373,7 @@ rmUser lusr conn = do
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page
             nextQuery = GetPaginatedConversationIds (Just nextState) range
-        newCids <- Query.conversationIdsPageFrom lusr nextQuery
+        newCids <- conversationIdsPageFrom lusr nextQuery
         goConvPages range newCids
 
     leaveTeams page = for_ (pageItems page) $ \tid -> do
@@ -405,7 +382,7 @@ rmUser lusr conn = do
           getFeatureForTeam @_ @LimitedEventFanoutConfig tid
             >>= ( \case
                     FeatureStatusEnabled -> Left <$> E.getTeamAdmins tid
-                    FeatureStatusDisabled -> Right <$> getTeamMembersForFanout tid
+                    FeatureStatusDisabled -> Right <$> TeamSubsystem.getTeamMembersForFanout tid
                 )
               . (.status)
       uncheckedDeleteTeamMember lusr conn tid (tUnqualified lusr) toNotify
@@ -522,7 +499,7 @@ safeForever funName action =
 
 guardLegalholdPolicyConflictsH ::
   ( Member BrigAPIAccess r,
-    Member (Input Opts) r,
+    Member (Input FeatureFlags) r,
     Member P.TinyLog r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MissingLegalholdConsentOldClients) r,

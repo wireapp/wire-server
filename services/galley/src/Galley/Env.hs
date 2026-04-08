@@ -18,15 +18,37 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Env where
+module Galley.Env
+  ( Env (..),
+    DeleteItem (..),
+    reqId,
+    options,
+    applog,
+    manager,
+    http2Manager,
+    federator,
+    brig,
+    cstate,
+    hasqlPool,
+    deleteQueue,
+    extEnv,
+    aEnv,
+    mlsKeys,
+    rabbitmqChannel,
+    convCodeURI,
+    passwordHashingRateLimitEnv,
+    reqIdMsg,
+    notificationSubsystemConfig,
+    currentFanoutLimitOpts,
+  )
+where
 
 import Cassandra
 import Control.Lens hiding ((.=))
 import Data.Id
 import Data.Misc (HttpsUrl)
-import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
-import Galley.Options
+import Galley.Options hiding (brig, federator)
 import Galley.Options qualified as O
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
@@ -38,6 +60,7 @@ import System.Logger
 import Util.Options
 import Wire.API.MLS.Keys
 import Wire.API.Team.FeatureFlags (FanoutLimit)
+import Wire.API.Team.FeatureFlags qualified as FeatureFlags
 import Wire.AWS qualified as Aws
 import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
@@ -72,21 +95,19 @@ reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-currentFanoutLimit :: Opts -> FanoutLimit
-currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defaultFanoutLimit (o ^. (O.settings . maxFanoutSize))
-  let maxSize = fromIntegral (o ^. (O.settings . maxTeamSize))
-  unsafeRange (min maxSize optFanoutLimit)
-
 notificationSubsystemConfig :: Env -> NotificationSubsystemConfig
 notificationSubsystemConfig env =
-  NotificationSubsystemConfig
-    { chunkSize = defaultChunkSize,
-      fanoutLimit = currentFanoutLimit env._options,
-      slowPushDelay =
-        maybe
-          defaultSlowPushDelay
-          (millisecondsToDiffTime . toInteger)
-          (env ^. options . O.settings . deleteConvThrottleMillis),
-      requestId = env ^. reqId
-    }
+  let settings' = env._options._settings
+   in NotificationSubsystemConfig
+        { chunkSize = defaultChunkSize,
+          fanoutLimit = FeatureFlags.currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize,
+          slowPushDelay =
+            maybe
+              defaultSlowPushDelay
+              (millisecondsToDiffTime . toInteger)
+              (env ^. options . O.settings . deleteConvThrottleMillis),
+          requestId = env ^. reqId
+        }
+
+currentFanoutLimitOpts :: Opts -> FanoutLimit
+currentFanoutLimitOpts opts = FeatureFlags.currentFanoutLimit opts._settings._maxTeamSize opts._settings._maxFanoutSize

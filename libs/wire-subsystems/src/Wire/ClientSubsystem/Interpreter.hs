@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
+
 module Wire.ClientSubsystem.Interpreter
   ( runClientSubsystem,
     ClientError (..),

@@ -115,4 +115,7 @@ data:
     {{- if .postgresMigration }}
     postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
     {{- end }}
+
+    settings:
+{{ include "wire-server.settings.common" .settings | indent 6 }}
   {{- end }}

@@ -25,6 +25,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range (checked, unsafeRange)
 import Data.Set qualified as Set
+import Data.Tagged (Tagged)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock
 import Imports
@@ -36,6 +37,8 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
+import Wire.API.Error (ErrorS)
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -68,6 +71,8 @@ type TestStack =
      State UTCTime,
      Random,
      State StdGen,
+     ErrorS 'TeamMemberNotFound,
+     ErrorS 'TeamNotFound,
      Embed IO
    ]
 
@@ -81,6 +86,11 @@ interpretFeaturesConfigSubsystemPure configs = interpret $ \case
   GetAllTeamFeaturesForTeamMember _luid _tid -> pure def
   GetAllTeamFeaturesForTeam _tid -> pure def
   GetAllTeamFeaturesForServer -> pure def
+  GuardSecondFactorDisabled _ _ -> error "not implemented"
+  FeatureEnabledForTeam _ _ -> error "not implemented"
+  GetAllTeamFeaturesForUser _ -> error "not implemented"
+  GetSingleFeatureForUser _ -> error "not implemented"
+  GetFeatureInternal _ -> error "not implemented"
 
 runTestStack ::
   UTCTime ->
@@ -91,6 +101,9 @@ runTestStack ::
   IO (Either MeetingError a)
 runTestStack now gen teams configs =
   runM
+    . fmap (either (error . show) (either (error . show) Imports.id))
+    . runError @(Tagged 'TeamNotFound ())
+    . runError @(Tagged 'TeamMemberNotFound ())
     . evalState gen
     . randomToStatefulStdGen
     . evalState now

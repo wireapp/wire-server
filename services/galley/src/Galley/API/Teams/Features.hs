@@ -22,13 +22,9 @@ module Galley.API.Teams.Features
   ( setFeature,
     setFeatureInternal,
     patchFeatureInternal,
-    getAllTeamFeaturesForTeam,
-    getAllTeamFeaturesForUser,
     updateLockStatus,
     GetFeatureConfig (..),
     SetFeatureConfig (..),
-    guardSecondFactorDisabled,
-    featureEnabledForTeam,
     guardMlsE2EIdConfig,
   )
 where
@@ -43,7 +39,6 @@ import Data.Kind
 import Data.Qualified (Local)
 import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
-import Galley.API.Teams.Features.Get
 import Galley.App
 import Galley.Options
 import Galley.Types.Error (InternalError)
@@ -60,6 +55,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.FeatureConfig
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
@@ -68,10 +64,9 @@ import Wire.BrigAPIAccess (BrigAPIAccess, updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
-import Wire.ConversationSubsystem.Util (assertTeamExists, getTeamMembersForFanout, permissionCheck)
 import Wire.ExternalAccess (ExternalAccess)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal)
-import Wire.FeaturesConfigSubsystem.Types (GetFeatureConfigEffects)
+import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getDbFeatureRawInternal, getFeatureForTeam)
+import Wire.FeaturesConfigSubsystem.Types
 import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
@@ -98,12 +93,9 @@ patchFeatureInternal ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
     Member TeamSubsystem r,
     GetFeatureConfigEffects r
   ) =>
@@ -111,7 +103,7 @@ patchFeatureInternal ::
   LockableFeaturePatch cfg ->
   Sem r (LockableFeature cfg)
 patchFeatureInternal tid patch = do
-  assertTeamExists tid
+  TeamSubsystem.assertTeamExists tid
   dbFeature <- getDbFeatureRawInternal tid
   defFeature :: LockableFeature cfg <- resolveServerFeature
   let dbFeatureWithDefaults = dbFeature.applyDbFeature defFeature
@@ -135,13 +127,12 @@ setFeature ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (Error TeamFeatureError) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -150,7 +141,7 @@ setFeature ::
   Sem r (LockableFeature cfg)
 setFeature uid tid feat = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
-  void $ permissionCheck ChangeTeamFeature zusrMembership
+  void $ TeamSubsystem.permissionCheck ChangeTeamFeature zusrMembership
   setFeatureUnchecked tid feat
 
 setFeatureInternal ::
@@ -158,20 +149,17 @@ setFeatureInternal ::
   ( SetFeatureConfig cfg,
     ComputeFeatureConstraints cfg r,
     SetFeatureForTeamConstraints cfg r,
-    Member (ErrorS 'TeamNotFound) r,
     Member (Error TeamFeatureError) r,
-    Member TeamStore r,
     Member TeamFeatureStore r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
     Member TeamSubsystem r
   ) =>
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
 setFeatureInternal tid feat = do
-  assertTeamExists tid
+  TeamSubsystem.assertTeamExists tid
   setFeatureUnchecked tid feat
 
 setFeatureUnchecked ::
@@ -183,7 +171,6 @@ setFeatureUnchecked ::
     Member TeamFeatureStore r,
     Member (P.Logger (Log.Msg -> Log.Msg)) r,
     Member NotificationSubsystem r,
-    Member (Input FanoutLimit) r,
     Member TeamSubsystem r
   ) =>
   TeamId ->
@@ -198,14 +185,13 @@ updateLockStatus ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member TeamFeatureStore r,
-    Member TeamStore r,
-    Member (ErrorS 'TeamNotFound) r
+    Member TeamSubsystem r
   ) =>
   TeamId ->
   LockStatus ->
   Sem r LockStatusResponse
 updateLockStatus tid lockStatus = do
-  assertTeamExists tid
+  TeamSubsystem.assertTeamExists tid
   setFeatureLockStatus @cfg tid lockStatus
   pure $ LockStatusResponse lockStatus
 
@@ -226,15 +212,14 @@ pushFeatureEvent ::
   forall cfg r.
   ( IsFeatureConfig cfg,
     Member NotificationSubsystem r,
-    Member P.TinyLog r,
-    Member (Input FanoutLimit) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member P.TinyLog r
   ) =>
   TeamId ->
   Event ->
   Sem r ()
 pushFeatureEvent tid event = do
-  memList <- getTeamMembersForFanout tid
+  memList <- TeamSubsystem.getTeamMembersForFanout tid
   if ((memList ^. teamMemberListType) == ListTruncated)
     then do
       P.warn $
@@ -264,7 +249,6 @@ setFeatureForTeam ::
     Member P.TinyLog r,
     Member NotificationSubsystem r,
     Member TeamFeatureStore r,
-    Member (Input FanoutLimit) r,
     Member TeamSubsystem r
   ) =>
   TeamId ->
@@ -407,7 +391,7 @@ instance SetFeatureConfig SndFactorPasswordChallengeConfig
 instance SetFeatureConfig SearchVisibilityInboundConfig where
   type SetFeatureForTeamConstraints SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAPIAccess r)
   prepareFeature tid feat = do
-    updateSearchVisibilityInbound $ toTeamStatus tid feat
+    updateSearchVisibilityInbound $ Multi.TeamStatus tid feat.status
 
 instance SetFeatureConfig MLSConfig where
   type

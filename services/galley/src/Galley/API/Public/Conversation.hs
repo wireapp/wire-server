@@ -17,16 +17,12 @@
 
 module Galley.API.Public.Conversation where
 
-import Galley.API.Create
-import Galley.API.MLS.GroupInfo
-import Galley.API.MLS.SubConversation
-import Galley.API.Query
-import Galley.API.Update
 import Galley.App
 import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
@@ -41,7 +37,7 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
     <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPageFromV2 DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
-    <@> mkNamedAPI @"get-conversations" getConversations
+    <@> mkNamedAPI @"get-conversations" getPaginatedConversations
     <@> mkNamedAPI @"list-conversations@v1" listConversations
     <@> mkNamedAPI @"list-conversations@v2" listConversations
     <@> mkNamedAPI @"list-conversations@v5" listConversations

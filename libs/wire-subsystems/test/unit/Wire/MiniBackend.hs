@@ -59,6 +59,7 @@ import Data.Map.Lazy qualified as LM
 import Data.Map.Strict qualified as M
 import Data.Proxy
 import Data.Qualified
+import Data.Tagged (Tagged)
 import Data.Time
 import Data.Type.Equality
 import Data.Vector qualified as Vector
@@ -77,6 +78,9 @@ import System.Logger qualified as Log
 import Test.QuickCheck
 import Type.Reflection
 import Wire.API.Allowlists (AllowlistEmailDomains)
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
+import Wire.API.Error (ErrorS)
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Federation.API
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -96,10 +100,13 @@ import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie.Limit
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BlockListStore
+import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ClientStore
 import Wire.ClientSubsystem
 import Wire.ClientSubsystem.Interpreter
+import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.DeleteQueue
 import Wire.DeleteQueue.InMemory
 import Wire.DomainRegistrationStore qualified as DRS
@@ -132,6 +139,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserKeyStore
 import Wire.UserStore
@@ -242,7 +250,8 @@ data MiniBackendParams r = MiniBackendParams
     teams :: Map TeamId [TeamMember],
     galleyConfigs :: AllTeamFeatures,
     usrCfg :: UserSubsystemConfig,
-    appCfg :: AppSubsystemConfig
+    appCfg :: AppSubsystemConfig,
+    conversationCfg :: ConversationSubsystemConfig
   }
 
 -- | `MiniBackendLowerEffects` is not a long, flat list, but a tree of effects.  This way we
@@ -253,7 +262,13 @@ data MiniBackendParams r = MiniBackendParams
 -- organize along effect types ("all `State`s"), but the domain ("everything about block
 -- lists").
 type MiniBackendLowerEffects =
-  '[ TeamSubsystem,
+  '[ ClientSubsystem,
+     Input ConversationSubsystemConfig,
+     BrigAPIAccess,
+     UserClientIndexStore,
+     BackendNotificationQueueAccess,
+     ConversationSubsystem,
+     TeamSubsystem,
      EmailSubsystem,
      NotificationSubsystem,
      VerificationCodeSubsystem,
@@ -281,7 +296,9 @@ type MiniBackendLowerEffects =
      Events,
      CryptoSign,
      Random,
-     Now
+     Now,
+     ErrorS 'TeamMemberNotFound,
+     ErrorS 'TeamNotFound
    ]
     `Append` InputEffects
     `Append` '[ Metrics
@@ -305,6 +322,10 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . stateEffectsInterpreters mb
     . ignoreMetrics
     . inputEffectsInterpreters usrCfg appCfg localBackend.teamIdps
+    . fmap (either (error . show) Imports.id)
+    . runError @(Tagged 'TeamNotFound ())
+    . fmap (either (error . show) Imports.id)
+    . runError @(Tagged 'TeamMemberNotFound ())
     . interpretNowConst (UTCTime (ModifiedJulianDay 0) 0)
     . runRandomPure
     . runCryptoSignUnsafe
@@ -334,6 +355,29 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
     . interpretTeamSubsystemToGalleyAPI
+    . mockConversationSubsystem
+    . mockBackendNotificationQueueAccess
+    . mockUserClientIndexStore
+    . mockBrigAPIAccess
+    . runInputConst conversationCfg
+    . runClientSubsystem undefined undefined
+  where
+    -- Mock BrigAPIAccess interpreter for tests
+    mockBrigAPIAccess :: forall r'. InterpreterFor BrigAPIAccess r'
+    mockBrigAPIAccess = interpret $ \case
+      _ -> error "Unimplemented BrigAPIAccess operation in mock"
+    -- Mock UserClientIndexStore interpreter for tests
+    mockUserClientIndexStore :: forall r'. InterpreterFor UserClientIndexStore r'
+    mockUserClientIndexStore = interpret $ \case
+      _ -> error "Unimplemented UserClientIndexStore operation in mock"
+    -- Mock BackendNotificationQueueAccess interpreter for tests
+    mockBackendNotificationQueueAccess :: forall r'. InterpreterFor BackendNotificationQueueAccess r'
+    mockBackendNotificationQueueAccess = interpret $ \case
+      _ -> error "Unimplemented BackendNotificationQueueAccess operation in mock"
+    -- Mock ConversationSubsystem interpreter for tests
+    mockConversationSubsystem :: forall r'. InterpreterFor ConversationSubsystem r'
+    mockConversationSubsystem = interpretH $ \case
+      _ -> error "Unimplemented ConversationSubsystem operation in mock"
 
 type StateEffects =
   '[ State [Push],
@@ -643,6 +687,14 @@ interpretFederationStackState localBackend backends teams usrCfg =
         localBackend = localBackend,
         galleyConfigs = def,
         appCfg = def,
+        conversationCfg =
+          ConversationSubsystemConfig
+            { listClientsUsingBrig = False,
+              legalholdDefaults = def,
+              mlsKeys = Nothing,
+              maxConvSize = 10,
+              federationProtocols = Nothing
+            },
         ..
       }
 
@@ -705,6 +757,14 @@ interpretNoFederationStackState localBackend teams galleyConfigs usrCfg =
         localBackend = localBackend,
         galleyConfigs = galleyConfigs,
         appCfg = def,
+        conversationCfg =
+          ConversationSubsystemConfig
+            { listClientsUsingBrig = False,
+              legalholdDefaults = def,
+              mlsKeys = Nothing,
+              maxConvSize = 10,
+              federationProtocols = Nothing
+            },
         ..
       }
 
