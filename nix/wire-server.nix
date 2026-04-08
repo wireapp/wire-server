@@ -547,6 +547,7 @@ in
       # linux-only, not strictly required tools
       pkgs.docker-compose
       (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
+      pkgs.qemu # for testing x86-64-v3 compatibility
     ];
   };
 
