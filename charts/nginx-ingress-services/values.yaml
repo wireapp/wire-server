@@ -165,7 +165,8 @@ config:
 #   useFakeS3: true
 #     ^ useFakeS3 should be enabled if S3 access is to be
 #       provided by fake-aws-s3, inside of the kubernetes cluster.
-#       when it is something outside of the cluster (like minio-external),
+#       when it is something outside of the cluster (like a dedicated external
+#       S3-compatible service),
 #       we should leave this setting off. this setting creates a
 #       fake-aws-s3 service inside of the cluster, which should be
 #       what is referred to in the brig configuration.

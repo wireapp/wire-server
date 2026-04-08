@@ -55,10 +55,9 @@ releases:
 
   - name: 'fake-aws'
     namespace: wire-federation-v0
-    chart: wire/fake-aws
-    version: 4.38.0-mandarin.14
+    chart: '../.local/charts/fake-aws'
     values:
-      - './helm_vars/fake-aws/values.yaml'
+      - './helm_vars/fake-aws/values.yaml.gotmpl'
 
   - name: 'databases-ephemeral'
     namespace: wire-federation-v0
@@ -107,4 +106,3 @@ releases:
     needs:
       - 'cert-manager/cert-manager'
       - 'cert-manager/federation-certs'
-

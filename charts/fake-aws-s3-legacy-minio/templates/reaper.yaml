@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}-reaper
+  labels:
+    app: {{ template "fullname" . }}-reaper
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}-reaper
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}-reaper
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ template "fullname" . }}-reaper
+      volumes:
+      - name: minio-configuration
+        projected:
+          # These are created by the minio chart and used for create buckets and
+          # users after deployment.
+          sources:
+          - configMap:
+              name: {{ .Values.minio.fullnameOverride }}
+          - secret:
+              name: {{ .Values.minio.fullnameOverride }}
+      containers:
+      - name: initiate-fake-aws-s3
+        image: "{{ .Values.minio.mcImage.repository }}:{{ .Values.minio.mcImage.tag }}"
+        imagePullPolicy: {{ .Values.minio.mcImage.pullPolicy }}
+        command: [/bin/sh]
+        args:
+        - -c
+        - |
+          echo 'Creating MinIO Users and Buckets'
+          while true
+          do
+              /bin/sh /config/initialize
+              /bin/sh /config/add-user
+              sleep 10
+          done
+        env:
+        - name: MINIO_ENDPOINT
+          value: {{ .Values.minio.fullnameOverride | quote }}
+        - name: MINIO_PORT
+          value: {{ .Values.minio.service.port | quote }}
+        volumeMounts:
+        - name: minio-configuration
+          mountPath: /config
