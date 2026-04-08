@@ -110,7 +110,7 @@ import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
 import Wire.ConversationSubsystem (ConversationSubsystem)
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, interpretConversationSubsystem)
 import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
 import Wire.Error
@@ -242,6 +242,7 @@ type GalleyEffects =
      Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
+     Error ConversationSubsystemError,
      ErrorS OperationDenied,
      ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
@@ -502,6 +503,7 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'HistoryNotSupported
         . mapError toResponse -- ErrorS OperationDenied
+        . mapError toResponse -- Error ConversationSubsystemError
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . mapError meetingError

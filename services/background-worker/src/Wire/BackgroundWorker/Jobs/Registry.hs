@@ -36,6 +36,7 @@ import Galley.Types.Error (InternalError, InvalidInput, internalErrorDescription
 import Hasql.Pool (UsageError)
 import Imports
 import Network.HTTP.Client qualified as Http
+import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
 import OpenSSL.Session qualified as SSL
 import Polysemy
 import Polysemy.Async (asyncToIOFinal)
@@ -49,6 +50,7 @@ import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
+import Wire.API.Error (APIError (toResponse), DynError (..))
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
@@ -62,7 +64,7 @@ import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, interpretConversationSubsystem)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
 import Wire.FeaturesConfigSubsystem.Interpreter (runFeaturesConfigSubsystem)
@@ -181,6 +183,9 @@ dispatchJob job = do
         . interpretRace
         . runDelay
         . runError
+        . mapError @DynError (T.pack . show . (.eMessage))
+        . mapError @JSONResponse (T.pack . show . (.value))
+        . mapError @ConversationSubsystemError toResponse
         . mapError @ClientError (T.pack . displayException)
         . mapError @FederationError (T.pack . displayException)
         . mapError @UsageError (T.pack . show)
