@@ -114,6 +114,31 @@ testCollaboratorCanCreateTeamConv (TaggedBool collaboratorHasTeam) = do
     resp.status `shouldMatchInt` 201
     resp.json %. "team" `shouldMatch` team
 
+testCollaboratorCanBeAddedToTeamConversation :: (HasCallStack) => App ()
+testCollaboratorCanBeAddedToTeamConversation = do
+  (owner, team, [alice]) <- createTeam OwnDomain 2
+
+  bob <- randomUser OwnDomain def
+  addTeamCollaborator owner team bob ["implicit_connection"] >>= assertSuccess
+
+  putStrLn "================= Test"
+  conv <-
+    postConversation
+      owner
+      defProteus {team = Just team, qualifiedUsers = [alice, bob]}
+      >>= getJSON 201
+
+  getConversation alice conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  getConversation bob conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  Internal.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    convMems <- resp.json %. "members.others" & asList
+    for [alice, bob] (\m -> m %. "id") `shouldMatchSet` (for convMems (\m -> m %. "id"))
+
 testImplicitConnectionAllowed :: (HasCallStack) => App ()
 testImplicitConnectionAllowed = do
   (owner, team, [alice]) <- createTeam OwnDomain 2
