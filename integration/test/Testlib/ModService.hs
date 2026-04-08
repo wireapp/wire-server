@@ -508,7 +508,17 @@ withProcess resource overrides service = do
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
+          -- Use extracted production binary for brig (debugging hack)
+          let brigBinary = case service of
+                Brig -> case cwd of
+                  Nothing -> "./brig-5.25.0"
+                  Just _ -> "../../brig-5.25.0"
+                _ -> exe
+          -- Wrap brig with qemu to enforce x86-64-v3 compatibility (explicitly disable AVX-512)
+          let (exePath, args) = case (service, execName) of
+                (Brig, "brig") -> ("qemu-x86_64", ["-cpu", "EPYC,-xsavec,-misalignsse,-topoext,-avx512f,-avx512dq,-avx512cd,-avx512bw,-avx512vl", brigBinary, "-c", tempFile])
+                _ -> (brigBinary, ["-c", tempFile])
+          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exePath args) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
           let colorize = fromMaybe id (lookup execName processColors)
           void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
           void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
