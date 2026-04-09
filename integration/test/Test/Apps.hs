@@ -132,35 +132,24 @@ testCreateApp = do
     deleteTeamMember tid owner (resp.json %. "user") >>= assertSuccess
 
   let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
-      foundUserType searcher exactMatchTerm aTypes =
+      foundUserType searcher exactMatchTerm uids =
         searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 200
           foundDocs :: [Value] <- resp.json %. "documents" >>= asList
-          docsInTeam :: [Value] <- do
-            -- make sure that matches from previous test runs don't get in the way.
-            -- related: https://wearezeta.atlassian.net/browse/WPB-23995
-            catMaybes
-              <$> forM
-                foundDocs
-                ( \doc -> do
-                    tidActual <- doc %. "team" & asString
-                    pure $ if tidActual == tid then Just doc else Nothing
-                )
-
-          (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
+          ((%. "id") `mapM` foundDocs) `shouldMatch` uids
 
   -- App's user is findable from /search/contacts
   BrigI.refreshIndex domain
-  foundUserType owner new.name ["app"]
-  foundUserType regularMember new.name ["app"]
+  foundUserType owner new.name [appId]
+  foundUserType regularMember new.name [appId]
 
   -- App's user is *not* findable from other team.
-  BrigI.refreshIndex domain
   foundUserType owner2 new.name []
 
   -- Regular members still have the type "regular"
   memberName <- regularMember %. "name" & asString
-  foundUserType owner memberName ["regular"]
+  memberId <- regularMember %. "id" & asString
+  foundUserType owner memberName [memberId]
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
