@@ -25,7 +25,7 @@ executable memchr-test
     OverloadedStrings
     UnboxedTuples
 
-  ghc-options:        -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:        -O0 -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base        >=4.6 && <5
     , bytestring
