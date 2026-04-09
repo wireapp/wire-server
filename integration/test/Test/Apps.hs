@@ -125,6 +125,11 @@ testCreateApp = do
   bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
   bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
 
+  -- Get app on remote apps gives 404 not found.
+  void $ getApp owner2 tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "not-found"
+
   -- Category can be any text; sanitization must happen by clients.
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 200
