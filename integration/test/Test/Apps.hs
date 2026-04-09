@@ -29,8 +29,8 @@ import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
-testCreateApp :: (HasCallStack) => Domain -> App ()
-testCreateApp sameOrOtherDomain = do
+testCreateGetFindApp :: (HasCallStack) => Domain -> App ()
+testCreateGetFindApp sameOrOtherDomain = do
   -- FUTUREWORK: what about federation?
   domainA <- make OwnDomain
   domainB <- make sameOrOtherDomain
@@ -115,17 +115,14 @@ testCreateApp sameOrOtherDomain = do
     (resp.json %. "app.category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser domainB def
+  outsideUser <- randomUser domainB (def {BrigI.team = False})
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
-    -- this may change soon, see
-    -- https://wearezeta.atlassian.net/browse/WPB-23995,
-    -- https://wearezeta.atlassian.net/browse/WPB-23840
-    resp.status `shouldMatchInt` 200
+    resp.status `shouldMatchInt` 404
 
   (owner2, tid2, [regularMember2]) <- createTeam domainB 2
-  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
+  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 404
 
   -- Get app on remote apps gives 404 not found.
   void $ getApp owner2 tid appId `bindResponse` \resp -> do
