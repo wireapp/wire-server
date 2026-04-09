@@ -41,6 +41,7 @@
   federator = hself.callPackage ../services/federator/default.nix { inherit gitignoreSource; };
   galley = hself.callPackage ../services/galley/default.nix { inherit gitignoreSource; };
   gundeck = hself.callPackage ../services/gundeck/default.nix { inherit gitignoreSource; };
+  memchr-test = hself.callPackage ../services/memchr-test/default.nix { inherit gitignoreSource; };
   proxy = hself.callPackage ../services/proxy/default.nix { inherit gitignoreSource; };
   spar = hself.callPackage ../services/spar/default.nix { inherit gitignoreSource; };
   wire-server-enterprise = hself.callPackage ../services/wire-server-enterprise/default.nix { inherit gitignoreSource; };

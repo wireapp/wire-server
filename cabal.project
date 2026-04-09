@@ -43,6 +43,7 @@ packages:
   , services/proxy/
   , services/wire-server-enterprise
   , services/spar/
+  , services/memchr-test/
   , tools/db/assets/
   , tools/db/auto-whitelist/
   , tools/db/find-undead/

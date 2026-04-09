@@ -1,0 +1,38 @@
+cabal-version: 1.12
+name:          memchr-test
+version:       0.1.0
+synopsis:      Minimal test service for memchr
+description:
+  A minimal service that calls Data.Text.Internal.ArrayUtils.memchr
+
+category:      Test
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2026 Wire Swiss GmbH
+license:       AGPL-3
+build-type:    Simple
+
+flag static
+  description: Enable static linking
+  manual:      True
+  default:     False
+
+executable memchr-test
+  main-is:            exec/Main.hs
+  default-extensions:
+    MagicHash
+    NoImplicitPrelude
+    OverloadedStrings
+    UnboxedTuples
+
+  ghc-options:        -O2 -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base        >=4.6 && <5
+    , bytestring
+    , primitive
+    , text        >=1.1
+
+  if flag(static)
+    ld-options: -static
+
+  default-language:   GHC2021
