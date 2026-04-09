@@ -1791,6 +1791,11 @@ createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
 getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r UserProfile
 getApp lusr tid uid = lift . liftSem $ do
+  -- Check if requesting user is a member of the team
+  requestingUserTeam <- getUserTeam (tUnqualified lusr)
+  unless (requestingUserTeam == Just tid) $
+    throw UserSubsystemProfileNotFound
+
   prof <- getLocalUserProfileFiltered404 (AppsFromTeamOnly tid) (qualifyAs lusr uid)
   if prof.profileDeleted
     then throw UserSubsystemProfileNotFound
