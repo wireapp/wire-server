@@ -451,7 +451,10 @@ mkUserQuery searcher mSearcherTeamId teamSearchInfo mTypes q =
                 -- be a more readable way to express
                 -- "not(exists(searchable)) or searchable = true" in
                 -- Elastic Search.
-                [ES.TermQuery (ES.Term "searchable" "false") Nothing],
+                [ES.TermQuery (ES.Term "searchable" "false") Nothing]
+                <>
+                -- Exclude apps from other teams
+                maybeToList (matchAppsFromOtherTeams mSearcherTeamId),
             ES.boolQueryMustMatch =
               [ restrictSearchSpaceByTeam mSearcherTeamId teamSearchInfo,
                 restrictSearchSpaceByUserType mTypes,
@@ -487,6 +490,45 @@ termQ f v =
 
 matchSelf :: UserId -> Maybe ES.Query
 matchSelf searcher = Just (termQ "_id" (idToText searcher))
+
+-- | Exclude apps from other teams.
+-- Apps should only be searchable within their own team.
+matchAppsFromOtherTeams :: Maybe TeamId -> Maybe ES.Query
+matchAppsFromOtherTeams mSearcherTeamId =
+  Just $
+    ES.QueryBoolQuery
+      boolQuery
+        { ES.boolQueryMustMatch =
+            [ -- Match apps (type = "app")
+              termQ "type" "app",
+              -- That are from a different team than the searcher
+              case mSearcherTeamId of
+                -- If searcher has no team, exclude all apps
+                Nothing ->
+                  ES.QueryExistsQuery (ES.FieldName "team")
+                -- If searcher has a team, exclude apps from other teams or with no team
+                Just searcherTeam ->
+                  ES.QueryBoolQuery
+                    boolQuery
+                      { ES.boolQueryShouldMatch =
+                          [ -- Apps with no team
+                            ES.QueryBoolQuery
+                              boolQuery
+                                { ES.boolQueryMustNotMatch =
+                                    [ES.QueryExistsQuery (ES.FieldName "team")]
+                                },
+                            -- Apps from a different team
+                            ES.QueryBoolQuery
+                              boolQuery
+                                { ES.boolQueryMustMatch =
+                                    [ES.QueryExistsQuery (ES.FieldName "team")],
+                                  ES.boolQueryMustNotMatch =
+                                    [termQ "team" (idToText searcherTeam)]
+                                }
+                          ]
+                      }
+            ]
+        }
 
 -- | See 'TeamSearchInfo'
 restrictSearchSpaceByTeam :: Maybe TeamId -> TeamSearchInfo -> ES.Query
