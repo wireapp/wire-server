@@ -29,11 +29,13 @@ import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
-testCreateApp :: (HasCallStack) => App ()
-testCreateApp = do
+testCreateApp :: (HasCallStack) => Domain -> App ()
+testCreateApp sameOrOtherDomain = do
   -- FUTUREWORK: what about federation?
-  domain <- make OwnDomain
-  (owner, tid, [regularMember]) <- createTeam domain 2
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+
+  (owner, tid, [regularMember]) <- createTeam domainA 2
   let new :: NewApp =
         def
           { name = "chappie",
@@ -74,7 +76,7 @@ testCreateApp = do
     resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` appId
 
   -- App user should have type "app"
-  let appIdObject = object ["domain" .= domain, "id" .= appId]
+  let appIdObject = object ["domain" .= domainA, "id" .= appId]
   bindResponse (getUser owner appIdObject) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
@@ -99,7 +101,7 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "regular"
 
-  void $ bindResponse (renewToken domain cookie) $ \resp -> do
+  void $ bindResponse (renewToken domainA cookie) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
     resp.json %. "token_type" `shouldMatch` "Bearer"
@@ -113,14 +115,14 @@ testCreateApp = do
     (resp.json %. "app.category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser domain def
+  outsideUser <- randomUser domainB def
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
     -- this may change soon, see
     -- https://wearezeta.atlassian.net/browse/WPB-23995,
     -- https://wearezeta.atlassian.net/browse/WPB-23840
     resp.status `shouldMatchInt` 200
 
-  (owner2, tid2, [regularMember2]) <- createTeam domain 2
+  (owner2, tid2, [regularMember2]) <- createTeam domainB 2
   bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
   bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
   bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
@@ -143,7 +145,7 @@ testCreateApp = do
           ((%. "id") `mapM` foundDocs) `shouldMatch` uids
 
   -- App's user is findable from /search/contacts
-  BrigI.refreshIndex domain
+  BrigI.refreshIndex domainA
   foundUserType owner new.name [appId]
   foundUserType regularMember new.name [appId]
 
