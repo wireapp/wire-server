@@ -66,12 +66,10 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
-import Wire.GalleyAPIAccess
-import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
+import Wire.UserStore as UserStore
 import Wire.UserSubsystem
 
 createConnection ::
