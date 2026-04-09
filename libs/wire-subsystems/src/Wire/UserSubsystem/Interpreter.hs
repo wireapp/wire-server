@@ -382,9 +382,11 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self uids = do
   upf <- do
     storedSelf <- getUser (tUnqualified self)
-    pure $ case maybe Nothing (.teamId) storedSelf of
-      Nothing -> RegularOnly
-      Just tid -> RegularPlusAppsFromTeam tid
+    pure $
+      maybe
+        RegularOnly
+        RegularPlusAppsFromTeam
+        (((.teamId)) =<< storedSelf)
 
   foldQualified
     self

@@ -136,7 +136,7 @@ runUserProfileFilter upf prof = case upf of
       UserTypeBot -> False
     isApp tid = case prof.profileType of
       UserTypeRegular -> False
-      UserTypeApp -> True && prof.profileTeam == Just tid
+      UserTypeApp -> prof.profileTeam == Just tid
       UserTypeBot -> False -- bots aren't in the picture
     isAny tid = isRegular || isApp tid
 
