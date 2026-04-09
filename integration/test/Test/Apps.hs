@@ -34,13 +34,12 @@ testCreateApp = do
   -- FUTUREWORK: what about federation?
   domain <- make OwnDomain
   (owner, tid, [regularMember]) <- createTeam domain 2
-  let new =
+  let new :: NewApp =
         def
           { name = "chappie",
             description = "some description of this app",
             category = "ai"
-          } ::
-          NewApp
+          }
 
   -- Regular team member can't create apps
   bindResponse (createApp regularMember tid new) $ \resp -> do
