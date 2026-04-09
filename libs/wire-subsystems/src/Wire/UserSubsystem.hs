@@ -118,8 +118,27 @@ data ChangeEmailResult
     ChangeEmailIdempotent
   deriving (Show)
 
-data UserProfileFilter = Everything | RegularOnly | AppsOnly
+data UserProfileFilter
+  = RegularOnly
+  | AppsFromTeamOnly TeamId
+  | RegularPlusAppsFromTeam TeamId
   deriving (Eq, Show)
+
+runUserProfileFilter :: UserProfileFilter -> UserProfile -> Bool
+runUserProfileFilter upf prof = case upf of
+  RegularOnly -> isRegular
+  AppsFromTeamOnly tid -> isApp tid
+  RegularPlusAppsFromTeam tid -> isAny tid
+  where
+    isRegular = case prof.profileType of
+      UserTypeRegular -> True
+      UserTypeApp -> False
+      UserTypeBot -> False
+    isApp tid = case prof.profileType of
+      UserTypeRegular -> False
+      UserTypeApp -> True && prof.profileTeam == Just tid
+      UserTypeBot -> False -- bots aren't in the picture
+    isAny tid = isRegular || isApp tid
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
@@ -198,9 +217,11 @@ getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -
 getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]
 
-getLocalUserProfile :: (Member UserSubsystem r) => Local UserId -> Sem r (Maybe UserProfile)
-getLocalUserProfile targetUser =
-  listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
+getLocalUserProfile ::
+  (Member UserSubsystem r) =>
+  Maybe TeamId -> Local UserId -> Sem r (Maybe UserProfile)
+getLocalUserProfile tid targetUser =
+  listToMaybe <$> getLocalUserProfiles tid ((: []) <$> targetUser)
 
 getLocalUserProfileFiltered :: (Member UserSubsystem r) => UserProfileFilter -> Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfileFiltered upf targetUser =
@@ -214,9 +235,11 @@ getLocalUserProfileFiltered404 upf targetUser =
 
 getLocalUserProfiles ::
   (Member UserSubsystem r) =>
+  Maybe TeamId ->
   Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfiles = getLocalUserProfilesFiltered Everything
+getLocalUserProfiles tid =
+  getLocalUserProfilesFiltered (maybe RegularOnly RegularPlusAppsFromTeam tid)
 
 getLocalAccountBy ::
   (Member UserSubsystem r) =>
