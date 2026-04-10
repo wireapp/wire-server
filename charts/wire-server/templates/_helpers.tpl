@@ -163,8 +163,8 @@
 {{- end -}}
 {{- end -}}
 
-{{/* SHARED SETTINGS */}}
-{{- define "wire-server.settings.common" -}}
+{{/* GALLEY SETTINGS */}}
+{{- define "wire-server.galley.settings" -}}
 maxTeamSize: {{ .maxTeamSize }}
 maxConvSize: {{ .maxConvSize }}
 intraListing: {{ .intraListing }}
@@ -192,9 +192,6 @@ federationDomain: {{ .federationDomain }}
 {{- end }}
 {{- if .federationProtocols }}
 federationProtocols: {{ .federationProtocols | toJson }}
-{{- end }}
-{{- if .mlsPrivateKeyPaths }}
-mlsPrivateKeyPaths: {{- toYaml .mlsPrivateKeyPaths | nindent 8 }}
 {{- end }}
 {{- if .concurrentDeletionEvents }}
 concurrentDeletionEvents: {{ .concurrentDeletionEvents }}

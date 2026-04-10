@@ -5,13 +5,8 @@
 
 * Chart configuration changes:
   - Added `global.settings` section to deduplicate shared configuration between galley and background-worker services
-  - Background-worker now requires either `conversationCodeURI` or `multiIngress` to be set in its configuration
   - Removed duplicate settings previously defined in both galley and background-worker sections
 
 * Library updates:
   - Introduced dedicated error types for ConversationSubsystem to improve error handling
   - Consolidated conversation-related operations that were previously scattered across multiple stores and subsystems
-
-**Note:** The background-worker configuration now has a dependency on the shared global settings.
-Deployments that previously set these values in both galley and background-worker sections
-can consolidate them into the global.settings section.

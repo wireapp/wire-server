@@ -70,5 +70,13 @@ data:
     postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
 
     settings:
-{{ include "wire-server.settings.common" .settings | indent 6 }}
+{{ include "wire-server.galley.settings" .settings | nindent 6 }}
+      {{- if $.Values.galley.secrets.mlsPrivateKeys }}
+      mlsPrivateKeyPaths:
+        removal:
+          ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
+          ecdsa_secp256r1_sha256: "/etc/wire/galley/secrets/removal_ecdsa_secp256r1_sha256.pem"
+          ecdsa_secp384r1_sha384: "/etc/wire/galley/secrets/removal_ecdsa_secp384r1_sha384.pem"
+          ecdsa_secp521r1_sha512: "/etc/wire/galley/secrets/removal_ecdsa_secp521r1_sha512.pem"
+      {{- end }}
   {{- end }}
