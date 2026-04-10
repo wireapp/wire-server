@@ -5,6 +5,7 @@ tags:
   legalhold: false
   sftd: false
   integration: true
+  proxy: true
 
 consumableNotifications: false
 
@@ -688,25 +689,6 @@ background-worker:
       tlsCaSecretRef:
         name: "rabbitmq-certificate"
         key: "ca.crt"
-    settings:
-      maxTeamSize: 32
-      maxConvSize: 16
-      intraListing: false
-      conversationCodeURI: https://account.wire.com/conversation-join/
-      federationProtocols: ["mls", "proteus"]
-      guestLinkTTLSeconds: 604800
-      
-      # These values are insecure, against anyone getting hold of the hash,
-      # but its not a concern for the integration tests.
-      passwordHashingOptions:
-        algorithm: argon2id
-        iterations: 1
-        parallelism: 4
-        memory: 32 # This needs to be at least 8 * parallelism.
-      passwordHashingRateLimit:
-        ipAddressExceptions:
-        - 127.0.0.1/8
-        maxRateLimitedKeys: 100000
   secrets:
     pgPassword: "posty-the-gres"
     rabbitmq:
