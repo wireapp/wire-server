@@ -1,11 +1,10 @@
+{{- $nginxConf := .Values.nginx_conf }}
 
-{{- $nginx_conf := .Values.nginx_conf }}
-
-{{- if hasKey $nginx_conf "external_env_domain" }}
-  {{- $external_env_domain := $nginx_conf.external_env_domain }}
-  {{- range $nginx_conf.additional_external_env_domains }}
-    {{- if eq $external_env_domain . }}
-      {{- fail (printf "Error: external_env_domain (%s) cannot be part of additional_external_env_domains list." $external_env_domain) }}
+{{- if hasKey $nginxConf "external_env_domain" }}
+  {{- $externalEnvDomain := $nginxConf.external_env_domain }}
+  {{- range $nginxConf.additional_external_env_domains }}
+    {{- if eq $externalEnvDomain . }}
+      {{- fail (printf "Error: external_env_domain (%s) cannot be part of additional_external_env_domains list." $externalEnvDomain) }}
     {{- end }}
   {{- end }}
 {{- end }}
@@ -26,46 +25,47 @@ kind: ConfigMap
 metadata:
   name: nginz-deeplink
 data:
-  {{- if and (hasKey .Values.nginx_conf "deeplink") (hasKey .Values.nginx_conf "external_env_domain") }}
-  {{- $backendURL := .Values.nginx_conf.deeplink.endpoints.backendURL }}
-  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
-  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
-  {{ $deeplink_json }}: |
+  {{- if and (hasKey $nginxConf "deeplink") (hasKey $nginxConf "external_env_domain") }}
+  {{- $deeplinkJson := $nginxConf.deeplink.endpoints.backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplinkHtml := $nginxConf.deeplink.endpoints.backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplinkJson }}: |
     {{- $deeplink := dict
       "endpoints" (dict
-        "backendURL" .Values.nginx_conf.deeplink.endpoints.backendURL
-        "backendWSURL" .Values.nginx_conf.deeplink.endpoints.backendWSURL
-        "blackListURL" .Values.nginx_conf.deeplink.endpoints.blackListURL
-        "teamsURL" .Values.nginx_conf.deeplink.endpoints.teamsURL
-        "accountsURL" .Values.nginx_conf.deeplink.endpoints.accountsURL
-        "websiteURL" .Values.nginx_conf.deeplink.endpoints.websiteURL
+        "backendURL" $nginxConf.deeplink.endpoints.backendURL
+        "backendWSURL" $nginxConf.deeplink.endpoints.backendWSURL
+        "blackListURL" $nginxConf.deeplink.endpoints.blackListURL
+        "teamsURL" $nginxConf.deeplink.endpoints.teamsURL
+        "accountsURL" $nginxConf.deeplink.endpoints.accountsURL
+        "websiteURL" $nginxConf.deeplink.endpoints.websiteURL
       )
-      "title" .Values.nginx_conf.deeplink.title
+      "title" $nginxConf.deeplink.title
     }}
-    {{- if hasKey .Values.nginx_conf.deeplink "apiProxy" }}
+    {{- if hasKey $nginxConf.deeplink "apiProxy" }}
     {{- $_ := set $deeplink "apiProxy" (dict
-      "host" .Values.nginx_conf.deeplink.apiProxy.host
-      "port" .Values.nginx_conf.deeplink.apiProxy.port
-      "needsAuthentication" .Values.nginx_conf.deeplink.apiProxy.needsAuthentication
+      "host" $nginxConf.deeplink.apiProxy.host
+      "port" $nginxConf.deeplink.apiProxy.port
+      "needsAuthentication" $nginxConf.deeplink.apiProxy.needsAuthentication
     ) }}
     {{- end }}
     {{ toJson $deeplink | indent 4 }}
-  {{ $deeplink_html }}: |
+  {{ $deeplinkHtml }}: |
     <html>
-      <head></head>
+      <head>
+        <title>Deeplink for {{ $nginxConf.deeplink.endpoints.backendURL }}</title>
+      </head>
       <body>
-        <a href="wire://access/?config={{ .Values.nginx_conf.deeplink.endpoints.backendURL }}/deeplink.json">Click here for access</a>
+        <a href="wire://access/?config={{ $nginxConf.deeplink.endpoints.backendURL }}/deeplink.json">Click here for access</a>
       </body>
     </html>
   {{- end }}
 
-  {{- if (hasKey $nginx_conf "additional_external_env_domains") }}
-    {{- range $domain, $config := $nginx_conf.multi_ingress_deeplink }}
-      {{- if (has $domain $nginx_conf.additional_external_env_domains) }}
+  {{- if (hasKey $nginxConf "additional_external_env_domains") }}
+    {{- range $domain, $config := $nginxConf.multi_ingress_deeplink }}
+      {{- if (has $domain $nginxConf.additional_external_env_domains) }}
         {{- $backendURL := $config.endpoints.backendURL }}
-  {{- $deeplink_json := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
-  {{- $deeplink_html := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
-  {{ $deeplink_json }}: |
+  {{- $deeplinkJson := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.json" }}
+  {{- $deeplinkHtml := $backendURL | replace "https://" "" | trimSuffix "/" | printf "%s-deeplink.html" }}
+  {{ $deeplinkJson }}: |
     {{- $deeplink := dict
       "endpoints" (dict
         "backendURL" $config.endpoints.backendURL
@@ -86,7 +86,7 @@ data:
     {{- end }}
     {{ toJson $deeplink | indent 4 }}
     {{ printf "\n" }}
-  {{ $deeplink_html }}: |
+  {{ $deeplinkHtml }}: |
     <html>
       <head>
         <title>Deeplink for {{ $domain }}</title>

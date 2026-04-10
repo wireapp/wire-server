@@ -13,6 +13,7 @@ metadata:
 spec:
   template:
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: cassandra
         image: cassandra:4.1.10

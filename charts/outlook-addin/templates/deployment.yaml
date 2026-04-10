@@ -15,6 +15,7 @@ spec:
       labels:
         app: {{ include "outlook.fullname" . }}
     spec:
+      automountServiceAccountToken: false
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: "kubernetes.io/hostname"
@@ -45,3 +46,10 @@ spec:
             httpGet:
               path: /
               port: http
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "10m"
+            limits:
+              memory: "256Mi"
+              cpu: "1"
