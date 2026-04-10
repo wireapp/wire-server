@@ -1,0 +1,12 @@
+### ConversationSubsystem Migration
+
+* Move conversation-related operations into a unified Polysemy `ConversationSubsystem` effect across the wire-server codebase.
+  This consolidation improves code organization and separation of concerns for conversation logic.
+
+* Chart configuration changes:
+  - Added `global.settings` section to deduplicate shared configuration between galley and background-worker services
+  - Removed duplicate settings previously defined in both galley and background-worker sections
+
+* Library updates:
+  - Introduced dedicated error types for ConversationSubsystem to improve error handling
+  - Consolidated conversation-related operations that were previously scattered across multiple stores and subsystems

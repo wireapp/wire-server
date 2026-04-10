@@ -179,6 +179,12 @@ galley:
           status: enabled
           config:
             domains: ["example.com"]
+      mlsPrivateKeyPaths:
+        removal:
+          ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
+          ecdsa_secp256r1_sha256: "/etc/wire/galley/secrets/removal_ecdsa_secp256r1_sha256.pem"
+          ecdsa_secp384r1_sha384: "/etc/wire/galley/secrets/removal_ecdsa_secp384r1_sha384.pem"
+          ecdsa_secp521r1_sha512: "/etc/wire/galley/secrets/removal_ecdsa_secp521r1_sha512.pem"
     journal:
       endpoint: http://fake-aws-sqs:4568
       queueName: integration-team-events.fifo
@@ -297,6 +303,22 @@ background-worker:
     backendNotificationPusher:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
+    settings:
+      maxTeamSize: 32
+      maxConvSize: 16
+      intraListing: false
+      conversationCodeURI: https://account.wire.com/conversation-join/
+      federationProtocols: ["mls", "proteus"]
+      guestLinkTTLSeconds: 604800
+      passwordHashingOptions:
+        algorithm: argon2id
+        iterations: 1
+        parallelism: 4
+        memory: 32 # This needs to be at least 8 * parallelism.
+      passwordHashingRateLimit:
+        ipAddressExceptions:
+        - 127.0.0.1/8
+        maxRateLimitedKeys: 100000
   secrets:
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
