@@ -159,7 +159,7 @@ checkUserSearch d1 d2 = do
   (owner, tid, [mem]) <- createTeam d2 2
   assertSuccess =<< GalleyI.setTeamFeatureStatus d2 tid "searchVisibilityInbound" "enabled"
 
-  -- set name of d2 member to "chappie-also", so we can search for both with one prefix.
+  -- set name of d2 member to "chappie" so it can be found by that search term.
   let nameUpd :: BrigP.PutSelf
       nameUpd = def {BrigP.name = Just "chappie"}
    in BrigP.putSelf mem nameUpd >>= assertSuccess
