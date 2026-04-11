@@ -153,6 +153,10 @@ testFederatedUserSearchWithType =
     checkUserSearch d1 d1 -- target dynamic domain locally
     checkUserSearch d1 d2 -- target one dynamic domain from another
 
+-- | FUTUREWORK: 'Test.Apps.testFindApp',
+-- 'Test.Apps.testRetrieveUsersIncludingApps',
+-- 'Test.Search.checkUserSearch' have some overlap, or at least could
+-- be re-ordered for clarity.
 checkUserSearch :: (HasCallStack) => String -> String -> App ()
 checkUserSearch d1 d2 = do
   (remoteSearcher, _, []) <- createTeam d1 1
