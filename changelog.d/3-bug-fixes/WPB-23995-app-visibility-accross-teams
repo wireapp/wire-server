@@ -1,0 +1,1 @@
+Fix: apps cannot form connections accross teams.  Integration test for cross-team conversations working with apps as expected.

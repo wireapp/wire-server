@@ -23,7 +23,9 @@ import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
+import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
+import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
@@ -404,3 +406,63 @@ testRetrieveUsersIncludingApps = do
       hits :: [Value] <- resp.json %. "documents" & asList
       length hits `shouldMatchInt` 2 -- owner doesn't find itself
       (`shouldMatchShapeLenient` searchResultShape) `mapM_` hits
+
+testCrossTeamAppConversation :: (HasCallStack) => Domain -> App ()
+testCrossTeamAppConversation sameOrOtherDomain = do
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+  (ownerA, tidA, [m1]) <- createTeam domainA 2
+  (ownerB, tidB, [m2]) <- createTeam domainB 2
+
+  -- Create app A2 (member of team B)
+  let newAppA2 = def {name = "app-a2"} :: NewApp
+  appA2 <- bindResponse (createApp ownerB tidB newAppA2) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- M1 tries to connect to app A2 from team B => should fail
+  -- Apps cannot create connections accross teams
+  bindResponse (postConnection m1 appA2) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-user"
+
+  -- Create app A1 (member of team A)
+  let newAppA1 = def {name = "app-a1"} :: NewApp
+  appA1 <- bindResponse (createApp ownerA tidA newAppA1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create MLS clients for M1 and A1 (both on domainA)
+  [m1c, appA1c] <- traverse (createMLSClient def) [m1, appA1]
+  traverse_ (uploadNewKeyPackage def) [m1c, appA1c]
+
+  -- M1 creates an MLS team conversation
+  convId <- createNewGroupWith def m1c defMLS {team = Just tidA}
+
+  -- M1 adds A1 to the conversation
+  void $ createAddCommit m1c convId [appA1] >>= sendAndConsumeCommitBundle
+
+  -- M1 connects to M2 from team B (cross-team/cross-domain)
+  postConnection m1 m2 >>= assertSuccess
+  putConnection m2 m1 "accepted" >>= assertSuccess
+
+  -- Create MLS client for M2 (on domainB) and add to conversation
+  m2c <- createMLSClient def m2
+  void $ uploadNewKeyPackage def m2c
+  void $ createAddCommit m1c convId [m2] >>= sendAndConsumeCommitBundle
+
+  -- Create app A3 (on domainA, team A)
+  let newAppA3 = def {name = "app-a3"} :: NewApp
+  appA3 <- bindResponse (createApp ownerA tidA newAppA3) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create MLS client for A3 and add to conversation
+  appA3c <- createMLSClient def appA3
+  void $ uploadNewKeyPackage def appA3c
+  void $ createAddCommit m1c convId [appA3] >>= sendAndConsumeCommitBundle
+
+  void $ createApplicationMessage convId m1c "hello from M1" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId appA1c "hello from A1" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId appA3c "hello from A3" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId m2c "hello from M2" >>= sendAndConsumeMessage

@@ -50,8 +50,8 @@ import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
+import Wire.UserStore as UserStore
+import Wire.UserSubsystem
 
 data LocalConnectionAction
   = LocalConnect
@@ -302,6 +302,7 @@ createConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
     Member UserStore r,
+    Member UserSubsystem r,
     Member NotificationSubsystem r,
     HasBrigFederationAccess m r
   ) =>
@@ -311,7 +312,11 @@ createConnectionToRemoteUser ::
   ConnectionM r (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
   ensureNotSameAndActivated self (tUntagged other)
-  ensureFederatesWith other
+  mbOtherProfile <- ensureFederatesWith other
+  let selfInfo, otherInfo :: [Qualified (Either UserId UserProfile)]
+      selfInfo = [tUntagged $ Left <$> self]
+      otherInfo = [tUntagged $ qualifyAs other (Right op) | op <- maybeToList mbOtherProfile]
+  ensureNoApps self $ selfInfo <> otherInfo
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
@@ -328,7 +333,7 @@ updateConnectionToRemoteUser ::
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  ensureFederatesWith other
+  void $ ensureFederatesWith other
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1
@@ -349,14 +354,16 @@ checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u
 
--- | Check if the local backend federates with the remote user's team. Throw an
--- exception if it does not federate.
+-- | Check if the local backend federates with the remote user's
+-- team. Throw an exception if it does not federate.  Return the
+-- profile of the remote user because we sometimes need it again, and
+-- don't want to fetch it twice.
 ensureFederatesWith ::
   ( Member FederationConfigStore r,
     HasBrigFederationAccess m r
   ) =>
   Remote UserId ->
-  ConnectionM r ()
+  ConnectionM r (Maybe UserProfile)
 ensureFederatesWith remote = do
   lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   profiles <-
@@ -365,3 +372,4 @@ ensureFederatesWith remote = do
   let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
   unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
     throwE ConnectTeamFederationError
+  pure (listToMaybe profiles)

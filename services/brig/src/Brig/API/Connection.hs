@@ -66,20 +66,11 @@ import Wire.API.User
 import Wire.API.UserEvent
 import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
-import Wire.GalleyAPIAccess
-import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
+import Wire.UserStore as UserStore
 import Wire.UserSubsystem
-
-ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
-ensureNotSameTeam self target = do
-  selfTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified self)
-  targetTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified target)
-  when (isJust selfTeam && selfTeam == targetTeam) $
-    throwE ConnectSameBindingTeamUsers
 
 createConnection ::
   ( Member FederationConfigStore r,
@@ -124,6 +115,7 @@ createConnectionToLocalUser self conn target = do
     ensureIsActivated target
   checkLegalholdPolicyConflict self target
   ensureNotSameTeam self target
+  ensureNoApps self (tUntagged . fmap Left <$> [self, target])
   s2o <- lift . wrapClient $ Data.lookupConnection self (tUntagged target)
   o2s <- lift . wrapClient $ Data.lookupConnection target (tUntagged self)
 
