@@ -944,11 +944,20 @@ performConversationAccessData qusr lconv action = do
     lcnv = fmap (.id_) lconv
     conv = tUnqualified lconv
 
-    maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveBots :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveBots bm =
       if Set.member ServiceAccessRole (cupAccessRoles action)
         then pure bm
-        else pure $ bm {bmBots = mempty}
+        else do
+          -- Remove bots
+          let bmWithoutBots = bm {bmBots = mempty}
+          -- Remove apps from local and remote members
+          localUsers <- E.getUsers (toList (bmLocals bmWithoutBots))
+          let nonAppLocals = [User.userId u | u <- localUsers, User.userType u /= User.UserTypeApp]
+          -- (apps must be from the conversations home team to be
+          -- allowed to be in here, so we don't need to worry about
+          -- removing them.)
+          pure $ bmWithoutBots {bmLocals = Set.fromList nonAppLocals}
 
     maybeRemoveGuests :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
