@@ -398,8 +398,17 @@ testCrossTeamAppConversation sameOrOtherDomain = do
   -- M1 tries to connect to app A2 from team B => should fail
   -- Apps cannot create connections accross teams
   bindResponse (postConnection m1 appA2) $ \resp -> do
-    resp.status `shouldMatchInt` 400
+    resp.status `shouldMatchInt` 400 -- this fails.  we want (1) to
+    -- see all apps as profiles, even
+    -- if we can't connect; (2) to
+    -- not be able to connect to apps
+    -- outside our own team; (3) to
+    -- not be able to create a conv
+    -- in our own team and invite app
+    -- from other team.
     resp.json %. "label" `shouldMatch` "invalid-user"
+
+  -- TODO: also test that MLS conv cannot be created by m1 with appA2, but the other way around.
 
   -- Create app A1 (member of team A)
   let newAppA1 = def {name = "app-a1"} :: NewApp
