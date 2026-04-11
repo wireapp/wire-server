@@ -115,7 +115,7 @@ createConnectionToLocalUser self conn target = do
     ensureIsActivated target
   checkLegalholdPolicyConflict self target
   ensureNotSameTeam self target
-  ensureNoApps self (tUntagged <$> [self, target])
+  ensureNoApps self (tUntagged . fmap Left <$> [self, target])
   s2o <- lift . wrapClient $ Data.lookupConnection self (tUntagged target)
   o2s <- lift . wrapClient $ Data.lookupConnection target (tUntagged self)
 

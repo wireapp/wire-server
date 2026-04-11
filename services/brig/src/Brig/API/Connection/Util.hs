@@ -32,6 +32,7 @@ import Brig.Options (Settings (userMaxConnections))
 import Control.Error (MaybeT, noteT)
 import Control.Monad.Trans.Except
 import Data.Id (UserId)
+import Data.Map.Strict qualified as Map
 import Data.Qualified
 import Imports
 import Polysemy
@@ -70,17 +71,39 @@ ensureNotSameTeam self target = do
   when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
-ensureNoApps :: (Member UserSubsystem r) => Local UserId -> [Qualified UserId] -> (ConnectionM r) ()
+ensureNoApps ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  [Qualified (Either UserId UserProfile)] ->
+  (ConnectionM r) ()
 ensureNoApps _ [] = pure ()
-ensureNoApps asker uids@(_ : _) = do
-  apps :: [Qualified UserId] <-
-    catMaybes <$> do
-      let go prof = case prof.profileType of
-            UserTypeApp -> Just prof.profileQualifiedId
-            UserTypeRegular -> Nothing
-            UserTypeBot -> Nothing
-      lift $ liftSem $ go <$$> getUserProfiles asker uids
+ensureNoApps asker uidOrProfiles@(_ : _) = do
+  -- Step 1: Collect all qualified uids that need to be looked up
+  let uidsToLookup :: [Qualified UserId]
+      uidsToLookup = flip mapMaybe uidOrProfiles $ \qEither ->
+        either (Just . flip Qualified (qDomain qEither)) (const Nothing) (qUnqualified qEither)
 
-  case apps of
+  -- Step 2: Call getUserProfiles once for all uids that need lookup
+  profiles <- lift $ liftSem $ getUserProfiles asker uidsToLookup
+
+  -- Step 3: Build a Map from qualified uid to profile for quick lookup
+  let profileMap :: Map.Map (Qualified UserId) UserProfile
+      profileMap = Map.fromList $ map (\p -> (p.profileQualifiedId, p)) profiles
+
+  -- Step 4: Process the original list, checking each entry for app type
+  let checkForApp :: Qualified (Either UserId UserProfile) -> Maybe (Qualified UserId)
+      checkForApp qEither = case qUnqualified qEither of
+        Right prof -> checkProfile prof
+        Left uid ->
+          let quid = Qualified uid (qDomain qEither)
+           in checkProfile =<< Map.lookup quid profileMap
+
+      checkProfile :: UserProfile -> Maybe (Qualified UserId)
+      checkProfile prof = case prof.profileType of
+        UserTypeApp -> Just prof.profileQualifiedId
+        UserTypeRegular -> Nothing
+        UserTypeBot -> Nothing
+
+  case mapMaybe checkForApp uidOrProfiles of
     [] -> pure ()
-    (hd : _) -> throwE (InvalidUser hd)
+    (appId : _) -> throwE (InvalidUser appId)
