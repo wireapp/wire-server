@@ -149,8 +149,7 @@ createUserGroupFullImpl managedBy team mbCreator newGroup = do
     guardMembersInTeam :: Sem r ()
     guardMembersInTeam = do
       groupMembersFound :: [UserProfile] <-
-        getLocalUserProfiles (Just team)
-          =<< qualifyLocal (toList newGroup.members)
+        getLocalUserProfiles =<< qualifyLocal (toList newGroup.members)
       let groupMemberIdsRequested :: [UserId] = toList newGroup.members
           groupMemberIdsFound :: [UserId] = qUnqualified . profileQualifiedId <$> groupMembersFound
           nobodyMissing = Set.fromList groupMemberIdsRequested == Set.fromList groupMemberIdsFound

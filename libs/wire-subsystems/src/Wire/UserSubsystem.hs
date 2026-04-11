@@ -122,6 +122,7 @@ data UserProfileFilter
   = RegularOnly
   | AppsFromTeamOnly TeamId
   | RegularPlusAppsFromTeam TeamId
+  | RegularPlusAllApps
   deriving (Eq, Show)
 
 runUserProfileFilter :: UserProfileFilter -> UserProfile -> Bool
@@ -129,6 +130,7 @@ runUserProfileFilter upf prof = case upf of
   RegularOnly -> isRegular
   AppsFromTeamOnly tid -> isApp tid
   RegularPlusAppsFromTeam tid -> isAny tid
+  RegularPlusAllApps -> isRegularOrApp
   where
     isRegular = case prof.profileType of
       UserTypeRegular -> True
@@ -139,6 +141,10 @@ runUserProfileFilter upf prof = case upf of
       UserTypeApp -> prof.profileTeam == Just tid
       UserTypeBot -> False -- bots aren't in the picture
     isAny tid = isRegular || isApp tid
+    isRegularOrApp = case prof.profileType of
+      UserTypeRegular -> True
+      UserTypeApp -> True
+      UserTypeBot -> False
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
@@ -213,17 +219,23 @@ data CheckHandleResp
 
 makeSem ''UserSubsystem
 
-getUserProfile :: (Member UserSubsystem r) => Local UserId -> Qualified UserId -> Sem r (Maybe UserProfile)
+getUserProfile ::
+  (Member UserSubsystem r) =>
+  Local UserId ->
+  Qualified UserId ->
+  Sem r (Maybe UserProfile)
 getUserProfile luid targetUser =
   listToMaybe <$> getUserProfiles luid [targetUser]
 
 getLocalUserProfile ::
   (Member UserSubsystem r) =>
-  Maybe TeamId -> Local UserId -> Sem r (Maybe UserProfile)
-getLocalUserProfile tid targetUser =
-  listToMaybe <$> getLocalUserProfiles tid ((: []) <$> targetUser)
+  Local UserId -> Sem r (Maybe UserProfile)
+getLocalUserProfile targetUser =
+  listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
 
-getLocalUserProfileFiltered :: (Member UserSubsystem r) => UserProfileFilter -> Local UserId -> Sem r (Maybe UserProfile)
+getLocalUserProfileFiltered ::
+  (Member UserSubsystem r) =>
+  UserProfileFilter -> Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfileFiltered upf targetUser =
   listToMaybe <$> getLocalUserProfilesFiltered upf ((: []) <$> targetUser)
 
@@ -235,11 +247,10 @@ getLocalUserProfileFiltered404 upf targetUser =
 
 getLocalUserProfiles ::
   (Member UserSubsystem r) =>
-  Maybe TeamId ->
   Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfiles tid =
-  getLocalUserProfilesFiltered (maybe RegularOnly RegularPlusAppsFromTeam tid)
+getLocalUserProfiles =
+  getLocalUserProfilesFiltered RegularPlusAllApps
 
 getLocalAccountBy ::
   (Member UserSubsystem r) =>

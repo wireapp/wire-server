@@ -199,7 +199,7 @@ spec = describe "UserSubsystem.Interpreter" do
               galleyState = foldMap (\tid -> Map.singleton tid [teamMember]) viewer.teamId
               retrievedProfile =
                 runNoFederationStack localBackend galleyState config $
-                  getLocalUserProfiles Nothing (toLocalUnsafe domain [targetUser.id])
+                  getLocalUserProfiles (toLocalUnsafe domain [targetUser.id])
            in retrievedProfile === []
 
   describe "getUserProfilesWithErrors" $ do

@@ -171,7 +171,7 @@ getUserByHandle domain handle = do
           pure Nothing
         Just ownerId -> do
           localOwnerId <- qualifyLocal ownerId
-          liftSem $ UserSubsystem.getLocalUserProfile Nothing localOwnerId
+          liftSem $ UserSubsystem.getLocalUserProfile localOwnerId
 
 getUsersByIds ::
   (Member UserSubsystem r) =>
@@ -180,7 +180,7 @@ getUsersByIds ::
   ExceptT HttpError (AppT r) [UserProfile]
 getUsersByIds _ uids = do
   luids <- qualifyLocal uids
-  lift $ liftSem $ UserSubsystem.getLocalUserProfiles Nothing luids
+  lift $ liftSem $ UserSubsystem.getLocalUserProfiles luids
 
 claimPrekey ::
   (Member ClientSubsystem r) =>
@@ -271,7 +271,7 @@ searchUsers domain (SearchRequest searchTerm mTeam mOnlyInTeams mbUserTypeFilter
               mFoundUserTeamId <- lift $ liftSem $ UserStore.getUserTeam foundUser
               localFoundUser <- qualifyLocal foundUser
               if isTeamAllowed mOnlyInTeams mFoundUserTeamId
-                then lift $ liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile Nothing localFoundUser
+                then lift . liftSem $ (fmap contactFromProfile . maybeToList) <$> UserSubsystem.getLocalUserProfile localFoundUser
                 else pure []
           let filterTypes = case mbUserTypeFilter of
                 Just [] -> id
