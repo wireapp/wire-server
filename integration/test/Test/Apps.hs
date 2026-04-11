@@ -466,3 +466,98 @@ testCrossTeamAppConversation sameOrOtherDomain = do
   void $ createApplicationMessage convId appA1c "hello from A1" >>= sendAndConsumeMessage
   void $ createApplicationMessage convId appA3c "hello from A3" >>= sendAndConsumeMessage
   void $ createApplicationMessage convId m2c "hello from M2" >>= sendAndConsumeMessage
+
+testRemoveServicesAccessRole :: (HasCallStack) => App ()
+testRemoveServicesAccessRole = do
+  domain <- make OwnDomain
+
+  -- Create team A with owner, member, and app
+  (ownerA, tidA, [memberA]) <- createTeam domain 2
+  let newApp = def {name = "test-app"} :: NewApp
+  app <- bindResponse (createApp ownerA tidA newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create team B with a member
+  (ownerB, _, []) <- createTeam domain 1
+
+  -- Create a teamless user (guest)
+  guest <- randomUser domain def
+
+  -- Create MLS clients
+  [memberAClient, appClient] <- traverse (createMLSClient def) [memberA, app]
+  traverse_ (uploadNewKeyPackage def) [memberAClient, appClient]
+
+  -- Create an MLS team conversation and add app
+  conv <- postConversation memberA defMLS {team = Just tidA, protocol = "mls"} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def memberAClient convId
+  void $ createAddCommit memberAClient convId [app] >>= sendAndConsumeCommitBundle
+
+  -- Connect and add member from team B
+  postConnection memberA ownerB >>= assertSuccess
+  putConnection ownerB memberA "accepted" >>= assertSuccess
+  ownerBClient <- createMLSClient def ownerB
+  void $ uploadNewKeyPackage def ownerBClient
+  void $ createAddCommit memberAClient convId [ownerB] >>= sendAndConsumeCommitBundle
+
+  -- Connect and add teamless guest
+  postConnection memberA guest >>= assertSuccess
+  putConnection guest memberA "accepted" >>= assertSuccess
+  guestClient <- createMLSClient def guest
+  void $ uploadNewKeyPackage def guestClient
+  void $ createAddCommit memberAClient convId [guest] >>= sendAndConsumeCommitBundle
+
+  -- Verify all members are in the conversation
+  bindResponse (getConversation memberA conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+    appId <- app %. "qualified_id.id" & asString
+    ownerBId <- ownerB %. "qualified_id.id" & asString
+    guestId <- guest %. "qualified_id.id" & asString
+    memberIds `shouldContain` [appId]
+    memberIds `shouldContain` [ownerBId]
+    memberIds `shouldContain` [guestId]
+
+  -- Test 1: Remove "services" from access roles -> app should be removed
+  -- First verify we can get the conversation with the creator
+  bindResponse (getConversation memberA conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
+
+  let noServices =
+        [ "access" .= ["invite", "link"],
+          "access_role" .= (["team_member", "non_team_member", "guest"] :: [String])
+        ]
+  -- Use the conversation creator for the update
+  bindResponse (updateAccess memberA conv noServices) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  eventually $ do
+    bindResponse (getConversation memberA conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members.others" >>= asList
+      memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+      appId <- app %. "qualified_id.id" & asString
+      ownerBId <- ownerB %. "qualified_id.id" & asString
+      guestId <- guest %. "qualified_id.id" & asString
+      memberIds `shouldNotContain` [appId]
+      memberIds `shouldContain` [ownerBId]
+      memberIds `shouldContain` [guestId]
+
+  -- Test 2: Remove "guest" from access roles -> teamless user and cross-team member should be removed
+  let teamMemberOnly =
+        [ "access" .= ["invite", "link"],
+          "access_role" .= (["team_member"] :: [String])
+        ]
+  bindResponse (updateAccess memberA conv teamMemberOnly) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  eventually $ do
+    bindResponse (getConversation memberA conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members.others" >>= asList
+      memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+      ownerBId <- ownerB %. "qualified_id.id" & asString
+      guestId <- guest %. "qualified_id.id" & asString
+      memberIds `shouldNotContain` [ownerBId]
+      memberIds `shouldNotContain` [guestId]
