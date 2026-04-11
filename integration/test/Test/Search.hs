@@ -153,20 +153,19 @@ testFederatedUserSearchWithType =
     checkUserSearch d1 d1 -- target dynamic domain locally
     checkUserSearch d1 d2 -- target one dynamic domain from another
 
+-- | FUTUREWORK: 'Test.Apps.testFindApp',
+-- 'Test.Apps.testRetrieveUsersIncludingApps',
+-- 'Test.Search.checkUserSearch' have some overlap, or at least could
+-- be re-ordered for clarity.
 checkUserSearch :: (HasCallStack) => String -> String -> App ()
 checkUserSearch d1 d2 = do
   (remoteSearcher, _, []) <- createTeam d1 1
   (owner, tid, [mem]) <- createTeam d2 2
   assertSuccess =<< GalleyI.setTeamFeatureStatus d2 tid "searchVisibilityInbound" "enabled"
 
-  -- create app with name "chappie" on d2
-  let newApp :: BrigP.NewApp
-      newApp = def {BrigP.name = "chappie"}
-   in BrigP.createApp owner tid newApp >>= assertSuccess
-
-  -- set name of d2 member to "chappie-also", so we can search for both with one prefix.
+  -- set name of d2 member to "chappie" so it can be found by that search term.
   let nameUpd :: BrigP.PutSelf
-      nameUpd = def {BrigP.name = Just "chappie-also"}
+      nameUpd = def {BrigP.name = Just "chappie"}
    in BrigP.putSelf mem nameUpd >>= assertSuccess
 
   let filterByType :: (HasCallStack) => Value -> String -> Maybe [String] -> [String] -> App ()
@@ -181,11 +180,7 @@ checkUserSearch d1 d2 = do
 
   BrigI.refreshIndex d2
   forM_ [owner, remoteSearcher] $ \searcher -> do
-    filterByType searcher "chappie" Nothing ["chappie", "chappie-also"]
-    filterByType searcher "chappie" (Just []) ["chappie", "chappie-also"]
-    filterByType searcher "chappie" (Just ["regular"]) ["chappie-also"]
-    filterByType searcher "chappie" (Just ["app"]) ["chappie"]
-    filterByType searcher "chappie" (Just ["regular", "app"]) ["chappie", "chappie-also"]
+    filterByType searcher "chappie" Nothing ["chappie"]
 
 federatedUserSearch :: (HasCallStack) => String -> String -> FedUserSearchTestCase -> App ()
 federatedUserSearch d1 d2 test = do

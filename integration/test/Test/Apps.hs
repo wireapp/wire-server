@@ -29,18 +29,18 @@ import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
 
-testCreateApp :: (HasCallStack) => App ()
-testCreateApp = do
-  -- FUTUREWORK: what about federation?
-  domain <- make OwnDomain
-  (owner, tid, [regularMember]) <- createTeam domain 2
-  let new =
+testCreateGetApp :: (HasCallStack) => Domain -> App ()
+testCreateGetApp sameOrOtherDomain = do
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+
+  (owner, tid, [regularMember]) <- createTeam domainA 2
+  let new :: NewApp =
         def
           { name = "chappie",
             description = "some description of this app",
             category = "ai"
-          } ::
-          NewApp
+          }
 
   -- Regular team member can't create apps
   bindResponse (createApp regularMember tid new) $ \resp -> do
@@ -75,7 +75,7 @@ testCreateApp = do
     resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` appId
 
   -- App user should have type "app"
-  let appIdObject = object ["domain" .= domain, "id" .= appId]
+  let appIdObject = object ["domain" .= domainA, "id" .= appId]
   bindResponse (getUser owner appIdObject) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
@@ -100,7 +100,7 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "regular"
 
-  void $ bindResponse (renewToken domain cookie) $ \resp -> do
+  void $ bindResponse (renewToken domainA cookie) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
     resp.json %. "token_type" `shouldMatch` "Bearer"
@@ -114,53 +114,24 @@ testCreateApp = do
     (resp.json %. "app.category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser domain def
+  outsideUser <- randomUser domainB (def {BrigI.team = False})
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
-    -- this may change soon, see
-    -- https://wearezeta.atlassian.net/browse/WPB-23995,
-    -- https://wearezeta.atlassian.net/browse/WPB-23840
-    resp.status `shouldMatchInt` 200
+    resp.status `shouldMatchInt` 404
 
-  (owner2, tid2, [regularMember2]) <- createTeam domain 2
-  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
+  (owner2, tid2, [regularMember2]) <- createTeam domainB 2
+  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 404
+
+  -- Get app on remote apps gives 404 not found.
+  void $ getApp owner2 tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "not-found"
 
   -- Category can be any text; sanitization must happen by clients.
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 200
     deleteTeamMember tid owner (resp.json %. "user") >>= assertSuccess
-
-  let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
-      foundUserType searcher exactMatchTerm aTypes =
-        searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
-          docsInTeam :: [Value] <- do
-            -- make sure that matches from previous test runs don't get in the way.
-            -- related: https://wearezeta.atlassian.net/browse/WPB-23995
-            catMaybes
-              <$> forM
-                foundDocs
-                ( \doc -> do
-                    tidActual <- doc %. "team" & asString
-                    pure $ if tidActual == tid then Just doc else Nothing
-                )
-
-          (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
-
-  -- App's user is findable from /search/contacts
-  BrigI.refreshIndex domain
-  foundUserType owner new.name ["app"]
-  foundUserType regularMember new.name ["app"]
-
-  -- App's user is *not* findable from other team.
-  BrigI.refreshIndex domain
-  foundUserType owner2 new.name []
-
-  -- Regular members still have the type "regular"
-  memberName <- regularMember %. "name" & asString
-  foundUserType owner memberName ["regular"]
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
@@ -287,6 +258,10 @@ testPutApp = do
   bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
+-- | FUTUREWORK: 'Test.Apps.testFindApp',
+-- 'Test.Apps.testRetrieveUsersIncludingApps',
+-- 'Test.Search.checkUserSearch' have some overlap, or at least could
+-- be re-ordered for clarity.
 testRetrieveUsersIncludingApps :: (HasCallStack) => App ()
 testRetrieveUsersIncludingApps = do
   let userShape =
@@ -423,8 +398,17 @@ testCrossTeamAppConversation sameOrOtherDomain = do
   -- M1 tries to connect to app A2 from team B => should fail
   -- Apps cannot create connections accross teams
   bindResponse (postConnection m1 appA2) $ \resp -> do
-    resp.status `shouldMatchInt` 400
+    resp.status `shouldMatchInt` 400 -- this fails.  we want (1) to
+    -- see all apps as profiles, even
+    -- if we can't connect; (2) to
+    -- not be able to connect to apps
+    -- outside our own team; (3) to
+    -- not be able to create a conv
+    -- in our own team and invite app
+    -- from other team.
     resp.json %. "label" `shouldMatch` "invalid-user"
+
+  -- TODO: also test that MLS conv cannot be created by m1 with appA2, but the other way around.
 
   -- Create app A1 (member of team A)
   let newAppA1 = def {name = "app-a1"} :: NewApp
@@ -466,3 +450,50 @@ testCrossTeamAppConversation sameOrOtherDomain = do
   void $ createApplicationMessage convId appA1c "hello from A1" >>= sendAndConsumeMessage
   void $ createApplicationMessage convId appA3c "hello from A3" >>= sendAndConsumeMessage
   void $ createApplicationMessage convId m2c "hello from M2" >>= sendAndConsumeMessage
+
+-- | FUTUREWORK: 'Test.Apps.testFindApp',
+-- 'Test.Apps.testRetrieveUsersIncludingApps',
+-- 'Test.Search.checkUserSearch' have some overlap, or at least could
+-- be re-ordered for clarity.
+testFindApp :: (HasCallStack) => Domain -> App ()
+testFindApp sameOrOtherDomain = do
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+
+  (ownerA1, tidA1, [regularMemberA1]) <- createTeam domainA 2
+  let newAppA1 :: NewApp = def {name = "app A1", description = ""}
+  (appA1Id) <- bindResponse (createApp ownerA1 tidA1 newAppA1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user.id" & asString
+  BrigI.refreshIndex domainA
+
+  (ownerA2, _, [regularMemberA2]) <- createTeam domainA 2
+  (ownerB1, _, [regularMemberB1]) <- createTeam domainB 2
+
+  let foundUserType :: (HasCallStack) => SearchContactsCfg -> [String] -> App ()
+      foundUserType cfg uids =
+        searchContactsWith cfg `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+          ((%. "id") `mapM` foundDocs) `shouldMatch` uids
+
+  searchTerm <- asString newAppA1.name
+  domain <- asString domainA
+
+  -- App is findable from /search/contacts inside the own team.
+  forM_ [ownerA1, regularMemberA1]
+    $ \user -> do
+      foundUserType SearchContactsCfg {types = Nothing, ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just [], ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just ["app"], ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just ["app", "regular"], ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just ["regular"], ..} []
+
+  -- App user is *not* findable from other team.
+  forM_ [ownerA2, regularMemberA2, ownerB1, regularMemberB1]
+    $ \user -> do
+      foundUserType SearchContactsCfg {types = Nothing, ..} []
+      foundUserType SearchContactsCfg {types = Just [], ..} []
+      foundUserType SearchContactsCfg {types = Just ["app"], ..} []
+      foundUserType SearchContactsCfg {types = Just ["app", "regular"], ..} []
+      foundUserType SearchContactsCfg {types = Just ["regular"], ..} []

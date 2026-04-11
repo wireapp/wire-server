@@ -379,11 +379,20 @@ getUserProfilesFromDomain ::
   Local UserId ->
   Qualified [UserId] ->
   Sem r [UserProfile]
-getUserProfilesFromDomain self =
+getUserProfilesFromDomain self uids = do
+  upf <- do
+    storedSelf <- getUser (tUnqualified self)
+    pure $
+      maybe
+        RegularOnly
+        RegularPlusAppsFromTeam
+        (((.teamId)) =<< storedSelf)
+
   foldQualified
     self
-    (getUserProfilesLocalPart Everything (Just self))
+    (getUserProfilesLocalPart upf (Just self))
     getUserProfilesRemotePart
+    uids
 
 getUserProfilesRemotePart ::
   ( Member (FederationAPIAccess fedM) r,
@@ -421,11 +430,14 @@ getUserProfilesLocalPart upf requestingUser luids = do
         EmailVisibleToSelf -> EmailVisibleToSelf
         EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
-  injectAppsIntoUserProfiles . filter goUpf . catMaybes
+  fmap filterAppsFromOtherTeams . injectAppsIntoUserProfiles . filter (runUserProfileFilter upf) . catMaybes
     -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
     -- not just single rows.
     =<< unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)
   where
+    filterAppsFromOtherTeams :: [UserProfile] -> [UserProfile]
+    filterAppsFromOtherTeams = filter (runUserProfileFilter upf)
+
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
@@ -439,12 +451,6 @@ getUserProfilesLocalPart upf requestingUser luids = do
       case mUserNotPending >>= (.teamId) of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> internalGetTeamMember (tUnqualified self) tid
-
-    goUpf :: UserProfile -> Bool
-    goUpf prof = case upf of
-      Everything -> True
-      AppsOnly -> prof.profileType == UserTypeApp
-      RegularOnly -> prof.profileType == UserTypeRegular
 
 getLocalUserProfileInternal ::
   forall r.
