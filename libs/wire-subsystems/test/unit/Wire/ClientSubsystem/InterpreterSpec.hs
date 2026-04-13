@@ -160,7 +160,7 @@ assertClientPush uid mConn expected push =
     _ -> counterexample ("Failed to decode push: " <> show push) False
 
 spec :: Spec
-spec = describe "ClientSubsystem.Interpreter" do
+spec = focus $ describe "ClientSubsystem.Interpreter" do
   prop "adds and looks up a client" $ \user (FakeLastPrekey lpk) ->
     let luid = toLocalUnsafe testDomain user.id
         new = newClient PermanentClientType lpk
@@ -362,6 +362,20 @@ spec = describe "ClientSubsystem.Interpreter" do
           runClientSubsystemTest [user] do
             void $ addClient luid Nothing new
             claimPrekey (ProtectedUser uid) uid domain clientId
+     in expectRight testResult.result $ \case
+          Nothing -> counterexample "expected a client prekey, but got nothing" False
+          Just pk -> pk.prekeyClient === clientId
+
+  prop "claim local prekey" $ \user (FakeLastPrekey lpk) ->
+    let uid = user.id
+        domain = testDomain
+        luid = toLocalUnsafe domain uid
+        new = newClient PermanentClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
+        testResult =
+          runClientSubsystemTest [user] do
+            void $ addClient luid Nothing new
+            claimLocalPrekey (ProtectedUser uid) uid clientId
      in expectRight testResult.result $ \case
           Nothing -> counterexample "expected a client prekey, but got nothing" False
           Just pk -> pk.prekeyClient === clientId
