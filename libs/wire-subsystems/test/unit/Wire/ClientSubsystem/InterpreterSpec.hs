@@ -433,7 +433,7 @@ spec = describe "ClientSubsystem.Interpreter" do
                   claimMultiPrekeyBundlesV3 (ProtectedUser protectee) qUserClients
            in expectRight testResult.result $ \m ->
                 let qClientMap = m.getQualifiedUserClientPrekeyMap.qualifiedUserClientMap
-                    userMap = fromMaybe (error "domain not found") $ Map.lookup domain qClientMap
+                    userMap = fromMaybe mempty $ Map.lookup domain qClientMap
                  in Map.size qClientMap === 1 .&&. Map.size userMap === length testData
 
   prop "claim multi prekey bundles" $ \protectee testData ->
@@ -450,7 +450,7 @@ spec = describe "ClientSubsystem.Interpreter" do
                   claimMultiPrekeyBundles (ProtectedUser protectee) qUserClients
            in expectRight testResult.result $ \m ->
                 let qClientMap = m.qualifiedUserClientPrekeys.qualifiedUserClientMap
-                    userMap = fromMaybe (error "domain not found") $ Map.lookup domain qClientMap
+                    userMap = fromMaybe mempty $ Map.lookup domain qClientMap
                  in Map.size qClientMap === 1 .&&. Map.size userMap === length testData
 
   prop "claim local multi prekey bundles" $ \protectee testData ->
