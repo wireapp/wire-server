@@ -4,7 +4,7 @@ metadata:
   name: {{ include "nginx-ingress-services.getIngressName" . | quote }}
   {{- if .Values.config.renderCSPInIngress }}
   annotations:
-    {{- if not (contains .Values.config.ingressClass "nginx") }}
+    {{- if not (hasPrefix "nginx" .Values.config.ingressClass) }}
         {{ fail "In ingress CSP header setting only works with a 'nginx' controller. (Rename it to 'nginx-*' if it is one.)" }}
     {{- end }}
     {{/* We need to add CSP headers here for webapp, team-settings and
