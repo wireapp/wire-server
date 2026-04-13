@@ -567,7 +567,7 @@ testRemoveServicesAccessRole = do
       memberIds `shouldContain` [ownerBId]
       memberIds `shouldContain` [guestId]
 
-  -- Test 2: Remove "guest" from access roles -> teamless user and cross-team member should be removed
+  -- Test 2: Restrict access -> teamless user and cross-team member should be removed
   let teamMemberOnly =
         [ "access" .= ["invite", "link"],
           "access_role" .= (["team_member"] :: [String])
