@@ -15,8 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Move to Brig.User.Client
-module Brig.API.Client
+module Brig.User.Client
   ( createClientDPoPAccessToken,
   )
 where

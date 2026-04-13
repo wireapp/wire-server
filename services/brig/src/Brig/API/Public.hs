@@ -29,7 +29,6 @@ module Brig.API.Public
 where
 
 import Brig.API.Auth
-import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
@@ -54,6 +53,7 @@ import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
+import Brig.User.Client qualified as API
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
