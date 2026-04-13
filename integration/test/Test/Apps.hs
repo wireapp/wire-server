@@ -389,27 +389,27 @@ testCrossTeamAppConversation sameOrOtherDomain = do
   (ownerA, tidA, [m1]) <- createTeam domainA 2
   (ownerB, tidB, [m2]) <- createTeam domainB 2
 
-  -- Create app A2 (member of team B)
-  let newAppA2 = def {name = "app-a2"} :: NewApp
-  appA2 <- bindResponse (createApp ownerB tidB newAppA2) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-    resp.json %. "user"
-
-  -- M1 tries to connect to app A2 from team B => should fail
-  -- Apps cannot create connections accross teams
-  bindResponse (postConnection m1 appA2) $ \resp -> do
-    resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "invalid-user"
-
   -- Create app A1 (member of team A)
   let newAppA1 = def {name = "app-a1"} :: NewApp
   appA1 <- bindResponse (createApp ownerA tidA newAppA1) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
+  -- Create app A2 (member of team B)
+  let newAppA2 = def {name = "app-a2"} :: NewApp
+  appA2 <- bindResponse (createApp ownerB tidB newAppA2) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
   -- Create MLS clients for M1 and A1 (both on domainA)
   [m1c, appA1c] <- traverse (createMLSClient def) [m1, appA1]
   traverse_ (uploadNewKeyPackage def) [m1c, appA1c]
+
+  -- M1 tries to connect to app A2 from team B => should fail
+  -- Apps cannot create connections accross teams
+  bindResponse (postConnection m1 appA2) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-user"
 
   -- M1 creates an MLS team conversation
   convId <- createNewGroupWith def m1c defMLS {team = Just tidA}

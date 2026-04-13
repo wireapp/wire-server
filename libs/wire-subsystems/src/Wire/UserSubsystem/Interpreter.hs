@@ -380,17 +380,9 @@ getUserProfilesFromDomain ::
   Qualified [UserId] ->
   Sem r [UserProfile]
 getUserProfilesFromDomain self uids = do
-  upf <- do
-    storedSelf <- getUser (tUnqualified self)
-    pure $
-      maybe
-        RegularOnly
-        RegularPlusAppsFromTeam
-        (((.teamId)) =<< storedSelf)
-
   foldQualified
     self
-    (getUserProfilesLocalPart upf (Just self))
+    (getUserProfilesLocalPart RegularPlusAllApps (Just self))
     getUserProfilesRemotePart
     uids
 
@@ -430,7 +422,7 @@ getUserProfilesLocalPart upf requestingUser luids = do
         EmailVisibleToSelf -> EmailVisibleToSelf
         EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
-  fmap filterAppsFromOtherTeams . injectAppsIntoUserProfiles . filter (runUserProfileFilter upf) . catMaybes
+  fmap filterAppsFromOtherTeams . injectAppsIntoUserProfiles . catMaybes
     -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
     -- not just single rows.
     =<< unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)

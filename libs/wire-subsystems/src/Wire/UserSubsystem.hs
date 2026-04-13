@@ -119,32 +119,20 @@ data ChangeEmailResult
   deriving (Show)
 
 data UserProfileFilter
-  = RegularOnly
-  | AppsFromTeamOnly TeamId
-  | RegularPlusAppsFromTeam TeamId
+  = AppsFromTeamOnly TeamId
   | RegularPlusAllApps
   deriving (Eq, Show)
 
 runUserProfileFilter :: UserProfileFilter -> UserProfile -> Bool
 runUserProfileFilter upf prof = case upf of
-  RegularOnly -> isRegular
-  AppsFromTeamOnly tid -> isApp tid
-  RegularPlusAppsFromTeam tid -> isAny tid
-  RegularPlusAllApps -> isRegularOrApp
-  where
-    isRegular = case prof.profileType of
-      UserTypeRegular -> True
-      UserTypeApp -> False
-      UserTypeBot -> False
-    isApp tid = case prof.profileType of
-      UserTypeRegular -> False
-      UserTypeApp -> prof.profileTeam == Just tid
-      UserTypeBot -> False -- bots aren't in the picture
-    isAny tid = isRegular || isApp tid
-    isRegularOrApp = case prof.profileType of
-      UserTypeRegular -> True
-      UserTypeApp -> True
-      UserTypeBot -> False
+  AppsFromTeamOnly tid -> case prof.profileType of
+    UserTypeRegular -> False
+    UserTypeApp -> prof.profileTeam == Just tid
+    UserTypeBot -> False -- bots aren't in the picture
+  RegularPlusAllApps -> case prof.profileType of
+    UserTypeRegular -> True
+    UserTypeApp -> True
+    UserTypeBot -> False
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
