@@ -97,6 +97,7 @@ newSettings :: Server -> Settings
 newSettings (Server h p l t) =
   setHost (fromString h)
     . setPort (fromIntegral p)
+    . setServerName ""
     . setBeforeMainLoop logStart
     . setOnOpen (const $ connStart >> pure True)
     . setOnClose (const connEnd)
