@@ -4,6 +4,7 @@ import Data.Aeson qualified as A
 import Data.Default
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
@@ -160,7 +161,7 @@ assertClientPush uid mConn expected push =
     _ -> counterexample ("Failed to decode push: " <> show push) False
 
 spec :: Spec
-spec = focus $ describe "ClientSubsystem.Interpreter" do
+spec = describe "ClientSubsystem.Interpreter" do
   prop "adds and looks up a client" $ \user (FakeLastPrekey lpk) ->
     let luid = toLocalUnsafe testDomain user.id
         new = newClient PermanentClientType lpk
@@ -417,6 +418,62 @@ spec = focus $ describe "ClientSubsystem.Interpreter" do
            in expectRight testResult.result $ \bundle ->
                 (bundle.prekeyUser === uid)
                   .&&. (Set.fromList (fmap (.prekeyClient) bundle.prekeyClients) === expectedClientIds)
+
+  prop "claim multi prekey bundles v3" $ \protectee testData ->
+    (unique testData)
+      ==> let domain = testDomain
+              testResult =
+                runClientSubsystemTest (fmap fst testData) do
+                  for_ testData $ \(user, (FakeLastPrekey lpk)) -> do
+                    let uid = user.id
+                        luid = toLocalUnsafe domain uid
+                        new = newClient PermanentClientType lpk
+                    addClient luid Nothing new
+                  let qUserClients = QualifiedUserClients $ Map.fromList [(domain, Map.fromList (fmap toUserClients testData))]
+                  claimMultiPrekeyBundlesV3 (ProtectedUser protectee) qUserClients
+           in expectRight testResult.result $ \m ->
+                let qClientMap = m.getQualifiedUserClientPrekeyMap.qualifiedUserClientMap
+                    userMap = fromMaybe (error "domain not found") $ Map.lookup domain qClientMap
+                 in Map.size qClientMap === 1 .&&. Map.size userMap === length testData
+
+  prop "claim multi prekey bundles" $ \protectee testData ->
+    (unique testData)
+      ==> let domain = testDomain
+              testResult =
+                runClientSubsystemTest (fmap fst testData) do
+                  for_ testData $ \(user, (FakeLastPrekey lpk)) -> do
+                    let uid = user.id
+                        luid = toLocalUnsafe domain uid
+                        new = newClient PermanentClientType lpk
+                    addClient luid Nothing new
+                  let qUserClients = QualifiedUserClients $ Map.fromList [(domain, Map.fromList (fmap toUserClients testData))]
+                  claimMultiPrekeyBundles (ProtectedUser protectee) qUserClients
+           in expectRight testResult.result $ \m ->
+                let qClientMap = m.qualifiedUserClientPrekeys.qualifiedUserClientMap
+                    userMap = fromMaybe (error "domain not found") $ Map.lookup domain qClientMap
+                 in Map.size qClientMap === 1 .&&. Map.size userMap === length testData
+
+  prop "claim local multi prekey bundles" $ \protectee testData ->
+    (unique testData)
+      ==> let domain = testDomain
+              testResult =
+                runClientSubsystemTest (fmap fst testData) do
+                  for_ testData $ \(user, (FakeLastPrekey lpk)) -> do
+                    let uid = user.id
+                        luid = toLocalUnsafe domain uid
+                        new = newClient PermanentClientType lpk
+                    addClient luid Nothing new
+                  let userClients = UserClients $ Map.fromList (fmap toUserClients testData)
+                  claimLocalMultiPrekeyBundles (ProtectedUser protectee) userClients
+           in expectRight testResult.result $ \m ->
+                let clientMap = m.getUserClientPrekeyMap.userClientMap
+                 in Map.size clientMap === length testData
+  where
+    toUserClients (user, FakeLastPrekey lpk) = (user.id, Set.fromList [clientIdFromPrekey (unpackLastPrekey lpk)])
+
+    unique testData =
+      length testData == length (Set.fromList (fmap ((.id) . fst) testData))
+        && length testData == length (Set.fromList ((fmap snd) testData))
 
 newtype FakeUpdateClient = FakeUpdateClient {unFakeUpdateClient :: UpdateClient}
   deriving (Show, Eq, Generic)
