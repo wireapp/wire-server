@@ -110,7 +110,6 @@
 , servant-server
 , servant-swagger-ui
 , spar
-, split
 , ssl-util
 , stomp-queue
 , streaming-commons
@@ -239,7 +238,6 @@ mkDerivation {
     servant-openapi3
     servant-server
     servant-swagger-ui
-    split
     ssl-util
     stomp-queue
     template

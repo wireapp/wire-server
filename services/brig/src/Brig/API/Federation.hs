@@ -19,7 +19,6 @@
 
 module Brig.API.Federation (federationSitemap, FederationAPI) where
 
-import Brig.API.Client qualified as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Handler (Handler)
 import Brig.API.Internal qualified as Internal
@@ -195,15 +194,11 @@ claimPrekeyBundle _ user =
   lift $ liftSem $ ClientSubsystem.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user
 
 claimMultiPrekeyBundle ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientStore r,
-    Member ClientSubsystem r,
-    Member GalleyAPIAccess r
-  ) =>
+  (Member ClientSubsystem r) =>
   Domain ->
   UserClients ->
   Handler r UserClientPrekeyMap
-claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientErrorToHttpError
+claimMultiPrekeyBundle _ uc = lift $ liftSem $ ClientSubsystem.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc
 
 fedClaimKeyPackages ::
   ( Member GalleyAPIAccess r,

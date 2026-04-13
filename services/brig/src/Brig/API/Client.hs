@@ -31,13 +31,10 @@ import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
 import Brig.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
-import Data.Bifunctor
 import Data.ByteString (toStrict)
 import Data.ByteString.Conversion
 import Data.HavePendingInvitations
 import Data.Id (ClientId, UserId)
-import Data.List.Split (chunksOf)
-import Data.Map.Strict qualified as Map hiding ((\\))
 import Data.Qualified
 import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
@@ -45,32 +42,13 @@ import Imports hiding ((\\))
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Error (mapError, runError)
-import Polysemy.TinyLog
 import Servant (Link, ToHttpApiData (toUrlPiece))
-import System.Logger.Class (field, msg, val, (~~))
-import System.Logger.Class qualified as Log
-import Wire.API.Component
-import Wire.API.Federation.API
 import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
-import Wire.API.Message qualified as Message
 import Wire.API.Routes.Internal.Brig
-import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User
-import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
-import Wire.API.User.Client.Prekey
-import Wire.ClientStore (ClientStore)
-import Wire.ClientStore qualified as ClientStore
-import Wire.ClientSubsystem
-import Wire.ClientSubsystem.Error
-import Wire.FederationAPIAccess
-import Wire.GalleyAPIAccess
-import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
-import Wire.Sem.Logger as Sem.Log
 import Wire.Sem.Now as Now
 import Wire.UserSubsystem (UserSubsystem)
 import Wire.UserSubsystem qualified as User
