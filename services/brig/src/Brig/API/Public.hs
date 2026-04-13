@@ -1802,10 +1802,14 @@ getApp lusr tid uid = lift . liftSem $ do
     else pure prof
 
 getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
-getApps lusr tid =
-  lift . liftSem $ do
-    appIds <- AppSubsystem.getAppIds lusr tid
-    getLocalUserProfilesFiltered (AppsFromTeamOnly tid) (qualifyAs lusr appIds)
+getApps lusr tid = lift . liftSem $ do
+  -- Check if requesting user is a member of the team
+  requestingUserTeam <- getUserTeam (tUnqualified lusr)
+  unless (requestingUserTeam == Just tid) $
+    throw UserSubsystemProfileNotFound
+
+  appIds <- AppSubsystem.getAppIds lusr tid
+  getLocalUserProfilesFiltered (AppsFromTeamOnly tid) (qualifyAs lusr appIds)
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put
