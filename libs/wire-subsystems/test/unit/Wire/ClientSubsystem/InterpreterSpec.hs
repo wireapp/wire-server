@@ -399,6 +399,25 @@ spec = focus $ describe "ClientSubsystem.Interpreter" do
                 (bundle.prekeyUser === uid)
                   .&&. (Set.fromList (fmap (.prekeyClient) bundle.prekeyClients) === expectedClientIds)
 
+  prop "claim local prekey bundle" $ \user (FakeLastPrekey lpk1) (FakeLastPrekey lpk2) ->
+    (lpk1 /= lpk2)
+      ==> let uid = user.id
+              domain = testDomain
+              luid = toLocalUnsafe domain uid
+              new1 = newClient PermanentClientType lpk1
+              new2 = newClient PermanentClientType lpk2
+              clientId1 = clientIdFromPrekey (unpackLastPrekey lpk1)
+              clientId2 = clientIdFromPrekey (unpackLastPrekey lpk2)
+              expectedClientIds = Set.fromList [clientId1, clientId2]
+              testResult =
+                runClientSubsystemTest [user] do
+                  void $ addClient luid Nothing new1
+                  void $ addClient luid Nothing new2
+                  claimLocalPrekeyBundle (ProtectedUser uid) uid
+           in expectRight testResult.result $ \bundle ->
+                (bundle.prekeyUser === uid)
+                  .&&. (Set.fromList (fmap (.prekeyClient) bundle.prekeyClients) === expectedClientIds)
+
 newtype FakeUpdateClient = FakeUpdateClient {unFakeUpdateClient :: UpdateClient}
   deriving (Show, Eq, Generic)
 
