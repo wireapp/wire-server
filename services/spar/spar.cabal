@@ -204,7 +204,6 @@ library
     , wai
     , wai-middleware-gunzip
     , wai-utilities
-    , warp
     , wire-api
     , wire-subsystems
     , yaml

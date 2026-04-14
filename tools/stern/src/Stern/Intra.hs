@@ -1063,7 +1063,13 @@ runClientToHandler :: SC.ClientM a -> Handler a
 runClientToHandler client = do
   clientEnv <- asks (.brigServantClientEnv)
   res <- liftIO $ SC.runClientM client clientEnv
-  either (throwE . mkError status400 "servant-client-error" . LT.pack . displayExceptionNoBacktrace) pure res
+  either throwError pure res
+  where
+    throwError ce =
+      throwE . mkError (errorStatus ce) "servant-client-error" . LT.pack . displayExceptionNoBacktrace $ ce
+
+    errorStatus (SC.FailureResponse _ resp) = resp.responseStatusCode
+    errorStatus _ = status400
 
 domRegLock :: Domain -> SC.ClientM NoContent
 domRegUnlock :: Domain -> SC.ClientM NoContent

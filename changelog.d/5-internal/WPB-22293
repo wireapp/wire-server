@@ -1,0 +1,1 @@
+Propagate error from brig on stern API call `GET i/domain-registration/:domain`

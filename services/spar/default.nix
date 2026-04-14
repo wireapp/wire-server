@@ -74,7 +74,6 @@
 , wai-extra
 , wai-middleware-gunzip
 , wai-utilities
-, warp
 , wire-api
 , wire-subsystems
 , xml-conduit
@@ -133,7 +132,6 @@ mkDerivation {
     wai
     wai-middleware-gunzip
     wai-utilities
-    warp
     wire-api
     wire-subsystems
     yaml
