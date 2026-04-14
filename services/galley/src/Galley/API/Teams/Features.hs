@@ -63,8 +63,9 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
+import Wire.API.User (AccountStatus (..))
 import Wire.BackendNotificationQueueAccess
-import Wire.BrigAPIAccess (BrigAPIAccess, updateSearchVisibilityInbound)
+import Wire.BrigAPIAccess (BrigAPIAccess, getAppIdsForTeam, setAccountStatus, updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
@@ -498,7 +499,17 @@ instance SetFeatureConfig ConsumableNotificationsConfig
 
 instance SetFeatureConfig ChatBubblesConfig
 
-instance SetFeatureConfig AppsConfig
+instance SetFeatureConfig AppsConfig where
+  type
+    SetFeatureForTeamConstraints AppsConfig (r :: EffectRow) =
+      (Member BrigAPIAccess r)
+
+  prepareFeature tid feat = do
+    let newStatus = case feat.status of
+          FeatureStatusEnabled -> Active
+          FeatureStatusDisabled -> Suspended
+    appIds <- getAppIdsForTeam tid
+    for_ appIds $ \uid -> setAccountStatus uid newStatus
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 

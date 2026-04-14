@@ -724,6 +724,7 @@ type API =
            :<|> EnterpriseLoginApi
            :<|> SAMLIdPAPI
            :<|> DeleteApp
+           :<|> GetAppIds
        )
 
 type SAMLIdPAPI =
@@ -745,6 +746,15 @@ type DeleteApp =
         :> "apps"
         :> Capture "uid" UserId
         :> Delete '[Servant.JSON] NoContent
+    )
+
+type GetAppIds =
+  Named
+    "i-get-app-ids"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "apps"
+        :> Get '[Servant.JSON] [UserId]
     )
 
 type IStatusAPI =

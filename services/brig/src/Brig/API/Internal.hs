@@ -90,6 +90,8 @@ import Wire.API.UserGroup (UserGroup)
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.AppStore (AppStore)
+import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem)
@@ -181,6 +183,7 @@ servantSitemap ::
     Member CryptoSign r,
     Member Random r,
     Member SAMLEmailSubsystem r,
+    Member AppStore r,
     Member AppSubsystem r,
     Member ClientStore r,
     Member ClientSubsystem r
@@ -203,6 +206,7 @@ servantSitemap =
     :<|> enterpriseLoginApi
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
+    :<|> Named @"i-get-app-ids" getAppIdsH
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -1046,3 +1050,6 @@ deleteGroupManagedInternalH tid gid managedBy = do
 
 deleteAppH :: (Member AppSubsystem r) => TeamId -> UserId -> Handler r NoContent
 deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoContent
+
+getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
+getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid

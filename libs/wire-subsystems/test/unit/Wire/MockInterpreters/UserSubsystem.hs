@@ -65,11 +65,11 @@ inMemoryUserSubsystemInterpreter =
     IsBlocked _ -> pure False
     GetUserProfiles _ _ -> error "GetUserProfiles: implement on demand (userSubsystemInterpreter)"
     GetUserProfilesWithErrors _ _ -> error "GetUserProfilesWithErrors: implement on demand (userSubsystemInterpreter)"
-    GetLocalUserProfilesFiltered upf luids ->
-      filter (runUserProfileFilter upf)
-        <$> ( toProfile . mkUserFromStored testDomain testLocale
-                <$$> UserStore.getUsers (tUnqualified luids)
-            )
+    GetLocalUserProfiles luids ->
+      toProfile . mkUserFromStored testDomain testLocale
+        <$$> UserStore.getUsers (tUnqualified luids)
+    GetLocalAppProfilesOnly _ ->
+      error "GetLocalAppProfilesOnly: implement on demand (userSubsystemInterpreter)"
     GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
     GetAccountsBy (tUnqualified -> GetBy _ _ _ uids []) ->

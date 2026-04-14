@@ -1766,7 +1766,10 @@ getApp lusr tid uid = lift . liftSem $ do
   unless (requestingUserTeam == Just tid) $
     throw UserSubsystemProfileNotFound
 
-  prof <- getLocalUserProfileFiltered404 (AppsFromTeamOnly tid) (qualifyAs lusr uid)
+  profs <- getLocalUserProfiles (qualifyAs lusr [uid])
+  prof <-
+    note UserSubsystemProfileNotFound $
+      find (\p -> p.profileType == Public.UserTypeApp && p.profileTeam == Just tid) profs
   if prof.profileDeleted
     then throw UserSubsystemProfileNotFound
     else pure prof
@@ -1778,8 +1781,7 @@ getApps lusr tid = lift . liftSem $ do
   unless (requestingUserTeam == Just tid) $
     throw UserSubsystemProfileNotFound
 
-  appIds <- AppSubsystem.getAppIds lusr tid
-  getLocalUserProfilesFiltered (AppsFromTeamOnly tid) (qualifyAs lusr appIds)
+  getLocalAppProfilesOnly (qualifyAs lusr tid)
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

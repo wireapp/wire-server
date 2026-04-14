@@ -53,7 +53,7 @@ import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Size
-import Wire.API.User (EmailAddress, UpdateConnectionsInternal, User, UserIds (..), UserSet (..))
+import Wire.API.User (AccountStatus (..), AccountStatusUpdate (..), EmailAddress, UpdateConnectionsInternal, User, UserIds (..), UserSet (..))
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
@@ -138,6 +138,10 @@ interpretBrigAccess brigEndpoint =
         deleteGroupInternal managedBy teamId groupId
       DeleteApp teamId userId ->
         deleteApp teamId userId
+      GetAppIdsForTeam teamId ->
+        getAppIdsForTeam teamId
+      SetAccountStatus uid status ->
+        setAccountStatus uid status
 
 brigRequest :: (Member Rpc r, Member (Input Endpoint) r) => (Request -> Request) -> Sem r (Response (Maybe LByteString))
 brigRequest req = do
@@ -714,6 +718,31 @@ deleteApp teamId userId = do
     brigRequest $
       method DELETE
         . paths ["i", "teams", toByteString' teamId, "apps", toByteString' userId]
+        . expect2xx
+
+getAppIdsForTeam ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  TeamId ->
+  Sem r [UserId]
+getAppIdsForTeam teamId = do
+  resp <-
+    brigRequest $
+      method GET
+        . paths ["i", "teams", toByteString' teamId, "apps"]
+        . expect2xx
+  pure . fromMaybe [] . responseJsonMaybe $ resp
+
+setAccountStatus ::
+  (Member Rpc r, Member (Input Endpoint) r) =>
+  UserId ->
+  AccountStatus ->
+  Sem r ()
+setAccountStatus uid status =
+  void $
+    brigRequest $
+      method PUT
+        . paths ["i", "users", toByteString' uid, "status"]
+        . json (AccountStatusUpdate status)
         . expect2xx
 
 is2xx :: ResponseLBS -> Bool

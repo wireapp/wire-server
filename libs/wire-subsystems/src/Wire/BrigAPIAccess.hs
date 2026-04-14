@@ -62,6 +62,7 @@ module Wire.BrigAPIAccess
 
     -- * Bots
     deleteBot,
+    getAppIdsForTeam,
 
     -- * User Groups
     createGroupInternal,
@@ -71,6 +72,9 @@ module Wire.BrigAPIAccess
     deleteGroupInternal,
     deleteApp,
     DeleteGroupManagedError (..),
+
+    -- * Account status
+    setAccountStatus,
   )
 where
 
@@ -170,6 +174,8 @@ data BrigAPIAccess m a where
   UpdateGroup :: UpdateGroupInternalRequest -> BrigAPIAccess m (Either Wai.Error ())
   DeleteGroupInternal :: ManagedBy -> TeamId -> UserGroupId -> BrigAPIAccess m (Either DeleteGroupManagedError ())
   DeleteApp :: TeamId -> UserId -> BrigAPIAccess m ()
+  GetAppIdsForTeam :: TeamId -> BrigAPIAccess m [UserId]
+  SetAccountStatus :: UserId -> AccountStatus -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 
