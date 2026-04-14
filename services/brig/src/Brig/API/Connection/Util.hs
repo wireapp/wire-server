@@ -76,8 +76,7 @@ ensureNoApps ::
   Local UserId ->
   [Qualified (Either UserId UserProfile)] ->
   (ConnectionM r) ()
-ensureNoApps _ [] = pure ()
-ensureNoApps asker uidOrProfiles@(_ : _) = do
+ensureNoApps asker uidOrProfiles = do
   -- Step 1: Collect all qualified uids that need to be looked up
   let uidsToLookup :: [Qualified UserId]
       uidsToLookup = flip mapMaybe uidOrProfiles $ \qEither ->

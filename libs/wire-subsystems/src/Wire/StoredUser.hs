@@ -62,7 +62,20 @@ data StoredUser = StoredUser
     searchable :: Maybe Bool
   }
   deriving (Show, Eq, Ord, Generic)
-  deriving (Arbitrary) via (GenericUniform StoredUser)
+
+instance Arbitrary StoredUser where
+  arbitrary = do
+    GenericUniform u <- arbitrary @(GenericUniform StoredUser)
+    -- Ensure users are never bots and don't have service IDs
+    let userType' = case u.userType of
+          Just UserTypeBot -> Nothing -- Will be inferred as Regular
+          other -> other
+    pure $
+      u
+        { userType = userType',
+          serviceId = Nothing,
+          providerId = Nothing
+        }
 
 recordInstance ''StoredUser
 
