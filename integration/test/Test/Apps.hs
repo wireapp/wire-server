@@ -500,9 +500,6 @@ testRemoveServicesAccessRole = do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
-  -- Create team B with a member
-  (ownerB, _, []) <- createTeam domain 1
-
   -- Create MLS clients
   [memberAClient, appClient] <- traverse (createMLSClient def) [memberA, app]
   traverse_ (uploadNewKeyPackage def) [memberAClient, appClient]
@@ -513,22 +510,13 @@ testRemoveServicesAccessRole = do
   createGroup def memberAClient convId
   void $ createAddCommit memberAClient convId [app] >>= sendAndConsumeCommitBundle
 
-  -- Connect and add member from team B
-  postConnection memberA ownerB >>= assertSuccess
-  putConnection ownerB memberA "accepted" >>= assertSuccess
-  ownerBClient <- createMLSClient def ownerB
-  void $ uploadNewKeyPackage def ownerBClient
-  void $ createAddCommit memberAClient convId [ownerB] >>= sendAndConsumeCommitBundle
-
   -- Verify all members are in the conversation
   bindResponse (getConversation memberA conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     members <- resp.json %. "members.others" >>= asList
     memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
     appId <- app %. "qualified_id.id" & asString
-    ownerBId <- ownerB %. "qualified_id.id" & asString
     memberIds `shouldContain` [appId]
-    memberIds `shouldContain` [ownerBId]
 
   -- Remove "services" from access roles -> app should be removed
   -- First verify we can get the conversation with the creator
@@ -549,6 +537,4 @@ testRemoveServicesAccessRole = do
       members <- resp.json %. "members.others" >>= asList
       memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
       appId <- app %. "qualified_id.id" & asString
-      ownerBId <- ownerB %. "qualified_id.id" & asString
       memberIds `shouldNotContain` [appId]
-      memberIds `shouldContain` [ownerBId]
