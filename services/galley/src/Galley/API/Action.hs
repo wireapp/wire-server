@@ -951,13 +951,14 @@ performConversationAccessData qusr lconv action = do
         else do
           -- Remove bots
           let bmWithoutBots = bm {bmBots = mempty}
-          -- Remove apps from local and remote members
+          -- Remove apps from local and remote members. Filter the original
+          -- local member set so users missing from `getUsers` are preserved.
           localUsers <- E.getUsers (toList (bmLocals bmWithoutBots))
-          let nonAppLocals = [User.userId u | u <- localUsers, User.userType u /= User.UserTypeApp]
+          let appLocals = Set.fromList [User.userId u | u <- localUsers, User.userType u == User.UserTypeApp]
           -- (apps must be from the conversations home team to be
           -- allowed to be in here, so we don't need to worry about
           -- removing them.)
-          pure $ bmWithoutBots {bmLocals = Set.fromList nonAppLocals}
+          pure $ bmWithoutBots {bmLocals = Set.difference (bmLocals bmWithoutBots) appLocals}
 
     maybeRemoveGuests :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =
