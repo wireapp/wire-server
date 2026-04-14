@@ -17,6 +17,8 @@
 
 module Test.FeatureFlags.Apps where
 
+import API.Brig (NewApp (..), createApp)
+import qualified API.BrigInternal as BrigI
 import qualified API.GalleyInternal as Internal
 import SetupHelpers
 import Test.FeatureFlags.Util
@@ -40,3 +42,51 @@ testAppsInternal = do
 
 testPatchApps :: (HasCallStack) => App ()
 testPatchApps = checkPatch OwnDomain "apps" disabled
+
+-- | Disabling the apps feature for a team suspends all app users in that team.
+-- Re-enabling it restores them to active.  Regular team members are unaffected.
+testAppsSuspendOnDisable :: (HasCallStack) => App ()
+testAppsSuspendOnDisable = do
+  (owner, tid, [regularMember]) <- createTeam OwnDomain 2
+  Internal.setTeamFeatureLockStatus owner tid "apps" "unlocked"
+
+  -- Create an app user in the team
+  app <-
+    let newApp =
+          NewApp
+            { name = "poll-app",
+              assets = Nothing,
+              accentId = Nothing,
+              category = "other",
+              description = "also other"
+            }
+     in bindResponse (createApp owner tid newApp) $ \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "user"
+
+  -- Verify initial account statuses are active
+  BrigI.getAccountStatus app `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "active"
+  BrigI.getAccountStatus regularMember `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "active"
+
+  -- Disable the apps feature: app users should be suspended
+  setFeature InternalAPI owner tid "apps" disabled >>= assertSuccess
+
+  BrigI.getAccountStatus app `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "suspended"
+
+  -- Regular member must NOT be suspended
+  BrigI.getAccountStatus regularMember `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "active"
+
+  -- Re-enable the apps feature: app users should be active again
+  setFeature InternalAPI owner tid "apps" enabled >>= assertSuccess
+
+  BrigI.getAccountStatus app `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "status" `shouldMatch` "active"
