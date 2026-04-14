@@ -44,6 +44,7 @@ import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
 import Wire.BackgroundWorker.Options
+import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrationOpts
 
 type IsWorking = Bool
@@ -106,8 +107,8 @@ mkWorkerRunningGauge :: IO (Vector Text Gauge)
 mkWorkerRunningGauge =
   register (vector "worker" $ gauge $ Prometheus.Info "wire_background_worker_running_workers" "Set to 1 when a worker is running")
 
-mkEnv :: Opts -> IO Env
-mkEnv opts = do
+mkEnv :: Opts -> Galley.Opts -> IO Env
+mkEnv opts _galleyOpts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
   cassandraGalley <- defInitCassandra opts.cassandraGalley =<< setLoggerName "cassandra-galley" logger

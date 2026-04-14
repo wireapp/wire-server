@@ -26,7 +26,7 @@ main :: IO ()
 main = withOpenSSL $ do
   let desc = "Background Worker"
       backgroundWorkerConfigPath = "/etc/wire/background-worker/conf/background-worker.yaml"
-  -- galleyConfigPath = "/etc/wire/galley/conf/galley.yaml"
+      galleyConfigPath = "/etc/wire/galley/conf/galley.yaml"
   backgroundWorkerOptions <- getOptions desc Nothing backgroundWorkerConfigPath
-  -- galleyOptions <- getOptions desc Nothing galleyConfigPath
-  run backgroundWorkerOptions
+  galleyOptions <- getOptions desc Nothing galleyConfigPath
+  run backgroundWorkerOptions galleyOptions
