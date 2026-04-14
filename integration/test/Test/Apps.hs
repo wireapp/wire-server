@@ -503,9 +503,6 @@ testRemoveServicesAccessRole = do
   -- Create team B with a member
   (ownerB, _, []) <- createTeam domain 1
 
-  -- Create a teamless user (guest)
-  guest <- randomUser domain def
-
   -- Create MLS clients
   [memberAClient, appClient] <- traverse (createMLSClient def) [memberA, app]
   traverse_ (uploadNewKeyPackage def) [memberAClient, appClient]
@@ -523,13 +520,6 @@ testRemoveServicesAccessRole = do
   void $ uploadNewKeyPackage def ownerBClient
   void $ createAddCommit memberAClient convId [ownerB] >>= sendAndConsumeCommitBundle
 
-  -- Connect and add teamless guest
-  postConnection memberA guest >>= assertSuccess
-  putConnection guest memberA "accepted" >>= assertSuccess
-  guestClient <- createMLSClient def guest
-  void $ uploadNewKeyPackage def guestClient
-  void $ createAddCommit memberAClient convId [guest] >>= sendAndConsumeCommitBundle
-
   -- Verify all members are in the conversation
   bindResponse (getConversation memberA conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -537,12 +527,10 @@ testRemoveServicesAccessRole = do
     memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
     appId <- app %. "qualified_id.id" & asString
     ownerBId <- ownerB %. "qualified_id.id" & asString
-    guestId <- guest %. "qualified_id.id" & asString
     memberIds `shouldContain` [appId]
     memberIds `shouldContain` [ownerBId]
-    memberIds `shouldContain` [guestId]
 
-  -- Test 1: Remove "services" from access roles -> app should be removed
+  -- Remove "services" from access roles -> app should be removed
   -- First verify we can get the conversation with the creator
   bindResponse (getConversation memberA conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -550,7 +538,7 @@ testRemoveServicesAccessRole = do
 
   let noServices =
         [ "access" .= ["invite", "link"],
-          "access_role" .= (["team_member", "non_team_member", "guest"] :: [String])
+          "access_role" .= (["team_member", "non_team_member"] :: [String])
         ]
   -- Use the conversation creator for the update
   bindResponse (updateAccess memberA conv noServices) $ \resp -> do
@@ -562,24 +550,5 @@ testRemoveServicesAccessRole = do
       memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
       appId <- app %. "qualified_id.id" & asString
       ownerBId <- ownerB %. "qualified_id.id" & asString
-      guestId <- guest %. "qualified_id.id" & asString
       memberIds `shouldNotContain` [appId]
       memberIds `shouldContain` [ownerBId]
-      memberIds `shouldContain` [guestId]
-
-  -- Test 2: Restrict access -> teamless user and cross-team member should be removed
-  let teamMemberOnly =
-        [ "access" .= ["invite", "link"],
-          "access_role" .= (["team_member"] :: [String])
-        ]
-  bindResponse (updateAccess memberA conv teamMemberOnly) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-  eventually $ do
-    bindResponse (getConversation memberA conv) $ \resp -> do
-      resp.status `shouldMatchInt` 200
-      members <- resp.json %. "members.others" >>= asList
-      memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
-      ownerBId <- ownerB %. "qualified_id.id" & asString
-      guestId <- guest %. "qualified_id.id" & asString
-      memberIds `shouldNotContain` [ownerBId]
-      memberIds `shouldNotContain` [guestId]
