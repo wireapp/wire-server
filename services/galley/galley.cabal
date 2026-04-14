@@ -234,8 +234,6 @@ library
     , aeson                                 >=2.0.1.0
     , amazonka                              >=1.4.5
     , amqp
-    , asn1-encoding
-    , asn1-types
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.21.1
@@ -245,8 +243,6 @@ library
     , cassava                               >=0.5.2
     , comonad
     , containers                            >=0.5
-    , crypton
-    , crypton-x509
     , data-default
     , errors                                >=2.0
     , exceptions                            >=0.4
@@ -269,7 +265,6 @@ library
     , metrics-core
     , metrics-wai                           >=0.4
     , optparse-applicative
-    , pem
     , polysemy
     , polysemy-conc
     , polysemy-plugin

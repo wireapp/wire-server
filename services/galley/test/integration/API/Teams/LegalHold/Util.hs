@@ -48,7 +48,6 @@ import Data.Streaming.Network (bindRandomPortTCP)
 import Data.String.Conversions
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
-import Wire.Options.Galley
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Socket (Socket)
@@ -75,6 +74,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
 import Wire.API.User.Client
 import Wire.API.UserEvent qualified as Ev
+import Wire.Options.Galley
 
 --------------------------------------------------------------------
 -- setup helpers

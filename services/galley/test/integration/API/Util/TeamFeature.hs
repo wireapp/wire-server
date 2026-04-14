@@ -27,11 +27,11 @@ import Bilge
 import Control.Lens ((%~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
-import Wire.Options.Galley (featureFlags, settings)
 import Imports
 import TestSetup
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
+import Wire.Options.Galley (featureFlags, settings)
 
 withCustomSearchFeature :: FeatureDefaults SearchVisibilityAvailableConfig -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do

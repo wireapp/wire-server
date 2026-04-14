@@ -19,14 +19,37 @@ module Main where
 
 import Imports
 import OpenSSL (withOpenSSL)
+import Options.Applicative
 import Util.Options
 import Wire.BackgroundWorker
+
+configPathsParser :: FilePath -> FilePath -> Parser (FilePath, FilePath)
+configPathsParser backgroundWorkerConfigPath defaultGalleyConfigPath =
+  (,)
+    <$> strOption
+      ( long "config-file"
+          <> short 'c'
+          <> help "Config file to load"
+          <> showDefault
+          <> value backgroundWorkerConfigPath
+      )
+    <*> strOption
+      ( long "galley-config-file"
+          <> help "Galley config file to load"
+          <> showDefault
+          <> value defaultGalleyConfigPath
+      )
 
 main :: IO ()
 main = withOpenSSL $ do
   let desc = "Background Worker"
       backgroundWorkerConfigPath = "/etc/wire/background-worker/conf/background-worker.yaml"
-      galleyConfigPath = "/etc/wire/galley/conf/galley.yaml"
-  backgroundWorkerOptions <- getOptions desc Nothing backgroundWorkerConfigPath
-  galleyOptions <- getOptions desc Nothing galleyConfigPath
+      defaultGalleyConfigPath = "/etc/wire/galley/conf/galley.yaml"
+  (config, galleyConfig) <-
+    execParser
+      $ info
+        (configPathsParser backgroundWorkerConfigPath defaultGalleyConfigPath <**> helper)
+        (header desc <> fullDesc)
+  backgroundWorkerOptions <- decodeConfigFile config
+  galleyOptions <- decodeConfigFile galleyConfig
   run backgroundWorkerOptions galleyOptions
