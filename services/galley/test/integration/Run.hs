@@ -34,8 +34,8 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Federation
-import Galley.Options hiding (endpoint)
-import Galley.Options qualified as O
+import Wire.Options.Galley hiding (endpoint)
+import Wire.Options.Galley qualified as O
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)

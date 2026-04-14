@@ -44,7 +44,7 @@ import Galley.App qualified as App
 import Galley.Cassandra
 import Galley.Env
 import Galley.Monad
-import Galley.Options
+import Wire.Options.Galley
 import Galley.Queue qualified as Q
 import Imports
 import Network.HTTP.Media.RenderHeader qualified as HTTPMedia

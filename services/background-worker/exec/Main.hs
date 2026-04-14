@@ -25,6 +25,8 @@ import Wire.BackgroundWorker
 main :: IO ()
 main = withOpenSSL $ do
   let desc = "Background Worker"
-      defaultPath = "/etc/wire/background-worker/conf/background-worker.yaml"
-  options <- getOptions desc Nothing defaultPath
-  run options
+      backgroundWorkerConfigPath = "/etc/wire/background-worker/conf/background-worker.yaml"
+  -- galleyConfigPath = "/etc/wire/galley/conf/galley.yaml"
+  backgroundWorkerOptions <- getOptions desc Nothing backgroundWorkerConfigPath
+  -- galleyOptions <- getOptions desc Nothing galleyConfigPath
+  run backgroundWorkerOptions

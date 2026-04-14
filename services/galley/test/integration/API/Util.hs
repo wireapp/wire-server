@@ -85,7 +85,7 @@ import Data.UUID.V4
 import Federator.MockServer hiding (body)
 import Federator.MockServer qualified as Mock
 import GHC.TypeNats
-import Galley.Options qualified as Opts
+import Wire.Options.Galley qualified as Opts
 import Galley.Run qualified as Run
 import Galley.Types.Conversations.One2One
 import Imports

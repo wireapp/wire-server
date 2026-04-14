@@ -49,7 +49,7 @@ import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
-import Galley.Options
+import Wire.Options.Galley
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q

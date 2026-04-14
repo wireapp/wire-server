@@ -50,7 +50,7 @@ import Galley.API.MLS.Welcome
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
-import Galley.Options
+import Wire.Options.Galley
 import Galley.Types.Conversations.One2One
 import Galley.Types.Error
 import Imports

@@ -45,7 +45,7 @@ import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Options
+import Wire.Options.Galley
 import Galley.Types.Error (InternalError)
 import Imports
 import Polysemy

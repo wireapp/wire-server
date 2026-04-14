@@ -27,7 +27,7 @@ import Bilge
 import Control.Lens ((%~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
-import Galley.Options (featureFlags, settings)
+import Wire.Options.Galley (featureFlags, settings)
 import Imports
 import TestSetup
 import Wire.API.Team.Feature

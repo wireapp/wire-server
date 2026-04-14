@@ -67,7 +67,7 @@ import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer hiding (status)
 import Galley.API.Mapping
-import Galley.Options (federator, rabbitmq)
+import Wire.Options.Galley (federator, rabbitmq)
 import Imports hiding (id)
 import Imports qualified as I
 import Network.HTTP.Types.Status qualified as HTTP

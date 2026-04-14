@@ -24,7 +24,7 @@ import Control.Monad.Catch (MonadMask)
 import Control.Retry
 import Data.Domain (Domain)
 import Data.Qualified
-import Galley.Options (federationDomain, settings)
+import Wire.Options.Galley (federationDomain, settings)
 import Imports
 import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, testCase)

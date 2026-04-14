@@ -91,6 +91,8 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
+    , asn1-encoding
+    , asn1-types
     , async
     , attoparsec
     , base
@@ -108,6 +110,7 @@ common common-all
     , contravariant
     , cql
     , crypton
+    , crypton-pem
     , currency-codes
     , data-default
     , data-timeout
@@ -332,6 +335,8 @@ library
     Wire.MigrationLock
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.Options.Galley
+    Wire.Options.Keys
     Wire.PaginationState
     Wire.ParseException
     Wire.PasswordResetCodeStore

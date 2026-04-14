@@ -48,7 +48,7 @@ import Data.Streaming.Network (bindRandomPortTCP)
 import Data.String.Conversions
 import Data.Tagged
 import Data.Text.Encoding (encodeUtf8)
-import Galley.Options
+import Wire.Options.Galley
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Socket (Socket)

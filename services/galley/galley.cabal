@@ -139,9 +139,7 @@ library
     Galley.Env
     Galley.External.LegalHoldService
     Galley.External.LegalHoldService.Internal
-    Galley.Keys
     Galley.Monad
-    Galley.Options
     Galley.Queue
     Galley.Run
     Galley.Schema.Run

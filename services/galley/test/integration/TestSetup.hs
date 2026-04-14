@@ -55,7 +55,7 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Proxy
 import Data.Text qualified as Text
-import Galley.Options (Opts)
+import Wire.Options.Galley (Opts)
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Proto.TeamEvents (TeamEvent)

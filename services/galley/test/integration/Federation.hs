@@ -23,7 +23,7 @@ import Data.Id
 import Data.Qualified
 import Data.UUID qualified as UUID
 import Galley.App
-import Galley.Options
+import Wire.Options.Galley
 import Imports
 import Test.Tasty.HUnit
 import TestSetup

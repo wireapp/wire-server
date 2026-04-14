@@ -82,7 +82,7 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
 import Galley.Effects.Queue qualified as E
-import Galley.Options
+import Wire.Options.Galley
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
 import Polysemy

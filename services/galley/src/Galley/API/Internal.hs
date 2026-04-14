@@ -52,7 +52,6 @@ import Galley.API.Teams.Features.Get
 import Galley.API.Update qualified as Update
 import Galley.App
 import Galley.Monad
-import Galley.Options hiding (brig)
 import Galley.Queue qualified as Q
 import Galley.Types.Error
 import Imports hiding (head)
@@ -101,6 +100,7 @@ import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.ListItems
 import Wire.NotificationSubsystem
+import Wire.Options.Galley hiding (brig)
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
@@ -349,7 +349,7 @@ getConfiguredFeatureFlags ::
   Sem r ConfiguredFeatureFlags
 getConfiguredFeatureFlags = do
   env <- input @Env
-  let flags = (env ^. Galley.App.options . Galley.Options.settings . Galley.Options.featureFlags)
+  let flags = (env ^. Galley.App.options . Wire.Options.Galley.settings . Wire.Options.Galley.featureFlags)
   pure $ ConfiguredFeatureFlags $ A.toJSON flags
 
 rmUser ::

@@ -11,6 +11,8 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, asn1-encoding
+, asn1-types
 , async
 , attoparsec
 , base
@@ -29,6 +31,7 @@
 , contravariant
 , cql
 , crypton
+, crypton-pem
 , crypton-x509
 , crypton-x509-store
 , currency-codes
@@ -147,6 +150,8 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    asn1-encoding
+    asn1-types
     async
     attoparsec
     base
@@ -165,6 +170,7 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-pem
     crypton-x509
     currency-codes
     data-default
@@ -270,6 +276,8 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    asn1-encoding
+    asn1-types
     async
     attoparsec
     base
@@ -287,6 +295,7 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-pem
     crypton-x509
     crypton-x509-store
     currency-codes

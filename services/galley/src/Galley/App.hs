@@ -56,10 +56,10 @@ import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabl
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
-import Galley.Keys
+import Wire.Options.Keys
 import Galley.Monad (runApp)
-import Galley.Options hiding (brig, endpoint, federator)
-import Galley.Options qualified as O
+import Wire.Options.Galley hiding (brig, endpoint, federator)
+import Wire.Options.Galley qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.Types.Error

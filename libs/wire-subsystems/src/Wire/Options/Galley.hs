@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Options
+module Wire.Options.Galley
   ( Settings (..),
     httpPoolSize,
     maxTeamSize,
@@ -76,7 +76,6 @@ import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
-import Galley.Keys
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
@@ -87,6 +86,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Routes.Version
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
+import Wire.Options.Keys
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitConfig)
 

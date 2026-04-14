@@ -28,7 +28,7 @@ import Data.Id
 import Data.Set qualified as Set
 import Data.Text (pack)
 import Data.UUID qualified as UUID
-import Galley.Options (JournalOpts, endpoint, queueName)
+import Wire.Options.Galley (JournalOpts, endpoint, queueName)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL

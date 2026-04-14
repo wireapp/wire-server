@@ -97,7 +97,7 @@ import Galley.API.Message
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Options
+import Wire.Options.Galley
 import Galley.Types.Error
 import Imports hiding (forkIO)
 import Polysemy
