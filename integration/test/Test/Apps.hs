@@ -488,3 +488,53 @@ testFindApp sameOrOtherDomain = do
       foundUserType SearchContactsCfg {types = Just ["app"], ..} []
       foundUserType SearchContactsCfg {types = Just ["app", "regular"], ..} []
       foundUserType SearchContactsCfg {types = Just ["regular"], ..} []
+
+testRemoveServicesAccessRole :: (HasCallStack) => App ()
+testRemoveServicesAccessRole = do
+  domain <- make OwnDomain
+
+  -- Create team A with owner, member, and app
+  (ownerA, tidA, [memberA]) <- createTeam domain 2
+  let newApp = def {name = "test-app"} :: NewApp
+  app <- bindResponse (createApp ownerA tidA newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create MLS clients
+  [memberAClient, appClient] <- traverse (createMLSClient def) [memberA, app]
+  traverse_ (uploadNewKeyPackage def) [memberAClient, appClient]
+
+  -- Create an MLS team conversation and add app
+  conv <- postConversation memberA defMLS {team = Just tidA, protocol = "mls"} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def memberAClient convId
+  void $ createAddCommit memberAClient convId [app] >>= sendAndConsumeCommitBundle
+
+  -- Verify all members are in the conversation
+  bindResponse (getConversation memberA conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+    appId <- app %. "qualified_id.id" & asString
+    memberIds `shouldContain` [appId]
+
+  -- Remove "services" from access roles -> app should be removed
+  -- First verify we can get the conversation with the creator
+  bindResponse (getConversation memberA conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
+
+  let noServices =
+        [ "access" .= ["invite", "link"],
+          "access_role" .= (["team_member", "non_team_member"] :: [String])
+        ]
+  -- Use the conversation creator for the update
+  bindResponse (updateAccess memberA conv noServices) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  eventually $ do
+    bindResponse (getConversation memberA conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members.others" >>= asList
+      memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+      appId <- app %. "qualified_id.id" & asString
+      memberIds `shouldNotContain` [appId]
