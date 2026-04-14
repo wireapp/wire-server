@@ -43,7 +43,7 @@ anyElementOf :: NonEmptyList a -> Gen a
 anyElementOf = elements . toList . getNonEmpty
 
 newtype FakeLastPrekey = FakeLastPrekey {unFakeLastPrekey :: LastPrekey}
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Ord)
 
 instance Arbitrary FakeLastPrekey where
   arbitrary = FakeLastPrekey <$> QC.elements someLastPrekeys

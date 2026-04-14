@@ -29,7 +29,6 @@ module Brig.API.Public
 where
 
 import Brig.API.Auth
-import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
@@ -54,6 +53,7 @@ import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
+import Brig.User.Client qualified as API
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
@@ -702,35 +702,17 @@ getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- lift $ liftSem $ ClientSubsystem.claimPrekey (ProtectedUser zusr) user domain client
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH ::
-  forall r m.
-  ( Member ClientStore r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r
-  ) =>
-  UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH :: (Member ClientSubsystem r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimPrekeyBundle (ProtectedUser zusr) domain uid
 
-getPrekeyBundleH ::
-  forall r m.
-  ( Member ClientStore r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r,
-    Member GalleyAPIAccess r
-  ) =>
-  UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH :: (Member ClientSubsystem r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimPrekeyBundle (ProtectedUser zusr) domain uid
 
 getMultiUserPrekeyBundleUnqualifiedH ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientStore r,
-    Member ClientSubsystem r,
-    Member GalleyAPIAccess r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
@@ -738,7 +720,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
-  API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients
 
 getMultiUserPrekeyBundleHInternal ::
   (MonadReader Env m, MonadError HttpError m) =>
@@ -754,36 +736,24 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
 
 getMultiUserPrekeyBundleHV3 ::
-  forall r m.
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientStore r,
-    Member ClientSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r
-  ) =>
+  forall r.
+  (Member ClientSubsystem r) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
-  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients
 
 getMultiUserPrekeyBundleH ::
-  forall r m.
-  ( Member (Concurrency 'Unsafe) r,
-    Member ClientStore r,
-    Member ClientSubsystem r,
-    Member GalleyAPIAccess r,
-    Member TinyLog r,
-    HasBrigFederationAccess m r
-  ) =>
+  forall r.
+  (Member ClientSubsystem r) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMapV4
 getMultiUserPrekeyBundleH zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
-  API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients
 
 addClient ::
   (Member ClientSubsystem r) =>

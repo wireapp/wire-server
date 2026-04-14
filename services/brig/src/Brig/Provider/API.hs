@@ -27,7 +27,6 @@ module Brig.Provider.API
   )
 where
 
-import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
@@ -149,7 +148,6 @@ import Wire.VerificationCodeSubsystem
 
 botAPI ::
   ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
@@ -951,9 +949,7 @@ botUpdatePrekeys bot upd = do
       lift . liftSem $ ClientStore.updatePrekeys (botUserId bot) c.clientId pks
 
 botClaimUsersPrekeys ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyAPIAccess r,
-    Member ClientStore r,
+  ( Member GalleyAPIAccess r,
     Member ClientSubsystem r
   ) =>
   BotId ->
@@ -964,7 +960,7 @@ botClaimUsersPrekeys _ body = do
   maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
-  Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientErrorToHttpError
+  lift $ liftSem $ ClientSubsystem.claimLocalMultiPrekeyBundles UnprotectedBot body
 
 botListUserProfiles :: (Member GalleyAPIAccess r, Member UserSubsystem r) => BotId -> (CommaSeparatedList UserId) -> Handler r [Public.BotUserView]
 botListUserProfiles _ uids = do

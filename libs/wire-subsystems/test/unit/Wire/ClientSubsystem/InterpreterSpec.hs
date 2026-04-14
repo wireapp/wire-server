@@ -4,6 +4,7 @@ import Data.Aeson qualified as A
 import Data.Default
 import Data.Id
 import Data.Json.Util (toUTCTimeMillis)
+import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Imports
@@ -365,6 +366,114 @@ spec = describe "ClientSubsystem.Interpreter" do
      in expectRight testResult.result $ \case
           Nothing -> counterexample "expected a client prekey, but got nothing" False
           Just pk -> pk.prekeyClient === clientId
+
+  prop "claim local prekey" $ \user (FakeLastPrekey lpk) ->
+    let uid = user.id
+        domain = testDomain
+        luid = toLocalUnsafe domain uid
+        new = newClient PermanentClientType lpk
+        clientId = clientIdFromPrekey (unpackLastPrekey lpk)
+        testResult =
+          runClientSubsystemTest [user] do
+            void $ addClient luid Nothing new
+            claimLocalPrekey (ProtectedUser uid) uid clientId
+     in expectRight testResult.result $ \case
+          Nothing -> counterexample "expected a client prekey, but got nothing" False
+          Just pk -> pk.prekeyClient === clientId
+
+  prop "claim prekey bundle" $ \user (FakeLastPrekey lpk1) (FakeLastPrekey lpk2) ->
+    (lpk1 /= lpk2)
+      ==> let uid = user.id
+              domain = testDomain
+              luid = toLocalUnsafe domain uid
+              new1 = newClient PermanentClientType lpk1
+              new2 = newClient PermanentClientType lpk2
+              clientId1 = clientIdFromPrekey (unpackLastPrekey lpk1)
+              clientId2 = clientIdFromPrekey (unpackLastPrekey lpk2)
+              expectedClientIds = Set.fromList [clientId1, clientId2]
+              testResult =
+                runClientSubsystemTest [user] do
+                  void $ addClient luid Nothing new1
+                  void $ addClient luid Nothing new2
+                  claimPrekeyBundle (ProtectedUser uid) domain uid
+           in expectRight testResult.result $ \bundle ->
+                (bundle.prekeyUser === uid)
+                  .&&. (Set.fromList (fmap (.prekeyClient) bundle.prekeyClients) === expectedClientIds)
+
+  prop "claim local prekey bundle" $ \user (FakeLastPrekey lpk1) (FakeLastPrekey lpk2) ->
+    (lpk1 /= lpk2)
+      ==> let uid = user.id
+              domain = testDomain
+              luid = toLocalUnsafe domain uid
+              new1 = newClient PermanentClientType lpk1
+              new2 = newClient PermanentClientType lpk2
+              clientId1 = clientIdFromPrekey (unpackLastPrekey lpk1)
+              clientId2 = clientIdFromPrekey (unpackLastPrekey lpk2)
+              expectedClientIds = Set.fromList [clientId1, clientId2]
+              testResult =
+                runClientSubsystemTest [user] do
+                  void $ addClient luid Nothing new1
+                  void $ addClient luid Nothing new2
+                  claimLocalPrekeyBundle (ProtectedUser uid) uid
+           in expectRight testResult.result $ \bundle ->
+                (bundle.prekeyUser === uid)
+                  .&&. (Set.fromList (fmap (.prekeyClient) bundle.prekeyClients) === expectedClientIds)
+
+  prop "claim multi prekey bundles v3" $ \protectee testData ->
+    (unique testData)
+      ==> let domain = testDomain
+              testResult =
+                runClientSubsystemTest (fmap fst testData) do
+                  for_ testData $ \(user, (FakeLastPrekey lpk)) -> do
+                    let uid = user.id
+                        luid = toLocalUnsafe domain uid
+                        new = newClient PermanentClientType lpk
+                    addClient luid Nothing new
+                  let qUserClients = QualifiedUserClients $ Map.fromList [(domain, Map.fromList (fmap toUserClients testData))]
+                  claimMultiPrekeyBundlesV3 (ProtectedUser protectee) qUserClients
+           in expectRight testResult.result $ \m ->
+                let qClientMap = m.getQualifiedUserClientPrekeyMap.qualifiedUserClientMap
+                    userMap = fromMaybe mempty $ Map.lookup domain qClientMap
+                 in Map.size qClientMap === 1 .&&. Map.size userMap === length testData
+
+  prop "claim multi prekey bundles" $ \protectee testData ->
+    (unique testData)
+      ==> let domain = testDomain
+              testResult =
+                runClientSubsystemTest (fmap fst testData) do
+                  for_ testData $ \(user, (FakeLastPrekey lpk)) -> do
+                    let uid = user.id
+                        luid = toLocalUnsafe domain uid
+                        new = newClient PermanentClientType lpk
+                    addClient luid Nothing new
+                  let qUserClients = QualifiedUserClients $ Map.fromList [(domain, Map.fromList (fmap toUserClients testData))]
+                  claimMultiPrekeyBundles (ProtectedUser protectee) qUserClients
+           in expectRight testResult.result $ \m ->
+                let qClientMap = m.qualifiedUserClientPrekeys.qualifiedUserClientMap
+                    userMap = fromMaybe mempty $ Map.lookup domain qClientMap
+                 in Map.size qClientMap === 1 .&&. Map.size userMap === length testData
+
+  prop "claim local multi prekey bundles" $ \protectee testData ->
+    (unique testData)
+      ==> let domain = testDomain
+              testResult =
+                runClientSubsystemTest (fmap fst testData) do
+                  for_ testData $ \(user, (FakeLastPrekey lpk)) -> do
+                    let uid = user.id
+                        luid = toLocalUnsafe domain uid
+                        new = newClient PermanentClientType lpk
+                    addClient luid Nothing new
+                  let userClients = UserClients $ Map.fromList (fmap toUserClients testData)
+                  claimLocalMultiPrekeyBundles (ProtectedUser protectee) userClients
+           in expectRight testResult.result $ \m ->
+                let clientMap = m.getUserClientPrekeyMap.userClientMap
+                 in Map.size clientMap === length testData
+  where
+    toUserClients (user, FakeLastPrekey lpk) = (user.id, Set.fromList [clientIdFromPrekey (unpackLastPrekey lpk)])
+
+    unique testData =
+      length testData == length (Set.fromList (fmap ((.id) . fst) testData))
+        && length testData == length (Set.fromList ((fmap snd) testData))
 
 newtype FakeUpdateClient = FakeUpdateClient {unFakeUpdateClient :: UpdateClient}
   deriving (Show, Eq, Generic)

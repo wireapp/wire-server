@@ -141,7 +141,7 @@ data UncheckedPrekeyBundle = UncheckedPrekeyBundle
     -- | Prekey bundle
     prekeyKey :: Text
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform UncheckedPrekeyBundle)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UncheckedPrekeyBundle
 
@@ -247,7 +247,7 @@ decodePrekeyBundlePrekeyPayload = do
 
 newtype LastPrekey = LastPrekey
   {unpackLastPrekey :: UncheckedPrekeyBundle}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema LastPrekey
 
 instance ToSchema LastPrekey where
