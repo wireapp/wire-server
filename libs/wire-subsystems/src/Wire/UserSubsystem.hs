@@ -132,7 +132,7 @@ runUserProfileFilter upf prof = case upf of
   RegularPlusAllApps -> case prof.profileType of
     UserTypeRegular -> True
     UserTypeApp -> True
-    UserTypeBot -> False
+    UserTypeBot -> True
 
 data UserSubsystem m a where
   -- | First arg is for authorization only.
