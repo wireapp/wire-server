@@ -932,9 +932,6 @@ background-worker:
       adminPort: 15672
       enableTls: false
       insecureSkipVerifyTls: false
-      # tlsCaSecretRef:
-      #   name: <secret-name>
-      #   key: <ca-attribute>
     # Cassandra clusters used by background-worker
     cassandra:
       host: aws-cassandra
