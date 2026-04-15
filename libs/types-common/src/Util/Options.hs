@@ -118,7 +118,7 @@ getOptions desc mp defaultPath = do
         (header desc <> fullDesc)
   exists <- doesFileExist path
   case (exists, mOpts) of
-    (True, _) -> decodeConfigFile path
+    (True, _) -> decodeConfigFileUnsafe path
     (False, Just opts) -> pure opts
     (False, Nothing) -> fail $ "Config file at " <> path <> " does not exist."
   where
@@ -138,16 +138,18 @@ decodeConfigFile :: (FromJSON a) => FilePath -> IO a
 decodeConfigFile path = do
   exists <- doesFileExist path
   if exists
-    then
-      decodeFileEither path >>= \case
-        Left e ->
-          fail $
-            show e
-              <> " while attempting to decode "
-              <> path
-        Right o -> pure o
-    else
-      fail $ "Config file at " <> path <> " does not exist."
+    then decodeConfigFileUnsafe path
+    else fail $ "Config file at " <> path <> " does not exist."
+
+decodeConfigFileUnsafe :: (FromJSON a) => FilePath -> IO a
+decodeConfigFileUnsafe path = do
+  decodeFileEither path >>= \case
+    Left e ->
+      fail $
+        show e
+          <> " while attempting to decode "
+          <> path
+    Right o -> pure o
 
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
