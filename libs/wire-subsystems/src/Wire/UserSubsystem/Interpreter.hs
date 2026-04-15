@@ -380,8 +380,12 @@ getLocalAppProfilesOnlyImpl ::
   Local TeamId ->
   Sem r [UserProfile]
 getLocalAppProfilesOnlyImpl ltid = do
-  appIds <- map (.id) <$> AppStore.getApps (tUnqualified ltid)
-  getUserProfilesLocalPart Nothing (ltid $> appIds)
+  apps <- AppStore.getApps (tUnqualified ltid)
+  profiles <- getUserProfilesLocalPart Nothing (ltid $> map (.id) apps)
+  pure (zipWith injectPreloadedApp profiles apps)
+  where
+    injectPreloadedApp profile app =
+      profile {profileApp = Just (storedAppToAppInfo app)}
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,
