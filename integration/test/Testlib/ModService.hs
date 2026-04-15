@@ -507,7 +507,7 @@ withProcess resource overrides service = do
   getConfig <- lift $ readAndUpdateConfig overrides resource service
   getGalleyConf <- lift $ readAndUpdateConfig overrides resource Galley
   let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
-  let initProcess = case (service, cwd) of
+      initProcess = case (service, cwd) of
         (Nginz, Nothing) -> startNginzK8s domain sm
         (Nginz, Just _) -> startNginzLocalIO
         (BackgroundWorker, _) -> do
@@ -516,21 +516,20 @@ withProcess resource overrides service = do
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
           galleyConfTemp <- writeTempFile "/tmp" (configName Galley <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode galleyConf)
           let params = ["-c", tempFile, "--galley-config-file", galleyConfTemp]
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe params) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let colorize = fromMaybe id (lookup execName processColors)
-          void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
-          void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
-          liftIO $ writeIORef phRef (Just ph)
-          pure $ ServiceInstance ph [tempFile, galleyConfTemp]
+          createServiceInstance params [tempFile, galleyConfTemp]
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let colorize = fromMaybe id (lookup execName processColors)
-          void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
-          void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
-          liftIO $ writeIORef phRef (Just ph)
-          pure $ ServiceInstance ph [tempFile]
+          let params = ["-c", tempFile]
+          createServiceInstance params [tempFile]
+        where
+          createServiceInstance params paths = do
+            (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe params) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
+            let colorize = fromMaybe id (lookup execName processColors)
+            void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
+            void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
+            liftIO $ writeIORef phRef (Just ph)
+            pure $ ServiceInstance ph paths
 
   void $
     hoistCodensity $
