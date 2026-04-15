@@ -180,7 +180,7 @@ recipient u r = Recipient u r RecipientClientsAll
 -- ApsData
 
 newtype ApsSound = ApsSound {fromSound :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
+  deriving (Eq, Show, ToJSON, Ord, FromJSON, Arbitrary)
 
 instance ToSchema ApsSound where
   schema =
@@ -195,7 +195,7 @@ instance ToSchema ApsSound where
       o = pure . A.String . fromSound
 
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
+  deriving (Eq, Show, Ord, ToJSON, FromJSON, Arbitrary)
 
 instance ToSchema ApsLocKey where
   schema =
@@ -215,7 +215,7 @@ data ApsData = ApsData
     _apsSound :: !(Maybe ApsSound),
     _apsBadge :: !Bool
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via GenericUniform ApsData
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ApsData)
 
@@ -280,7 +280,7 @@ data Push = Push
     _pushPayload :: !(NonEmpty Object),
     _pushIsCellsEvent :: !Bool
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
   deriving (Arbitrary) via (GenericUniform Push)
 
