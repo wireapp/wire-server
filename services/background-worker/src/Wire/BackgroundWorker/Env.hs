@@ -108,10 +108,10 @@ mkWorkerRunningGauge =
   register (vector "worker" $ gauge $ Prometheus.Info "wire_background_worker_running_workers" "Set to 1 when a worker is running")
 
 mkEnv :: Opts -> Galley.Opts -> IO Env
-mkEnv opts _galleyOpts = do
+mkEnv opts galleyOpts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
   cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
-  cassandraGalley <- defInitCassandra opts.cassandraGalley =<< setLoggerName "cassandra-galley" logger
+  cassandraGalley <- defInitCassandra galleyOpts._cassandra =<< setLoggerName "cassandra-galley" logger
   cassandraBrig <- defInitCassandra opts.cassandraBrig =<< setLoggerName "cassandra-brig" logger
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
@@ -132,14 +132,14 @@ mkEnv opts _galleyOpts = do
   backendNotificationMetrics <- mkBackendNotificationMetrics
   let backendNotificationsConfig = opts.backendNotificationPusher
       backgroundJobsConfig = opts.backgroundJobs
-      federationDomain = opts.federationDomain
+      federationDomain = galleyOpts._settings._federationDomain
       postgresMigration = opts.postgresMigration
       brigEndpoint = opts.brig
       galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
   workerRunningGauge <- mkWorkerRunningGauge
-  hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  hasqlPool <- initPostgresPool galleyOpts._postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts

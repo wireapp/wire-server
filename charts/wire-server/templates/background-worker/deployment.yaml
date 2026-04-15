@@ -45,6 +45,9 @@ spec:
         - name: "background-worker-secrets"
           secret:
             secretName: "background-worker"
+        - name: "galley-secrets"
+          secret:
+            secretName: "galley"
         {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandra) "true" }}
         - name: "background-worker-cassandra-gundeck"
           secret:
@@ -55,19 +58,6 @@ spec:
           secret:
             secretName: {{ (include "brigTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
         {{- end }}
-        {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraGalley) "true" }}
-        - name: "background-worker-cassandra-galley"
-          secret:
-            secretName: {{ (include "galleyTlsSecretRef" $backgroundWorker.config | fromYaml).name }}
-        {{- end }}
-        {{- if $backgroundWorker.config.rabbitmq.tlsCaSecretRef }}
-        - name: "rabbitmq-ca"
-          secret:
-            secretName: {{ $backgroundWorker.config.rabbitmq.tlsCaSecretRef.name }}
-        {{- end }}
-        - name: "galley-secrets"
-          secret:
-            secretName: "galley"
         {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
         - name: "galley-cassandra"
           secret:
@@ -105,14 +95,6 @@ spec:
           {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraBrig) "true" }}
           - name: "background-worker-cassandra-brig"
             mountPath: "/etc/wire/background-worker/cassandra-brig"
-          {{- end }}
-          {{- if eq (include "useCassandraTLS" $backgroundWorker.config.cassandraGalley) "true" }}
-          - name: "background-worker-cassandra-galley"
-            mountPath: "/etc/wire/background-worker/cassandra-galley"
-          {{- end }}
-          {{- if $backgroundWorker.config.rabbitmq.tlsCaSecretRef }}
-          - name: "rabbitmq-ca"
-            mountPath: "/etc/wire/background-worker/rabbitmq-ca/"
           {{- end }}
           {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
           - name: "galley-cassandra"

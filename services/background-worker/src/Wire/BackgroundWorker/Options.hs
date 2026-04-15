@@ -18,11 +18,9 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
-import Data.Domain (Domain)
 import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
-import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
@@ -44,20 +42,15 @@ data Opts = Opts
     defederationTimeout :: Maybe Int,
     backendNotificationPusher :: BackendNotificationsConfig,
     cassandra :: CassandraOpts,
-    cassandraGalley :: CassandraOpts,
     cassandraBrig :: CassandraOpts,
     -- | Postgresql settings, the key values must be in libpq format.
     -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    postgresql :: !(Map Text Text),
-    postgresqlPassword :: !(Maybe FilePathSecrets),
-    postgresqlPool :: !PoolConfig,
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: !Bool,
     migrateConversationsOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
-    backgroundJobs :: BackgroundJobsConfig,
-    federationDomain :: Domain
+    backgroundJobs :: BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically Opts
