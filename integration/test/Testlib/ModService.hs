@@ -439,23 +439,27 @@ processColors =
 
 data ServiceInstance = ServiceInstance
   { handle :: ProcessHandle,
-    config :: FilePath
+    configs :: [FilePath]
   }
 
 timeout :: Int -> IO a -> IO (Maybe a)
 timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
 
 cleanupService :: (HasCallStack) => ServiceInstance -> IO ()
-cleanupService inst = do
-  mPid <- getPid inst.handle
-  for_ mPid (signalProcess keyboardSignal)
-  timeout 50000 (waitForProcess inst.handle) >>= \case
-    Just _ -> pure ()
-    Nothing -> do
-      for_ mPid (signalProcess killProcess)
-      void $ waitForProcess inst.handle
-  whenM (doesFileExist inst.config) $ removeFile inst.config
-  whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
+cleanupService inst = stopProcesses `E.finally` cleanupPaths
+  where
+    stopProcesses = do
+      mPid <- getPid inst.handle
+      for_ mPid (signalProcess keyboardSignal)
+      timeout 50000 (waitForProcess inst.handle) >>= \case
+        Just _ -> pure ()
+        Nothing -> do
+          for_ mPid (signalProcess killProcess)
+          void $ waitForProcess inst.handle
+    cleanupPaths =
+      for_ inst.configs $ \path -> do
+        whenM (doesFileExist path) $ removeFile path
+        whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
 -- | Wait for a service to come up.
 waitUntilServiceIsUp :: (HasCallStack) => Maybe ProcessDebug -> String -> Service -> App ()
@@ -517,7 +521,7 @@ withProcess resource overrides service = do
           void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
           void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
           liftIO $ writeIORef phRef (Just ph)
-          pure $ ServiceInstance ph tempFile
+          pure $ ServiceInstance ph [tempFile, galleyConfTemp]
         _ -> do
           config <- getConfig
           tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
@@ -526,7 +530,7 @@ withProcess resource overrides service = do
           void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
           void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
           liftIO $ writeIORef phRef (Just ph)
-          pure $ ServiceInstance ph tempFile
+          pure $ ServiceInstance ph [tempFile]
 
   void $
     hoistCodensity $
@@ -613,7 +617,7 @@ startNginzK8s domain sm = do
   Text.writeFile nginxConfFile $ replaceUpstreamsInConfig conf' sm
 
   ph <- startNginz domain nginxConfFile "/"
-  pure $ ServiceInstance ph tmpDir
+  pure $ ServiceInstance ph [tmpDir]
 
 startNginzLocal :: BackendResource -> App ServiceInstance
 startNginzLocal resource = do
@@ -678,7 +682,7 @@ startNginzLocal resource = do
   ph <- liftIO $ startNginz domain nginxConfFile tmpDir
 
   -- return handle and nginx tmp dir path
-  pure $ ServiceInstance ph tmpDir
+  pure $ ServiceInstance ph [tmpDir]
 
 makeUpstreamsCfgs :: ServiceMap -> String
 makeUpstreamsCfgs sm =
