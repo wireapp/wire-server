@@ -160,9 +160,6 @@ data GalleyAPIAccess m a where
     GalleyAPIAccess m FeatureFlags
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
   InternalGetConversation :: ConvId -> GalleyAPIAccess m (Maybe Conversation)
-  GetTeamContacts ::
-    UserId ->
-    GalleyAPIAccess m (Maybe Team.TeamMemberList)
   GetConversationConfig ::
     GalleyAPIAccess m ConversationSubsystemConfig
   GuardLegalHold :: LegalholdProtectee -> UserClients -> GalleyAPIAccess m ()
