@@ -94,6 +94,8 @@ import Wire.API.UserEvent
 import Wire.BackendNotificationQueueAccess
 import Wire.Events
 import Wire.FederationAPIAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
@@ -114,7 +116,8 @@ sendUserEvent ::
     Member (ConnectionStore InternalPaging) r,
     HasBrigFederationAccess m r,
     Member (Error FederationError) r,
-    Member BackendNotificationQueueAccess r
+    Member BackendNotificationQueueAccess r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -133,7 +136,8 @@ runEvents ::
     Member (ConnectionStore InternalPaging) r,
     HasBrigFederationAccess m r,
     Member (Error FederationError) r,
-    Member BackendNotificationQueueAccess r
+    Member BackendNotificationQueueAccess r,
+    Member GalleyAPIAccess r
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
@@ -229,7 +233,8 @@ dispatchNotifications ::
     Member (ConnectionStore InternalPaging) r,
     HasBrigFederationAccess m r,
     Member (Error FederationError) r,
-    Member BackendNotificationQueueAccess r
+    Member BackendNotificationQueueAccess r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -403,7 +408,7 @@ notifyContacts ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member GalleyAPIAccess r
   ) =>
   Event ->
   -- | Origin user.
@@ -421,7 +426,7 @@ notifyContacts event orig route conn = do
     contacts = embed $ lookupContactList orig
 
     teamContacts :: Sem r [UserId]
-    teamContacts = screenMemberList <$> getTeamContacts orig
+    teamContacts = screenMemberList <$> GalleyAPIAccess.getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
     --
     screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
@@ -619,26 +624,3 @@ rmClient u c = do
   unregisterPushClient u c
   where
     expected = [status200, status204, status404]
-
--------------------------------------------------------------------------------
--- Team Management
-
--- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
---
--- Calls 'Galley.API.getBindingTeamMembersH'.
-getTeamContacts ::
-  ( Member TinyLog r,
-    Member (Embed HttpClientIO) r
-  ) =>
-  UserId ->
-  Sem r (Maybe Team.TeamMemberList)
-getTeamContacts u = do
-  Log.debug $ remote "galley" . msg (val "Get team contacts")
-  rs <- embed $ galleyRequest GET req
-  embed $ case Bilge.statusCode rs of
-    200 -> Just <$> decodeBody "galley" rs
-    _ -> pure Nothing
-  where
-    req =
-      paths ["i", "users", toByteString' u, "team", "members"]
-        . expect [status200, status404]
