@@ -139,7 +139,7 @@ mkEnv opts galleyOpts = do
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
   workerRunningGauge <- mkWorkerRunningGauge
-  hasqlPool <- initPostgresPool galleyOpts._postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
+  hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts

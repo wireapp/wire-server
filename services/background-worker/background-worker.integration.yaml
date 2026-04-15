@@ -30,6 +30,12 @@ cassandraBrig:
     port: 9042
   keyspace: brig_test
 
+postgresqlPool:
+  size: 5
+  acquisitionTimeout: 10s
+  agingTimeout: 1d
+  idlenessTimeout: 10m
+
 rabbitmq:
   host: 127.0.0.1
   port: 5671

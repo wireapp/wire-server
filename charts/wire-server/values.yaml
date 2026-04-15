@@ -932,11 +932,18 @@ background-worker:
       adminPort: 15672
       enableTls: false
       insecureSkipVerifyTls: false
+
     # Cassandra clusters used by background-worker
     cassandra:
       host: aws-cassandra
     cassandraBrig:
       host: aws-cassandra
+
+    postgresqlPool:
+      size: 5
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
 
     # Setting this to `true` will start conversation migration to postgresql.
     #

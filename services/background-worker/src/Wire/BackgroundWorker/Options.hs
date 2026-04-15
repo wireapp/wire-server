@@ -21,6 +21,7 @@ import Data.Aeson
 import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
+import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended
@@ -43,8 +44,7 @@ data Opts = Opts
     backendNotificationPusher :: BackendNotificationsConfig,
     cassandra :: CassandraOpts,
     cassandraBrig :: CassandraOpts,
-    -- | Postgresql settings, the key values must be in libpq format.
-    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    postgresqlPool :: !PoolConfig,
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: !Bool,
     migrateConversationsOptions :: !MigrationOptions,

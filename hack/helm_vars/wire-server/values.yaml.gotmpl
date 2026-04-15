@@ -632,6 +632,11 @@ background-worker:
       pushBackoffMinWait: 1000 # 1ms
       pushBackoffMaxWait: 500000 # 0.5s
       remotesRefreshInterval: 1000000 # 1s
+    postgresql:
+      host: "postgresql"
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
     backgroundJobs:
       concurrency: 8
       jobTimeout: 60s

@@ -36,6 +36,8 @@ data:
       host: {{ .spar.host }}
       port: {{ .spar.port }}
 
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+
     cassandra:
       endpoint:
         host: {{ .cassandra.host }}
