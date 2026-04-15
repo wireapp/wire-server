@@ -71,7 +71,7 @@ data Push = Push
     apsData :: Maybe ApsData,
     isCellsEvent :: Bool
   }
-  deriving stock (Eq, Generic, Show)
+  deriving stock (Eq, Generic, Show, Ord)
   deriving (Arbitrary) via GenericUniform Push
 
 data LocalConversationUpdate = LocalConversationUpdate
