@@ -29,6 +29,7 @@ spec:
         checksum/galley-configmap: {{ include (print .Template.BasePath "/galley/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/background-worker/secret.yaml") . | sha256sum }}
         checksum/cassandra-secret: {{ include (print .Template.BasePath "/background-worker/cassandra-secret.yaml") . | sha256sum }}
+        checksum/galley-secret: {{ include (print .Template.BasePath "/galley/secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
       serviceAccount: null
@@ -64,6 +65,19 @@ spec:
           secret:
             secretName: {{ $backgroundWorker.config.rabbitmq.tlsCaSecretRef.name }}
         {{- end }}
+        - name: "galley-secrets"
+          secret:
+            secretName: "galley"
+        {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
+        - name: "galley-cassandra"
+          secret:
+            secretName: {{ (include "galley.tlsSecretRef" .Values.galley.config | fromYaml).name }}
+        {{- end }}
+        {{- if .Values.galley.config.rabbitmq.tlsCaSecretRef }}
+        - name: "galley-rabbitmq-ca"
+          secret:
+            secretName: {{ .Values.galley.config.rabbitmq.tlsCaSecretRef.name }}
+        {{- end }}
         {{- if .Values.additionalVolumes }}
         {{ toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}
@@ -78,6 +92,8 @@ spec:
           volumeMounts:
           - name: "background-worker-secrets"
             mountPath: "/etc/wire/background-worker/secrets"
+          - name: "galley-secrets"
+            mountPath: "/etc/wire/galley/secrets"
           - name: "background-worker-config"
             mountPath: "/etc/wire/background-worker/conf"
           - name: "galley-config"
@@ -97,6 +113,14 @@ spec:
           {{- if $backgroundWorker.config.rabbitmq.tlsCaSecretRef }}
           - name: "rabbitmq-ca"
             mountPath: "/etc/wire/background-worker/rabbitmq-ca/"
+          {{- end }}
+          {{- if eq (include "useCassandraTLS" .Values.galley.config.cassandra) "true" }}
+          - name: "galley-cassandra"
+            mountPath: "/etc/wire/galley/cassandra"
+          {{- end }}
+          {{- if .Values.galley.config.rabbitmq.tlsCaSecretRef }}
+          - name: "galley-rabbitmq-ca"
+            mountPath: "/etc/wire/galley/rabbitmq-ca/"
           {{- end }}
           {{- if .Values.additionalVolumeMounts }}
           {{ toYaml .Values.additionalVolumeMounts | nindent 10 }}
