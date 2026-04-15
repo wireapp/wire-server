@@ -108,6 +108,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetEJPDConvInfo uid -> getEJPDConvInfo uid
           GetTeamAdmins tid -> getTeamAdmins tid
           InternalGetConversation id' -> internalGetConversation id'
+          GetTeamContacts uid -> getTeamContacts uid
           GetConversationConfig -> getConversationConfig
           GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
 
@@ -772,6 +773,27 @@ internalGetConversation convId = do
       method GET
         . paths ["i", "conversations", toByteString' convId]
         . expect [status200, status404]
+
+getTeamContacts ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  Sem r (Maybe Member.TeamMemberList)
+getTeamContacts uid = do
+  debug $
+    remote "galley"
+      . field "user" (toByteString uid)
+      . msg (val "Getting team contacts")
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    200 -> Just <$> decodeBodyOrThrow "galley" rs
+    _ -> pure Nothing
+  where
+    req =
+      method GET
 
 getConversationConfig ::
   ( Member Rpc r,

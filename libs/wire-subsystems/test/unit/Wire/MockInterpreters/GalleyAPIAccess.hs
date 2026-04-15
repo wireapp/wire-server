@@ -81,6 +81,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
   InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
+  GetTeamContacts _ -> pure Nothing
   SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
   GetConversationConfig ->
     pure
