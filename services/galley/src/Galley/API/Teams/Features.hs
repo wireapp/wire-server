@@ -509,6 +509,11 @@ instance SetFeatureConfig AppsConfig where
           FeatureStatusEnabled -> Active
           FeatureStatusDisabled -> Suspended
     appIds <- getAppIdsForTeam tid
+    -- NB: this will work as long as the only reason for suspending
+    -- apps is "payment plan expired", but should we ever introduce a
+    -- suspend button for team admins to let them temporarily disable
+    -- apps without deinstalling them, then we need to keep track of
+    -- the suspend reason and filter for the right one here.
     for_ appIds $ \uid -> setAccountStatus uid newStatus
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
