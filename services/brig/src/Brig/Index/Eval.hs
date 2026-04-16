@@ -25,7 +25,7 @@ import Brig.App (initHttpManagerWithTLSConfig, mkIndexEnv)
 import Brig.Index.Options as IxOpts
 import Brig.Options as Opt
 import Brig.User.Search.Index
-import Cassandra (Client, ClientState, runClient)
+import Cassandra (ClientState)
 import Cassandra.Options
 import Cassandra.Util (defInitCassandra)
 import Control.Exception (throwIO)
@@ -40,28 +40,15 @@ import Data.Id
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
 import Hasql.Pool
-import Hasql.Pool.Extended
 import Imports
 import Network.HTTP.Client (Manager)
 import Polysemy
-import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
-import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options
-import Wire.API.Federation.Client (FederatorClient)
-import Wire.API.Federation.Error
-import Wire.AppStore
-import Wire.AppStore.Postgres
-import Wire.BlockListStore (BlockListStore)
-import Wire.BlockListStore.Cassandra
 import Wire.ClientSubsystem.Error (ClientError)
-import Wire.FederationAPIAccess (FederationAPIAccess)
-import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
-import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IndexedUserStore
@@ -71,8 +58,6 @@ import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch
 import Wire.ParseException
 import Wire.Rpc
-import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
-import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics.IO
@@ -81,40 +66,30 @@ import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
 import Wire.UserStore (UserStore)
 import Wire.UserStore.Cassandra
-import Wire.UserSubsystem.Error
 
 type BrigIndexEffectStack =
   [ UserKeyStore,
-    BlockListStore,
-    Error UserSubsystemError,
-    FederationAPIAccess FederatorClient,
-    Error FederationError,
     UserStore,
-    AppStore,
     IndexedUserStore,
     Error IndexedUserStoreError,
     IndexedUserMigrationStore,
     Error MigrationException,
-    FederationConfigStore,
     GalleyAPIAccess,
     Error ParseException,
     Rpc,
     Metrics,
     TinyLog,
-    Concurrency 'Unsafe,
-    Input Pool,
     Error UsageError,
     Error ClientError,
     Embed IO,
     Final IO
   ]
 
-mkSemDeps :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Logger -> IO (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
-mkSemDeps esConn cas pg logger = do
+mkSemDeps :: ESConnectionSettings -> CassandraSettings -> Logger -> IO (Manager, ClientState, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
+mkSemDeps esConn cas logger = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
   mEsCreds :: Maybe Credentials <- for esConn.esCredentials initCredentials
   casClient <- defInitCassandra (toCassandraOpts cas) logger
-  pgPool <- initPostgresPool pg.pool pg.settings pg.passwordFile
   let bhEnv =
         BHEnv
           { bhServer = toESServer esConn.esServer,
@@ -132,34 +107,24 @@ mkSemDeps esConn cas pg logger = do
           }
       reqId = (RequestId "brig-index")
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
-  pure (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName)
+  pure (mgr, casClient, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName)
 
-runSem :: (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName) -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
-runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) galleyEndpoint logger action = do
+runSem :: (Manager, ClientState, BHEnv, IndexedUserStoreConfig, RequestId, IndexName) -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
+runSem (mgr, casClient, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) galleyEndpoint logger action = do
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @ClientError
     . throwErrorToIOFinal @UsageError
-    . runInputConst pgPool
-    . unsafelyPerformConcurrency
     . loggerToTinyLogReqId reqId logger
     . ignoreMetrics
     . runRpcWithHttp mgr reqId
     . throwErrorToIOFinal @ParseException
     . interpretGalleyAPIAccessToRpc mempty galleyEndpoint
-    . runEmbedded (runClient casClient)
-    . interpretFederationDomainConfig casClient Nothing mempty
-    . raiseUnder @(Embed Client)
     . throwErrorToIOFinal @MigrationException
     . interpretIndexedUserMigrationStoreES bhEnv migrationIndexName
     . throwErrorToIOFinal @IndexedUserStoreError
     . interpretIndexedUserStoreES indexedUserStoreConfig
-    . interpretAppStoreToPostgres
     . interpretUserStoreCassandra casClient
-    . throwErrorToIOFinal @FederationError
-    . noFederationAPIAccess
-    . throwErrorToIOFinal @UserSubsystemError
-    . interpretBlockListStoreToCassandra casClient
     . interpretUserKeyStoreCassandra casClient
     $ action
 
@@ -177,17 +142,17 @@ runCommand l = \case
   Reset es galley -> do
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas pg galley -> do
-    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+  Reindex es cas _pg galley -> do
+    semDeps <- mkSemDeps (es ^. esConnection) cas l
     IndexedUserStoreBulk.syncAllUsers (runSem semDeps galley l)
-  ReindexSameOrNewer es cas pg galley -> do
-    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+  ReindexSameOrNewer es cas _pg galley -> do
+    semDeps <- mkSemDeps (es ^. esConnection) cas l
     IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps galley l)
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
-  Migrate es cas pg galley -> do
-    semDeps <- mkSemDeps (es ^. esConnection) cas pg l
+  Migrate es cas _pg galley -> do
+    semDeps <- mkSemDeps (es ^. esConnection) cas l
     IndexedUserStoreBulk.migrateData (runSem semDeps galley l)
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
