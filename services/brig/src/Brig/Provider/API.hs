@@ -713,7 +713,6 @@ updateServiceWhitelist ::
 updateServiceWhitelist uid con tid upd = do
   -- Preconditions
   guardSecondFactorDisabled (Just uid)
-  guardMLSNotDefault
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
@@ -725,6 +724,7 @@ updateServiceWhitelist uid con tid upd = do
     (False, False) -> pure UpdateServiceWhitelistRespUnchanged
     (True, True) -> pure UpdateServiceWhitelistRespUnchanged
     (False, True) -> do
+      guardMLSNotDefault
       wrapClientE $ DB.insertServiceWhitelist tid pid sid
       pure UpdateServiceWhitelistRespChanged
     (True, False) -> do
