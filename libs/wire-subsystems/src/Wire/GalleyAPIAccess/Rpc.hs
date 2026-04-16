@@ -794,6 +794,8 @@ getTeamContacts uid = do
   where
     req =
       method GET
+        . paths ["i", "users", toByteString' uid, "team", "members"]
+        . expect [status200, status404]
 
 getConversationConfig ::
   ( Member Rpc r,
