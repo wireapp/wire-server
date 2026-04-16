@@ -447,19 +447,6 @@ data BackendArtifacts = BackendArtifacts
     nginzWorkingDir :: FilePath
   }
 
-timeout :: Int -> IO a -> IO (Maybe a)
-timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
-
-cleanupService :: (HasCallStack) => ProcessHandle -> IO ()
-cleanupService ph = do
-  mPid <- getPid ph
-  for_ mPid (signalProcess keyboardSignal)
-  timeout 50000 (waitForProcess ph) >>= \case
-    Just _ -> pure ()
-    Nothing -> do
-      for_ mPid (signalProcess killProcess)
-      void $ waitForProcess ph
-
 -- | Wait for a service to come up.
 waitUntilServiceIsUp :: (HasCallStack) => Maybe ProcessDebug -> String -> Service -> App ()
 waitUntilServiceIsUp mDebug domain srv =
@@ -486,12 +473,14 @@ readAndUpdateConfig overrides resource service =
       >>= updateServiceMapInConfig resource service
       >>= lookupConfigOverride overrides service
 
+data ProcessInstance = ProcessInstance {handle :: ProcessHandle, pid :: Pid}
+
 withProcess :: (HasCallStack) => BackendArtifacts -> BackendResource -> Service -> Codensity App ()
 withProcess artifacts resource service = do
-  let domain = berDomain resource
   env <- lift ask
-  let execName = configName service
-  let (cwd, exe) = case env.servicesCwdBase of
+  let domain = berDomain resource
+      execName = configName service
+      (cwd, exe) = case env.servicesCwdBase of
         Nothing -> (Nothing, execName)
         Just dir ->
           (Just (dir </> execName), "../../dist" </> execName)
@@ -520,16 +509,27 @@ withProcess artifacts resource service = do
             void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
             void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
             writeIORef phRef (Just ph)
-            pure ph
+            mkProcessInstance service ph
 
   void $
     hoistCodensity $
       Codensity $
-        E.bracket initProcess cleanupService
+        E.bracket initProcess kill
 
   lift $
     addFailureContext ("Waiting for service: " <> prefix) $ do
       waitUntilServiceIsUp (Just $ ProcessDebug {phRef = phRef, stdOut = stdOut, stdErr = stdErr}) domain service
+  where
+    kill :: (HasCallStack) => ProcessInstance -> IO ()
+    kill p = do
+      E.handle (\(_ :: E.SomeException) -> forceKill) $ do
+        signalProcess keyboardSignal p.pid
+        timeout 50000 (waitForProcess p.handle) >>= \case
+          Just _ -> pure ()
+          Nothing -> forceKill
+      where
+        forceKill = signalProcess killProcess p.pid
+        timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
 
 initBackendArtifacts :: BackendResource -> ServiceOverrides -> App (IO BackendArtifacts)
 initBackendArtifacts resource overrides = appToIO do
@@ -778,7 +778,14 @@ replaceUpstreamsInConfig nginxConf sm =
               }
           |]
 
-startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
+mkProcessInstance :: Service -> ProcessHandle -> IO ProcessInstance
+mkProcessInstance service ph = do
+  mPid <- getPid ph
+  case mPid of
+    Just pid -> pure $ ProcessInstance ph pid
+    Nothing -> E.throw (AssertionFailure callStack Nothing Nothing (configName service <> " started without a pid"))
+
+startNginz :: String -> FilePath -> FilePath -> IO ProcessInstance
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     createProcess
@@ -793,5 +800,4 @@ startNginz domain conf workingDir = do
 
   void $ forkIO $ logToConsole colorize prefix stdoutHdl
   void $ forkIO $ logToConsole colorize prefix stderrHdl
-
-  pure ph
+  mkProcessInstance Nginz ph
