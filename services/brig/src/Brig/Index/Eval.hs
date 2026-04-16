@@ -47,30 +47,67 @@ import Polysemy
 import Polysemy.Embed (runEmbedded)
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
 import System.Logger qualified as Log
 import System.Logger.Class (Logger)
 import Util.Options
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.AppStore
 import Wire.AppStore.Postgres
+import Wire.BlockListStore (BlockListStore)
 import Wire.BlockListStore.Cassandra
 import Wire.ClientSubsystem.Error (ClientError)
+import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
+import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.FederationConfigStore.Cassandra (interpretFederationDomainConfig)
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc
 import Wire.IndexedUserStore
-import Wire.IndexedUserStore.Bulk.ElasticSearch (BulkEffectStack)
 import Wire.IndexedUserStore.Bulk.ElasticSearch qualified as IndexedUserStoreBulk
 import Wire.IndexedUserStore.ElasticSearch
+import Wire.IndexedUserStore.MigrationStore (IndexedUserMigrationStore)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch
 import Wire.ParseException
 import Wire.Rpc
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog
+import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Metrics.IO
+import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserKeyStore.Cassandra
 import Wire.UserSearch.Migration (MigrationException)
+import Wire.UserStore (UserStore)
 import Wire.UserStore.Cassandra
 import Wire.UserSubsystem.Error
+
+type BrigIndexEffectStack =
+  [ UserKeyStore,
+    BlockListStore,
+    Error UserSubsystemError,
+    FederationAPIAccess FederatorClient,
+    Error FederationError,
+    UserStore,
+    AppStore,
+    IndexedUserStore,
+    Error IndexedUserStoreError,
+    IndexedUserMigrationStore,
+    Error MigrationException,
+    FederationConfigStore,
+    GalleyAPIAccess,
+    Error ParseException,
+    Rpc,
+    Metrics,
+    TinyLog,
+    Concurrency 'Unsafe,
+    Input Pool,
+    Error UsageError,
+    Error ClientError,
+    Embed IO,
+    Final IO
+  ]
 
 mkSemDeps :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Logger -> IO (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
 mkSemDeps esConn cas pg logger = do
@@ -97,7 +134,7 @@ mkSemDeps esConn cas pg logger = do
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
   pure (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName)
 
-runSem :: (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName) -> Endpoint -> Logger -> Sem BulkEffectStack a -> IO a
+runSem :: (Manager, ClientState, Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName) -> Endpoint -> Logger -> Sem BrigIndexEffectStack a -> IO a
 runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationIndexName) galleyEndpoint logger action = do
   runFinal
     . embedToFinal

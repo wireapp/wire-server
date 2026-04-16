@@ -30,80 +30,39 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis))
 import Data.Map qualified as Map
 import Database.Bloodhound qualified as ES
-import Hasql.Pool (Pool, UsageError)
 import Imports
 import Polysemy
 import Polysemy.Error hiding (try)
-import Polysemy.Input (Input)
 import Polysemy.TinyLog
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import UnliftIO (pooledForConcurrentlyN)
-import Wire.API.Federation.Client (FederatorClient)
-import Wire.API.Federation.Error (FederationError)
 import Wire.API.Team.Feature
 import Wire.API.Team.Member.Info
 import Wire.API.Team.Role
-import Wire.AppStore (AppStore)
-import Wire.BlockListStore (BlockListStore)
-import Wire.ClientSubsystem.Error (ClientError)
-import Wire.FederationAPIAccess (FederationAPIAccess)
-import Wire.FederationConfigStore (FederationConfigStore)
 import Wire.GalleyAPIAccess
-import Wire.IndexedUserStore (IndexedUserStore, IndexedUserStoreError)
+import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.MigrationStore
 import Wire.IndexedUserStore.MigrationStore qualified as MigrationStore
-import Wire.ParseException (ParseException)
-import Wire.Rpc (Rpc)
-import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
-import Wire.Sem.Metrics (Metrics)
-import Wire.UserKeyStore (UserKeyStore)
 import Wire.UserSearch.Migration
 import Wire.UserSearch.Types
 import Wire.UserStore
 import Wire.UserStore.IndexUser
-import Wire.UserSubsystem.Error (UserSubsystemError)
 
-type BulkEffectStack =
-  [ UserKeyStore,
-    BlockListStore,
-    Error UserSubsystemError,
-    FederationAPIAccess FederatorClient,
-    Error FederationError,
-    UserStore,
-    AppStore,
-    IndexedUserStore,
-    Error IndexedUserStoreError,
-    IndexedUserMigrationStore,
-    Error MigrationException,
-    FederationConfigStore,
-    GalleyAPIAccess,
-    Error ParseException,
-    Rpc,
-    Metrics,
-    TinyLog,
-    Concurrency 'Unsafe,
-    Input Pool,
-    Error UsageError,
-    Error ClientError,
-    Embed IO,
-    Final IO
-  ]
-
-type BulkEffectStackInterpreter = forall a. Sem BulkEffectStack a -> IO a
+type IOInterpreter r = forall a. Sem r a -> IO a
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
 expectedMigrationVersion = MigrationVersion 6
 
-syncAllUsers :: BulkEffectStackInterpreter -> IO ()
+syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> IO ()
 syncAllUsers interpreter = syncAllUsersWithVersion interpreter ES.ExternalGT
 
-forceSyncAllUsers :: BulkEffectStackInterpreter -> IO ()
+forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> IO ()
 forceSyncAllUsers interpreter = syncAllUsersWithVersion interpreter ES.ExternalGTE
 
-syncAllUsersWithVersion :: BulkEffectStackInterpreter -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
+syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
 syncAllUsersWithVersion interpreter mkVersion =
   runConduit $
     zipSources (CL.sourceList [1 ..]) (paginateWithStateC (interpreter . getIndexUsersPaginated pageSize))
@@ -190,7 +149,8 @@ syncAllUsersWithVersion interpreter mkVersion =
         <$> permissionsToRole tmi.permissions
 
 migrateData ::
-  BulkEffectStackInterpreter ->
+  (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r) =>
+  IOInterpreter r ->
   IO ()
 migrateData interpreter = interpreter $ do
   unlessM IndexedUserStore.doesIndexExist $
