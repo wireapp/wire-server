@@ -74,6 +74,7 @@ import Wire.API.UserEvent
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem
+import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.ClientSubsystem (ClientSubsystem)
