@@ -1227,11 +1227,11 @@ data NewApp = NewApp
 instance Default NewApp where
   def =
     NewApp
-      { name = "",
+      { name = "default name",
         assets = Nothing,
         accentId = Nothing,
         category = "other",
-        description = ""
+        description = "default description"
       }
 
 createApp :: (MakesValue creator) => creator -> String -> NewApp -> App Response
