@@ -185,7 +185,6 @@ import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import Spar.Run
-import Spar.Sem.BrigAccess (getAccount)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
@@ -217,6 +216,7 @@ import qualified Wire.API.User as User
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Scim
+import Wire.BrigAPIAccess (getAccount)
 import qualified Wire.IdPConfigStore as IdPConfigStore
 
 -- | Call 'mkEnv' with options from config files.

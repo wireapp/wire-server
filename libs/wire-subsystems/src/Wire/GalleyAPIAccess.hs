@@ -172,5 +172,13 @@ data GalleyAPIAccess m a where
   GuardLegalHold :: LegalholdProtectee -> UserClients -> GalleyAPIAccess m ()
   GetUserLHStatus :: Maybe TeamId -> UserId -> GalleyAPIAccess m UserLegalHoldStatus
   GetUsersLHStatus :: [UserId] -> GalleyAPIAccess m [(UserId, UserLegalHoldStatus)]
+  UpdateTeamMember ::
+    UserId ->
+    TeamId ->
+    Role ->
+    GalleyAPIAccess m ()
+  IsEmailValidationEnabledTeam ::
+    TeamId ->
+    GalleyAPIAccess m Bool
 
 makeSem ''GalleyAPIAccess

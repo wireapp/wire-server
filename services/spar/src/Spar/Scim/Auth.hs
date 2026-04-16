@@ -52,9 +52,6 @@ import Spar.App (throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
 import Spar.Options
-import Spar.Sem.BrigAccess (BrigAccess)
-import qualified Spar.Sem.BrigAccess as BrigAccess
-import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
@@ -64,6 +61,8 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
 import Wire.API.User.Scim as Api
+import Wire.BrigAPIAccess
+import Wire.GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.Sem.Now (Now)
@@ -91,8 +90,8 @@ instance (Member ScimTokenStore r) => Scim.Class.Auth.AuthDB SparTag (Sem r) whe
 apiScimToken ::
   ( Member Random r,
     Member (Input Opts) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member Now r,
     Member IdPConfigStore r,
@@ -108,10 +107,10 @@ apiScimToken =
     :<|> Named @"auth-tokens-list" listScimTokens
 
 updateScimTokenName ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member (Error E.SparError) r,
-    Member GalleyAccess r
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   ScimTokenId ->
@@ -128,8 +127,8 @@ createScimTokenV7 ::
   forall r.
   ( Member Random r,
     Member (Input Opts) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member Now r,
@@ -167,8 +166,8 @@ createScimToken ::
   forall r.
   ( Member Random r,
     Member (Input Opts) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member Now r,
@@ -187,8 +186,8 @@ createScimToken zusr Api.CreateScimToken {..} = do
 guardScimTokenCreation ::
   forall r.
   ( Member (Input Opts) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member (Error E.SparError) r
   ) =>
@@ -199,7 +198,7 @@ guardScimTokenCreation ::
   Sem r TeamId
 guardScimTokenCreation zusr password verificationCode = do
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  BrigAccess.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
+  Intra.Brig.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
@@ -240,8 +239,8 @@ createScimTokenUnchecked teamid mName desc mIdPId = do
 --
 -- Delete a token belonging to user's team.
 deleteScimToken ::
-  ( Member GalleyAccess r,
-    Member BrigAccess r,
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member (Error E.SparError) r
   ) =>
@@ -255,8 +254,8 @@ deleteScimToken zusr tokenid = do
   pure NoContent
 
 listScimTokensV7 ::
-  ( Member GalleyAccess r,
-    Member BrigAccess r,
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member (Error E.SparError) r
   ) =>
@@ -276,8 +275,8 @@ listScimTokensV7 zusr = toV7 <$> listScimTokens zusr
 -- List all tokens belonging to user's team. Tokens themselves are not available, only
 -- metadata about them.
 listScimTokens ::
-  ( Member GalleyAccess r,
-    Member BrigAccess r,
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member (Error E.SparError) r
   ) =>

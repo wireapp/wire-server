@@ -109,6 +109,7 @@ common common-all
     , constraints
     , containers
     , contravariant
+    , cookie
     , cql
     , crypton
     , crypton-pem

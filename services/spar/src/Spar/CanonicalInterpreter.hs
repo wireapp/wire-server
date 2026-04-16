@@ -41,12 +41,8 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
-import Spar.Sem.BrigAccess (BrigAccess)
-import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import Spar.Sem.DefaultSsoCode.Cassandra (defaultSsoCodeToCassandra)
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import Spar.Sem.GalleyAccess.Http (galleyAccessToHttp)
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.Reporter (Reporter)
@@ -69,11 +65,11 @@ import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
-import Wire.BrigAPIAccess (BrigAPIAccess)
-import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
+import Wire.BrigAPIAccess
+import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError, clientErrorToHttpError)
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
+import Wire.GalleyAPIAccess
+import Wire.GalleyAPIAccess.Rpc
 import Wire.IdPConfigStore (IdPConfigStore)
 import Wire.IdPConfigStore.Cassandra (idPToCassandra)
 import Wire.IdPSubsystem (IdPSubsystem)
@@ -114,8 +110,6 @@ type LowerLevelCanonicalEffs =
      IdPRawMetadataStore,
      SAMLUserStore,
      Embed Cas.Client,
-     BrigAccess,
-     GalleyAccess,
      Error IdpDbError,
      Error TTLError,
      Error SparError,
@@ -144,8 +138,6 @@ runSparToIO ctx =
     . runError @SparError
     . ttlErrorToSparError
     . idpDbErrorToSparError
-    . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
-    . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
     . interpretClientToIO (sparCtxCas ctx)
     . samlUserStoreToCassandra
     . idpRawMetadataStoreToCassandra

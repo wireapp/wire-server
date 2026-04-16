@@ -30,9 +30,7 @@ library
     Spar.Data
     Spar.Data.Instances
     Spar.Error
-    Spar.Intra.Brig
     Spar.Intra.BrigApp
-    Spar.Intra.Galley
     Spar.Options
     Spar.Orphans
     Spar.Run
@@ -71,14 +69,10 @@ library
     Spar.Sem.AssIDStore
     Spar.Sem.AssIDStore.Cassandra
     Spar.Sem.AssIDStore.Mem
-    Spar.Sem.BrigAccess
-    Spar.Sem.BrigAccess.Http
     Spar.Sem.DefaultSsoCode
     Spar.Sem.DefaultSsoCode.Cassandra
     Spar.Sem.DefaultSsoCode.Mem
     Spar.Sem.DefaultSsoCode.Spec
-    Spar.Sem.GalleyAccess
-    Spar.Sem.GalleyAccess.Http
     Spar.Sem.IdPRawMetadataStore
     Spar.Sem.IdPRawMetadataStore.Cassandra
     Spar.Sem.IdPRawMetadataStore.Mem
@@ -630,6 +624,7 @@ test-suite spec
     , bytestring-conversion
     , containers
     , cookie
+    , data-default
     , filepath
     , hscim
     , hspec

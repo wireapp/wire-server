@@ -96,6 +96,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
   GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
   GuardLegalHold {} -> pure ()
+  UpdateTeamMember {} -> error "UpdateTeamMember not implemented in miniGalleyAPIAccess"
+  IsEmailValidationEnabledTeam {} -> error "IsEmailValidationEnabledTeam not implemented in miniGalleyAPIAccess"
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList
