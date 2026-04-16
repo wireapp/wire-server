@@ -1,3 +1,51 @@
+# [2026-04-16] (Chart Release 5.30.0)
+
+## Release notes
+
+
+* Operators upgrading from the previous wire-server chart release, where the service charts were consolidated into the umbrella chart, must now set `tags.proxy` explicitly again.
+
+  If your currently installed values no longer contain a `proxy` tag because of that consolidation, add one before upgrading to this release and set it to the intended state:
+  - `tags.proxy: true` to deploy the `proxy` chart
+  - `tags.proxy: false` to keep the `proxy` chart disabled (#5161)
+
+* The Restund helm chart and code stops being supported and shipped. If you have not already, please migrate to coturn which continues to be supported. (#5162)
+
+
+## Bug fixes and other updates
+
+
+* Remove the Server response header value for entire API. (#5179)
+
+* Integration tests for user events when user type is app.  Replace redundant app-created event with team.member-join. (#5139)
+
+* Apps from outside own team do not appear in contact search. (#5173)
+
+* Fix: apps cannot form connections accross teams.  Integration test for cross-team conversations working with apps as expected. (#5171)
+
+* Remove apps from conversations when apps are disabled in conversation. (#5176)
+
+
+## Documentation
+
+
+* Make schema-profunctor schema names derived and avoid name clashes between scopes. (#5151)
+
+
+## Internal changes
+
+
+* Propagate error from brig on stern API call `GET i/domain-registration/:domain` (#5179)
+
+* The status code for rate limit responses from nginz and cannon is now configurable and set to 420 per default (#5154)
+
+* Moved code from galley to ClientSubsystem (#5154, #5147, #5157, #5156, #5165, #5168)
+
+* The defaults in k8ssandra-test-cluster should now work for both a fresh cassandra 4.1 pod as well as an upgrade of an existing previous k8ssandra-test-cluster deployment. We assume k8ssandra-operator helm chart version 1.20.2. (#5091)
+
+* Use sbomnix to generate SBOMs for Nix-built Docker images and devShells. Adjust Helm chart values for inlined wire-server chart. (#5167)
+
+
 # [2026-03-24] (Chart Release 5.29.0)
 
 ## Release notes
