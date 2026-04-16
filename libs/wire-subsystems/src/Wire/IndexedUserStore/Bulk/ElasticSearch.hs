@@ -97,12 +97,24 @@ syncAllUsersWithVersion interpreter mkVersion =
         x <- try $ interpreter $ teamSearchVisibilityInbound t
         pure (t, x)
 
+      let getRoles :: TeamId -> [UserId] -> IO (Map UserId (Either SomeException (WithWritetime Role)))
+          getRoles tid uids = do
+            eithMembers <- try $ interpreter $ (.members) <$> selectTeamMemberInfos tid uids
+            case eithMembers of
+              Left e -> do
+                let lenUids = length uids
+                if lenUids <= 1
+                  then pure . Map.fromList $ map (\uid -> (uid, Left e)) uids
+                  else do
+                    let (uids1, uids2) = splitAt (lenUids `div` 2) uids
+                    roles1 <- getRoles tid uids1
+                    roles2 <- getRoles tid uids2
+                    pure $ Map.union roles1 roles2
+              Right tms -> pure . Map.fromList $ mapMaybe (fmap rightSecond . mkRoleWithWriteTime) tms
+
       roles :: Map UserId (Either SomeException (WithWritetime Role)) <-
-        fmap (Map.fromList . concat) . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) -> do
-          eithMembers <- try $ interpreter $ (.members) <$> selectTeamMemberInfos t (fmap (.userId) us)
-          case eithMembers of
-            Left e -> pure $ map (\iu -> (iu.userId, Left e)) us
-            Right tms -> pure $ mapMaybe (fmap rightSecond . mkRoleWithWriteTime) tms
+        fmap Map.unions . pooledForConcurrentlyN 16 (Map.toList teams) $ \(t, us) ->
+          getRoles t (fmap (.userId) us)
 
       let vis :: IndexUser -> Either SomeException SearchVisibilityInbound
           vis indexUser =
