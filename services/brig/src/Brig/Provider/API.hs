@@ -716,6 +716,7 @@ updateServiceWhitelist uid con tid upd = do
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
+  when newWhitelisted guardMLSNotDefault
   lift . liftSem $ ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
@@ -724,7 +725,6 @@ updateServiceWhitelist uid con tid upd = do
     (False, False) -> pure UpdateServiceWhitelistRespUnchanged
     (True, True) -> pure UpdateServiceWhitelistRespUnchanged
     (False, True) -> do
-      guardMLSNotDefault
       wrapClientE $ DB.insertServiceWhitelist tid pid sid
       pure UpdateServiceWhitelistRespChanged
     (True, False) -> do
