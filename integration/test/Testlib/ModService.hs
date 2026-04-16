@@ -319,8 +319,8 @@ startBackend ::
   Codensity App ()
 startBackend resource overrides = do
   lift $ waitForPortsToBeFree resource
-  initArtifacts <- lift $ initBackendArtifacts resource overrides
-  artifacts <- hoistCodensity $ Codensity $ E.bracket initArtifacts cleanupBackendArtifacts
+  initRuntimeFiles <- lift $ initBackendRuntimeFiles resource overrides
+  artifacts <- hoistCodensity $ Codensity $ E.bracket initRuntimeFiles cleanupBackendRuntimeFiles
   traverseConcurrentlyCodensity (withProcess artifacts resource) allServices
   lift $ ensureBackendReachable resource.berDomain
 
@@ -441,7 +441,7 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
-data BackendArtifacts = BackendArtifacts
+data BackendRuntimeFiles = BackendRuntimeFiles
   { serviceConfigs :: Map Service FilePath,
     tempPaths :: [FilePath],
     nginzWorkingDir :: FilePath
@@ -475,7 +475,7 @@ readAndUpdateConfig overrides resource service =
 
 data ProcessInstance = ProcessInstance {handle :: ProcessHandle, pid :: Pid}
 
-withProcess :: (HasCallStack) => BackendArtifacts -> BackendResource -> Service -> Codensity App ()
+withProcess :: (HasCallStack) => BackendRuntimeFiles -> BackendResource -> Service -> Codensity App ()
 withProcess artifacts resource service = do
   env <- lift ask
   let domain = berDomain resource
@@ -531,34 +531,32 @@ withProcess artifacts resource service = do
         forceKill = signalProcess killProcess p.pid
         timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
 
-initBackendArtifacts :: BackendResource -> ServiceOverrides -> App (IO BackendArtifacts)
-initBackendArtifacts resource overrides = appToIO do
-  serviceConfigs <- prepareConfigFiles
-  (nginzConf, nginzTempDir, nginzWorkingDir) <- prepareNginzArtifacts resource
+initBackendRuntimeFiles :: BackendResource -> ServiceOverrides -> App (IO BackendRuntimeFiles)
+initBackendRuntimeFiles resource overrides = appToIO do
+  serviceConfigs <- prepareConfigFiles $ filter (/= Nginz) allServices
+  (nginzConf, nginzTempDir, nginzWorkingDir) <- prepareNginzRuntimeFiles resource
   pure $
-    BackendArtifacts
+    BackendRuntimeFiles
       { serviceConfigs = Map.insert Nginz nginzConf serviceConfigs,
         tempPaths = nginzTempDir : Map.elems serviceConfigs,
         nginzWorkingDir = nginzWorkingDir
       }
   where
-    prepareConfigFiles = Map.fromList <$> traverse getAndWrite nonNginzServices
-      where
-        nonNginzServices = filter (/= Nginz) allServices
+    prepareConfigFiles services = Map.fromList <$> traverse getAndWrite services
 
-        getAndWrite :: Service -> App (Service, FilePath)
-        getAndWrite service = do
-          getConfig <- readAndUpdateConfig overrides resource service
-          config <- liftIO getConfig
-          tempFile <- liftIO $ writeTempFile "/tmp" (configName service <> "-" <> resource.berDomain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          pure (service, tempFile)
+    getAndWrite :: Service -> App (Service, FilePath)
+    getAndWrite service = do
+      getConfig <- readAndUpdateConfig overrides resource service
+      config <- liftIO getConfig
+      tempFile <- liftIO $ writeTempFile "/tmp" (configName service <> "-" <> resource.berDomain <> "-" <> ".yaml") (cs $ Yaml.encode config)
+      pure (service, tempFile)
 
-cleanupBackendArtifacts :: BackendArtifacts -> IO ()
-cleanupBackendArtifacts artifacts = for_ artifacts.tempPaths \path -> do
+cleanupBackendRuntimeFiles :: BackendRuntimeFiles -> IO ()
+cleanupBackendRuntimeFiles artifacts = for_ artifacts.tempPaths \path -> do
   whenM (doesFileExist path) $ removeFile path
   whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
 
-lookupServiceConfig :: Service -> BackendArtifacts -> FilePath
+lookupServiceConfig :: Service -> BackendRuntimeFiles -> FilePath
 lookupServiceConfig service artifacts =
   fromMaybe (error $ "missing backend artifact for service " <> show service) $
     Map.lookup service artifacts.serviceConfigs
@@ -620,17 +618,17 @@ retryRequestUntilDebug mProcessDebug reqAction err = do
         addFailureContext msg $
           assertFailure msg
 
-prepareNginzArtifacts :: BackendResource -> App (FilePath, FilePath, FilePath)
-prepareNginzArtifacts resource = do
+prepareNginzRuntimeFiles :: BackendResource -> App (FilePath, FilePath, FilePath)
+prepareNginzRuntimeFiles resource = do
   let domain = berDomain resource
   sm <- getServiceMap domain
   mBaseDir <- asks (.servicesCwdBase)
   case mBaseDir of
-    Nothing -> liftIO $ prepareNginzK8sArtifacts domain sm
-    Just basedir -> liftIO $ prepareNginzLocalArtifacts resource sm basedir
+    Nothing -> liftIO $ prepareNginzK8sRuntimeFiles domain sm
+    Just basedir -> liftIO $ prepareNginzLocalRuntimeFiles resource sm basedir
 
-prepareNginzK8sArtifacts :: String -> ServiceMap -> IO (FilePath, FilePath, FilePath)
-prepareNginzK8sArtifacts domain sm = do
+prepareNginzK8sRuntimeFiles :: String -> ServiceMap -> IO (FilePath, FilePath, FilePath)
+prepareNginzK8sRuntimeFiles domain sm = do
   tmpDir <- createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
   copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
@@ -648,8 +646,8 @@ prepareNginzK8sArtifacts domain sm = do
 
   pure (nginxConfFile, tmpDir, "/")
 
-prepareNginzLocalArtifacts :: BackendResource -> ServiceMap -> FilePath -> IO (FilePath, FilePath, FilePath)
-prepareNginzLocalArtifacts resource sm basedir = do
+prepareNginzLocalRuntimeFiles :: BackendResource -> ServiceMap -> FilePath -> IO (FilePath, FilePath, FilePath)
+prepareNginzLocalRuntimeFiles resource sm basedir = do
   let domain = berDomain resource
 
   -- Create a whole temporary directory and copy all nginx's config files.
