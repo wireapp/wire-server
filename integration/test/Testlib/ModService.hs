@@ -64,6 +64,7 @@ import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist,
 import System.Exit
 import System.FilePath
 import System.IO
+import System.IO.Error (isDoesNotExistError)
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import qualified System.Linux.Proc as LinuxProc
 import System.Posix (keyboardSignal, killProcess, signalProcess)
@@ -522,13 +523,33 @@ withProcess artifacts resource service = do
   where
     kill :: (HasCallStack) => ProcessInstance -> IO ()
     kill p = do
-      E.handle (\(_ :: E.SomeException) -> forceKill) $ do
-        signalProcess keyboardSignal p.pid
-        timeout 50000 (waitForProcess p.handle) >>= \case
-          Just _ -> pure ()
-          Nothing -> forceKill
+      processExists <- ignoreMissingProcess (signalProcess keyboardSignal p.pid)
+      if processExists
+        then
+          timeout 50000 (waitForProcess p.handle) >>= \case
+            Just _ -> pure ()
+            Nothing -> forceKillAndWait
+        else waitForProcessWithTimeout
       where
-        forceKill = signalProcess killProcess p.pid
+        forceKillAndWait = do
+          void $ ignoreMissingProcess (signalProcess killProcess p.pid)
+          waitForProcessWithTimeout
+
+        waitForProcessWithTimeout =
+          timeout 50000 (waitForProcess p.handle) >>= \case
+            Just _ -> pure ()
+            Nothing -> E.throw (AssertionFailure callStack Nothing Nothing "Timed out waiting for service process to terminate during cleanup")
+
+        ignoreMissingProcess :: IO () -> IO Bool
+        ignoreMissingProcess action =
+          E.catch
+            (action $> True)
+            ( \e ->
+                if isDoesNotExistError e
+                  then pure False
+                  else E.throwIO e
+            )
+
         timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
 
 initBackendRuntimeFiles :: BackendResource -> ServiceOverrides -> App (IO BackendRuntimeFiles)
