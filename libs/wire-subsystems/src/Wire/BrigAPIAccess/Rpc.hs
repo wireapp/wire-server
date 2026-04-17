@@ -57,7 +57,6 @@ import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold.Internal
 import Wire.API.Team.Role (Role)
 import Wire.API.Team.Size
-import Wire.API.User (AccountStatus (..), AccountStatusUpdate (..), EmailAddress, UpdateConnectionsInternal, User, UserIds (..), UserSet (..))
 import Wire.API.User hiding (DeleteUser (..))
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Auth.LegalHold
@@ -1048,12 +1047,12 @@ checkHandleAvailable ::
 checkHandleAvailable hnd = do
   resp <-
     brigRequest $
-      method HEAD
+      check [status200, status404]
+        . method HEAD
         . paths ["/i/users/handles", toByteString' hnd]
   case statusCode resp of
     200 -> pure False -- handle exists
-    404 -> pure True -- handle not found
-    _ -> pure False
+    _ -> pure True -- 404: handle not found
 
 ssoLogin ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
