@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Handling of MLS private keys used for signing external proposals.
-module Galley.Keys
+module Wire.Options.Keys
   ( MLSPrivateKeyPaths,
     loadAllMLSKeys,
   )

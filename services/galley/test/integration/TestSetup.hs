@@ -55,7 +55,6 @@ import Data.ByteString.Conversion
 import Data.Domain
 import Data.Proxy
 import Data.Text qualified as Text
-import Galley.Options (Opts)
 import Imports
 import Network.HTTP.Client qualified as HTTP
 import Proto.TeamEvents (TeamEvent)
@@ -70,6 +69,7 @@ import Wire.API.Federation.Domain
 import Wire.API.Federation.Version
 import Wire.API.VersionInfo
 import Wire.AWS qualified as Aws
+import Wire.Options.Galley (Opts)
 
 type GalleyR = Request -> Request
 

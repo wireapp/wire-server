@@ -45,7 +45,6 @@ import Galley.API.LegalHold qualified as LegalHold
 import Galley.API.LegalHold.Team qualified as LegalHold
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Options
 import Galley.Types.Error (InternalError)
 import Imports
 import Polysemy
@@ -78,6 +77,7 @@ import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Paging

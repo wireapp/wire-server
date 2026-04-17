@@ -50,7 +50,6 @@ import Galley.API.MLS.Welcome
 import Galley.API.Mapping
 import Galley.API.Mapping qualified as Mapping
 import Galley.API.Message
-import Galley.Options
 import Galley.Types.Conversations.One2One
 import Galley.Types.Error
 import Imports
@@ -98,6 +97,7 @@ import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget qualified as E
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now

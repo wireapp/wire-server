@@ -82,7 +82,6 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
 import Galley.Effects.Queue qualified as E
-import Galley.Options
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
 import Polysemy
@@ -132,6 +131,7 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.ListItems
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
+import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now

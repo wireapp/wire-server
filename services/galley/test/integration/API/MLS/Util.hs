@@ -54,9 +54,6 @@ import Data.Text.Encoding qualified as T
 import Data.Time
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUIDV4
-import Galley.Keys
-import Galley.Options
-import Galley.Options qualified as Opts
 import Imports hiding (getFirst, getSymbolicLinkTarget)
 import Network.HTTP.Client (setQueryString)
 import System.FilePath
@@ -88,6 +85,9 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Routes.Public.Galley.MLS
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.Options.Galley
+import Wire.Options.Galley qualified as Opts
+import Wire.Options.Keys
 
 cid2Str :: ClientIdentity -> String
 cid2Str cid =

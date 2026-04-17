@@ -932,34 +932,13 @@ background-worker:
       adminPort: 15672
       enableTls: false
       insecureSkipVerifyTls: false
-      # tlsCaSecretRef:
-      #   name: <secret-name>
-      #   key: <ca-attribute>
+
     # Cassandra clusters used by background-worker
     cassandra:
-      host: aws-cassandra
-    cassandraGalley:
       host: aws-cassandra
     cassandraBrig:
       host: aws-cassandra
 
-    # Postgres connection settings
-    #
-    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    # To set the password via a brig secret see `secrets.pgPassword`.
-    #
-    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
-    # additional files (e.g. certificates) into the brig container. This way
-    # does not work for password files (parameter `passfile`), because
-    # libpq-connect requires access rights (mask 0600) for them that we cannot
-    # provide for random uids.
-    #
-    # Below is an example configuration we're using for our CI tests.
-    postgresql:
-      host: postgresql # DNS name without protocol
-      port: "5432"
-      user: wire-server
-      dbname: wire-server
     postgresqlPool:
       size: 5
       acquisitionTimeout: 10s
@@ -1006,7 +985,6 @@ background-worker:
 
   secrets:
     {}
-    # pgPassword: <postgres-password>
 
   podSecurityContext:
     allowPrivilegeEscalation: false
