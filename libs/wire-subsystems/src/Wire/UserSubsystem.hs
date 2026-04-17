@@ -130,7 +130,7 @@ data UserSubsystem m a where
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
   GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
   -- | Get profiles for all app users in a team, touching only the apps table (efficient).
-  GetLocalAppProfilesOnly :: Local TeamId -> UserSubsystem m [UserProfile]
+  GetLocalAppProfiles :: Local TeamId -> UserSubsystem m [UserProfile]
   -- | Get the union of all user accounts matching the `GetBy` argument *and* having a non-empty UserIdentity.
   GetAccountsBy :: Local GetBy -> UserSubsystem m [User]
   -- | Get user accounts matching the `[EmailAddress]` argument (accounts with missing

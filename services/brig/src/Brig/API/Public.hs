@@ -1781,7 +1781,7 @@ getApps lusr tid = lift . liftSem $ do
   unless (requestingUserTeam == Just tid) $
     throw UserSubsystemProfileNotFound
 
-  getLocalAppProfilesOnly (qualifyAs lusr tid)
+  getLocalAppProfiles (qualifyAs lusr tid)
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

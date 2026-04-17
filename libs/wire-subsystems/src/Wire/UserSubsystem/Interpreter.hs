@@ -148,7 +148,7 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         getUserProfilesImpl self others
       GetLocalUserProfiles others ->
         getLocalUserProfilesImpl others
-      GetLocalAppProfilesOnly ltid ->
+      GetLocalAppProfiles ltid ->
         getLocalAppProfilesOnlyImpl ltid
       GetAccountsBy getBy ->
         getAccountsByImpl getBy
