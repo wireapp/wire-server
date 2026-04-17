@@ -703,19 +703,6 @@ render-ci-manifest: clean-charts charts-integration
 	./hack/bin/helm-render-ci-values.sh && \
 	./hack/bin/render-manifest.sh "$$VALUES_FILE"
 
-sbom.json:
-	nix -Lv build '.#wireServer.bomDependencies' && \
-	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
-
-# Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
-.PHONY: upload-bombon
-upload-bombon: sbom.json
-	nix run 'github:wireapp/tom-bombadil#upload-bom' -- \
-		--project-name "wire-server"  \
-		--project-version $(HELM_SEMVER) \
-		--auto-create \
-		--bom-file ./sbom.json
-
 # SBOM creation and uploading (Helm charts, Helmfile, docker-compose)
 #
 # For non-Nix environments (Kubernetes, docker-compose) and Helm charts we can

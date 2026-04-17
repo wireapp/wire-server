@@ -1,0 +1,1 @@
+Remove tom-bombadil SBOM creation targets from `Makefile`. There's a better approach to create SBOMs in place (in `Makefile` and CI).
