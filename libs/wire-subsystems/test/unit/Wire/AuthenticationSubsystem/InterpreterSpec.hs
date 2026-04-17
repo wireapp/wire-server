@@ -412,6 +412,31 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               Left err ->
                 counterexample ("expected Right Nothing, got Left: " <> show err) False
 
+    prop "issued reset code is rejected if user becomes SAML before completion" $
+      \email userNoEmail samlUserRef oldPassword newPassword ->
+        let user =
+              userNoEmail
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active,
+                  ssoId = Nothing,
+                  activated = True
+                }
+            uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
+            Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
+              runAllEffects testDomain [user] passwords Nothing $ do
+                createPasswordResetCode (mkEmailKey email)
+                (_, resetCode) <- expect1ResetPasswordEmail email
+                void $ updateSSOId uid (Just (UserSSOId samlUserRef))
+                mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
+                (,,mCaughtExc)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
+         in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
+              .&&. fst oldPasswordVerification === True
+              .&&. fst newPasswordVerification === False
+
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $
       \email userNoEmail newPassword ->

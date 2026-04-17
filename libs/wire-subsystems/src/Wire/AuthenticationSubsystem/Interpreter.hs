@@ -325,6 +325,10 @@ resetPasswordImpl ident code pw = do
   case muid of
     Nothing -> throw AuthenticationSubsystemInvalidPasswordResetCode
     Just uid -> do
+      localUnit <- inputs (.local)
+      mUser <- User.getAccountNoFilter (qualifyAs localUnit uid)
+      when (maybe False isSamlUser mUser) $
+        throw AuthenticationSubsystemInvalidPasswordResetCode
       let rateLimitKey = RateLimitUser uid
       Log.debug $ field "user" (toByteString uid) . field "action" (val "User.completePasswordReset")
       checkNewIsDifferent uid pw
