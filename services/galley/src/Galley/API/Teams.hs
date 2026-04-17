@@ -119,6 +119,7 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.Team.Size
 import Wire.API.User qualified as U
+import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
@@ -1153,10 +1154,11 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   E.createTeamMember tid new
 
   now <- Now.get
+  appIds <- getAppIdsForTeam tid
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   let recipients = case origin of
-        Just o -> userRecipient <$> o : filter (/= o) ((new ^. userId) : admins')
-        Nothing -> userRecipient <$> new ^. userId : admins'
+        Just o -> userRecipient <$> o : filter (/= o) ((new ^. userId) : admins' ++ appIds)
+        Nothing -> userRecipient <$> (new ^. userId) : admins' ++ appIds
   pushNotifications
     [ def
         { origin = Just (new ^. userId),

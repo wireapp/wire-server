@@ -26,6 +26,7 @@ import API.Galley
 import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
 import MLS.Util
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
@@ -538,3 +539,25 @@ testRemoveServicesAccessRole = do
       memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
       appId <- app %. "qualified_id.id" & asString
       memberIds `shouldNotContain` [appId]
+
+testAppReceivesMemberJoinNotification :: (HasCallStack) => App ()
+testAppReceivesMemberJoinNotification = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+
+  -- Create an app in the team
+  app <- bindResponse (createApp owner tid def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- With websockets open for both owner and app, add a new regular member.
+  -- Both should receive the team.member-join notification.
+  withWebSockets [owner, app] $ \[wsOwner, wsApp] -> do
+    newMember <- addUserToTeam owner
+
+    memberJoinOwner <- awaitMatch isTeamMemberJoinNotif wsOwner
+    memberJoinOwner %. "payload.0.team" `shouldMatch` tid
+    memberJoinOwner %. "payload.0.data.user" `shouldMatch` objId newMember
+
+    memberJoinApp <- awaitMatch isTeamMemberJoinNotif wsApp
+    memberJoinApp %. "payload.0.team" `shouldMatch` tid
+    memberJoinApp %. "payload.0.data.user" `shouldMatch` objId newMember
