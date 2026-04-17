@@ -36,7 +36,7 @@ data UserRow = UserRow
   { userId :: UserId,
     activated :: Bool,
     status :: Maybe AccountStatus,
-    supportedProtocols :: Set BaseProtocolTag
+    supportedProtocols :: Maybe (Set BaseProtocolTag)
   }
   deriving (Generic)
 
