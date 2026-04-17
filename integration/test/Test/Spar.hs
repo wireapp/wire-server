@@ -23,6 +23,7 @@ import API.Brig as Brig
 import API.BrigInternal as BrigInternal
 import API.Common (defPassword, randomDomain, randomEmail, randomExternalId, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
+import qualified API.Nginz as Nginz
 import API.Spar
 import API.SparInternal
 import Control.Lens (to, (^.))
@@ -1400,3 +1401,26 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
       pure su
 
 -- @END
+
+testNoPasswordResetForSAMLUSer :: (HasCallStack) => App ()
+testNoPasswordResetForSAMLUSer = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+  void $ setTeamFeatureStatus owner tid "validateSAMLemails" "enabled"
+  (idp, _) <- registerTestIdPWithMetaWithPrivateCreds owner
+  idpId <- asString $ idp.json %. "id"
+  tok <- createScimToken owner def {idp = Just idpId} >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  _uid <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  activateEmail OwnDomain email
+  -- login with password should fail
+  Nginz.login OwnDomain email defPassword `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+  -- password reset returns 201 always to not leak any account information
+  passwordReset OwnDomain email `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+  -- however no password reset code and key should be generated
+  getPasswordResetCode OwnDomain email `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-key"

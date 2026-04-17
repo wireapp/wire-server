@@ -161,14 +161,15 @@ toInputPassword pw8 =
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
-  describe "password reset" do
+  focus $ describe "password reset" do
     prop "password reset should work with the email being used as password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
         let user =
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
@@ -196,7 +197,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
@@ -228,7 +230,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             createPasswordResetCodeResult =
               runAllEffects testDomain [user] mempty (Just [decodeUtf8 $ domainPart email]) $
@@ -264,7 +267,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             Right (newPasswordVerification, mCaughtException) =
@@ -287,7 +291,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -332,7 +337,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -353,7 +359,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -383,6 +390,22 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               wrongResetErrors == replicate wrongResetAttempts (Just AuthenticationSubsystemInvalidPasswordResetCode)
                 .&&. resetPassworedWithCorectCodeResult === expectedFinalResetResult
                 .&&. assertPasswordVerification
+    prop "reset code not generated for SAML user" $
+      \email userNoEmail samlUserRef ->
+        let user =
+              userNoEmail
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active,
+                  ssoId = Just (UserSSOId samlUserRef),
+                  activated = True
+                }
+            createPasswordResetCodeResult =
+              runAllEffects testDomain [user] mempty Nothing $
+                createPasswordResetCode (mkEmailKey email)
+                  <* expectNoEmailSent
+         in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
+              isRight createPasswordResetCodeResult
 
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $

@@ -123,12 +123,14 @@ data PasswordResetError
   = AllowListError
   | InvalidResetKey
   | InProgress
+  | SAMLUserNotAllowed
   deriving (Show)
 
 instance Exception PasswordResetError where
   displayException AllowListError = "email domain is not allowed for password reset"
   displayException InvalidResetKey = "invalid reset key for password reset"
   displayException InProgress = "password reset already in progress"
+  displayException SAMLUserNotAllowed = "SAML users are not allowed to reset password"
 
 authenticateEitherImpl ::
   ( Member UserStore r,
@@ -216,7 +218,7 @@ createPasswordResetCodeImpl target =
     user <- lookupActiveUserByUserKey target >>= maybe (throw InvalidResetKey) pure
     let uid = userId user
     Log.debug $ field "user" (toByteString uid) . field "action" (val "User.beginPasswordReset")
-
+    when (isSamlUser user) $ throw SAMLUserNotAllowed
     mExistingCode <- lookupPasswordResetCode uid
     when (isJust mExistingCode) $
       throw InProgress
