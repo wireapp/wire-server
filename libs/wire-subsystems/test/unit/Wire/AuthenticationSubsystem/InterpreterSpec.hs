@@ -401,11 +401,16 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                   activated = True
                 }
             createPasswordResetCodeResult =
-              runAllEffects testDomain [user] mempty Nothing $
+              runAllEffects testDomain [user] mempty Nothing $ do
                 createPasswordResetCode (mkEmailKey email)
-                  <* expectNoEmailSent
-         in counterexample ("expected Right, got: " <> show createPasswordResetCodeResult) $
-              isRight createPasswordResetCodeResult
+                expectNoEmailSent
+                internalLookupPasswordResetCode (mkEmailKey email)
+         in case createPasswordResetCodeResult of
+              Right Nothing -> property True
+              Right mResetCode ->
+                counterexample ("expected no stored password reset code, got: " <> show mResetCode) False
+              Left err ->
+                counterexample ("expected Right Nothing, got Left: " <> show err) False
 
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $
