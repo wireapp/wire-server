@@ -118,22 +118,6 @@ data ChangeEmailResult
     ChangeEmailIdempotent
   deriving (Show)
 
-data UserProfileFilter
-  = AppsFromTeamOnly TeamId
-  | RegularPlusAllApps
-  deriving (Eq, Show)
-
-runUserProfileFilter :: UserProfileFilter -> UserProfile -> Bool
-runUserProfileFilter upf prof = case upf of
-  AppsFromTeamOnly tid -> case prof.profileType of
-    UserTypeRegular -> False
-    UserTypeApp -> prof.profileTeam == Just tid
-    UserTypeBot -> False -- bots aren't in the picture
-  RegularPlusAllApps -> case prof.profileType of
-    UserTypeRegular -> True
-    UserTypeApp -> True
-    UserTypeBot -> True
-
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
@@ -144,7 +128,9 @@ data UserSubsystem m a where
   -- FederationError)], [UserProfile])` to maintain API compatibility.)
   GetUserProfilesWithErrors :: Local UserId -> [Qualified UserId] -> UserSubsystem m ([(Qualified UserId, FederationError)], [UserProfile])
   -- | Sometimes we don't have any identity of a requesting user, and local profiles are public.
-  GetLocalUserProfilesFiltered :: UserProfileFilter -> Local [UserId] -> UserSubsystem m [UserProfile]
+  GetLocalUserProfiles :: Local [UserId] -> UserSubsystem m [UserProfile]
+  -- | Get profiles for all app users in a team, touching only the apps table (efficient).
+  GetLocalAppProfiles :: Local TeamId -> UserSubsystem m [UserProfile]
   -- | Get the union of all user accounts matching the `GetBy` argument *and* having a non-empty UserIdentity.
   GetAccountsBy :: Local GetBy -> UserSubsystem m [User]
   -- | Get user accounts matching the `[EmailAddress]` argument (accounts with missing
@@ -220,25 +206,6 @@ getLocalUserProfile ::
   Local UserId -> Sem r (Maybe UserProfile)
 getLocalUserProfile targetUser =
   listToMaybe <$> getLocalUserProfiles ((: []) <$> targetUser)
-
-getLocalUserProfileFiltered ::
-  (Member UserSubsystem r) =>
-  UserProfileFilter -> Local UserId -> Sem r (Maybe UserProfile)
-getLocalUserProfileFiltered upf targetUser =
-  listToMaybe <$> getLocalUserProfilesFiltered upf ((: []) <$> targetUser)
-
-getLocalUserProfileFiltered404 ::
-  (Member (Error UserSubsystemError) r, Member UserSubsystem r) =>
-  UserProfileFilter -> Local UserId -> Sem r UserProfile
-getLocalUserProfileFiltered404 upf targetUser =
-  getLocalUserProfileFiltered upf targetUser >>= note UserSubsystemProfileNotFound
-
-getLocalUserProfiles ::
-  (Member UserSubsystem r) =>
-  Local [UserId] ->
-  Sem r [UserProfile]
-getLocalUserProfiles =
-  getLocalUserProfilesFiltered RegularPlusAllApps
 
 getLocalAccountBy ::
   (Member UserSubsystem r) =>

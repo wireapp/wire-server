@@ -71,7 +71,10 @@ import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.UserEvent
+import Wire.AppStore (AppStore)
+import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem
+import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.BlockListStore as BlockList
 import Wire.ClientSubsystem (ClientSubsystem)
@@ -107,7 +110,8 @@ import Wire.UserSubsystem.UserSubsystemConfig
 import Witherable (wither)
 
 runUserSubsystem ::
-  ( Member UserStore r,
+  ( Member AppStore r,
+    Member UserStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
     Member BlockListStore r,
@@ -142,8 +146,10 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
     clientInterpreter . appInterpreter . authInterpreter . \case
       GetUserProfiles self others ->
         getUserProfilesImpl self others
-      GetLocalUserProfilesFiltered upf others ->
-        getLocalUserProfilesFilteredImpl upf others
+      GetLocalUserProfiles others ->
+        getLocalUserProfilesImpl others
+      GetLocalAppProfiles ltid ->
+        getLocalAppProfilesOnlyImpl ltid
       GetAccountsBy getBy ->
         getAccountsByImpl getBy
       GetAccountsByEmailNoFilter emails ->
@@ -345,7 +351,7 @@ getUserProfilesImpl self others =
       (getUserProfilesFromDomain self)
       (bucketQualified others)
 
-getLocalUserProfilesFilteredImpl ::
+getLocalUserProfilesImpl ::
   forall r any.
   ( Member UserStore r,
     Member (Input UserSubsystemConfig) r,
@@ -356,10 +362,38 @@ getLocalUserProfilesFilteredImpl ::
     Member TeamSubsystem r,
     Member AppSubsystem r
   ) =>
-  UserProfileFilter ->
   Local [UserId] ->
   Sem r [UserProfile]
-getLocalUserProfilesFilteredImpl upf = getUserProfilesLocalPart upf Nothing
+getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
+
+getLocalAppProfilesOnlyImpl ::
+  forall r any.
+  ( Member AppStore r,
+    Member UserStore r,
+    Member (Input UserSubsystemConfig) r,
+    Member DeleteQueue r,
+    Member Now r,
+    Member (Concurrency Unsafe) r,
+    Member (Input (Local any)) r,
+    Member AppSubsystem r,
+    Member TeamSubsystem r
+  ) =>
+  Local TeamId ->
+  Sem r [UserProfile]
+getLocalAppProfilesOnlyImpl ltid = do
+  apps <- AppStore.getApps (tUnqualified ltid)
+  profiles <- getUserProfilesLocalPart Nothing (ltid $> map (.id) apps)
+  let appsMap :: Map UserId AppStore.StoredApp
+      appsMap = Map.fromList ((\app -> (app.id, app)) <$> apps)
+
+      injectPreloadedApp :: UserProfile -> UserProfile
+      injectPreloadedApp profile =
+        let key = qUnqualified profile.profileQualifiedId
+         in case Map.lookup key appsMap of
+              Just app -> profile {profileApp = Just (storedAppToAppInfo app)}
+              Nothing -> profile
+
+  pure (injectPreloadedApp <$> profiles)
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,
@@ -382,7 +416,7 @@ getUserProfilesFromDomain ::
 getUserProfilesFromDomain self uids = do
   foldQualified
     self
-    (getUserProfilesLocalPart RegularPlusAllApps (Just self))
+    (getUserProfilesLocalPart (Just self))
     getUserProfilesRemotePart
     uids
 
@@ -409,11 +443,10 @@ getUserProfilesLocalPart ::
     Member AppSubsystem r,
     Member TeamSubsystem r
   ) =>
-  UserProfileFilter ->
   Maybe (Local UserId) ->
   Local [UserId] ->
   Sem r [UserProfile]
-getUserProfilesLocalPart upf requestingUser luids = do
+getUserProfilesLocalPart requestingUser luids = do
   emailVisibilityConfig <- inputs emailVisibilityConfig
   requestingUserInfo <- join <$> traverse getRequestingUserInfo requestingUser
   let canSeeEmails = maybe False (isAdminOrOwner . view (newTeamMember . nPermissions) . snd) requestingUserInfo
@@ -422,14 +455,11 @@ getUserProfilesLocalPart upf requestingUser luids = do
         EmailVisibleToSelf -> EmailVisibleToSelf
         EmailVisibleIfOnTeam -> EmailVisibleIfOnTeam
         EmailVisibleIfOnSameTeam () -> EmailVisibleIfOnSameTeam requestingUserInfo
-  fmap filterAppsFromOtherTeams . injectAppsIntoUserProfiles . catMaybes
+  injectAppsIntoUserProfiles . catMaybes
     -- FUTUREWORK: (in the interpreters where it makes sense) pull paginated lists from the DB,
     -- not just single rows.
     =<< unsafePooledForConcurrentlyN 8 (sequence luids) (getLocalUserProfileInternal emailVisibilityConfigWithViewer)
   where
-    filterAppsFromOtherTeams :: [UserProfile] -> [UserProfile]
-    filterAppsFromOtherTeams = filter (runUserProfileFilter upf)
-
     getRequestingUserInfo :: Local UserId -> Sem r (Maybe (TeamId, TeamMember))
     getRequestingUserInfo self = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')

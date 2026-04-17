@@ -62,8 +62,9 @@ import Wire.API.Federation.Error
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
+import Wire.API.User (AccountStatus (..))
 import Wire.BackendNotificationQueueAccess
-import Wire.BrigAPIAccess (BrigAPIAccess, updateSearchVisibilityInbound)
+import Wire.BrigAPIAccess (BrigAPIAccess, getAppIdsForTeam, setAccountStatus, updateSearchVisibilityInbound)
 import Wire.CodeStore
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationSubsystem
@@ -498,7 +499,28 @@ instance SetFeatureConfig ConsumableNotificationsConfig
 
 instance SetFeatureConfig ChatBubblesConfig
 
-instance SetFeatureConfig AppsConfig
+instance SetFeatureConfig AppsConfig where
+  type
+    SetFeatureForTeamConstraints AppsConfig (r :: EffectRow) =
+      (Member BrigAPIAccess r)
+
+  prepareFeature tid feat = do
+    let newStatus = case feat.status of
+          FeatureStatusEnabled -> Active
+          FeatureStatusDisabled -> Suspended
+    appIds <- getAppIdsForTeam tid
+    -- NB: this will work as long as the only reason for suspending
+    -- apps is "payment plan expired", but should we ever introduce a
+    -- suspend button for team admins to let them temporarily disable
+    -- apps without deinstalling them, then we need to keep track of
+    -- the suspend reason and filter for the right one here.
+    --
+    -- NB(2): this is not terribly efficient, but it's a rarely called
+    -- operation with usually small numbers of apps.  tweak
+    -- opportunities: (a) only call this loop if enablement actually
+    -- changes; (b) do the loop over all appIds in postgres with one
+    -- query.
+    for_ appIds $ \uid -> setAccountStatus uid newStatus
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 
