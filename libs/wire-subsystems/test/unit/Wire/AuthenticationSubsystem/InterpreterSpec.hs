@@ -409,8 +409,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               Right Nothing -> property True
               Right mResetCode ->
                 counterexample ("expected no stored password reset code, got: " <> show mResetCode) False
-              Left err ->
-                counterexample ("expected Right Nothing, got Left: " <> show err) False
+              Left e ->
+                counterexample ("expected Right Nothing, got Left: " <> show e) False
 
     prop "issued reset code is rejected if user becomes SAML before completion" $
       \email userNoEmail samlUserRef oldPassword newPassword ->
