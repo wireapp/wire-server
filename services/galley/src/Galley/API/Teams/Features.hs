@@ -514,6 +514,12 @@ instance SetFeatureConfig AppsConfig where
     -- suspend button for team admins to let them temporarily disable
     -- apps without deinstalling them, then we need to keep track of
     -- the suspend reason and filter for the right one here.
+    --
+    -- NB(2): this is not terribly efficient, but it's a rarely called
+    -- operation with usually small numbers of apps.  tweak
+    -- opportunities: (a) only call this loop if enablement actually
+    -- changes; (b) do the loop over all appIds in postgres with one
+    -- query.
     for_ appIds $ \uid -> setAccountStatus uid newStatus
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
