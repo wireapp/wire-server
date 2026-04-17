@@ -383,10 +383,17 @@ getLocalAppProfilesOnlyImpl ::
 getLocalAppProfilesOnlyImpl ltid = do
   apps <- AppStore.getApps (tUnqualified ltid)
   profiles <- getUserProfilesLocalPart Nothing (ltid $> map (.id) apps)
-  pure (zipWith injectPreloadedApp profiles apps)
-  where
-    injectPreloadedApp profile app =
-      profile {profileApp = Just (storedAppToAppInfo app)}
+  let appsMap :: Map UserId AppStore.StoredApp
+      appsMap = Map.fromList ((\app -> (app.id, app)) <$> apps)
+
+      injectPreloadedApp :: UserProfile -> UserProfile
+      injectPreloadedApp profile =
+        let key = qUnqualified profile.profileQualifiedId
+         in case Map.lookup key appsMap of
+              Just app -> profile {profileApp = Just (storedAppToAppInfo app)}
+              Nothing -> profile
+
+  pure (injectPreloadedApp <$> profiles)
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,
