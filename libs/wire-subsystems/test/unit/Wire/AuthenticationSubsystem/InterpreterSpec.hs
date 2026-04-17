@@ -414,7 +414,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             Right newPasswordVerification =
