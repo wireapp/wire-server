@@ -1402,8 +1402,8 @@ testAllowUpdatesBySCIMWhenE2EIdEnabled (TaggedBool ssoEnabled) = do
 
 -- @END
 
-testNoPasswordResetForSAMLUSer :: (HasCallStack) => App ()
-testNoPasswordResetForSAMLUSer = do
+testNoPasswordResetForSAMLUser :: (HasCallStack) => App ()
+testNoPasswordResetForSAMLUser = do
   (owner, tid, _) <- createTeam OwnDomain 1
   void $ setTeamFeatureStatus owner tid "sso" "enabled"
   void $ setTeamFeatureStatus owner tid "validateSAMLemails" "enabled"
