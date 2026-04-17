@@ -161,7 +161,7 @@ toInputPassword pw8 =
 
 spec :: Spec
 spec = describe "AuthenticationSubsystem.Interpreter" do
-  focus $ describe "password reset" do
+  describe "password reset" do
     prop "password reset should work with the email being used as password reset key" $
       \email userNoEmail (cookiesWithTTL :: [(Cookie (), Maybe TTL)]) mPreviousPassword newPassword ->
         let user =
