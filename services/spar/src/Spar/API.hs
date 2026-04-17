@@ -75,6 +75,7 @@ import qualified Data.X509 as X509
 import Data.X509.Extended
 import Imports
 import Network.Wai (Request, requestHeaders)
+import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
@@ -490,7 +491,7 @@ authHandler :: Env -> AuthHandler Request TeamId
 authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
   bs <- maybe (throwSparSem SparMissingZUsr) pure $ lookup "Z-User" (requestHeaders req)
   uid <- maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
-  BrigAPIAccess.checkAdminGetTeamId uid
+  BrigAPIAccess.checkAdminGetTeamId uid >>= either (\e -> throwSparSem $ SparNoPermission (Wai.message e)) pure
   where
     throwError' se = Spar.Error.sparToServerErrorWithLogging (sparCtxLogger ctx) se >>= throwError
 

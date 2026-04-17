@@ -1066,10 +1066,12 @@ ssoLogin buid mlabel = do
         . path "/i/sso-login"
         . json (Sso.SsoLogin buid mlabel)
         . queryItem "persist" "true"
-        . expect2xx
-  case getHeader "Set-Cookie" resp of
-    Nothing -> throw $ ParseException "brig" "Missing Set-Cookie header in SSO login response"
-    Just cky -> pure $ parseSetCookie cky
+  case statusCode resp of
+    200 ->
+      case getHeader "Set-Cookie" resp of
+        Nothing -> throw $ ParseException "brig" "Missing Set-Cookie header in SSO login response"
+        Just cky -> pure $ parseSetCookie cky
+    n -> throw $ ParseException "brig" ("Unexpected status " <> show n <> " from brig SSO login")
 
 getStatusRaw ::
   (Member Rpc r, Member (Input Endpoint) r) =>
@@ -1122,23 +1124,26 @@ getDefaultUserLocale = do
 checkAdminGetTeamId ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
-  Sem r TeamId
+  Sem r (Either Wai.Error TeamId)
 checkAdminGetTeamId uid = do
   resp <-
     brigRequest $
-      method GET
+      check [status200, status403]
+        . method GET
         . paths ["/i/users", toByteString' uid, "check-admin-get-team-id"]
-        . expect2xx
-  decodeBodyOrThrow "brig" resp
+  case statusCode resp of
+    200 -> Right <$> decodeBodyOrThrow "brig" resp
+    _ -> pure $ Left $ fromMaybe (Wai.mkError status403 "insufficient-permissions" "Insufficient permissions") (responseJsonMaybe resp)
 
 sendSAMLIdPChangedEmail ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   IdpChangedNotification ->
   Sem r ()
 sendSAMLIdPChangedEmail notif = do
-  void $
+  resp <-
     brigRequest $
       method POST
         . path "/i/idp/send-idp-changed-email"
         . json notif
-        . expect2xx
+  unless (statusCode resp == 200) $
+    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from brig send-idp-changed-email")

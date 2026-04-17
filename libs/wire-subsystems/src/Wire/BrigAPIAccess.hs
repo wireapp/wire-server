@@ -247,7 +247,7 @@ data BrigAPIAccess m a where
   GetStatusMaybe :: UserId -> BrigAPIAccess m (Maybe AccountStatus)
   SetStatus :: UserId -> AccountStatus -> BrigAPIAccess m ()
   GetDefaultUserLocale :: BrigAPIAccess m Locale
-  CheckAdminGetTeamId :: UserId -> BrigAPIAccess m TeamId
+  CheckAdminGetTeamId :: UserId -> BrigAPIAccess m (Either Wai.Error TeamId)
   SendSAMLIdPChangedEmail :: IdpChangedNotification -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
