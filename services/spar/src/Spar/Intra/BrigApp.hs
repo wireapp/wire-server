@@ -230,7 +230,7 @@ ensureReAuthorised (Just uid) mpwd mcode maction = do
     Left ReAuthFailed -> throw $ SAML.CustomError SparReAuthRequired
     Left VerificationCodeRequired -> throw $ SAML.CustomError SparReAuthCodeAuthRequired
     Left VerificationCodeAuthFailed -> throw $ SAML.CustomError SparReAuthCodeAuthFailed
-    Left RateLimitExceeded -> throw $ SAML.CustomError SparReAuthRequired
+    Left RateLimitExceeded -> throw $ SAML.CustomError SparReAuthRateLimitExceeded
 
 -- | User is member of a given team and has a given permission there.
 assertHasPermission ::

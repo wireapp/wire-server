@@ -99,6 +99,7 @@ data SparCustomError
   | SparCannotCreateUsersOnReplacedIdP LText
   | SparCouldNotParseRfcResponse LText LText
   | SparReAuthRequired
+  | SparReAuthRateLimitExceeded
   | SparReAuthCodeAuthFailed
   | SparReAuthCodeAuthRequired
   | SparCouldNotRetrieveCookie
@@ -163,6 +164,7 @@ renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingI
 -- RFC-specific errors
 renderSparError (SAML.CustomError (SparCouldNotParseRfcResponse service msg)) = StdError $ Wai.mkError status502 "bad-upstream" ("Could not parse " <> service <> " response body: " <> msg)
 renderSparError (SAML.CustomError SparReAuthRequired) = StdError $ Wai.mkError status403 "access-denied" "This operation requires reauthentication."
+renderSparError (SAML.CustomError SparReAuthRateLimitExceeded) = StdError $ Wai.mkError status429 "rate-limit-exceeded" "Please use exponential backoff throttling to mitigate this."
 renderSparError (SAML.CustomError SparReAuthCodeAuthFailed) = StdError $ Wai.mkError status403 "code-authentication-failed" "Reauthentication failed with invalid verification code."
 renderSparError (SAML.CustomError SparReAuthCodeAuthRequired) = StdError $ Wai.mkError status403 "code-authentication-required" "Reauthentication failed. Verification code required."
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = StdError $ Wai.mkError status502 "bad-upstream" "Unable to get a cookie from an upstream server."
