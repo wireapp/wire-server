@@ -2,6 +2,7 @@
 
 ## Release notes
 
+* Since 5.29 was broken and you should have skipped it, you are about to upgrade from 5.28 to 5.30 in one step.  This has been tested and should work.  Please consult the release notes from both 5.29 and 5.30 for changes w.r.t. 5.28.
 
 * `background-worker` now reuses `galley`'s configmap and secrets for cassandra, postgres and federation domain settings. This removes redundant settings and keeps the two services aligned. No operator action is strictly required; however, we advise removing the `background-worker` value overrides for galley's cassandra, postgres, and federation domain settings, as they are duplicated and no longer needed:
 
@@ -71,7 +72,11 @@
 * Remove tom-bombadil SBOM creation targets from `Makefile`. There's a better approach to create SBOMs in place (in `Makefile` and CI). (#5181)
 
 
-# [2026-03-24] (Chart Release 5.29.0)
+# ~~[2026-03-24] (Chart Release 5.29.0)~~
+
+
+## This release is broken. Please upgrade from 5.28 directly to 5.30!
+
 
 ## Release notes
 
