@@ -168,7 +168,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
@@ -196,7 +197,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
@@ -228,7 +230,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             createPasswordResetCodeResult =
               runAllEffects testDomain [user] mempty (Just [decodeUtf8 $ domainPart email]) $
@@ -264,7 +267,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             Right (newPasswordVerification, mCaughtException) =
@@ -287,7 +291,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -332,7 +337,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -353,7 +359,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -383,6 +390,52 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               wrongResetErrors == replicate wrongResetAttempts (Just AuthenticationSubsystemInvalidPasswordResetCode)
                 .&&. resetPassworedWithCorectCodeResult === expectedFinalResetResult
                 .&&. assertPasswordVerification
+    prop "reset code not generated for SAML user" $
+      \email userNoEmail samlUserRef ->
+        let user =
+              userNoEmail
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active,
+                  ssoId = Just (UserSSOId samlUserRef),
+                  activated = True
+                }
+            createPasswordResetCodeResult =
+              runAllEffects testDomain [user] mempty Nothing $ do
+                createPasswordResetCode (mkEmailKey email)
+                expectNoEmailSent
+                internalLookupPasswordResetCode (mkEmailKey email)
+         in case createPasswordResetCodeResult of
+              Right Nothing -> property True
+              Right mResetCode ->
+                counterexample ("expected no stored password reset code, got: " <> show mResetCode) False
+              Left e ->
+                counterexample ("expected Right Nothing, got Left: " <> show e) False
+
+    prop "issued reset code is rejected if user becomes SAML before completion" $
+      \email userNoEmail samlUserRef oldPassword newPassword ->
+        let user =
+              userNoEmail
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active,
+                  ssoId = Nothing,
+                  activated = True
+                }
+            uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
+            Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
+              runAllEffects testDomain [user] passwords Nothing $ do
+                createPasswordResetCode (mkEmailKey email)
+                (_, resetCode) <- expect1ResetPasswordEmail email
+                void $ updateSSOId uid (Just (UserSSOId samlUserRef))
+                mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
+                (,,mCaughtExc)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
+         in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
+              .&&. fst oldPasswordVerification === True
+              .&&. fst newPasswordVerification === False
 
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $
@@ -391,7 +444,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             Right newPasswordVerification =
