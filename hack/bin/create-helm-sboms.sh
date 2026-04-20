@@ -33,10 +33,12 @@ extract_images_from_chart() {
   fi
 
   # Template the chart and extract image references
-  # We use a dummy release name and set a global placeholder to be more lenient
+  # We provide dummy values to satisfy required chart fields
   # (we don't want to check the Helm chart, only extract its images)
   local output
-  output=$(helm template test-release "$chart_path" --set-string 'global.placeholder=placeholder' 2>/dev/null) || true
+  output=$(helm template test-release "$chart_path" \
+    -f "$(dirname "$0")/sbom-helm-dummy-values.yaml" \
+    2>/dev/null) || true
 
   # Extract image values from the output using yq (jq wrapper)
   # Recursively find all .image fields in objects and output unique values
@@ -61,8 +63,13 @@ for chart_dir in "$CHARTS_DIR"/*/; do
     continue
   fi
 
-  # `mlsstats`'s image is not publically available
+  # Skip charts with images that are not publicly available or have registry issues
   if [[ "$chart_name" == "mlsstats" ]]; then
+    echo "Skipping chart: $chart_name (image not publicly available)"
+    continue
+  fi
+
+  if [[ "$chart_name" == "legalhold" ]]; then
     echo "Skipping chart: $chart_name (excluded)"
     continue
   fi

@@ -1,0 +1,155 @@
+# Minimal dummy values for helm template to enable SBOM generation
+# These values are only used for extracting image references, not actual deployment
+
+# For spar, wire-server, brig, galley, integration, nginx-ingress-services
+config:
+  appUri: https://example.com
+  ssoUri: https://example.com/sso
+  scimBaseUri: https://example.com/scim/v2
+  domainConfigs:
+    example.com:
+      appUri: https://example.com
+      ssoUri: https://example.com/sso
+      contacts:
+        - email: admin@example.com
+  elasticsearch:
+    tlsCaSecretRef:
+      name: dummy-ca
+  # For brig
+  aws:
+    sesQueue: dummy-queue
+  externalUrls:
+    nginz: https://example.com
+  # For galley
+  settings:
+    conversationCodeURI: https://example.com
+  # For integration
+  redis:
+    host: redis
+    port: 6379
+    tlsCaSecretRef:
+      name: redis-ca
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    tlsCaSecretRef:
+      name: rabbitmq-ca
+  # For nginx-ingress-services
+  dns:
+    fakeS3: s3.example.com
+
+# For shared services
+cassandra:
+  host: cassandra
+  port: 9042
+  keyspace: wire
+
+elasticsearch:
+  host: elasticsearch
+  port: 9200
+  scheme: http
+  index: default
+
+galley:
+  host: galley
+  port: 8080
+
+# For federator
+tls:
+  useSharedFederatorSecret: true
+
+# For legalhold
+serviceToken: dummy-token
+tlsCrt: dummy-tls-cert
+tlsKey: dummy-tls-key
+host: legalhold.example.com
+wireApiHost: wire-api.example.com
+
+# For restund - disable federate.dtls to avoid certificate requirements
+federate:
+  dtls:
+    enabled: false
+
+# For wire-server parent chart - pass config to subcharts
+spar:
+  config:
+    appUri: https://example.com
+    ssoUri: https://example.com/sso
+    scimBaseUri: https://example.com/scim/v2
+    domainConfigs:
+      example.com:
+        appUri: https://example.com
+        ssoUri: https://example.com/sso
+        contacts:
+          - email: admin@example.com
+
+proxy:
+  secrets:
+    proxy_config: dummy-config
+
+nginz:
+  secrets:
+    zAuth:
+      publicKeys: dummy-keys
+    basicAuth: dummy-auth
+
+galley:
+  config:
+    settings:
+      conversationCodeURI: https://example.com
+
+elasticsearch-index:
+  elasticsearch:
+    host: elasticsearch
+    port: 9200
+  cassandra:
+    host: cassandra
+    port: 9042
+    keyspace: wire
+  galley:
+    host: galley
+    port: 8080
+
+cassandra-migrations:
+  cassandra:
+    host: cassandra
+    port: 9042
+
+cannon:
+  secrets:
+    rabbitmq:
+      username: guest
+      password: guest
+
+brig:
+  config:
+    aws:
+      sesQueue: dummy-queue
+    externalUrls:
+      nginz: https://example.com
+  secrets:
+    zAuth:
+      privateKeys: dummy-private-keys
+      publicKeys: dummy-public-keys
+    turn:
+      secret: dummy-turn-secret
+    rabbitmq:
+      username: guest
+      password: guest
+
+# For secrets (brig, restund, cannon, nginx-ingress-services, nginz, proxy, wire-server-enterprise)
+secrets:
+  zrestSecret: dummy-secret
+  rabbitmq:
+    username: guest
+    password: guest
+  tlsWildcardCert: dummy-cert
+  tlsWildcardKey: dummy-key
+  zAuth:
+    privateKeys: dummy-private-keys
+    publicKeys: dummy-public-keys
+  turn:
+    secret: dummy-turn-secret
+  basicAuth: dummy-auth
+  proxy_config: dummy-config
+  configJson: "{}"
