@@ -22,6 +22,7 @@ module Wire.UserStore.IndexUser where
 import Cassandra.Util
 import Data.ByteString.Builder
 import Data.ByteString.Lazy qualified as LBS
+import Data.Default
 import Data.Handle
 import Data.Id
 import Data.Json.Util
@@ -67,7 +68,7 @@ data IndexUser = IndexUser
 type instance
   TupleType IndexUser =
     ( UserId,
-      UserType,
+      Maybe UserType,
       Maybe TeamId, Maybe (Writetime TeamId),
       Name, Writetime Name,
       Maybe AccountStatus, Maybe (Writetime AccountStatus),
@@ -86,7 +87,7 @@ type instance
 indexUserFromTuple :: TupleType IndexUser -> IndexUser
 indexUserFromTuple
     ( userId,
-      userType,
+      mbUserType,
       teamId, tTeam,
       name, tName,
       accountStatus, tStatus,
@@ -104,7 +105,7 @@ indexUserFromTuple
           createdAt = writetimeToUTC tActivated,
           updatedAt = maximum $ catMaybes [writetimeToUTC <$> tTeam,
                                            Just $ writetimeToUTC  tName,
-                                           writetimeToUTC <$> tStatus,
+                                          writetimeToUTC <$> tStatus,
                                            writetimeToUTC <$> tHandle,
                                            writetimeToUTC <$> tEmail,
                                            Just $ writetimeToUTC tColour,
@@ -116,6 +117,7 @@ indexUserFromTuple
                                            writetimeToUTC <$> tSearchable,
                                            writetimeToUTC <$> tWriteTimeBumper
                                           ],
+            userType = fromMaybe def mbUserType,
             ..
         }
 {- ORMOLU_ENABLE -}
