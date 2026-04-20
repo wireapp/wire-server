@@ -95,7 +95,7 @@ runTestStack now gen teams configs =
     . randomToStatefulStdGen
     . evalState now
     . interpretNowAsState
-    . miniGalleyAPIAccess teams configs
+    . miniGalleyAPIAccess teams mempty configs
     . evalState Map.empty
     . evalState Map.empty
     . evalState Map.empty

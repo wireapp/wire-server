@@ -108,7 +108,7 @@ interpretDependencies initialUsers initialTeams =
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
-    . miniGalleyAPIAccess initialTeams def
+    . miniGalleyAPIAccess initialTeams mempty def
     . interpretTeamSubsystemToGalleyAPI
     . runInMemoryUserSubsytemInterpreter initialUsers mempty
 
@@ -127,7 +127,7 @@ runDependenciesWithReturnState initialUsers initialTeams =
     . evalState defaultTime
     . runInputConst (toLocalUnsafe (Domain "example.com") ())
     . runInMemoryUserGroupStore def
-    . miniGalleyAPIAccess initialTeams def
+    . miniGalleyAPIAccess initialTeams mempty def
     . interpretTeamSubsystemToGalleyAPI
     . runInMemoryUserSubsytemInterpreter initialUsers mempty
 

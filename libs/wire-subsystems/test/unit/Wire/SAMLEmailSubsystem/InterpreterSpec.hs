@@ -358,7 +358,7 @@ runInterpreters users teamMap teamTemplates branding action = do
       . runState @[Mail] [] -- Use runState to capture and return the Mail state
       . recordingEmailSendingInterpreter
       . recordLogs lr
-      . miniGalleyAPIAccess teamMap def
+      . miniGalleyAPIAccess teamMap mempty def
       . evalState @(Map UserId Password) mempty
       . evalState @[StoredUser] users
       . inMemoryUserStoreInterpreter

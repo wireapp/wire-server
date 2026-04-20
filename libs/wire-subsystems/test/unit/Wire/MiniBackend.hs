@@ -329,7 +329,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryInvitationStoreInterpreter
     . runInMemoryClientStoreInterpreter
     . miniSparAPIAccess
-    . miniGalleyAPIAccess teams galleyConfigs
+    . miniGalleyAPIAccess teams localBackend.teamNames galleyConfigs
     . interpretVerificationCodeSubsystem
     . inMemoryNotificationSubsystemInterpreter
     . noopEmailSubsystemInterpreter
@@ -466,7 +466,8 @@ data MiniBackend = MkMiniBackend
     teamIdps :: Map TeamId IdPList,
     teamCollaborators :: Map TeamId [TeamCollaborator],
     pushNotifications :: [Push],
-    userGroups :: UserGroupInMemState
+    userGroups :: UserGroupInMemState,
+    teamNames :: Map TeamId Text
   }
   deriving stock (Show, Generic)
 
@@ -486,7 +487,8 @@ instance Default MiniBackend where
         teamIdps = mempty,
         teamCollaborators = mempty,
         pushNotifications = mempty,
-        userGroups = mempty
+        userGroups = mempty,
+        teamNames = mempty
       }
 
 -- | represents an entire federated, stateful world of backends

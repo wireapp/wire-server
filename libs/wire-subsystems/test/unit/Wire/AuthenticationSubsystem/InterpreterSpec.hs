@@ -152,7 +152,7 @@ runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingP
         . runInMemoryVerificationCodeStore
         . runInputConst (VerificationCodeThrottleTTL 60)
         . interpretVerificationCodeSubsystem
-        . miniGalleyAPIAccess mempty galleyFeatures
+        . miniGalleyAPIAccess mempty mempty galleyFeatures
         . interpretAuthenticationSubsystem inMemoryUserSubsystemInterpreter
 
 toInputPassword :: PlainTextPassword8 -> PlainTextPassword6

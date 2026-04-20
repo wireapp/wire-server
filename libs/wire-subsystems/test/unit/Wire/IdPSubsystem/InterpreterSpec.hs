@@ -72,7 +72,7 @@ runAllEffects enableDiscovery idps teams brigAPIMockFn action = swap $ run $ run
   (_idpState, result) <- idPToMem $ do
     forM_ idps insertConfig
     -- Run the action
-    miniGalleyAPIAccess teams def
+    miniGalleyAPIAccess teams mempty def
       . brigAPIAccessMock brigAPIMockFn
       . pureRecordLogs
       . runError

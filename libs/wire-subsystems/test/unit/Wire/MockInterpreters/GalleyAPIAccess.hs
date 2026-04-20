@@ -26,6 +26,7 @@ import Data.Range
 import Imports
 import Polysemy
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamName (..))
 import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), IsFeatureConfig (..), LockableFeature (..), SndFactorPasswordChallengeConfig, npProject')
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
@@ -37,16 +38,18 @@ import Wire.GalleyAPIAccess
 miniGalleyAPIAccess ::
   -- | what to return when calling GetTeamMember
   Map TeamId [TeamMember] ->
+  -- | what to return when calling GetTeamName
+  Map TeamId Text ->
   -- | what to return when calling GetAllTeamFeaturesForUser
   AllTeamFeatures ->
   InterpreterFor GalleyAPIAccess r
-miniGalleyAPIAccess teams configs = interpret $ \case
+miniGalleyAPIAccess teams teamNames configs = interpret $ \case
   CreateSelfConv _ -> error "CreateSelfConv not implemented in miniGalleyAPIAccess"
   GetConv _ _ -> error "GetConv not implemented in miniGalleyAPIAccess"
   GetTeamConv {} -> error "GetTeamConv not implemented in miniGalleyAPIAccess"
   NewClient _ _ -> pure ()
   CheckUserCanJoinTeam _ -> pure Nothing
-  AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
+  AddTeamMember {} -> pure True
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
   GetTeamMember uid tid -> pure $ getTeamMemberImpl teams uid tid
   GetTeamMembersWithLimit tid maxResults -> pure $ getTeamMembersImpl teams tid maxResults
@@ -56,7 +59,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
         (\members -> any (\member -> member ^. userId == uid) members)
         teams
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
-  GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
+  GetTeamName tid -> pure . TeamName $ fromMaybe "unknown" (Map.lookup tid teamNames)
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
   GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"
   GetTeamSearchVisibility _ ->

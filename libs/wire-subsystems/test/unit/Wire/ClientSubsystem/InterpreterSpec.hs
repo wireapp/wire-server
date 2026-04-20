@@ -105,7 +105,7 @@ runClientSubsystemTest users action =
           . inMemoryDeleteQueueInterpreter
           . noopEmailSubsystemInterpreter
           . miniEventInterpreter
-          . miniGalleyAPIAccess mempty def
+          . miniGalleyAPIAccess mempty mempty def
           . inMemoryNotificationSubsystemInterpreter
           . interpretNowConst defaultTime
           . evalState emptyClientStoreState

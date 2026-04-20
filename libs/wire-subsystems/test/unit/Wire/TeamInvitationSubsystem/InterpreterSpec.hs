@@ -105,7 +105,7 @@ runAllEffects args =
     . inMemoryInvitationStoreInterpreter
     . evalState (mkStdGen 3)
     . randomToStatefulStdGen
-    . miniGalleyAPIAccess args.teams def
+    . miniGalleyAPIAccess args.teams mempty def
     . interpretTeamSubsystemToGalleyAPI
     . discardTinyLogs
     . enterpriseLoginSubsystemTestInterpreter args.constGuardResult
