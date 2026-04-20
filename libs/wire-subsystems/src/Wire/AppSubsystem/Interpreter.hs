@@ -24,6 +24,7 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.Misc
 import Data.Qualified
+import Data.Range
 import Data.RetryAfter
 import Data.Set qualified as Set
 import Data.ZAuth.Token (Token (..), Type (U))
@@ -35,6 +36,7 @@ import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
 import System.Logger.Message qualified as Log
 import Wire.API.Event.Team
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamName (..))
 import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
 import Wire.API.User
@@ -105,6 +107,13 @@ createAppImpl lusr tid newApp = do
   (creator, mem) <- ensureTeamMember lusr tid
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.CreateApp)
 
+  TeamName teamNameText <- getTeamName tid
+  let author =
+        -- `TeamName` is has been checked already in galley, but the range
+        -- information is dropped in `GalleyAPIAccess`, so we need to
+        -- recover it here somehow.
+        fromMaybe (unsafeRange "unknown") $ checked @1 @256 teamNameText
+
   u <- appNewStoredUser creator newApp
   let app =
         StoredApp
@@ -113,6 +122,7 @@ createAppImpl lusr tid newApp = do
             meta = mempty, -- unused, can be removed from postgres schema at some point.
             category = newApp.category,
             description = newApp.description,
+            author = author,
             creator = tUnqualified lusr
           }
 
@@ -175,7 +185,8 @@ storedAppToAppInfo :: StoredApp -> AppInfo
 storedAppToAppInfo app =
   AppInfo
     { category = app.category,
-      description = app.description
+      description = app.description,
+      author = app.author
     }
 
 getAppsImpl ::

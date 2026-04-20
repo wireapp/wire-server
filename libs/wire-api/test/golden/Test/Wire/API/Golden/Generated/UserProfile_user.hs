@@ -90,7 +90,8 @@ testObject_UserProfile_user_2 =
         Just $
           AppInfo
             { category = Category "other",
-              description = unsafeRange "bloob"
+              description = unsafeRange "bloob",
+              author = unsafeRange "name"
             },
       profileSearchable = True
     }

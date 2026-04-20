@@ -44,7 +44,7 @@ testObject_CreatedApp_1 =
 
 testObject_AppInfo_1 :: AppInfo
 testObject_AppInfo_1 =
-  AppInfo (Category "other") (unsafeRange "good description")
+  AppInfo (Category "other") (unsafeRange "good description") (unsafeRange "name")
 
 testObject_PutApp_1 :: PutApp
 testObject_PutApp_1 =

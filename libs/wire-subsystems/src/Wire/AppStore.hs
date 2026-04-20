@@ -36,6 +36,7 @@ data StoredApp = StoredApp
     meta :: Object,
     category :: Category,
     description :: Range 0 300 Text,
+    author :: Range 1 256 Text,
     creator :: UserId
   }
   deriving (Eq, Ord, Show)
@@ -53,24 +54,26 @@ instance Default StoredAppUpdate where
 -- The `PostgresMarshall` instances are here in this module -- as
 -- having them elsewhere would make them orphan instances of
 -- `StoredApp`.
-instance PostgresMarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp where
+instance PostgresMarshall (UUID, UUID, Value, Text, Text, Text, UUID) StoredApp where
   postgresMarshall app =
     ( postgresMarshall app.id,
       postgresMarshall app.teamId,
       postgresMarshall app.meta,
       postgresMarshall (fromCategory app.category),
       postgresMarshall (fromRange app.description),
+      postgresMarshall (fromRange app.author),
       postgresMarshall app.creator
     )
 
-instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, UUID) StoredApp where
-  postgresUnmarshall (uid, teamId, meta, category, description, creator) =
+instance PostgresUnmarshall (UUID, UUID, Value, Text, Text, Text, UUID) StoredApp where
+  postgresUnmarshall (uid, teamId, meta, category, description, author, creator) =
     StoredApp
       <$> postgresUnmarshall uid
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall meta
       <*> postgresUnmarshall (Category category)
       <*> (maybe (Left "description out of bounds") Right . checked @0 @300 =<< postgresUnmarshall description)
+      <*> (maybe (Left "author out of bounds") Right . checked @1 @256 =<< postgresUnmarshall author)
       <*> postgresUnmarshall creator
 
 data AppStoreError = NotFound

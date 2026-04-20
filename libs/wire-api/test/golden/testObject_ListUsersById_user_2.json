@@ -20,6 +20,7 @@
         {
             "accent_id": 0,
             "app": {
+                "author": "name",
                 "category": "other",
                 "description": "bloob"
             },

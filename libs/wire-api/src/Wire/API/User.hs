@@ -2104,7 +2104,8 @@ data NewApp = NewApp
 
 data AppInfo = AppInfo
   { category :: Category,
-    description :: Range 0 300 Text
+    description :: Range 0 300 Text,
+    author :: Range 1 256 Text
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AppInfo)
@@ -2150,6 +2151,7 @@ appInfoObjectSchema =
   AppInfo
     <$> (.category) .= field "category" schema
     <*> (.description) .= field "description" schema
+    <*> (.author) .= field "author" schema
 
 instance ToSchema PutApp where
   schema =

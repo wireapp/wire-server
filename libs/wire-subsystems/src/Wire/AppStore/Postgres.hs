@@ -60,8 +60,8 @@ createAppImpl app =
   runStatement app $
     lmapPG
       [resultlessStatement|
-        insert into apps (user_id, team_id, metadata, category, description, creator)
-        values ($1 :: uuid, $2 :: uuid, $3 :: json, $4 :: text, $5 :: text, $6 :: uuid) |]
+        insert into apps (user_id, team_id, metadata, category, description, author, creator)
+        values ($1 :: uuid, $2 :: uuid, $3 :: json, $4 :: text, $5 :: text, $6 :: text, $7 :: uuid) |]
 
 getAppImpl ::
   ( Member (Input Pool) r,
@@ -75,7 +75,7 @@ getAppImpl uid tid =
   eraseMetadata <$$> do
     runStatement (uid, tid) $
       dimapPG
-        [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
+        [maybeStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (author :: text), (creator :: uuid)
         from apps where user_id = ($1 :: uuid) and team_id = ($2 :: uuid) |]
 
 -- `metadata` is unused, can be removed from postgres schema.  for now
@@ -95,7 +95,7 @@ getAppsImpl tid =
   eraseMetadata <$$> do
     runStatement tid $
       dimapPG
-        [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (creator :: uuid)
+        [vectorStatement| select (user_id :: uuid), (team_id :: uuid), (metadata :: json), (category :: text), (description :: text), (author :: text), (creator :: uuid)
         from apps where team_id = ($1 :: uuid) |]
 
 updateAppImpl ::
