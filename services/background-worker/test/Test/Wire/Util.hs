@@ -69,21 +69,14 @@ testEnv = do
       brigEndpoint = undefined
       sparEndpoint = Endpoint "localhost" 0
       galleyEndpoint = undefined
-      settings =
-        Settings
-          { maxTeamSize = 1000,
-            maxFanoutSize = Nothing,
-            exposeInvitationURLsTeamAllowlist = Nothing,
-            maxConvSize = 1000,
-            intraListing = True,
-            conversationCodeURI = Nothing,
-            multiIngress = Nothing,
-            federationProtocols = Nothing,
-            guestLinkTTLSeconds = Nothing,
-            passwordHashingOptions = undefined,
-            passwordHashingRateLimit = undefined,
-            checkGroupInfo = Nothing
-          }
+      maxTeamSize = 1000
+      maxFanoutSize = Nothing
+      exposeInvitationURLsTeamAllowlist = Nothing
+      intraListing = True
+      federationProtocols = Nothing
+      guestLinkTTLSeconds = Nothing
+      passwordHashingOptions = undefined
+      checkGroupInfo = Nothing
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
   passwordHashingRateLimitEnv <- newRateLimitEnv undefined
   pure Env {..}

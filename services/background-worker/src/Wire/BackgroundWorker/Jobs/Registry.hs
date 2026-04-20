@@ -65,7 +65,6 @@ import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRa
 import Wire.BackgroundJobsRunner (runJob)
 import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
-import Wire.BackgroundWorker.Options (Settings (..))
 import Wire.BrigAPIAccess.Rpc
 import Wire.ClientSubsystem.Error (ClientError)
 import Wire.CodeStore.Cassandra (interpretCodeStoreToCassandra)
@@ -230,12 +229,12 @@ dispatchJob job = do
         . runInputConst @(FeatureDefaults LegalholdConfig) FeatureLegalHoldDisabledPermanently
         . runInputConst @ClientState env.cassandraGalley
         . runInputConst @LegalHoldEnv legalHoldEnv
-        . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.settings.exposeInvitationURLsTeamAllowlist)
+        . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.exposeInvitationURLsTeamAllowlist)
         . runInputConst @(Either HttpsUrl (Map Text HttpsUrl)) env.convCodeURI
-        . runInputConst @IntraListing (IntraListing env.settings.intraListing)
-        . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.settings.checkGroupInfo)
-        . runInputConst @(Maybe GuestLinkTTLSeconds) env.settings.guestLinkTTLSeconds
-        . runInputConst @FanoutLimit (currentFanoutLimit env.settings.maxTeamSize env.settings.maxFanoutSize)
+        . runInputConst @IntraListing (IntraListing env.intraListing)
+        . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.checkGroupInfo)
+        . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds
+        . runInputConst @FanoutLimit (currentFanoutLimit env.maxTeamSize env.maxFanoutSize)
         . interpretMLSCommitLockStoreToCassandra env.cassandraGalley
         . interpretProposalStoreToCassandra
         . interpretServiceStoreToCassandra env.cassandraBrig
@@ -262,7 +261,7 @@ dispatchJob job = do
         . runInputSem getConversationSubsystemConfig
         . runInputSem @(Maybe (MLSKeysByPurpose MLSPrivateKeys)) (inputs @ConversationSubsystemConfig (.mlsKeys))
         . runInputSem getConfiguredFeatureFlags
-        . runHashPassword env.settings.passwordHashingOptions
+        . runHashPassword env.passwordHashingOptions
         . interpretRateLimit env.passwordHashingRateLimitEnv
         . convCodesStoreInterpreter
         . interpretExternalAccess extEnv

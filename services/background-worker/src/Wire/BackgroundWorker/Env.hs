@@ -26,6 +26,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
 import Data.Domain (Domain)
+import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import HTTP2.Client.Manager
@@ -44,7 +45,10 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.BackgroundWorker.Options
+import Wire.Options.Galley (GuestLinkTTLSeconds)
 import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitEnv, newRateLimitEnv)
@@ -90,7 +94,14 @@ data Env = Env
     sparEndpoint :: Endpoint,
     galleyEndpoint :: Endpoint,
     brigEndpoint :: Endpoint,
-    settings :: Settings,
+    maxTeamSize :: !Word32,
+    maxFanoutSize :: !(Maybe FanoutLimit),
+    exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
+    intraListing :: !Bool,
+    federationProtocols :: !(Maybe [ProtocolTag]),
+    guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
+    passwordHashingOptions :: !PasswordHashingOptions,
+    checkGroupInfo :: !(Maybe Bool),
     convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
     passwordHashingRateLimitEnv :: RateLimitEnv
   }
@@ -143,14 +154,14 @@ mkEnv opts galleyOpts = do
       galleyEndpoint = opts.galley
       gundeckEndpoint = opts.gundeck
       sparEndpoint = opts.spar
-      settings = opts.settings
-  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
-  convCodeURI <- case (settings.conversationCodeURI, settings.multiIngress) of
-    (Nothing, Nothing) -> error errMsg
-    (Nothing, Just mi) -> pure (Right mi)
-    (Just uri, Nothing) -> pure (Left uri)
-    (Just _, Just _) -> error errMsg
-  passwordHashingRateLimitEnv <- newRateLimitEnv settings.passwordHashingRateLimit
+      maxTeamSize = galleyOpts._settings._maxTeamSize
+      maxFanoutSize = galleyOpts._settings._maxFanoutSize
+      exposeInvitationURLsTeamAllowlist = galleyOpts._settings._exposeInvitationURLsTeamAllowlist
+      intraListing = galleyOpts._settings._intraListing
+      federationProtocols = galleyOpts._settings._federationProtocols
+      guestLinkTTLSeconds = galleyOpts._settings._guestLinkTTLSeconds
+      passwordHashingOptions = galleyOpts._settings._passwordHashingOptions
+      checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   amqpJobsPublisherChannel <-
@@ -159,6 +170,13 @@ mkEnv opts galleyOpts = do
   amqpBackendNotificationsChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
+  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
+  convCodeURI <- case (galleyOpts._settings._conversationCodeURI, galleyOpts._settings._multiIngress) of
+    (Nothing, Nothing) -> error errMsg
+    (Nothing, Just mi) -> pure (Right mi)
+    (Just uri, Nothing) -> pure (Left uri)
+    (Just _, Just _) -> error errMsg
+  passwordHashingRateLimitEnv <- newRateLimitEnv galleyOpts._settings._passwordHashingRateLimit
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
