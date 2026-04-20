@@ -1146,4 +1146,5 @@ sendSAMLIdPChangedEmail notif = do
         . path "/i/idp/send-idp-changed-email"
         . json notif
   unless (statusCode resp == 200) $
-    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from brig send-idp-changed-email")
+    throw $
+      ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from brig send-idp-changed-email")
