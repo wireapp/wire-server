@@ -1,6 +1,0 @@
-`background-worker` now reuses `galley`'s configmap and secrets for cassandra, postgres and federation domain settings. This removes redundant settings and keeps the two services aligned. No operator action is strictly required; however, we advise removing the `background-worker` value overrides for galley's cassandra, postgres, and federation domain settings, as they are duplicated and no longer needed:
-
-  - background-worker.config.cassandraGalley
-  - background-worker.config.postgresql
-  - background-worker.secrets.pgPassword
-  - background-worker.config.federationDomain
