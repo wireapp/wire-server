@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -25,6 +26,7 @@ module Wire.DomainRegistrationStore
     lookup,
     lookupByTeam,
     delete,
+    DomainRegistrationRow,
   )
 where
 
@@ -36,6 +38,7 @@ import Data.Domain as Domain
 import Data.Id
 import Data.Misc
 import Data.Text as T
+import Data.UUID (UUID)
 import Database.CQL.Protocol (Record (..), TupleType, recordInstance)
 import Imports hiding (lookup)
 import Polysemy
@@ -45,6 +48,7 @@ import Polysemy.TinyLog qualified as Log
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Wire.API.EnterpriseLogin
+import Wire.API.PostgresMarshall
 
 newtype DomainKey = DomainKey {unDomainKey :: CI Text}
   deriving stock (Eq, Ord, Show)
@@ -60,6 +64,64 @@ instance Cql DomainKey where
   toCql = CqlText . CI.foldedCase . unDomainKey
   fromCql (CqlText txt) = pure . DomainKey . CI.mk $ txt
   fromCql _ = Left "DomainKey: Text expected"
+
+instance PostgresMarshall Text DomainKey where
+  postgresMarshall = CI.foldedCase . unDomainKey
+
+instance PostgresUnmarshall Text DomainKey where
+  postgresUnmarshall = Right . DomainKey . CI.mk
+
+type DomainRegistrationRow =
+  ( Text,
+    Maybe Int32,
+    Maybe Int32,
+    Maybe UUID,
+    Maybe ByteString,
+    Maybe UUID,
+    Maybe Text,
+    Maybe ByteString,
+    Maybe UUID,
+    Maybe ByteString
+  )
+
+instance PostgresMarshall DomainRegistrationRow StoredDomainRegistration where
+  postgresMarshall StoredDomainRegistration {..} =
+    ( postgresMarshall domain,
+      postgresMarshall domainRedirect,
+      postgresMarshall teamInvite,
+      postgresMarshall idpId,
+      postgresMarshall backendUrl,
+      postgresMarshall team,
+      postgresMarshall dnsVerificationToken,
+      postgresMarshall authTokenHash,
+      postgresMarshall authorizedTeam,
+      postgresMarshall webappUrl
+    )
+
+instance PostgresUnmarshall DomainRegistrationRow StoredDomainRegistration where
+  postgresUnmarshall
+    ( domain,
+      domainRedirect,
+      teamInvite,
+      idpId,
+      backendUrl,
+      team,
+      dnsVerificationToken,
+      authTokenHash,
+      authorizedTeam,
+      webappUrl
+      ) =
+      StoredDomainRegistration
+        <$> postgresUnmarshall domain
+        <*> postgresUnmarshall domainRedirect
+        <*> postgresUnmarshall teamInvite
+        <*> postgresUnmarshall idpId
+        <*> postgresUnmarshall backendUrl
+        <*> postgresUnmarshall team
+        <*> postgresUnmarshall dnsVerificationToken
+        <*> postgresUnmarshall authTokenHash
+        <*> postgresUnmarshall authorizedTeam
+        <*> postgresUnmarshall webappUrl
 
 data StoredDomainRegistration = StoredDomainRegistration
   { domain :: DomainKey,
