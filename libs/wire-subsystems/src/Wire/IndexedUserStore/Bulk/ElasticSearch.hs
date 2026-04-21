@@ -104,7 +104,7 @@ syncAllUsersWithVersion interpreter mkVersion =
               Left e -> do
                 let lenUids = length uids
                 if lenUids <= 1
-                  then pure . Map.fromList $ map (\uid -> (uid, Left e)) uids
+                  then pure . Map.fromList $ map (,Left e) uids
                   else do
                     let (uids1, uids2) = splitAt (lenUids `div` 2) uids
                     roles1 <- getRoles tid uids1
