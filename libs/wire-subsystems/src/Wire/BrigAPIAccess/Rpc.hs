@@ -989,7 +989,8 @@ setManagedBy buid managedBy = do
         . paths ["/i/users", toByteString' buid, "managed-by"]
         . json (ManagedByUpdate managedBy)
   unless (statusCode resp == 200) $
-    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/managed-by")
+    throw $
+      ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/managed-by")
 
 setSSOId ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -1003,7 +1004,8 @@ setSSOId buid ssoId = do
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json ssoId
   unless (statusCode resp == 200) $
-    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/sso-id")
+    throw $
+      ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/sso-id")
 
 setRichInfo ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -1017,7 +1019,8 @@ setRichInfo buid richInfo = do
         . paths ["i", "users", toByteString' buid, "rich-info"]
         . json (RichInfoUpdate $ unRichInfo richInfo)
   unless (statusCode resp == 200) $
-    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/rich-info")
+    throw $
+      ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/rich-info")
 
 setLocale ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -1032,14 +1035,16 @@ setLocale buid = \case
           . paths ["i", "users", toByteString' buid, "locale"]
           . json (LocaleUpdate locale)
     unless (statusCode resp == 200) $
-      throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/locale")
+      throw $
+        ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/locale")
   Nothing -> do
     resp <-
       brigRequest $
         method DELETE
           . paths ["i", "users", toByteString' buid, "locale"]
     unless (statusCode resp == 200) $
-      throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from DELETE /i/users/locale")
+      throw $
+        ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from DELETE /i/users/locale")
 
 getRichInfo ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -1129,7 +1134,8 @@ setStatus uid status = do
         . paths ["/i/users", toByteString' uid, "status"]
         . json (AccountStatusUpdate status)
   unless (statusCode resp == 200) $
-    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/status")
+    throw $
+      ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/status")
 
 getDefaultUserLocale ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
