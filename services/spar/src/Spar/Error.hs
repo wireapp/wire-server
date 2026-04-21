@@ -31,7 +31,6 @@ module Spar.Error
     IdpDbError (..),
     throwSpar,
     sparToServerErrorWithLogging,
-    rethrow,
     parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
@@ -44,15 +43,13 @@ module Spar.Error
   )
 where
 
-import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
-import qualified Bilge
+import Bilge (ResponseLBS, responseBody)
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.Typeable (typeRep)
-import GHC.Stack (callStack, prettyCallStack)
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
@@ -240,36 +237,6 @@ renderSparError (SAML.CustomError (SparInternalError err)) = StdError $ Wai.mkEr
 renderSparError (SAML.CustomError (SparSomeHttpError err)) = err
 -- Other
 renderSparError (SAML.CustomServant err) = serverErrorToHttpError err
-
--- | If a call to another backend service fails, just respond with whatever it said.
---
--- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
--- handle all exceptions that brig can legally throw!
-rethrow :: LText -> ResponseLBS -> (HasCallStack, Log.MonadLogger m, MonadError SparError m) => m a
-rethrow serviceName resp = do
-  Log.info
-    ( Log.msg ("rfc error" :: Text)
-        . Log.field "status" (Bilge.statusCode resp)
-        . Log.field "error" (show err)
-        . Log.field "callstack" (prettyCallStack callStack)
-    )
-  throwError err
-  where
-    err :: SparError
-    err =
-      responseJsonMaybe resp
-        & maybe
-          ( SAML.CustomError
-              . SparCouldNotParseRfcResponse serviceName
-              . ("internal error: " <>)
-              . LText.pack
-              . show
-              . (Bilge.statusCode resp,)
-              . fromMaybe "<empty body>"
-              . responseBody
-              $ resp
-          )
-          (SAML.CustomServant . waiToServant)
 
 parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LText -> ResponseLBS -> m a
 parseResponse serviceName resp = do
