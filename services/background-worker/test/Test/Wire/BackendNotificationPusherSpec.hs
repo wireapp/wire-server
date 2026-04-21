@@ -57,7 +57,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Test.Wire.Util
 import UnliftIO.Async
-import Util.Options
+import Util.Options (Endpoint (..), PasswordHashingOptions (..))
 import Wire.API.Conversation.Action
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -378,7 +378,7 @@ spec = do
           intraListing = True
           federationProtocols = Nothing
           guestLinkTTLSeconds = Nothing
-          passwordHashingOptions = undefined
+          passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 
@@ -429,7 +429,7 @@ spec = do
           intraListing = True
           federationProtocols = Nothing
           guestLinkTTLSeconds = Nothing
-          passwordHashingOptions = undefined
+          passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 

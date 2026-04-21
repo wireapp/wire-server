@@ -26,7 +26,7 @@ import Data.Range
 import Imports
 import Network.HTTP.Client hiding (Proxy)
 import System.Logger.Class qualified as Logger
-import Util.Options (Endpoint (..))
+import Util.Options (Endpoint (..), PasswordHashingOptions (..))
 import Wire.BackgroundWorker.Env hiding (federatorInternal)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
@@ -75,7 +75,7 @@ testEnv = do
       intraListing = True
       federationProtocols = Nothing
       guestLinkTTLSeconds = Nothing
-      passwordHashingOptions = undefined
+      passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
   passwordHashingRateLimitEnv <- newRateLimitEnv undefined
