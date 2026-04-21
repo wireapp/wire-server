@@ -89,6 +89,7 @@ galley:
       conversation: cassandra
       conversationCodes: cassandra
       teamFeatures: cassandra
+      domainRegistration: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000

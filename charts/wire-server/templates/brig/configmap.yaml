@@ -37,6 +37,7 @@ data:
     {{- if hasKey $.Values.brig.secrets  "pgPassword" }}
     postgresqlPassword: /etc/wire/brig/secrets/pgPassword
     {{- end }}
+    postgresMigration: {{- toYaml $.Values.galley.config.postgresMigration | nindent 6 }}
 
     elasticsearch:
       url: {{ .elasticsearch.scheme }}://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}

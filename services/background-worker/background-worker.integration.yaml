@@ -68,3 +68,4 @@ postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
   teamFeatures: postgresql
+  domainRegistration: postgresql

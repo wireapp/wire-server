@@ -81,6 +81,8 @@ import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
+import Wire.DomainRegistrationStore.DualWrite
+import Wire.DomainRegistrationStore.Postgres (interpretDomainRegistrationStoreToPostgres)
 import Wire.DomainVerificationChallengeStore
 import Wire.DomainVerificationChallengeStore.Cassandra
 import Wire.EmailSending
@@ -114,6 +116,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
+import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
 import Wire.PropertySubsystem
@@ -200,6 +203,7 @@ type BrigLowerLevelEffects =
      BackgroundJobsPublisher,
      RateLimit,
      UserGroupStore,
+     DomainRegistrationStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -217,7 +221,6 @@ type BrigLowerLevelEffects =
      Error Wai.Error,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      DomainVerificationChallengeStore,
-     DomainRegistrationStore,
      CryptoSign,
      HashPassword,
      ClientStore,
@@ -387,6 +390,10 @@ runBrigToIO e (AppT ma) = do
             local = localUnit,
             requestId = e.requestId
           }
+      domainRegistrationStore = case e.postgresMigration.domainRegistration of
+        CassandraStorage -> interpretDomainRegistrationStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
+        MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
 
   ( either throwM pure
       <=< ( runFinal
@@ -440,7 +447,6 @@ runBrigToIO e (AppT ma) = do
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
-              . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
               . mapError StdError -- Wai.Error
@@ -458,6 +464,7 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel

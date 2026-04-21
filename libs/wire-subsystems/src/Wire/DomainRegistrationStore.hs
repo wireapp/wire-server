@@ -27,6 +27,10 @@ module Wire.DomainRegistrationStore
     lookupByTeam,
     delete,
     DomainRegistrationRow,
+    upsertInternal,
+    lookupInternal,
+    lookupByTeamInternal,
+    deleteInternal,
   )
 where
 
@@ -144,6 +148,8 @@ data DomainRegistrationStore m a where
   LookupInternal :: DomainKey -> DomainRegistrationStore m (Maybe StoredDomainRegistration)
   LookupByTeamInternal :: TeamId -> DomainRegistrationStore m [StoredDomainRegistration]
   DeleteInternal :: DomainKey -> DomainRegistrationStore m ()
+
+makeSem ''DomainRegistrationStore
 
 upsert :: (Member DomainRegistrationStore r) => DomainRegistration -> Sem r ()
 upsert = send . UpsertInternal . toStored

@@ -171,6 +171,12 @@ turn:
   configTTL: 3600
   tokenTTL: 21600
 
+postgresMigration:
+  conversation: postgresql
+  conversationCodes: postgresql
+  teamFeatures: postgresql
+  domainRegistration: migration-to-postgresql
+
 optSettings:
   setActivationTimeout: 4
   setVerificationTimeout: 4
