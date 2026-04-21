@@ -25,7 +25,7 @@ import Brig.Index.Options
 import Imports
 import Options.Applicative
 import System.Exit
-import System.Logger.Class qualified as Log
+import System.Logger.Extended qualified as Log
 
 main :: IO ()
 main = do
@@ -39,9 +39,4 @@ main = do
       header "brig-index"
         <> progDesc "Brig Search Index Utilities"
         <> fullDesc
-    initLogger =
-      Log.new -- TODO: use mkLogger'?
-        . Log.setOutput Log.StdOut
-        . Log.setFormat Nothing
-        . Log.setBufSize 0
-        $ Log.defSettings
+    initLogger = Log.mkLogger Log.Debug Nothing (Just $ Last Log.JSON)

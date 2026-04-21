@@ -38,7 +38,6 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog
 import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
@@ -67,7 +66,6 @@ import Wire.Rpc
 interpretGalleyAPIAccessToRpc ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member TinyLog r,
     Member (Error ClientError) r
   ) =>
   Set Version ->
@@ -113,17 +111,13 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
 
 getUserLegalholdStatus ::
-  ( Member TinyLog r,
-    Member (Error ParseException) r,
+  ( Member (Error ParseException) r,
     Member Rpc r
   ) =>
   Local UserId ->
   TeamId ->
   Sem (Input Endpoint : r) (Maybe UserLegalHoldStatusResponse)
 getUserLegalholdStatus luid tid = do
-  debug $
-    remote "galley"
-      . msg (val "get legalhold user status")
   rs <- galleyRequest do
     method GET
       . paths ["teams", toByteString' tid, "legalhold", toByteString' (tUnqualified luid)]
@@ -141,16 +135,12 @@ galleyRequest req = do
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
   ( Member Rpc r,
-    Member TinyLog r,
     Member (Input Endpoint) r
   ) =>
   Version ->
   UserId ->
   Sem r ()
 createSelfConv v u = do
-  debug $
-    remote "galley"
-      . msg (val "Creating self conversation")
   void $
     galleyRequest $
       method POST
@@ -162,19 +152,13 @@ createSelfConv v u = do
 getConv ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   Version ->
   UserId ->
   Local ConvId ->
   Sem r (Maybe OwnConversation)
 getConv v usr lcnv = do
-  debug $
-    remote "galley"
-      . field "domain" (toByteString (tDomain lcnv))
-      . field "conv" (toByteString (tUnqualified lcnv))
-      . msg (val "Getting conversation")
   rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
@@ -195,8 +179,7 @@ getConv v usr lcnv = do
 getTeamConv ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   Version ->
   UserId ->
@@ -204,10 +187,6 @@ getTeamConv ::
   ConvId ->
   Sem r (Maybe Conv.TeamConversation)
 getTeamConv v usr tid cnv = do
-  debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . msg (val "Getting team conversation")
   rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
@@ -228,18 +207,12 @@ getTeamConv v usr tid cnv = do
 -- | Calls 'Galley.API.addClientH'.
 newClient ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   UserId ->
   ClientId ->
   Sem r ()
 newClient u c = do
-  debug $
-    remote "galley"
-      . field "user" (toByteString u)
-      . field "client" (toByteString c)
-      . msg (val "new client")
   void . galleyRequest $
     method POST
       . paths ["i", "clients", toByteString' c]
@@ -249,15 +222,11 @@ newClient u c = do
 -- | Calls 'Galley.API.canUserJoinTeamH'.
 checkUserCanJoinTeam ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r (Maybe Wai.Error)
 checkUserCanJoinTeam tid = do
-  debug $
-    remote "galley"
-      . msg (val "Check if can add member to team")
   rs <- galleyRequest req
   pure $ case Bilge.statusCode rs of
     200 -> Nothing
@@ -273,8 +242,7 @@ checkUserCanJoinTeam tid = do
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   UserId ->
   TeamId ->
@@ -282,9 +250,6 @@ addTeamMember ::
   Role ->
   Sem r Bool
 addTeamMember u tid minvmeta role = do
-  debug $
-    remote "galley"
-      . msg (val "Adding member to team")
   rs <- galleyRequest req
   pure $ case Bilge.statusCode rs of
     200 -> True
@@ -303,17 +268,13 @@ addTeamMember u tid minvmeta role = do
 -- | Calls 'Galley.API.createBindingTeamH'.
 createTeam ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   UserId ->
   NewTeam ->
   TeamId ->
   Sem r ()
 createTeam u t teamid = do
-  debug $
-    remote "galley"
-      . msg (val "Creating Team")
   void $ galleyRequest $ req teamid
   where
     req tid =
@@ -328,16 +289,12 @@ createTeam u t teamid = do
 getTeamMember ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   UserId ->
   TeamId ->
   Sem r (Maybe TeamMember)
 getTeamMember u tid = do
-  debug $
-    remote "galley"
-      . msg (val "Get team member")
   rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
@@ -357,14 +314,12 @@ getTeamMember u tid = do
 getTeamMembersWithLimit ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Maybe (Range 1 HardTruncationLimit Int32) ->
   Sem r TeamMemberList
 getTeamMembersWithLimit tid maxResults = do
-  debug $ remote "galley" . msg (val "Get team members")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -376,14 +331,12 @@ getTeamMembersWithLimit tid maxResults = do
 selectTeamMemberInfos ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   [UserId] ->
   Sem r TeamMemberInfoList
 selectTeamMemberInfos tid uids = do
-  debug $ remote "galley" . msg (val "Select team members")
   let bdy = UserIds uids
   galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
   where
@@ -416,13 +369,11 @@ selectTeamMembers tid uids = do
 getTeamAdmins ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r TeamMemberList
 getTeamAdmins tid = do
-  debug $ remote "galley" . msg (val "Get team admins")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -446,13 +397,11 @@ memberIsTeamOwner tid uid = do
 getTeamId ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   UserId ->
   Sem r (Maybe TeamId)
 getTeamId u = do
-  debug $ remote "galley" . msg (val "Get team from user")
   rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
@@ -467,13 +416,11 @@ getTeamId u = do
 getTeam ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r Team.TeamData
 getTeam tid = do
-  debug $ remote "galley" . msg (val "Get team info")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -485,13 +432,11 @@ getTeam tid = do
 getTeamName ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r Team.TeamName
 getTeamName tid = do
-  debug $ remote "galley" . msg (val "Get team info")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -503,13 +448,11 @@ getTeamName tid = do
 getTeamLegalHoldStatus ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r (LockableFeature LegalholdConfig)
 getTeamLegalHoldStatus tid = do
-  debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -521,14 +464,12 @@ getTeamLegalHoldStatus tid = do
 getTeamSearchVisibility ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r TeamSearchVisibility
 getTeamSearchVisibility tid =
   coerce @TeamSearchVisibilityView @TeamSearchVisibility <$> do
-    debug $ remote "galley" . msg (val "Get search visibility settings")
     galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -540,14 +481,12 @@ getFeatureConfigForTeam ::
   forall feature r.
   ( IsFeatureConfig feature,
     Typeable feature,
-    Member TinyLog r,
     Member Rpc r,
     Member (Error ParseException) r
   ) =>
   TeamId ->
   Sem (Input Endpoint : r) (LockableFeature feature)
 getFeatureConfigForTeam tid = do
-  debug $ remote "galley" . msg (val "Get feature config for team")
   galleyRequest req >>= decodeBodyOrThrow "galley"
   where
     req =
@@ -558,13 +497,11 @@ getFeatureConfigForTeam tid = do
 getVerificationCodeEnabled ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Sem r Bool
 getVerificationCodeEnabled tid = do
-  debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
   response <- galleyRequest req
   status <- (.status) <$> decodeBodyOrThrow @(LockableFeature SndFactorPasswordChallengeConfig) "galley" response
   case status of
@@ -593,12 +530,10 @@ getAllTeamFeaturesForUser mbUserId =
 
 getConfiguredFeatureFlags ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   Sem r FeatureFlags
 getConfiguredFeatureFlags = do
-  debug $ remote "galley" . msg (val "Getting configured feature flags")
   responseJsonUnsafe
     <$> galleyRequest
       ( method GET
@@ -609,15 +544,13 @@ getConfiguredFeatureFlags = do
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   TeamId ->
   Team.TeamStatus ->
   Maybe Currency.Alpha ->
   Sem r ()
 changeTeamStatus tid s cur = do
-  debug $ remote "galley" . msg (val "Change Team status")
   void $ galleyRequest req
   where
     req =
@@ -648,13 +581,11 @@ finalizeDeleteTeam lusr mconn tid = do
 getTeamExposeInvitationURLsToTeamAdmin ::
   ( Member Rpc r,
     Member (Input Endpoint) r,
-    Member (Error ParseException) r,
-    Member TinyLog r
+    Member (Error ParseException) r
   ) =>
   TeamId ->
   Sem r ShowOrHideInvitationUrl
 getTeamExposeInvitationURLsToTeamAdmin tid = do
-  debug $ remote "galley" . msg (val "Get expose invitation URLs to team admin settings")
   response <- galleyRequest req
   status <- (.status) <$> decodeBodyOrThrow @(LockableFeature ExposeInvitationURLsToTeamAdminConfig) "galley" response
   case status of
@@ -669,14 +600,12 @@ getTeamExposeInvitationURLsToTeamAdmin tid = do
 checkMLSOne2OneEstablished ::
   ( Member (Error ParseException) r,
     Member (Input Endpoint) r,
-    Member Rpc r,
-    Member TinyLog r
+    Member Rpc r
   ) =>
   Local UserId ->
   Qualified UserId ->
   Sem r MLSOneToOneEstablished
 checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
-  debug $ remote "galley" . msg (val "Get the MLS one-to-one conversation")
   responseSelf <- galleyRequest req
   case HTTP.statusCode (HTTP.responseStatus responseSelf) of
     200 -> do
@@ -700,8 +629,7 @@ checkMLSOne2OneEstablished self (Qualified other otherDomain) = do
 unblockConversation ::
   ( Member (Error ParseException) r,
     Member (Input Endpoint) r,
-    Member Rpc r,
-    Member TinyLog r
+    Member Rpc r
   ) =>
   Version ->
   Local UserId ->
@@ -709,11 +637,6 @@ unblockConversation ::
   Qualified ConvId ->
   Sem r OwnConversation
 unblockConversation v lusr mconn (Qualified cnv cdom) = do
-  debug $
-    remote "galley"
-      . field "conv" (toByteString cnv)
-      . field "domain" (toByteString cdom)
-      . msg (val "Unblocking conversation")
   void $ galleyRequest putReq
   galleyRequest getReq >>= decodeBodyOrThrow @OwnConversation "galley"
   where
@@ -734,17 +657,13 @@ remote = field "remote"
 
 getEJPDConvInfo ::
   forall r.
-  ( Member TinyLog r,
-    Member (Error ParseException) r,
+  ( Member (Error ParseException) r,
     Member (Input Endpoint) r,
     Member Rpc r
   ) =>
   UserId ->
   Sem r [EJPDConvInfo]
 getEJPDConvInfo uid = do
-  debug $
-    remote "galley"
-      . msg (val "get conversation info for ejpd")
   decodeBodyOrThrow "galley" =<< galleyRequest getReq
   where
     getReq =
@@ -754,16 +673,11 @@ getEJPDConvInfo uid = do
 internalGetConversation ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   ConvId ->
   Sem r (Maybe Conversation)
 internalGetConversation convId = do
-  debug $
-    remote "galley"
-      . field "conv" (toByteString convId)
-      . msg (val "Getting conversation (internal)")
   rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
@@ -777,16 +691,11 @@ internalGetConversation convId = do
 getTeamContacts ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   UserId ->
   Sem r (Maybe Member.TeamMemberList)
 getTeamContacts uid = do
-  debug $
-    remote "galley"
-      . field "user" (toByteString uid)
-      . msg (val "Getting team contacts")
   rs <- galleyRequest req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBodyOrThrow "galley" rs
@@ -799,12 +708,10 @@ getTeamContacts uid = do
 
 getConversationConfig ::
   ( Member Rpc r,
-    Member (Input Endpoint) r,
-    Member TinyLog r
+    Member (Input Endpoint) r
   ) =>
   Sem r ConversationSubsystemConfig
 getConversationConfig = do
-  debug $ remote "galley" . msg (val "Getting conversation config")
   responseJsonUnsafe
     <$> galleyRequest
       ( method GET
