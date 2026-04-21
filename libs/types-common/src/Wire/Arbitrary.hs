@@ -70,7 +70,12 @@ instance
   Arbitrary (GenericUniform a)
   where
   arbitrary = GenericUniform <$> Generic.genericArbitraryWith @CustomSizedOpts @a customSizedOpts Generic.uniform
-  shrink = coerce (QC.genericShrink @a)
+  shrink =
+    -- we could define this as `coerce (QC.genericShrink @a)`, but
+    -- that makes for unreasonably large search trees.  if your test
+    -- errors are unhelpful, consider turning this on temporarily, or
+    -- writing your own shrink.
+    const []
 
 -- | We want plug in custom generators for all occurences of '[]' and 'NonEmpty'.
 type CustomSizedOpts =
