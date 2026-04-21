@@ -52,7 +52,7 @@ data AddBot = AddBot
 
 instance ToSchema AddBot where
   schema =
-    object "AddBot" $
+    object $
       AddBot
         <$> addBotProvider .= field "provider" schema
         <*> addBotService .= field "service" schema
@@ -72,7 +72,7 @@ data AddBotResponse = AddBotResponse
 
 instance ToSchema AddBotResponse where
   schema =
-    object "AddBotResponse" $
+    object $
       AddBotResponse
         <$> rsAddBotId .= field "id" schema
         <*> rsAddBotClient .= field "client" schema
@@ -95,7 +95,7 @@ newtype RemoveBotResponse = RemoveBotResponse
 
 instance ToSchema RemoveBotResponse where
   schema =
-    object "RemoveBotResponse" $
+    object $
       RemoveBotResponse
         <$> rsRemoveBotEvent .= field "event" schema
 
@@ -111,6 +111,6 @@ newtype UpdateBotPrekeys = UpdateBotPrekeys
 
 instance ToSchema UpdateBotPrekeys where
   schema =
-    object "UpdateBotPrekeys" $
+    object $
       UpdateBotPrekeys
         <$> updateBotPrekeyList .= field "prekeys" (array schema)

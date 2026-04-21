@@ -141,13 +141,13 @@ data UncheckedPrekeyBundle = UncheckedPrekeyBundle
     -- | Prekey bundle
     prekeyKey :: Text
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform UncheckedPrekeyBundle)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UncheckedPrekeyBundle
 
 instance ToSchema UncheckedPrekeyBundle where
   schema =
-    object "UncheckedPrekeyBundle" $
+    object $
       UncheckedPrekeyBundle
         <$> prekeyId .= field "id" schema
         <*> prekeyKey .= field "key" schema
@@ -247,7 +247,7 @@ decodePrekeyBundlePrekeyPayload = do
 
 newtype LastPrekey = LastPrekey
   {unpackLastPrekey :: UncheckedPrekeyBundle}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema LastPrekey
 
 instance ToSchema LastPrekey where
@@ -285,7 +285,7 @@ data PrekeyBundle = PrekeyBundle
 
 instance ToSchema PrekeyBundle where
   schema =
-    object "PrekeyBundle" $
+    object $
       PrekeyBundle
         <$> prekeyUser .= field "user" schema
         <*> prekeyClients .= field "clients" (array schema)
@@ -303,7 +303,7 @@ data ClientPrekey = ClientPrekey
 
 instance ToSchema ClientPrekey where
   schema =
-    object "ClientPrekey" $
+    object $
       ClientPrekey
         <$> prekeyClient .= field "client" schema
         <*> prekeyData .= field "prekey" schema

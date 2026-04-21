@@ -370,7 +370,7 @@ data MLSMessageSendingStatus = MLSMessageSendingStatus
 
 instance ToSchema MLSMessageSendingStatus where
   schema =
-    object "MLSMessageSendingStatus" $
+    object $
       MLSMessageSendingStatus
         <$> mmssEvents
           .= fieldWithDocModifier

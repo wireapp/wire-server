@@ -128,7 +128,7 @@ instance O.ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance S.ToSchema Currency.Alpha where
-  schema = S.enum @Text "Currency.Alpha" cases & S.doc' . O.schema %~ swaggerTweaks
+  schema = S.enum @Text cases & S.doc' . O.schema %~ swaggerTweaks
     where
       cases :: SchemaP [A.Value] Text (Alt Maybe Text) Currency.Alpha Currency.Alpha
       cases = mconcat ((\cur -> S.element (T.pack (show cur)) cur) <$> [minBound @Currency.Alpha ..])

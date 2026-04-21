@@ -27,7 +27,6 @@ module Stern.API
   )
 where
 
-import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((.~))
 import Control.Monad.Except
@@ -362,7 +361,7 @@ mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
-  (IsFeatureConfig cfg) =>
+  (Typeable cfg, IsFeatureConfig cfg) =>
   TeamId ->
   Feature cfg ->
   Handler NoContent

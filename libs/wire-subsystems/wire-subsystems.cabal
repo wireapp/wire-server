@@ -91,6 +91,8 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
+    , asn1-encoding
+    , asn1-types
     , async
     , attoparsec
     , base
@@ -108,6 +110,7 @@ common common-all
     , contravariant
     , cql
     , crypton
+    , crypton-pem
     , currency-codes
     , data-default
     , data-timeout
@@ -140,6 +143,7 @@ common common-all
     , iproute
     , iso639
     , lens
+    , lens-aeson
     , lrucaching
     , memory
     , mime
@@ -232,6 +236,7 @@ library
     Wire.ClientStore.Cassandra
     Wire.ClientStore.DynamoDB
     Wire.ClientSubsystem
+    Wire.ClientSubsystem.Error
     Wire.ClientSubsystem.Interpreter
     Wire.CodeStore
     Wire.CodeStore.Cassandra
@@ -330,6 +335,8 @@ library
     Wire.MigrationLock
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.Options.Galley
+    Wire.Options.Keys
     Wire.PaginationState
     Wire.ParseException
     Wire.PasswordResetCodeStore
@@ -529,6 +536,7 @@ test-suite wire-subsystems-tests
     Wire.ActivationCodeStore.InterpreterSpec
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
+    Wire.ClientSubsystem.InterpreterSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
     Wire.FederationSubsystem.InternalsSpec
     Wire.HashPassword.InterpreterSpec
@@ -538,6 +546,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters
     Wire.MockInterpreters.ActivationCodeStore
     Wire.MockInterpreters.AppStore
+    Wire.MockInterpreters.AuthenticationSubsystem
     Wire.MockInterpreters.BackgroundJobPublisher
     Wire.MockInterpreters.BlockListStore
     Wire.MockInterpreters.ClientStore

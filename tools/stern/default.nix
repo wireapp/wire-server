@@ -6,7 +6,6 @@
 , aeson
 , base
 , bilge
-, brig-types
 , bytestring
 , bytestring-conversion
 , containers
@@ -64,7 +63,6 @@ mkDerivation {
     aeson
     base
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     containers
@@ -99,7 +97,6 @@ mkDerivation {
     aeson
     base
     bilge
-    brig-types
     bytestring-conversion
     containers
     cookie

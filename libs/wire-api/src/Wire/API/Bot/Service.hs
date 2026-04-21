@@ -53,7 +53,7 @@ newService ref url tok fps = Service ref url tok fps True
 
 instance ToSchema Service where
   schema =
-    object "BotService" $
+    object $
       Service
         <$> _serviceRef .= field "ref" schema
         <*> _serviceUrl .= field "base_url" schema

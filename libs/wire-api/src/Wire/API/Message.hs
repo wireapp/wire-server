@@ -108,7 +108,7 @@ messageMetadataObjectSchema =
     <*> mmData .= maybe_ (optField "data" schema)
 
 instance ToSchema MessageMetadata where
-  schema = object "MessageMetadata" messageMetadataObjectSchema
+  schema = object messageMetadataObjectSchema
 
 defMessageMetadata :: MessageMetadata
 defMessageMetadata =
@@ -146,7 +146,7 @@ newOtrMessageMetadata msg =
 
 instance ToSchema NewOtrMessage where
   schema =
-    object "new-otr-message" $
+    object $
       mk
         <$> newOtrSender .= field "sender" schema
         <*> newOtrRecipients .= field "recipients" schema
@@ -298,7 +298,7 @@ data Priority = LowPriority | HighPriority
 
 instance ToSchema Priority where
   schema =
-    enum @Text "Priority" $
+    enum @Text $
       mconcat
         [ element "low" LowPriority,
           element "high" HighPriority
@@ -487,7 +487,7 @@ instance Arbitrary ClientMismatch where
 
 instance ToSchema ClientMismatch where
   schema =
-    object "ClientMismatch" $
+    object $
       ClientMismatch
         <$> cmismatchTime .= field "time" schema
         <*> missingClients .= field "missing" schema
@@ -508,7 +508,6 @@ data MessageSendingStatus = MessageSendingStatus
 instance ToSchema MessageSendingStatus where
   schema =
     objectWithDocModifier
-      "MessageSendingStatus"
       (description ?~ combinedDesc)
       $ MessageSendingStatus
         <$> mssTime .= field "time" schema

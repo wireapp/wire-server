@@ -70,7 +70,7 @@ data TeamExportUser = TeamExportUser
 
 instance ToSchema TeamExportUser where
   schema =
-    object "TeamExportUser" $
+    object $
       TeamExportUser
         <$> tExportDisplayName .= field "display_name" schema
         <*> tExportHandle .= maybe_ (optField "handle" schema)

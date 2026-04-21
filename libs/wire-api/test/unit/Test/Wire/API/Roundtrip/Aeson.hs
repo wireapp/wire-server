@@ -63,13 +63,16 @@ import Wire.API.Team.Feature qualified as Team.Feature
 import Wire.API.Team.Invitation qualified as Team.Invitation
 import Wire.API.Team.LegalHold qualified as Team.LegalHold
 import Wire.API.Team.LegalHold.External qualified as Team.LegalHold.External
+import Wire.API.Team.LegalHold.Internal as Team.LegalHold.Internal
 import Wire.API.Team.Member qualified as Team.Member
 import Wire.API.Team.Permission qualified as Team.Permission
 import Wire.API.Team.Role qualified as Team.Role
 import Wire.API.Team.SearchVisibility qualified as Team.SearchVisibility
+import Wire.API.Team.Size qualified as Team
 import Wire.API.User qualified as User
 import Wire.API.User.Activation qualified as User.Activation
 import Wire.API.User.Auth qualified as User.Auth
+import Wire.API.User.Auth.ReAuth qualified as User.Auth
 import Wire.API.User.Client qualified as User.Client
 import Wire.API.User.Client.Prekey qualified as User.Client.Prekey
 import Wire.API.User.Handle qualified as User.Handle
@@ -359,7 +362,17 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testRoundTrip @BackgroundJobs.Job
+      testRoundTrip @BackgroundJobs.Job,
+      testRoundTrip @User.ManagedByUpdate,
+      testRoundTrip @User.Auth.ReAuthUser,
+      testRoundTrip @User.RichInfoUpdate,
+      testRoundTrip @User.NewUserScimInvitation,
+      testRoundTripWithSwagger @EJPD.EJPDRequestBody,
+      testRoundTripWithSwagger @EJPD.EJPDResponseBody,
+      testRoundTrip @User.UpdateConnectionsInternal,
+      testRoundTrip @Team.TeamSize,
+      testRoundTrip @Team.LegalHold.Internal.LegalHoldService,
+      testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest
     ]
 
 testRoundTrip ::

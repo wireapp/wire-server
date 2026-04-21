@@ -19,7 +19,6 @@
 , bilge
 , binary
 , bloodhound
-, brig-types
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -111,7 +110,6 @@
 , servant-server
 , servant-swagger-ui
 , spar
-, split
 , ssl-util
 , stomp-queue
 , streaming-commons
@@ -126,7 +124,6 @@
 , temporary
 , text
 , time
-, time-out
 , time-units
 , tinylog
 , transformers
@@ -173,7 +170,6 @@ mkDerivation {
     base64-bytestring
     bilge
     bloodhound
-    brig-types
     bytestring
     bytestring-conversion
     cassandra-util
@@ -213,7 +209,6 @@ mkDerivation {
     jose
     jwt-tools
     lens
-    lens-aeson
     memory
     metrics-core
     metrics-wai
@@ -243,15 +238,12 @@ mkDerivation {
     servant-openapi3
     servant-server
     servant-swagger-ui
-    split
     ssl-util
     stomp-queue
     template
     template-haskell
     text
     time
-    time-out
-    time-units
     tinylog
     transformers
     types-common
@@ -280,7 +272,6 @@ mkDerivation {
     base16-bytestring
     bilge
     bloodhound
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -370,7 +361,6 @@ mkDerivation {
     aeson
     base
     binary
-    brig-types
     bytestring
     containers
     data-timeout

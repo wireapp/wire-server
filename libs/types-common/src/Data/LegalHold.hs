@@ -40,7 +40,7 @@ data UserLegalHoldStatus
 instance ToSchema UserLegalHoldStatus where
   schema =
     (S.schema . description ?~ desc) $
-      enum @Text "UserLegalHoldStatus" $
+      enum @Text $
         element "enabled" UserLegalHoldEnabled
           <> element "pending" UserLegalHoldPending
           <> element "disabled" UserLegalHoldDisabled

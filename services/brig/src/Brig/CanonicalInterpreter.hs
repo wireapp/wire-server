@@ -28,7 +28,7 @@ import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
-import Brig.Options (federationDomainConfigs, federationStrategy)
+import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
@@ -62,6 +62,9 @@ import Wire.AppSubsystem.Interpreter
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Interpreter
+import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
+import Wire.BackendNotificationQueueAccess.RabbitMq (interpretBackendNotificationQueueAccess)
+import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
 import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
 import Wire.BlockListStore
@@ -70,6 +73,7 @@ import Wire.ClientStore (ClientStore)
 import Wire.ClientStore.Cassandra
 import Wire.ClientStore.DynamoDB (OptimisticLockEnv (..))
 import Wire.ClientSubsystem
+import Wire.ClientSubsystem.Error (clientErrorToHttpError)
 import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
@@ -168,7 +172,8 @@ type NonRecursiveEffects1 =
 type RecursiveEffects =
   '[ AuthenticationSubsystem,
      UserSubsystem,
-     AppSubsystem
+     AppSubsystem,
+     ClientSubsystem
    ]
 
 type NonRecursiveEffects2 =
@@ -178,8 +183,7 @@ type NonRecursiveEffects2 =
 
 -- | These effects have interpreters which don't depend on each other
 type BrigLowerLevelEffects =
-  '[ ClientSubsystem,
-     SAMLEmailSubsystem,
+  '[ SAMLEmailSubsystem,
      TeamSubsystem,
      TeamCollaboratorsStore,
      AppStore,
@@ -189,6 +193,7 @@ type BrigLowerLevelEffects =
      DeleteQueue,
      Wire.Events.Events,
      NotificationSubsystem,
+     BackendNotificationQueueAccess,
      BackgroundJobsPublisher,
      RateLimit,
      UserGroupStore,
@@ -204,7 +209,6 @@ type BrigLowerLevelEffects =
      Error VerificationCodeSubsystemError,
      Error PropertySubsystemError,
      Error RateLimitExceeded,
-     Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      DomainVerificationChallengeStore,
      DomainRegistrationStore,
@@ -229,6 +233,7 @@ type BrigLowerLevelEffects =
      Input (Local ()),
      Input (AuthenticationSubsystemConfig),
      Input InvitationUrlTemplates,
+     Input ClientSubsystemConfig,
      GundeckAPIAccess,
      FederationConfigStore,
      Jwk,
@@ -246,9 +251,11 @@ type BrigLowerLevelEffects =
      Rpc,
      Metrics,
      Embed Cas.Client,
+     Error ClientError,
      Error ParseException,
      Error ErrorCall,
      Error SomeException,
+     Error HttpError,
      TinyLog,
      Embed HttpClientIO,
      Embed IO,
@@ -268,16 +275,19 @@ runRecursiveEffects ::
   (Members NonRecursiveEffects2 r) =>
   Sem (RecursiveEffects `Append` r) a ->
   Sem r a
-runRecursiveEffects = runApp . runUser . runAuth
+runRecursiveEffects = runClient . runApp . runUser . runAuth
   where
     runAuth :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor AuthenticationSubsystem r
     runAuth = interpretAuthenticationSubsystem runUser
 
     runUser :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor UserSubsystem r
-    runUser = runUserSubsystem runAuth runApp
+    runUser = runUserSubsystem runAuth runApp runClient
 
     runApp :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor AppSubsystem r
     runApp = runAppSubsystem runUser runAuth
+
+    runClient :: forall r. (Members NonRecursiveEffects2 r) => InterpreterFor ClientSubsystem r
+    runClient = runClientSubsystem runAuth runUser
 
 runBrigToIO :: App.Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
@@ -359,6 +369,18 @@ runBrigToIO e (AppT ma) = do
                 e.randomPrekeyLocalLock,
             casClient = e.casClient
           }
+      clientSubsystemConfig =
+        ClientSubsystemConfig
+          { userMaxPermClients = fromMaybe Opt.defUserMaxPermClients e.settings.userMaxPermClients,
+            consumableNotificationsEnabled = e.settings.consumableNotifications
+          }
+      backendNotificationQueueEnv =
+        BackendNotificationQueueAccess.Env
+          { channelMVar = e.rabbitmqChannel,
+            logger = e.appLogger,
+            local = localUnit,
+            requestId = e.requestId
+          }
 
   ( either throwM pure
       <=< ( runFinal
@@ -368,9 +390,11 @@ runBrigToIO e (AppT ma) = do
               . embedToFinal
               . runEmbedded (runHttpClientIO e)
               . loggerToTinyLogReqId e.requestId e.appLogger
+              . rethrowHttpErrorIO
               . runError @SomeException
               . mapError @ErrorCall SomeException
               . mapError @ParseException SomeException
+              . mapError clientErrorToHttpError
               . interpretClientToIO e.casClient
               . runMetricsToIO
               . runRpcWithHttp e.httpManager e.requestId
@@ -388,6 +412,7 @@ runBrigToIO e (AppT ma) = do
               . interpretJwk
               . interpretFederationDomainConfig e.casClient e.settings.federationStrategy (foldMap (remotesMapFromCfgFile . fmap (.federationDomainConfig)) e.settings.federationDomainConfigs)
               . runGundeckAPIAccess e.gundeckEndpoint
+              . runInputConst clientSubsystemConfig
               . runInputConst (invitationUrlTemplates e)
               . runInputConst authenticationSubsystemConfig
               . runInputConst localUnit
@@ -412,7 +437,6 @@ runBrigToIO e (AppT ma) = do
               . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
-              . rethrowHttpErrorIO
               . mapError rateLimitExceededToHttpError
               . mapError propertySubsystemErrorToHttpError
               . mapError verificationCodeSubsystemErrorToHttpError
@@ -428,6 +452,7 @@ runBrigToIO e (AppT ma) = do
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
+              . interpretBackendNotificationQueueAccess (Just backendNotificationQueueEnv)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents
               . runDeleteQueue e.internalEvents
@@ -438,7 +463,6 @@ runBrigToIO e (AppT ma) = do
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
               . samlEmailSubsystemInterpreter
-              . runClientSubsystem
               . interpretTeamCollaboratorsSubsystem
               . runRecursiveEffects
               . interpretUserGroupSubsystem

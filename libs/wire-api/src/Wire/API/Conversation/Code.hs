@@ -57,7 +57,6 @@ instance ToSchema CreateConversationCodeRequest where
   schema :: ValueSchema NamedSwaggerDoc CreateConversationCodeRequest
   schema =
     objectWithDocModifier
-      "CreateConversationCodeRequest"
       (description ?~ "Request body for creating a conversation code")
       $ CreateConversationCodeRequest
         <$> (.password) .= maybe_ (optFieldWithDocModifier "password" desc schema)
@@ -75,7 +74,6 @@ data JoinConversationByCode = JoinConversationByCode
 instance ToSchema JoinConversationByCode where
   schema =
     objectWithDocModifier
-      "JoinConversationByCode"
       (description ?~ "Request body for joining a conversation by code")
       $ JoinConversationByCode
         <$> (.code) .= conversationCodeObjectSchema
@@ -106,7 +104,6 @@ conversationCodeObjectSchema =
 instance ToSchema ConversationCode where
   schema =
     objectWithDocModifier
-      "ConversationCode"
       (description ?~ "Contains conversation properties to update")
       conversationCodeObjectSchema
 
@@ -122,7 +119,6 @@ data ConversationCodeInfo = ConversationCodeInfo
 instance ToSchema ConversationCodeInfo where
   schema =
     objectWithDocModifier
-      "ConversationCodeInfo"
       (description ?~ "Contains conversation properties to update")
       $ ConversationCodeInfo
         <$> (.code) .= conversationCodeObjectSchema

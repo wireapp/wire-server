@@ -27,7 +27,6 @@ import Brig.API.Connection.Util
 import Brig.API.Types (ConnectionError (..))
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Federation.Client as Federation
 import Brig.IO.Intra qualified as Intra
 import Brig.Options
 import Control.Comonad
@@ -37,22 +36,22 @@ import Data.Id as Id
 import Data.Qualified
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
-import Network.Wai.Utilities.Error
 import Polysemy
+import System.Logger.Class qualified as Log
+import Wire.API.Component
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
-  ( NewConnectionResponse (..),
-    RemoteConnectionAction (..),
-  )
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
+import Wire.UserStore as UserStore
+import Wire.UserSubsystem
 
 data LocalConnectionAction
   = LocalConnect
@@ -224,35 +223,37 @@ pushEvent self mzcon connection = do
   liftSem $ Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  (Member GalleyAPIAccess r, Member NotificationSubsystem r, Member UserStore r) =>
+  ( Member GalleyAPIAccess r,
+    Member NotificationSubsystem r,
+    Member UserStore r,
+    HasBrigFederationAccess m r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
   Maybe UserConnection ->
   LocalConnectionAction ->
   (ConnectionM r) (ResponseForExistedCreated UserConnection, Bool)
-performLocalAction self mzcon other mconnection action = do
+performLocalAction luid mzcon other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
-  checkLimitForLocalAction self rel0 action
+  checkLimitForLocalAction luid rel0 action
   mrel2 <- for (transition (LCA action) rel0) $ \rel1 -> do
     mreaction <- fmap join . for (remoteAction action) $ \ra -> do
-      mSelfTeam <- lift . liftSem . UserStore.getUserTeam . tUnqualified $ self
-      response <-
-        sendConnectionAction
-          self
-          (qualifyAs self <$> mSelfTeam)
-          other
-          ra
-          !>> ConnectFederationError
-      case (response :: NewConnectionResponse) of
-        NewConnectionResponseOk reaction -> pure reaction
-        NewConnectionResponseNotFederating -> throwE ConnectTeamFederationError
-        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
+      let uid = tUnqualified luid
+      mSelfTeam <- lift $ liftSem $ UserStore.getUserTeam uid
+      Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
+      let req = NewConnectionRequest uid mSelfTeam (qUnqualified $ tUntagged other) ra
+      response <- lift $ liftSem $ runFederatedEither other $ fedClient @'Brig @"send-connection-action" req
+      case response of
+        Right (NewConnectionResponseOk reaction) -> pure reaction
+        Right NewConnectionResponseNotFederating -> throwE ConnectTeamFederationError
+        Right NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
+        Left e -> throwE $ ConnectFederationError e
     pure $
       fromMaybe rel1 $ do
         reactionAction <- (mreaction :: Maybe RemoteConnectionAction)
         transition (RCA reactionAction) rel1
-  transitionTo self mzcon other mconnection mrel2 LocalActor
+  transitionTo luid mzcon other mconnection mrel2 LocalActor
   where
     remoteAction :: LocalConnectionAction -> Maybe RemoteConnectionAction
     remoteAction LocalConnect = Just RemoteConnect
@@ -301,7 +302,9 @@ createConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member FederationConfigStore r,
     Member UserStore r,
-    Member NotificationSubsystem r
+    Member UserSubsystem r,
+    Member NotificationSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   ConnId ->
@@ -309,7 +312,11 @@ createConnectionToRemoteUser ::
   ConnectionM r (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
   ensureNotSameAndActivated self (tUntagged other)
-  ensureFederatesWith other
+  mbOtherProfile <- ensureFederatesWith other
+  let selfInfo, otherInfo :: [Qualified (Either UserId UserProfile)]
+      selfInfo = [tUntagged $ Left <$> self]
+      otherInfo = [tUntagged $ qualifyAs other (Right op) | op <- maybeToList mbOtherProfile]
+  ensureNoApps self $ selfInfo <> otherInfo
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
@@ -317,7 +324,8 @@ updateConnectionToRemoteUser ::
   ( Member GalleyAPIAccess r,
     Member NotificationSubsystem r,
     Member FederationConfigStore r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Remote UserId ->
@@ -325,7 +333,7 @@ updateConnectionToRemoteUser ::
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  ensureFederatesWith other
+  void $ ensureFederatesWith other
   mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1
@@ -346,16 +354,22 @@ checkLimitForLocalAction u oldRel action =
   when (oldRel `notElem` [Accepted, Sent] && (action == LocalConnect)) $
     checkLimit u
 
--- | Check if the local backend federates with the remote user's team. Throw an
--- exception if it does not federate.
+-- | Check if the local backend federates with the remote user's
+-- team. Throw an exception if it does not federate.  Return the
+-- profile of the remote user because we sometimes need it again, and
+-- don't want to fetch it twice.
 ensureFederatesWith ::
-  (Member FederationConfigStore r) =>
+  ( Member FederationConfigStore r,
+    HasBrigFederationAccess m r
+  ) =>
   Remote UserId ->
-  ConnectionM r ()
+  ConnectionM r (Maybe UserProfile)
 ensureFederatesWith remote = do
+  lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   profiles <-
-    withExceptT ConnectFederationError $
-      getUsersByIds (tDomain remote) [tUnqualified remote]
+    either (throwE . ConnectFederationError) pure
+      =<< lift (liftSem $ runFederatedEither remote $ fedClient @'Brig @"get-users-by-ids" [tUnqualified remote])
   let rTeam = qualifyAs remote $ profileTeam =<< listToMaybe profiles
   unlessM (lift . liftSem . backendFederatesWith $ rTeam) $
     throwE ConnectTeamFederationError
+  pure (listToMaybe profiles)

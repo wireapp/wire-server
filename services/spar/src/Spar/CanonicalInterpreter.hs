@@ -71,6 +71,7 @@ import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.BrigAPIAccess.Rpc (interpretBrigAccess)
+import Wire.ClientSubsystem.Error (ClientError, clientErrorToHttpError)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.IdPConfigStore (IdPConfigStore)
@@ -100,6 +101,7 @@ type LowerLevelCanonicalEffs =
      AReqIDStore,
      VerdictFormatStore,
      Error ParseException,
+     Error ClientError,
      Rpc,
      Input ScimSubsystemConfig,
      Error IdPSubsystemError,
@@ -156,6 +158,7 @@ runSparToIO ctx =
     . mapIdPSubsystemErrors
     . runInputConst (ctx.sparCtxScimSubsystemConfig)
     . runRpcWithHttp ctx.sparCtxHttpManager ctx.sparCtxRequestId
+    . iClientException
     . iParseException
     . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
@@ -171,6 +174,9 @@ runSparToIO ctx =
 
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)
+
+iClientException :: (Member (Error SparError) r) => InterpreterFor (Error ClientError) r
+iClientException = Polysemy.Error.mapError (httpErrorToSparError . clientErrorToHttpError)
 
 runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do

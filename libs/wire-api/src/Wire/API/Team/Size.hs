@@ -26,6 +26,8 @@ import Data.OpenApi qualified as S
 import Data.Schema
 import Imports
 import Numeric.Natural
+import Test.QuickCheck (arbitrarySizedNatural)
+import Wire.Arbitrary
 
 newtype TeamSize = TeamSize Natural
   deriving (Show, Eq)
@@ -33,8 +35,11 @@ newtype TeamSize = TeamSize Natural
 
 instance ToSchema TeamSize where
   schema =
-    objectWithDocModifier "TeamSize" (description ?~ "A simple object with a total number of team members.") $
+    objectWithDocModifier (description ?~ "A simple object with a total number of team members.") $
       TeamSize <$> (unTeamSize .= fieldWithDocModifier "teamSize" (description ?~ "Team size.") schema)
     where
       unTeamSize :: TeamSize -> Natural
       unTeamSize (TeamSize n) = n
+
+instance Arbitrary TeamSize where
+  arbitrary = TeamSize <$> arbitrarySizedNatural

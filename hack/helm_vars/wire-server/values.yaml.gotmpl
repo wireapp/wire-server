@@ -5,6 +5,7 @@ tags:
   legalhold: false
   sftd: false
   integration: true
+  proxy: true
 
 consumableNotifications: false
 
@@ -652,14 +653,6 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
-    cassandraGalley:
-      host: {{ .Values.cassandraHost }}
-      replicaCount: 1
-      {{- if .Values.useK8ssandraSSL.enabled }}
-      tlsCaSecretRef:
-          name: "cassandra-jks-keystore"
-          key: "ca.crt"
-      {{- end }}
     cassandraBrig:
       host: {{ .Values.cassandraHost }}
       replicaCount: 1
@@ -668,8 +661,6 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
-    # See helmfile for the real value
-    federationDomain: integration.example.com
     postgresMigration:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
@@ -683,7 +674,6 @@ background-worker:
         name: "rabbitmq-certificate"
         key: "ca.crt"
   secrets:
-    pgPassword: "posty-the-gres"
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}

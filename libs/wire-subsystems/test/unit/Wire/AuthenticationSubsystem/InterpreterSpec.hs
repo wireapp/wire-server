@@ -19,6 +19,7 @@
 
 module Wire.AuthenticationSubsystem.InterpreterSpec (spec) where
 
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
@@ -41,6 +42,7 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Wire.API.Allowlists (AllowlistEmailDomains (AllowlistEmailDomains))
 import Wire.API.Password
+import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Password
@@ -52,6 +54,7 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.AuthenticationSubsystem.ZAuth (randomConnId)
 import Wire.EmailSubsystem
 import Wire.Events
+import Wire.GalleyAPIAccess
 import Wire.HashPassword
 import Wire.MiniBackend
 import Wire.MockInterpreters
@@ -66,11 +69,21 @@ import Wire.SessionStore
 import Wire.StoredUser
 import Wire.UserKeyStore
 import Wire.UserStore
+import Wire.VerificationCode
+import Wire.VerificationCodeGen
+import Wire.VerificationCodeStore
+import Wire.VerificationCodeSubsystem
+import Wire.VerificationCodeSubsystem.Interpreter
 
 type AllEffects =
   [ AuthenticationSubsystem,
+    GalleyAPIAccess,
+    VerificationCodeSubsystem,
+    Input VerificationCodeThrottleTTL,
+    VerificationCodeStore,
     Events,
     Error AuthenticationSubsystemError,
+    Error VerificationCodeSubsystemError,
     Error RateLimitExceeded,
     RateLimit,
     Random,
@@ -83,7 +96,6 @@ type AllEffects =
     State (Map UserId [Cookie ()]),
     PasswordStore,
     PasswordResetCodeStore,
-    State (Map PasswordResetKey (PRQueryData Identity)),
     TinyLog,
     EmailSubsystem,
     UserStore,
@@ -94,10 +106,21 @@ type AllEffects =
   ]
 
 runAllEffects :: Domain -> [StoredUser] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
-runAllEffects domain users passwords emailDomains action = snd $ runAllEffectsWithEventState domain users passwords emailDomains action
+runAllEffects domain users passwords emailDomains action = snd $ runAllEffectsWithEventStateAndFeatures domain users passwords emailDomains def action
 
 runAllEffectsWithEventState :: Domain -> [StoredUser] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
 runAllEffectsWithEventState localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
+  runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains def
+
+runAllEffectsWithEventStateAndFeatures ::
+  Domain ->
+  [StoredUser] ->
+  Map UserId Password ->
+  Maybe [Text] ->
+  AllTeamFeatures ->
+  Sem AllEffects a ->
+  ([MiniEvent], Either AuthenticationSubsystemError a)
+runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains galleyFeatures =
   let cfg =
         defaultAuthenticationSubsystemConfig
           { allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
@@ -111,8 +134,7 @@ runAllEffectsWithEventState localDomain preexistingUsers preexistingPasswords mA
         . runInMemoryUserStoreInterpreter preexistingUsers preexistingPasswords
         . inMemoryEmailSubsystemInterpreter
         . discardTinyLogs
-        . evalState mempty
-        . inMemoryPasswordResetCodeStore
+        . runInMemoryPasswordResetCodeStore
         . runInMemoryPasswordStoreInterpreter
         . evalState mempty
         . inMemorySessionStoreInterpreter
@@ -124,8 +146,13 @@ runAllEffectsWithEventState localDomain preexistingUsers preexistingPasswords mA
         . runRandomPure
         . noRateLimit
         . runErrorUnsafe
+        . runErrorUnsafe
         . runError
         . miniEventInterpreter
+        . runInMemoryVerificationCodeStore
+        . runInputConst (VerificationCodeThrottleTTL 60)
+        . interpretVerificationCodeSubsystem
+        . miniGalleyAPIAccess mempty galleyFeatures
         . interpretAuthenticationSubsystem inMemoryUserSubsystemInterpreter
 
 toInputPassword :: PlainTextPassword8 -> PlainTextPassword6
@@ -141,7 +168,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
@@ -169,7 +197,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = foldMap (Map.singleton uid . hashPassword) mPreviousPassword
@@ -201,7 +230,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             createPasswordResetCodeResult =
               runAllEffects testDomain [user] mempty (Just [decodeUtf8 $ domainPart email]) $
@@ -237,7 +267,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             Right (newPasswordVerification, mCaughtException) =
@@ -260,7 +291,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -305,7 +337,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -326,7 +359,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             passwords = Map.singleton uid $ hashPassword oldPassword
@@ -356,6 +390,52 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               wrongResetErrors == replicate wrongResetAttempts (Just AuthenticationSubsystemInvalidPasswordResetCode)
                 .&&. resetPassworedWithCorectCodeResult === expectedFinalResetResult
                 .&&. assertPasswordVerification
+    prop "reset code not generated for SAML user" $
+      \email userNoEmail samlUserRef ->
+        let user =
+              userNoEmail
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active,
+                  ssoId = Just (UserSSOId samlUserRef),
+                  activated = True
+                }
+            createPasswordResetCodeResult =
+              runAllEffects testDomain [user] mempty Nothing $ do
+                createPasswordResetCode (mkEmailKey email)
+                expectNoEmailSent
+                internalLookupPasswordResetCode (mkEmailKey email)
+         in case createPasswordResetCodeResult of
+              Right Nothing -> property True
+              Right mResetCode ->
+                counterexample ("expected no stored password reset code, got: " <> show mResetCode) False
+              Left e ->
+                counterexample ("expected Right Nothing, got Left: " <> show e) False
+
+    prop "issued reset code is rejected if user becomes SAML before completion" $
+      \email userNoEmail samlUserRef oldPassword newPassword ->
+        let user =
+              userNoEmail
+                { email = Just email,
+                  emailUnvalidated = Nothing,
+                  status = Just Active,
+                  ssoId = Nothing,
+                  activated = True
+                }
+            uid = user.id
+            passwords = Map.singleton uid $ hashPassword oldPassword
+            Right (oldPasswordVerification, newPasswordVerification, resetPasswordResult) =
+              runAllEffects testDomain [user] passwords Nothing $ do
+                createPasswordResetCode (mkEmailKey email)
+                (_, resetCode) <- expect1ResetPasswordEmail email
+                void $ updateSSOId uid (Just (UserSSOId samlUserRef))
+                mCaughtExc <- catchExpectedError $ resetPassword (PasswordResetEmailIdentity email) resetCode newPassword
+                (,,mCaughtExc)
+                  <$> verifyUserPassword uid (toInputPassword oldPassword)
+                  <*> verifyUserPassword uid (toInputPassword newPassword)
+         in resetPasswordResult === Just AuthenticationSubsystemInvalidPasswordResetCode
+              .&&. fst oldPasswordVerification === True
+              .&&. fst newPasswordVerification === False
 
   describe "internalLookupPasswordResetCode" do
     prop "should find password reset code by email" $
@@ -364,7 +444,8 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               userNoEmail
                 { email = Just email,
                   emailUnvalidated = Nothing,
-                  status = Just Active
+                  status = Just Active,
+                  ssoId = Nothing
                 }
             uid = user.id
             Right newPasswordVerification =
@@ -468,6 +549,66 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
                     .&&. counterexample "first cookie for user A should be replaced by second" (cookieA1.cookieId /= cookieA2.cookieId)
                     .&&. (event <$> events) === [UserEvent UserSessionRefreshSuggested]
                     .&&. (Event.userId <$> events) === [uidA]
+
+    describe "enforceVerificationCodeEither" do
+      let setEmail user email tid =
+            user
+              { email = email,
+                emailUnvalidated = Nothing,
+                status = Just Active,
+                activated = True,
+                ssoId = Nothing,
+                teamId = tid
+              }
+      prop "accepts a valid code for the requested action" $
+        \email userNoEmail action tid status ->
+          let user = setEmail userNoEmail (Just email) (Just tid)
+              luid = toLocalUnsafe testDomain user.id
+              features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
+              (_, Right result) =
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                  code <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
+                  enforceVerificationCodeEither luid (Just code.codeValue) action
+           in result === Right ()
+
+      prop "rejects invalid code for the requested action" $
+        \email userNoEmail wrongCode action tid status ->
+          let user = setEmail userNoEmail (Just email) (Just tid)
+              luid = toLocalUnsafe testDomain user.id
+              features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
+              (_, Right result) =
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                  _ <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
+                  enforceVerificationCodeEither luid (Just wrongCode) action
+           in if status == FeatureStatusEnabled
+                then result === Left VerificationCodeNoPendingCode
+                else result === Right ()
+
+      prop "rejects missing code for the requested action" $
+        \email userNoEmail action tid status ->
+          let user = setEmail userNoEmail (Just email) (Just tid)
+              luid = toLocalUnsafe testDomain user.id
+              features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
+              (_, Right result) =
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                  _ <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
+                  enforceVerificationCodeEither luid Nothing action
+           in if status == FeatureStatusEnabled
+                then result === Left VerificationCodeRequired
+                else result === Right ()
+
+      prop "rejects if no email" $
+        \email userNoEmail action tid status ->
+          let user = setEmail userNoEmail Nothing (Just tid)
+              luid = toLocalUnsafe testDomain user.id
+              features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
+              (_, Right result) =
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                  code <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
+                  enforceVerificationCodeEither luid (Just code.codeValue) action
+           in if status == FeatureStatusEnabled
+                then result === Left VerificationCodeNoEmail
+                else result === Right ()
 
   describe "randomConnId" $ do
     it "generates different connection ids" $ do

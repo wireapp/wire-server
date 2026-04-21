@@ -12,6 +12,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
+    sbomnix = {
+      url = "github:tiiuae/sbomnix/v1.7.4";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     bloodhound = {
       url = "github:wireapp/bloodhound?ref=wire-fork";
@@ -83,7 +87,7 @@
     };
   };
 
-  outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, ... }:
+  outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, sbomnix, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -134,6 +138,7 @@
             pkgs_unstable.syft
             pkgs.kubernetes-helm
             pkgs.helmfile
+            sbomnix.packages.${system}.default
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             # Linux-only container tools
             pkgs.skopeo

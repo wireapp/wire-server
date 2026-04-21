@@ -77,7 +77,6 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Brig.API.Auth
-    Brig.API.Client
     Brig.API.Connection
     Brig.API.Connection.Remote
     Brig.API.Connection.Util
@@ -105,7 +104,6 @@ library
     Brig.Calling.Internal
     Brig.CanonicalInterpreter
     Brig.Data.Activation
-    Brig.Data.Client
     Brig.Data.Connection
     Brig.Data.MLS.KeyPackage
     Brig.Data.Nonce
@@ -119,7 +117,6 @@ library
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
-    Brig.Federation.Client
     Brig.Index.Eval
     Brig.Index.Options
     Brig.Index.Types
@@ -134,6 +131,7 @@ library
     Brig.Provider.DB
     Brig.Provider.Email
     Brig.Provider.RPC
+    Brig.Provider.Tag
     Brig.Provider.Template
     Brig.Queue
     Brig.Queue.Stomp
@@ -197,6 +195,7 @@ library
     Brig.User.API.Handle
     Brig.User.Auth
     Brig.User.Auth.Cookie
+    Brig.User.Client
     Brig.User.EJPD
     Brig.User.Search.Index
     Brig.User.Search.SearchIndex
@@ -223,7 +222,6 @@ library
     , base64-bytestring                     >=1.0
     , bilge                                 >=0.21.1
     , bloodhound                            >=0.13
-    , brig-types                            >=0.91.1
     , bytestring                            >=0.10
     , bytestring-conversion                 >=0.2
     , cassandra-util                        >=0.16.2
@@ -263,7 +261,6 @@ library
     , jose
     , jwt-tools
     , lens                                  >=3.8
-    , lens-aeson                            >=1.0
     , memory
     , metrics-core                          >=0.3
     , metrics-wai                           >=0.3
@@ -293,15 +290,12 @@ library
     , servant-openapi3
     , servant-server
     , servant-swagger-ui
-    , split                                 >=0.2
     , ssl-util
     , stomp-queue                           >=0.3
     , template                              >=0.2
     , template-haskell
     , text                                  >=0.11
     , time                                  >=1.1
-    , time-out
-    , time-units
     , tinylog                               >=0.10
     , transformers                          >=0.3
     , types-common                          >=0.16
@@ -391,7 +385,6 @@ executable brig-integration
     , bilge
     , bloodhound
     , brig
-    , brig-types
     , bytestring             >=0.9
     , bytestring-conversion
     , case-insensitive
@@ -512,7 +505,6 @@ test-suite brig-tests
     , base
     , binary
     , brig
-    , brig-types
     , bytestring
     , containers
     , data-timeout

@@ -107,7 +107,7 @@ data OAuthClientConfig = OAuthClientConfig
 
 instance ToSchema OAuthClientConfig where
   schema =
-    object "OAuthClientConfig" $
+    object $
       OAuthClientConfig
         <$> applicationName
           .= fieldWithDocModifier "application_name" applicationNameDescription schema
@@ -146,7 +146,7 @@ data OAuthClientCredentials = OAuthClientCredentials
 
 instance ToSchema OAuthClientCredentials where
   schema =
-    object "OAuthClientCredentials" $
+    object $
       OAuthClientCredentials
         <$> (.clientId)
           .= fieldWithDocModifier "client_id" clientIdDescription schema
@@ -167,7 +167,7 @@ data OAuthClient = OAuthClient
 
 instance ToSchema OAuthClient where
   schema =
-    object "OAuthClient" $
+    object $
       OAuthClient
         <$> (.clientId)
           .= field "client_id" schema
@@ -184,7 +184,7 @@ data OAuthResponseType = OAuthResponseTypeCode
 instance ToSchema OAuthResponseType where
   schema :: ValueSchema NamedSwaggerDoc OAuthResponseType
   schema =
-    enum @Text "OAuthResponseType" $
+    enum @Text $
       mconcat
         [ element "code" OAuthResponseTypeCode
         ]
@@ -263,7 +263,7 @@ data CodeChallengeMethod = S256
 instance ToSchema CodeChallengeMethod where
   schema :: ValueSchema NamedSwaggerDoc CodeChallengeMethod
   schema =
-    enum @Text "CodeChallengeMethod" $
+    enum @Text $
       mconcat
         [ element "S256" S256
         ]
@@ -326,7 +326,7 @@ data CreateOAuthAuthorizationCodeRequest = CreateOAuthAuthorizationCodeRequest
 
 instance ToSchema CreateOAuthAuthorizationCodeRequest where
   schema =
-    object "CreateOAuthAuthorizationCodeRequest" $
+    object $
       CreateOAuthAuthorizationCodeRequest
         <$> (.clientId)
           .= fieldWithDocModifier "client_id" clientIdDescription schema
@@ -379,7 +379,7 @@ data OAuthGrantType = OAuthGrantTypeAuthorizationCode | OAuthGrantTypeRefreshTok
 
 instance ToSchema OAuthGrantType where
   schema =
-    enum @Text "OAuthGrantType" $
+    enum @Text $
       mconcat
         [ element "authorization_code" OAuthGrantTypeAuthorizationCode,
           element "refresh_token" OAuthGrantTypeRefreshToken
@@ -417,7 +417,7 @@ data OAuthAccessTokenRequest = OAuthAccessTokenRequest
 
 instance ToSchema OAuthAccessTokenRequest where
   schema =
-    object "OAuthAccessTokenRequest" $
+    object $
       OAuthAccessTokenRequest
         <$> (.grantType)
           .= fieldWithDocModifier "grant_type" grantTypeDescription schema
@@ -462,7 +462,7 @@ data OAuthAccessTokenType = OAuthAccessTokenTypeBearer
 
 instance ToSchema OAuthAccessTokenType where
   schema =
-    enum @Text "OAuthAccessTokenType" $
+    enum @Text $
       mconcat
         [ element "Bearer" OAuthAccessTokenTypeBearer
         ]
@@ -516,7 +516,7 @@ data OAuthAccessTokenResponse = OAuthAccessTokenResponse
 
 instance ToSchema OAuthAccessTokenResponse where
   schema =
-    object "OAuthAccessTokenResponse" $
+    object $
       OAuthAccessTokenResponse
         <$> accessToken
           .= fieldWithDocModifier "access_token" accessTokenDescription schema
@@ -593,7 +593,7 @@ data OAuthRefreshAccessTokenRequest = OAuthRefreshAccessTokenRequest
 instance ToSchema OAuthRefreshAccessTokenRequest where
   schema :: ValueSchema NamedSwaggerDoc OAuthRefreshAccessTokenRequest
   schema =
-    object "OAuthRefreshAccessTokenRequest" $
+    object $
       OAuthRefreshAccessTokenRequest
         <$> (.grantType)
           .= fieldWithDocModifier "grant_type" grantTypeDescription schema
@@ -640,7 +640,7 @@ data OAuthRevokeRefreshTokenRequest = OAuthRevokeRefreshTokenRequest
 
 instance ToSchema OAuthRevokeRefreshTokenRequest where
   schema =
-    object "OAuthRevokeRefreshTokenRequest" $
+    object $
       OAuthRevokeRefreshTokenRequest
         <$> (.clientId)
           .= fieldWithDocModifier "client_id" clientIdDescription schema
@@ -660,7 +660,7 @@ data OAuthSession = OAuthSession
 
 instance ToSchema OAuthSession where
   schema =
-    object "OAuthSession" $
+    object $
       OAuthSession
         <$> (.refreshTokenId) .= fieldWithDocModifier "refresh_token_id" refreshTokenIdDescription schema
         <*> (.createdAt) .= fieldWithDocModifier "created_at" createdAtDescription schema
@@ -679,7 +679,7 @@ data OAuthApplication = OAuthApplication
 
 instance ToSchema OAuthApplication where
   schema =
-    object "OAuthApplication" $
+    object $
       OAuthApplication
         <$> applicationId .= fieldWithDocModifier "id" idDescription schema
         <*> (.name) .= fieldWithDocModifier "name" nameDescription schema

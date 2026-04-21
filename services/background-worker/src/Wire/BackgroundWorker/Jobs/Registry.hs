@@ -59,6 +59,7 @@ import Wire.BackgroundJobsRunner (runJob)
 import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.BrigAPIAccess.Rpc
+import Wire.ClientSubsystem.Error (ClientError)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
@@ -180,6 +181,7 @@ dispatchJob job = do
         . interpretRace
         . runDelay
         . runError
+        . mapError @ClientError (T.pack . displayException)
         . mapError @FederationError (T.pack . displayException)
         . mapError @UsageError (T.pack . show)
         . mapError @ParseException (T.pack . displayException)

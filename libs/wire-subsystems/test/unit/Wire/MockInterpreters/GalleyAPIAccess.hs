@@ -26,7 +26,7 @@ import Data.Range
 import Imports
 import Polysemy
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
-import Wire.API.Team.Feature (AllTeamFeatures, IsFeatureConfig (..), LockableFeature (..), npProject')
+import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), IsFeatureConfig (..), LockableFeature (..), SndFactorPasswordChallengeConfig, npProject')
 import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
@@ -44,7 +44,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   CreateSelfConv _ -> error "CreateSelfConv not implemented in miniGalleyAPIAccess"
   GetConv _ _ -> error "GetConv not implemented in miniGalleyAPIAccess"
   GetTeamConv {} -> error "GetTeamConv not implemented in miniGalleyAPIAccess"
-  NewClient _ _ -> error "NewClient not implemented in miniGalleyAPIAccess"
+  NewClient _ _ -> pure ()
   CheckUserCanJoinTeam _ -> pure Nothing
   AddTeamMember {} -> error "AddTeamMember not implemented in miniGalleyAPIAccess"
   CreateTeam {} -> error "CreateTeam not implemented in miniGalleyAPIAccess"
@@ -69,7 +69,11 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
   GetConfiguredFeatureFlags ->
     pure def
-  GetVerificationCodeEnabled _ -> error "GetVerificationCodeEnabled not implemented in miniGalleyAPIAccess"
+  GetVerificationCodeEnabled _ ->
+    pure $
+      case npProject' (Proxy @SndFactorPasswordChallengeConfig) configs of
+        LockableFeature FeatureStatusEnabled _ _ -> True
+        LockableFeature FeatureStatusDisabled _ _ -> False
   GetExposeInvitationURLsToTeamAdmin _ -> pure ShowInvitationUrl
   IsMLSOne2OneEstablished _ _ -> error "IsMLSOne2OneEstablished not implemented in miniGalleyAPIAccess"
   UnblockConversation {} -> error "UnblockConversation not implemented in miniGalleyAPIAccess"
@@ -88,6 +92,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
           maxConvSize = 500,
           listClientsUsingBrig = False
         }
+  GuardLegalHold {} -> pure ()
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

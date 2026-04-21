@@ -33,7 +33,7 @@ data CollaboratorPermission = CreateTeamConversation | ImplicitConnection
 
 instance ToSchema CollaboratorPermission where
   schema =
-    enum @Text "CollaboratorPermission" $
+    enum @Text $
       mconcat
         [ element "create_team_conversation" CreateTeamConversation,
           element "implicit_connection" ImplicitConnection
@@ -54,7 +54,7 @@ data NewTeamCollaborator = NewTeamCollaborator
 
 instance ToSchema NewTeamCollaborator where
   schema =
-    object "NewTeamCollaborator" $
+    object $
       NewTeamCollaborator
         <$> (aUser .= field "user" schema)
         <*> (aPermissions .= field "permissions" (set schema))
@@ -69,7 +69,7 @@ data TeamCollaborator = TeamCollaborator
 
 instance ToSchema TeamCollaborator where
   schema =
-    object "TeamCollaborator" $
+    object $
       TeamCollaborator
         <$> (gUser .= field "user" schema)
         <*> (gTeam .= field "team" schema)

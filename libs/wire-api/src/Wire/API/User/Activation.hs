@@ -19,21 +19,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.Activation
-  ( -- * ActivationTarget
-    ActivationTarget (..),
+  ( ActivationTarget (..),
     ActivationKey (..),
-
-    -- * ActivationCode
     ActivationCode (..),
-
-    -- * Activate
+    ActivationPair,
     Activate (..),
     ActivationResponse (..),
-
-    -- * SendActivationCode
     SendActivationCode (..),
-
-    -- * Activation
     Activation (..),
   )
 where
@@ -105,6 +97,11 @@ instance FromHttpApiData ActivationCode where
 deriving instance C.Cql ActivationCode
 
 --------------------------------------------------------------------------------
+
+-- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
+type ActivationPair = (ActivationKey, ActivationCode)
+
+--------------------------------------------------------------------------------
 -- Activate
 
 -- | Data for an activation request.
@@ -119,7 +116,7 @@ data Activate = Activate
 
 instance ToSchema Activate where
   schema =
-    objectWithDocModifier "Activate" objectDocs $
+    objectWithDocModifier objectDocs $
       Activate
         <$> (maybeActivationTargetToTuple . activateTarget) .= maybeActivationTargetObjectSchema
         <*> activateCode .= fieldWithDocModifier "code" codeDocs schema
@@ -182,7 +179,7 @@ data ActivationResponse = ActivationResponse
 
 instance ToSchema ActivationResponse where
   schema =
-    objectWithDocModifier "ActivationResponse" (description ?~ "Response body of a successful activation request") $
+    objectWithDocModifier (description ?~ "Response body of a successful activation request") $
       ActivationResponse
         <$> activatedIdentity .= userIdentityObjectSchema
         <*> activatedFirst .= (fromMaybe False <$> optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") schema)
@@ -202,7 +199,7 @@ data SendActivationCode = SendActivationCode
 
 instance ToSchema SendActivationCode where
   schema =
-    objectWithDocModifier "SendActivationCode" objectDesc $
+    objectWithDocModifier objectDesc $
       SendActivationCode
         <$> emailKey .= field "email" schema
         <*> locale

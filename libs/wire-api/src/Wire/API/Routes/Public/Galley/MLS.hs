@@ -50,7 +50,7 @@ data MLSReset = MLSReset
 
 instance ToSchema MLSReset where
   schema =
-    object "MLSReset" $
+    object $
       MLSReset
         <$> (.groupId) .= field "group_id" schema
         <*> (.epoch) .= field "epoch" schema

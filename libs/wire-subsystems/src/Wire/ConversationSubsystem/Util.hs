@@ -106,7 +106,7 @@ ensureAccessRole ::
     Member (ErrorS 'ConvAccessDenied) r
   ) =>
   Set Public.AccessRole ->
-  [(UserId, Maybe TeamMember)] ->
+  [(UserId, Maybe TeamMember {- isJust iff user and conv are in the same team -})] ->
   Sem r ()
 ensureAccessRole roles users = do
   when (Set.null roles) $ throwS @'ConvAccessDenied
@@ -784,12 +784,6 @@ ensureLocal loc = foldQualified loc pure (\_ -> throw FederationNotImplemented)
 
 --------------------------------------------------------------------------------
 -- Federation
-
-qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
-qualifyLocal a = toLocalUnsafe <$> fmap getDomain input <*> pure a
-  where
-    getDomain :: Local () -> Domain
-    getDomain = tDomain
 
 runLocalInput :: Local x -> Sem (Input (Local ()) ': r) a -> Sem r a
 runLocalInput = runInputConst . void

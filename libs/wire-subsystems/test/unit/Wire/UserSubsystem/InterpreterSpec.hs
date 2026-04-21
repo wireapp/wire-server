@@ -61,6 +61,7 @@ import Wire.API.User.Search
 import Wire.API.UserEvent
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem.Error
+import Wire.ClientSubsystem.Error (ClientError)
 import Wire.DomainRegistrationStore qualified as DRS
 import Wire.IndexedUserStore qualified as IU
 import Wire.InvitationStore (InsertInvitation, StoredInvitation)
@@ -77,6 +78,7 @@ import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.Interpreter (UserSubsystemConfig (..))
 import Wire.Util
+import Wire.VerificationCodeSubsystem
 
 spec :: Spec
 spec = describe "UserSubsystem.Interpreter" do
@@ -129,9 +131,11 @@ spec = describe "UserSubsystem.Interpreter" do
             localBackend = def {users = [viewer]}
             result =
               run
+                . runErrorUnsafe @ClientError
                 . runErrorUnsafe @UserSubsystemError
                 . runErrorUnsafe @AppSubsystemError
                 . runErrorUnsafe @AuthenticationSubsystemError
+                . runErrorUnsafe @VerificationCodeSubsystemError
                 . runErrorUnsafe @RateLimitExceeded
                 . runErrorUnsafe @TeamCollaboratorsError
                 . runError @FederationError

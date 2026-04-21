@@ -27,12 +27,10 @@ module Brig.Provider.API
   )
 where
 
-import Brig.API.Client qualified as Client
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Types (ClientDataError (..), PasswordResetError (..))
+import Brig.API.Types (PasswordResetError (..))
 import Brig.App
-import Brig.Data.Client qualified as User
 import Brig.Options (Settings (..))
 import Brig.Options qualified as Opt
 import Brig.Provider.DB (ServiceConn (..))
@@ -124,6 +122,8 @@ import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ClientSubsystem as ClientSubsystem
+import Wire.ClientSubsystem.Error
 import Wire.DeleteQueue
 import Wire.EmailSending (EmailSending)
 import Wire.Error
@@ -148,9 +148,6 @@ import Wire.VerificationCodeSubsystem
 
 botAPI ::
   ( Member GalleyAPIAccess r,
-    Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
@@ -158,7 +155,8 @@ botAPI ::
     Member (Embed HttpClientIO) r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r
   ) =>
   ServerT BotAPI (Handler r)
 botAPI =
@@ -715,10 +713,10 @@ updateServiceWhitelist ::
 updateServiceWhitelist uid con tid upd = do
   -- Preconditions
   guardSecondFactorDisabled (Just uid)
-  guardMLSNotDefault
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
+  when newWhitelisted guardMLSNotDefault
   lift . liftSem $ ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
@@ -755,14 +753,13 @@ updateServiceWhitelist uid con tid upd = do
 
 addBot ::
   ( Member GalleyAPIAccess r,
-    Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
     Member UserStore r,
     Member UserSubsystem r,
     Member (Input (Local ())) r,
-    Member ClientStore r
+    Member ClientSubsystem r
   ) =>
   UserId ->
   ConnId ->
@@ -856,19 +853,19 @@ addBot zuid zcon cid add = do
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
   lift $ liftSem $ UserStore.createUser usr (Just (cid, cnvTeam cnv))
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> asks (.settings.userMaxPermClients)
   (clt, _, _) <- do
     _ <- do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
     lbid <- qualifyLocal (botUserId bid)
-    ( User.addClient
-        lbid
-        bcl
-        newClt
-        maxPermClients
-        (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
+    lift
+      ( liftSem $
+          ClientSubsystem.upsertClient
+            lbid
+            bcl
+            newClt
+            (Just $ ClientCapabilityList $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
       )
       !>> const (StdError $ badGatewayWith "MalformedPrekeys")
 
@@ -948,15 +945,12 @@ botUpdatePrekeys bot upd = do
     Just c -> do
       let pks = updateBotPrekeyList upd
       unless (all checkPrekeyBundle pks) $
-        throwE (clientDataError MalformedPrekeys)
+        throwE (clientDataErrorToHttpError MalformedPrekeys)
       lift . liftSem $ ClientStore.updatePrekeys (botUserId bot) c.clientId pks
 
 botClaimUsersPrekeys ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member GalleyAPIAccess r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
+  ( Member GalleyAPIAccess r,
+    Member ClientSubsystem r
   ) =>
   BotId ->
   Public.UserClients ->
@@ -966,7 +960,7 @@ botClaimUsersPrekeys _ body = do
   maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
-  Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
+  lift $ liftSem $ ClientSubsystem.claimLocalMultiPrekeyBundles UnprotectedBot body
 
 botListUserProfiles :: (Member GalleyAPIAccess r, Member UserSubsystem r) => BotId -> (CommaSeparatedList UserId) -> Handler r [Public.BotUserView]
 botListUserProfiles _ uids = do

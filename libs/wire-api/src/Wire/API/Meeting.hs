@@ -52,7 +52,7 @@ data Meeting = Meeting
 
 instance ToSchema Meeting where
   schema =
-    objectWithDocModifier "Meeting" (description ?~ "A scheduled meeting") $
+    objectWithDocModifier (description ?~ "A scheduled meeting") $
       Meeting
         <$> (.id) .= field "qualified_id" schema
         <*> (.title) .= field "title" schema
@@ -95,7 +95,7 @@ data Frequency = Daily | Weekly | Monthly | Yearly
 
 instance ToSchema Frequency where
   schema =
-    enum @Text "Frequency" $
+    enum @Text $
       mconcat
         [ element "daily" Daily,
           element "weekly" Weekly,
@@ -105,7 +105,7 @@ instance ToSchema Frequency where
 
 instance ToSchema NewMeeting where
   schema =
-    objectWithDocModifier "NewMeeting" (description ?~ "Request to create a new meeting") $
+    objectWithDocModifier (description ?~ "Request to create a new meeting") $
       NewMeeting
         <$> (.startTime) .= field "start_time" utcTimeSchema
         <*> (.endTime) .= field "end_time" utcTimeSchema
@@ -127,7 +127,7 @@ data UpdateMeeting = UpdateMeeting
 
 instance ToSchema UpdateMeeting where
   schema =
-    objectWithDocModifier "UpdateMeeting" (description ?~ "Request to update a meeting") $
+    objectWithDocModifier (description ?~ "Request to update a meeting") $
       UpdateMeeting
         <$> (.startTime) .= maybe_ (optField "start_time" utcTimeSchema)
         <*> (.endTime) .= maybe_ (optField "end_time" utcTimeSchema)
@@ -136,7 +136,7 @@ instance ToSchema UpdateMeeting where
 
 instance ToSchema Recurrence where
   schema =
-    objectWithDocModifier "Recurrence" (description ?~ "Recurrence pattern for meetings") $
+    objectWithDocModifier (description ?~ "Recurrence pattern for meetings") $
       Recurrence
         <$> (.freq) .= field "frequency" schema
         <*> (.interval) .= (fromMaybe 1 <$> optField "interval" schema)
@@ -152,7 +152,7 @@ newtype MeetingEmailsInvitation = MeetingEmailsInvitation
 
 instance ToSchema MeetingEmailsInvitation where
   schema =
-    objectWithDocModifier "MeetingEmailsInvitation" (description ?~ "Emails invitation") $
+    objectWithDocModifier (description ?~ "Emails invitation") $
       MeetingEmailsInvitation
         <$> (.emails) .= field "emails" (array schema)
 

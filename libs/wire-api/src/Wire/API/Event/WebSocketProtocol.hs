@@ -42,7 +42,7 @@ data AckData = AckData
 
 instance ToSchema AckData where
   schema =
-    object "AckData" $
+    object $
       AckData
         <$> (.deliveryTag) .= field "delivery_tag" schema
         <*> multiple .= field "multiple" schema
@@ -57,7 +57,7 @@ data EventData = EventData
 
 instance ToSchema EventData where
   schema =
-    object "EventData" $
+    object $
       EventData
         <$> event .= field "event" schema
         <*> (.deliveryTag) .= field "delivery_tag" schema
@@ -72,7 +72,7 @@ data SynchronizationData = SynchronizationData
 
 instance ToSchema SynchronizationData where
   schema =
-    object "SynchronizationData " $
+    object $
       SynchronizationData
         <$> markerId .= field "marker_id" schema
         <*> (.deliveryTag) .= field "delivery_tag" schema
@@ -103,7 +103,7 @@ data MessageTypeServerToClient = MsgTypeEventMessage | MsgTypeEventFullSync | Ms
 
 msgTypeSchemaServerToClient :: ValueSchema NamedSwaggerDoc MessageTypeServerToClient
 msgTypeSchemaServerToClient =
-  enum @Text "MessageTypeServerToClient" $
+  enum @Text $
     mconcat $
       [ element "event" MsgTypeEventMessage,
         element "notifications_missed" MsgTypeEventFullSync,
@@ -112,7 +112,7 @@ msgTypeSchemaServerToClient =
 
 instance ToSchema MessageServerToClient where
   schema =
-    object "MessageServerToClient" $
+    object $
       fromTagged <$> toTagged .= bind (fst .= field "type" msgTypeSchemaServerToClient) (snd .= untaggedSchema)
     where
       toTagged :: MessageServerToClient -> (MessageTypeServerToClient, MessageServerToClient)
@@ -142,7 +142,7 @@ data MessageTypeClientToServer = MsgTypeAckMessage | MsgTypeAckFullSync
 
 msgTypeSchemaClientToServer :: ValueSchema NamedSwaggerDoc MessageTypeClientToServer
 msgTypeSchemaClientToServer =
-  enum @Text "MessageTypeClientToServer" $
+  enum @Text $
     mconcat $
       [ element "ack" MsgTypeAckMessage,
         element "ack_full_sync" MsgTypeAckFullSync
@@ -150,7 +150,7 @@ msgTypeSchemaClientToServer =
 
 instance ToSchema MessageClientToServer where
   schema =
-    object "MessageClientToServer" $
+    object $
       fromTagged <$> toTagged .= bind (fst .= field "type" msgTypeSchemaClientToServer) (snd .= untaggedSchema)
     where
       toTagged :: MessageClientToServer -> (MessageTypeClientToServer, MessageClientToServer)

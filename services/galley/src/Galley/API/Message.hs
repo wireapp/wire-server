@@ -49,7 +49,6 @@ import Data.Set qualified as Set
 import Data.Set.Lens
 import Data.Time.Clock (UTCTime)
 import Galley.API.LegalHold.Conflicts
-import Galley.Options
 import Galley.Types.Clients qualified as Clients
 import Imports hiding (forkIO)
 import Network.AMQP qualified as Q
@@ -82,6 +81,7 @@ import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.NotificationSubsystem (BotMap, NotificationSubsystem, newMessagePush, runMessagePush)
+import Wire.Options.Galley
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation

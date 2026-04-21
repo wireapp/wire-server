@@ -106,7 +106,7 @@ newtype PasswordReqBody = PasswordReqBody
 
 instance ToSchema PasswordReqBody where
   schema =
-    object "PasswordReqBody" $
+    object $
       PasswordReqBody
         <$> fromPasswordReqBody .= maybe_ (optField "password" schema)
 

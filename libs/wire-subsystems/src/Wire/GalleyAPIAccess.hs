@@ -40,6 +40,7 @@ import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Member.Info qualified as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client (UserClients)
 
 data ShowOrHideInvitationUrl = ShowInvitationUrl | HideInvitationUrl
   deriving (Eq, Show)
@@ -164,5 +165,6 @@ data GalleyAPIAccess m a where
     GalleyAPIAccess m (Maybe Team.TeamMemberList)
   GetConversationConfig ::
     GalleyAPIAccess m ConversationSubsystemConfig
+  GuardLegalHold :: LegalholdProtectee -> UserClients -> GalleyAPIAccess m ()
 
 makeSem ''GalleyAPIAccess

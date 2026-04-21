@@ -63,7 +63,7 @@ data Notification = Notification
 
 instance S.ToSchema Notification where
   schema =
-    S.object "Notification" $
+    S.object $
       Notification
         <$> ntfId S..= S.field "id" S.schema
         <*> ntfTransient S..= (fromMaybe False <$> S.optField "transient" S.schema)

@@ -103,7 +103,7 @@ cidQualifiedUser = fmap fst . cidQualifiedClient
 
 instance ToSchema ClientIdentity where
   schema =
-    object "ClientIdentity" $
+    object $
       ClientIdentity
         <$> ciDomain .= field "domain" schema
         <*> ciUser .= field "user_id" schema

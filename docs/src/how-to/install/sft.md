@@ -82,10 +82,10 @@ For more advanced setups please refer to the [technical documentation](https://g
 
 The SFT allocates media addresses in the UDP [default port range](../../understand/notes/port-ranges.md#port-ranges). Ingress and
 egress traffic should be allowed for this range. Furthermore the SFT needs to be
-able to reach the [Restund server](../../understand/restund.md#understand-restund), as it uses STUN and TURN in cases the client
+able to reach the Coturn (or previously [Restund server](../../understand/restund.md#understand-restund)), as it uses STUN and TURN in cases the client
 can not directly connect to the SFT. In practise this means the SFT should
 allow ingress and egress traffic on the UDP [default port range](../../understand/notes/port-ranges.md#port-ranges) from and
-to both, clients and [Restund servers](../../understand/restund.md#understand-restund).
+to both, clients and Coturn (or previously [Restund servers](../../understand/restund.md#understand-restund)).
 
 *For more information on this port range, how to read and change it, and how to configure your firewall, please see* [this note](../../understand/notes/port-ranges.md#port-ranges).
 

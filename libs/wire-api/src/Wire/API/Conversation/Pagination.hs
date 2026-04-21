@@ -33,7 +33,7 @@ newtype ConversationPage = ConversationPage {page :: [ConversationSearchResult]}
 
 instance ToSchema ConversationPage where
   schema =
-    objectWithDocModifier "ConversationPage" addPageDocs $
+    objectWithDocModifier addPageDocs $
       ConversationPage <$> page .= field "page" (array schema)
 
 instance Arbitrary ConversationPage where
@@ -52,7 +52,7 @@ data ConversationSearchResult = ConversationSearchResult
 
 instance ToSchema ConversationSearchResult where
   schema =
-    object "ConversationSearchResult" $
+    object $
       ConversationSearchResult
         <$> (.convId) .= field "id" schema
         <*> (.name) .= maybe_ (optField "name" schema)

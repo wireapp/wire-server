@@ -9,7 +9,6 @@
 , base
 , base64-bytestring
 , bilge
-, brig-types
 , bytestring
 , bytestring-conversion
 , case-insensitive
@@ -75,7 +74,6 @@
 , wai-extra
 , wai-middleware-gunzip
 , wai-utilities
-, warp
 , wire-api
 , wire-subsystems
 , xml-conduit
@@ -93,7 +91,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -135,7 +132,6 @@ mkDerivation {
     wai
     wai-middleware-gunzip
     wai-utilities
-    warp
     wire-api
     wire-subsystems
     yaml
@@ -147,7 +143,6 @@ mkDerivation {
     base
     base64-bytestring
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     case-insensitive
@@ -210,7 +205,6 @@ mkDerivation {
     aeson
     aeson-qq
     base
-    brig-types
     bytestring-conversion
     containers
     cookie

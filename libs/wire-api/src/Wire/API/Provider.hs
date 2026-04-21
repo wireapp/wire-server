@@ -82,7 +82,7 @@ data Provider = Provider
 
 instance ToSchema Provider where
   schema =
-    object "Provider" $
+    object $
       Provider
         <$> providerId .= field "id" schema
         <*> providerName .= field "name" schema
@@ -115,7 +115,7 @@ data NewProvider = NewProvider
 
 instance ToSchema NewProvider where
   schema =
-    object "NewProvider" $
+    object $
       NewProvider
         <$> newProviderName .= field "name" schema
         <*> newProviderEmail .= field "email" schema
@@ -136,7 +136,7 @@ data NewProviderResponse = NewProviderResponse
 
 instance ToSchema NewProviderResponse where
   schema =
-    object "NewProviderResponse" $
+    object $
       NewProviderResponse
         <$> rsNewProviderId .= field "id" schema
         <*> rsNewProviderPassword .= maybe_ (optField "password" schema)
@@ -156,7 +156,7 @@ data UpdateProvider = UpdateProvider
 
 instance ToSchema UpdateProvider where
   schema =
-    object "UpdateProvider" $
+    object $
       UpdateProvider
         <$> updateProviderName .= maybe_ (optField "name" schema)
         <*> updateProviderUrl .= maybe_ (optField "url" schema)
@@ -175,7 +175,7 @@ newtype ProviderActivationResponse = ProviderActivationResponse
 
 instance ToSchema ProviderActivationResponse where
   schema =
-    object "ProviderActivationResponse" $
+    object $
       ProviderActivationResponse
         <$> activatedProviderIdentity .= field "email" schema
 
@@ -193,7 +193,7 @@ data ProviderLogin = ProviderLogin
 
 instance ToSchema ProviderLogin where
   schema =
-    object "ProviderLogin" $
+    object $
       ProviderLogin
         <$> providerLoginEmail .= field "email" schema
         <*> providerLoginPassword .= field "password" schema
@@ -211,7 +211,7 @@ newtype DeleteProvider = DeleteProvider
 
 instance ToSchema DeleteProvider where
   schema =
-    object "DeleteProvider" $
+    object $
       DeleteProvider
         <$> deleteProviderPassword .= field "password" schema
 
@@ -226,7 +226,7 @@ newtype PasswordReset = PasswordReset {email :: EmailAddress}
 
 instance ToSchema PasswordReset where
   schema =
-    object "PasswordReset" $
+    object $
       PasswordReset
         <$> (.email) .= field "email" schema
 
@@ -242,7 +242,7 @@ data CompletePasswordReset = CompletePasswordReset
 
 instance ToSchema CompletePasswordReset where
   schema =
-    object "CompletePasswordReset" $
+    object $
       CompletePasswordReset
         <$> key .= field "key" schema
         <*> (.code) .= field "code" schema
@@ -259,7 +259,7 @@ data PasswordChange = PasswordChange
 
 instance ToSchema PasswordChange where
   schema =
-    object "PasswordChange" $
+    object $
       PasswordChange
         <$> oldPassword .= field "old_password" schema
         <*> newPassword .= field "new_password" schema
@@ -272,6 +272,6 @@ newtype EmailUpdate = EmailUpdate {email :: EmailAddress}
 
 instance ToSchema EmailUpdate where
   schema =
-    object "EmailUpdate" $
+    object $
       EmailUpdate
         <$> (.email) .= field "email" schema

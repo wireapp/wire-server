@@ -33,6 +33,7 @@ import Data.Proxy
 import Data.Schema hiding (getName)
 import Data.Text qualified as Text
 import Imports
+import Test.Data.Schema.Names
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -69,7 +70,8 @@ tests =
       testRmClientWrong,
       testRmClient,
       testEnumType,
-      testNullable
+      testNullable,
+      testSchemaNames
     ]
 
 testFooToJSON :: TestTree
@@ -112,7 +114,7 @@ testFooSchema =
       (s ^. S.required)
     assertEqual
       "Schema for \"a\" should be referenced"
-      (Just (S.Ref (S.Reference "A")))
+      (Just (S.Ref (S.Reference "A_LTU1Nzc2NDkw")))
       (s ^. S.properties . at "a")
     case s ^. S.properties . at "str" of
       Nothing -> assertFailure "\"str\" field should be present"
@@ -337,7 +339,7 @@ testEnumType :: TestTree
 testEnumType =
   testCase "Enum Swagger schema has the correct type" $ do
     let e1 :: ValueSchema NamedSwaggerDoc Text
-        e1 = enum @Text "TextEnum" (element "hello" "hello")
+        e1 = enum @Text (element "hello" "hello")
         (_, s1) = S.runDeclare (declareSwaggerSchema e1) mempty
     assertEqual
       "Text enum has Swagger type \"string\""
@@ -345,7 +347,7 @@ testEnumType =
       (Just S.OpenApiString)
 
     let e2 :: ValueSchema NamedSwaggerDoc Integer
-        e2 = enum @Integer "IntEnum" (element (3 :: Integer) (3 :: Integer))
+        e2 = enum @Integer (element (3 :: Integer) (3 :: Integer))
         (_, s2) = S.runDeclare (declareSwaggerSchema e2) mempty
     assertEqual
       "Integer enum has Swagger type \"integer\""
@@ -376,7 +378,7 @@ data A = A {thing :: Text, other :: Int}
 
 instance ToSchema A where
   schema =
-    object "A" $
+    object $
       A
         <$> thing .= field "thing" schema
         <*> other .= field "other" schema
@@ -385,7 +387,7 @@ newtype B = B {bThing :: Int}
   deriving (Eq, Show)
 
 instance ToSchema B where
-  schema = object "B" $ B <$> bThing .= field "b_thing" schema
+  schema = object $ B <$> bThing .= field "b_thing" schema
 
 data Foo = Foo {fooA :: A, fooB :: B, fooStr :: Text}
   deriving stock (Eq, Show)
@@ -410,7 +412,7 @@ exampleFooInvalidJSON =
 instance ToSchema Foo where
   schema =
     (doc . description ?~ "A Foo object")
-      . object "Foo"
+      . object
       $ Foo
         <$> fooA .= field "a" schema
         <* (thing . fooA) .= optional (field "a_thing" (unnamed schema))
@@ -455,7 +457,7 @@ data Access = Public | Private | Link | Code
 
 instance ToSchema Access where
   schema =
-    enum @Text "Access" $
+    enum @Text $
       element "public" Public
         <> element "private" Private
         <> element "link" Link
@@ -473,7 +475,7 @@ data User = User
 
 instance ToSchema User where
   schema =
-    object "User" $
+    object $
       User
         <$> userName .= field "name" schema
         <*> userHandle .= maybe_ (optField "handle" schema)
@@ -517,16 +519,16 @@ _Obj2 = prism' Obj2 $ \case
   _ -> Nothing
 
 instance ToSchema Tag where
-  schema = enum @Text "Tag" (element "tag1" Tag1 <> element "tag2" Tag2)
+  schema = enum @Text (element "tag1" Tag1 <> element "tag2" Tag2)
 
 instance ToSchema TaggedObject where
   schema =
-    object "TaggedObject" $
+    object $
       uncurry TO
         <$> (toTag &&& toObj)
           .= bind
             (fst .= field "tag" schema)
-            (snd .= fieldOver _1 "obj" (objectOver _1 "UntaggedObject" untaggedSchema))
+            (snd .= fieldOver _1 "obj" (objectOver _1 untaggedSchema))
     where
       untaggedSchema = dispatch $ \case
         Tag1 -> tag _Obj1 (field "tag1_data" schema)
@@ -554,14 +556,14 @@ newtype NonEmptyTest = NonEmptyTest {nl :: NonEmpty Text}
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema NonEmptyTest
 
 instance ToSchema NonEmptyTest where
-  schema = object "NonEmptyTest" $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
+  schema = object $ NonEmptyTest <$> nl .= field "nl" (nonEmptyArray schema)
 
 -- references
 
 newtype Named = Named {getName :: Text}
 
 instance ToSchema Named where
-  schema = Named <$> getName .= object "Named" (field "name" (text "Name"))
+  schema = Named <$> getName .= object (field "name" (text "Name"))
 
 instance S.ToSchema Named where
   declareNamedSchema = schemaToSwagger
@@ -584,13 +586,13 @@ passwordSchema = schema `withParser` validate
 -- this is "wrong", because it succeeds even if password validation fails
 rmClientSchema :: ValueSchema NamedSwaggerDoc RmClient
 rmClientSchema =
-  object "RmClient" $
+  object $
     RmClient
       <$> rmPassword .= optional (field "password" (maybeWithDefault Null passwordSchema))
 
 instance ToSchema RmClient where
   schema =
-    object "RmClient" $
+    object $
       RmClient
         <$> rmPassword .= maybe_ (optField "password" passwordSchema)
 
@@ -616,12 +618,12 @@ data DetailTag = NameTag | AgeTag
 
 tagSchema :: ValueSchema NamedSwaggerDoc DetailTag
 tagSchema =
-  enum @Text "Detail Tag" $
+  enum @Text $
     mconcat [element "name" NameTag, element "age" AgeTag]
 
 detailSchema :: ValueSchema NamedSwaggerDoc Detail
 detailSchema =
-  object "Detail" $
+  object $
     fromTagged
       <$> toTagged
         .= bind
@@ -641,7 +643,7 @@ detailSchema =
 
 userSchemaWithDefaultName' :: ValueSchema NamedSwaggerDoc User
 userSchemaWithDefaultName' =
-  object "User" $
+  object $
     User
       <$> (getOptText . userName) .= maybe_ (fromMaybe "" <$> optField "name" schema)
       <*> userHandle .= maybe_ (optField "handle" schema)
@@ -653,7 +655,7 @@ userSchemaWithDefaultName' =
 
 userSchemaWithDefaultName :: ValueSchema NamedSwaggerDoc User
 userSchemaWithDefaultName =
-  object "User" $
+  object $
     User
       <$> userName .= (field "name" schema <|> pure "")
       <*> userHandle .= maybe_ (optField "handle" schema)

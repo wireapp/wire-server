@@ -29,7 +29,6 @@ import API.Teams.LegalHold.Util
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Intra (UserSet (..))
 import Control.Category ((>>>))
 import Control.Concurrent.Chan
 import Control.Lens
@@ -58,6 +57,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.User.Client qualified as Client
 import Wire.LegalHoldStore.Cassandra

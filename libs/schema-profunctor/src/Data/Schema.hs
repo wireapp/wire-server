@@ -50,8 +50,13 @@ module Data.Schema
     declareSwaggerSchema,
     getName,
     object,
+    namedObject,
     objectWithDocModifier,
+    namedObjectWithDocModifier,
     objectOver,
+    namedObjectOver,
+    mkSchemaName,
+    mkSchemaNameWith,
     jsonObject,
     jsonValue,
     field,
@@ -67,6 +72,7 @@ module Data.Schema
     map_,
     mapWithKeys,
     enum,
+    namedEnum,
     maybe_,
     maybeWithDefault,
     bind,
@@ -97,6 +103,10 @@ import Control.Monad.Trans.Cont
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.Types qualified as A
 import Data.Bifunctor.Joker
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Builder (integerDec, toLazyByteString)
+import Data.ByteString.Lazy qualified as LBS
+import Data.Hashable (hash)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -104,13 +114,16 @@ import Data.Monoid hiding (Product)
 import Data.OpenApi qualified as S
 import Data.OpenApi.Declare qualified as S
 import Data.Profunctor (Star (..))
-import Data.Proxy (Proxy (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as TL
+import Data.Typeable (Proxy (..), typeRep)
 import Data.Vector qualified as V
 import Imports hiding (Product)
 import Numeric.Natural
+import Type.Reflection (SomeTypeRep (..), tyConModule, tyConName)
+import Type.Reflection qualified as TR
 
 type Declare = S.Declare (S.Definitions S.Schema)
 
@@ -401,38 +414,146 @@ tag f = rmap runIdentity . f . rmap Identity
 --
 -- This can be used to convert a combination of schemas obtained using
 -- 'field' into a single schema for a JSON object.
+-- Uses the Typeable instance to automatically generate the schema name.
 object ::
+  forall doc doc' a b.
+  (Typeable a, HasObject doc doc') =>
+  SchemaP doc A.Object [A.Pair] a b ->
+  SchemaP doc' A.Value A.Value a b
+object = namedObject (mkSchemaName @a)
+
+-- | Version of 'object' that takes an explicit name.
+namedObject ::
   (HasObject doc doc') =>
   Text ->
   SchemaP doc A.Object [A.Pair] a b ->
   SchemaP doc' A.Value A.Value a b
-object = objectOver id
+namedObject name = namedObjectOver id name
 
 -- | A version of 'object' for more general input values.
+-- Uses the Typeable instance to automatically generate the schema name.
 --
 -- Just like 'fieldOver', but for 'object'.
 objectOver ::
+  forall doc doc' v' a b v.
+  (Typeable a, HasObject doc doc') =>
+  Lens v v' A.Value A.Object ->
+  SchemaP doc v' [A.Pair] a b ->
+  SchemaP doc' v A.Value a b
+objectOver l = namedObjectOver l (mkSchemaName @a)
+
+-- | Version of 'objectOver' that takes an explicit name.
+namedObjectOver ::
   (HasObject doc doc') =>
   Lens v v' A.Value A.Object ->
   Text ->
   SchemaP doc v' [A.Pair] a b ->
   SchemaP doc' v A.Value a b
-objectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
+namedObjectOver l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
   where
     parseObject val = ContT $ \k -> A.withObject (T.unpack name) k val
     r v = runContT (l parseObject v) (schemaIn sch)
     w x = A.object <$> schemaOut sch x
     s = mkObject name (schemaDoc sch)
 
+-- | Object and enum schema names by default are the fully qualified
+-- name of the haskell type, including type parameters.  If that's not
+-- unique, we should probably change those type names.  This will avoid
+-- collisions in the hash table keeping track of all the schema references
+-- in the openapi3 package.
+--
+-- See test suite for examples.
+mkSchemaName :: forall a. (Typeable a) => Text
+mkSchemaName = T.pack $ sanitizeSchemaName $ mkSchemaNameInternal @a
+
+mkSchemaNameWith :: forall a. (Typeable a) => Text -> Text
+mkSchemaNameWith extra = T.pack $ sanitizeSchemaName $ T.unpack extra <> " " <> (mkSchemaNameInternal @a)
+
+-- | Vacuum's yaml parser chokes on '/' in schema names.  Let's
+-- indulge it, and use a conservative positive filter.
+sanitizeSchemaName :: String -> String
+sanitizeSchemaName =
+  rmLeadingUnderscore
+    . rmTrailingUnderscore
+    . nubUnderscores
+    . mconcat
+    . map
+      ( \c ->
+          if c `elem` (['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['0' .. '9'] ++ "._-" :: [Char])
+            then [c]
+            else "_"
+      )
+  where
+    rmLeadingUnderscore ('_' : n) = n
+    rmLeadingUnderscore n = n
+
+    rmTrailingUnderscore "_" = ""
+    rmTrailingUnderscore (c : n) = c : rmTrailingUnderscore n
+    rmTrailingUnderscore [] = ""
+
+    nubUnderscores ('_' : n@('_' : _)) = nubUnderscores n
+    nubUnderscores (c : n) = c : nubUnderscores n
+    nubUnderscores [] = ""
+
+-- Schema names must be unique in order to avoid name clashes in some
+-- hash table in openapi3.
+--
+-- Complete representations of the types for which we define schemas
+-- can get very long, and vacuum appears to have some length limit on
+-- schema names somewhere between 300 and 3000 (it's a bit vague about
+-- the details).  So we use a human-readable, but not necessarily
+-- unique name plus a hash of the complete string representation.
+
+-- Since even the `typeRep` itself (without all the disambiguiating
+-- work), it doesn't do as a human-readable part (might still break
+-- vacuum's length limit, plus isn't always all that human-readable).
+-- So we nub it if it is longer than 50 characters (might be better
+-- than cutting off in keeping the interesting bits).
+mkSchemaNameInternal :: forall a. (Typeable a) => String
+mkSchemaNameInternal = shortTypeRepString ++ "_" <> uniqueId
+  where
+    shortTypeRepString :: String
+    shortTypeRepString = if length s > 50 then nub s else s
+      where
+        s = show $ typeRep (Proxy @a)
+
+    uniqueId =
+      let hashValue = hash $ uniqueTypeRepString (TR.typeRep @a)
+          hashBytes = LBS.toStrict $ toLazyByteString $ integerDec $ toInteger hashValue
+          encoded = Base64.encode hashBytes
+       in take 12 $ T.unpack $ T.decodeUtf8 encoded
+
+    uniqueTypeRepString :: forall t. TR.TypeRep t -> String
+    uniqueTypeRepString tr =
+      case TR.splitApps tr of
+        (tyCon, []) ->
+          -- Simple type with no arguments
+          tyConModule tyCon <> "." <> tyConName tyCon
+        (tyCon, args) ->
+          -- Type constructor applied to arguments
+          let conName = tyConModule tyCon <> "." <> tyConName tyCon
+              argNames = map (\(SomeTypeRep arg) -> uniqueTypeRepString arg) args
+           in conName <> " " <> unwords argNames
+
 -- | Like 'object', but apply an arbitrary function to the
 -- documentation of the resulting object.
+-- Uses the Typeable instance to automatically generate the schema name.
 objectWithDocModifier ::
+  forall doc doc' a.
+  (Typeable a, HasObject doc doc') =>
+  (doc' -> doc') ->
+  ObjectSchema doc a ->
+  ValueSchema doc' a
+objectWithDocModifier = namedObjectWithDocModifier (mkSchemaName @a)
+
+-- | Version of 'objectWithDocModifier' that takes an explicit name.
+namedObjectWithDocModifier ::
   (HasObject doc doc') =>
   Text ->
   (doc' -> doc') ->
   ObjectSchema doc a ->
   ValueSchema doc' a
-objectWithDocModifier name modify sch = over doc modify (object name sch)
+namedObjectWithDocModifier name modify sch = over doc modify (namedObject name sch)
 
 -- | Turn a named schema into an unnamed one.
 --
@@ -557,13 +678,23 @@ element label value = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 --
 -- This is used to convert a combination of schemas obtained using
 -- 'element' into a single schema for a JSON string.
+-- | A schema for an enumeration.
+-- Uses the Typeable instance to automatically generate the schema name.
 enum ::
+  forall v doc a b.
+  (Typeable b, With v, HasEnum v doc) =>
+  SchemaP [A.Value] v (Alt Maybe v) a b ->
+  SchemaP doc A.Value A.Value a b
+enum = namedEnum (mkSchemaName @b)
+
+-- | Version of 'enum' that takes an explicit name.
+namedEnum ::
   forall v doc a b.
   (With v, HasEnum v doc) =>
   Text ->
   SchemaP [A.Value] v (Alt Maybe v) a b ->
   SchemaP doc A.Value A.Value a b
-enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
+namedEnum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
   where
     d = mkEnum @v name (schemaDoc sch)
     i x =
@@ -653,7 +784,7 @@ parsedTextWithDoc desc name parser = appendDescr (text name) `withParser` (eithe
 -- | A schema for an arbitrary JSON object.
 jsonObject :: ValueSchema SwaggerDoc A.Object
 jsonObject =
-  unnamed . object "Object" $
+  unnamed . object $
     mkSchema (pure (mempty & S.type_ ?~ S.OpenApiObject)) pure (pure . (^.. ifolded . withIndex))
 
 -- | A schema for an arbitrary JSON value.

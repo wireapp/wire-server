@@ -58,7 +58,6 @@ managedDesc =
 instance ToSchema TeamConversation where
   schema =
     objectWithDocModifier
-      "TeamConversation"
       (description ?~ "Team conversation data")
       $ TeamConversation
         <$> _conversationId .= field "conversation" schema
@@ -86,7 +85,6 @@ newtype TeamConversationList = TeamConversationList {teamConversations :: [TeamC
 instance ToSchema TeamConversationList where
   schema =
     objectWithDocModifier
-      "TeamConversationList"
       (description ?~ "Team conversation list")
       $ TeamConversationList
         <$> teamConversations .= field "conversations" (array schema)

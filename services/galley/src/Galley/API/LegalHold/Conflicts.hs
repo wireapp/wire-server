@@ -33,7 +33,6 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -47,9 +46,10 @@ import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.User.Client as Client
 import Wire.BrigAPIAccess
-import Wire.ConversationSubsystem.Util
+import Wire.Options.Galley
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.Util
 
 data LegalholdConflicts = LegalholdConflicts
 

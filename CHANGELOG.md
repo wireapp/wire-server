@@ -1,4 +1,82 @@
-# [2026-03-24] (Chart Release 5.29.0)
+# [2026-04-20] (Chart Release 5.30.0)
+
+## Release notes
+
+* Since 5.29 was broken and you should have skipped it, you are about to upgrade from 5.28 to 5.30 in one step.  This has been tested and should work.  Please consult the release notes from both 5.29 and 5.30 for changes w.r.t. 5.28.
+
+* `background-worker` now reuses `galley`'s configmap and secrets for cassandra, postgres and federation domain settings. This removes redundant settings and keeps the two services aligned. No operator action is strictly required; however, we advise removing the `background-worker` value overrides for galley's cassandra, postgres, and federation domain settings, as they are duplicated and no longer needed:
+
+    - background-worker.config.cassandraGalley
+    - background-worker.config.postgresql
+    - background-worker.secrets.pgPassword
+    - background-worker.config.federationDomain (#5180)
+
+* Operators upgrading from the previous wire-server chart release, where the service charts were consolidated into the umbrella chart, must now set `tags.proxy` explicitly again.
+
+  If your currently installed values no longer contain a `proxy` tag because of that consolidation, add one before upgrading to this release and set it to the intended state:
+  - `tags.proxy: true` to deploy the `proxy` chart
+  - `tags.proxy: false` to keep the `proxy` chart disabled (#5161)
+
+* The Restund helm chart and code stops being supported and shipped. If you have not already, please migrate to coturn which continues to be supported. (#5162)
+
+
+## Features
+
+
+* Send team.member-join to all apps in team. (#5187)
+
+
+## Bug fixes and other updates
+
+
+* Remove the Server response header value for entire API. (#5179)
+
+* Integration tests for user events when user type is app.  Replace redundant app-created event with team.member-join. (#5139)
+
+* (Un-)suspend apps if en-/disabled in the team. (#5177)
+
+* Apps from outside own team do not appear in contact search. (#5173)
+
+* Fix: apps cannot form connections accross teams.  Integration test for cross-team conversations working with apps as expected. (#5171)
+
+* Prevent password reset for SAML users (#5191)
+
+* Remove apps from conversations when apps are disabled in conversation. (#5176)
+
+* Fix: allow removal of bots from conversation after switching it to MLS. (#5186)
+
+* Hotfix: handle NULL in brig-cassandra:user.user_type. (#5193)
+
+* Fix bug where the mls-users tool would crash for users with null `supported_protocols` (#5190)
+
+
+## Documentation
+
+
+* Make schema-profunctor schema names derived and avoid name clashes between scopes. (#5151)
+
+
+## Internal changes
+
+
+* Propagate error from brig on stern API call `GET i/domain-registration/:domain` (#5179)
+
+* The status code for rate limit responses from nginz and cannon is now configurable and set to 420 per default (#5154)
+
+* Moved code from galley to ClientSubsystem (#5154, #5147, #5157, #5156, #5165, #5168)
+
+* The defaults in k8ssandra-test-cluster should now work for both a fresh cassandra 4.1 pod as well as an upgrade of an existing previous k8ssandra-test-cluster deployment. We assume k8ssandra-operator helm chart version 1.20.2. (#5091)
+
+* Use sbomnix to generate SBOMs for Nix-built Docker images and devShells. Adjust Helm chart values for inlined wire-server chart. (#5167)
+
+* Remove tom-bombadil SBOM creation targets from `Makefile`. There's a better approach to create SBOMs in place (in `Makefile` and CI). (#5181)
+
+
+# ~~[2026-03-24] (Chart Release 5.29.0)~~
+
+
+## This release is broken. Please upgrade from 5.28 directly to 5.30!
+
 
 ## Release notes
 

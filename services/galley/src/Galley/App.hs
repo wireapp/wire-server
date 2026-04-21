@@ -56,10 +56,7 @@ import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabl
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
-import Galley.Keys
 import Galley.Monad (runApp)
-import Galley.Options hiding (brig, endpoint, federator)
-import Galley.Options qualified as O
 import Galley.Queue
 import Galley.Queue qualified as Q
 import Galley.Types.Error
@@ -142,6 +139,9 @@ import Wire.MeetingsSubsystem.Interpreter qualified as Meeting
 import Wire.MigrationLock
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter (runNotificationSubsystemGundeck)
+import Wire.Options.Galley hiding (brig, endpoint, federator)
+import Wire.Options.Galley qualified as O
+import Wire.Options.Keys
 import Wire.ParseException
 import Wire.Postgres (PGConstraints)
 import Wire.ProposalStore (ProposalStore)

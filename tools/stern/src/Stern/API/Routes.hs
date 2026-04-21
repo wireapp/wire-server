@@ -515,7 +515,7 @@ data UserConnectionGroups = UserConnectionGroups
 
 instance Schema.ToSchema UserConnectionGroups where
   schema =
-    Schema.object "UserConnectionGroups" $
+    Schema.object $
       UserConnectionGroups
         <$> ucgAccepted Schema..= Schema.field "ucgAccepted" Schema.schema
         <*> ucgSent Schema..= Schema.field "ucgSent" Schema.schema

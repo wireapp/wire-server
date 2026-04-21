@@ -29,7 +29,6 @@ module Brig.API.Public
 where
 
 import Brig.API.Auth
-import Brig.API.Client qualified as API
 import Brig.API.Connection qualified as API
 import Brig.API.Error
 import Brig.API.Handler
@@ -52,10 +51,9 @@ import Brig.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)
-import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra
 import Brig.User.API.Handle qualified as Handle
 import Brig.User.Auth.Cookie qualified as Auth
+import Brig.User.Client qualified as API
 import Cassandra qualified as C
 import Cassandra qualified as Data
 import Control.Error hiding (bool, note)
@@ -160,9 +158,13 @@ import Wire.AppSubsystem (AppSubsystem)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
+import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore (BlockListStore)
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ClientSubsystem (ClientSubsystem)
+import Wire.ClientSubsystem qualified as ClientSubsystem
+import Wire.ClientSubsystem.Error
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSending (EmailSending)
@@ -171,8 +173,9 @@ import Wire.EnterpriseLoginSubsystem (EnterpriseLoginSubsystem)
 import Wire.EnterpriseLoginSubsystem qualified as EnterpriseLogin
 import Wire.Error
 import Wire.Events (Events)
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore (FederationConfigStore)
-import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.IndexedUserStore (IndexedUserStore)
@@ -366,7 +369,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
       & cleanupSwagger
 
 servantSitemap ::
-  forall r p.
+  forall r p m.
   ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
@@ -415,7 +418,11 @@ servantSitemap ::
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member AppSubsystem r,
-    Member ClientStore r
+    Member ClientStore r,
+    Member ClientSubsystem r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    HasBrigFederationAccess m r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -525,9 +532,9 @@ servantSitemap =
       Named @"add-client@v6" addClient
         :<|> Named @"add-client@v7" addClient
         :<|> Named @"add-client" addClient
-        :<|> Named @"update-client@v6" API.updateClient
-        :<|> Named @"update-client@v7" API.updateClient
-        :<|> Named @"update-client" API.updateClient
+        :<|> Named @"update-client@v6" updateClient
+        :<|> Named @"update-client@v7" updateClient
+        :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients@v6" listClients
         :<|> Named @"list-clients@v7" listClients
@@ -541,7 +548,7 @@ servantSitemap =
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
-        :<|> Named @"create-access-token" (createAccessToken @UserClientAPI @CreateAccessToken POST)
+        :<|> Named @"create-access-token" (createClientDPoPAccessToken @UserClientAPI @CreateAccessToken POST)
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -676,10 +683,7 @@ listPropertyKeysAndValuesH :: (Member PropertySubsystem r) => UserId -> Handler 
 listPropertyKeysAndValuesH u = lift . liftSem $ getAllProperties u
 
 getPrekeyUnqualifiedH ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   UserId ->
   ClientId ->
@@ -689,33 +693,26 @@ getPrekeyUnqualifiedH zusr user client = do
   getPrekeyH zusr (Qualified user domain) client
 
 getPrekeyH ::
-  ( Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   Qualified UserId ->
   ClientId ->
   (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
-  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
+  mPrekey <- lift $ liftSem $ ClientSubsystem.claimPrekey (ProtectedUser zusr) user domain client
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: (Member ClientStore r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH :: (Member ClientSubsystem r) => UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
+  lift $ liftSem $ ClientSubsystem.claimPrekeyBundle (ProtectedUser zusr) domain uid
 
-getPrekeyBundleH :: (Member ClientStore r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH :: (Member ClientSubsystem r) => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
-  API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
+  lift $ liftSem $ ClientSubsystem.claimPrekeyBundle (ProtectedUser zusr) domain uid
 
 getMultiUserPrekeyBundleUnqualifiedH ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
@@ -723,7 +720,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral <$> asks (.settings.maxConvSize)
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
-  API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
+  lift $ liftSem $ ClientSubsystem.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients
 
 getMultiUserPrekeyBundleHInternal ::
   (MonadReader Env m, MonadError HttpError m) =>
@@ -739,42 +736,27 @@ getMultiUserPrekeyBundleHInternal qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
 
 getMultiUserPrekeyBundleHV3 ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
+  forall r.
+  (Member ClientSubsystem r) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
-  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientError
+  lift $ liftSem $ ClientSubsystem.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients
 
 getMultiUserPrekeyBundleH ::
-  ( Member (Concurrency 'Unsafe) r,
-    Member DeleteQueue r,
-    Member AuthenticationSubsystem r,
-    Member ClientStore r
-  ) =>
+  forall r.
+  (Member ClientSubsystem r) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMapV4
 getMultiUserPrekeyBundleH zusr qualUserClients = do
   getMultiUserPrekeyBundleHInternal qualUserClients
-  API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
+  lift $ liftSem $ ClientSubsystem.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients
 
 addClient ::
-  ( Member GalleyAPIAccess r,
-    Member DeleteQueue r,
-    Member NotificationSubsystem r,
-    Member EmailSubsystem r,
-    Member AuthenticationSubsystem r,
-    Member VerificationCodeSubsystem r,
-    Member Events r,
-    Member UserSubsystem r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   Local UserId ->
   ConnId ->
   Public.NewClient ->
@@ -782,59 +764,58 @@ addClient ::
 addClient lusr con new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
-    throwE (clientError ClientLegalHoldCannotBeAdded)
-  API.addClient lusr (Just con) new
-    !>> clientError
+    throwE (clientErrorToHttpError ClientLegalHoldCannotBeAdded)
+  lift $ liftSem $ ClientSubsystem.addClient lusr (Just con) new
+
+updateClient :: (Member ClientSubsystem r) => UserId -> ClientId -> Public.UpdateClient -> Handler r ()
+updateClient uid cid payload = lift $ liftSem $ ClientSubsystem.updateClient uid cid payload
 
 deleteClient ::
-  ( Member AuthenticationSubsystem r,
-    Member DeleteQueue r,
-    Member ClientStore r
-  ) =>
+  (Member ClientSubsystem r) =>
   UserId ->
   ConnId ->
   ClientId ->
   Public.RmClient ->
   (Handler r) ()
 deleteClient usr con clt body =
-  API.rmClient usr con clt (Public.rmPassword body) !>> clientError
+  lift $ liftSem $ ClientSubsystem.removeClient usr con clt (Public.rmPassword body)
 
-listClients :: (Member ClientStore r) => UserId -> (Handler r) [Public.Client]
+listClients :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.Client]
 listClients zusr =
-  lift $ API.lookupLocalClients zusr
+  lift $ liftSem $ ClientSubsystem.lookupLocalClients zusr
 
-getClient :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) (Maybe Public.Client)
-getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
+getClient :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) (Maybe Public.Client)
+getClient zusr clientId = lift $ liftSem $ ClientSubsystem.lookupLocalClient zusr clientId
 
-getUserClientsUnqualified :: (Member ClientStore r) => UserId -> (Handler r) [Public.PubClient]
+getUserClientsUnqualified :: (Member ClientSubsystem r) => UserId -> (Handler r) [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
-  API.lookupPubClients (Qualified uid localdomain) !>> clientError
+  lift $ liftSem $ ClientSubsystem.lookupPublicClients (Qualified uid localdomain)
 
-getUserClientsQualified :: (Member ClientStore r) => Qualified UserId -> (Handler r) [Public.PubClient]
-getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
+getUserClientsQualified :: (Member ClientSubsystem r) => Qualified UserId -> (Handler r) [Public.PubClient]
+getUserClientsQualified quid = lift $ liftSem $ ClientSubsystem.lookupPublicClients quid
 
-getUserClientUnqualified :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) Public.PubClient
+getUserClientUnqualified :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
-  x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
+  x <- lift $ liftSem $ ClientSubsystem.lookupPublicClient (Qualified uid localdomain) cid
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: (Member ClientStore r) => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk :: (Member ClientSubsystem r) => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
-  API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
+  lift $ liftSem $ ClientSubsystem.lookupPublicClientsBulk (fromRange limitedUids)
 
-listClientsBulkV2 :: (Member ClientStore r) => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: (Member ClientSubsystem r) => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: (Member ClientStore r) => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
+getUserClientQualified :: (Member ClientSubsystem r) => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientQualified quid cid = do
-  x <- API.lookupPubClient quid cid !>> clientError
+  x <- lift $ liftSem $ ClientSubsystem.lookupPublicClient quid cid
   ifNothing (notFound "client not found") x
 
-getClientCapabilities :: (Member ClientStore r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
+getClientCapabilities :: (Member ClientSubsystem r) => UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
-  mclient <- lift (API.lookupLocalClient uid cid)
+  mclient <- lift $ liftSem $ ClientSubsystem.lookupLocalClient uid cid
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
 getRichInfo ::
@@ -887,7 +868,7 @@ newNonce uid cid = do
   lift $ wrapClient $ Nonce.insertNonce ttl uid (Id.clientToText cid) nonce
   pure (nonce, NoStore)
 
-createAccessToken ::
+createClientDPoPAccessToken ::
   forall api endpoint r.
   ( Member JwtTools r,
     Member Now r,
@@ -902,9 +883,9 @@ createAccessToken ::
   ClientId ->
   Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method luid cid proof = do
+createClientDPoPAccessToken method luid cid proof = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
-  API.createAccessToken luid cid method link proof !>> certEnrollmentError
+  API.createClientDPoPAccessToken luid cid method link proof !>> certEnrollmentError
 
 upgradePersonalToTeam ::
   ( Member (ConnectionStore InternalPaging) r,
@@ -916,7 +897,10 @@ upgradePersonalToTeam ::
     Member TinyLog r,
     Member UserSubsystem r,
     Member UserStore r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   Local UserId ->
   Public.BindingNewTeamUser ->
@@ -982,7 +966,7 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
-    Auth.toWebCookie =<< case userStatus acc of
+    Auth.toWebCookie =<< case Public.userStatus acc of
       Public.Ephemeral ->
         lift . liftSem $
           AuthenticationSubsystem.newCookie @_ @ZAuth.U userId Nothing Public.SessionCookie newUserLabel RevokeSameLabel
@@ -992,7 +976,7 @@ createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile acc)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile acc)
   where
-    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
+    sendActivationEmail :: (Member EmailSubsystem r) => Public.EmailAddress -> Public.Name -> Public.ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail email name (key, code) locale mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -1228,8 +1212,11 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
+  forall r m.
   ( Member UserSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r
   ) =>
   UserId ->
   Handle ->
@@ -1324,7 +1311,8 @@ createConnection ::
     Member UserSubsystem r,
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   ConnId ->
@@ -1358,7 +1346,8 @@ updateConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r
   ) =>
   UserId ->
   ConnId ->
@@ -1586,7 +1575,7 @@ sendVerificationCode req = do
       sendMail email code.codeValue (Just (Public.userLocale account)) action
     _ -> pure ()
   where
-    getAccount :: Public.EmailAddress -> (Handler r) (Maybe User)
+    getAccount :: Public.EmailAddress -> (Handler r) (Maybe Public.User)
     getAccount email = lift . liftSem $ do
       mbUserId <- lookupKey $ mkEmailKey email
       mbLUserId <- qualifyLocal' `traverse` mbUserId
@@ -1599,7 +1588,7 @@ sendVerificationCode req = do
         Public.Login -> sendLoginVerificationMail email value mbLocale
         Public.DeleteTeam -> sendTeamDeletionVerificationMail email value mbLocale
 
-    getFeatureStatus :: Maybe User -> (Handler r) Bool
+    getFeatureStatus :: Maybe Public.User -> (Handler r) Bool
     getFeatureStatus mbAccount = do
       mbStatusEnabled <- lift $ liftSem $ GalleyAPIAccess.getVerificationCodeEnabled `traverse` (Public.userTeam =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
@@ -1771,17 +1760,28 @@ createApp :: (_) => Local UserId -> TeamId -> Public.NewApp -> Handler r Public.
 createApp lusr tid new = lift . liftSem $ AppSubsystem.createApp lusr tid new
 
 getApp :: (_) => Local UserId -> TeamId -> UserId -> Handler r UserProfile
-getApp lusr _tid uid = lift . liftSem $ do
-  prof <- getLocalUserProfileFiltered404 AppsOnly (qualifyAs lusr uid)
+getApp lusr tid uid = lift . liftSem $ do
+  -- Check if requesting user is a member of the team
+  requestingUserTeam <- getUserTeam (tUnqualified lusr)
+  unless (requestingUserTeam == Just tid) $
+    throw UserSubsystemProfileNotFound
+
+  profs <- getLocalUserProfiles (qualifyAs lusr [uid])
+  prof <-
+    note UserSubsystemProfileNotFound $
+      find (\p -> p.profileType == Public.UserTypeApp && p.profileTeam == Just tid) profs
   if prof.profileDeleted
     then throw UserSubsystemProfileNotFound
     else pure prof
 
 getApps :: (_) => Local UserId -> TeamId -> Handler r [UserProfile]
-getApps lusr tid =
-  lift . liftSem $ do
-    appIds <- AppSubsystem.getAppIds lusr tid
-    getLocalUserProfilesFiltered AppsOnly (qualifyAs lusr appIds)
+getApps lusr tid = lift . liftSem $ do
+  -- Check if requesting user is a member of the team
+  requestingUserTeam <- getUserTeam (tUnqualified lusr)
+  unless (requestingUserTeam == Just tid) $
+    throw UserSubsystemProfileNotFound
+
+  getLocalAppProfiles (qualifyAs lusr tid)
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put

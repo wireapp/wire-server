@@ -23,7 +23,6 @@ import Data.Id
 import Data.Qualified
 import Data.UUID qualified as UUID
 import Galley.App
-import Galley.Options
 import Imports
 import Test.Tasty.HUnit
 import TestSetup
@@ -31,6 +30,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol (Protocol (..))
 import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.ConversationSubsystem.Util
+import Wire.Options.Galley
 import Wire.StoredConversation
 
 isConvMemberLTests :: TestM ()

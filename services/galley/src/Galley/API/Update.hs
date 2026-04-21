@@ -97,7 +97,6 @@ import Galley.API.Message
 import Galley.API.Query qualified as Query
 import Galley.API.Teams.Features.Get
 import Galley.App
-import Galley.Options
 import Galley.Types.Error
 import Imports hiding (forkIO)
 import Polysemy
@@ -148,6 +147,7 @@ import Wire.FireAndForget
 import Wire.HashPassword as HashPassword
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
+import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit
 import Wire.Sem.Now (Now)
@@ -161,6 +161,7 @@ import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserClientIndexStore qualified as E
 import Wire.UserGroupStore (UserGroupStore, getUserGroupsForConv)
 import Wire.UserList
+import Wire.Util
 
 acceptConv ::
   ( Member ConversationStore r,

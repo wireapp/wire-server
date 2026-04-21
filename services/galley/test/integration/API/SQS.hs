@@ -28,7 +28,6 @@ import Data.Id
 import Data.Set qualified as Set
 import Data.Text (pack)
 import Data.UUID qualified as UUID
-import Galley.Options (JournalOpts, endpoint, queueName)
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
@@ -41,6 +40,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import Util.Test.SQS qualified as SQS
 import Wire.AWS qualified as Aws
+import Wire.Options.Galley (JournalOpts, endpoint, queueName)
 
 withTeamEventWatcher :: (HasCallStack) => (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
 withTeamEventWatcher action = do

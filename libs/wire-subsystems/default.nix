@@ -11,6 +11,8 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, asn1-encoding
+, asn1-types
 , async
 , attoparsec
 , base
@@ -29,6 +31,7 @@
 , contravariant
 , cql
 , crypton
+, crypton-pem
 , crypton-x509
 , crypton-x509-store
 , currency-codes
@@ -67,6 +70,7 @@
 , iproute
 , iso639
 , lens
+, lens-aeson
 , lib
 , lrucaching
 , memory
@@ -146,6 +150,8 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    asn1-encoding
+    asn1-types
     async
     attoparsec
     base
@@ -164,6 +170,7 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-pem
     crypton-x509
     currency-codes
     data-default
@@ -198,6 +205,7 @@ mkDerivation {
     iproute
     iso639
     lens
+    lens-aeson
     lrucaching
     memory
     mime
@@ -268,6 +276,8 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    asn1-encoding
+    asn1-types
     async
     attoparsec
     base
@@ -285,6 +295,7 @@ mkDerivation {
     contravariant
     cql
     crypton
+    crypton-pem
     crypton-x509
     crypton-x509-store
     currency-codes
@@ -320,6 +331,7 @@ mkDerivation {
     iproute
     iso639
     lens
+    lens-aeson
     lrucaching
     memory
     mime

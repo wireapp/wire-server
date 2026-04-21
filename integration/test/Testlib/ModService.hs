@@ -46,6 +46,8 @@ import Data.Function
 import Data.Functor
 import Data.IORef
 import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.String
@@ -62,6 +64,7 @@ import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist,
 import System.Exit
 import System.FilePath
 import System.IO
+import System.IO.Error (isDoesNotExistError)
 import System.IO.Temp (createTempDirectory, writeTempFile)
 import qualified System.Linux.Proc as LinuxProc
 import System.Posix (keyboardSignal, killProcess, signalProcess)
@@ -317,7 +320,9 @@ startBackend ::
   Codensity App ()
 startBackend resource overrides = do
   lift $ waitForPortsToBeFree resource
-  traverseConcurrentlyCodensity (withProcess resource overrides) allServices
+  initRuntimeFiles <- lift $ initBackendRuntimeFiles resource overrides
+  artifacts <- hoistCodensity $ Codensity $ E.bracket initRuntimeFiles cleanupBackendRuntimeFiles
+  traverseConcurrentlyCodensity (withProcess artifacts resource) allServices
   lift $ ensureBackendReachable resource.berDomain
 
 waitForPortsToBeFree :: (HasCallStack) => BackendResource -> App ()
@@ -437,25 +442,11 @@ processColors =
     ("nginx", colored purpleish)
   ]
 
-data ServiceInstance = ServiceInstance
-  { handle :: ProcessHandle,
-    config :: FilePath
+data BackendRuntimeFiles = BackendRuntimeFiles
+  { serviceConfigs :: Map Service FilePath,
+    tempPaths :: [FilePath],
+    nginzWorkingDir :: FilePath
   }
-
-timeout :: Int -> IO a -> IO (Maybe a)
-timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
-
-cleanupService :: (HasCallStack) => ServiceInstance -> IO ()
-cleanupService inst = do
-  mPid <- getPid inst.handle
-  for_ mPid (signalProcess keyboardSignal)
-  timeout 50000 (waitForProcess inst.handle) >>= \case
-    Just _ -> pure ()
-    Nothing -> do
-      for_ mPid (signalProcess killProcess)
-      void $ waitForProcess inst.handle
-  whenM (doesFileExist inst.config) $ removeFile inst.config
-  whenM (doesDirectoryExist inst.config) $ removeDirectoryRecursive inst.config
 
 -- | Wait for a service to come up.
 waitUntilServiceIsUp :: (HasCallStack) => Maybe ProcessDebug -> String -> Service -> App ()
@@ -483,46 +474,113 @@ readAndUpdateConfig overrides resource service =
       >>= updateServiceMapInConfig resource service
       >>= lookupConfigOverride overrides service
 
-withProcess :: (HasCallStack) => BackendResource -> ServiceOverrides -> Service -> Codensity App ()
-withProcess resource overrides service = do
-  let domain = berDomain resource
-  sm <- lift $ getServiceMap domain
+data ProcessInstance = ProcessInstance {handle :: ProcessHandle, pid :: Pid}
+
+withProcess :: (HasCallStack) => BackendRuntimeFiles -> BackendResource -> Service -> Codensity App ()
+withProcess artifacts resource service = do
   env <- lift ask
-  let execName = configName service
-  let (cwd, exe) = case env.servicesCwdBase of
+  let domain = berDomain resource
+      execName = configName service
+      (cwd, exe) = case env.servicesCwdBase of
         Nothing -> (Nothing, execName)
         Just dir ->
           (Just (dir </> execName), "../../dist" </> execName)
-
-  startNginzLocalIO <- lift $ appToIO $ startNginzLocal resource
 
   stdOut <- liftIO $ newIORef []
   stdErr <- liftIO $ newIORef []
   phRef <- liftIO $ newIORef Nothing
 
-  getConfig <- lift $ readAndUpdateConfig overrides resource service
   let prefix = "[" <> execName <> "@" <> domain <> maybe "" (":" <>) env.currentTestName <> "] "
-  let initProcess = case (service, cwd) of
-        (Nginz, Nothing) -> startNginzK8s domain sm
-        (Nginz, Just _) -> startNginzLocalIO
+      initProcess = case (service, cwd) of
+        (Nginz, _) ->
+          startNginz domain (lookupServiceConfig Nginz artifacts) artifacts.nginzWorkingDir
+        (BackgroundWorker, _) -> do
+          let backgroundWorkerConf = lookupServiceConfig BackgroundWorker artifacts
+              galleyConf = lookupServiceConfig Galley artifacts
+              params = ["-c", backgroundWorkerConf, "--galley-config-file", galleyConf]
+          createServiceInstance params
         _ -> do
-          config <- getConfig
-          tempFile <- writeTempFile "/tmp" (execName <> "-" <> domain <> "-" <> ".yaml") (cs $ Yaml.encode config)
-          (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe ["-c", tempFile]) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
-          let colorize = fromMaybe id (lookup execName processColors)
-          void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
-          void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
-          liftIO $ writeIORef phRef (Just ph)
-          pure $ ServiceInstance ph tempFile
+          let conf = lookupServiceConfig service artifacts
+              params = ["-c", conf]
+          createServiceInstance params
+        where
+          createServiceInstance params = do
+            (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe params) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
+            let colorize = fromMaybe id (lookup execName processColors)
+            void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
+            void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
+            writeIORef phRef (Just ph)
+            mkProcessInstance service ph
 
   void $
     hoistCodensity $
       Codensity $
-        E.bracket initProcess cleanupService
+        E.bracket initProcess kill
 
   lift $
     addFailureContext ("Waiting for service: " <> prefix) $ do
       waitUntilServiceIsUp (Just $ ProcessDebug {phRef = phRef, stdOut = stdOut, stdErr = stdErr}) domain service
+  where
+    kill :: (HasCallStack) => ProcessInstance -> IO ()
+    kill p = do
+      processExists <- ignoreMissingProcess (signalProcess keyboardSignal p.pid)
+      if processExists
+        then
+          timeout 50000 (waitForProcess p.handle) >>= \case
+            Just _ -> pure ()
+            Nothing -> forceKillAndWait
+        else waitForProcessWithTimeout
+      where
+        forceKillAndWait = do
+          void $ ignoreMissingProcess (signalProcess killProcess p.pid)
+          waitForProcessWithTimeout
+
+        waitForProcessWithTimeout =
+          timeout 50000 (waitForProcess p.handle) >>= \case
+            Just _ -> pure ()
+            Nothing -> E.throw (AssertionFailure callStack Nothing Nothing "Timed out waiting for service process to terminate during cleanup")
+
+        ignoreMissingProcess :: IO () -> IO Bool
+        ignoreMissingProcess action =
+          E.catch
+            (action $> True)
+            ( \e ->
+                if isDoesNotExistError e
+                  then pure False
+                  else E.throwIO e
+            )
+
+        timeout usecs action = either (const Nothing) Just <$> race (threadDelay usecs) action
+
+initBackendRuntimeFiles :: BackendResource -> ServiceOverrides -> App (IO BackendRuntimeFiles)
+initBackendRuntimeFiles resource overrides = appToIO do
+  serviceConfigs <- prepareConfigFiles $ filter (/= Nginz) allServices
+  (nginzConf, nginzTempDir, nginzWorkingDir) <- prepareNginzRuntimeFiles resource
+  pure $
+    BackendRuntimeFiles
+      { serviceConfigs = Map.insert Nginz nginzConf serviceConfigs,
+        tempPaths = nginzTempDir : Map.elems serviceConfigs,
+        nginzWorkingDir = nginzWorkingDir
+      }
+  where
+    prepareConfigFiles services = Map.fromList <$> traverse getAndWrite services
+
+    getAndWrite :: Service -> App (Service, FilePath)
+    getAndWrite service = do
+      getConfig <- readAndUpdateConfig overrides resource service
+      config <- liftIO getConfig
+      tempFile <- liftIO $ writeTempFile "/tmp" (configName service <> "-" <> resource.berDomain <> "-" <> ".yaml") (cs $ Yaml.encode config)
+      pure (service, tempFile)
+
+cleanupBackendRuntimeFiles :: BackendRuntimeFiles -> IO ()
+cleanupBackendRuntimeFiles artifacts = for_ artifacts.tempPaths \path -> do
+  whenM (doesFileExist path) $ removeFile path
+  whenM (doesDirectoryExist path) $ removeDirectoryRecursive path
+
+lookupServiceConfig :: Service -> BackendRuntimeFiles -> FilePath
+lookupServiceConfig service artifacts =
+  fromMaybe (error $ "missing backend artifact for service " <> show service) $
+    Map.lookup service artifacts.serviceConfigs
 
 logToConsole :: (String -> String) -> String -> Handle -> IO ()
 logToConsole = logToConsoleDebug Nothing
@@ -581,11 +639,19 @@ retryRequestUntilDebug mProcessDebug reqAction err = do
         addFailureContext msg $
           assertFailure msg
 
-startNginzK8s :: String -> ServiceMap -> IO ServiceInstance
-startNginzK8s domain sm = do
-  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
-  liftIO $
-    copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
+prepareNginzRuntimeFiles :: BackendResource -> App (FilePath, FilePath, FilePath)
+prepareNginzRuntimeFiles resource = do
+  let domain = berDomain resource
+  sm <- getServiceMap domain
+  mBaseDir <- asks (.servicesCwdBase)
+  case mBaseDir of
+    Nothing -> liftIO $ prepareNginzK8sRuntimeFiles domain sm
+    Just basedir -> liftIO $ prepareNginzLocalRuntimeFiles resource sm basedir
+
+prepareNginzK8sRuntimeFiles :: String -> ServiceMap -> IO (FilePath, FilePath, FilePath)
+prepareNginzK8sRuntimeFiles domain sm = do
+  tmpDir <- createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
+  copyDirectoryRecursively "/etc/wire/nginz/" tmpDir
 
   let nginxConfFile = tmpDir </> "conf" </> "nginx.conf"
   conf <- Text.readFile nginxConfFile
@@ -599,35 +665,29 @@ startNginzK8s domain sm = do
 
   Text.writeFile nginxConfFile $ replaceUpstreamsInConfig conf' sm
 
-  ph <- startNginz domain nginxConfFile "/"
-  pure $ ServiceInstance ph tmpDir
+  pure (nginxConfFile, tmpDir, "/")
 
-startNginzLocal :: BackendResource -> App ServiceInstance
-startNginzLocal resource = do
+prepareNginzLocalRuntimeFiles :: BackendResource -> ServiceMap -> FilePath -> IO (FilePath, FilePath, FilePath)
+prepareNginzLocalRuntimeFiles resource sm basedir = do
   let domain = berDomain resource
-  sm <- getServiceMap domain
 
   -- Create a whole temporary directory and copy all nginx's config files.
   -- This is necessary because nginx assumes local imports are relative to
   -- the location of the main configuration file.
-  tmpDir <- liftIO $ createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
-  mBaseDir <- asks (.servicesCwdBase)
-  basedir <- maybe (failApp "service cwd base not found") pure mBaseDir
+  tmpDir <- createTempDirectory "/tmp" ("nginz" <> "-" <> domain)
 
   -- copy all config files into the tmp dir
-  liftIO $ do
-    let from = basedir </> "nginz" </> "integration-test"
-    copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
-    copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
+  let from = basedir </> "nginz" </> "integration-test"
+  copyDirectoryRecursively (from </> "conf" </> "nginz") (tmpDir </> "conf" </> "nginz")
+  copyDirectoryRecursively (from </> "resources") (tmpDir </> "resources")
 
   -- hide access log
   let nginxConfFile = tmpDir </> "conf" </> "nginz" </> "nginx.conf"
-  liftIO $ do
-    conf <- Text.readFile nginxConfFile
-    Text.writeFile nginxConfFile $
-      ( conf
-          & Text.replace "access_log /dev/stdout" "access_log /dev/null"
-      )
+  conf <- Text.readFile nginxConfFile
+  Text.writeFile nginxConfFile $
+    ( conf
+        & Text.replace "access_log /dev/stdout" "access_log /dev/null"
+    )
 
   -- override port configuration
   let nginzPort = sm.nginz.port
@@ -642,30 +702,23 @@ startNginzLocal resource = do
         |]
       integrationConfFile = tmpDir </> "conf" </> "nginz" </> "integration.conf"
 
-  liftIO $ do
-    whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
-    writeFile integrationConfFile portConfig
+  whenM (doesFileExist integrationConfFile) $ removeFile integrationConfFile
+  writeFile integrationConfFile portConfig
 
   -- override upstreams
   let upstreamsCfg = tmpDir </> "conf" </> "nginz" </> "upstreams"
 
-  liftIO $ do
-    whenM (doesFileExist upstreamsCfg) $
-      removeFile upstreamsCfg
-    writeFile upstreamsCfg (makeUpstreamsCfgs sm)
+  whenM (doesFileExist upstreamsCfg) $
+    removeFile upstreamsCfg
+  writeFile upstreamsCfg (makeUpstreamsCfgs sm)
 
   -- override pid configuration
   let pidConfigFile = tmpDir </> "conf" </> "nginz" </> "pid.conf"
   let pid = tmpDir </> "conf" </> "nginz" </> "nginz.pid"
-  liftIO $ do
-    whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
-    writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
+  whenM (doesFileExist $ pidConfigFile) $ removeFile pidConfigFile
+  writeFile pidConfigFile (cs $ "pid " <> pid <> ";")
 
-  -- start service
-  ph <- liftIO $ startNginz domain nginxConfFile tmpDir
-
-  -- return handle and nginx tmp dir path
-  pure $ ServiceInstance ph tmpDir
+  pure (nginxConfFile, tmpDir, tmpDir)
 
 makeUpstreamsCfgs :: ServiceMap -> String
 makeUpstreamsCfgs sm =
@@ -744,7 +797,14 @@ replaceUpstreamsInConfig nginxConf sm =
               }
           |]
 
-startNginz :: String -> FilePath -> FilePath -> IO ProcessHandle
+mkProcessInstance :: Service -> ProcessHandle -> IO ProcessInstance
+mkProcessInstance service ph = do
+  mPid <- getPid ph
+  case mPid of
+    Just pid -> pure $ ProcessInstance ph pid
+    Nothing -> E.throw (AssertionFailure callStack Nothing Nothing (configName service <> " started without a pid"))
+
+startNginz :: String -> FilePath -> FilePath -> IO ProcessInstance
 startNginz domain conf workingDir = do
   (_, Just stdoutHdl, Just stderrHdl, ph) <-
     createProcess
@@ -759,5 +819,4 @@ startNginz domain conf workingDir = do
 
   void $ forkIO $ logToConsole colorize prefix stdoutHdl
   void $ forkIO $ logToConsole colorize prefix stderrHdl
-
-  pure ph
+  mkProcessInstance Nginz ph

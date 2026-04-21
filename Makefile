@@ -7,7 +7,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services fluent-bit kibana restund k8ssandra-test-cluster wire-server-enterprise
+CHARTS_INTEGRATION    := wire-server databases-ephemeral rabbitmq fake-aws ingress-nginx-controller nginx-ingress-services fluent-bit kibana k8ssandra-test-cluster wire-server-enterprise
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -17,7 +17,7 @@ CHARTS_RELEASE := wire-server redis-ephemeral rabbitmq rabbitmq-external databas
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-ingress-nginx-controller nginx-ingress-services reaper restund \
+ingress-nginx-controller nginx-ingress-services reaper \
 k8ssandra-test-cluster ldap-scim-bridge wire-server-enterprise
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
@@ -699,22 +699,9 @@ diff-live-manifest: clean-charts charts-integration
 	DIFF_OUTPUT_FILE="$(DIFF_OUTPUT_FILE)" ./hack/bin/diff-wire-server-manifests.sh "$(LIVE_MANIFEST_FILE)" /tmp/wire-server.yaml
 
 render-ci-manifest: clean-charts charts-integration
-	VALUES_FILE="$${VALUES_FILE:-$$(mktemp).yaml}"; \
-  ./hack/bin/helm-render-ci-values.sh \
-  ./hack/bin/render-manifest.sh "$$VALUES_FILE"
-
-sbom.json:
-	nix -Lv build '.#wireServer.bomDependencies' && \
-	nix run 'github:wireapp/tom-bombadil#create-sbom' -- --root-package-name "wire-server"
-
-# Ask the security team for the `DEPENDENCY_TRACK_API_KEY` (if you need it)
-.PHONY: upload-bombon
-upload-bombon: sbom.json
-	nix run 'github:wireapp/tom-bombadil#upload-bom' -- \
-		--project-name "wire-server"  \
-		--project-version $(HELM_SEMVER) \
-		--auto-create \
-		--bom-file ./sbom.json
+	VALUES_FILE="$${VALUES_FILE:-$$(mktemp).yaml}"; export VALUES_FILE; \
+	./hack/bin/helm-render-ci-values.sh && \
+	./hack/bin/render-manifest.sh "$$VALUES_FILE"
 
 # SBOM creation and uploading (Helm charts, Helmfile, docker-compose)
 #
@@ -729,9 +716,9 @@ upload-bombon: sbom.json
 # Targets should be independently executable and creating a Nix env in a Nix
 # env doesn't play well.
 
-# Generate all SBOMs (Helm + Docker Compose + Helmfile)
+# Generate all SBOMs (Helm + Docker Compose + Helmfile + Nix Docker Images + Nix DevShell)
 .PHONY: sboms
-sboms: sboms-helm sboms-docker-compose sboms-helmfile
+sboms: sboms-helm sboms-docker-compose sboms-helmfile sboms-nix-docker-images sboms-nix-devshell
 
 # Generate SBOMs for Helm charts
 .PHONY: sboms-helm
@@ -755,6 +742,26 @@ sboms-helmfile: .local/charts
 		exit 1; \
 	fi
 	./hack/bin/create-helmfile-sboms.sh tmp/sboms/helmfile $(HELM_SEMVER)
+
+# Generate SBOMs for Nix-built Docker images using sbomnix
+# This generates SBOMs from the Nix store paths of executables that go into Docker images
+.PHONY: sboms-nix-docker-images
+sboms-nix-docker-images:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-nix-docker-image-sboms.sh tmp/sboms/nix-docker-images $(HELM_SEMVER) imagesUnoptimizedNoDocs
+
+# Generate SBOMs for Nix devShells using sbomnix
+# This generates SBOMs from the Nix store paths of packages in the development environments
+.PHONY: sboms-nix-devshell
+sboms-nix-devshell:
+	@if [ "$(HELM_SEMVER)" = "0.0.42" ]; then \
+		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
+		exit 1; \
+	fi
+	./hack/bin/create-nix-devshell-sbom.sh tmp/sboms/nix-devshell $(HELM_SEMVER)
 
 # Validate all SBOM files using cyclonedx
 .PHONY: validate-sboms

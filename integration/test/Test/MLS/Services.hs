@@ -110,3 +110,70 @@ testWhitelistUpdatePermissions = do
     postServiceWhitelist admin tid np >>= \resp -> do
       resp.status `shouldMatchInt` 409
       (resp.json %. "label") `shouldMatch` Just "mls-services-not-allowed"
+
+-- | Removing a service from an MLS team should succeed even though adding is blocked.
+testRemoveServiceFromMLSTeam :: (HasCallStack) => App ()
+testRemoveServiceFromMLSTeam = do
+  -- Create a team (default protocol is proteus)
+  (owner, tid, []) <- createTeam OwnDomain 1
+
+  -- Create a service
+  provider <- make <$> setupProvider owner def
+  providerId <- provider %. "id" & asString
+  service <- make <$> newService OwnDomain providerId def
+  serviceId <- service %. "id" & asString
+
+  -- Whitelist the service while the team is still on proteus
+  do
+    np <-
+      make
+        $ object
+          [ "id" .= serviceId,
+            "provider" .= providerId,
+            "whitelisted" .= True
+          ]
+    postServiceWhitelist owner tid np >>= assertStatus 200
+
+  -- Upgrade the team to MLS
+  mlsConfig <-
+    make
+      $ object
+        [ "config"
+            .= object
+              [ "allowedCipherSuites" .= [1 :: Int],
+                "defaultCipherSuite" .= (1 :: Int),
+                "defaultProtocol" .= "mls",
+                "protocolToggleUsers" .= ([] :: [String]),
+                "supportedProtocols" .= ["mls", "proteus"]
+              ],
+          "status" .= "enabled",
+          "ttl" .= "unlimited"
+        ]
+  patchTeamFeatureConfig OwnDomain tid "mls" mlsConfig >>= assertStatus 200
+
+  -- Adding a NEW service on an MLS team should be blocked
+  do
+    -- Service is already whitelisted, so we need a fresh service to test the add path
+    service2 <- make <$> newService OwnDomain providerId def
+    serviceId2 <- service2 %. "id" & asString
+    np2 <-
+      make
+        $ object
+          [ "id" .= serviceId2,
+            "provider" .= providerId,
+            "whitelisted" .= True
+          ]
+    postServiceWhitelist owner tid np2 >>= \resp -> do
+      resp.status `shouldMatchInt` 409
+      (resp.json %. "label") `shouldMatch` Just "mls-services-not-allowed"
+
+  -- Removing the already-whitelisted service from the MLS team should succeed
+  do
+    np <-
+      make
+        $ object
+          [ "id" .= serviceId,
+            "provider" .= providerId,
+            "whitelisted" .= False
+          ]
+    postServiceWhitelist owner tid np >>= assertStatus 200

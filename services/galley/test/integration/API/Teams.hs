@@ -53,7 +53,6 @@ import Data.UUID qualified as UUID
 import Data.UUID.Util qualified as UUID
 import Data.UUID.V1 qualified as UUID
 import Galley.Env qualified as Galley
-import Galley.Options (featureFlags, maxConvSize, maxFanoutSize, settings)
 import Galley.Types.Conversations.Roles
 import Imports
 import Network.HTTP.Types.Status (status403)
@@ -85,6 +84,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.User qualified as Public
 import Wire.API.User qualified as U
+import Wire.Options.Galley (featureFlags, maxConvSize, maxFanoutSize, settings)
 import Wire.StoredConversation (selfConv)
 
 tests :: IO TestSetup -> TestTree

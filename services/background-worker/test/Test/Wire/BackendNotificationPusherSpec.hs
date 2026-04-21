@@ -419,6 +419,10 @@ spec = do
       -- Wait for first call
       untilM (readTVarIO mockAdmin.listQueuesVHostCalls >>= \calls -> pure $ not $ null calls)
 
+      -- Wait a bit to ensure at least one retry happens while the API is still broken
+      -- The retry policy uses exponential backoff starting at 10ms, so 50ms should be enough
+      threadDelay 50000
+
       -- Unbreak the API
       atomically $ writeTVar mockAdmin.broken False
 

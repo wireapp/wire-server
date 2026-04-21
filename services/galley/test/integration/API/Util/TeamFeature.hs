@@ -27,11 +27,11 @@ import Bilge
 import Control.Lens ((%~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
-import Galley.Options (featureFlags, settings)
 import Imports
 import TestSetup
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags
+import Wire.Options.Galley (featureFlags, settings)
 
 withCustomSearchFeature :: FeatureDefaults SearchVisibilityAvailableConfig -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
@@ -60,6 +60,7 @@ putTeamFeatureInternal ::
     HasGalley m,
     MonadHttp m,
     HasCallStack,
+    Typeable cfg,
     IsFeatureConfig cfg
   ) =>
   (Request -> Request) ->
@@ -76,7 +77,7 @@ putTeamFeatureInternal reqmod tid status = do
 
 putTeamFeature ::
   forall cfg.
-  (HasCallStack, IsFeatureConfig cfg) =>
+  (HasCallStack, Typeable cfg, IsFeatureConfig cfg) =>
   UserId ->
   TeamId ->
   Feature cfg ->

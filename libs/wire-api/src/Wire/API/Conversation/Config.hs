@@ -40,7 +40,7 @@ data ConversationSubsystemConfig = ConversationSubsystemConfig
 
 instance ToSchema ConversationSubsystemConfig where
   schema =
-    object "ConversationSubsystemConfig" $
+    object $
       ConversationSubsystemConfig
         <$> (.mlsKeys) .= maybe_ (optField "mls_keys" schema)
         <*> (.federationProtocols) .= maybe_ (optField "federation_protocols" (array schema))

@@ -42,7 +42,6 @@ import Imports
 import Network.URI
 import Network.Wai (Application)
 import qualified Network.Wai as Wai
-import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
@@ -54,7 +53,6 @@ import Spar.Data.Instances ()
 import Spar.Options as Opt
 import Spar.Orphans ()
 import System.Logger (Logger)
-import qualified System.Logger as Log
 import qualified System.Logger.Extended as Log
 import qualified URI.ByteString as URI
 import Util.Options
@@ -78,16 +76,13 @@ initCassandra opts lgr =
 ----------------------------------------------------------------------
 -- servant / wai / warp
 
--- | FUTUREWORK: figure out how to call 'Network.Wai.Utilities.Server.newSettings' here.  For once,
--- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
-  let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
-      shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
+  let shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int = sparCtxOpts ^. to saml . SAML.cfgSPPort
   (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
   let logger = sparCtxLogger ctxOpts
-  Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
+  let settings = newSettings $ defaultServer shost (fromIntegral sport) logger
   WU.runSettingsWithShutdown settings wrappedApp Nothing
 
 mkApp :: Opts -> IO (Application, Env)

@@ -105,7 +105,7 @@ newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
 
 instance ToSchema Team where
   schema =
-    objectWithDocModifier "Team" desc $
+    objectWithDocModifier desc $
       Team
         <$> _teamId .= field "id" schema
         <*> _teamCreator .= field "creator" schema
@@ -147,7 +147,7 @@ data TeamBinding
 instance ToSchema TeamBinding where
   schema =
     over doc (deprecated ?~ True) $
-      enum @Bool "TeamBinding" $
+      enum @Bool $
         mconcat [element True Binding, element False NonBinding]
 
 --------------------------------------------------------------------------------
@@ -166,7 +166,7 @@ newTeamList = TeamList
 
 instance ToSchema TeamList where
   schema =
-    object "TeamList" $
+    object $
       TeamList
         <$> _teamListTeams .= field "teams" (array schema)
         <*> _teamListHasMore .= field "has_more" schema
@@ -191,7 +191,7 @@ newTeamObjectSchema =
     <*> newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "The decryption key for the team icon S3 asset") schema)
 
 instance ToSchema NewTeam where
-  schema = object "NewTeam" newTeamObjectSchema
+  schema = object newTeamObjectSchema
 
 newNewTeam :: Range 1 256 Text -> Icon -> NewTeam
 newNewTeam nme ico = NewTeam nme ico Nothing
@@ -260,7 +260,7 @@ validateTeamUpdateData u =
 instance ToSchema TeamUpdateData where
   schema =
     (`withParser` validateTeamUpdateData)
-      . object "TeamUpdateData"
+      . object
       $ TeamUpdateData
         <$> _nameUpdate .= maybe_ (optField "name" schema)
         <*> _iconUpdate .= maybe_ (optField "icon" schema)
@@ -288,7 +288,7 @@ newTeamDeleteDataWithCode = TeamDeleteData
 
 instance ToSchema TeamDeleteData where
   schema =
-    object "TeamDeleteData" $
+    object $
       TeamDeleteData
         <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
         <*> _tdVerificationCode .= maybe_ (optField "verification_code" schema)

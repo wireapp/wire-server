@@ -30,6 +30,7 @@
 , lib
 , metrics-wai
 , monad-control
+, optparse-applicative
 , polysemy
 , polysemy-conc
 , polysemy-wire-zoo
@@ -103,7 +104,12 @@ mkDerivation {
     wire-api-federation
     wire-subsystems
   ];
-  executableHaskellDepends = [ HsOpenSSL imports types-common ];
+  executableHaskellDepends = [
+    HsOpenSSL
+    imports
+    optparse-applicative
+    types-common
+  ];
   testHaskellDepends = [
     aeson
     amqp

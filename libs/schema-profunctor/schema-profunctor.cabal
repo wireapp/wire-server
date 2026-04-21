@@ -62,11 +62,14 @@ library
     -Wredundant-constraints -Wunused-packages
 
   build-depends:
-      aeson         >=2.0.1.0
-    , base          >=4       && <5
+      aeson              >=2.0.1.0
+    , base               >=4       && <5
+    , base64-bytestring
     , bifunctors
+    , bytestring
     , comonad
     , containers
+    , hashable
     , imports
     , lens
     , openapi3
@@ -83,6 +86,7 @@ test-suite schemas-tests
   other-modules:
     Paths_schema_profunctor
     Test.Data.Schema
+    Test.Data.Schema.Names
 
   hs-source-dirs:     test/unit
   default-extensions:

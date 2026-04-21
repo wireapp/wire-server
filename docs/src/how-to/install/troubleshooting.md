@@ -433,8 +433,8 @@ From your own computer (not from the Wire backend), test that you can reach all 
 * `nginz-https.<domain>`
 * `nginz-ssl.<domain>`
 * `sftd.<domain>`
-* `restund01.<domain>`
-* `restund02.<domain>`
+* `turn01.<domain>`
+* `turn02.<domain>`
 * `federator.<domain>`
 
 Some domains (such as the federator) might not apply to your setup. Refer to the domains you configured during installation, and act accordingly.

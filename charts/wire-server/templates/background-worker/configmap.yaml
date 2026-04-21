@@ -36,6 +36,8 @@ data:
       host: {{ .spar.host }}
       port: {{ .spar.port }}
 
+    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
+
     cassandra:
       endpoint:
         host: {{ .cassandra.host }}
@@ -62,28 +64,6 @@ data:
       {{- end }}
     {{- end }}
 
-    {{- if .cassandraGalley }}
-    cassandraGalley:
-      endpoint:
-        host: {{ .cassandraGalley.host }}
-        port: 9042
-      keyspace: galley
-      {{- if hasKey .cassandraGalley "filterNodesByDatacentre" }}
-      filterNodesByDatacentre: {{ .cassandraGalley.filterNodesByDatacentre }}
-      {{- end }}
-      {{- if eq (include "useCassandraTLS" .cassandraGalley) "true" }}
-      tlsCa: /etc/wire/background-worker/cassandra-galley/{{- (include "galleyTlsSecretRef" . | fromYaml).key }}
-      {{- end }}
-    {{- end }}
-
-    postgresql: {{ toYaml .postgresql | nindent 6 }}
-    postgresqlPool: {{ toYaml .postgresqlPool | nindent 6 }}
-    {{- if hasKey $backgroundWorker.secrets "pgPassword" }}
-    postgresqlPassword: /etc/wire/background-worker/secrets/pgPassword
-    {{- end }}
-
-    federationDomain: {{ $backgroundWorker.config.federationDomain }}
-
     {{- with .rabbitmq }}
     rabbitmq:
       host: {{ .host }}
@@ -95,8 +75,8 @@ data:
       {{- end }}
       enableTls: {{ .enableTls }}
       insecureSkipVerifyTls: {{ .insecureSkipVerifyTls }}
-      {{- if .tlsCaSecretRef }}
-      caCert: /etc/wire/background-worker/rabbitmq-ca/{{ .tlsCaSecretRef.key }}
+      {{- if $.Values.galley.config.rabbitmq.tlsCaSecretRef }}
+      caCert: /etc/wire/galley/rabbitmq-ca/{{ $.Values.galley.config.rabbitmq.tlsCaSecretRef.key }}
       {{- end }}
     {{- end }}
 

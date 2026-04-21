@@ -69,9 +69,8 @@ data DomainRedirectConfigTag
 
 instance ToSchema DomainRedirectConfigTag where
   schema =
-    enum @Text
-      "DomainRedirectConfigTag"
-      $ mconcat
+    enum @Text $
+      mconcat
         [ element "remove" DomainRedirectConfigRemoveTag,
           element "backend" DomainRedirectConfigBackendTag,
           element "no-registration" DomainRedirectConfigNoRegistrationTag
@@ -102,7 +101,7 @@ domainRedirectConfigV9Schema =
       DomainRedirectConfigRemoveTag -> tag _DomainRedirectConfigRemoveV9 (pure ())
 
 instance ToSchema DomainRedirectConfigV9 where
-  schema = object "DomainRedirectConfigV9" domainRedirectConfigV9Schema
+  schema = object domainRedirectConfigV9Schema
 
 data DomainRedirectConfig
   = DomainRedirectConfigRemove
@@ -141,7 +140,7 @@ domainRedirectConfigSchema =
 
     backendConfigObjectSchema :: ValueSchema NamedSwaggerDoc (HttpsUrl, HttpsUrl)
     backendConfigObjectSchema =
-      object "backend_config" $
+      object $
         (,)
           <$> fst .= field "config_url" schema
           <*> snd .= field "webapp_url" schema
@@ -153,14 +152,14 @@ domainRedirectConfigToTag = \case
   DomainRedirectConfigNoRegistration -> DomainRedirectConfigNoRegistrationTag
 
 instance ToSchema DomainRedirectConfig where
-  schema = object "DomainRedirectConfig" domainRedirectConfigSchema
+  schema = object domainRedirectConfigSchema
 
 newtype GetDomainRegistrationRequest = GetDomainRegistrationRequest {domainRegistrationRequestEmail :: EmailAddress}
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema GetDomainRegistrationRequest)
 
 instance ToSchema GetDomainRegistrationRequest where
   schema =
-    object "GetDomainRegistrationRequest" $
+    object $
       GetDomainRegistrationRequest
         <$> domainRegistrationRequestEmail
           .= field "email" schema
@@ -177,9 +176,8 @@ data TeamDomainRedirectTag = TeamNoRegistrationTag | TeamNoneTag
 
 instance ToSchema TeamDomainRedirectTag where
   schema =
-    enum @Text
-      "TeamDomainRedirectTag"
-      $ mconcat
+    enum @Text $
+      mconcat
         [ element "no-registration" TeamNoRegistrationTag,
           element "none" TeamNoneTag
         ]
@@ -225,7 +223,7 @@ data TeamInviteConfig = TeamInviteConfig
 
 instance ToSchema TeamInviteConfig where
   schema =
-    object "TeamInviteConfig" $
+    object $
       TeamInviteConfig
         <$> (.teamInvite) .= teamInviteObjectSchema
         <*> (maybeTeamDomainRedirectToTuple . (.domainRedirect)) .= maybeTeamDomainRedirectTargetObjectSchema
@@ -244,7 +242,7 @@ data DomainVerificationChallenge = DomainVerificationChallenge
 
 instance ToSchema DomainVerificationChallenge where
   schema =
-    object "DomainVerificationChallenge" $
+    object $
       DomainVerificationChallenge
         <$> challengeId .= field "id" schema
         <*> token .= field "token" schema
@@ -255,7 +253,7 @@ newtype ChallengeToken = ChallengeToken {unChallengeToken :: Token}
 
 instance ToSchema ChallengeToken where
   schema =
-    object "ChallengeToken" $
+    object $
       ChallengeToken
         <$> unChallengeToken .= field "challenge_token" schema
 
@@ -264,16 +262,16 @@ newtype DomainOwnershipToken = DomainOwnershipToken {unDomainOwnershipToken :: T
 
 instance ToSchema DomainOwnershipToken where
   schema =
-    object "DomainOwnershipToken" $
+    object $
       DomainOwnershipToken
         <$> unDomainOwnershipToken .= field "domain_ownership_token" schema
 
 newtype RegisteredDomains (v :: Version) = RegisteredDomains {unRegisteredDomains :: [DomainRegistrationResponse v]}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (RegisteredDomains v)
 
-instance (SingI v) => ToSchema (RegisteredDomains v) where
+instance (Typeable v, SingI v) => ToSchema (RegisteredDomains v) where
   schema =
-    object "RegisteredDomains" $
+    object $
       RegisteredDomains
         <$> unRegisteredDomains .= field "registered_domains" (array schema)
 
@@ -295,7 +293,7 @@ deriving via Schema DomainRedirectResponseV9 instance S.ToSchema DomainRedirectR
 
 instance ToSchema DomainRedirectResponseV9 where
   schema =
-    object "DomainRedirectResponseV9" $
+    object $
       DomainRedirectResponse
         <$> (\r -> True <$ guard r.propagateUserExists)
           .= maybe_
@@ -314,7 +312,7 @@ deriving via Schema DomainRedirectResponseV10 instance S.ToSchema DomainRedirect
 
 instance ToSchema DomainRedirectResponseV10 where
   schema =
-    object "DomainRedirectResponseV10" $
+    object $
       DomainRedirectResponse
         <$> (\r -> True <$ guard r.propagateUserExists)
           .= maybe_

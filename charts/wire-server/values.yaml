@@ -11,6 +11,7 @@ tags:
   backoffice: false
   mlsstats: false
   integration: false
+  proxy: false
 
 galley:
   replicaCount: 3
@@ -663,43 +664,6 @@ cannon:
   #   effect: "NoSchedule"
   tolerations: []
 
-proxy:
-  replicaCount: 3
-  image:
-    repository: quay.io/wire/proxy
-    tag: do-not-use
-  service:
-    externalPort: 8080
-    internalPort: 8080
-  imagePullPolicy: ""
-  metrics:
-    serviceMonitor:
-      enabled: false
-  resources:
-    requests:
-      memory: "25Mi"
-      cpu: "50m"
-    limits:
-      memory: "50Mi"
-  config:
-    logLevel: Info
-    logFormat: StructuredJSON
-    logNetStrings: false
-    proxy: {}
-    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
-    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
-    disabledAPIVersions: [development]
-
-  podSecurityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    runAsNonRoot: true
-    seccompProfile:
-      type: RuntimeDefault
-  secrets: {}
-
 gundeck:
   replicaCount: 3
   image:
@@ -968,34 +932,13 @@ background-worker:
       adminPort: 15672
       enableTls: false
       insecureSkipVerifyTls: false
-      # tlsCaSecretRef:
-      #   name: <secret-name>
-      #   key: <ca-attribute>
+
     # Cassandra clusters used by background-worker
     cassandra:
-      host: aws-cassandra
-    cassandraGalley:
       host: aws-cassandra
     cassandraBrig:
       host: aws-cassandra
 
-    # Postgres connection settings
-    #
-    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    # To set the password via a brig secret see `secrets.pgPassword`.
-    #
-    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
-    # additional files (e.g. certificates) into the brig container. This way
-    # does not work for password files (parameter `passfile`), because
-    # libpq-connect requires access rights (mask 0600) for them that we cannot
-    # provide for random uids.
-    #
-    # Below is an example configuration we're using for our CI tests.
-    postgresql:
-      host: postgresql # DNS name without protocol
-      port: "5432"
-      user: wire-server
-      dbname: wire-server
     postgresqlPool:
       size: 5
       acquisitionTimeout: 10s
@@ -1042,7 +985,6 @@ background-worker:
 
   secrets:
     {}
-    # pgPassword: <postgres-password>
 
   podSecurityContext:
     allowPrivilegeEscalation: false

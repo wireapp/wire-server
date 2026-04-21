@@ -5,7 +5,6 @@
 { gitignoreSource }: hsuper: hself: {
   integration = hself.callPackage ../integration/default.nix { inherit gitignoreSource; };
   bilge = hself.callPackage ../libs/bilge/default.nix { inherit gitignoreSource; };
-  brig-types = hself.callPackage ../libs/brig-types/default.nix { inherit gitignoreSource; };
   cargohold-types = hself.callPackage ../libs/cargohold-types/default.nix { inherit gitignoreSource; };
   cassandra-util = hself.callPackage ../libs/cassandra-util/default.nix { inherit gitignoreSource; };
   deriving-swagger2 = hself.callPackage ../libs/deriving-swagger2/default.nix { inherit gitignoreSource; };
@@ -60,7 +59,6 @@
   entreprise-provisioning = hself.callPackage ../tools/entreprise-provisioning/default.nix { inherit gitignoreSource; };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { inherit gitignoreSource; };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { inherit gitignoreSource; };
-  rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };
   stern = hself.callPackage ../tools/stern/default.nix { inherit gitignoreSource; };
   test-stats = hself.callPackage ../tools/test-stats/default.nix { inherit gitignoreSource; };
 }

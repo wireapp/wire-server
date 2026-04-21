@@ -24,11 +24,11 @@ import Control.Monad.Catch (MonadMask)
 import Control.Retry
 import Data.Domain (Domain)
 import Data.Qualified
-import Galley.Options (federationDomain, settings)
 import Imports
 import Test.Tasty (TestName, TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, testCase)
 import TestSetup
+import Wire.Options.Galley (federationDomain, settings)
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree
 test s n h = testCase n runTest

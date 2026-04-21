@@ -7,14 +7,11 @@
 , aeson-qq
 , amazonka
 , amqp
-, asn1-encoding
-, asn1-types
 , async
 , base
 , base64-bytestring
 , bilge
 , binary
-, brig-types
 , bytestring
 , bytestring-conversion
 , call-stack
@@ -25,8 +22,6 @@
 , conduit
 , containers
 , cookie
-, crypton
-, crypton-x509
 , currency-codes
 , data-default
 , data-timeout
@@ -132,20 +127,15 @@ mkDerivation {
     aeson
     amazonka
     amqp
-    asn1-encoding
-    asn1-types
     async
     base
     bilge
-    brig-types
     bytestring
     bytestring-conversion
     cassandra-util
     cassava
     comonad
     containers
-    crypton
-    crypton-x509
     data-default
     errors
     exceptions
@@ -168,7 +158,6 @@ mkDerivation {
     metrics-core
     metrics-wai
     optparse-applicative
-    pem
     polysemy
     polysemy-conc
     polysemy-plugin
@@ -213,7 +202,6 @@ mkDerivation {
     base64-bytestring
     bilge
     binary
-    brig-types
     bytestring
     bytestring-conversion
     call-stack

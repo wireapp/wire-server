@@ -34,7 +34,7 @@ data SsoLogin = SsoLogin
 
 instance ToSchema SsoLogin where
   schema =
-    object "SsoLogin" $
+    object $
       SsoLogin
         <$> ssoUserId .= field "user" schema
         <*> ssoLabel .= optField "label" (maybeWithDefault A.Null schema)

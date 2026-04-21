@@ -31,8 +31,6 @@ module Brig.API.Types
 where
 
 import Brig.Data.Activation (ActivationError (..))
-import Brig.Data.Client (ClientDataError (..))
-import Brig.Types.Intra
 import Data.Code
 import Data.Id
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))
@@ -44,6 +42,7 @@ import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.AuthenticationSubsystem.Error
+import Wire.ClientSubsystem.Error
 import Wire.UserKeyStore
 
 -------------------------------------------------------------------------------
@@ -141,31 +140,10 @@ data LoginError
   | LoginCodeInvalid
   | LoginPasswordUpdateRequired
 
-data VerificationCodeError
-  = VerificationCodeRequired
-  | VerificationCodeNoPendingCode
-  | VerificationCodeNoEmail
-
 data SendActivationCodeError
   = InvalidRecipient EmailKey
   | UserKeyInUse EmailKey
   | ActivationBlacklistedUserKey EmailKey
-
-data ClientError
-  = ClientNotFound
-  | ClientDataError !ClientDataError
-  | ClientUserNotFound !UserId
-  | ClientLegalHoldCannotBeRemoved
-  | ClientLegalHoldCannotBeAdded
-  | -- | this error is thrown if legalhold if incompatible with different features
-    --   for now, this is the case for MLS and federation
-    ClientLegalHoldIncompatible
-  | ClientFederationError FederationError
-  | ClientCapabilitiesCannotBeRemoved
-  | ClientMissingLegalholdConsentOldClients
-  | ClientMissingLegalholdConsent
-  | ClientCodeAuthenticationFailed
-  | ClientCodeAuthenticationRequired
 
 data DeleteUserError
   = DeleteUserInvalid

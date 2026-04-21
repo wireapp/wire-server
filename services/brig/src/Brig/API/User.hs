@@ -75,8 +75,6 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), User
 import Brig.Effects.UserPendingActivationStore qualified as UserPendingActivationStore
 import Brig.IO.Intra qualified as Intra
 import Brig.Options hiding (internalEvents)
-import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra
 import Brig.User.Auth.Cookie qualified as Auth
 import Cassandra hiding (Set)
 import Control.Error
@@ -99,7 +97,7 @@ import Data.Range
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Imports
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -110,6 +108,7 @@ import System.Logger.Message
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig qualified as E
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Member (legalHoldStatus)
@@ -122,6 +121,7 @@ import Wire.API.UserEvent
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
+import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
@@ -130,6 +130,7 @@ import Wire.EmailSubsystem
 import Wire.Error
 import Wire.Events (Events)
 import Wire.Events qualified as Events
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword qualified as HashPassword
@@ -271,7 +272,7 @@ createUserSpar new = do
       pure $ CreateUserTeam tid nm
 
 upgradePersonalToTeam ::
-  forall r.
+  forall r m.
   ( Member GalleyAPIAccess r,
     Member UserStore r,
     Member UserSubsystem r,
@@ -281,7 +282,10 @@ upgradePersonalToTeam ::
     Member (Input (Local ())) r,
     Member Now r,
     Member (ConnectionStore InternalPaging) r,
-    Member EmailSubsystem r
+    Member EmailSubsystem r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   Local UserId ->
   BindingNewTeamUser ->

@@ -26,8 +26,6 @@ import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
-import Galley.Options
-import Galley.Options qualified as O
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Hasql.Pool
@@ -41,6 +39,8 @@ import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.AWS qualified as Aws
 import Wire.ExternalAccess.External
 import Wire.NotificationSubsystem.Interpreter
+import Wire.Options.Galley
+import Wire.Options.Galley qualified as O
 import Wire.RateLimit.Interpreter (RateLimitEnv)
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)

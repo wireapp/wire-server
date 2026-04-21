@@ -104,7 +104,7 @@ data Route
 
 instance ToSchema Route where
   schema =
-    enum @Text "Route" $
+    enum @Text $
       mconcat
         [ element "any" RouteAny,
           element "direct" RouteDirect
@@ -144,7 +144,7 @@ instance Arbitrary RecipientClients where
 
 instance ToSchema Recipient where
   schema =
-    object "Recipient" $
+    object $
       Recipient
         <$> _recipientId .= field "user_id" schema
         <*> _recipientRoute .= field "route" schema
@@ -180,7 +180,7 @@ recipient u r = Recipient u r RecipientClientsAll
 -- ApsData
 
 newtype ApsSound = ApsSound {fromSound :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
+  deriving (Eq, Show, ToJSON, Ord, FromJSON, Arbitrary)
 
 instance ToSchema ApsSound where
   schema =
@@ -195,7 +195,7 @@ instance ToSchema ApsSound where
       o = pure . A.String . fromSound
 
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
-  deriving (Eq, Show, ToJSON, FromJSON, Arbitrary)
+  deriving (Eq, Show, Ord, ToJSON, FromJSON, Arbitrary)
 
 instance ToSchema ApsLocKey where
   schema =
@@ -215,7 +215,7 @@ data ApsData = ApsData
     _apsSound :: !(Maybe ApsSound),
     _apsBadge :: !Bool
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via GenericUniform ApsData
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ApsData)
 
@@ -224,7 +224,7 @@ apsData lk la = ApsData lk la Nothing True
 
 instance ToSchema ApsData where
   schema =
-    object "ApsData" $
+    object $
       ApsData
         <$> _apsLocKey .= field "loc_key" schema
         <*> withDefault "loc_args" _apsLocArgs (array schema) []
@@ -280,7 +280,7 @@ data Push = Push
     _pushPayload :: !(NonEmpty Object),
     _pushIsCellsEvent :: !Bool
   }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Push)
   deriving (Arbitrary) via (GenericUniform Push)
 
@@ -305,7 +305,7 @@ singletonPayload = NonEmpty.singleton . toJSONObject
 
 instance ToSchema Push where
   schema =
-    object "Push" $
+    object $
       Push
         <$> _pushRecipients .= field "recipients" (set schema)
         <*> _pushOrigin .= maybe_ (optField "origin" schema)

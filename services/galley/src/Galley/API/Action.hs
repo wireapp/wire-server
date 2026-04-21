@@ -143,6 +143,7 @@ import Wire.TeamStore
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
+import Wire.Util
 
 class IsConversationAction (tag :: ConversationActionTag) where
   type HasConversationActionEffects tag (r :: EffectRow) :: Constraint
@@ -943,11 +944,21 @@ performConversationAccessData qusr lconv action = do
     lcnv = fmap (.id_) lconv
     conv = tUnqualified lconv
 
-    maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveBots :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveBots bm =
       if Set.member ServiceAccessRole (cupAccessRoles action)
         then pure bm
-        else pure $ bm {bmBots = mempty}
+        else do
+          -- Remove bots
+          let bmWithoutBots = bm {bmBots = mempty}
+          -- Remove apps from local and remote members. Filter the original
+          -- local member set so users missing from `getUsers` are preserved.
+          localUsers <- E.getUsers (toList (bmLocals bmWithoutBots))
+          let appLocals = Set.fromList [User.userId u | u <- localUsers, User.userType u == User.UserTypeApp]
+          -- (apps must be from the conversations home team to be
+          -- allowed to be in here, so we don't need to worry about
+          -- removing them.)
+          pure $ bmWithoutBots {bmLocals = Set.difference (bmLocals bmWithoutBots) appLocals}
 
     maybeRemoveGuests :: (Member E.BrigAPIAccess r) => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveGuests bm =

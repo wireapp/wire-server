@@ -63,9 +63,8 @@ data TeamSearchVisibility
 
 instance ToSchema TeamSearchVisibility where
   schema =
-    enum @Text
-      "TeamSearchVisibility"
-      $ mconcat
+    enum @Text $
+      mconcat
         [ element "standard" SearchVisibilityStandard,
           element "no-name-outside-team" SearchVisibilityNoNameOutsideTeam
         ]
@@ -80,7 +79,7 @@ newtype TeamSearchVisibilityView = TeamSearchVisibilityView TeamSearchVisibility
 
 instance ToSchema TeamSearchVisibilityView where
   schema =
-    objectWithDocModifier "TeamSearchVisibilityView" (description ?~ "Search visibility value for the team") $
+    objectWithDocModifier (description ?~ "Search visibility value for the team") $
       TeamSearchVisibilityView
         <$> unwrap .= fieldWithDocModifier "search_visibility" (description ?~ "value of visibility") schema
     where

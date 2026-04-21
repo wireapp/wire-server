@@ -90,7 +90,7 @@ data ServiceRef = ServiceRef
 
 instance ToSchema ServiceRef where
   schema =
-    object "ServiceRef" $
+    object $
       ServiceRef
         <$> _serviceRefId .= field "id" schema
         <*> _serviceRefProvider .= field "provider" schema
@@ -118,7 +118,7 @@ data ServiceKey = ServiceKey
 
 instance ToSchema ServiceKey where
   schema =
-    object "ServiceKey" $
+    object $
       ServiceKey
         <$> serviceKeyType .= field "type" schema
         <*> serviceKeySize .= field "size" schema
@@ -167,7 +167,7 @@ data ServiceKeyType
 
 instance ToSchema ServiceKeyType where
   schema =
-    enum @Text "ServiceKeyType" (element "rsa" RsaServiceKey)
+    enum @Text (element "rsa" RsaServiceKey)
 
 newtype ServiceKeyPEM = ServiceKeyPEM {unServiceKeyPEM :: PEM}
   deriving stock (Eq, Show)
@@ -257,7 +257,7 @@ data Service = Service
 
 instance ToSchema Service where
   schema =
-    object "Service" $
+    object $
       Service
         <$> serviceId .= field "id" schema
         <*> serviceName .= field "name" schema
@@ -304,7 +304,7 @@ data ServiceProfile = ServiceProfile
 
 instance ToSchema ServiceProfile where
   schema =
-    object "ServiceProfile" $
+    object $
       ServiceProfile
         <$> serviceProfileId .= field "id" schema
         <*> serviceProfileProvider .= field "provider" schema
@@ -328,7 +328,7 @@ data ServiceProfilePage = ServiceProfilePage
 
 instance ToSchema ServiceProfilePage where
   schema =
-    object "ServiceProfilePage" $
+    object $
       ServiceProfilePage
         <$> serviceProfilePageHasMore .= field "has_more" schema
         <*> serviceProfilePageResults .= field "services" (array schema)
@@ -353,7 +353,7 @@ data NewService = NewService
 
 instance ToSchema NewService where
   schema =
-    object "NewService" $
+    object $
       NewService
         <$> newServiceName .= field "name" schema
         <*> newServiceSummary .= field "summary" schema
@@ -378,7 +378,7 @@ data NewServiceResponse = NewServiceResponse
 
 instance ToSchema NewServiceResponse where
   schema =
-    object "NewServiceResponse" $
+    object $
       NewServiceResponse
         <$> rsNewServiceId .= field "id" schema
         <*> rsNewServiceToken .= maybe_ (optField "auth_token" schema)
@@ -400,7 +400,7 @@ data UpdateService = UpdateService
 
 instance ToSchema UpdateService where
   schema =
-    object "UpdateService" $
+    object $
       UpdateService
         <$> updateServiceName .= maybe_ (optField "name" schema)
         <*> updateServiceSummary .= maybe_ (optField "summary" schema)
@@ -426,7 +426,7 @@ data UpdateServiceConn = UpdateServiceConn
 
 instance ToSchema UpdateServiceConn where
   schema =
-    object "UpdateServiceConn" $
+    object $
       UpdateServiceConn
         <$> updateServiceConnPassword .= field "password" schema
         <*> updateServiceConnUrl .= maybe_ (optField "base_url" schema)
@@ -449,7 +449,7 @@ newtype DeleteService = DeleteService
 
 instance ToSchema DeleteService where
   schema =
-    object "DeleteService" $
+    object $
       DeleteService
         <$> deleteServicePassword .= field "password" schema
 
@@ -467,7 +467,7 @@ data UpdateServiceWhitelist = UpdateServiceWhitelist
 
 instance ToSchema UpdateServiceWhitelist where
   schema =
-    object "UpdateServiceWhitelist" $
+    object $
       UpdateServiceWhitelist
         <$> updateServiceWhitelistProvider .= field "provider" schema
         <*> updateServiceWhitelistService .= field "id" schema

@@ -91,7 +91,6 @@ data WireIdP = WireIdP
 instance Schema.ToSchema WireIdP where
   schema =
     Schema.object
-      "WireIdP"
       ( WireIdP
           <$> _team Schema..= Schema.field "team" Schema.schema
           <*> _apiVersion Schema..= Schema.field "apiVersion" (Schema.nullable (Schema.unnamed Schema.schema))
@@ -112,7 +111,7 @@ data WireIdPAPIVersion
 
 instance Schema.ToSchema WireIdPAPIVersion where
   schema =
-    Schema.enum @Text "WireIdPAPIVersion" $
+    Schema.enum @Text $
       mconcat
         [ Schema.element "WireIdPAPIV1" WireIdPAPIV1,
           Schema.element "WireIdPAPIV2" WireIdPAPIV2

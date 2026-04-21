@@ -121,6 +121,7 @@ executable background-worker
       background-worker
     , HsOpenSSL
     , imports
+    , optparse-applicative
     , types-common
 
   hs-source-dirs:     exec

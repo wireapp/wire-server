@@ -24,7 +24,6 @@ module API (tests) where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra
 import Control.Applicative
 import Control.Lens hiding ((.=))
 import Data.Aeson (ToJSON, Value)
@@ -949,7 +948,7 @@ testDomainRegistration = do
   void $ post (s . paths ["domain-registration", dom, "preauthorize"] . expect2xx)
   void $ post (s . paths ["domain-registration", dom, "unauthorize"] . expect2xx)
   void $ delete (s . paths ["domain-registration", dom] . expect2xx)
-  void $ get (s . paths ["domain-registration", dom] . expect4xx)
+  void $ get (s . paths ["domain-registration", dom] . expectStatus ((==) 404))
   let upd = DomainRegistrationUpdate NoRegistration Allowed
   void $ put (s . paths ["domain-registration", dom] . json upd . expect2xx)
   void $ get (s . paths ["domain-registration", dom] . expect2xx)

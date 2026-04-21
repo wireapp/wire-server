@@ -40,9 +40,6 @@ module Brig.IO.Intra
     -- * Account Deletion
     rmUser,
 
-    -- * Legalhold
-    guardLegalhold,
-
     -- * Low Level API for Notifications
     notify,
   )
@@ -51,22 +48,17 @@ where
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.API.Error (internalServerError)
-import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection
 import Brig.Data.Connection qualified as Data
 import Brig.Effects.ConnectionStore (ConnectionStore)
 import Brig.Effects.ConnectionStore qualified as E
-import Brig.Federation.Client (notifyUserDeleted, sendConnectionAction)
 import Brig.IO.Journal qualified as Journal
 import Brig.IO.Logging
 import Brig.RPC
-import Control.Error (ExceptT, runExceptT)
-import Control.Lens (view, (?~), (^.), (^?))
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
-import Control.Monad.Trans.Except (throwE)
 import Data.Aeson
-import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy qualified as BL
 import Data.Default
@@ -78,27 +70,32 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import Imports
+import Network.AMQP qualified as Q
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input (Input, input)
 import Polysemy.TinyLog (TinyLog)
 import System.Logger.Message hiding ((.=))
+import Wire.API.Component
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Event.Conversation (Connect (Connect))
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
-import Wire.API.Team.LegalHold (LegalholdProtectee)
 import Wire.API.Team.Member qualified as Team
 import Wire.API.User
-import Wire.API.User.Client
 import Wire.API.UserEvent
+import Wire.BackendNotificationQueueAccess
 import Wire.Events
+import Wire.FederationAPIAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Rpc
 import Wire.Sem.Logger qualified as Log
@@ -116,7 +113,11 @@ sendUserEvent ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -132,7 +133,11 @@ runEvents ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    Member GalleyAPIAccess r
   ) =>
   InterpreterFor Events r
 runEvents = interpret \case
@@ -225,7 +230,11 @@ dispatchNotifications ::
     Member TinyLog r,
     Member (Input (Local ())) r,
     Member Now r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r,
+    Member GalleyAPIAccess r
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -309,11 +318,13 @@ notifyUserDeletionLocals deleted conn event = do
             connectionPages (Just (maximum (qUnqualified . ucTo <$> xs))) user pageSize
 
 notifyUserDeletionRemotes ::
-  forall r.
-  ( Member (Embed HttpClientIO) r,
-    Member TinyLog r,
+  forall r m.
+  ( Member TinyLog r,
     Member (Input (Local ())) r,
-    Member (ConnectionStore InternalPaging) r
+    Member (ConnectionStore InternalPaging) r,
+    HasBrigFederationAccess m r,
+    Member (Error FederationError) r,
+    Member BackendNotificationQueueAccess r
   ) =>
   UserId ->
   Sem r ()
@@ -333,15 +344,21 @@ notifyUserDeletionRemotes deleted = do
           pure ()
         Just rangedUcs -> do
           luidDeleted <- qualifyLocal' deleted
-          embed $ notifyUserDeleted luidDeleted (qualifyAs ucs (mapRange (qUnqualified . ucTo) rangedUcs))
+          let remotes = mapRange (qUnqualified . ucTo) rangedUcs
+              notif = UserDeletedConnectionsNotification (tUnqualified luidDeleted) remotes
+              client = fedQueueClient @'OnUserDeletedConnectionsTag notif
+          enqueueNotification Q.Persistent ucs client
           -- also sent connection cancelled events to the connections that are pending
           let remotePendingConnections = qualifyAs ucs <$> filter ((==) Sent . ucStatus) (fromRange rangedUcs)
           forM_ remotePendingConnections $ sendCancelledEvent luidDeleted
 
     sendCancelledEvent :: Local UserId -> Remote UserConnection -> Sem r ()
     sendCancelledEvent luidDeleted ruc = do
-      embed (runExceptT (sendConnectionAction luidDeleted Nothing (qUnqualified . ucTo <$> ruc) RemoteRescind)) >>= \case
-        -- should we abort the whole process if we fail to send the event to a remote backend?
+      let remoteUid :: Remote UserId = qUnqualified . ucTo <$> ruc
+          req = NewConnectionRequest (tUnqualified luidDeleted) Nothing (qUnqualified $ tUntagged remoteUid) RemoteRescind
+      Log.info $ msg @Text "Brig-federation: sending connection action to remote backend"
+      result <- runFederatedEither remoteUid $ fedClient @'Brig @"send-connection-action" req
+      case result of
         Left e ->
           Log.err $
             field "error" (show e)
@@ -391,7 +408,7 @@ notifyContacts ::
   forall r.
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
-    Member TinyLog r
+    Member GalleyAPIAccess r
   ) =>
   Event ->
   -- | Origin user.
@@ -409,7 +426,7 @@ notifyContacts event orig route conn = do
     contacts = embed $ lookupContactList orig
 
     teamContacts :: Sem r [UserId]
-    teamContacts = screenMemberList <$> getTeamContacts orig
+    teamContacts = screenMemberList <$> GalleyAPIAccess.getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
     --
     screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
@@ -417,25 +434,6 @@ notifyContacts event orig route conn = do
       | mems ^. Team.teamMemberListType == Team.ListComplete =
           view Team.userId <$> mems ^. Team.teamMembers
     screenMemberList _ = []
-
-toApsData :: Event -> Maybe V2.ApsData
-toApsData (ConnectionEvent (ConnectionUpdated uc name)) =
-  case (ucStatus uc, name) of
-    (MissingLegalholdConsent, _) -> Nothing
-    (Pending, n) -> apsConnRequest <$> n
-    (Accepted, n) -> apsConnAccept <$> n
-    (Blocked, _) -> Nothing
-    (Ignored, _) -> Nothing
-    (Sent, _) -> Nothing
-    (Cancelled, _) -> Nothing
-  where
-    apsConnRequest n =
-      V2.apsData (V2.ApsLocKey "push.notification.connection.request") [fromName n]
-        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
-    apsConnAccept n =
-      V2.apsData (V2.ApsLocKey "push.notification.connection.accepted") [fromName n]
-        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
-toApsData _ = Nothing
 
 -------------------------------------------------------------------------------
 -- Conversation Management
@@ -626,50 +624,3 @@ rmClient u c = do
   unregisterPushClient u c
   where
     expected = [status200, status204, status404]
-
--------------------------------------------------------------------------------
--- Team Management
-
--- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
---
--- Calls 'Galley.API.getBindingTeamMembersH'.
-getTeamContacts ::
-  ( Member TinyLog r,
-    Member (Embed HttpClientIO) r
-  ) =>
-  UserId ->
-  Sem r (Maybe Team.TeamMemberList)
-getTeamContacts u = do
-  Log.debug $ remote "galley" . msg (val "Get team contacts")
-  rs <- embed $ galleyRequest GET req
-  embed $ case Bilge.statusCode rs of
-    200 -> Just <$> decodeBody "galley" rs
-    _ -> pure Nothing
-  where
-    req =
-      paths ["i", "users", toByteString' u, "team", "members"]
-        . expect [status200, status404]
-
-guardLegalhold ::
-  LegalholdProtectee ->
-  UserClients ->
-  ExceptT ClientError (AppT r) ()
-guardLegalhold protectee userClients = do
-  res <- lift . wrapHttp $ galleyRequest PUT req
-  case Bilge.statusCode res of
-    200 -> pure ()
-    403 -> case Bilge.responseJsonMaybe @Value res >>= (^? key "label") of
-      Just "missing-legalhold-consent" -> throwE ClientMissingLegalholdConsent
-      Just "missing-legalhold-consent-old-clients" -> throwE ClientMissingLegalholdConsentOldClients
-      _ ->
-        -- only happens if galley misbehaves (fisx: this could also be a parse error if we
-        -- used a more constraining type to send back & forth between brig and galley, but
-        -- merging brig and galley would make this train of thought go away more naturally).
-        throwE ClientMissingLegalholdConsent
-    404 -> pure () -- allow for galley not to be ready, so the set of valid deployment orders is non-empty.
-    _ -> throwM internalServerError
-  where
-    req =
-      paths ["i", "guard-legalhold-policy-conflicts"]
-        . header "Content-Type" "application/json"
-        . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)

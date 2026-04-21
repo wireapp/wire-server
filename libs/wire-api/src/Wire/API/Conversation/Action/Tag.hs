@@ -67,7 +67,7 @@ instance Arbitrary ConversationActionTag where
 
 instance ToSchema ConversationActionTag where
   schema =
-    enum @Text "ConversationActionTag" $
+    enum @Text $
       mconcat
         [ element "ConversationJoinTag" ConversationJoinTag,
           element "ConversationLeaveTag" ConversationLeaveTag,

@@ -30,8 +30,6 @@ import Bilge.Assert
 import Brig.AWS qualified as AWS
 import Brig.AWS.Types
 import Brig.Options qualified as Opt
-import Brig.Types.Activation
-import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))

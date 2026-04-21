@@ -209,7 +209,6 @@ newConfig uid env discoveredServers sftStaticUrl mSftEnv limit listAllServers ve
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
       -- assuming limitServers is safe with respect to the length of its return value
-      -- (see property tests in brig-types)
       -- since the input is NonEmpty and limit is in Range 1 10
       -- it should also be safe to assume the returning list has length >= 1
       NonEmpty.nonEmpty (Public.limitServers (NonEmpty.toList uris) (fromRange lim))

@@ -6,10 +6,13 @@
 , aeson
 , aeson-qq
 , base
+, base64-bytestring
 , bifunctors
+, bytestring
 , comonad
 , containers
 , gitignoreSource
+, hashable
 , imports
 , insert-ordered-containers
 , lens
@@ -29,9 +32,12 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     base
+    base64-bytestring
     bifunctors
+    bytestring
     comonad
     containers
+    hashable
     imports
     lens
     openapi3

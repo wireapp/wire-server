@@ -20,6 +20,7 @@
 
 module Wire.API.UserEvent where
 
+import Control.Lens ((?~))
 import Control.Lens.TH
 import Data.Aeson qualified as A
 import Data.Aeson.KeyMap qualified as KM
@@ -34,6 +35,7 @@ import System.Logger.Message hiding (field, (.=))
 import Wire.API.Connection
 import Wire.API.Locale
 import Wire.API.Properties
+import Wire.API.Push.V2 qualified as V2
 import Wire.API.Routes.Version
 import Wire.API.User
 import Wire.API.User.Client
@@ -46,6 +48,25 @@ data Event
   | ClientEvent !ClientEvent
   | UserGroupEvent !UserGroupEvent
   deriving stock (Eq, Show)
+
+toApsData :: Event -> Maybe V2.ApsData
+toApsData (ConnectionEvent (ConnectionUpdated uc name)) =
+  case (ucStatus uc, name) of
+    (MissingLegalholdConsent, _) -> Nothing
+    (Pending, n) -> apsConnRequest <$> n
+    (Accepted, n) -> apsConnAccept <$> n
+    (Blocked, _) -> Nothing
+    (Ignored, _) -> Nothing
+    (Sent, _) -> Nothing
+    (Cancelled, _) -> Nothing
+  where
+    apsConnRequest n =
+      V2.apsData (V2.ApsLocKey "push.notification.connection.request") [fromName n]
+        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
+    apsConnAccept n =
+      V2.apsData (V2.ApsLocKey "push.notification.connection.accepted") [fromName n]
+        & V2.apsSound ?~ V2.ApsSound "new_message_apns.caf"
+toApsData _ = Nothing
 
 eventType :: Event -> EventType
 eventType (UserEvent (UserCreated _)) = EventTypeUserCreated
@@ -91,11 +112,11 @@ data EventType
   | EventTypeUserGroupUpdated
   | EventTypeUserGroupDeleted
   | EventTypeUserSessionRefreshSuggested
-  deriving stock (Eq, Enum, Bounded)
+  deriving stock (Show, Eq, Enum, Bounded)
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text $
       mconcat
         [ element "user.new" EventTypeUserCreated,
           element "user.activate" EventTypeUserActivated,
@@ -260,7 +281,6 @@ eventObjectSchema =
                   ( field
                       "user"
                       ( object
-                          "UserUpdatedData"
                           ( UserUpdatedData
                               <$> eupId .= field "id" schema
                               <*> eupName .= maybe_ (optField "name" schema)
@@ -283,7 +303,6 @@ eventObjectSchema =
                     ( field
                         "user"
                         ( object
-                            "UserIdentityUpdatedData"
                             ( UserIdentityUpdatedData
                                 <$> eiuId .= field "id" schema
                                 <*> eiuEmail .= maybe_ (optField "email" schema)
@@ -300,7 +319,6 @@ eventObjectSchema =
                   ( field
                       "user"
                       ( object
-                          "UserIdentityRemovedData"
                           ( UserIdentityRemovedData
                               <$> eirId .= field "id" schema
                               <*> eirEmail .= maybe_ (optField "email" schema)
@@ -386,7 +404,7 @@ eventObjectSchema =
               _ConnectionEvent
               ( ConnectionUpdated
                   <$> ucConn .= field "connection" schema
-                  <*> ucName .= maybe_ (optField "user" (object "UserName" (field "name" schema)))
+                  <*> ucName .= maybe_ (optField "user" (object (field "name" schema)))
               )
           EventTypeUserGroupCreated ->
             tag
@@ -421,7 +439,7 @@ instance ToJSONObject Event where
   toJSONObject = KM.fromList . fold . schemaOut eventObjectSchema
 
 instance ToSchema Event where
-  schema = object "UserEvent" eventObjectSchema
+  schema = object eventObjectSchema
 
 deriving via (Schema Event) instance A.ToJSON Event
 

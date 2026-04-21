@@ -23,37 +23,60 @@ import API.Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
+import Control.Lens hiding ((.=))
 import Data.Aeson.QQ.Simple
+import MLS.Util
+import Notifications
 import SetupHelpers
 import Testlib.Prelude
 
-testCreateApp :: (HasCallStack) => App ()
-testCreateApp = do
-  -- FUTUREWORK: what about federation?
-  domain <- make OwnDomain
-  (owner, tid, [regularMember]) <- createTeam domain 2
-  let new =
+testCreateGetApp :: (HasCallStack) => Domain -> App ()
+testCreateGetApp sameOrOtherDomain = do
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+
+  (owner, tid, [regularMember]) <- createTeam domainA 2
+  let new :: NewApp =
         def
           { name = "chappie",
             description = "some description of this app",
             category = "ai"
-          } ::
-          NewApp
+          }
 
   -- Regular team member can't create apps
   bindResponse (createApp regularMember tid new) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "app-no-permission"
 
-  -- Owner can create an app
-  (appId, cookie) <- bindResponse (createApp owner tid new) $ \resp -> do
+  -- Get the last team notification ID before creating the app
+  lastTeamNotif <- bindResponse (getTeamNotifications regularMember Nothing) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    appId <- resp.json %. "user.id" & asString
-    cookie <- resp.json %. "cookie" & asString
-    pure (appId, cookie)
+    resp.json %. "notifications.-1.id" & asString
+
+  -- Owner can create an app
+  (appId, cookie) <- withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+    bindResponse (createApp owner tid new) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      appId <- resp.json %. "user.id" & asString
+      cookie <- resp.json %. "cookie" & asString
+      _ <- do
+        let predicate payload = do
+              typ <- payload %. "payload.0.type" & asString
+              pure $ typ == "team.member-join"
+        void $ awaitMatch predicate wsOwner
+        void $ assertNoEvent 5 wsRegularMember
+      pure (appId, cookie)
+
+  -- Verify that the team.member-join event is in the team notifications queue
+  bindResponse (getTeamNotifications regularMember (Just lastTeamNotif)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    -- First notification is `lastTeamNotif`, we can ignore that one.
+    resp.json %. "notifications.1.payload.0.type" `shouldMatch` "team.member-join"
+    resp.json %. "notifications.1.payload.0.team" `shouldMatch` tid
+    resp.json %. "notifications.1.payload.0.data.user" `shouldMatch` appId
 
   -- App user should have type "app"
-  let appIdObject = object ["domain" .= domain, "id" .= appId]
+  let appIdObject = object ["domain" .= domainA, "id" .= appId]
   bindResponse (getUser owner appIdObject) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "app"
@@ -78,7 +101,7 @@ testCreateApp = do
     resp.status `shouldMatchInt` 200
     resp.json %. "type" `shouldMatch` "regular"
 
-  void $ bindResponse (renewToken domain cookie) $ \resp -> do
+  void $ bindResponse (renewToken domainA cookie) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user" `shouldMatch` appId
     resp.json %. "token_type" `shouldMatch` "Bearer"
@@ -92,53 +115,24 @@ testCreateApp = do
     (resp.json %. "app.category") `shouldMatch` "ai"
 
   -- A teamless user can't get the app
-  outsideUser <- randomUser domain def
+  outsideUser <- randomUser domainB (def {BrigI.team = False})
   bindResponse (getApp outsideUser tid appId) $ \resp -> do
-    -- this may change soon, see
-    -- https://wearezeta.atlassian.net/browse/WPB-23995,
-    -- https://wearezeta.atlassian.net/browse/WPB-23840
-    resp.status `shouldMatchInt` 200
+    resp.status `shouldMatchInt` 404
 
-  (owner2, tid2, [regularMember2]) <- createTeam domain 2
-  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 200
-  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 200
+  (owner2, tid2, [regularMember2]) <- createTeam domainB 2
+  bindResponse (getApp owner2 tid appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp owner2 tid2 appId) $ \resp -> resp.status `shouldMatchInt` 404
+  bindResponse (getApp regularMember2 tid appId) $ \resp -> resp.status `shouldMatchInt` 404
+
+  -- Get app on remote apps gives 404 not found.
+  void $ getApp owner2 tid appId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "not-found"
 
   -- Category can be any text; sanitization must happen by clients.
   void $ bindResponse (createApp owner tid new {category = "notinenum"}) $ \resp -> do
     resp.status `shouldMatchInt` 200
     deleteTeamMember tid owner (resp.json %. "user") >>= assertSuccess
-
-  let foundUserType :: (HasCallStack) => Value -> String -> [String] -> App ()
-      foundUserType searcher exactMatchTerm aTypes =
-        searchContacts searcher exactMatchTerm OwnDomain `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
-          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
-          docsInTeam :: [Value] <- do
-            -- make sure that matches from previous test runs don't get in the way.
-            -- related: https://wearezeta.atlassian.net/browse/WPB-23995
-            catMaybes
-              <$> forM
-                foundDocs
-                ( \doc -> do
-                    tidActual <- doc %. "team" & asString
-                    pure $ if tidActual == tid then Just doc else Nothing
-                )
-
-          (%. "type") `mapM` docsInTeam `shouldMatch` aTypes
-
-  -- App's user is findable from /search/contacts
-  BrigI.refreshIndex domain
-  foundUserType owner new.name ["app"]
-  foundUserType regularMember new.name ["app"]
-
-  -- App's user is *not* findable from other team.
-  BrigI.refreshIndex domain
-  foundUserType owner2 new.name []
-
-  -- Regular members still have the type "regular"
-  memberName <- regularMember %. "name" & asString
-  foundUserType owner memberName ["regular"]
 
 testRefreshAppCookie :: (HasCallStack) => App ()
 testRefreshAppCookie = do
@@ -189,7 +183,7 @@ testRefreshAppCookie = do
 testDeleteAppFromTeam :: (HasCallStack) => App ()
 testDeleteAppFromTeam = do
   domain <- make OwnDomain
-  (owner, tid, _) <- createTeam domain 1
+  (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "chappie"} :: NewApp
   appId <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -197,8 +191,14 @@ testDeleteAppFromTeam = do
 
   let appIdObject = object ["domain" .= domain, "id" .= appId]
 
-  bindResponse (deleteTeamMember tid owner appIdObject) $ \resp -> do
-    resp.status `shouldMatchInt` 202
+  withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+    bindResponse (deleteTeamMember tid owner appIdObject) $ \resp -> do
+      resp.status `shouldMatchInt` 202
+      let predicate payload = do
+            typ <- payload %. "payload.0.type" & asString
+            pure $ typ == "team.member-leave"
+      void $ awaitMatch predicate wsOwner
+      void $ awaitMatch predicate wsRegularMember
 
   eventually $ do
     -- Check StoredApp is gone
@@ -218,7 +218,7 @@ testDeleteAppFromTeam = do
 testPutApp :: (HasCallStack) => App ()
 testPutApp = do
   domain <- make OwnDomain
-  (owner, tid, _) <- createTeam domain 1
+  (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "choppie"} :: NewApp
   appId <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -240,9 +240,11 @@ testPutApp = do
           "description": "This is the best app ever."
         }|]
 
-  bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-
+  withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+    bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+    void $ assertNoEvent 5 wsOwner
+    void $ assertNoEvent 5 wsRegularMember
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
@@ -257,6 +259,10 @@ testPutApp = do
   bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
+-- | FUTUREWORK: 'Test.Apps.testFindApp',
+-- 'Test.Apps.testRetrieveUsersIncludingApps',
+-- 'Test.Search.checkUserSearch' have some overlap, or at least could
+-- be re-ordered for clarity.
 testRetrieveUsersIncludingApps :: (HasCallStack) => App ()
 testRetrieveUsersIncludingApps = do
   let userShape =
@@ -296,6 +302,21 @@ testRetrieveUsersIncludingApps = do
             ("id", SString),
             ("name", SString),
             ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("team", SString),
+            ("type", SString)
+          ]
+      listResultShape =
+        SObject
+          [ ("accent_id", SNumber),
+            ("assets", SArray SAny),
+            ("app", SAny),
+            ("id", SString),
+            ("legalhold_status", SString),
+            ("name", SString),
+            ("picture", SArray SAny),
+            ("qualified_id", SObject [("domain", SString), ("id", SString)]),
+            ("searchable", SBool),
+            ("supported_protocols", SArray SString),
             ("team", SString),
             ("type", SString)
           ]
@@ -348,22 +369,7 @@ testRetrieveUsersIncludingApps = do
   -- [`POST /list-users`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/list-users-by-ids-or-handles) (route id: "list-users-by-ids-or-handles")
   listUsers owner [appCreated %. "user"] `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json
-      %. "found.0"
-      `shouldMatchShapeLenient` SObject
-        [ ("accent_id", SNumber),
-          ("assets", SArray SAny),
-          ("id", SString),
-          ("legalhold_status", SString),
-          ("name", SString),
-          ("picture", SArray SAny),
-          ("qualified_id", SObject [("domain", SString), ("id", SString)]),
-          ("searchable", SBool),
-          ("supported_protocols", SArray SString),
-          ("team", SString),
-          ("type", SString)
-          -- TODO: [("user", ...), ("app", ...)] ?
-        ]
+    resp.json %. "found.0" `shouldMatchShapeLenient` listResultShape
 
   -- [`GET /search/contacts`](https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/search-contacts) (route id: "search-contacts")
   putSelf owner (def {name = Just "name-A1"}) >>= assertSuccess
@@ -376,3 +382,182 @@ testRetrieveUsersIncludingApps = do
       hits :: [Value] <- resp.json %. "documents" & asList
       length hits `shouldMatchInt` 2 -- owner doesn't find itself
       (`shouldMatchShapeLenient` searchResultShape) `mapM_` hits
+
+testCrossTeamAppConversation :: (HasCallStack) => Domain -> App ()
+testCrossTeamAppConversation sameOrOtherDomain = do
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+  (ownerA, tidA, [m1]) <- createTeam domainA 2
+  (ownerB, tidB, [m2]) <- createTeam domainB 2
+
+  -- Create app A1 (member of team A)
+  let newAppA1 = def {name = "app-a1"} :: NewApp
+  appA1 <- bindResponse (createApp ownerA tidA newAppA1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create app A2 (member of team B)
+  let newAppA2 = def {name = "app-a2"} :: NewApp
+  appA2 <- bindResponse (createApp ownerB tidB newAppA2) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create MLS clients for M1 and A1 (both on domainA)
+  [m1c, appA1c] <- traverse (createMLSClient def) [m1, appA1]
+  traverse_ (uploadNewKeyPackage def) [m1c, appA1c]
+
+  -- M1 tries to connect to app A2 from team B => should fail
+  -- Apps cannot create connections accross teams
+  bindResponse (postConnection m1 appA2) $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "invalid-user"
+
+  -- M1 creates an MLS team conversation
+  convId <- createNewGroupWith def m1c defMLS {team = Just tidA}
+
+  -- M1 adds A1 to the conversation
+  void $ createAddCommit m1c convId [appA1] >>= sendAndConsumeCommitBundle
+
+  -- M1 connects to M2 from team B (cross-team/cross-domain)
+  postConnection m1 m2 >>= assertSuccess
+  putConnection m2 m1 "accepted" >>= assertSuccess
+
+  -- Create MLS client for M2 (on domainB) and add to conversation
+  m2c <- createMLSClient def m2
+  void $ uploadNewKeyPackage def m2c
+  void $ createAddCommit m1c convId [m2] >>= sendAndConsumeCommitBundle
+
+  -- Create app A3 (on domainA, team A)
+  let newAppA3 = def {name = "app-a3"} :: NewApp
+  appA3 <- bindResponse (createApp ownerA tidA newAppA3) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create MLS client for A3 and add to conversation
+  appA3c <- createMLSClient def appA3
+  void $ uploadNewKeyPackage def appA3c
+  void $ createAddCommit m1c convId [appA3] >>= sendAndConsumeCommitBundle
+
+  void $ createApplicationMessage convId m1c "hello from M1" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId appA1c "hello from A1" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId appA3c "hello from A3" >>= sendAndConsumeMessage
+  void $ createApplicationMessage convId m2c "hello from M2" >>= sendAndConsumeMessage
+
+-- | FUTUREWORK: 'Test.Apps.testFindApp',
+-- 'Test.Apps.testRetrieveUsersIncludingApps',
+-- 'Test.Search.checkUserSearch' have some overlap, or at least could
+-- be re-ordered for clarity.
+testFindApp :: (HasCallStack) => Domain -> App ()
+testFindApp sameOrOtherDomain = do
+  domainA <- make OwnDomain
+  domainB <- make sameOrOtherDomain
+
+  (ownerA1, tidA1, [regularMemberA1]) <- createTeam domainA 2
+  let newAppA1 :: NewApp = def {name = "app A1", description = ""}
+  (appA1Id) <- bindResponse (createApp ownerA1 tidA1 newAppA1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user.id" & asString
+  BrigI.refreshIndex domainA
+
+  (ownerA2, _, [regularMemberA2]) <- createTeam domainA 2
+  (ownerB1, _, [regularMemberB1]) <- createTeam domainB 2
+
+  let foundUserType :: (HasCallStack) => SearchContactsCfg -> [String] -> App ()
+      foundUserType cfg uids =
+        searchContactsWith cfg `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          foundDocs :: [Value] <- resp.json %. "documents" >>= asList
+          ((%. "id") `mapM` foundDocs) `shouldMatch` uids
+
+  searchTerm <- asString newAppA1.name
+  domain <- asString domainA
+
+  -- App is findable from /search/contacts inside the own team.
+  forM_ [ownerA1, regularMemberA1]
+    $ \user -> do
+      foundUserType SearchContactsCfg {types = Nothing, ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just [], ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just ["app"], ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just ["app", "regular"], ..} [appA1Id]
+      foundUserType SearchContactsCfg {types = Just ["regular"], ..} []
+
+  -- App user is *not* findable from other team.
+  forM_ [ownerA2, regularMemberA2, ownerB1, regularMemberB1]
+    $ \user -> do
+      foundUserType SearchContactsCfg {types = Nothing, ..} []
+      foundUserType SearchContactsCfg {types = Just [], ..} []
+      foundUserType SearchContactsCfg {types = Just ["app"], ..} []
+      foundUserType SearchContactsCfg {types = Just ["app", "regular"], ..} []
+      foundUserType SearchContactsCfg {types = Just ["regular"], ..} []
+
+testRemoveServicesAccessRole :: (HasCallStack) => App ()
+testRemoveServicesAccessRole = do
+  domain <- make OwnDomain
+
+  -- Create team A with owner, member, and app
+  (ownerA, tidA, [memberA]) <- createTeam domain 2
+  let newApp = def {name = "test-app"} :: NewApp
+  app <- bindResponse (createApp ownerA tidA newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- Create MLS clients
+  [memberAClient, appClient] <- traverse (createMLSClient def) [memberA, app]
+  traverse_ (uploadNewKeyPackage def) [memberAClient, appClient]
+
+  -- Create an MLS team conversation and add app
+  conv <- postConversation memberA defMLS {team = Just tidA, protocol = "mls"} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def memberAClient convId
+  void $ createAddCommit memberAClient convId [app] >>= sendAndConsumeCommitBundle
+
+  -- Verify all members are in the conversation
+  bindResponse (getConversation memberA conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+    appId <- app %. "qualified_id.id" & asString
+    memberIds `shouldContain` [appId]
+
+  -- Remove "services" from access roles -> app should be removed
+  -- First verify we can get the conversation with the creator
+  bindResponse (getConversation memberA conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
+
+  let noServices =
+        [ "access" .= ["invite", "link"],
+          "access_role" .= (["team_member", "non_team_member"] :: [String])
+        ]
+  -- Use the conversation creator for the update
+  bindResponse (updateAccess memberA conv noServices) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  eventually $ do
+    bindResponse (getConversation memberA conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      members <- resp.json %. "members.others" >>= asList
+      memberIds <- mapM (\m -> m %. "qualified_id.id" >>= asString) members
+      appId <- app %. "qualified_id.id" & asString
+      memberIds `shouldNotContain` [appId]
+
+testAppReceivesMemberJoinNotification :: (HasCallStack) => App ()
+testAppReceivesMemberJoinNotification = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+
+  -- Create an app in the team
+  app <- bindResponse (createApp owner tid def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  -- With websockets open for both owner and app, add a new regular member.
+  -- Both should receive the team.member-join notification.
+  withWebSockets [owner, app] $ \[wsOwner, wsApp] -> do
+    newMember <- addUserToTeam owner
+
+    memberJoinOwner <- awaitMatch isTeamMemberJoinNotif wsOwner
+    memberJoinOwner %. "payload.0.team" `shouldMatch` tid
+    memberJoinOwner %. "payload.0.data.user" `shouldMatch` objId newMember
+
+    memberJoinApp <- awaitMatch isTeamMemberJoinNotif wsApp
+    memberJoinApp %. "payload.0.team" `shouldMatch` tid
+    memberJoinApp %. "payload.0.data.user" `shouldMatch` objId newMember

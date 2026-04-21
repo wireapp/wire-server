@@ -40,7 +40,7 @@ data PushTarget = PushTarget
 
 instance S.ToSchema PushTarget where
   schema =
-    S.object "PushTarget" $
+    S.object $
       PushTarget
         <$> ptUserId S..= S.field "user_id" S.schema
         <*> ptConnId S..= S.field "conn_id" S.schema
@@ -57,13 +57,13 @@ newtype BulkPushRequest = BulkPushRequest
 
 instance S.ToSchema BulkPushRequest where
   schema =
-    S.object "BulkPushRequest" $
+    S.object $
       BulkPushRequest
         <$> fromBulkPushRequest S..= S.field "bulkpush_req" (S.array bulkpushReqItemSchema)
     where
       bulkpushReqItemSchema :: ValueSchema S.NamedSwaggerDoc (Notification, [PushTarget])
       bulkpushReqItemSchema =
-        S.object "(Notification, [PushTarget])" $
+        S.object $
           (,)
             <$> fst S..= S.field "notification" S.schema
             <*> snd S..= S.field "targets" (S.array S.schema)
@@ -74,7 +74,7 @@ data PushStatus = PushStatusOk | PushStatusGone
 
 instance S.ToSchema PushStatus where
   schema =
-    S.enum @Text "PushStatus" $
+    S.enum @Text $
       mconcat
         [ S.element "push_status_ok" PushStatusOk,
           S.element "push_status_gone" PushStatusGone
@@ -92,13 +92,13 @@ newtype BulkPushResponse = BulkPushResponse
 
 instance S.ToSchema BulkPushResponse where
   schema =
-    S.object "BulkPushResponse" $
+    S.object $
       BulkPushResponse
         <$> fromBulkPushResponse S..= S.field "bulkpush_resp" (S.array bulkPushResponseSchema)
     where
       bulkPushResponseSchema :: ValueSchema S.NamedSwaggerDoc (NotificationId, PushTarget, PushStatus)
       bulkPushResponseSchema =
-        S.object "(NotificationId, PushTarget, PushStatus)" $
+        S.object $
           (,,)
             <$> view _1 S..= S.field "notif_id" S.schema
             <*> view _2 S..= S.field "target" S.schema

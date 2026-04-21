@@ -36,7 +36,7 @@ data ConnectionsStatusRequest = ConnectionsStatusRequest
 
 instance ToSchema ConnectionsStatusRequest where
   schema =
-    object "ConnectionsStatusRequest" $
+    object $
       ConnectionsStatusRequest
         <$> csrFrom .= field "from" (array schema)
         <*> csrTo .= maybe_ (optField "to" (array schema))
@@ -51,7 +51,7 @@ data ConnectionsStatusRequestV2 = ConnectionsStatusRequestV2
 
 instance ToSchema ConnectionsStatusRequestV2 where
   schema =
-    object "ConnectionsStatusRequestV2" $
+    object $
       ConnectionsStatusRequestV2
         <$> csrv2From .= field "from" (array schema)
         <*> csrv2To .= maybe_ (optField "to" (array schema))
@@ -67,7 +67,7 @@ data ConnectionStatus = ConnectionStatus
 
 instance ToSchema ConnectionStatus where
   schema =
-    object "ConnectionStatus" $
+    object $
       ConnectionStatus
         <$> csFrom .= field "from" schema
         <*> csTo .= field "to" schema
@@ -83,7 +83,7 @@ data ConnectionStatusV2 = ConnectionStatusV2
 
 instance ToSchema ConnectionStatusV2 where
   schema =
-    object "ConnectionStatusV2" $
+    object $
       ConnectionStatusV2
         <$> csv2From .= field "from" schema
         <*> csv2To .= field "qualified_to" schema

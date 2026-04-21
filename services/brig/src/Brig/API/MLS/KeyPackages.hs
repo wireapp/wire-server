@@ -29,7 +29,6 @@ module Brig.API.MLS.KeyPackages
   )
 where
 
-import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.CipherSuite
 import Brig.API.MLS.KeyPackages.Validation
@@ -37,8 +36,6 @@ import Brig.API.MLS.Util
 import Brig.API.Types
 import Brig.App
 import Brig.Data.MLS.KeyPackage qualified as Data
-import Brig.Federation.Client
-import Brig.IO.Intra
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.CommaSeparatedList
@@ -59,7 +56,10 @@ import Wire.API.User (AccountStatus (..))
 import Wire.API.User.Client
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
+import Wire.ClientSubsystem.Error
+import Wire.FederationAPIAccess
 import Wire.GalleyAPIAccess (GalleyAPIAccess, getUserLegalholdStatus)
+import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.StoredUser
 import Wire.UserStore (UserStore, getUser)
 
@@ -73,7 +73,8 @@ uploadKeyPackages lusr cid kps = do
 claimKeyPackages ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member ClientStore r
+    Member ClientStore r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -85,7 +86,8 @@ claimKeyPackages lusr mClient target = claimKeyPackagesV7 lusr mClient target . 
 claimKeyPackagesV7 ::
   ( Member GalleyAPIAccess r,
     Member UserStore r,
-    Member ClientStore r
+    Member ClientStore r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -98,7 +100,7 @@ claimKeyPackagesV7 lusr mClient target mSuite = do
   suite <- getCipherSuite mSuite
   foldQualified
     lusr
-    (withExceptT clientError . claimLocalKeyPackages (tUntagged lusr) mClient suite)
+    (withExceptT clientErrorToHttpError . claimLocalKeyPackages (tUntagged lusr) mClient suite)
     (claimRemoteKeyPackages lusr (tagCipherSuite suite))
     target
 
@@ -131,9 +133,11 @@ claimLocalKeyPackages qusr skipOwn suite qTarget = do
   foldQualified
     qTarget
     ( \lusr ->
-        guardLegalhold
-          (ProtectedUser (tUnqualified lusr))
-          (mkUserClients [(target, clients)])
+        lift $
+          liftSem $
+            GalleyAPIAccess.guardLegalHold
+              (ProtectedUser (tUnqualified lusr))
+              (mkUserClients [(target, clients)])
     )
     (\_ -> pure ())
     qusr
@@ -163,29 +167,30 @@ claimLocalKeyPackages qusr skipOwn suite qTarget = do
           Nothing -> pure ()
 
 claimRemoteKeyPackages ::
-  (Member ClientStore r) =>
+  ( Member ClientStore r,
+    HasBrigFederationAccess m r
+  ) =>
   Local UserId ->
   CipherSuite ->
   Remote UserId ->
   Handler r KeyPackageBundle
 claimRemoteKeyPackages lusr suite target = do
+  let req =
+        ClaimKeyPackageRequest
+          { claimant = tUnqualified lusr,
+            target = tUnqualified target,
+            cipherSuite = suite
+          }
   bundle <-
-    withExceptT clientError
-      . (handleFailure =<<)
-      $ withExceptT ClientFederationError
-      $ runBrigFederatorClient (tDomain target)
-      $ fedClient @'Brig @"claim-key-packages"
-      $ ClaimKeyPackageRequest
-        { claimant = tUnqualified lusr,
-          target = tUnqualified target,
-          cipherSuite = suite
-        }
-
+    lift (liftSem $ runFederatedEither target $ fedClient @'Brig @"claim-key-packages" req) >>= \case
+      Left e -> throwE $ clientErrorToHttpError $ ClientFederationError e
+      Right Nothing -> throwE $ clientErrorToHttpError $ ClientUserNotFound (tUnqualified target)
+      Right (Just bundle) -> pure bundle
   -- validate all claimed key packages
   for_ bundle.entries $ \e -> do
     let cid = mkClientIdentity e.user e.client
     kpRaw <-
-      withExceptT (const . clientDataError $ KeyPackageDecodingError)
+      withExceptT (const . clientDataErrorToHttpError $ KeyPackageDecodingError)
         . except
         . decodeMLS'
         . kpData
@@ -193,13 +198,10 @@ claimRemoteKeyPackages lusr suite target = do
     (refVal, _, _) <- validateUploadedKeyPackage cid kpRaw
     unless (refVal == e.ref)
       . throwE
-      . clientDataError
+      . clientDataErrorToHttpError
       $ InvalidKeyPackageRef
 
   pure bundle
-  where
-    handleFailure :: (Monad m) => Maybe x -> ExceptT ClientError m x
-    handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
 
 countKeyPackages :: Local UserId -> ClientId -> CipherSuite -> Handler r KeyPackageCount
 countKeyPackages lusr c = countKeyPackagesV7 lusr c . Just

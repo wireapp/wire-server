@@ -181,7 +181,7 @@ mkTeamMember ::
 mkTeamMember uid perms inv = TeamMember (NewTeamMember uid perms inv)
 
 instance ToSchema TeamMember where
-  schema = object "TeamMember" teamMemberObjectSchema
+  schema = object teamMemberObjectSchema
 
 teamMemberObjectSchema :: ObjectSchema SwaggerDoc TeamMember
 teamMemberObjectSchema =
@@ -193,7 +193,7 @@ teamMemberObjectSchema =
 
 instance ToSchema (TeamMember' 'Optional) where
   schema =
-    objectWithDocModifier "TeamMember" (description ?~ "team member data") $
+    objectWithDocModifier (description ?~ "team member data") $
       TeamMember
         <$> _newTeamMember
           .= ( NewTeamMember
@@ -249,7 +249,7 @@ mkSingleTeamMembersPage members =
 
 instance ToSchema TeamMembersPage where
   schema =
-    object "TeamMembersPage" $
+    object $
       TeamMembersPage
         <$> unTeamMembersPage
           .= ( MultiTablePage
@@ -313,9 +313,9 @@ deriving via
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
-instance (ToSchema (TeamMember' tag)) => ToSchema (TeamMemberList' tag) where
+instance (Typeable tag, ToSchema (TeamMember' tag)) => ToSchema (TeamMemberList' tag) where
   schema =
-    objectWithDocModifier "TeamMemberList" (description ?~ "list of team member") $
+    objectWithDocModifier (description ?~ "list of team member") $
       TeamMemberList
         <$> _teamMembers
           .= fieldWithDocModifier "members" (description ?~ "the array of team members") (array schema)
@@ -332,7 +332,7 @@ data NewListType
 
 instance ToSchema NewListType where
   schema =
-    enum @Text "NewListType" $
+    enum @Text $
       mconcat
         [ element "list_complete" NewListComplete,
           element "list_truncated" NewListTruncated
@@ -353,7 +353,7 @@ data ListType
 -- though we do want this to remain true/false
 instance ToSchema ListType where
   schema =
-    enum @Bool "ListType" $
+    enum @Bool $
       mconcat [element True ListTruncated, element False ListComplete]
 
 --------------------------------------------------------------------------------
@@ -428,9 +428,9 @@ invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
 
 instance ToSchema NewTeamMember where
   schema =
-    objectWithDocModifier "NewTeamMember" (description ?~ "Required data when creating new team members") $
+    objectWithDocModifier (description ?~ "Required data when creating new team members") $
       fieldWithDocModifier "member" (description ?~ "the team member to add (the legalhold_status field must be null or missing!)") $
-        unnamed (object "Unnamed" newTeamMemberSchema)
+        unnamed (object newTeamMemberSchema)
 
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData
@@ -444,7 +444,7 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 
 instance ToSchema TeamMemberDeleteData where
   schema =
-    objectWithDocModifier "TeamMemberDeleteData" (description ?~ "Data for a team member deletion request in case of binding teams.") $
+    objectWithDocModifier (description ?~ "Data for a team member deletion request in case of binding teams.") $
       TeamMemberDeleteData <$> _tmdAuthPassword .= optFieldWithDocModifier "password" (description ?~ "The account password to authorise the deletion.") (maybeWithDefault Null schema)
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword6 -> TeamMemberDeleteData

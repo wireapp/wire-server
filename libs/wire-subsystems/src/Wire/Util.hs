@@ -18,10 +18,12 @@
 module Wire.Util where
 
 import Cassandra hiding (Set)
+import Data.Domain
+import Data.Qualified
 import Imports
 import Polysemy
 import Polysemy.Embed
-import Polysemy.Input (Input, input)
+import Polysemy.Input
 import Polysemy.TinyLog
 import System.Logger.Message
 
@@ -35,3 +37,13 @@ embedClientInput :: (Member (Embed IO) r, Member (Input ClientState) r) => Clien
 embedClientInput a = do
   client <- input
   embedClient client a
+
+qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
+qualifyLocal a = do
+  l <- input
+  pure $ qualifyAs l a
+
+isLocalDomain :: (Member (Input (Local ())) r) => Domain -> Sem r Bool
+isLocalDomain domain = do
+  l <- input
+  pure $ domain == qDomain (tUntagged l)

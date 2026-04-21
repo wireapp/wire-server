@@ -118,20 +118,9 @@ getOptions desc mp defaultPath = do
         (header desc <> fullDesc)
   exists <- doesFileExist path
   case (exists, mOpts) of
-    -- config file exists, take options from there
-    (True, _) -> do
-      decodeFileEither path >>= \case
-        Left e ->
-          fail $
-            show e
-              <> " while attempting to decode "
-              <> path
-        Right o -> pure o
-    -- config doesn't exist, take options from command line
+    (True, _) -> decodeConfigFileUnsafe path
     (False, Just opts) -> pure opts
-    -- no config, no parser, just fail
-    (False, Nothing) ->
-      fail $ "Config file at " <> path <> " does not exist."
+    (False, Nothing) -> fail $ "Config file at " <> path <> " does not exist."
   where
     optsOrConfigFile :: Parser (FilePath, Maybe a)
     optsOrConfigFile =
@@ -144,6 +133,23 @@ getOptions desc mp defaultPath = do
               <> value defaultPath
           )
         <*> sequenceA mp
+
+decodeConfigFile :: (FromJSON a) => FilePath -> IO a
+decodeConfigFile path = do
+  exists <- doesFileExist path
+  if exists
+    then decodeConfigFileUnsafe path
+    else fail $ "Config file at " <> path <> " does not exist."
+
+decodeConfigFileUnsafe :: (FromJSON a) => FilePath -> IO a
+decodeConfigFileUnsafe path = do
+  decodeFileEither path >>= \case
+    Left e ->
+      fail $
+        show e
+          <> " while attempting to decode "
+          <> path
+    Right o -> pure o
 
 parseAWSEndpoint :: ReadM AWSEndpoint
 parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString

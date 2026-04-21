@@ -57,7 +57,6 @@ module Galley.API.Teams
   )
 where
 
-import Brig.Types.Team (TeamSize (..))
 import Cassandra (PageWithState (pwsResults), pwsHasMore)
 import Cassandra qualified as C
 import Control.Lens
@@ -83,7 +82,6 @@ import Galley.API.Teams.Notifications qualified as APITeamQueue
 import Galley.API.Update qualified as API
 import Galley.App
 import Galley.Effects.Queue qualified as E
-import Galley.Options
 import Galley.Types.Error as Galley
 import Imports hiding (forkIO)
 import Polysemy
@@ -119,7 +117,9 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
+import Wire.API.Team.Size
 import Wire.API.User qualified as U
+import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
@@ -132,6 +132,7 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.ListItems
 import Wire.ListItems qualified as E
 import Wire.NotificationSubsystem
+import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
@@ -147,6 +148,7 @@ import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
+import Wire.Util
 
 getTeamH ::
   forall r.
@@ -1152,10 +1154,11 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   E.createTeamMember tid new
 
   now <- Now.get
+  appIds <- getAppIdsForTeam tid
   let e = newEvent tid now (EdMemberJoin (new ^. userId))
   let recipients = case origin of
-        Just o -> userRecipient <$> o : filter (/= o) ((new ^. userId) : admins')
-        Nothing -> userRecipient <$> new ^. userId : admins'
+        Just o -> userRecipient <$> o : filter (/= o) ((new ^. userId) : admins' ++ appIds)
+        Nothing -> userRecipient <$> (new ^. userId) : admins' ++ appIds
   pushNotifications
     [ def
         { origin = Just (new ^. userId),

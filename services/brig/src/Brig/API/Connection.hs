@@ -43,7 +43,6 @@ import Brig.Data.Types (resultHasMore, resultList)
 import Brig.IO.Intra qualified as Intra
 import Brig.IO.Logging
 import Brig.Options
-import Brig.Types.Connection
 import Control.Error
 import Control.Monad.Catch (throwM)
 import Data.Id as Id
@@ -65,21 +64,13 @@ import Wire.API.Error.Brig qualified as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.User
 import Wire.API.UserEvent
+import Wire.FederationAPIAccess
 import Wire.FederationConfigStore
-import Wire.GalleyAPIAccess
-import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
+import Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
-import Wire.UserStore
-import Wire.UserStore qualified as UserStore
+import Wire.UserStore as UserStore
 import Wire.UserSubsystem
-
-ensureNotSameTeam :: (Member GalleyAPIAccess r) => Local UserId -> Local UserId -> (ConnectionM r) ()
-ensureNotSameTeam self target = do
-  selfTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified self)
-  targetTeam <- lift $ liftSem $ GalleyAPIAccess.getTeamId (tUnqualified target)
-  when (isJust selfTeam && selfTeam == targetTeam) $
-    throwE ConnectSameBindingTeamUsers
 
 createConnection ::
   ( Member FederationConfigStore r,
@@ -89,7 +80,8 @@ createConnection ::
     Member UserStore r,
     Member UserSubsystem r,
     Member (Embed HttpClientIO) r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   ConnId ->
@@ -123,6 +115,7 @@ createConnectionToLocalUser self conn target = do
     ensureIsActivated target
   checkLegalholdPolicyConflict self target
   ensureNotSameTeam self target
+  ensureNoApps self (tUntagged . fmap Left <$> [self, target])
   s2o <- lift . wrapClient $ Data.lookupConnection self (tUntagged target)
   o2s <- lift . wrapClient $ Data.lookupConnection target (tUntagged self)
 
@@ -233,7 +226,8 @@ updateConnection ::
     Member TinyLog r,
     Member (Embed HttpClientIO) r,
     Member GalleyAPIAccess r,
-    Member UserStore r
+    Member UserStore r,
+    HasBrigFederationAccess m r
   ) =>
   Local UserId ->
   Qualified UserId ->

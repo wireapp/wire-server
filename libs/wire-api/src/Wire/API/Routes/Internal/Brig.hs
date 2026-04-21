@@ -134,7 +134,7 @@ instance Default GetBy where
 
 instance ToSchema GetBy where
   schema =
-    object "GetBy" $
+    object $
       GetBy
         <$> (.includePendingInvitations) .= field "include_pending_invitations" schema
         <*> (.includeUsersWithExpiredInvitations) .= field "include_users_with_expired_invitations" schema
@@ -173,7 +173,7 @@ data CreateGroupInternalRequest = CreateGroupInternalRequest
 
 instance ToSchema CreateGroupInternalRequest where
   schema =
-    object "CreateGroupInternalRequest" $
+    object $
       CreateGroupInternalRequest
         <$> (.managedBy) .= field "managed_by" schema
         <*> (.teamId) .= field "team_id" schema
@@ -193,7 +193,7 @@ data UpdateGroupInternalRequest = UpdateGroupInternalRequest
 
 instance ToSchema UpdateGroupInternalRequest where
   schema =
-    object "UpdateGroupInternalRequest" $
+    object $
       UpdateGroupInternalRequest
         <$> (.teamId) .= field "team_id" schema
         <*> (.groupId) .= field "group_id" schema
@@ -660,7 +660,7 @@ data NewKeyPackageRef = NewKeyPackageRef
 
 instance ToSchema NewKeyPackageRef where
   schema =
-    object "NewKeyPackageRef" $
+    object $
       NewKeyPackageRef
         <$> nkprUserId .= field "user_id" schema
         <*> nkprClientId .= field "client_id" schema
@@ -724,6 +724,7 @@ type API =
            :<|> EnterpriseLoginApi
            :<|> SAMLIdPAPI
            :<|> DeleteApp
+           :<|> GetAppIds
        )
 
 type SAMLIdPAPI =
@@ -745,6 +746,15 @@ type DeleteApp =
         :> "apps"
         :> Capture "uid" UserId
         :> Delete '[Servant.JSON] NoContent
+    )
+
+type GetAppIds =
+  Named
+    "i-get-app-ids"
+    ( "teams"
+        :> Capture "tid" TeamId
+        :> "apps"
+        :> Get '[Servant.JSON] [UserId]
     )
 
 type IStatusAPI =
@@ -796,7 +806,7 @@ newtype FoundInvitationCode = FoundInvitationCode {getFoundInvitationCode :: Use
 instance ToSchema FoundInvitationCode where
   schema =
     FoundInvitationCode
-      <$> getFoundInvitationCode .= object "FoundInvitationCode" (field "code" (schema @User.InvitationCode))
+      <$> getFoundInvitationCode .= object (field "code" (schema @User.InvitationCode))
 
 type SuspendTeam =
   Named
@@ -1027,7 +1037,7 @@ makePrisms ''IdpChangedNotification
 
 instance Data.Schema.ToSchema IdpChangedNotification where
   schema =
-    object "IdpChangedNotification" $
+    object $
       fromTagged
         <$> toTagged
           .= bind
@@ -1049,26 +1059,26 @@ instance Data.Schema.ToSchema IdpChangedNotification where
 
       tagSchema :: ValueSchema NamedSwaggerDoc IdpChangedNotificationTag
       tagSchema =
-        enum @Text "Detail Tag" $
+        enum @Text $
           mconcat [element "created" IdPCreatedTag, element "deleted" IdPDeletedTag, element "updated" IdPUpdatedTag]
 
       createdSchema :: ValueSchema NamedSwaggerDoc (Maybe UserId, IdP)
       createdSchema =
-        object "IdPCreated" $
+        object $
           (,)
             <$> fst .= maybe_ (optField "user" schema)
             <*> snd .= field "idp" schema
 
       deletedSchema :: ValueSchema NamedSwaggerDoc (UserId, IdP)
       deletedSchema =
-        object "IdPDeleted" $
+        object $
           (,)
             <$> fst .= field "user" schema
             <*> snd .= field "idp" schema
 
       updatedSchema :: ValueSchema NamedSwaggerDoc (UserId, IdP, IdP)
       updatedSchema =
-        object "IdPUpdated" $
+        object $
           (,,)
             <$> fst3 .= field "user" schema
             <*> snd3 .= field "old" schema

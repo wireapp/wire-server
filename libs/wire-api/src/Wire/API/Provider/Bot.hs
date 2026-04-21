@@ -56,7 +56,7 @@ data BotConvView = BotConvView
 
 instance ToSchema BotConvView where
   schema =
-    object "BotConvView" $
+    object $
       BotConvView
         <$> _botConvId .= field "id" schema
         <*> _botConvName .= maybe_ (optField "name" schema)
@@ -81,7 +81,7 @@ data BotUserView = BotUserView
 
 instance ToSchema BotUserView where
   schema =
-    object "BotUserView" $
+    object $
       BotUserView
         <$> botUserViewId .= field "id" schema
         <*> botUserViewName .= field "name" schema

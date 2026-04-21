@@ -39,14 +39,6 @@
 {{- end -}}
 {{- end -}}
 
-{{- define "galleyTlsSecretRef" -}}
-{{- if and .cassandraGalley .cassandraGalley.tlsCaSecretRef -}}
-{{ .cassandraGalley.tlsCaSecretRef | toYaml }}
-{{- else }}
-{{- dict "name" "background-worker-cassandra-galley" "key" "ca.pem" | toYaml -}}
-{{- end -}}
-{{- end -}}
-
 {{/* BRIG */}}
 {{- define "brig.tlsSecretRef" -}}
 {{- if .cassandra.tlsCaSecretRef -}}

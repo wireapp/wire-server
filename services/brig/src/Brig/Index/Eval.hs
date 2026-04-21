@@ -55,6 +55,7 @@ import Wire.AppStore
 import Wire.AppStore.Postgres
 import Wire.BlockListStore (BlockListStore)
 import Wire.BlockListStore.Cassandra
+import Wire.ClientSubsystem.Error (ClientError)
 import Wire.FederationAPIAccess
 import Wire.FederationAPIAccess.Interpreter (noFederationAPIAccess)
 import Wire.FederationConfigStore (FederationConfigStore)
@@ -104,6 +105,7 @@ type BrigIndexEffectStack =
     Concurrency 'Unsafe,
     Input Pool,
     Error UsageError,
+    Error ClientError,
     Embed IO,
     Final IO
   ]
@@ -133,6 +135,7 @@ runSem esConn cas pg galleyEndpoint logger action = do
       migrationIndexName = fromMaybe defaultMigrationIndexName (esMigrationIndexName esConn)
   runFinal
     . embedToFinal
+    . throwErrorToIOFinal @ClientError
     . throwErrorToIOFinal @UsageError
     . runInputConst pgPool
     . unsafelyPerformConcurrency

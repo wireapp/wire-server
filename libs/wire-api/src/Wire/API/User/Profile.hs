@@ -127,16 +127,14 @@ data Asset = ImageAsset
 
 instance ToSchema Asset where
   schema =
-    object "UserAsset" $
+    object $
       ImageAsset
         <$> assetKey .= field "key" schema
         <*> assetSize .= maybe_ (optField "size" schema)
         <* const () .= field "type" typeSchema
     where
       typeSchema :: ValueSchema NamedSwaggerDoc ()
-      typeSchema =
-        enum @Text @NamedSwaggerDoc "AssetType" $
-          element "image" ()
+      typeSchema = enum @Text $ element "image" ()
 
 instance C.Cql Asset where
   -- Note: Type name and column names and types must match up with the
@@ -184,7 +182,7 @@ data AssetSize = AssetComplete | AssetPreview
 
 instance ToSchema AssetSize where
   schema =
-    enum @Text "AssetSize" $
+    enum @Text $
       mconcat
         [ element "preview" AssetPreview,
           element "complete" AssetComplete
@@ -226,7 +224,7 @@ data ManagedBy
 
 instance ToSchema ManagedBy where
   schema =
-    enum @Text "ManagedBy" $
+    enum @Text $
       mconcat
         [ element "wire" ManagedByWire,
           element "scim" ManagedByScim

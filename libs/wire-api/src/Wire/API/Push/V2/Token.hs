@@ -71,7 +71,7 @@ newtype PushTokenList = PushTokenList
 
 instance ToSchema PushTokenList where
   schema =
-    objectWithDocModifier "PushTokenList" (description ?~ "List of Native Push Tokens") $
+    objectWithDocModifier (description ?~ "List of Native Push Tokens") $
       PushTokenList
         <$> pushTokens
           .= fieldWithDocModifier "tokens" (description ?~ "Push tokens") (array schema)
@@ -91,7 +91,7 @@ pushToken = PushToken
 
 instance ToSchema PushToken where
   schema =
-    objectWithDocModifier "PushToken" desc $
+    objectWithDocModifier desc $
       PushToken
         <$> _tokenTransport
           .= fieldWithDocModifier "transport" transDesc schema
@@ -123,7 +123,7 @@ data Transport
 
 instance ToSchema Transport where
   schema =
-    enum @Text "Transport" $
+    enum @Text $
       mconcat
         [ element "GCM" GCM,
           element "APNS" APNS,

@@ -88,7 +88,7 @@ data ConfigRaw = ConfigRaw
 
 instance ToSchema ConfigRaw where
   schema =
-    object "ConfigRaw" $
+    object $
       ConfigRaw
         <$> (_cfgRawLogLevel .= field "logLevel" schema)
         <*> (_cfgRawSPHost .= field "spHost" schema)
@@ -100,7 +100,7 @@ instance ToSchema ConfigRaw where
 
 instance ToSchema MultiIngressDomainConfig where
   schema =
-    object "MultiIngressDomainConfig" $
+    object $
       MultiIngressDomainConfig
         <$> (_cfgSPAppURI .= field "spAppUri" schema)
         <*> (_cfgSPSsoURI .= field "spSsoUri" schema)

@@ -31,7 +31,7 @@ import Data.Vector qualified as V
 import Imports
 import Polysemy
 import Polysemy.Error
-import Polysemy.Input (Input, input)
+import Polysemy.Input (Input)
 import Wire.API.BackgroundJobs
 import Wire.API.Conversation qualified as Conversation
 import Wire.API.Error
@@ -54,6 +54,7 @@ import Wire.TeamSubsystem
 import Wire.UserGroupStore qualified as Store
 import Wire.UserGroupSubsystem (UserGroupSubsystem (..))
 import Wire.UserSubsystem (UserSubsystem, getLocalUserProfiles, getUserTeam)
+import Wire.Util
 
 interpretUserGroupSubsystem ::
   ( Member Random.Random r,
@@ -198,11 +199,6 @@ mmkEvent mAuthor evt recipients =
 
 mkEvent :: UserId -> UserGroupEvent -> [UserId] -> Push
 mkEvent = mmkEvent . Just
-
-qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
-qualifyLocal a = do
-  l <- input
-  pure $ qualifyAs l a
 
 getUserGroup ::
   ( Member UserSubsystem r,

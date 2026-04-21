@@ -65,7 +65,7 @@ data BackendNotification = BackendNotification
 
 instance ToSchema BackendNotification where
   schema =
-    object "BackendNotification" $
+    object $
       BackendNotification
         <$> ownDomain .= field "ownDomain" schema
         <*> targetComponent .= field "targetComponent" schema
@@ -110,9 +110,9 @@ newtype PayloadBundle (c :: Component) = PayloadBundle
   deriving (A.ToJSON, A.FromJSON) via (Schema (PayloadBundle c))
   deriving newtype (Semigroup)
 
-instance ToSchema (PayloadBundle c) where
+instance (Typeable c) => ToSchema (PayloadBundle c) where
   schema =
-    object "PayloadBundle" $
+    object $
       PayloadBundle
         <$> notifications .= field "notifications" (nonEmptyArray schema)
 

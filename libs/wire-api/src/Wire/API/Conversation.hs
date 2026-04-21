@@ -244,14 +244,13 @@ conversationMetadataObjectSchema sch =
     <*> cnvmHistory .= (fromMaybe def <$> optField "history" schema)
 
 instance ToSchema ConversationMetadata where
-  schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
+  schema = object (conversationMetadataObjectSchema accessRolesSchema)
 
 instance ToSchema (Versioned 'V2 ConversationMetadata) where
   schema =
     Versioned
       <$> unVersioned
         .= object
-          "ConversationMetadata"
           (conversationMetadataObjectSchema accessRolesSchemaV2)
 
 instance HasCellsState ConversationMetadata where
@@ -323,8 +322,8 @@ conversationSchema ::
   Maybe Version ->
   ValueSchema NamedSwaggerDoc OwnConversation
 conversationSchema v =
-  objectWithDocModifier
-    ("OwnConversation" <> foldMap (Text.toUpper . versionText) v)
+  versionedObjectWithDocModifier
+    v
     (DS.description ?~ "A conversation object as returned from the server")
     (ownConversationObjectSchema v)
 
@@ -355,7 +354,6 @@ data Conversation = Conversation
 instance ToSchema Conversation where
   schema =
     objectWithDocModifier
-      "Conversation"
       (DS.description ?~ "A conversation object as returned from the server")
       $ conversationObjectSchema
 
@@ -373,13 +371,12 @@ data MLSOne2OneConversation a = MLSOne2OneConversation
   }
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a))
 
-instance (ToSchema a) => ToSchema (MLSOne2OneConversation a) where
+instance (Typeable a, ToSchema a) => ToSchema (MLSOne2OneConversation a) where
   schema =
-    let aName = maybe "" ("_" <>) $ getName (schemaDoc (schema @a))
-     in object ("MLSOne2OneConversation" <> aName) $
-          MLSOne2OneConversation
-            <$> (.conversation) .= field "conversation" schema
-            <*> publicKeys .= field "public_keys" schema
+    object $
+      MLSOne2OneConversation
+        <$> (.conversation) .= field "conversation" schema
+        <*> publicKeys .= field "public_keys" schema
 
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
@@ -402,7 +399,6 @@ instance (SingI v) => ToSchema (Versioned v CreateGroupOwnConversation) where
 createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupOwnConversation
 createGroupConversationSchema v =
   objectWithDocModifier
-    "CreateGroupOwnConversation"
     (DS.description ?~ "A created group-conversation object extended with a list of failed-to-add users")
     $ CreateGroupOwnConversation
       <$> cgcConversation .= ownConversationObjectSchema v
@@ -427,7 +423,6 @@ data CreateGroupConversation = CreateGroupConversation
 instance ToSchema CreateGroupConversation where
   schema =
     objectWithDocModifier
-      "CreateGroupConversation"
       (DS.description ?~ "A created group-conversation object extended with a list of failed-to-add users")
       $ CreateGroupConversation
         <$> (.conversation) .= conversationObjectSchema
@@ -449,7 +444,6 @@ data ConversationCoverView = ConversationCoverView
 instance ToSchema ConversationCoverView where
   schema =
     objectWithDocModifier
-      "ConversationCoverView"
       (DS.description ?~ "Limited view of Conversation.")
       $ ConversationCoverView
         <$> cnvCoverConvId .= field "id" schema
@@ -473,7 +467,7 @@ instance ConversationListItem ConvId where
 instance ConversationListItem OwnConversation where
   convListItemName _ = "conversations"
 
-instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
+instance (Typeable a, ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
   schema = conversationListSchema schema
 
 instance ToSchema (Versioned 'V2 (ConversationList OwnConversation)) where
@@ -484,12 +478,11 @@ instance ToSchema (Versioned 'V2 (ConversationList OwnConversation)) where
 
 conversationListSchema ::
   forall a.
-  (ConversationListItem a) =>
+  (Typeable a, ConversationListItem a) =>
   ValueSchema NamedSwaggerDoc a ->
   ValueSchema NamedSwaggerDoc (ConversationList a)
 conversationListSchema sch =
   objectWithDocModifier
-    "ConversationList"
     (DS.description ?~ "Object holding a list of " <> convListItemName (Proxy @a))
     $ ConversationList
       <$> convList .= field "conversations" (array sch)
@@ -528,7 +521,6 @@ newtype ListConversations = ListConversations
 instance ToSchema ListConversations where
   schema =
     objectWithDocModifier
-      "ListConversations"
       (DS.description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
       $ ListConversations
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
@@ -547,8 +539,8 @@ conversationsResponseSchema ::
 conversationsResponseSchema v =
   let notFoundDoc = DS.description ?~ "These conversations either don't exist or are deleted."
       failedDoc = DS.description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
-   in objectWithDocModifier
-        ("ConversationsResponse" <> foldMap (Text.toUpper . versionText) v)
+   in versionedObjectWithDocModifier
+        v
         (DS.description ?~ "Response object for getting metadata of a list of conversations")
         $ ConversationsResponse
           <$> crFound .= field "found" (array (conversationSchema v))
@@ -581,7 +573,7 @@ data Access
 instance ToSchema Access where
   schema =
     (S.schema . DS.description ?~ "How users can join conversations") $
-      enum @Text "Access" $
+      enum @Text $
         mconcat
           [ element "private" PrivateAccess,
             element "invite" InviteAccess,
@@ -726,7 +718,7 @@ toAccessRoleLegacy accessRoles = do
 instance ToSchema AccessRole where
   schema =
     (S.schema . DS.description ?~ desc) $
-      enum @Text "AccessRole" $
+      enum @Text $
         mconcat
           [ element "team_member" TeamMemberAccessRole,
             element "non_team_member" NonTeamMemberAccessRole,
@@ -747,7 +739,7 @@ instance ToSchema AccessRoleLegacy where
   schema =
     (S.schema . S.deprecated ?~ True) $
       (S.schema . DS.description ?~ desc) $
-        enum @Text "AccessRoleLegacy" $
+        enum @Text $
           mconcat
             [ element "private" PrivateAccessRole,
               element "team" TeamAccessRole,
@@ -781,7 +773,7 @@ data ConvType
 
 instance ToSchema ConvType where
   schema =
-    enum @Integer "ConvType" $
+    enum @Integer $
       mconcat
         [ element 0 RegularConv,
           element 1 SelfConv,
@@ -852,7 +844,7 @@ data GroupConvType = GroupConversation | Channel | MeetingConversation
 
 instance ToSchema GroupConvType where
   schema =
-    enum @Text "GroupConvType" $
+    enum @Text $
       mconcat
         [ element "group_conversation" GroupConversation,
           element "channel" Channel,
@@ -910,8 +902,8 @@ newConvSchema ::
   ObjectSchema SwaggerDoc (Maybe (Set AccessRole)) ->
   ValueSchema NamedSwaggerDoc NewConv
 newConvSchema v sch =
-  objectWithDocModifier
-    ("NewConv" <> foldMap (Text.toUpper . versionText) v)
+  versionedObjectWithDocModifier
+    v
     (DS.description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
     $ NewConv
       <$> newConvUsers
@@ -1008,7 +1000,6 @@ managedDesc =
 instance ToSchema ConvTeamInfo where
   schema =
     objectWithDocModifier
-      "ConvTeamInfo"
       (DS.description ?~ "Team information")
       $ ConvTeamInfo
         <$> cnvTeamId .= field "teamid" schema
@@ -1036,7 +1027,6 @@ data NewOne2OneConv = NewOne2OneConv
 instance ToSchema NewOne2OneConv where
   schema =
     objectWithDocModifier
-      "NewOne2OneConv"
       (DS.description ?~ "JSON object to create a new 1:1 conversation. When using 'qualified_users' (preferred), you can omit 'users'")
       $ NewOne2OneConv
         <$> (.users)
@@ -1085,7 +1075,7 @@ data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
 
 instance ToSchema Invite where
   schema =
-    object "Invite" $
+    object $
       Invite
         <$> (.invUsers)
           .= field "users" (nonEmptyArray schema)
@@ -1103,7 +1093,7 @@ data InviteQualified = InviteQualified
 
 instance ToSchema InviteQualified where
   schema =
-    object "InviteQualified" $
+    object $
       InviteQualified
         <$> (.users) .= field "qualified_users" (nonEmptyArray schema)
         <*> roleName .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
@@ -1118,7 +1108,7 @@ data InviteQualifiedInternal = InviteQualifiedInternal
 
 instance ToSchema InviteQualifiedInternal where
   schema =
-    object "InviteQualifiedInternal" $
+    object $
       InviteQualifiedInternal
         <$> (.actor) .= field "actor" schema
         <*> (.invite) .= field "invite" schema
@@ -1135,7 +1125,7 @@ newtype ConversationRename = ConversationRename
 
 instance ToSchema ConversationRename where
   schema =
-    object "ConversationRename" $
+    object $
       ConversationRename
         <$> cupName
           .= fieldWithDocModifier
@@ -1155,7 +1145,7 @@ data ConversationAccessData = ConversationAccessData
 
 conversationAccessDataSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc ConversationAccessData
 conversationAccessDataSchema v =
-  object ("ConversationAccessData" <> foldMap (Text.toUpper . versionText) v) $
+  versionedObject v $
     ConversationAccessData
       <$> cupAccess .= field "access" (set schema)
       <*> cupAccessRoles .= accessRolesVersionedSchema v
@@ -1175,7 +1165,7 @@ data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
 
 instance ToSchema ConversationReceiptModeUpdate where
   schema =
-    objectWithDocModifier "ConversationReceiptModeUpdate" (DS.description ?~ desc) $
+    objectWithDocModifier (DS.description ?~ desc) $
       ConversationReceiptModeUpdate
         <$> cruReceiptMode .= field "receipt_mode" (unnamed schema)
     where
@@ -1195,7 +1185,6 @@ data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
 instance ToSchema ConversationMessageTimerUpdate where
   schema =
     objectWithDocModifier
-      "ConversationMessageTimerUpdate"
       (DS.description ?~ "Contains conversation properties to update")
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
@@ -1210,7 +1199,7 @@ instance Default JoinType where
 
 instance ToSchema JoinType where
   schema =
-    enum @Text "JoinType" $
+    enum @Text $
       mconcat
         [ element "external_add" ExternalAdd,
           element "internal_add" InternalAdd
@@ -1228,7 +1217,6 @@ data ConversationJoin = ConversationJoin
 instance ToSchema ConversationJoin where
   schema =
     objectWithDocModifier
-      "ConversationJoin"
       (DS.description ?~ "The action of some users joining a conversation")
       $ ConversationJoin
         <$> (.users) .= field "users" (nonEmptyArray schema)
@@ -1246,7 +1234,6 @@ data ConversationMemberUpdate = ConversationMemberUpdate
 instance ToSchema ConversationMemberUpdate where
   schema =
     objectWithDocModifier
-      "ConversationMemberUpdate"
       (DS.description ?~ "The action of promoting/demoting a member of a conversation")
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
@@ -1263,7 +1250,6 @@ data ConversationRemoveMembers = ConversationRemoveMembers
 instance ToSchema ConversationRemoveMembers where
   schema =
     objectWithDocModifier
-      "ConversationRemoveMembers"
       (DS.description ?~ "The action of removing members from a conversation")
       $ ConversationRemoveMembers
         <$> crmTargets .= field "targets" (nonEmptyArray schema)
@@ -1290,7 +1276,7 @@ instance Default AddPermission where
 
 instance ToSchema AddPermission where
   schema =
-    enum @Text "AddPermission" $
+    enum @Text $
       mconcat
         [ element "admins" Admins,
           element "everyone" Everyone
@@ -1318,7 +1304,6 @@ newtype AddPermissionUpdate = AddPermissionUpdate
 instance ToSchema AddPermissionUpdate where
   schema =
     objectWithDocModifier
-      "AddPermissionUpdate"
       (DS.description ?~ "The action of changing the permission to add members to a channel")
       $ AddPermissionUpdate
         <$> addPermission .= field "add_permission" schema
@@ -1336,7 +1321,6 @@ instance Default ExtraConversationData where
 instance ToSchema ExtraConversationData where
   schema =
     objectWithDocModifier
-      "ExtraConversationData"
       (DS.description ?~ "Extra conversation data, used for group conversations")
       $ ExtraConversationData
         <$> newGroupId .= optField "group_id" (maybeWithDefault A.Null schema)
@@ -1350,7 +1334,7 @@ data ConversationHistoryUpdate = ConversationHistoryUpdate
 
 instance ToSchema ConversationHistoryUpdate where
   schema =
-    object "ConversationHistoryUpdate" $
+    object $
       ConversationHistoryUpdate
         <$> (.history) .= field "history" schema
 

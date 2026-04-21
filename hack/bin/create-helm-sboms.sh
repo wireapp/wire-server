@@ -33,10 +33,36 @@ extract_images_from_chart() {
   fi
 
   # Template the chart and extract image references
-  # We use a dummy release name and set a global placeholder to be more lenient
+  # For wire-server and wire-server-enterprise, provide minimal values to pass required checks
   # (we don't want to check the Helm chart, only extract its images)
   local output
-  output=$(helm template test-release "$chart_path" --set-string 'global.placeholder=placeholder' 2>/dev/null) || true
+  if [[ "$chart_name" == "wire-server" ]]; then
+    local tmpval
+    tmpval=$(mktemp --suffix=.yaml)
+    cat > "$tmpval" <<'EOF'
+nginz: {secrets: {zAuth: {publicKeys: placeholder}, basicAuth: placeholder}}
+brig:
+  secrets: {zAuth: {privateKeys: placeholder, publicKeys: placeholder}, turn: {secret: placeholder}, rabbitmq: {username: placeholder, password: placeholder}}
+  config:
+    aws: {sesQueue: placeholder}
+    externalUrls: {nginz: 'https://placeholder'}
+cargohold: {secrets: {placeholder: placeholder}}
+background-worker: {secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
+proxy: {secrets: {proxy_config: placeholder}}
+cannon: {secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
+gundeck: {secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
+cassandra-migrations: {cassandra: {host: placeholder}}
+elasticsearch-index: {elasticsearch: {host: placeholder}, cassandra: {host: placeholder}}
+spar: {config: {appUri: 'https://placeholder', ssoUri: 'https://placeholder', contacts: [placeholder]}}
+galley: {config: {settings: {conversationCodeURI: 'https://placeholder'}}, secrets: {rabbitmq: {username: placeholder, password: placeholder}}}
+EOF
+    output=$(helm template test-release "$chart_path" -f "$tmpval")
+    rm -f "$tmpval"
+  elif [[ "$chart_name" == "wire-server-enterprise" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'secrets.placeholder=placeholder')
+  else
+    output=$(helm template test-release "$chart_path")
+  fi
 
   # Extract image values from the output using yq (jq wrapper)
   # Recursively find all .image fields in objects and output unique values

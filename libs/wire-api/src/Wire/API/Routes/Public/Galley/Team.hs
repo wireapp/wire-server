@@ -50,7 +50,7 @@ data NonBindingNewTeam = NonBindingNewTeam
 
 instance ToSchema NonBindingNewTeam where
   schema =
-    object "NonBindingNewTeam" $
+    object $
       NonBindingNewTeam
         <$> (.teamName) .= fieldWithDocModifier "name" (description ?~ "team name") schema
         <*> (.teamIcon) .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema

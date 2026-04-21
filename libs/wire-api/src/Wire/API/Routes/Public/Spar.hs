@@ -109,7 +109,7 @@ newtype GetByEmailReq = GetByEmailReq {email :: EmailAddress}
 
 instance ToSchema GetByEmailReq where
   schema =
-    object "GetByEmailReq" $
+    object $
       GetByEmailReq <$> email .= field "email" schema
 
 newtype GetByEmailResp = GetByEmailResp {ssoCode :: Maybe SAML.IdPId}
@@ -118,7 +118,7 @@ newtype GetByEmailResp = GetByEmailResp {ssoCode :: Maybe SAML.IdPId}
 
 instance ToSchema GetByEmailResp where
   schema =
-    object "GetByEmailResp" $
+    object $
       GetByEmailResp
         <$> (fmap fromIdPId . ssoCode) .= maybe_ (optField "sso_code" (IdPId <$> uuidSchema))
 
