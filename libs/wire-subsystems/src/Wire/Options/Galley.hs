@@ -66,6 +66,7 @@ module Wire.Options.Galley
     StorageLocation (..),
     GuestLinkTTLSeconds (..),
     defGuestLinkTTLSeconds,
+    conversationCodeURISettings,
   )
 where
 
@@ -241,3 +242,13 @@ data Opts = Opts
 deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
+
+conversationCodeURISettings :: (Applicative m) => Opts -> m (Either HttpsUrl (Map Text HttpsUrl))
+conversationCodeURISettings opts =
+  case (opts._settings._conversationCodeURI, opts._settings._multiIngress) of
+    (Nothing, Nothing) -> error errMsg
+    (Nothing, Just mi) -> pure (Right mi)
+    (Just uri, Nothing) -> pure (Left uri)
+    (Just _, Just _) -> error errMsg
+  where
+    errMsg = "Either conversationCodeURI or multiIngress needs to be set."

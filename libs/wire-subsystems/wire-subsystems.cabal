@@ -265,6 +265,7 @@ library
     Wire.ConversationSubsystem.Clients
     Wire.ConversationSubsystem.Create
     Wire.ConversationSubsystem.CreateInternal
+    Wire.ConversationSubsystem.Errors
     Wire.ConversationSubsystem.Federation
     Wire.ConversationSubsystem.Fetch
     Wire.ConversationSubsystem.Internal

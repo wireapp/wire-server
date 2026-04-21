@@ -215,7 +215,6 @@ type BrigLowerLevelEffects =
      ErrorS 'TeamMemberNotFound,
      ErrorS 'TeamNotFound,
      Error Wai.Error,
-     Error HttpError,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
      DomainVerificationChallengeStore,
      DomainRegistrationStore,
@@ -444,7 +443,6 @@ runBrigToIO e (AppT ma) = do
               . interpretDomainRegistrationStoreToCassandra e.casClient
               . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
-              . rethrowHttpErrorIO
               . mapError StdError -- Wai.Error
               . mapError (const $ errorToWai @'TeamNotFound) -- ErrorS 'TeamNotFound
               . mapError (const $ errorToWai @'TeamMemberNotFound) -- ErrorS 'TeamMemberNotFound

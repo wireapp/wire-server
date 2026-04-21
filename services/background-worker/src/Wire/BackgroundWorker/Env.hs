@@ -48,7 +48,7 @@ import Util.Options
 import Wire.API.Conversation.Protocol (ProtocolTag)
 import Wire.API.Team.FeatureFlags (FanoutLimit)
 import Wire.BackgroundWorker.Options
-import Wire.Options.Galley (GuestLinkTTLSeconds)
+import Wire.Options.Galley (GuestLinkTTLSeconds, conversationCodeURISettings)
 import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitEnv, newRateLimitEnv)
@@ -170,12 +170,7 @@ mkEnv opts galleyOpts = do
   amqpBackendNotificationsChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
-  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
-  convCodeURI <- case (galleyOpts._settings._conversationCodeURI, galleyOpts._settings._multiIngress) of
-    (Nothing, Nothing) -> error errMsg
-    (Nothing, Just mi) -> pure (Right mi)
-    (Just uri, Nothing) -> pure (Left uri)
-    (Just _, Just _) -> error errMsg
+  convCodeURI <- conversationCodeURISettings galleyOpts
   passwordHashingRateLimitEnv <- newRateLimitEnv galleyOpts._settings._passwordHashingRateLimit
   pure Env {..}
 

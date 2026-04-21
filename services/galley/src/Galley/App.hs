@@ -312,12 +312,7 @@ validateOptions o = do
     error "For starting MLS migration, MLS must be included in the supportedProtocol list"
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
     error "The list 'settings.featureFlags.mls.supportedProtocols' must include the value in the field 'settings.featureFlags.mls.defaultProtocol'"
-  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
-  case (settings' ^. conversationCodeURI, settings' ^. multiIngress) of
-    (Nothing, Nothing) -> error errMsg
-    (Nothing, Just mi) -> pure (Right mi)
-    (Just uri, Nothing) -> pure (Left uri)
-    (Just _, Just _) -> error errMsg
+  conversationCodeURISettings o
 
 createEnv :: Opts -> Logger -> IO Env
 createEnv o l = do
