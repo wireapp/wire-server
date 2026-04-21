@@ -825,8 +825,10 @@ createSAML uref (Id buid) teamid name managedBy handle richInfo mLocale role = d
             newUserSparLocale = mLocale,
             newUserSparRole = role
           }
-  resp <- brigRequest $ method POST . path "/i/users/spar" . json newUser . expect2xx
-  userId . selfUser <$> decodeBodyOrThrow "brig" resp
+  resp <- brigRequest $ method POST . path "/i/users/spar" . json newUser
+  if statusCode resp `elem` [200, 201]
+    then userId . selfUser <$> decodeBodyOrThrow @SelfProfile "brig" resp
+    else throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from POST /i/users/spar")
 
 createNoSAML ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -845,17 +847,18 @@ createNoSAML extId email uid teamid uname locale role = do
       method POST
         . paths ["/i/teams", toByteString' teamid, "invitations"]
         . json newUser
-        . expect2xx
-  userId <$> decodeBodyOrThrow @User "brig" resp
+  if statusCode resp `elem` [200, 201]
+    then userId <$> decodeBodyOrThrow @User "brig" resp
+    else throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from POST /i/teams/invitations")
 
 updateEmail ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   EmailAddress ->
   EmailActivation ->
   Sem r ()
 updateEmail buid email activation = do
-  void $
+  resp <-
     brigRequest $
       method PUT
         . path "/i/self/email"
@@ -866,7 +869,10 @@ updateEmail buid email activation = do
             ("activate", Just (fromBool activate))
           ]
         . json (EmailUpdate email)
-        . expect2xx
+  case statusCode resp of
+    204 -> pure ()
+    202 -> pure ()
+    _ -> throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/self/email")
   where
     (validate, activate) = case activation of
       AutoActivate -> (False, True)
@@ -957,76 +963,83 @@ setName buid (Name name) = do
         . expect2xx
 
 setHandle ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   Handle ->
   Sem r ()
 setHandle buid handle = do
-  void $
+  resp <-
     brigRequest $
       method PUT
         . paths ["/i/users", toByteString' buid, "handle"]
         . json (HandleUpdate (fromHandle handle))
-        . expect2xx
+  case (statusCode resp, Wai.label <$> responseJsonMaybe @Wai.Error resp) of
+    (200, Nothing) -> pure ()
+    _ -> throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/handle")
 
 setManagedBy ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   ManagedBy ->
   Sem r ()
 setManagedBy buid managedBy = do
-  void $
+  resp <-
     brigRequest $
       method PUT
         . paths ["/i/users", toByteString' buid, "managed-by"]
         . json (ManagedByUpdate managedBy)
-        . expect2xx
+  unless (statusCode resp == 200) $
+    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/managed-by")
 
 setSSOId ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   UserSSOId ->
   Sem r ()
 setSSOId buid ssoId = do
-  void $
+  resp <-
     brigRequest $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json ssoId
-        . expect2xx
+  unless (statusCode resp == 200) $
+    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/sso-id")
 
 setRichInfo ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   RichInfo ->
   Sem r ()
 setRichInfo buid richInfo = do
-  void $
+  resp <-
     brigRequest $
       method PUT
         . paths ["i", "users", toByteString' buid, "rich-info"]
         . json (RichInfoUpdate $ unRichInfo richInfo)
-        . expect2xx
+  unless (statusCode resp == 200) $
+    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/rich-info")
 
 setLocale ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   Maybe Locale ->
   Sem r ()
 setLocale buid = \case
-  Just locale ->
-    void $
+  Just locale -> do
+    resp <-
       brigRequest $
         method PUT
           . paths ["i", "users", toByteString' buid, "locale"]
           . json (LocaleUpdate locale)
-          . expect2xx
-  Nothing ->
-    void $
+    unless (statusCode resp == 200) $
+      throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/locale")
+  Nothing -> do
+    resp <-
       brigRequest $
         method DELETE
           . paths ["i", "users", toByteString' buid, "locale"]
-          . expect2xx
+    unless (statusCode resp == 200) $
+      throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from DELETE /i/users/locale")
 
 getRichInfo ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -1037,8 +1050,9 @@ getRichInfo buid = do
     brigRequest $
       method GET
         . paths ["/i/users", toByteString' buid, "rich-info"]
-        . expect2xx
-  decodeBodyOrThrow "brig" resp
+  case statusCode resp of
+    200 -> decodeBodyOrThrow "brig" resp
+    _ -> throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from GET /i/users/rich-info")
 
 checkHandleAvailable ::
   (Member Rpc r, Member (Input Endpoint) r) =>
@@ -1089,7 +1103,9 @@ getStatus ::
   Sem r AccountStatus
 getStatus uid = do
   resp <- getStatusRaw uid
-  fromAccountStatusResp <$> decodeBodyOrThrow @AccountStatusResp "brig" resp
+  case statusCode resp of
+    200 -> fromAccountStatusResp <$> decodeBodyOrThrow @AccountStatusResp "brig" resp
+    _ -> throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from GET /i/users/status")
 
 getStatusMaybe ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
@@ -1102,24 +1118,27 @@ getStatusMaybe uid = do
     _ -> pure Nothing
 
 setStatus ::
-  (Member Rpc r, Member (Input Endpoint) r) =>
+  (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   UserId ->
   AccountStatus ->
   Sem r ()
 setStatus uid status = do
-  void $
+  resp <-
     brigRequest $
       method PUT
         . paths ["/i/users", toByteString' uid, "status"]
         . json (AccountStatusUpdate status)
-        . expect2xx
+  unless (statusCode resp == 200) $
+    throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from PUT /i/users/status")
 
 getDefaultUserLocale ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
   Sem r Locale
 getDefaultUserLocale = do
-  resp <- brigRequest $ method GET . path "/i/users/locale" . expect2xx
-  luLocale <$> decodeBodyOrThrow @LocaleUpdate "brig" resp
+  resp <- brigRequest $ method GET . path "/i/users/locale"
+  case statusCode resp of
+    200 -> luLocale <$> decodeBodyOrThrow @LocaleUpdate "brig" resp
+    _ -> throw $ ParseException "brig" ("Unexpected status " <> show (statusCode resp) <> " from GET /i/users/locale")
 
 checkAdminGetTeamId ::
   (Member Rpc r, Member (Input Endpoint) r, Member (Error ParseException) r) =>
