@@ -1,1 +1,0 @@
-Fix bug where the mls-users tool would crash for users with null `supported_protocols`
