@@ -92,7 +92,7 @@ data:
     backgroundJobs:
 {{ toYaml . | indent 6 }}
     {{- end }}
-    {{- if .postgresMigration }}
-    postgresMigration: {{- toYaml .postgresMigration | nindent 6 }}
+    {{- if $.Values.galley.config.postgresMigration }}
+    postgresMigration: {{- toYaml $.Values.galley.config.postgresMigration | nindent 6 }}
     {{- end }}
   {{- end }}

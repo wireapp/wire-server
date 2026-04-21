@@ -978,12 +978,6 @@ background-worker:
       # Total attempts, including the first try
       maxAttempts: 3
 
-    # Controls where conversation data is stored/accessed
-    postgresMigration:
-      conversation: cassandra
-      conversationCodes: cassandra
-      teamFeatures: cassandra
-
   secrets:
     {}
 
