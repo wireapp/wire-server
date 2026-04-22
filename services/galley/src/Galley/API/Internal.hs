@@ -244,6 +244,8 @@ miscAPI =
     <@> mkNamedAPI @"delete-bot" rmBot
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
     <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend
+    <@> mkNamedAPI @"get-user-lh-status" (\uid mtid -> TeamSubsystem.getLHStatus mtid uid)
+    <@> mkNamedAPI @"get-users-lh-status" (\userIds -> TeamSubsystem.getLHStatusForUsers (cUsers userIds))
 
 featureAPI1Full ::
   forall cfg r.

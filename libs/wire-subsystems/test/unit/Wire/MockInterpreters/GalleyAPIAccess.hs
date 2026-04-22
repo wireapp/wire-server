@@ -92,6 +92,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
           maxConvSize = 500,
           listClientsUsingBrig = False
         }
+  GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
+  GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
   GuardLegalHold {} -> pure ()
 
 -- this is called but the result is not needed in unit tests

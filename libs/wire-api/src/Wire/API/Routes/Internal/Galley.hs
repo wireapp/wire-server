@@ -20,6 +20,7 @@ module Wire.API.Routes.Internal.Galley where
 import Control.Lens ((.~))
 import Data.Domain
 import Data.Id as Id
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.OpenApi (OpenApi, info, title)
 import Data.Range
 import GHC.TypeLits (AppendSymbol)
@@ -621,6 +622,21 @@ type IMiscAPI =
                :> "by-domain"
                :> Capture "domain" Domain
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "OK")
+           )
+    :<|> Named
+           "get-user-lh-status"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "lh-status"
+               :> QueryParam "team_id" TeamId
+               :> Get '[JSON] UserLegalHoldStatus
+           )
+    :<|> Named
+           "get-users-lh-status"
+           ( "users"
+               :> "lh-status"
+               :> ReqBody '[JSON] UserIds
+               :> Post '[JSON] [(UserId, UserLegalHoldStatus)]
            )
 
 type IEJPDAPI =

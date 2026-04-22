@@ -17,12 +17,10 @@
 
 module Wire.TeamSubsystem.GalleyAPI where
 
-import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Team.Feature (FeatureStatus (FeatureStatusEnabled), LockableFeature (..))
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.TeamSubsystem
@@ -52,30 +50,5 @@ interpretTeamSubsystemToGalleyAPI = interpret $ \case
     GalleyAPIAccess.getTeamMembersWithLimit tid Nothing
   AssertTeamExists tid -> do
     void $ GalleyAPIAccess.getTeam tid
-  GetLHStatusForUsers uids -> do
-    for uids $ \uid -> do
-      mteamId <- GalleyAPIAccess.getTeamId uid
-      status <- case mteamId of
-        Nothing -> pure defUserLegalHoldStatus
-        Just tid -> do
-          GalleyAPIAccess.getTeamMember uid tid >>= \case
-            Nothing -> pure defUserLegalHoldStatus
-            Just _ -> do
-              LockableFeature {status} <- GalleyAPIAccess.getTeamLegalHoldStatus tid
-              pure $
-                if status == FeatureStatusEnabled
-                  then UserLegalHoldEnabled
-                  else defUserLegalHoldStatus
-      pure (uid, status)
-  GetLHStatus mtid uid -> do
-    case mtid of
-      Nothing -> pure defUserLegalHoldStatus
-      Just tid -> do
-        GalleyAPIAccess.getTeamMember uid tid >>= \case
-          Nothing -> pure defUserLegalHoldStatus
-          Just _ -> do
-            LockableFeature {status} <- GalleyAPIAccess.getTeamLegalHoldStatus tid
-            pure $
-              if status == FeatureStatusEnabled
-                then UserLegalHoldEnabled
-                else defUserLegalHoldStatus
+  GetLHStatusForUsers uids -> GalleyAPIAccess.getUsersLHStatus uids
+  GetLHStatus mtid uid -> GalleyAPIAccess.getUserLHStatus mtid uid

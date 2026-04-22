@@ -27,6 +27,7 @@ import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.Qualified
 import Data.Range
 import Imports
@@ -109,6 +110,8 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamContacts uid -> getTeamContacts uid
           GetConversationConfig -> getConversationConfig
           GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
+          GetUserLHStatus mtid uid -> getUserLHStatus mtid uid
+          GetUsersLHStatus uids -> getUsersLHStatus uids
 
 getUserLegalholdStatus ::
   ( Member (Error ParseException) r,
@@ -748,3 +751,47 @@ guardLegalhold protectee userClients = do
         . paths ["i", "guard-legalhold-policy-conflicts"]
         . header "Content-Type" "application/json"
         . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)
+
+getUserLHStatus ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Maybe TeamId ->
+  UserId ->
+  Sem r UserLegalHoldStatus
+getUserLHStatus mtid uid = do
+  debug $
+    remote "galley"
+      . field "user" (toByteString uid)
+      . msg (val "Get user legalhold status")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "users", toByteString' uid, "lh-status"]
+        . maybe id (queryItem "team_id" . toByteString') mtid
+        . expect2xx
+
+getUsersLHStatus ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  [UserId] ->
+  Sem r [(UserId, UserLegalHoldStatus)]
+getUsersLHStatus uids = do
+  debug $
+    remote "galley"
+      . msg (val "Get users legalhold status")
+  let bdy = UserIds uids
+  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  where
+    req bdy =
+      method POST
+        . paths ["i", "users", "lh-status"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode bdy)
+        . expect2xx
