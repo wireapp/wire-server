@@ -396,10 +396,9 @@ testSearchNoMatch brig = do
 
 testSearchNoExtraResults :: (TestConstraints m) => Brig -> m ()
 testSearchNoExtraResults brig = do
-  let addPreffix = ("zqnoextra-" <>)
-  u1Handle <- addPreffix <$> randomHandle
+  u1Handle <- ("zqnoextra1-" <>) <$> randomHandle
   u1 <- createUser' True u1Handle brig
-  u2Handle <- addPreffix <$> randomHandle
+  u2Handle <- ("zqnoextra2-" <>) <$> randomHandle
   u2 <- createUser' True u2Handle brig
   let uid1 = userId u1
       quid2 = userQualifiedId u2
