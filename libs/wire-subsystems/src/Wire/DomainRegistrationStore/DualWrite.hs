@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -32,17 +32,16 @@ import Wire.DomainRegistrationStore.Postgres qualified as Postgres
 import Wire.Postgres
 
 interpretDomainRegistrationStoreToCassandraAndPostgres ::
-  ( PGConstraints r
-  ) =>
+  (PGConstraints r) =>
   ClientState ->
   InterpreterFor DomainRegistrationStore r
 interpretDomainRegistrationStoreToCassandraAndPostgres cs = interpret $ \case
   UpsertInternal dr -> do
     Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.upsertInternal dr
     Postgres.interpretDomainRegistrationStoreToPostgres $ DomainRegistrationStore.upsertInternal dr
-  LookupInternal domain -> 
+  LookupInternal domain ->
     Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.lookupInternal domain
-  LookupByTeamInternal tid -> 
+  LookupByTeamInternal tid ->
     Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.lookupByTeamInternal tid
   DeleteInternal domain -> do
     Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.deleteInternal domain
