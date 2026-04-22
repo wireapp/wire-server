@@ -58,7 +58,6 @@ type EffectStack =
 
 migrateDomainRegistrationsLoop ::
   MigrationOptions ->
-  Timeout ->
   ClientState ->
   Hasql.Pool ->
   Log.Logger ->
@@ -66,14 +65,14 @@ migrateDomainRegistrationsLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   IO ()
-migrateDomainRegistrationsLoop migOpts challengeTTL cassClient pgPool logger migCounter migFinished migFailed =
+migrateDomainRegistrationsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
   migrationLoop
     logger
     "domain registrations"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "domain registrations")
-    (migrateAllDomainRegistrations migOpts challengeTTL migCounter)
+    (migrateAllDomainRegistrations migOpts migCounter)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
@@ -94,10 +93,9 @@ migrateAllDomainRegistrations ::
     Member (State Int) r
   ) =>
   MigrationOptions ->
-  Timeout ->
   Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
-migrateAllDomainRegistrations migOpts challengeTTL migCounter = do
+migrateAllDomainRegistrations migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrations")
   withCount (paginateSem selectAllRegistrations (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize asRecord
@@ -106,7 +104,7 @@ migrateAllDomainRegistrations migOpts challengeTTL migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainVerificationChallenges")
   withCount (paginateSem selectAllChallenges (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(cid, _, _, _, _) -> handleErrors (toByteString' cid) (migrateDomainVerificationChallengeRow challengeTTL migCounter row)))
+    .| C.mapM_ (traverse_ (\row@(cid, _, _, _, _) -> handleErrors (toByteString' cid) (migrateDomainVerificationChallengeRow migCounter row)))
 
 migrateDomainRegistrationRow ::
   (PGConstraints r) =>
@@ -119,13 +117,12 @@ migrateDomainRegistrationRow migCounter row = do
 
 migrateDomainVerificationChallengeRow ::
   (PGConstraints r) =>
-  Timeout ->
   Prometheus.Counter ->
   (ChallengeId, Domain, Token, DnsVerificationToken, Int32) ->
   Sem r ()
-migrateDomainVerificationChallengeRow fallbackTtl migCounter (cid, domain, challengeTokenHash, dnsVerificationToken, ttlSecs) =
+migrateDomainVerificationChallengeRow migCounter (cid, domain, challengeTokenHash, dnsVerificationToken, ttlSecs) =
   when (ttlSecs > 0) $ do
-    let ttl = min fallbackTtl (Timeout (fromIntegral ttlSecs))
+    let ttl = Timeout (fromIntegral ttlSecs)
         row =
           StoredDomainVerificationChallenge
             { challengeId = cid,

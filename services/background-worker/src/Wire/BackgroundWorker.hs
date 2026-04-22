@@ -71,6 +71,13 @@ run opts galleyOpts = do
           withNamedLogger "migrate-team-features" $
             Migrations.teamFeatures (MigrationOptions 1000 1)
       else pure $ pure ()
+  cleanupDomainRegistrationMigration <-
+    if opts.migrateDomainRegistration
+      then
+        runAppT env $
+          withNamedLogger "migrate-domain-registration" $
+            Migrations.domainRegistration (MigrationOptions 1000 1)
+      else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
@@ -78,12 +85,13 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,)
+            (,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
               <*> Concurrently cleanUpConvCodesMigration
               <*> Concurrently cleanupTeamFeaturesMigration
+              <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupJobs
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
