@@ -85,6 +85,8 @@ import Wire.DomainRegistrationStore.DualWrite
 import Wire.DomainRegistrationStore.Postgres (interpretDomainRegistrationStoreToPostgres)
 import Wire.DomainVerificationChallengeStore
 import Wire.DomainVerificationChallengeStore.Cassandra
+import Wire.DomainVerificationChallengeStore.DualWrite (interpretDomainVerificationChallengeStoreToCassandraAndPostgres)
+import Wire.DomainVerificationChallengeStore.Postgres (interpretDomainVerificationChallengeStoreToPostgres)
 import Wire.EmailSending
 import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
@@ -204,6 +206,7 @@ type BrigLowerLevelEffects =
      RateLimit,
      UserGroupStore,
      DomainRegistrationStore,
+     DomainVerificationChallengeStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
@@ -220,7 +223,6 @@ type BrigLowerLevelEffects =
      ErrorS 'TeamNotFound,
      Error Wai.Error,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
-     DomainVerificationChallengeStore,
      CryptoSign,
      HashPassword,
      ClientStore,
@@ -235,6 +237,7 @@ type BrigLowerLevelEffects =
      PropertyStore,
      SFT,
      ConnectionStore InternalPaging,
+     Input Cas.ClientState,
      Input Hasql.Pool,
      Input AppSubsystemConfig,
      Input UserSubsystemConfig,
@@ -395,6 +398,11 @@ runBrigToIO e (AppT ma) = do
         PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
         MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
 
+      domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
+        CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
+        PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
+        MigrationToPostgresql -> interpretDomainVerificationChallengeStoreToCassandraAndPostgres e.settings.challengeTTL
+
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
@@ -433,6 +441,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst userSubsystemConfig
               . runInputConst appSubsystemConfig
               . runInputConst e.hasqlPool
+              . runInputConst e.casClient
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
@@ -447,7 +456,6 @@ runBrigToIO e (AppT ma) = do
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
-              . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
               . mapError StdError -- Wai.Error
               . mapError (const $ errorToWai @'TeamNotFound) -- ErrorS 'TeamNotFound
@@ -464,6 +472,7 @@ runBrigToIO e (AppT ma) = do
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . domainVerificationChallengeStore
               . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv

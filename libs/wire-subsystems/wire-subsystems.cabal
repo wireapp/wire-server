@@ -309,6 +309,8 @@ library
     Wire.DomainRegistrationStore.Postgres
     Wire.DomainVerificationChallengeStore
     Wire.DomainVerificationChallengeStore.Cassandra
+    Wire.DomainVerificationChallengeStore.DualWrite
+    Wire.DomainVerificationChallengeStore.Postgres
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP

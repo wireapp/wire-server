@@ -22,6 +22,10 @@ CREATE TABLE domain_registration_challenge (
   expires_at timestamptz NOT NULL
 );
 
+-- index for lookups like `WHERE id = ? AND expires_at > now()`
+CREATE INDEX domain_registration_challenge_key_expires_at_idx
+  ON domain_registration_challenge (id, expires_at);
+
+-- index for deletes like `DELETE ... WHERE expires_at <= now()`
 CREATE INDEX domain_registration_challenge_expires_at_idx
   ON domain_registration_challenge (expires_at);
-
