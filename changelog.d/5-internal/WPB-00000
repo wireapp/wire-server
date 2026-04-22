@@ -1,17 +1,1 @@
-## Fix flaky `testSearchNoExtraResults` integration test
-
-The `brig-integration` test `testSearchNoExtraResults` was failing intermittently in the `new-index` variant while the `old-index` variant always passed.
-
-1. Shared ES index: The `new-index` variant uses the shared `directory_test` Elasticsearch index. All preceding tests (`by-name`, `by-handle`, `size`, `reindex`, `no match`) create users and leave them in this index (~30+ users accumulated).
-
-2. Isolated old-index: The `old-index` variant creates a *fresh* Elasticsearch index each time via `withOldIndex`, which is why it always passed.
-
-3. Name collision: The test created `u2` with `randomName` (random Unicode chars, 2-128 length) then searched for `u2`'s display name. If *any* leftover user from a prior test happened to have a matching display name, the test would fail:
-   ```
-   expected: [u2]
-    but got: [u2, leftoverUser]  -- UUID 7b00dba0...
-   ```
-
-4. Non-deterministic: `randomName` picks from Unicode BMP (0x0000-0xFFFF), so collisions are rare but not impossible — especially with 30+ users in the index. Timing/seed changes between CI runs could trigger it.
-
-Using a random-generated index name.
+Using a random-generated index name to stabilize `testSearchNoExtraResults` (`brig-integration`).

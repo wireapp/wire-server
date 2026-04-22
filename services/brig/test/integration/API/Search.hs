@@ -396,14 +396,15 @@ testSearchNoMatch brig = do
 
 testSearchNoExtraResults :: (TestConstraints m) => Brig -> m ()
 testSearchNoExtraResults brig = do
-  u1 <- randomUser brig
-  suffix <- randomHandle
-  let uniqueName = "zqnoextra-" <> suffix
-  u2 <- createUser' True uniqueName brig
+  let addPreffix = ("zqnoextra-" <>)
+  u1Handle <- addPreffix <$> randomHandle
+  u1 <- createUser' True u1Handle brig
+  u2Handle <- addPreffix <$> randomHandle
+  u2 <- createUser' True u2Handle brig
   let uid1 = userId u1
       quid2 = userQualifiedId u2
   refreshIndex brig
-  resultUIds <- map contactQualifiedId . searchResults <$> executeSearch brig uid1 uniqueName
+  resultUIds <- map contactQualifiedId . searchResults <$> executeSearch brig uid1 u2Handle
   liftIO $
     assertEqual "Expected search returns only the searched" [quid2] resultUIds
 
