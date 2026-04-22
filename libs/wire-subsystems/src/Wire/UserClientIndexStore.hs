@@ -38,7 +38,6 @@ module Wire.UserClientIndexStore
   )
 where
 
-import Data.Domain (Domain)
 import Data.Id
 import Data.Proxy (Proxy (..))
 import Data.Qualified
@@ -60,6 +59,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
+import Wire.Util (qualifyLocal)
 
 data UserClientIndexStore m a where
   GetClients :: [UserId] -> UserClientIndexStore m Clients
@@ -143,9 +143,3 @@ getClientsId ::
   UserId ->
   Sem r [ClientId]
 getClientsId usr = clientIds usr <$> internalGetClientIds [usr]
-
-qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
-qualifyLocal a = toLocalUnsafe <$> fmap getDomain input <*> pure a
-  where
-    getDomain :: Local () -> Domain
-    getDomain = tDomain
