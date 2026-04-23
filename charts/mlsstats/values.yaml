@@ -1,6 +1,6 @@
 image:
   repository: quay.io/wire/mlsstats
-  tag: 0.1
+  tag: 5.30.3
 resources:
   requests:
     memory: "256Mi"
