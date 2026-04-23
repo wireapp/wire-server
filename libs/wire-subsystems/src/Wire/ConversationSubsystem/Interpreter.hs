@@ -31,15 +31,13 @@ import Network.Wai.Utilities.JSONResponse (JSONResponse)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.Internal.Tactics (liftT)
 import Polysemy.Resource (Resource)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Conversation.Config
 import Wire.API.Error
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
-import Wire.API.Team.Feature (LegalholdConfig)
-import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults, FeatureFlags)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BrigAPIAccess
 import Wire.CodeStore (CodeStore)
@@ -67,7 +65,6 @@ import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Update qualified as Update
 import Wire.ExternalAccess (ExternalAccess)
 import Wire.FeaturesConfigSubsystem
-import Wire.FeaturesConfigSubsystem.Types (ExposeInvitationURLsAllowlist)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget (FireAndForget)
@@ -89,7 +86,6 @@ interpretConversationSubsystem ::
   ( Member (Error ConversationSubsystemError) r,
     Member (Error JSONResponse) r,
     Member (Error DynError) r,
-    Member (Input (FeatureDefaults LegalholdConfig)) r,
     Member UserGroupStore r,
     Member (Input (Maybe GuestLinkTTLSeconds)) r,
     Member HashPassword r,
@@ -114,7 +110,6 @@ interpretConversationSubsystem ::
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member ProposalStore r,
     Member LegalHoldStore r,
-    Member (Input ExposeInvitationURLsAllowlist) r,
     Member TeamStore r,
     Member ConvStore.MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -126,242 +121,242 @@ interpretConversationSubsystem ::
   ) =>
   Sem (ConversationSubsystem : r) a ->
   Sem r a
-interpretConversationSubsystem = interpretH $ \case
+interpretConversationSubsystem = interpret $ \case
   NotifyConversationAction tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData ->
-    liftT $ mapErrors $ Notify.notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
+    mapErrors $ Notify.notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
   InternalCreateGroupConversation lusr conn newConv ->
-    liftT $ mapErrors $ CreateInternal.createGroupConversationGeneric lusr conn newConv
+    mapErrors $ CreateInternal.createGroupConversationGeneric lusr conn newConv
   CreateGroupConversationUpToV3 lusr conn newConv ->
-    liftT $ mapErrors $ Create.createGroupConversationUpToV3 lusr conn newConv
+    mapErrors $ Create.createGroupConversationUpToV3 lusr conn newConv
   CreateGroupOwnConversation lusr conn newConv ->
-    liftT $ mapErrors $ Create.createGroupOwnConversation lusr conn newConv
+    mapErrors $ Create.createGroupOwnConversation lusr conn newConv
   CreateGroupConversation lusr conn newConv ->
-    liftT $ mapErrors $ Create.createGroupConversation lusr conn newConv
+    mapErrors $ Create.createGroupConversation lusr conn newConv
   CreateProteusSelfConversation lusr ->
-    liftT $ mapErrors $ Create.createProteusSelfConversation lusr
+    mapErrors $ Create.createProteusSelfConversation lusr
   CreateOne2OneConversation lusr zcon j ->
-    liftT $ mapErrors $ Create.createOne2OneConversation lusr zcon j
+    mapErrors $ Create.createOne2OneConversation lusr zcon j
   CreateConnectConversation lusr conn j ->
-    liftT $ mapErrors $ Create.createConnectConversation lusr conn j
+    mapErrors $ Create.createConnectConversation lusr conn j
   GetConversations convIds ->
-    liftT $ mapErrors $ ConvStore.getConversations convIds
+    mapErrors $ ConvStore.getConversations convIds
   GetConversationIds lusr maxIds pagingState ->
-    liftT $ mapErrors $ Fetch.getConversationIdsImpl lusr maxIds pagingState
+    mapErrors $ Fetch.getConversationIdsImpl lusr maxIds pagingState
   InternalGetLocalMember cid uid ->
-    liftT $ mapErrors $ ConvStore.getLocalMember cid uid
+    mapErrors $ ConvStore.getLocalMember cid uid
   PostMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle ->
-    liftT $ mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle
+    mapErrors $ MLSMessage.postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle
   PostMLSCommitBundleFromLocalUser v lusr c conn bundle ->
-    liftT $ mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle
+    mapErrors $ MLSMessage.postMLSCommitBundleFromLocalUser v lusr c conn bundle
   PostMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg ->
-    liftT $ mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
+    mapErrors $ MLSMessage.postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg
   PostMLSMessageFromLocalUser v lusr c conn smsg ->
-    liftT $ mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
+    mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
   IsMLSEnabled ->
-    liftT $ mapErrors $ MLSEnabled.isMLSEnabled
+    mapErrors $ MLSEnabled.isMLSEnabled
   GetConversationsInternal luser mids mstart msize ->
-    liftT $ mapErrors $ getConversationsInternal luser mids mstart msize
+    mapErrors $ Query.getConversationsInternal luser mids mstart msize
   RemoveMemberFromLocalConv lcnv lusr con victim ->
-    liftT $ mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
+    mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
   FederationOnConversationCreated domain rc ->
-    liftT $ mapErrors $ Federation.onConversationCreated domain rc
+    mapErrors $ Federation.onConversationCreated domain rc
   FederationGetConversationsV1 domain req ->
-    liftT $ mapErrors $ Federation.getConversationsV1 domain req
+    mapErrors $ Federation.getConversationsV1 domain req
   FederationGetConversations domain req ->
-    liftT $ mapErrors $ Federation.getConversations domain req
+    mapErrors $ Federation.getConversations domain req
   FederationLeaveConversation domain lc ->
-    liftT $ mapErrors $ Federation.leaveConversation domain lc
+    mapErrors $ Federation.leaveConversation domain lc
   FederationSendMessage domain msr ->
-    liftT $ mapErrors $ Federation.sendMessage domain msr
+    mapErrors $ Federation.sendMessage domain msr
   FederationUpdateConversation domain uc ->
-    liftT $ mapErrors $ Federation.updateConversation domain uc
+    mapErrors $ Federation.updateConversation domain uc
   FederationMlsSendWelcome domain req ->
-    liftT $ mapErrors $ Federation.mlsSendWelcome domain req
+    mapErrors $ Federation.mlsSendWelcome domain req
   FederationSendMLSMessage domain msr ->
-    liftT $ mapErrors $ Federation.sendMLSMessage domain msr
+    mapErrors $ Federation.sendMLSMessage domain msr
   FederationSendMLSCommitBundle domain msr ->
-    liftT $ mapErrors $ Federation.sendMLSCommitBundle domain msr
+    mapErrors $ Federation.sendMLSCommitBundle domain msr
   FederationQueryGroupInfo domain req ->
-    liftT $ mapErrors $ Federation.queryGroupInfo domain req
+    mapErrors $ Federation.queryGroupInfo domain req
   FederationUpdateTypingIndicator domain req ->
-    liftT $ mapErrors $ Federation.updateTypingIndicator domain req
+    mapErrors $ Federation.updateTypingIndicator domain req
   FederationOnTypingIndicatorUpdated domain td ->
-    liftT $ mapErrors $ Federation.onTypingIndicatorUpdated domain td
+    mapErrors $ Federation.onTypingIndicatorUpdated domain td
   FederationGetSubConversationForRemoteUser domain req ->
-    liftT $ mapErrors $ Federation.getSubConversationForRemoteUser domain req
+    mapErrors $ Federation.getSubConversationForRemoteUser domain req
   FederationDeleteSubConversationForRemoteUser domain req ->
-    liftT $ mapErrors $ Federation.deleteSubConversationForRemoteUser domain req
+    mapErrors $ Federation.deleteSubConversationForRemoteUser domain req
   FederationLeaveSubConversation domain lscr ->
-    liftT $ mapErrors $ Federation.leaveSubConversation domain lscr
+    mapErrors $ Federation.leaveSubConversation domain lscr
   FederationGetOne2OneConversationV1 domain req ->
-    liftT $ mapErrors $ Federation.getOne2OneConversationV1 domain req
+    mapErrors $ Federation.getOne2OneConversationV1 domain req
   FederationGetOne2OneConversation domain req ->
-    liftT $ mapErrors $ Federation.getOne2OneConversation domain req
+    mapErrors $ Federation.getOne2OneConversation domain req
   FederationOnClientRemoved domain req ->
-    liftT $ mapErrors $ Federation.onClientRemoved domain req
+    mapErrors $ Federation.onClientRemoved domain req
   FederationOnMessageSent domain rm ->
-    liftT $ mapErrors $ Federation.onMessageSent domain rm
+    mapErrors $ Federation.onMessageSent domain rm
   FederationOnMLSMessageSent domain rmm ->
-    liftT $ mapErrors $ Federation.onMLSMessageSent domain rmm
+    mapErrors $ Federation.onMLSMessageSent domain rmm
   FederationOnConversationUpdatedV0 domain cu ->
-    liftT $ mapErrors $ Federation.onConversationUpdatedV0 domain cu
+    mapErrors $ Federation.onConversationUpdatedV0 domain cu
   FederationOnConversationUpdated domain cu ->
-    liftT $ mapErrors $ Federation.onConversationUpdated domain cu
+    mapErrors $ Federation.onConversationUpdated domain cu
   FederationOnUserDeleted domain udcn ->
-    liftT $ mapErrors $ Federation.onUserDeleted domain udcn
+    mapErrors $ Federation.onUserDeleted domain udcn
   PostOtrMessageUnqualified lusr con cnv ignore report msg ->
-    liftT $ mapErrors $ Update.postOtrMessageUnqualified lusr con cnv ignore report msg
+    mapErrors $ Update.postOtrMessageUnqualified lusr con cnv ignore report msg
   PostOtrBroadcastUnqualified lusr con ignore report msg ->
-    liftT $ mapErrors $ Update.postOtrBroadcastUnqualified lusr con ignore report msg
+    mapErrors $ Update.postOtrBroadcastUnqualified lusr con ignore report msg
   PostProteusMessage lusr con cnv msg ->
-    liftT $ mapErrors $ Update.postProteusMessage lusr con cnv msg
+    mapErrors $ Update.postProteusMessage lusr con cnv msg
   PostProteusBroadcast lusr con msg ->
-    liftT $ mapErrors $ Update.postProteusBroadcast lusr con msg
+    mapErrors $ Update.postProteusBroadcast lusr con msg
   DeleteLocalConversation lusr con lcnv ->
-    liftT $ mapErrors $ Update.deleteLocalConversation lusr con lcnv
+    mapErrors $ Update.deleteLocalConversation lusr con lcnv
   GetMLSPublicKeys fmt ->
-    liftT $ mapErrors $ MLS.getMLSPublicKeys fmt
+    mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->
-    liftT $ mapErrors $ MLSReset.resetMLSConversation lusr reset
+    mapErrors $ MLSReset.resetMLSConversation lusr reset
   GetSubConversation lusr cnv sub ->
-    liftT $ mapErrors $ MLSSubConversation.getSubConversation lusr cnv sub
+    mapErrors $ MLSSubConversation.getSubConversation lusr cnv sub
   GetBotConversation bid cnv ->
-    liftT $ mapErrors $ Query.getBotConversation bid cnv
+    mapErrors $ Query.getBotConversation bid cnv
   GetUnqualifiedOwnConversation lusr cnv ->
-    liftT $ mapErrors $ Query.getUnqualifiedOwnConversation lusr cnv
+    mapErrors $ Query.getUnqualifiedOwnConversation lusr cnv
   GetOwnConversation lusr qcnv ->
-    liftT $ mapErrors $ Query.getOwnConversation lusr qcnv
+    mapErrors $ Query.getOwnConversation lusr qcnv
   GetConversation lusr qcnv ->
-    liftT $ mapErrors $ Query.getConversation lusr qcnv
+    mapErrors $ Query.getConversation lusr qcnv
   InternalGetConversation cnv ->
-    liftT $ mapErrors $ ConvStore.getConversation cnv
+    mapErrors $ ConvStore.getConversation cnv
   GetConversationRoles lusr cnv ->
-    liftT $ mapErrors $ Query.getConversationRoles lusr cnv
+    mapErrors $ Query.getConversationRoles lusr cnv
   GetGroupInfo lusr qcnv ->
-    liftT $ mapErrors $ MLSGroupInfo.getGroupInfo lusr qcnv
+    mapErrors $ MLSGroupInfo.getGroupInfo lusr qcnv
   ConversationIdsPageFromUnqualified lusr mstart msize ->
-    liftT $ mapErrors $ Query.conversationIdsPageFromUnqualified lusr mstart msize
+    mapErrors $ Query.conversationIdsPageFromUnqualified lusr mstart msize
   ConversationIdsPageFromV2 listGlobalSelf lself req ->
-    liftT $ mapErrors $ Query.conversationIdsPageFromV2 listGlobalSelf lself req
+    mapErrors $ Query.conversationIdsPageFromV2 listGlobalSelf lself req
   ConversationIdsPageFrom lusr req ->
-    liftT $ mapErrors $ Query.conversationIdsPageFrom lusr req
+    mapErrors $ Query.conversationIdsPageFrom lusr req
   ListConversations luser req ->
-    liftT $ mapErrors $ Query.listConversations luser req
+    mapErrors $ Query.listConversations luser req
   GetConversationByReusableCode lusr key value ->
-    liftT $ mapErrors $ Query.getConversationByReusableCode lusr key value
+    mapErrors $ Query.getConversationByReusableCode lusr key value
   GetMLSSelfConversationWithError lusr ->
-    liftT $ mapErrors $ Query.getMLSSelfConversationWithError lusr
+    mapErrors $ Query.getMLSSelfConversationWithError lusr
   GetMLSOne2OneConversationV5 lself qother ->
-    liftT $ mapErrors $ Query.getMLSOne2OneConversationV5 lself qother
+    mapErrors $ Query.getMLSOne2OneConversationV5 lself qother
   GetMLSOne2OneConversationV6 lself qother ->
-    liftT $ mapErrors $ Query.getMLSOne2OneConversationV6 lself qother
+    mapErrors $ Query.getMLSOne2OneConversationV6 lself qother
   GetMLSOne2OneConversation lself qother fmt ->
-    liftT $ mapErrors $ Query.getMLSOne2OneConversation lself qother fmt
+    mapErrors $ Query.getMLSOne2OneConversation lself qother fmt
   GetLocalSelf lusr cnv ->
-    liftT $ mapErrors $ Query.getLocalSelf lusr cnv
+    mapErrors $ Query.getLocalSelf lusr cnv
   GetSelfMember lusr qcnv ->
-    liftT $ mapErrors $ Query.getSelfMember lusr qcnv
+    mapErrors $ Query.getSelfMember lusr qcnv
   GetConversationGuestLinksStatus uid cid ->
-    liftT $ mapErrors $ Query.getConversationGuestLinksStatus uid cid
+    mapErrors $ Query.getConversationGuestLinksStatus uid cid
   GetCode mcode lusr cnv ->
-    liftT $ mapErrors $ Update.getCode mcode lusr cnv
+    mapErrors $ Update.getCode mcode lusr cnv
   AddMembersUnqualified lusr con cnv invite ->
-    liftT $ mapErrors $ Update.addMembersUnqualified lusr con cnv invite
+    mapErrors $ Update.addMembersUnqualified lusr con cnv invite
   AddMembersUnqualifiedV2 lusr con cnv invite ->
-    liftT $ mapErrors $ Update.addMembersUnqualifiedV2 lusr con cnv invite
+    mapErrors $ Update.addMembersUnqualifiedV2 lusr con cnv invite
   AddMembers lusr zcon qcnv invite ->
-    liftT $ mapErrors $ Update.addMembers lusr zcon qcnv invite
+    mapErrors $ Update.addMembers lusr zcon qcnv invite
   ReplaceMembers lusr zcon qcnv invite ->
-    liftT $ mapErrors $ Update.replaceMembers lusr zcon qcnv invite
+    mapErrors $ Update.replaceMembers lusr zcon qcnv invite
   JoinConversationById lusr con cnv ->
-    liftT $ mapErrors $ Update.joinConversationById lusr con cnv
+    mapErrors $ Update.joinConversationById lusr con cnv
   JoinConversationByReusableCode lusr con req ->
-    liftT $ mapErrors $ Update.joinConversationByReusableCode lusr con req
+    mapErrors $ Update.joinConversationByReusableCode lusr con req
   CheckReusableCode addr code ->
-    liftT $ mapErrors $ Update.checkReusableCode addr code
+    mapErrors $ Update.checkReusableCode addr code
   AddCodeUnqualified mReq usr mbZHost mZcon cnv ->
-    liftT $ mapErrors $ Update.addCodeUnqualified mReq usr mbZHost mZcon cnv
+    mapErrors $ Update.addCodeUnqualified mReq usr mbZHost mZcon cnv
   AddCodeUnqualifiedWithReqBody lusr mname mconn cnv req ->
-    liftT $ mapErrors $ Update.addCodeUnqualifiedWithReqBody lusr mname mconn cnv req
+    mapErrors $ Update.addCodeUnqualifiedWithReqBody lusr mname mconn cnv req
   RmCodeUnqualified lusr con cnv ->
-    liftT $ mapErrors $ Update.rmCodeUnqualified lusr con cnv
+    mapErrors $ Update.rmCodeUnqualified lusr con cnv
   MemberTypingUnqualified lusr con cnv status ->
-    liftT $ mapErrors $ Update.memberTypingUnqualified lusr con cnv status
+    mapErrors $ Update.memberTypingUnqualified lusr con cnv status
   MemberTyping lusr con qcnv status ->
-    liftT $ mapErrors $ Update.memberTyping lusr con qcnv status
+    mapErrors $ Update.memberTyping lusr con qcnv status
   RemoveMemberUnqualified lusr con cnv uid ->
-    liftT $ mapErrors $ Update.removeMemberUnqualified lusr con cnv uid
+    mapErrors $ Update.removeMemberUnqualified lusr con cnv uid
   RemoveMemberQualified lusr con qcnv quid ->
-    liftT $ mapErrors $ Update.removeMemberQualified lusr con qcnv quid
+    mapErrors $ Update.removeMemberQualified lusr con qcnv quid
   UpdateOtherMemberUnqualified lusr con cnv uid update ->
-    liftT $ mapErrors $ Update.updateOtherMemberUnqualified lusr con cnv uid update
+    mapErrors $ Update.updateOtherMemberUnqualified lusr con cnv uid update
   UpdateOtherMember lusr con qcnv quid update ->
-    liftT $ mapErrors $ Update.updateOtherMember lusr con qcnv quid update
+    mapErrors $ Update.updateOtherMember lusr con qcnv quid update
   UpdateUnqualifiedConversationName lusr con cnv rename ->
-    liftT $ mapErrors $ Update.updateUnqualifiedConversationName lusr con cnv rename
+    mapErrors $ Update.updateUnqualifiedConversationName lusr con cnv rename
   UpdateConversationName lusr zcon qcnv rename ->
-    liftT $ mapErrors $ Update.updateConversationName lusr zcon qcnv rename
+    mapErrors $ Update.updateConversationName lusr zcon qcnv rename
   UpdateConversationMessageTimerUnqualified lusr con cnv update ->
-    liftT $ mapErrors $ Update.updateConversationMessageTimerUnqualified lusr con cnv update
+    mapErrors $ Update.updateConversationMessageTimerUnqualified lusr con cnv update
   UpdateConversationMessageTimer lusr zcon qcnv update ->
-    liftT $ mapErrors $ Update.updateConversationMessageTimer lusr zcon qcnv update
+    mapErrors $ Update.updateConversationMessageTimer lusr zcon qcnv update
   UpdateConversationReceiptModeUnqualified lusr con cnv update ->
-    liftT $ mapErrors $ Update.updateConversationReceiptModeUnqualified lusr con cnv update
+    mapErrors $ Update.updateConversationReceiptModeUnqualified lusr con cnv update
   UpdateConversationReceiptMode lusr zcon qcnv update ->
-    liftT $ mapErrors $ Update.updateConversationReceiptMode lusr zcon qcnv update
+    mapErrors $ Update.updateConversationReceiptMode lusr zcon qcnv update
   UpdateConversationAccessUnqualified lusr con cnv update ->
-    liftT $ mapErrors $ Update.updateConversationAccessUnqualified lusr con cnv update
+    mapErrors $ Update.updateConversationAccessUnqualified lusr con cnv update
   UpdateConversationAccess lusr zcon qcnv update ->
-    liftT $ mapErrors $ Update.updateConversationAccess lusr zcon qcnv update
+    mapErrors $ Update.updateConversationAccess lusr zcon qcnv update
   UpdateConversationHistory lusr zcon qcnv update ->
-    liftT $ mapErrors $ Update.updateConversationHistory lusr zcon qcnv update
+    mapErrors $ Update.updateConversationHistory lusr zcon qcnv update
   UpdateUnqualifiedSelfMember lusr con cnv update ->
-    liftT $ mapErrors $ Update.updateUnqualifiedSelfMember lusr con cnv update
+    mapErrors $ Update.updateUnqualifiedSelfMember lusr con cnv update
   UpdateSelfMember lusr zcon qcnv update ->
-    liftT $ mapErrors $ Update.updateSelfMember lusr zcon qcnv update
+    mapErrors $ Update.updateSelfMember lusr zcon qcnv update
   UpdateConversationProtocolWithLocalUser lusr conn qcnv update ->
-    liftT $ mapErrors $ Update.updateConversationProtocolWithLocalUser lusr conn qcnv update
+    mapErrors $ Update.updateConversationProtocolWithLocalUser lusr conn qcnv update
   UpdateChannelAddPermission lusr conn qcnv update ->
-    liftT $ mapErrors $ Update.updateChannelAddPermission lusr conn qcnv update
+    mapErrors $ Update.updateChannelAddPermission lusr conn qcnv update
   PostBotMessageUnqualified bid cnv ignore report msg ->
-    liftT $ mapErrors $ Update.postBotMessageUnqualified bid cnv ignore report msg
+    mapErrors $ Update.postBotMessageUnqualified bid cnv ignore report msg
   DeleteSubConversation lusr qcnv sub reset ->
-    liftT $ mapErrors $ MLSSubConversation.deleteSubConversation lusr qcnv sub reset
+    mapErrors $ MLSSubConversation.deleteSubConversation lusr qcnv sub reset
   GetSubConversationGroupInfo lusr qcnv sub ->
-    liftT $ mapErrors $ MLSSubConversation.getSubConversationGroupInfo lusr qcnv sub
+    mapErrors $ MLSSubConversation.getSubConversationGroupInfo lusr qcnv sub
   LeaveSubConversation lusr cli qcnv sub ->
-    liftT $ mapErrors $ MLSSubConversation.leaveSubConversation lusr cli qcnv sub
+    mapErrors $ MLSSubConversation.leaveSubConversation lusr cli qcnv sub
   SendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData ->
-    liftT $ mapErrors $ ActionNotify.sendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData
+    mapErrors $ ActionNotify.sendConversationActionNotifications tag quid notifyOrigDomain con lconv targets action extraData
   GetPaginatedConversations lusr mids mstart msize ->
-    liftT $ mapErrors $ Query.getConversations lusr mids mstart msize
+    mapErrors $ Query.getConversations lusr mids mstart msize
   SearchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable ->
-    liftT $ mapErrors $ Query.searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable
+    mapErrors $ Query.searchChannels lusr tid searchString sortOrder pageSize lastName lastId discoverable
   InternalGetMember qcnv usr ->
-    liftT $ mapErrors $ Query.internalGetMember qcnv usr
+    mapErrors $ Query.internalGetMember qcnv usr
   GetConversationMeta cnv ->
-    liftT $ mapErrors $ Query.getConversationMeta cnv
+    mapErrors $ Query.getConversationMeta cnv
   GetMLSOne2OneConversationInternal lself qother ->
-    liftT $ mapErrors $ Query.getMLSOne2OneConversationInternal lself qother
+    mapErrors $ Query.getMLSOne2OneConversationInternal lself qother
   IsMLSOne2OneEstablished lself qother ->
-    liftT $ mapErrors $ Query.isMLSOne2OneEstablished lself qother
+    mapErrors $ Query.isMLSOne2OneEstablished lself qother
   GetLocalConversationInternal cid ->
-    liftT $ mapErrors $ Query.getLocalConversationInternal cid
+    mapErrors $ Query.getLocalConversationInternal cid
   RemoveClient lc qusr c ->
-    liftT $ mapErrors $ MLSRemoval.removeClient lc qusr c
+    mapErrors $ MLSRemoval.removeClient lc qusr c
   AddBot lusr zcon b ->
-    liftT $ mapErrors $ Update.addBot lusr zcon b
+    mapErrors $ Update.addBot lusr zcon b
   RmBot lusr zcon b ->
-    liftT $ mapErrors $ Update.rmBot lusr zcon b
+    mapErrors $ Update.rmBot lusr zcon b
   UpdateCellsState cnv state ->
-    liftT $ mapErrors $ Update.updateCellsState cnv state
+    mapErrors $ Update.updateCellsState cnv state
   RemoveUser lc includeMain qusr ->
-    liftT $ mapErrors $ MLSRemoval.removeUser lc includeMain qusr
+    mapErrors $ MLSRemoval.removeUser lc includeMain qusr
   InternalUpsertOne2OneConversation req ->
-    liftT $ mapErrors $ One2One.internalUpsertOne2OneConversation req
+    mapErrors $ One2One.internalUpsertOne2OneConversation req
   AcceptConv lusr conn cnv ->
-    liftT $ mapErrors $ Update.acceptConv lusr conn cnv
+    mapErrors $ Update.acceptConv lusr conn cnv
   BlockConv lusr qcnv ->
-    liftT $ mapErrors $ Update.blockConv lusr qcnv
+    mapErrors $ Update.blockConv lusr qcnv
   UnblockConv lusr conn qcnv ->
-    liftT $ mapErrors $ Update.unblockConv lusr conn qcnv
+    mapErrors $ Update.unblockConv lusr conn qcnv

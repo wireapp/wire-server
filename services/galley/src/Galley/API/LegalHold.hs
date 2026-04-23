@@ -347,9 +347,10 @@ requestDevice lzusr tid uid = do
   where
     disallowIfMLSUser :: Local UserId -> Sem r ()
     disallowIfMLSUser luid = do
-      iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
-        when (any (\c -> c.metadata.cnvmType /= SelfConv && c.protocol /= ProtocolProteus) convs) $ do
-          throwS @'MLSLegalholdIncompatible
+      void $
+        iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
+          when (any (\c -> c.metadata.cnvmType /= SelfConv && c.protocol /= ProtocolProteus) convs) $ do
+            throwS @'MLSLegalholdIncompatible
 
     -- Wire's LH service that galley is usually calling here is idempotent in device creation,
     -- ie. it returns the existing device on multiple calls to `/init`, like here:
@@ -631,40 +632,41 @@ handleGroupConvPolicyConflicts ::
   UserLegalHoldStatus ->
   Sem r ()
 handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
-  iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
-    for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
-      let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.remoteMembers
+  void $
+    iterateConversations luid (toRange (Proxy @500)) $ \convs -> do
+      for_ (filter ((== RegularConv) . Data.convType) convs) $ \conv -> do
+        let FutureWork _convRemoteMembers' = FutureWork @'LegalholdPlusFederationNotImplemented Data.remoteMembers
 
-      membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
-        let mems = conv.localMembers
-        uidsLHStatus <- TeamSubsystem.getLHStatusForUsers ((.id_) <$> mems)
-        pure $
-          zipWith
-            ( \mem (mid, status) ->
-                assert (mem.id_ == mid) $
-                  if mem.id_ == tUnqualified luid
-                    then (mem, hypotheticalLHStatus)
-                    else (mem, status)
-            )
-            mems
-            uidsLHStatus
+        membersAndLHStatus :: [(LocalMember, UserLegalHoldStatus)] <- do
+          let mems = conv.localMembers
+          uidsLHStatus <- TeamSubsystem.getLHStatusForUsers ((.id_) <$> mems)
+          pure $
+            zipWith
+              ( \mem (mid, status) ->
+                  assert (mem.id_ == mid) $
+                    if mem.id_ == tUnqualified luid
+                      then (mem, hypotheticalLHStatus)
+                      else (mem, status)
+              )
+              mems
+              uidsLHStatus
 
-      let lcnv = qualifyAs luid conv.id_
-      -- we know that this is a group conversation, so invalid operation
-      -- and conversation not found errors cannot actually be thrown
-      mapToRuntimeError @'InvalidOperation
-        (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
-        . mapToRuntimeError @'ConvNotFound
-          (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
-        . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
-        $ if any
-          ((== TeamSubsystem.ConsentGiven) . TeamSubsystem.consentGiven . snd)
-          (filter ((== roleNameWireAdmin) . (.convRoleName) . fst) membersAndLHStatus)
-          then do
-            for_ (filter ((== TeamSubsystem.ConsentNotGiven) . TeamSubsystem.consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              let lusr = qualifyAs luid memberNoConsent.id_
-              removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
-          else do
-            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              let lusr = qualifyAs luid legalholder.id_
-              removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
+        let lcnv = qualifyAs luid conv.id_
+        -- we know that this is a group conversation, so invalid operation
+        -- and conversation not found errors cannot actually be thrown
+        mapToRuntimeError @'InvalidOperation
+          (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
+          . mapToRuntimeError @'ConvNotFound
+            (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
+          . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
+          $ if any
+            ((== TeamSubsystem.ConsentGiven) . TeamSubsystem.consentGiven . snd)
+            (filter ((== roleNameWireAdmin) . (.convRoleName) . fst) membersAndLHStatus)
+            then do
+              for_ (filter ((== TeamSubsystem.ConsentNotGiven) . TeamSubsystem.consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+                let lusr = qualifyAs luid memberNoConsent.id_
+                removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
+            else do
+              for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
+                let lusr = qualifyAs luid legalholder.id_
+                removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
