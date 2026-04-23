@@ -45,7 +45,7 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore (CodeStore)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem (ConversationSubsystem (..))
 import Wire.ConversationSubsystem.Action.Notify qualified as ActionNotify
 import Wire.ConversationSubsystem.Create qualified as Create
 import Wire.ConversationSubsystem.CreateInternal qualified as CreateInternal
@@ -159,11 +159,8 @@ interpretConversationSubsystem = interpretH $ \case
     liftT $ mapErrors $ MLSMessage.postMLSMessageFromLocalUser v lusr c conn smsg
   IsMLSEnabled ->
     liftT $ mapErrors $ MLSEnabled.isMLSEnabled
-  IterateConversations luid pageSize handleConvs -> do
-    handleConvsT <- bindT handleConvs
-    ins <- getInitialStateT
-    void $ raise $ interpretConversationSubsystem $ Query.iterateConversations luid pageSize $ handleConvsT . ($>) ins
-    pureT ()
+  GetConversationsInternal luser mids mstart msize ->
+    liftT $ mapErrors $ getConversationsInternal luser mids mstart msize
   RemoveMemberFromLocalConv lcnv lusr con victim ->
     liftT $ mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
   FederationOnConversationCreated domain rc ->

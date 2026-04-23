@@ -76,7 +76,7 @@ import Wire.ConversationSubsystem.MLS.IncomingMessage (IncomingBundle, IncomingM
 import Wire.ConversationSubsystem.MLS.Removal qualified as MLSRemoval
 import Wire.ConversationSubsystem.Util qualified as Util
 import Wire.NotificationSubsystem (LocalConversationUpdate)
-import Wire.StoredConversation (BotMember, LocalMember, StoredConversation)
+import Wire.StoredConversation
 
 data ConversationSubsystem m a where
   NotifyConversationAction ::
@@ -213,11 +213,12 @@ data ConversationSubsystem m a where
     RawMLS Message ->
     ConversationSubsystem m MLSMessageSendingStatus
   IsMLSEnabled :: ConversationSubsystem m Bool
-  IterateConversations ::
+  GetConversationsInternal ::
     Local UserId ->
-    Range 1 500 Int32 ->
-    ([StoredConversation] -> m a) ->
-    ConversationSubsystem m ()
+    Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
+    Maybe ConvId ->
+    Maybe (Range 1 500 Int32) ->
+    ConversationSubsystem m (Public.ConversationList StoredConversation)
   RemoveMemberFromLocalConv ::
     Local ConvId ->
     Local UserId ->
@@ -688,3 +689,22 @@ data ConversationSubsystem m a where
     ConversationSubsystem m ()
 
 makeSem ''ConversationSubsystem
+
+iterateConversations ::
+  (Member ConversationSubsystem r) =>
+  Local UserId ->
+  Range 1 500 Int32 ->
+  ([StoredConversation] -> Sem r a) ->
+  Sem r [a]
+iterateConversations luid pageSize handleConvs = go Nothing
+  where
+    go mbConv = do
+      convResult <- getConversationsInternal luid Nothing mbConv (Just pageSize)
+      resultHead <- handleConvs (convList convResult)
+      resultTail <- case convList convResult of
+        (conv : rest) ->
+          if convHasMore convResult
+            then go (Just (maximum ((.id_) <$> (conv : rest))))
+            else pure []
+        _ -> pure []
+      pure $ resultHead : resultTail

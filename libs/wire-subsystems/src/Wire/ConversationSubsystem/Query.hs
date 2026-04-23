@@ -30,6 +30,7 @@ module Wire.ConversationSubsystem.Query
     conversationIdsPageFromV2,
     conversationIdsPageFrom,
     getConversations,
+    getConversationsInternal,
     listConversations,
     iterateConversations,
     getLocalSelf,
