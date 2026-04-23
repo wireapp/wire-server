@@ -90,6 +90,7 @@ let
     team-info = [ "team-info" ];
     wire-server-enterprise = [ "wire-server-enterprise" ];
     migrate-features = [ "migrate-features" ];
+    client-info = [ "client-info" ];
   };
 
   inherit (lib) attrsets;
