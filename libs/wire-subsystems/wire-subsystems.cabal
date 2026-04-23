@@ -392,6 +392,7 @@ library
     Wire.RateLimit
     Wire.RateLimit.Interpreter
     Wire.Rpc
+    Wire.RpcException
     Wire.SAMLEmailSubsystem
     Wire.SAMLEmailSubsystem.Interpreter
     Wire.ScimSubsystem

@@ -31,7 +31,6 @@ module Spar.Error
     IdpDbError (..),
     throwSpar,
     sparToServerErrorWithLogging,
-    parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
     sparToServerError,
@@ -43,13 +42,11 @@ module Spar.Error
   )
 where
 
-import Bilge (ResponseLBS, responseBody)
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
-import Data.Typeable (typeRep)
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
@@ -64,6 +61,7 @@ import Wire.API.User.Saml (TTLError)
 import Wire.Error
 import Wire.IdPConfigStore
 import Wire.IdPSubsystem.Interpreter
+import Wire.RpcException
 import Wire.ScimSubsystem.Interpreter
 
 type SparError = SAML.Error SparCustomError
@@ -102,6 +100,7 @@ data SparCustomError
   | SparCouldNotRetrieveCookie
   | SparCassandraError LText
   | SparCassandraTTLError TTLError
+  | SparRpcException RpcException
   | SparNewIdPBadMetadata LText
   | SparNewIdPPubkeyMismatch
   | SparNewIdPAlreadyInUse LText
@@ -172,6 +171,7 @@ renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) =
       status400
       "ttl-error"
       (LText.pack $ show ttlerr)
+renderSparError (SAML.CustomError (SparRpcException err)) = StdError $ rpcExcepctionToWaiError err
 renderSparError (SAML.UnknownIdP msg) = StdError $ Wai.mkError status404 "not-found" ("IdP not found: " <> msg)
 renderSparError (SAML.Forbidden msg) = StdError $ Wai.mkError status403 "forbidden" ("Forbidden: " <> msg)
 renderSparError (SAML.BadSamlResponseBase64Error msg) =
@@ -237,17 +237,6 @@ renderSparError (SAML.CustomError (SparInternalError err)) = StdError $ Wai.mkEr
 renderSparError (SAML.CustomError (SparSomeHttpError err)) = err
 -- Other
 renderSparError (SAML.CustomServant err) = serverErrorToHttpError err
-
-parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LText -> ResponseLBS -> m a
-parseResponse serviceName resp = do
-  let typeinfo :: LText
-      typeinfo = LText.pack $ show (typeRep ([] @a)) <> ": "
-
-      err :: forall a'. LText -> m a'
-      err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
-
-  bdy <- maybe (err "no body") pure $ responseBody resp
-  either (err . LText.pack) pure $ eitherDecode' bdy
 
 mapScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
 mapScimSubsystemErrors =

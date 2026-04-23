@@ -59,7 +59,7 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSparError)
+import Spar.Sem.Utils
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
@@ -76,6 +76,7 @@ import Wire.IdPSubsystem (IdPSubsystem)
 import Wire.IdPSubsystem.Interpreter (IdPSubsystemError, interpretIdPSubsystem)
 import Wire.ParseException (ParseException, parseExceptionToHttpError)
 import Wire.Rpc (Rpc, runRpcWithHttp)
+import Wire.RpcException
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
@@ -112,6 +113,7 @@ type LowerLevelCanonicalEffs =
      Embed Cas.Client,
      Error IdpDbError,
      Error TTLError,
+     Error RpcException,
      Error SparError,
      Reporter,
      Logger String,
@@ -136,6 +138,7 @@ runSparToIO ctx =
     . stringLoggerToTinyLog
     . reporterToTinyLogWai
     . runError @SparError
+    . rpcExceptionToSparError
     . ttlErrorToSparError
     . idpDbErrorToSparError
     . interpretClientToIO (sparCtxCas ctx)

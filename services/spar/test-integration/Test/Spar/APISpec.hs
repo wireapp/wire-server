@@ -25,6 +25,7 @@ import Bilge.Assert
 import Cassandra as Cas hiding (Client, Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Error.Class
 import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens
@@ -37,8 +38,9 @@ import Data.Misc
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
-import qualified Data.Text as T
 import Data.Text.Ascii (decodeBase64, validateBase64)
+import qualified Data.Text.Lazy as LT
+import Data.Typeable (typeRep)
 import qualified Data.UUID as UUID hiding (fromByteString, null)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Vector as Vec
@@ -70,6 +72,7 @@ import SAML2.WebSSO.API.Example (SimpleSP)
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
+import Spar.Error
 import qualified Spar.Intra.BrigApp as Intra
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
@@ -419,7 +422,7 @@ specFinalizeLogin = do
         subj <- createEmailSubject randEmail
         mbId1 <- loginWithSubject subj
 
-        subjUpper <- createEmailSubject (T.toUpper randEmail)
+        subjUpper <- createEmailSubject (ST.toUpper randEmail)
         mbId2 <- loginWithSubject subjUpper
 
         liftIO $ do
@@ -1431,8 +1434,20 @@ specAux = do
                         . header "Z-User" (toByteString' $ if tryowner then owner else newmember)
                         . expect2xx
                     )
-              parsedResp <- either (error . show) (pure . selfUser) (Intra.parseResponse @SelfProfile "brig" rawResp)
+              parsedResp <- either (error . show) (pure . selfUser) (parseResponse @SelfProfile "brig" rawResp)
               liftIO $ userTeam parsedResp `shouldSatisfy` isJust
+
+          parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LText -> ResponseLBS -> m a
+          parseResponse serviceName resp = do
+            let typeinfo :: LText
+                typeinfo = LT.pack $ show (typeRep ([] @a)) <> ": "
+
+                err :: forall a'. LText -> m a'
+                err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
+
+            bdy <- maybe (err "no body") pure $ responseBody resp
+            either (err . LT.pack) pure $ eitherDecode' bdy
+
           permses :: [Permissions]
           permses =
             [ fullPermissions,

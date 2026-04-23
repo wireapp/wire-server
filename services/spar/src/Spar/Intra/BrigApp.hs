@@ -31,7 +31,6 @@ module Spar.Intra.BrigApp
     getBrigUserTeam,
     getZUsrCheckPerm,
     authorizeScimTokenManagement,
-    parseResponse,
     giveDefaultHandle,
     ensureReAuthorised,
     assertHasPermission,
@@ -61,7 +60,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import qualified SAML2.WebSSO as SAML
-import Spar.Error (SparCustomError (..), SparError, parseResponse)
+import Spar.Error (SparCustomError (..), SparError)
 import Wire.API.Error.Galley (AuthenticationError (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (HiddenPerm (CreateReadDeleteScimToken), IsPerm, TeamMember, hasPermission)

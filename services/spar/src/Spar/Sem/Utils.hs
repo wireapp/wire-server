@@ -18,6 +18,7 @@
 module Spar.Sem.Utils
   ( interpretClientToIO,
     ttlErrorToSparError,
+    rpcExceptionToSparError,
     idpDbErrorToSparError,
   )
 where
@@ -32,6 +33,7 @@ import Polysemy.Final
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Wire.API.User.Saml
+import Wire.RpcException
 
 -- | Run an embedded Cassandra 'Client'  in @Final IO@.
 interpretClientToIO ::
@@ -56,6 +58,9 @@ interpretClientToIO ctx = interpret $ \case
 
 ttlErrorToSparError :: (Member (Error SparError) r) => Sem (Error TTLError ': r) a -> Sem r a
 ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)
+
+rpcExceptionToSparError :: (Member (Error SparError) r) => Sem (Error RpcException ': r) a -> Sem r a
+rpcExceptionToSparError = mapError (SAML.CustomError . SparRpcException)
 
 idpDbErrorToSparError :: (Member (Error SparError) r) => Sem (Error IdpDbError ': r) a -> Sem r a
 idpDbErrorToSparError = mapError (SAML.CustomError . IdpDbError)

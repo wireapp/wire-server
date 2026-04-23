@@ -837,7 +837,6 @@ updateTeamMember uid tid role = do
         . paths ["i", "teams", toByteString' tid, "members"]
         . header "Content-Type" "application/json"
         . lbytes (encode reqBody)
-        . expect2xx
 
 isEmailValidationEnabledTeam ::
   ( Member Rpc r,

@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- | See also: "Wire.RpcException" (some of the uses of ParseException
+-- should probably be RpcExceptions instead).
 module Wire.ParseException where
 
 import Data.Text qualified as Text
