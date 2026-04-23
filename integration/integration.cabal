@@ -201,6 +201,7 @@ library
     Test.PushToken
     Test.Register
     Test.Roles
+    Test.ScimUserSamlLogin
     Test.Search
     Test.Services
     Test.Shape
