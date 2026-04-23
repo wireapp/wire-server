@@ -119,8 +119,7 @@ interpretConversationSubsystem ::
     Member (Input FanoutLimit) r,
     Member TinyLog r
   ) =>
-  Sem (ConversationSubsystem : r) a ->
-  Sem r a
+  InterpreterFor ConversationSubsystem r
 interpretConversationSubsystem = interpret $ \case
   NotifyConversationAction tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData ->
     mapErrors $ Notify.notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
