@@ -334,14 +334,14 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponseV2
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetRemoteConversationViewsResponse
       rpc req = do
         mFedVersion <- getNegotiatedVersion
         case mFedVersion of
           Nothing -> error "impossible"
           Just fedVersion ->
             if fedVersion < Federation.V2
-              then getConversationsResponseToV2 <$> fedClient @'Galley @"get-conversations@v1" req
+              then getConversationsResponseToView <$> fedClient @'Galley @"get-conversations@v1" req
               else fedClient @'Galley @"get-conversations" req
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
@@ -352,7 +352,7 @@ getRemoteConversationsWithFailures lusr convs = do
   where
     handleFailure ::
       (Member P.TinyLog r) =>
-      Either (Remote [ConvId], FederationError) (Remote GetConversationsResponseV2) ->
+      Either (Remote [ConvId], FederationError) (Remote GetRemoteConversationViewsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversationView])
     handleFailure (Left (rcids, e)) = do
       P.warn $

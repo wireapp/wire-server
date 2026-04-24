@@ -153,7 +153,7 @@ getConversationsAllFound = do
 
   fedGalleyClient <- view tsFedGalleyClient
 
-  GetConversationsResponseV2 convs <-
+  GetRemoteConversationViewsResponse convs <-
     runFedClient @"get-conversations" fedGalleyClient (qDomain aliceQ) $
       GetConversationsRequest
         (qUnqualified aliceQ)
@@ -198,7 +198,7 @@ getConversationsNotPartOf = do
 
   fedGalleyClient <- view tsFedGalleyClient
   rando <- Id <$> liftIO nextRandom
-  GetConversationsResponseV2 convs <-
+  GetRemoteConversationViewsResponse convs <-
     runFedClient @"get-conversations" fedGalleyClient localDomain $
       GetConversationsRequest rando [qUnqualified . cnvQualifiedId $ cnv1]
   liftIO $ assertEqual "conversation list not empty" [] convs

@@ -236,7 +236,7 @@ data ConversationSubsystem m a where
   FederationGetConversations ::
     Domain ->
     GetConversationsRequest ->
-    ConversationSubsystem m GetConversationsResponseV2
+    ConversationSubsystem m GetRemoteConversationViewsResponse
   FederationLeaveConversation ::
     Domain ->
     LeaveConversationRequest ->

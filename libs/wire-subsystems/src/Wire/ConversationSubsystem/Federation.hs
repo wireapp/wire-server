@@ -191,7 +191,7 @@ getConversationsV1 ::
   GetConversationsRequest ->
   Sem r GetConversationsResponse
 getConversationsV1 domain req =
-  getConversationsResponseFromV2 <$> getConversations domain req
+  getConversationsResponseFromView <$> getConversations domain req
 
 getConversations ::
   ( Member E.ConversationStore r,
@@ -199,11 +199,11 @@ getConversations ::
   ) =>
   Domain ->
   GetConversationsRequest ->
-  Sem r GetConversationsResponseV2
+  Sem r GetRemoteConversationViewsResponse
 getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   loc <- qualifyLocal ()
-  GetConversationsResponseV2
+  GetRemoteConversationViewsResponse
     . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
 

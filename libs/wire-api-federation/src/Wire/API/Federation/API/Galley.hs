@@ -83,7 +83,7 @@ type GalleyApi =
            '[From 'V2]
            "get-conversations"
            GetConversationsRequest
-           GetConversationsResponseV2
+           GetRemoteConversationViewsResponse
     :<|> FedEndpoint
            "leave-conversation"
            LeaveConversationRequest
@@ -277,20 +277,20 @@ newtype GetConversationsResponse = GetConversationsResponse
 
 instance ToSchema GetConversationsResponse
 
-newtype GetConversationsResponseV2 = GetConversationsResponseV2
+newtype GetRemoteConversationViewsResponse = GetRemoteConversationViewsResponse
   { convs :: [RemoteConversationView]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform GetConversationsResponseV2)
-  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponseV2)
+  deriving (Arbitrary) via (GenericUniform GetRemoteConversationViewsResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetRemoteConversationViewsResponse)
 
-instance ToSchema GetConversationsResponseV2
+instance ToSchema GetRemoteConversationViewsResponse
 
-getConversationsResponseToV2 :: GetConversationsResponse -> GetConversationsResponseV2
-getConversationsResponseToV2 res = GetConversationsResponseV2 (map remoteConversationToView res.convs)
+getConversationsResponseToView :: GetConversationsResponse -> GetRemoteConversationViewsResponse
+getConversationsResponseToView res = GetRemoteConversationViewsResponse (map remoteConversationToView res.convs)
 
-getConversationsResponseFromV2 :: GetConversationsResponseV2 -> GetConversationsResponse
-getConversationsResponseFromV2 res = GetConversationsResponse (map remoteConversationFromView res.convs)
+getConversationsResponseFromView :: GetRemoteConversationViewsResponse -> GetConversationsResponse
+getConversationsResponseFromView res = GetConversationsResponse (map remoteConversationFromView res.convs)
 
 data GetOne2OneConversationResponse
   = GetOne2OneConversationOk RemoteConversation
