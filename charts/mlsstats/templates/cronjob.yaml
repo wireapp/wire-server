@@ -46,12 +46,12 @@ spec:
               - name: AWS_ACCESS_KEY_ID
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Release.Name }}
+                    name: {{ .Chart.Name }}
                     key: awsKeyId
               - name: AWS_SECRET_ACCESS_KEY
                 valueFrom:
                   secretKeyRef:
-                    name: {{ .Release.Name }}
+                    name: {{ .Chart.Name }}
                     key: awsSecretKey
               {{- end }}
               - name: AWS_REGION
