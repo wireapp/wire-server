@@ -64,25 +64,25 @@ spec = describe "ConversationMapping" do
         == Just (sort (convUids (tDomain luid) c))
   prop "conversation view for an invalid user is empty" $
     \(RandomConversation c) luid ->
-      notElem (tUnqualified luid) (map (.id_) c.localMembers) ==>
-        isJust (ownConversationView luid c)
+      notElem (tUnqualified luid) (map (.id_) c.localMembers)
+        ==> isNothing (ownConversationView luid c)
   prop "remote conversation view for a valid user is non-empty" $
     \(ConvWithRemoteUser c ruid) dom ->
       qDomain (tUntagged ruid)
         /= dom
-        ==> isJust (conversationToRemote dom ruid c)
+          ==> isJust (conversationToRemote dom ruid c)
   prop "self user role in remote conversation view is correct" $
     \(ConvWithRemoteUser c ruid) dom ->
       qDomain (tUntagged ruid)
         /= dom
-        ==> fmap (selfRole . (.members)) (conversationToRemote dom ruid c)
-          == Just roleNameWireMember
+          ==> fmap (selfRole . (.members)) (conversationToRemote dom ruid c)
+        == Just roleNameWireMember
   prop "remote conversation view metadata is correct" $
     \(ConvWithRemoteUser c ruid) dom ->
       qDomain (tUntagged ruid)
         /= dom
-        ==> fmap (.metadata) (conversationToRemote dom ruid c)
-          == Just c.metadata
+          ==> fmap (.metadata) (conversationToRemote dom ruid c)
+        == Just c.metadata
   prop "remote conversation view does not contain self" $
     \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
       Nothing -> False
