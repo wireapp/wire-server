@@ -22,6 +22,7 @@ module Wire.API.Team.LegalHold
     ViewLegalHoldService (..),
     ViewLegalHoldServiceInfo (..),
     UserLegalHoldStatusResponse (..),
+    UserLegalHoldStatusEntry (..),
     RemoveLegalHoldSettingsRequest (..),
     DisableLegalHoldForUserRequest (..),
     ApproveLegalHoldForUserRequest (..),
@@ -161,6 +162,24 @@ instance ToSchema UserLegalHoldStatusResponse where
         <$> ulhsrStatus .= field "status" schema
         <*> ulhsrLastPrekey .= maybe_ (optField "last_prekey" schema)
         <*> (fmap IdObject . ulhsrClientId) .= maybe_ (optField "client" (fromIdObject <$> schema))
+
+--------------------------------------------------------------------------------
+-- UserLegalHoldStatusEntry
+
+data UserLegalHoldStatusEntry = UserLegalHoldStatusEntry
+  { ulhseUser :: UserId,
+    ulhseStatus :: UserLegalHoldStatus
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserLegalHoldStatusEntry)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserLegalHoldStatusEntry)
+
+instance ToSchema UserLegalHoldStatusEntry where
+  schema =
+    object $
+      UserLegalHoldStatusEntry
+        <$> ulhseUser .= field "user" schema
+        <*> ulhseStatus .= field "status" schema
 
 --------------------------------------------------------------------------------
 -- RemoveLegalHoldSettingsRequest

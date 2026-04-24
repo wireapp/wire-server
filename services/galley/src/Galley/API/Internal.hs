@@ -74,6 +74,7 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiTablePaging qualified as MTP
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags (FeatureFlags)
+import Wire.API.Team.LegalHold (UserLegalHoldStatusEntry (..))
 import Wire.API.User (UserIds (cUsers))
 import Wire.API.User.Client
 import Wire.BackendNotificationQueueAccess
@@ -245,7 +246,7 @@ miscAPI =
     <@> mkNamedAPI @"put-custom-backend" setCustomBackend
     <@> mkNamedAPI @"delete-custom-backend" deleteCustomBackend
     <@> mkNamedAPI @"get-user-lh-status" (\uid mtid -> TeamSubsystem.getLHStatus mtid uid)
-    <@> mkNamedAPI @"get-users-lh-status" (\userIds -> TeamSubsystem.getLHStatusForUsers (cUsers userIds))
+    <@> mkNamedAPI @"get-users-lh-status" (\userIds -> map (uncurry UserLegalHoldStatusEntry) <$> TeamSubsystem.getLHStatusForUsers (cUsers userIds))
 
 featureAPI1Full ::
   forall cfg r.

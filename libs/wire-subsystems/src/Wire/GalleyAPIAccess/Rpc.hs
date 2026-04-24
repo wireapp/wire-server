@@ -789,7 +789,8 @@ getUsersLHStatus uids = do
     remote "galley"
       . msg (val "Get users legalhold status")
   let bdy = UserIds uids
-  galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  entries :: [UserLegalHoldStatusEntry] <- galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  pure $ map (\e -> (e.ulhseUser, e.ulhseStatus)) entries
   where
     req bdy =
       method POST
