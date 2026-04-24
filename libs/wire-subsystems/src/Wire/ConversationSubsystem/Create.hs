@@ -45,7 +45,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem.CreateInternal
-import Wire.ConversationSubsystem.Mapping
+import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem, checkFederationStatus, enforceFederationProtocol)
@@ -53,6 +53,7 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem as NS
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
+import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore (TeamStore)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -96,7 +97,7 @@ createLegacyGroupConversation ::
   Sem r (ConversationResponse Public.OwnConversation)
 createLegacyGroupConversation lusr conn newConv = mapError UnreachableBackendsLegacy $ do
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  Created <$> ownConversationView lusr dbConv
+  maybe (throwWhenMemberNotFound lusr dbConv.id_) (pure . Created) $ ownConversationView lusr dbConv
 
 createGroupOwnConversation ::
   ( Member BrigAPIAccess r,
@@ -138,7 +139,8 @@ createGroupOwnConversation lusr conn newConv = do
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  GroupConversationCreatedV9 <$> (CreateGroupOwnConversation <$> ownConversationView lusr dbConv <*> pure mempty)
+  maybe (throwWhenMemberNotFound lusr dbConv.id_) (pure . GroupConversationCreatedV9) $
+    (CreateGroupOwnConversation <$> ownConversationView lusr dbConv <*> pure mempty)
 
 createGroupConversation ::
   ( Member BrigAPIAccess r,
@@ -193,9 +195,11 @@ createProteusSelfConversation ::
   Sem r (ConversationResponse Public.OwnConversation)
 createProteusSelfConversation lusr = do
   (c, created) <- createProteusSelfConversationLogic lusr
-  if created
-    then Created <$> ownConversationView lusr c
-    else Existed <$> ownConversationView lusr c
+  let mConv =
+        if created
+          then Created <$> ownConversationView lusr c
+          else Existed <$> ownConversationView lusr c
+  maybe (throwWhenMemberNotFound lusr c.id_) pure mConv
 
 createOne2OneConversation ::
   ( Member BrigAPIAccess r,
@@ -226,9 +230,11 @@ createOne2OneConversation ::
   Sem r (ConversationResponse Public.OwnConversation)
 createOne2OneConversation lusr zcon j = do
   (c, created) <- createOne2OneConversationLogic lusr zcon j
-  if created
-    then Created <$> ownConversationView lusr c
-    else Existed <$> ownConversationView lusr c
+  let mConv =
+        if created
+          then Created <$> ownConversationView lusr c
+          else Existed <$> ownConversationView lusr c
+  maybe (throwWhenMemberNotFound lusr c.id_) pure mConv
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -253,6 +259,8 @@ createConnectConversation ::
   Sem r (ConversationResponse Public.OwnConversation)
 createConnectConversation lusr conn j = do
   (c, created) <- createConnectConversationLogic lusr conn j
-  if created
-    then Created <$> ownConversationView lusr c
-    else Existed <$> ownConversationView lusr c
+  let mConv =
+        if created
+          then Created <$> ownConversationView lusr c
+          else Existed <$> ownConversationView lusr c
+  maybe (throwWhenMemberNotFound lusr c.id_) pure mConv

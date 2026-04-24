@@ -86,8 +86,6 @@ import Wire.ConversationSubsystem.MLS.Removal
 import Wire.ConversationSubsystem.MLS.SubConversation hiding (leaveSubConversation)
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.MLS.Welcome
-import Wire.ConversationSubsystem.Mapping
-import Wire.ConversationSubsystem.Mapping qualified as Mapping
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess (ExternalAccess)
@@ -194,7 +192,7 @@ getConversations domain (GetConversationsRequest uid cids) = do
   let ruid = toRemoteUnsafe domain uid
   loc <- qualifyLocal ()
   GetRemoteConversationViewsResponse
-    . mapMaybe (Mapping.conversationToRemote (tDomain loc) ruid)
+    . mapMaybe (conversationToRemote (tDomain loc) ruid)
     <$> E.getConversations cids
 
 -- | Update the local database with information on conversation members joining

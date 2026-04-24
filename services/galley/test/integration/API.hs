@@ -103,7 +103,6 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
-import Wire.ConversationSubsystem.Mapping
 import Wire.Options.Galley (federator, rabbitmq)
 import Wire.StoredConversation hiding (convName)
 

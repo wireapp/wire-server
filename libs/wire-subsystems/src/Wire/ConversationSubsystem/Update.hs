@@ -132,7 +132,6 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember)
-import Wire.ConversationSubsystem.Mapping
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Util
@@ -177,7 +176,7 @@ acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   conv' <- acceptOne2One lusr conv conn
-  ownConversationView lusr conv'
+  maybe (throwWhenMemberNotFound lusr cnv) pure $ ownConversationView lusr conv'
 
 blockConv ::
   ( Member ConversationStore r,
@@ -259,7 +258,7 @@ unblockConvUnqualified lusr conn cnv = do
   unless (convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   conv' <- acceptOne2One lusr conv conn
-  ownConversationView lusr conv'
+  maybe (throwWhenMemberNotFound lusr cnv) pure $ ownConversationView lusr conv'
 
 unblockRemoteConv ::
   (Member ConversationStore r) =>

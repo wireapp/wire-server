@@ -106,8 +106,6 @@ import Wire.ConversationSubsystem.Fetch (getConversationIdsImpl)
 import Wire.ConversationSubsystem.MLS
 import Wire.ConversationSubsystem.MLS.Enabled (assertMLSEnabled, getMLSPrivateKeys, isMLSEnabled)
 import Wire.ConversationSubsystem.MLS.One2One (localMLSOne2OneConversation, remoteMLSOne2OneConversation)
-import Wire.ConversationSubsystem.Mapping
-import Wire.ConversationSubsystem.Mapping qualified as Mapping
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
@@ -162,7 +160,7 @@ getUnqualifiedOwnConversation ::
   Sem r Public.OwnConversation
 getUnqualifiedOwnConversation lusr cnv = do
   c <- getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
-  Mapping.ownConversationView lusr c
+  maybe (throwWhenMemberNotFound lusr cnv) pure $ ownConversationView lusr c
 
 getUnqualifiedConversation ::
   forall r.
@@ -175,7 +173,7 @@ getUnqualifiedConversation ::
   ConvId ->
   Sem r Public.Conversation
 getUnqualifiedConversation lusr cnv =
-  Mapping.conversationView (qualifyAs lusr ()) (Just lusr) . (.conv)
+  conversationView (qualifyAs lusr ()) (Just lusr) . (.conv)
     <$> getConversationAsViewer (tUntagged lusr) (qualifyAs lusr cnv)
 
 getConversation ::
@@ -320,7 +318,7 @@ getRemoteConversationsWithFailures lusr convs = do
   statusMap <- ConversationStore.getRemoteConversationStatus (tUnqualified lusr) convs
   let remoteView :: Remote RemoteConversationView -> OwnConversation
       remoteView rconv =
-        Mapping.remoteConversationView
+        remoteConversationView
           lusr
           ( Map.findWithDefault
               defMemberStatus
@@ -468,7 +466,8 @@ getConversations ::
   Sem r (Public.ConversationList Public.OwnConversation)
 getConversations luser mids mstart msize = do
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
-  flip ConversationList more <$> mapM (Mapping.ownConversationView luser) cs
+  ownConvs <- for cs (\c -> maybe (throwWhenMemberNotFound luser c.id_) pure $ ownConversationView luser c)
+  pure $ ConversationList ownConvs more
 
 getConversationsInternal ::
   (Member ConversationStore.ConversationStore r) =>
@@ -519,7 +518,10 @@ listConversations luser (Public.ListConversations ids) = do
   localInternalConversations <-
     ConversationStore.getConversations foundLocalIds
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
-  localConversations <- mapM (Mapping.ownConversationView luser) localInternalConversations
+  localConversations <-
+    mapM
+      (\c -> maybe (throwWhenMemberNotFound luser c.id_) pure (ownConversationView luser c))
+      localInternalConversations
 
   (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures luser remoteIds
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
@@ -739,7 +741,7 @@ getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- ConversationStore.getConversation selfConvId
   cnv <- maybe (createMLSSelfConversation lusr) pure mconv
-  ownConversationView lusr cnv
+  maybe (throwWhenMemberNotFound lusr cnv.id_) pure $ ownConversationView lusr cnv
 
 createMLSSelfConversation ::
   (Member ConversationStore.ConversationStore r) =>
@@ -876,7 +878,7 @@ getLocalMLSOne2OneConversation lself lconv = do
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
   conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
-    Just conv -> ownConversationView lself conv
+    Just conv -> maybe (throwWhenMemberNotFound lself conv.id_) pure $ ownConversationView lself conv
   pure $
     MLSOne2OneConversation
       { conversation = conv,

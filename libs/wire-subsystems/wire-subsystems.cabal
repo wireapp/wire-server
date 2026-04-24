@@ -271,7 +271,6 @@ library
     Wire.ConversationSubsystem.Internal
     Wire.ConversationSubsystem.Interpreter
     Wire.ConversationSubsystem.LegalholdConflicts
-    Wire.ConversationSubsystem.Mapping
     Wire.ConversationSubsystem.Message
     Wire.ConversationSubsystem.MLS
     Wire.ConversationSubsystem.MLS.CheckClients
@@ -574,7 +573,6 @@ test-suite wire-subsystems-tests
     Wire.AuthenticationSubsystem.InterpreterSpec
     Wire.BrigAPIAccess.RpcSpec
     Wire.ClientSubsystem.InterpreterSpec
-    Wire.ConversationSubsystem.MappingSpec
     Wire.ConversationSubsystem.MessageSpec
     Wire.ConversationSubsystem.One2OneSpec
     Wire.EnterpriseLoginSubsystem.InterpreterSpec
@@ -626,6 +624,7 @@ test-suite wire-subsystems-tests
     Wire.RateLimited.InterpreterSpec
     Wire.SAMLEmailSubsystem.InterpreterSpec
     Wire.ScimSubsystem.InterpreterSpec
+    Wire.StoredConversationSpec
     Wire.TeamCollaboratorsSubsystem.InterpreterSpec
     Wire.TeamInvitationSubsystem.InterpreterSpec
     Wire.UserGroupSubsystem.InterpreterSpec

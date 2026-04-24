@@ -41,11 +41,14 @@ import Data.Text qualified as T
 import Data.Time
 import Galley.Types.Conversations.Roles
 import Galley.Types.Error
-import Imports hiding (forkIO)
+import Imports
 import Network.AMQP qualified as Q
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as P
+import System.Logger.Message (msg, val, (+++))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
@@ -94,6 +97,15 @@ import Wire.TeamStore
 import Wire.TeamSubsystem (ConsentGiven (..), TeamSubsystem, consentGiven, getLHStatus)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
+
+throwWhenMemberNotFound :: (Member TinyLog r, Member (Error InternalError) r) => Local UserId -> ConvId -> Sem r a
+throwWhenMemberNotFound luid cid = do
+  P.err . msg $
+    val "User "
+      +++ idToText (tUnqualified luid)
+      +++ val " is not a member of conv "
+      +++ idToText cid
+  throw BadMemberState
 
 data NoChanges = NoChanges
 
@@ -1020,39 +1032,6 @@ notifyConversationUpdated lusr conn j conv = do
           conn
         }
     ]
-
--- | Convert a local conversation member (as stored in the DB) to a publicly
--- facing 'Member' structure.
-localMemberToPublic :: Local x -> LocalMember -> Public.Member
-localMemberToPublic loc lm =
-  Public.Member
-    { memId = tUntagged . qualifyAs loc $ lm.id_,
-      memService = lm.service,
-      memOtrMutedStatus = msOtrMutedStatus st,
-      memOtrMutedRef = msOtrMutedRef st,
-      memOtrArchived = msOtrArchived st,
-      memOtrArchivedRef = msOtrArchivedRef st,
-      memHidden = msHidden st,
-      memHiddenRef = msHiddenRef st,
-      memConvRoleName = lm.convRoleName
-    }
-  where
-    st = lm.status
-
--- | View for a given user of a stored conversation.
---
--- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe Public.OwnConversation
-conversationViewMaybe luid remoteOthers localOthers conv = do
-  let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
-  self <- localMemberToPublic luid <$> listToMaybe selfs
-  let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
-  pure $
-    Public.OwnConversation
-      (tUntagged . qualifyAs luid $ conv.id_)
-      conv.metadata
-      (OwnConvMembers self others)
-      conv.protocol
 
 notifyConversationCreated ::
   ( Member NotificationSubsystem r,

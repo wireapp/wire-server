@@ -18,19 +18,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ConversationSubsystem.MappingSpec where
+module Wire.StoredConversationSpec where
 
 import Data.Containers.ListUtils (nubOrdOn)
 import Data.Domain
 import Data.Id
 import Data.Qualified
 import Data.Set qualified as Set
-import Galley.Types.Error (InternalError)
 import Imports
-import Polysemy (Sem)
-import Polysemy qualified as P
-import Polysemy.Error qualified as P
-import Polysemy.TinyLog qualified as P
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Arbitrary (..), Gen, listOf, (==>))
@@ -41,54 +36,52 @@ import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
     RemoteConversationView (..),
   )
-import Wire.ConversationSubsystem.Mapping
-import Wire.Sem.Logger qualified as P
 import Wire.StoredConversation
-
-run :: Sem '[P.TinyLog, P.Error InternalError] a -> Either InternalError a
-run = P.run . P.runError . P.discardLogs
 
 spec :: Spec
 spec = describe "ConversationMapping" do
   prop "conversation view V9 for a valid user is non-empty" $
-    \(ConvWithLocalUser c luid) -> isRight (run (ownConversationView luid c))
+    \(ConvWithLocalUser c luid) -> isJust (ownConversationView luid c)
   prop "conversation view V10 for a valid user is non-empty" $
-    \(ConvWithLocalUser c luid) -> isRight (run (pure $ conversationView (qualifyAs luid ()) (Just luid) c))
+    \(ConvWithLocalUser c luid) -> isJust (pure $ conversationView (qualifyAs luid ()) (Just luid) c)
   prop "self user in conversation view is correct" $
     \(ConvWithLocalUser c luid) ->
-      fmap (memId . cmSelf . cnvMembers) (run (ownConversationView luid c))
-        == Right (tUntagged luid)
+      fmap (memId . cmSelf . cnvMembers) (ownConversationView luid c)
+        == Just (tUntagged luid)
   prop "conversation view metadata is correct" $
     \(ConvWithLocalUser c luid) ->
-      fmap cnvMetadata (run (ownConversationView luid c))
-        == Right c.metadata
+      fmap cnvMetadata (ownConversationView luid c)
+        == Just c.metadata
   prop "other members in conversation view do not contain self" $
-    \(ConvWithLocalUser c luid) -> case run $ ownConversationView luid c of
-      Left _ -> False
-      Right cnv ->
+    \(ConvWithLocalUser c luid) -> case ownConversationView luid c of
+      Nothing -> False
+      Just cnv ->
         tUntagged luid
           `notElem` map omQualifiedId (cmOthers (cnvMembers cnv))
   prop "conversation view contains all users" $
     \(ConvWithLocalUser c luid) ->
-      fmap (sort . cnvUids) (run (ownConversationView luid c))
-        == Right (sort (convUids (tDomain luid) c))
+      fmap (sort . cnvUids) (ownConversationView luid c)
+        == Just (sort (convUids (tDomain luid) c))
   prop "conversation view for an invalid user is empty" $
     \(RandomConversation c) luid ->
       notElem (tUnqualified luid) (map (.id_) c.localMembers) ==>
-        isLeft (run (ownConversationView luid c))
+        isJust (ownConversationView luid c)
   prop "remote conversation view for a valid user is non-empty" $
     \(ConvWithRemoteUser c ruid) dom ->
-      qDomain (tUntagged ruid) /= dom ==>
-        isJust (conversationToRemote dom ruid c)
+      qDomain (tUntagged ruid)
+        /= dom
+        ==> isJust (conversationToRemote dom ruid c)
   prop "self user role in remote conversation view is correct" $
     \(ConvWithRemoteUser c ruid) dom ->
-      qDomain (tUntagged ruid) /= dom ==>
-        fmap (selfRole . (.members)) (conversationToRemote dom ruid c)
+      qDomain (tUntagged ruid)
+        /= dom
+        ==> fmap (selfRole . (.members)) (conversationToRemote dom ruid c)
           == Just roleNameWireMember
   prop "remote conversation view metadata is correct" $
     \(ConvWithRemoteUser c ruid) dom ->
-      qDomain (tUntagged ruid) /= dom ==>
-        fmap (.metadata) (conversationToRemote dom ruid c)
+      qDomain (tUntagged ruid)
+        /= dom
+        ==> fmap (.metadata) (conversationToRemote dom ruid c)
           == Just c.metadata
   prop "remote conversation view does not contain self" $
     \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
