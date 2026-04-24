@@ -426,11 +426,11 @@ data ConversationSubsystem m a where
   GetMLSSelfConversationWithError ::
     Local UserId ->
     ConversationSubsystem m Public.OwnConversation
-  GetMLSOne2OneConversationV5 ::
+  GetMLSOne2OneOwnConversation ::
     Local UserId ->
     Qualified UserId ->
     ConversationSubsystem m Public.OwnConversation
-  GetMLSOne2OneConversationV6 ::
+  GetMLSOne2OneMLSConversation ::
     Local UserId ->
     Qualified UserId ->
     ConversationSubsystem m (MLSOne2OneConversation MLSPublicKey)

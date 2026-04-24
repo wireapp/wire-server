@@ -43,8 +43,8 @@ module Wire.ConversationSubsystem.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
-    getMLSOne2OneConversationV5,
-    getMLSOne2OneConversationV6,
+    getMLSOne2OneOwnConversation,
+    getMLSOne2OneMLSConversation,
     getMLSOne2OneConversationInternal,
     getMLSOne2OneConversation,
     isMLSOne2OneEstablished,
@@ -766,7 +766,7 @@ createMLSSelfConversation lusr = do
 -- uses the same function to calculate the conversation ID and corresponding
 -- group ID, however we /do/ assume that the two backends agree on which of the
 -- two is responsible for hosting the conversation.
-getMLSOne2OneConversationV5 ::
+getMLSOne2OneOwnConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore.ConversationStore r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -784,7 +784,7 @@ getMLSOne2OneConversationV5 ::
   Local UserId ->
   Qualified UserId ->
   Sem r OwnConversation
-getMLSOne2OneConversationV5 lself qother = do
+getMLSOne2OneOwnConversation lself qother = do
   if isLocal lself qother
     then getMLSOne2OneConversationInternal lself qother
     else throwS @MLSFederatedOne2OneNotSupported
@@ -810,7 +810,7 @@ getMLSOne2OneConversationInternal ::
 getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
-getMLSOne2OneConversationV6 ::
+getMLSOne2OneMLSConversation ::
   forall r.
   ( Member BrigAPIAccess r,
     Member ConversationStore.ConversationStore r,
@@ -828,7 +828,7 @@ getMLSOne2OneConversationV6 ::
   Local UserId ->
   Qualified UserId ->
   Sem r (MLSOne2OneConversation MLSPublicKey)
-getMLSOne2OneConversationV6 lself qother = do
+getMLSOne2OneMLSConversation lself qother = do
   assertMLSEnabled
   ensureConnectedOrSameTeam lself [qother]
   let convId = one2OneConvId BaseProtocolMLSTag (tUntagged lself) qother
@@ -857,7 +857,7 @@ getMLSOne2OneConversation ::
   Maybe MLSPublicKeyFormat ->
   Sem r (MLSOne2OneConversation SomeKey)
 getMLSOne2OneConversation lself qother fmt = do
-  convWithUnformattedKeys <- getMLSOne2OneConversationV6 lself qother
+  convWithUnformattedKeys <- getMLSOne2OneMLSConversation lself qother
   MLSOne2OneConversation convWithUnformattedKeys.conversation
     <$> formatPublicKeys fmt convWithUnformattedKeys.publicKeys
 

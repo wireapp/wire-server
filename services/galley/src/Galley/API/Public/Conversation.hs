@@ -60,8 +60,8 @@ conversationAPI =
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" createOne2OneConversation
     <@> mkNamedAPI @"create-one-to-one-conversation@v6" createOne2OneConversation
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
-    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" getMLSOne2OneConversationV5
-    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneConversationV6
+    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" getMLSOne2OneOwnConversation
+    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneMLSConversation
     <@> mkNamedAPI @"get-one-to-one-mls-conversation" getMLSOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addQualifiedMembersUnqualified

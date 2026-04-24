@@ -243,10 +243,10 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Query.getConversationByReusableCode lusr key value
   GetMLSSelfConversationWithError lusr ->
     mapErrors $ Query.getMLSSelfConversationWithError lusr
-  GetMLSOne2OneConversationV5 lself qother ->
-    mapErrors $ Query.getMLSOne2OneConversationV5 lself qother
-  GetMLSOne2OneConversationV6 lself qother ->
-    mapErrors $ Query.getMLSOne2OneConversationV6 lself qother
+  GetMLSOne2OneOwnConversation lself qother ->
+    mapErrors $ Query.getMLSOne2OneOwnConversation lself qother
+  GetMLSOne2OneMLSConversation lself qother ->
+    mapErrors $ Query.getMLSOne2OneMLSConversation lself qother
   GetMLSOne2OneConversation lself qother fmt ->
     mapErrors $ Query.getMLSOne2OneConversation lself qother fmt
   GetLocalSelf lusr cnv ->
