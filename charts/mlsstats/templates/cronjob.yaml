@@ -27,8 +27,7 @@ spec:
             - name: mlsstats
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
               imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
-              args: [ "mlsstats"
-                      , "--brig-cassandra-host", {{ .Values.config.cassandra.brig.host | quote }}
+              args: [ "--brig-cassandra-host", {{ .Values.config.cassandra.brig.host | quote }}
                       , "--brig-cassandra-port", {{ .Values.config.cassandra.brig.port | quote }}
                       , "--brig-cassandra-keyspace", {{ .Values.config.cassandra.brig.keyspace | quote }}
                       , "--galley-cassandra-host", {{ .Values.config.cassandra.galley.host | quote }}
@@ -47,12 +46,12 @@ spec:
               - name: AWS_ACCESS_KEY_ID
                 valueFrom:
                   secretKeyRef:
-                    name: mlsstats
+                    name: {{ .Chart.Name }}
                     key: awsKeyId
               - name: AWS_SECRET_ACCESS_KEY
                 valueFrom:
                   secretKeyRef:
-                    name: mlsstats
+                    name: {{ .Chart.Name }}
                     key: awsSecretKey
               {{- end }}
               - name: AWS_REGION
