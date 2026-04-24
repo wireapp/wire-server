@@ -60,7 +60,7 @@ import Wire.TeamSubsystem (TeamSubsystem)
 ----------------------------------------------------------------------------
 -- API Handlers
 
-createGroupConversationUpToV3 ::
+createLegacyGroupConversation ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -94,7 +94,7 @@ createGroupConversationUpToV3 ::
   Maybe ConnId ->
   NewConv ->
   Sem r (ConversationResponse Public.OwnConversation)
-createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $ do
+createLegacyGroupConversation lusr conn newConv = mapError UnreachableBackendsLegacy $ do
   dbConv <- createGroupConversationGeneric lusr conn newConv
   Created <$> ownConversationView lusr dbConv
 

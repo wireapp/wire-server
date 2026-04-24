@@ -43,8 +43,8 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations@v5" listConversations
     <@> mkNamedAPI @"list-conversations" listConversations
     <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
-    <@> mkNamedAPI @"create-group-conversation@v2" createGroupConversationUpToV3
-    <@> mkNamedAPI @"create-group-conversation@v3" createGroupConversationUpToV3
+    <@> mkNamedAPI @"create-group-conversation@v2" createLegacyGroupConversation
+    <@> mkNamedAPI @"create-group-conversation@v3" createLegacyGroupConversation
     <@> mkNamedAPI @"create-group-conversation@v5" createGroupOwnConversation
     <@> mkNamedAPI @"create-group-conversation@v9" createGroupOwnConversation
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation

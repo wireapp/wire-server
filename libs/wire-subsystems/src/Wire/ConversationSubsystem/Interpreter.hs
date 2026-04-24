@@ -125,8 +125,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Notify.notifyConversationActionImpl tag quid notifyOrigDomain con lconv targetsLocal targetsRemote targetsBots action extraData
   InternalCreateGroupConversation lusr conn newConv ->
     mapErrors $ CreateInternal.createGroupConversationGeneric lusr conn newConv
-  CreateGroupConversationUpToV3 lusr conn newConv ->
-    mapErrors $ Create.createGroupConversationUpToV3 lusr conn newConv
+  CreateLegacyGroupConversation lusr conn newConv ->
+    mapErrors $ Create.createLegacyGroupConversation lusr conn newConv
   CreateGroupOwnConversation lusr conn newConv ->
     mapErrors $ Create.createGroupOwnConversation lusr conn newConv
   CreateGroupConversation lusr conn newConv ->

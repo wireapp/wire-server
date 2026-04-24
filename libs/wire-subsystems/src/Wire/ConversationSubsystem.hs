@@ -96,7 +96,7 @@ data ConversationSubsystem m a where
     Maybe ConnId ->
     NewConv ->
     ConversationSubsystem m StoredConversation
-  CreateGroupConversationUpToV3 ::
+  CreateLegacyGroupConversation ::
     Local UserId ->
     Maybe ConnId ->
     NewConv ->
