@@ -453,12 +453,7 @@ data ConversationSubsystem m a where
     ConvId ->
     ConversationSubsystem m ConversationCodeInfo
   -- Update functions
-  AddMembersUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    Invite ->
-    ConversationSubsystem m (UpdateResult Event)
+
   AddQualifiedMembersUnqualified ::
     Local UserId ->
     ConnId ->
@@ -510,37 +505,18 @@ data ConversationSubsystem m a where
     ConnId ->
     ConvId ->
     ConversationSubsystem m Event
-  MemberTypingUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    TypingStatus ->
-    ConversationSubsystem m ()
   MemberTyping ::
     Local UserId ->
     ConnId ->
     Qualified ConvId ->
     TypingStatus ->
     ConversationSubsystem m ()
-  RemoveMemberUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    UserId ->
-    ConversationSubsystem m (Maybe Event)
   RemoveMemberQualified ::
     Local UserId ->
     ConnId ->
     Qualified ConvId ->
     Qualified UserId ->
     ConversationSubsystem m (Maybe Event)
-  UpdateOtherMemberUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    UserId ->
-    OtherMemberUpdate ->
-    ConversationSubsystem m ()
   UpdateOtherMember ::
     Local UserId ->
     ConnId ->
@@ -548,23 +524,11 @@ data ConversationSubsystem m a where
     Qualified UserId ->
     OtherMemberUpdate ->
     ConversationSubsystem m ()
-  UpdateUnqualifiedConversationName ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    ConversationRename ->
-    ConversationSubsystem m (UpdateResult Event)
   UpdateConversationName ::
     Local UserId ->
     ConnId ->
     Qualified ConvId ->
     ConversationRename ->
-    ConversationSubsystem m (UpdateResult Event)
-  UpdateConversationMessageTimerUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    ConversationMessageTimerUpdate ->
     ConversationSubsystem m (UpdateResult Event)
   UpdateConversationMessageTimer ::
     Local UserId ->
@@ -572,23 +536,11 @@ data ConversationSubsystem m a where
     Qualified ConvId ->
     ConversationMessageTimerUpdate ->
     ConversationSubsystem m (UpdateResult Event)
-  UpdateConversationReceiptModeUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    ConversationReceiptModeUpdate ->
-    ConversationSubsystem m (UpdateResult Event)
   UpdateConversationReceiptMode ::
     Local UserId ->
     ConnId ->
     Qualified ConvId ->
     ConversationReceiptModeUpdate ->
-    ConversationSubsystem m (UpdateResult Event)
-  UpdateConversationAccessUnqualified ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    ConversationAccessData ->
     ConversationSubsystem m (UpdateResult Event)
   UpdateConversationAccess ::
     Local UserId ->
@@ -602,12 +554,6 @@ data ConversationSubsystem m a where
     Qualified ConvId ->
     ConversationHistoryUpdate ->
     ConversationSubsystem m (UpdateResult Event)
-  UpdateUnqualifiedSelfMember ::
-    Local UserId ->
-    ConnId ->
-    ConvId ->
-    MemberUpdate ->
-    ConversationSubsystem m ()
   UpdateSelfMember ::
     Local UserId ->
     ConnId ->

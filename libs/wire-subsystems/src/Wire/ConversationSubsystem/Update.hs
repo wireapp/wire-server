@@ -32,13 +32,9 @@ module Wire.ConversationSubsystem.Update
     addCodeUnqualifiedWithReqBody,
     rmCodeUnqualified,
     getCode,
-    updateUnqualifiedConversationName,
     updateConversationName,
-    updateConversationReceiptModeUnqualified,
     updateConversationReceiptMode,
-    updateConversationMessageTimerUnqualified,
     updateConversationMessageTimer,
-    updateConversationAccessUnqualified,
     updateConversationAccess,
     updateConversationHistory,
     updateChannelAddPermission,
@@ -49,16 +45,12 @@ module Wire.ConversationSubsystem.Update
     updateCellsState,
 
     -- * Managing Members
-    addMembersUnqualified,
     addQualifiedMembersUnqualified,
     addMembers,
     replaceMembers,
-    updateUnqualifiedSelfMember,
     updateSelfMember,
     updateOtherMember,
-    updateOtherMemberUnqualified,
     removeMemberQualified,
-    removeMemberUnqualified,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
 
@@ -67,7 +59,6 @@ module Wire.ConversationSubsystem.Update
     postOtrMessageUnqualified,
     postProteusBroadcast,
     postOtrBroadcastUnqualified,
-    memberTypingUnqualified,
     memberTyping,
 
     -- * External Services
@@ -336,24 +327,6 @@ updateConversationHistory lusr con qcnv update = do
       (Just con)
       update.history
 
-updateConversationAccessUnqualified ::
-  ( Members UpdateConversationAccessEffects r,
-    Member Now r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  ConversationAccessData ->
-  Sem r (UpdateResult Event)
-updateConversationAccessUnqualified lusr con cnv update =
-  getUpdateResult . fmap lcuEvent $
-    updateLocalConversationAccessData
-      (qualifyAs lusr cnv)
-      (tUntagged lusr)
-      (Just con)
-      update
-
 updateConversationReceiptMode ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
@@ -432,31 +405,6 @@ updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
     ConversationUpdateResponseUnreachableBackends e -> throw e
   updateLocalStateOfRemoteConv (qualifyAs rcnv convUpdate) mconn >>= note NoChanges
 
-updateConversationReceiptModeUnqualified ::
-  ( Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'MLSReadReceiptsNotAllowed) r,
-    Member E.ExternalAccess r,
-    Member BackendNotificationQueueAccess r,
-    Member Now r,
-    Member (E.FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member TinyLog r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  ConversationReceiptModeUpdate ->
-  Sem r (UpdateResult Event)
-updateConversationReceiptModeUnqualified lusr zcon cnv = updateConversationReceiptMode lusr zcon (tUntagged (qualifyAs lusr cnv))
-
 updateConversationMessageTimer ::
   ( Member ConversationStore r,
     Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
@@ -488,25 +436,6 @@ updateConversationMessageTimer lusr zcon qcnv update =
       )
       (\_ -> throw FederationNotImplemented)
       qcnv
-
-updateConversationMessageTimerUnqualified ::
-  ( Member ConversationStore r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationMessageTimer)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (Error FederationError) r,
-    Member NotificationSubsystem r,
-    Member E.ExternalAccess r,
-    Member Now r,
-    Member BackendNotificationQueueAccess r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  ConversationMessageTimerUpdate ->
-  Sem r (UpdateResult Event)
-updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
   ( Member CodeStore r,
@@ -1021,44 +950,6 @@ addQualifiedMembersUnqualified lusr zcon cnv (InviteQualified users role) = do
     updateLocalConversationJoin lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role def
 
-addMembersUnqualified ::
-  ( Member BackendNotificationQueueAccess r,
-    Member BrigAPIAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TooManyMembers) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'GroupIdVersionNotSupported) r,
-    Member (Error UnreachableBackends) r,
-    Member E.ExternalAccess r,
-    Member (E.FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member Now r,
-    Member LegalHoldStore r,
-    Member ProposalStore r,
-    Member Random r,
-    Member TeamStore r,
-    Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r,
-    Member FederationSubsystem r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  Invite ->
-  Sem r (UpdateResult Event)
-addMembersUnqualified lusr zcon cnv (Invite users role) = do
-  let qusers = fmap (tUntagged . qualifyAs lusr) users
-  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
-
 -- | Replace conversation members by computing the difference between desired and
 -- current members, then executing removals followed by additions within a commit
 -- lock.
@@ -1193,22 +1084,6 @@ updateSelfMember lusr zcon qcnv update = do
           misConvRoleName = Nothing
         }
 
-updateUnqualifiedSelfMember ::
-  ( Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member E.ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member Now r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  MemberUpdate ->
-  Sem r ()
-updateUnqualifiedSelfMember lusr zcon cnv update = do
-  let lcnv = qualifyAs lusr cnv
-  updateSelfMember lusr zcon (tUntagged lcnv) update
-
 updateOtherMemberLocalConv ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
@@ -1234,31 +1109,6 @@ updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult
     throwS @'InvalidTarget
   updateLocalConversationMemberUpdate lcnv (tUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
-
-updateOtherMemberUnqualified ::
-  ( Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidTarget) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member NotificationSubsystem r,
-    Member BackendNotificationQueueAccess r,
-    Member E.ExternalAccess r,
-    Member Now r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  UserId ->
-  OtherMemberUpdate ->
-  Sem r ()
-updateOtherMemberUnqualified lusr zcon cnv victim update = do
-  let lcnv = qualifyAs lusr cnv
-  let lvictim = qualifyAs lusr victim
-  updateOtherMemberLocalConv lcnv lusr zcon (tUntagged lvictim) update
 
 updateOtherMember ::
   ( Member ConversationStore r,
@@ -1293,33 +1143,6 @@ updateOtherMemberRemoteConv ::
   OtherMemberUpdate ->
   Sem r ()
 updateOtherMemberRemoteConv _ _ _ _ _ = throw FederationNotImplemented
-
-removeMemberUnqualified ::
-  ( Member BackendNotificationQueueAccess r,
-    Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member E.ExternalAccess r,
-    Member (E.FederationAPIAccess FederatorClient) r,
-    Member NotificationSubsystem r,
-    Member Now r,
-    Member ProposalStore r,
-    Member Random r,
-    Member TinyLog r,
-    Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  UserId ->
-  Sem r (Maybe Event)
-removeMemberUnqualified lusr con cnv victim = do
-  let lvictim = qualifyAs lusr victim
-      lcnv = qualifyAs lusr cnv
-  removeMemberQualified lusr con (tUntagged lcnv) (tUntagged lvictim)
 
 removeMemberQualified ::
   ( Member BackendNotificationQueueAccess r,
@@ -1665,28 +1488,6 @@ updateConversationName lusr zcon qcnv convRename = do
     qcnv
     convRename
 
-updateUnqualifiedConversationName ::
-  ( Member ConversationStore r,
-    Member (Error FederationError) r,
-    Member (Error InvalidInput) r,
-    Member (ErrorS ('ActionDenied 'ModifyConversationName)) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member E.ExternalAccess r,
-    Member Now r,
-    Member BackendNotificationQueueAccess r,
-    Member NotificationSubsystem r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  ConversationRename ->
-  Sem r (UpdateResult Event)
-updateUnqualifiedConversationName lusr zcon cnv rename = do
-  let lcnv = qualifyAs lusr cnv
-  updateLocalConversationName lusr zcon lcnv rename
-
 updateLocalConversationName ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
@@ -1747,25 +1548,6 @@ memberTyping lusr zcon qcnv ts = do
           TypingDataUpdateError _ -> pure ()
     )
     qcnv
-
-memberTypingUnqualified ::
-  ( Member NotificationSubsystem r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member ConversationStore r,
-    Member (E.FederationAPIAccess FederatorClient) r,
-    Member (Error FederationError) r,
-    Member TeamSubsystem r
-  ) =>
-  Local UserId ->
-  ConnId ->
-  ConvId ->
-  TypingStatus ->
-  Sem r ()
-memberTypingUnqualified lusr zcon cnv ts = do
-  lcnv <- qualifyLocal cnv
-  memberTyping lusr zcon (tUntagged lcnv) ts
 
 addBot ::
   forall r.

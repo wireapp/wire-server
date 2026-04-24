@@ -255,8 +255,6 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Query.getConversationGuestLinksStatus uid cid
   GetCode mcode lusr cnv ->
     mapErrors $ Update.getCode mcode lusr cnv
-  AddMembersUnqualified lusr con cnv invite ->
-    mapErrors $ Update.addMembersUnqualified lusr con cnv invite
   AddQualifiedMembersUnqualified lusr con cnv invite ->
     mapErrors $ Update.addQualifiedMembersUnqualified lusr con cnv invite
   AddMembers lusr zcon qcnv invite ->
@@ -275,38 +273,22 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.addCodeUnqualifiedWithReqBody lusr mname mconn cnv req
   RmCodeUnqualified lusr con cnv ->
     mapErrors $ Update.rmCodeUnqualified lusr con cnv
-  MemberTypingUnqualified lusr con cnv status ->
-    mapErrors $ Update.memberTypingUnqualified lusr con cnv status
   MemberTyping lusr con qcnv status ->
     mapErrors $ Update.memberTyping lusr con qcnv status
-  RemoveMemberUnqualified lusr con cnv uid ->
-    mapErrors $ Update.removeMemberUnqualified lusr con cnv uid
   RemoveMemberQualified lusr con qcnv quid ->
     mapErrors $ Update.removeMemberQualified lusr con qcnv quid
-  UpdateOtherMemberUnqualified lusr con cnv uid update ->
-    mapErrors $ Update.updateOtherMemberUnqualified lusr con cnv uid update
   UpdateOtherMember lusr con qcnv quid update ->
     mapErrors $ Update.updateOtherMember lusr con qcnv quid update
-  UpdateUnqualifiedConversationName lusr con cnv rename ->
-    mapErrors $ Update.updateUnqualifiedConversationName lusr con cnv rename
   UpdateConversationName lusr zcon qcnv rename ->
     mapErrors $ Update.updateConversationName lusr zcon qcnv rename
-  UpdateConversationMessageTimerUnqualified lusr con cnv update ->
-    mapErrors $ Update.updateConversationMessageTimerUnqualified lusr con cnv update
   UpdateConversationMessageTimer lusr zcon qcnv update ->
     mapErrors $ Update.updateConversationMessageTimer lusr zcon qcnv update
-  UpdateConversationReceiptModeUnqualified lusr con cnv update ->
-    mapErrors $ Update.updateConversationReceiptModeUnqualified lusr con cnv update
   UpdateConversationReceiptMode lusr zcon qcnv update ->
     mapErrors $ Update.updateConversationReceiptMode lusr zcon qcnv update
-  UpdateConversationAccessUnqualified lusr con cnv update ->
-    mapErrors $ Update.updateConversationAccessUnqualified lusr con cnv update
   UpdateConversationAccess lusr zcon qcnv update ->
     mapErrors $ Update.updateConversationAccess lusr zcon qcnv update
   UpdateConversationHistory lusr zcon qcnv update ->
     mapErrors $ Update.updateConversationHistory lusr zcon qcnv update
-  UpdateUnqualifiedSelfMember lusr con cnv update ->
-    mapErrors $ Update.updateUnqualifiedSelfMember lusr con cnv update
   UpdateSelfMember lusr zcon qcnv update ->
     mapErrors $ Update.updateSelfMember lusr zcon qcnv update
   UpdateConversationProtocolWithLocalUser lusr conn qcnv update ->

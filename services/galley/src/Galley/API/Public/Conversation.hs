@@ -17,8 +17,10 @@
 
 module Galley.API.Public.Conversation where
 
+import Data.Qualified
 import Galley.App
 import Imports
+import Wire.API.Conversation
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.ConversationStore.MLS.Types
@@ -63,7 +65,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" getMLSOne2OneOwnConversation
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneMLSConversation
     <@> mkNamedAPI @"get-one-to-one-mls-conversation" getMLSOne2OneConversation
-    <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
+    <@> mkNamedAPI @"add-members-to-conversation-unqualified" (\lusr con cnv invite -> addMembers lusr con (tUntagged (qualifyAs lusr cnv)) (InviteQualified (fmap (tUntagged . qualifyAs lusr) (invUsers invite)) (invRoleName invite)))
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addQualifiedMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation" addMembers
     <@> mkNamedAPI @"replace-members-in-conversation" replaceMembers
@@ -75,25 +77,25 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-guest-links-status" getConversationGuestLinksStatus
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
     <@> mkNamedAPI @"get-code" getCode
-    <@> mkNamedAPI @"member-typing-unqualified" memberTypingUnqualified
+    <@> mkNamedAPI @"member-typing-unqualified" (\lusr con cnv status -> memberTyping lusr con (tUntagged (qualifyAs lusr cnv)) status)
     <@> mkNamedAPI @"member-typing-qualified" memberTyping
-    <@> mkNamedAPI @"remove-member-unqualified" removeMemberUnqualified
+    <@> mkNamedAPI @"remove-member-unqualified" (\lusr con cnv victim -> removeMemberQualified lusr con (tUntagged (qualifyAs lusr cnv)) (tUntagged (qualifyAs lusr victim)))
     <@> mkNamedAPI @"remove-member" removeMemberQualified
-    <@> mkNamedAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
+    <@> mkNamedAPI @"update-other-member-unqualified" (\lusr con cnv victim update -> updateOtherMember lusr con (tUntagged (qualifyAs lusr cnv)) (tUntagged (qualifyAs lusr victim)) update)
     <@> mkNamedAPI @"update-other-member" updateOtherMember
-    <@> mkNamedAPI @"update-conversation-name-deprecated" updateUnqualifiedConversationName
-    <@> mkNamedAPI @"update-conversation-name-unqualified" updateUnqualifiedConversationName
+    <@> mkNamedAPI @"update-conversation-name-deprecated" (\lusr con cnv rename -> updateConversationName lusr con (tUntagged (qualifyAs lusr cnv)) rename)
+    <@> mkNamedAPI @"update-conversation-name-unqualified" (\lusr con cnv rename -> updateConversationName lusr con (tUntagged (qualifyAs lusr cnv)) rename)
     <@> mkNamedAPI @"update-conversation-name" updateConversationName
-    <@> mkNamedAPI @"update-conversation-message-timer-unqualified" updateConversationMessageTimerUnqualified
+    <@> mkNamedAPI @"update-conversation-message-timer-unqualified" (\lusr con cnv update -> updateConversationMessageTimer lusr con (tUntagged (qualifyAs lusr cnv)) update)
     <@> mkNamedAPI @"update-conversation-message-timer" updateConversationMessageTimer
-    <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" updateConversationReceiptModeUnqualified
+    <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" (\lusr con cnv update -> updateConversationReceiptMode lusr con (tUntagged (qualifyAs lusr cnv)) update)
     <@> mkNamedAPI @"update-conversation-receipt-mode" updateConversationReceiptMode
-    <@> mkNamedAPI @"update-conversation-access-unqualified" updateConversationAccessUnqualified
+    <@> mkNamedAPI @"update-conversation-access-unqualified" (\lusr con cnv update -> updateConversationAccess lusr con (tUntagged (qualifyAs lusr cnv)) update)
     <@> mkNamedAPI @"update-conversation-access@v2" updateConversationAccess
     <@> mkNamedAPI @"update-conversation-access" updateConversationAccess
     <@> mkNamedAPI @"update-conversation-history" updateConversationHistory
     <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
-    <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
+    <@> mkNamedAPI @"update-conversation-self-unqualified" (\lusr con cnv update -> updateSelfMember lusr con (tUntagged (qualifyAs lusr cnv)) update)
     <@> mkNamedAPI @"get-conversation-self" getSelfMember
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
