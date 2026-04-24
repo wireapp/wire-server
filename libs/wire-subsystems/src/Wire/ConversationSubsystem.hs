@@ -285,7 +285,7 @@ data ConversationSubsystem m a where
     Domain ->
     LeaveSubConversationRequest ->
     ConversationSubsystem m LeaveSubConversationResponse
-  FederationGetOne2OneConversationV1 ::
+  FederationGetLegacyOne2OneConversation ::
     Domain ->
     GetOne2OneConversationRequest ->
     ConversationSubsystem m GetOne2OneConversationResponse

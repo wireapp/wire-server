@@ -48,7 +48,7 @@ federationSitemap =
     :<|> Named @"get-sub-conversation" federationGetSubConversationForRemoteUser
     :<|> Named @"delete-sub-conversation" federationDeleteSubConversationForRemoteUser
     :<|> Named @"leave-sub-conversation" federationLeaveSubConversation
-    :<|> Named @"get-one2one-conversation@v1" federationGetOne2OneConversationV1
+    :<|> Named @"get-one2one-conversation@v1" federationGetLegacyOne2OneConversation
     :<|> Named @"get-one2one-conversation" federationGetOne2OneConversation
     :<|> Named @"on-client-removed" federationOnClientRemoved
     :<|> Named @"on-message-sent" federationOnMessageSent

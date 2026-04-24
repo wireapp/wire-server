@@ -772,7 +772,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
       lconv <- qualifyLocal dscreqConv
       resetLocalSubConversation qusr lconv dscreqSubConv dsc
 
-getOne2OneConversationV1 ::
+getLegacyOne2OneConversation ::
   ( Member (Input (Local ())) r,
     Member BrigAPIAccess r,
     Member (Error InvalidInput) r
@@ -780,7 +780,7 @@ getOne2OneConversationV1 ::
   Domain ->
   GetOne2OneConversationRequest ->
   Sem r GetOne2OneConversationResponse
-getOne2OneConversationV1 domain (GetOne2OneConversationRequest self other) =
+getLegacyOne2OneConversation domain (GetOne2OneConversationRequest self other) =
   fmap (Imports.fromRight GetOne2OneConversationNotConnected)
     . runError @(Tagged 'NotConnected ())
     $ do

@@ -187,8 +187,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.deleteSubConversationForRemoteUser domain req
   FederationLeaveSubConversation domain lscr ->
     mapErrors $ Federation.leaveSubConversation domain lscr
-  FederationGetOne2OneConversationV1 domain req ->
-    mapErrors $ Federation.getOne2OneConversationV1 domain req
+  FederationGetLegacyOne2OneConversation domain req ->
+    mapErrors $ Federation.getLegacyOne2OneConversation domain req
   FederationGetOne2OneConversation domain req ->
     mapErrors $ Federation.getOne2OneConversation domain req
   FederationOnClientRemoved domain req ->
