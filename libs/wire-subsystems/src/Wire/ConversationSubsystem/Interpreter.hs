@@ -159,8 +159,6 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
   FederationOnConversationCreated domain rc ->
     mapErrors $ Federation.onConversationCreated domain rc
-  FederationGetLegacyConversations domain req ->
-    mapErrors $ Federation.getLegacyConversations domain req
   FederationGetConversations domain req ->
     mapErrors $ Federation.getConversations domain req
   FederationLeaveConversation domain lc ->

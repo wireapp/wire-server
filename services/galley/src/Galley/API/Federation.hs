@@ -17,18 +17,19 @@
 
 module Galley.API.Federation where
 
-import Data.Domain (Domain)
+import Data.Domain
 import Galley.App
+import Imports
 import Polysemy
 import Servant (ServerT)
 import Servant.API
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley hiding (id)
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.Routes.Named
-import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem as ConversationSubsystem
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -56,14 +57,22 @@ federationSitemap =
     :<|> Named @"on-client-removed" federationOnClientRemoved
     :<|> Named @"on-message-sent" federationOnMessageSent
     :<|> Named @"on-mls-message-sent" federationOnMLSMessageSent
-    :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0H
+    :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
     :<|> Named @"on-conversation-updated" federationOnConversationUpdated
     :<|> Named @"on-user-deleted-conversations" federationOnUserDeleted
 
-onConversationUpdatedV0H ::
+onConversationUpdatedV0 ::
   (Member ConversationSubsystem r) =>
   Domain ->
   ConversationUpdateV0 ->
   Sem r EmptyResponse
-onConversationUpdatedV0H domain cu =
+onConversationUpdatedV0 domain cu =
   federationOnConversationUpdated domain (conversationUpdateFromV0 cu)
+
+federationGetLegacyConversations ::
+  (Member ConversationSubsystem r) =>
+  Domain ->
+  GetConversationsRequest ->
+  Sem r GetConversationsResponse
+federationGetLegacyConversations domain req =
+  getConversationsResponseFromView <$> ConversationSubsystem.federationGetConversations domain req
