@@ -409,7 +409,7 @@ data ConversationSubsystem m a where
     Maybe ConvId ->
     Maybe (Range 1 1000 Int32) ->
     ConversationSubsystem m (ConversationList ConvId)
-  ConversationIdsPageFromV2 ::
+  ConversationIdsPaginated ::
     ListGlobalSelfConvs ->
     Local UserId ->
     Public.GetPaginatedConversationIds ->

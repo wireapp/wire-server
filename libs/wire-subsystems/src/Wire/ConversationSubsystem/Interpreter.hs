@@ -235,8 +235,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ MLSGroupInfo.getGroupInfo lusr qcnv
   ConversationIdsPageFromUnqualified lusr mstart msize ->
     mapErrors $ Query.conversationIdsPageFromUnqualified lusr mstart msize
-  ConversationIdsPageFromV2 listGlobalSelf lself req ->
-    mapErrors $ Query.conversationIdsPageFromV2 listGlobalSelf lself req
+  ConversationIdsPaginated listGlobalSelf lself req ->
+    mapErrors $ Query.conversationIdsPaginated listGlobalSelf lself req
   ConversationIdsPageFrom lusr req ->
     mapErrors $ Query.conversationIdsPageFrom lusr req
   ListConversations luser req ->

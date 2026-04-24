@@ -27,7 +27,7 @@ module Wire.ConversationSubsystem.Query
     getLocalConversationInternal,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
-    conversationIdsPageFromV2,
+    conversationIdsPaginated,
     conversationIdsPageFrom,
     getConversations,
     getConversationsInternal,
@@ -401,13 +401,13 @@ conversationIdsPageFromUnqualified lusr start msize = do
 --
 -- FUTUREWORK: Move the body of this function to 'conversationIdsPageFrom' once
 -- support for V2 is dropped.
-conversationIdsPageFromV2 ::
+conversationIdsPaginated ::
   (Member ConversationStore.ConversationStore r) =>
   ListGlobalSelfConvs ->
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
-conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
+conversationIdsPaginated listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
   filterOut <$> getConversationIdsImpl lusr gmtprSize gmtprState
   where
     -- MLS self-conversation of this user
@@ -454,7 +454,7 @@ conversationIdsPageFrom lusr state = do
   -- returned or attempted to be created; in that case we skip anything related
   -- to it.
   whenM isMLSEnabled $ void $ getMLSSelfConversation lusr
-  conversationIdsPageFromV2 ListGlobalSelf lusr state
+  conversationIdsPaginated ListGlobalSelf lusr state
 
 getConversations ::
   ( Member (Error InternalError) r,
