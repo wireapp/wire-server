@@ -467,7 +467,7 @@ data ConversationSubsystem m a where
     ConvId ->
     Invite ->
     ConversationSubsystem m (UpdateResult Event)
-  AddMembersUnqualifiedV2 ::
+  AddQualifiedMembersUnqualified ::
     Local UserId ->
     ConnId ->
     ConvId ->

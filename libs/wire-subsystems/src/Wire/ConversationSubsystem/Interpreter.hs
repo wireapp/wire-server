@@ -261,8 +261,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.getCode mcode lusr cnv
   AddMembersUnqualified lusr con cnv invite ->
     mapErrors $ Update.addMembersUnqualified lusr con cnv invite
-  AddMembersUnqualifiedV2 lusr con cnv invite ->
-    mapErrors $ Update.addMembersUnqualifiedV2 lusr con cnv invite
+  AddQualifiedMembersUnqualified lusr con cnv invite ->
+    mapErrors $ Update.addQualifiedMembersUnqualified lusr con cnv invite
   AddMembers lusr zcon qcnv invite ->
     mapErrors $ Update.addMembers lusr zcon qcnv invite
   ReplaceMembers lusr zcon qcnv invite ->

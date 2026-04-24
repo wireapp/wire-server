@@ -50,7 +50,7 @@ module Wire.ConversationSubsystem.Update
 
     -- * Managing Members
     addMembersUnqualified,
-    addMembersUnqualifiedV2,
+    addQualifiedMembersUnqualified,
     addMembers,
     replaceMembers,
     updateUnqualifiedSelfMember,
@@ -982,7 +982,7 @@ addMembers lusr zcon qcnv (InviteQualified users role) = do
   getUpdateResult . fmap lcuEvent $
     updateLocalConversationJoin lcnv (tUntagged lusr) (Just zcon) action
 
-addMembersUnqualifiedV2 ::
+addQualifiedMembersUnqualified ::
   ( Member BackendNotificationQueueAccess r,
     Member BrigAPIAccess r,
     Member ConversationStore r,
@@ -1016,7 +1016,7 @@ addMembersUnqualifiedV2 ::
   ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
+addQualifiedMembersUnqualified lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult . fmap lcuEvent $
     updateLocalConversationJoin lcnv (tUntagged lusr) (Just zcon) $

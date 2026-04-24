@@ -64,7 +64,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneConversationV6
     <@> mkNamedAPI @"get-one-to-one-mls-conversation" getMLSOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
-    <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
+    <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addQualifiedMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation" addMembers
     <@> mkNamedAPI @"replace-members-in-conversation" replaceMembers
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
