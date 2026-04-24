@@ -197,8 +197,6 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Federation.onMessageSent domain rm
   FederationOnMLSMessageSent domain rmm ->
     mapErrors $ Federation.onMLSMessageSent domain rmm
-  FederationOnConversationUpdatedV0 domain cu ->
-    mapErrors $ Federation.onConversationUpdatedV0 domain cu
   FederationOnConversationUpdated domain cu ->
     mapErrors $ Federation.onConversationUpdated domain cu
   FederationOnUserDeleted domain udcn ->

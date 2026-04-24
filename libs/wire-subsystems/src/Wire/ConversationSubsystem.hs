@@ -305,10 +305,6 @@ data ConversationSubsystem m a where
     Domain ->
     RemoteMLSMessage ->
     ConversationSubsystem m EmptyResponse
-  FederationOnConversationUpdatedV0 ::
-    Domain ->
-    ConversationUpdateV0 ->
-    ConversationSubsystem m EmptyResponse
   FederationOnConversationUpdated ::
     Domain ->
     ConversationUpdate ->

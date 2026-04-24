@@ -17,11 +17,14 @@
 
 module Galley.API.Federation where
 
+import Data.Domain (Domain)
 import Galley.App
 import Polysemy
 import Servant (ServerT)
 import Servant.API
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Common (EmptyResponse (..))
+import Wire.API.Federation.API.Galley hiding (id)
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.Routes.Named
@@ -53,6 +56,14 @@ federationSitemap =
     :<|> Named @"on-client-removed" federationOnClientRemoved
     :<|> Named @"on-message-sent" federationOnMessageSent
     :<|> Named @"on-mls-message-sent" federationOnMLSMessageSent
-    :<|> Named @(Versioned 'V0 "on-conversation-updated") federationOnConversationUpdatedV0
+    :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0H
     :<|> Named @"on-conversation-updated" federationOnConversationUpdated
     :<|> Named @"on-user-deleted-conversations" federationOnUserDeleted
+
+onConversationUpdatedV0H ::
+  (Member ConversationSubsystem r) =>
+  Domain ->
+  ConversationUpdateV0 ->
+  Sem r EmptyResponse
+onConversationUpdatedV0H domain cu =
+  federationOnConversationUpdated domain (conversationUpdateFromV0 cu)

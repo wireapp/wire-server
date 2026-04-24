@@ -225,20 +225,6 @@ onConversationUpdated requestingDomain cu = do
   void $ updateLocalStateOfRemoteConv rcu Nothing
   pure EmptyResponse
 
-onConversationUpdatedV0 ::
-  ( Member BrigAPIAccess r,
-    Member NotificationSubsystem r,
-    Member ExternalAccess r,
-    Member (Input (Local ())) r,
-    Member E.ConversationStore r,
-    Member P.TinyLog r
-  ) =>
-  Domain ->
-  ConversationUpdateV0 ->
-  Sem r EmptyResponse
-onConversationUpdatedV0 domain cu =
-  onConversationUpdated domain (conversationUpdateFromV0 cu)
-
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
   ( Member BackendNotificationQueueAccess r,
