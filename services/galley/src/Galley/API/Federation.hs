@@ -34,7 +34,7 @@ federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" federationOnConversationCreated
-    :<|> Named @"get-conversations@v1" federationGetConversationsV1
+    :<|> Named @"get-conversations@v1" federationGetLegacyConversations
     :<|> Named @"get-conversations" federationGetConversations
     :<|> Named @"leave-conversation" federationLeaveConversation
     :<|> Named @"send-message" federationSendMessage

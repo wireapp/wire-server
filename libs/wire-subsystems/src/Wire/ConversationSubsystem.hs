@@ -229,7 +229,7 @@ data ConversationSubsystem m a where
     Domain ->
     ConversationCreated ConvId ->
     ConversationSubsystem m EmptyResponse
-  FederationGetConversationsV1 ::
+  FederationGetLegacyConversations ::
     Domain ->
     GetConversationsRequest ->
     ConversationSubsystem m GetConversationsResponse

@@ -183,14 +183,14 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing () event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
-getConversationsV1 ::
+getLegacyConversations ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r
   ) =>
   Domain ->
   GetConversationsRequest ->
   Sem r GetConversationsResponse
-getConversationsV1 domain req =
+getLegacyConversations domain req =
   getConversationsResponseFromView <$> getConversations domain req
 
 getConversations ::
