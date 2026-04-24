@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.ConversationSubsystem.Mapping
-  ( conversationViewV9,
+  ( ownConversationView,
     conversationView,
     conversationViewWithCachedOthers,
     remoteConversationView,
@@ -41,14 +41,14 @@ import Wire.StoredConversation
 -- | View for a given user of a stored conversation.
 --
 -- Throws @BadMemberState@ when the user is not part of the conversation.
-conversationViewV9 ::
+ownConversationView ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->
   StoredConversation ->
   Sem r OwnConversation
-conversationViewV9 luid conv = do
+ownConversationView luid conv = do
   let remoteOthers = map remoteMemberToOther $ conv.remoteMembers
       localOthers = map (localMemberToOther (tDomain luid)) $ conv.localMembers
   conversationViewWithCachedOthers remoteOthers localOthers conv luid

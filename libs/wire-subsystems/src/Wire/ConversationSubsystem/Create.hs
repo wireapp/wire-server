@@ -96,7 +96,7 @@ createGroupConversationUpToV3 ::
   Sem r (ConversationResponse Public.OwnConversation)
 createGroupConversationUpToV3 lusr conn newConv = mapError UnreachableBackendsLegacy $ do
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  Created <$> conversationViewV9 lusr dbConv
+  Created <$> ownConversationView lusr dbConv
 
 createGroupOwnConversation ::
   ( Member BrigAPIAccess r,
@@ -138,7 +138,7 @@ createGroupOwnConversation lusr conn newConv = do
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  GroupConversationCreatedV9 <$> (CreateGroupOwnConversation <$> conversationViewV9 lusr dbConv <*> pure mempty)
+  GroupConversationCreatedV9 <$> (CreateGroupOwnConversation <$> ownConversationView lusr dbConv <*> pure mempty)
 
 createGroupConversation ::
   ( Member BrigAPIAccess r,
@@ -194,8 +194,8 @@ createProteusSelfConversation ::
 createProteusSelfConversation lusr = do
   (c, created) <- createProteusSelfConversationLogic lusr
   if created
-    then Created <$> conversationViewV9 lusr c
-    else Existed <$> conversationViewV9 lusr c
+    then Created <$> ownConversationView lusr c
+    else Existed <$> ownConversationView lusr c
 
 createOne2OneConversation ::
   ( Member BrigAPIAccess r,
@@ -227,8 +227,8 @@ createOne2OneConversation ::
 createOne2OneConversation lusr zcon j = do
   (c, created) <- createOne2OneConversationLogic lusr zcon j
   if created
-    then Created <$> conversationViewV9 lusr c
-    else Existed <$> conversationViewV9 lusr c
+    then Created <$> ownConversationView lusr c
+    else Existed <$> ownConversationView lusr c
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -254,5 +254,5 @@ createConnectConversation ::
 createConnectConversation lusr conn j = do
   (c, created) <- createConnectConversationLogic lusr conn j
   if created
-    then Created <$> conversationViewV9 lusr c
-    else Existed <$> conversationViewV9 lusr c
+    then Created <$> ownConversationView lusr c
+    else Existed <$> ownConversationView lusr c

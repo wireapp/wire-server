@@ -162,7 +162,7 @@ getUnqualifiedOwnConversation ::
   Sem r Public.OwnConversation
 getUnqualifiedOwnConversation lusr cnv = do
   c <- getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
-  Mapping.conversationViewV9 lusr c
+  Mapping.ownConversationView lusr c
 
 getUnqualifiedConversation ::
   forall r.
@@ -468,7 +468,7 @@ getConversations ::
   Sem r (Public.ConversationList Public.OwnConversation)
 getConversations luser mids mstart msize = do
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
-  flip ConversationList more <$> mapM (Mapping.conversationViewV9 luser) cs
+  flip ConversationList more <$> mapM (Mapping.ownConversationView luser) cs
 
 getConversationsInternal ::
   (Member ConversationStore.ConversationStore r) =>
@@ -519,7 +519,7 @@ listConversations luser (Public.ListConversations ids) = do
   localInternalConversations <-
     ConversationStore.getConversations foundLocalIds
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
-  localConversations <- mapM (Mapping.conversationViewV9 luser) localInternalConversations
+  localConversations <- mapM (Mapping.ownConversationView luser) localInternalConversations
 
   (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures luser remoteIds
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
@@ -739,7 +739,7 @@ getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- ConversationStore.getConversation selfConvId
   cnv <- maybe (createMLSSelfConversation lusr) pure mconv
-  conversationViewV9 lusr cnv
+  ownConversationView lusr cnv
 
 createMLSSelfConversation ::
   (Member ConversationStore.ConversationStore r) =>
@@ -876,7 +876,7 @@ getLocalMLSOne2OneConversation lself lconv = do
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
   conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
-    Just conv -> conversationViewV9 lself conv
+    Just conv -> ownConversationView lself conv
   pure $
     MLSOne2OneConversation
       { conversation = conv,

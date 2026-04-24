@@ -177,7 +177,7 @@ acceptConv lusr conn cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
   conv' <- acceptOne2One lusr conv conn
-  conversationViewV9 lusr conv'
+  ownConversationView lusr conv'
 
 blockConv ::
   ( Member ConversationStore r,
@@ -259,7 +259,7 @@ unblockConvUnqualified lusr conn cnv = do
   unless (convType conv `elem` [ConnectConv, One2OneConv]) $
     throwS @'InvalidOperation
   conv' <- acceptOne2One lusr conv conn
-  conversationViewV9 lusr conv'
+  ownConversationView lusr conv'
 
 unblockRemoteConv ::
   (Member ConversationStore r) =>

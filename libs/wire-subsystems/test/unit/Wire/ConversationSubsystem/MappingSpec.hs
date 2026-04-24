@@ -51,31 +51,31 @@ run = P.run . P.runError . P.discardLogs
 spec :: Spec
 spec = describe "ConversationMapping" do
   prop "conversation view V9 for a valid user is non-empty" $
-    \(ConvWithLocalUser c luid) -> isRight (run (conversationViewV9 luid c))
+    \(ConvWithLocalUser c luid) -> isRight (run (ownConversationView luid c))
   prop "conversation view V10 for a valid user is non-empty" $
     \(ConvWithLocalUser c luid) -> isRight (run (pure $ conversationView (qualifyAs luid ()) (Just luid) c))
   prop "self user in conversation view is correct" $
     \(ConvWithLocalUser c luid) ->
-      fmap (memId . cmSelf . cnvMembers) (run (conversationViewV9 luid c))
+      fmap (memId . cmSelf . cnvMembers) (run (ownConversationView luid c))
         == Right (tUntagged luid)
   prop "conversation view metadata is correct" $
     \(ConvWithLocalUser c luid) ->
-      fmap cnvMetadata (run (conversationViewV9 luid c))
+      fmap cnvMetadata (run (ownConversationView luid c))
         == Right c.metadata
   prop "other members in conversation view do not contain self" $
-    \(ConvWithLocalUser c luid) -> case run $ conversationViewV9 luid c of
+    \(ConvWithLocalUser c luid) -> case run $ ownConversationView luid c of
       Left _ -> False
       Right cnv ->
         tUntagged luid
           `notElem` map omQualifiedId (cmOthers (cnvMembers cnv))
   prop "conversation view contains all users" $
     \(ConvWithLocalUser c luid) ->
-      fmap (sort . cnvUids) (run (conversationViewV9 luid c))
+      fmap (sort . cnvUids) (run (ownConversationView luid c))
         == Right (sort (convUids (tDomain luid) c))
   prop "conversation view for an invalid user is empty" $
     \(RandomConversation c) luid ->
       notElem (tUnqualified luid) (map (.id_) c.localMembers) ==>
-        isLeft (run (conversationViewV9 luid c))
+        isLeft (run (ownConversationView luid c))
   prop "remote conversation view for a valid user is non-empty" $
     \(ConvWithRemoteUser c ruid) dom ->
       qDomain (tUntagged ruid) /= dom ==>
