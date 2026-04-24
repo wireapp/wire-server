@@ -65,7 +65,7 @@ localMLSOne2OneConversation lself (tUntagged -> convId) =
 -- conversation to be returned to a remote backend.
 localMLSOne2OneConversationAsRemote ::
   Local ConvId ->
-  RemoteConversationV2
+  RemoteConversationView
 localMLSOne2OneConversationAsRemote lcnv =
   let members =
         RemoteConvMembers
@@ -73,7 +73,7 @@ localMLSOne2OneConversationAsRemote lcnv =
             others = []
           }
       (metadata, mlsData) = localMLSOne2OneConversationMetadata (tUntagged lcnv)
-   in RemoteConversationV2
+   in RemoteConversationView
         { id = tUnqualified lcnv,
           metadata = metadata,
           members = members,

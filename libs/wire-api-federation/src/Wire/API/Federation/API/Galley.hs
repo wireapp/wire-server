@@ -236,7 +236,7 @@ instance ToSchema RemoteConversation
 -- information as a 'Conversation', with the exception that conversation status
 -- fields (muted\/archived\/hidden) are omitted, since they are not known by the
 -- remote backend.
-data RemoteConversationV2 = RemoteConversationV2
+data RemoteConversationView = RemoteConversationView
   { -- | Id of the conversation, implicitly qualified with the domain of the
     -- backend that created this value.
     id :: ConvId,
@@ -245,13 +245,13 @@ data RemoteConversationV2 = RemoteConversationV2
     protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RemoteConversationV2)
-  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversationV2)
+  deriving (Arbitrary) via (GenericUniform RemoteConversationView)
+  deriving (FromJSON, ToJSON) via (CustomEncoded RemoteConversationView)
 
-instance ToSchema RemoteConversationV2
+instance ToSchema RemoteConversationView
 
-remoteConversationFromV2 :: RemoteConversationV2 -> RemoteConversation
-remoteConversationFromV2 rc =
+remoteConversationFromView :: RemoteConversationView -> RemoteConversation
+remoteConversationFromView rc =
   RemoteConversation
     { id = rc.id,
       metadata = rc.metadata,
@@ -259,9 +259,9 @@ remoteConversationFromV2 rc =
       protocol = ClientAPI.Versioned rc.protocol
     }
 
-remoteConversationToV2 :: RemoteConversation -> RemoteConversationV2
-remoteConversationToV2 rc =
-  RemoteConversationV2
+remoteConversationToView :: RemoteConversation -> RemoteConversationView
+remoteConversationToView rc =
+  RemoteConversationView
     { id = rc.id,
       metadata = rc.metadata,
       members = rc.members,
@@ -278,7 +278,7 @@ newtype GetConversationsResponse = GetConversationsResponse
 instance ToSchema GetConversationsResponse
 
 newtype GetConversationsResponseV2 = GetConversationsResponseV2
-  { convs :: [RemoteConversationV2]
+  { convs :: [RemoteConversationView]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsResponseV2)
@@ -287,10 +287,10 @@ newtype GetConversationsResponseV2 = GetConversationsResponseV2
 instance ToSchema GetConversationsResponseV2
 
 getConversationsResponseToV2 :: GetConversationsResponse -> GetConversationsResponseV2
-getConversationsResponseToV2 res = GetConversationsResponseV2 (map remoteConversationToV2 res.convs)
+getConversationsResponseToV2 res = GetConversationsResponseV2 (map remoteConversationToView res.convs)
 
 getConversationsResponseFromV2 :: GetConversationsResponseV2 -> GetConversationsResponse
-getConversationsResponseFromV2 res = GetConversationsResponse (map remoteConversationFromV2 res.convs)
+getConversationsResponseFromV2 res = GetConversationsResponse (map remoteConversationFromView res.convs)
 
 data GetOne2OneConversationResponse
   = GetOne2OneConversationOk RemoteConversation
@@ -321,7 +321,7 @@ data GetOne2OneConversationResponseV2
 instance ToSchema GetOne2OneConversationResponseV2
 
 data RemoteMLSOne2OneConversation = RemoteMLSOne2OneConversation
-  { conversation :: RemoteConversationV2,
+  { conversation :: RemoteConversationView,
     publicKeys :: MLSKeysByPurpose MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic)

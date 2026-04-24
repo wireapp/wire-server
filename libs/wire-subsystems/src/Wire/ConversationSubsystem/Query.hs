@@ -318,7 +318,7 @@ getRemoteConversationsWithFailures ::
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- ConversationStore.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote RemoteConversationV2 -> OwnConversation
+  let remoteView :: Remote RemoteConversationView -> OwnConversation
       remoteView rconv =
         Mapping.remoteConversationView
           lusr
@@ -353,7 +353,7 @@ getRemoteConversationsWithFailures lusr convs = do
     handleFailure ::
       (Member P.TinyLog r) =>
       Either (Remote [ConvId], FederationError) (Remote GetConversationsResponseV2) ->
-      Sem r (Either FailedGetConversation [Remote RemoteConversationV2])
+      Sem r (Either FailedGetConversation [Remote RemoteConversationView])
     handleFailure (Left (rcids, e)) = do
       P.warn $
         Logger.msg ("Error occurred while fetching remote conversations" :: ByteString)

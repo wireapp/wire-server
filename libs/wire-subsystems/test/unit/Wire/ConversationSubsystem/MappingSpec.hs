@@ -39,7 +39,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
-    RemoteConversationV2 (..),
+    RemoteConversationView (..),
   )
 import Wire.ConversationSubsystem.Mapping
 import Wire.Sem.Logger qualified as P
