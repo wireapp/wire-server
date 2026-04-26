@@ -254,7 +254,6 @@ accountAPI ::
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
-    Member (Concurrency Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r
   ) =>
@@ -316,8 +315,7 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r,
-    Member AuthenticationSubsystem r
+    Member IndexedUserStore r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -347,7 +345,6 @@ authAPI ::
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,
@@ -785,8 +782,6 @@ getPasswordResetCode email =
 changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   UserId ->

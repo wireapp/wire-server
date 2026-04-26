@@ -61,7 +61,6 @@ import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Error (HttpError (..))
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess
-import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -82,7 +81,6 @@ accessH ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -111,7 +109,6 @@ access ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -142,7 +139,6 @@ login ::
     Member ActivationCodeStore r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -246,7 +242,6 @@ legalHoldLogin ::
     Member Events r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,
@@ -265,7 +260,6 @@ ssoLogin ::
     Member UserSubsystem r,
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,

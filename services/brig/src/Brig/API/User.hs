@@ -90,7 +90,6 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -627,14 +626,19 @@ changeAccountStatus ::
   ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   NonEmpty UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
-  ev <- mkUserEvent usrs status
+  -- It is safe to not revoke any cookies here; if no valid access
+  -- token is available, cookies are only validated when calling `POST
+  -- /access`, and access token refresh only works on unsuspended
+  -- users.
+  --
+  -- Evidence: `git grep -Hn --color=never 'UserToken\b' | grep libs/wire-api/src/Wire/API/Routes/Public/`.
+  ev <- mkUserEvent status
   lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (update ev) usrs
   where
     update ::
@@ -649,8 +653,6 @@ changeAccountStatus usrs status = do
 changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   UserId ->
@@ -658,26 +660,20 @@ changeSingleAccountStatus ::
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
   unlessM (lift . liftSem $ UserStore.doesUserExist uid) $ throwE AccountNotFound
-  ev <- mkUserEvent (NonEmpty.singleton uid) status
+  ev <- mkUserEvent status
   lift . liftSem $ do
     UserStore.updateAccountStatus uid status
     User.internalUpdateSearchIndex uid
     Events.generateUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::
-  ( Traversable t,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r
-  ) =>
-  t UserId ->
+  (Monad m) =>
   AccountStatus ->
-  ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
-mkUserEvent usrs status =
+  ExceptT AccountStatusError m (UserId -> UserEvent)
+mkUserEvent status =
   case status of
     Active -> pure UserResumed
-    Suspended -> do
-      lift $ liftSem (unsafePooledMapConcurrentlyN_ 16 Auth.revokeAllCookies usrs)
-      pure UserSuspended
+    Suspended -> pure UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
