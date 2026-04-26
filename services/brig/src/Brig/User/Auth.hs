@@ -76,7 +76,6 @@ import Wire.ClientStore qualified as ClientStore
 import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -97,7 +96,6 @@ login ::
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -188,7 +186,6 @@ renewAccess ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -205,6 +202,7 @@ renewAccess uts at mcid = do
   traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
+  catchSuspendedUsers uid
   mapExceptT liftSem $ do
     ck' <- nextCookie ck mcid
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
@@ -237,8 +235,6 @@ catchSuspendInactiveUser ::
   ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member (Concurrency 'Unsafe) r,
-    Member AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   UserId ->
@@ -260,6 +256,28 @@ catchSuspendInactiveUser uid errval = do
       Left AccountNotFound -> pure ()
       Right () -> pure ()
 
+-- | Suspended users are not allowed to pick up new session tokens,
+-- even if they have a valid cookie.
+--
+-- This does *not* change behavior for existing apps, because their
+-- observations are the same: before, refreshing access tokens failed
+-- because the cookie was invalid, now it fails with the same status
+-- code if the user is suspended, whether there are valid cookies or
+-- not.
+catchSuspendedUsers ::
+  (Member UserStore r) =>
+  UserId ->
+  ExceptT ZAuth.Failure (AppT r) ()
+catchSuspendedUsers uid = do
+  mb <- lift $ liftSem $ lookupStatus uid
+  case mb of
+    Nothing -> throwE ZAuth.Invalid
+    Just Active -> pure ()
+    Just Suspended -> throwE ZAuth.Invalid
+    Just Deleted -> throwE ZAuth.Invalid -- (does not happen, but if it did, this is what we'd want to do)
+    Just Ephemeral -> pure ()
+    Just PendingInvitation -> pure ()
+
 newAccess ::
   forall u a r.
   ( Member TinyLog r,
@@ -268,7 +286,6 @@ newAccess ::
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
-    Member (Concurrency Unsafe) r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -283,6 +300,9 @@ newAccess ::
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid cid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
+  -- NB: no need to call `catchSuspendedUsers` here.  `newAccess` is
+  -- called in 3 places (login, ssoLogin, legalHoldLogin), and all of
+  -- them reject suspended users before calling it.
   r <- lift $ liftSem $ newCookieLimited uid cid ct cl RevokeSameLabel
   case r of
     Left delay -> throwE $ LoginThrottled delay
@@ -398,7 +418,6 @@ ssoLogin ::
     Member Events r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,
@@ -437,7 +456,6 @@ legalHoldLogin ::
     Member AuthenticationSubsystem r,
     Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,
