@@ -599,3 +599,47 @@ testTeamSizeWithApps (TaggedBool testInternalApi) = do
   BrigI.refreshIndex domain
   eventually $ do
     checkSize (numRegulars - 1) (numApps - 1)
+
+testZauthAndApps :: (HasCallStack) => App ()
+testZauthAndApps = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  (app, cookie) <- createIt owner tid
+
+  refreshSucceeds app cookie
+  suspendApp app >> refreshFails app cookie
+  unsuspendApp app >> refreshSucceeds app cookie
+  where
+    createIt :: (HasCallStack, MakesValue owner) => owner -> String -> App (Value, String)
+    createIt owner tid =
+      createApp owner tid new `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        app <- resp.json %. "user"
+        cookie <- resp.json %. "cookie" & asString
+        pure (app, cookie)
+      where
+        new :: NewApp =
+          def
+            { name = "chappie",
+              description = "some description of this app",
+              category = "ai"
+            }
+
+    suspendApp :: (HasCallStack, MakesValue app) => app -> App ()
+    suspendApp app =
+      BrigI.setAccountStatus app "suspended" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+
+    unsuspendApp :: (HasCallStack, MakesValue app) => app -> App ()
+    unsuspendApp app =
+      BrigI.setAccountStatus app "active" `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+
+    refreshSucceeds :: (HasCallStack, MakesValue app) => app -> String -> App ()
+    refreshSucceeds app cookie =
+      renewToken app cookie `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+
+    refreshFails :: (HasCallStack, MakesValue app) => app -> String -> App ()
+    refreshFails app cookie =
+      renewToken app cookie `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 403
