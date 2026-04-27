@@ -29,7 +29,6 @@ module Wire.ConversationSubsystem.Update
     joinConversationByReusableCode,
     joinConversationById,
     addCodeUnqualified,
-    addCodeUnqualifiedWithReqBody,
     rmCodeUnqualified,
     getCode,
     updateConversationName,
@@ -459,32 +458,6 @@ deleteLocalConversation ::
 deleteLocalConversation lusr con lcnv =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversationDelete lcnv (tUntagged lusr) (Just con)
-
-addCodeUnqualifiedWithReqBody ::
-  forall r.
-  ( Member CodeStore r,
-    Member ConversationStore r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'GuestLinksDisabled) r,
-    Member (ErrorS 'CreateConversationCodeConflict) r,
-    Member E.ExternalAccess r,
-    Member NotificationSubsystem r,
-    Member (Input (Local ())) r,
-    Member Now r,
-    Member HashPassword r,
-    Member (Input (Maybe GuestLinkTTLSeconds)) r,
-    Member FeaturesConfigSubsystem r,
-    Member RateLimit r,
-    Member TeamSubsystem r
-  ) =>
-  UserId ->
-  Maybe Text ->
-  Maybe ConnId ->
-  ConvId ->
-  CreateConversationCodeRequest ->
-  Sem r AddCodeResult
-addCodeUnqualifiedWithReqBody usr mbZHost mZcon cnv req = addCodeUnqualified (Just req) usr mbZHost mZcon cnv
 
 addCodeUnqualified ::
   forall r.

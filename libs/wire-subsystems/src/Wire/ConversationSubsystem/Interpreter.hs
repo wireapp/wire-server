@@ -269,8 +269,6 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.checkReusableCode addr code
   AddCodeUnqualified mReq usr mbZHost mZcon cnv ->
     mapErrors $ Update.addCodeUnqualified mReq usr mbZHost mZcon cnv
-  AddCodeUnqualifiedWithReqBody lusr mname mconn cnv req ->
-    mapErrors $ Update.addCodeUnqualifiedWithReqBody lusr mname mconn cnv req
   RmCodeUnqualified lusr con cnv ->
     mapErrors $ Update.rmCodeUnqualified lusr con cnv
   MemberTyping lusr con qcnv status ->

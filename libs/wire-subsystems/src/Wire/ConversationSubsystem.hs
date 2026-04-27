@@ -493,13 +493,6 @@ data ConversationSubsystem m a where
     Maybe ConnId ->
     ConvId ->
     ConversationSubsystem m AddCodeResult
-  AddCodeUnqualifiedWithReqBody ::
-    UserId ->
-    Maybe Text ->
-    Maybe ConnId ->
-    ConvId ->
-    CreateConversationCodeRequest ->
-    ConversationSubsystem m AddCodeResult
   RmCodeUnqualified ::
     Local UserId ->
     ConnId ->
