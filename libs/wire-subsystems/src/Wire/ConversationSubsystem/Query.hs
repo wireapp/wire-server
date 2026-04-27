@@ -160,7 +160,7 @@ getUnqualifiedOwnConversation ::
   Sem r Public.OwnConversation
 getUnqualifiedOwnConversation lusr cnv = do
   c <- getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
-  maybe (throwWhenMemberNotFound lusr cnv) pure $ ownConversationView lusr c
+  maybe (throwIfNotOwnConversation lusr cnv) pure $ ownConversationView lusr c
 
 getUnqualifiedConversation ::
   forall r.
@@ -466,7 +466,7 @@ getConversations ::
   Sem r (Public.ConversationList Public.OwnConversation)
 getConversations luser mids mstart msize = do
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
-  ownConvs <- for cs (\c -> maybe (throwWhenMemberNotFound luser c.id_) pure $ ownConversationView luser c)
+  ownConvs <- for cs (\c -> maybe (throwIfNotOwnConversation luser c.id_) pure $ ownConversationView luser c)
   pure $ ConversationList ownConvs more
 
 getConversationsInternal ::
@@ -520,7 +520,7 @@ listConversations luser (Public.ListConversations ids) = do
       >>= filterM (\c -> pure $ isMember (tUnqualified luser) c.localMembers)
   localConversations <-
     mapM
-      (\c -> maybe (throwWhenMemberNotFound luser c.id_) pure (ownConversationView luser c))
+      (\c -> maybe (throwIfNotOwnConversation luser c.id_) pure (ownConversationView luser c))
       localInternalConversations
 
   (remoteFailures, remoteConversations) <- getRemoteConversationsWithFailures luser remoteIds
@@ -741,7 +741,7 @@ getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- ConversationStore.getConversation selfConvId
   cnv <- maybe (createMLSSelfConversation lusr) pure mconv
-  maybe (throwWhenMemberNotFound lusr cnv.id_) pure $ ownConversationView lusr cnv
+  maybe (throwIfNotOwnConversation lusr cnv.id_) pure $ ownConversationView lusr cnv
 
 createMLSSelfConversation ::
   (Member ConversationStore.ConversationStore r) =>
@@ -878,7 +878,7 @@ getLocalMLSOne2OneConversation lself lconv = do
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
   conv <- case mconv of
     Nothing -> pure (localMLSOne2OneConversation lself lconv)
-    Just conv -> maybe (throwWhenMemberNotFound lself conv.id_) pure $ ownConversationView lself conv
+    Just conv -> maybe (throwIfNotOwnConversation lself conv.id_) pure $ ownConversationView lself conv
   pure $
     MLSOne2OneConversation
       { conversation = conv,

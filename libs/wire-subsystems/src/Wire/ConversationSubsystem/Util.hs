@@ -98,8 +98,8 @@ import Wire.TeamSubsystem (ConsentGiven (..), TeamSubsystem, consentGiven, getLH
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList
 
-throwWhenMemberNotFound :: (Member TinyLog r, Member (Error InternalError) r) => Local UserId -> ConvId -> Sem r a
-throwWhenMemberNotFound luid cid = do
+throwIfNotOwnConversation :: (Member TinyLog r, Member (Error InternalError) r) => Local UserId -> ConvId -> Sem r a
+throwIfNotOwnConversation luid cid = do
   P.err . msg $
     val "User "
       +++ idToText (tUnqualified luid)

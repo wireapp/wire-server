@@ -97,7 +97,7 @@ createLegacyGroupConversation ::
   Sem r (ConversationResponse Public.OwnConversation)
 createLegacyGroupConversation lusr conn newConv = mapError UnreachableBackendsLegacy $ do
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  maybe (throwWhenMemberNotFound lusr dbConv.id_) (pure . Created) $ ownConversationView lusr dbConv
+  maybe (throwIfNotOwnConversation lusr dbConv.id_) (pure . Created) $ ownConversationView lusr dbConv
 
 createGroupOwnConversation ::
   ( Member BrigAPIAccess r,
@@ -139,7 +139,7 @@ createGroupOwnConversation lusr conn newConv = do
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
   checkFederationStatus (RemoteDomains $ Set.fromList remoteDomains)
   dbConv <- createGroupConversationGeneric lusr conn newConv
-  maybe (throwWhenMemberNotFound lusr dbConv.id_) (pure . GroupConversationCreatedV9) $
+  maybe (throwIfNotOwnConversation lusr dbConv.id_) (pure . GroupConversationCreatedV9) $
     (CreateGroupOwnConversation <$> ownConversationView lusr dbConv <*> pure mempty)
 
 createGroupConversation ::
@@ -199,7 +199,7 @@ createProteusSelfConversation lusr = do
         if created
           then Created <$> ownConversationView lusr c
           else Existed <$> ownConversationView lusr c
-  maybe (throwWhenMemberNotFound lusr c.id_) pure mConv
+  maybe (throwIfNotOwnConversation lusr c.id_) pure mConv
 
 createOne2OneConversation ::
   ( Member BrigAPIAccess r,
@@ -234,7 +234,7 @@ createOne2OneConversation lusr zcon j = do
         if created
           then Created <$> ownConversationView lusr c
           else Existed <$> ownConversationView lusr c
-  maybe (throwWhenMemberNotFound lusr c.id_) pure mConv
+  maybe (throwIfNotOwnConversation lusr c.id_) pure mConv
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -263,4 +263,4 @@ createConnectConversation lusr conn j = do
         if created
           then Created <$> ownConversationView lusr c
           else Existed <$> ownConversationView lusr c
-  maybe (throwWhenMemberNotFound lusr c.id_) pure mConv
+  maybe (throwIfNotOwnConversation lusr c.id_) pure mConv
