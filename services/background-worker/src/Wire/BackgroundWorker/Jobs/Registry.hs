@@ -203,7 +203,7 @@ dispatchJob job = do
         . runDelay
         . resourceToIOFinal
         . runError
-        . mapError @DynError (T.pack . show . (.eMessage))
+        . mapError @DynError (.eMessage)
         . mapError @JSONResponse (T.pack . show . (.value))
         . mapError @ConversationSubsystemError toResponse
         . mapError @ClientError (T.pack . displayException)
