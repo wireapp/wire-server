@@ -78,6 +78,7 @@ data AuthenticationSubsystem m a where
     SameLabelPolicy ->
     AuthenticationSubsystem m (Either RetryAfter (Cookie (ZAuth.Token t)))
   RevokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> AuthenticationSubsystem m ()
+  RevokeAllExpiredCookies :: UserId -> AuthenticationSubsystem m ()
   -- Verification Codes
   EnforceVerificationCodeEither :: Local UserId -> Maybe Code.Value -> VerificationAction -> AuthenticationSubsystem m (Either VerificationCodeError ())
   -- For testing

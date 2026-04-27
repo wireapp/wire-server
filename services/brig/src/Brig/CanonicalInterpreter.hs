@@ -28,7 +28,7 @@ import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
-import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
+import Brig.Options (Settings (consumableNotifications), SuspendInactiveUsers (..), federationDomainConfigs, federationStrategy)
 import Brig.Options qualified as Opt
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
@@ -354,7 +354,8 @@ runBrigToIO e (AppT ma) = do
             local = localUnit,
             userCookieRenewAge = e.settings.userCookieRenewAge,
             userCookieLimit = e.settings.userCookieLimit,
-            userCookieThrottle = e.settings.userCookieThrottle
+            userCookieThrottle = e.settings.userCookieThrottle,
+            suspendInactiveUsers = suspendTimeout <$> e.settings.suspendInactiveUsers
           }
       mainESEnv = e.indexEnv ^. to idxElastic
       indexedUserStoreConfig =

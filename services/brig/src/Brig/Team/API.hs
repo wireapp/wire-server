@@ -69,6 +69,7 @@ import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Size
 import Wire.API.User hiding (fromEmail)
+import Wire.AuthenticationSubsystem qualified as Auth
 import Wire.BlockListStore
 import Wire.EmailSubsystem.Interpreter (renderInvitationUrl)
 import Wire.Error
@@ -372,6 +373,7 @@ suspendTeam ::
     Member Events r,
     Member TinyLog r,
     Member InvitationStore r,
+    Member Auth.AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   TeamId ->
@@ -392,6 +394,7 @@ unsuspendTeam ::
     Member UserSubsystem r,
     Member TeamSubsystem r,
     Member Events r,
+    Member Auth.AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   TeamId ->
@@ -410,6 +413,7 @@ changeTeamAccountStatuses ::
     Member TeamSubsystem r,
     Member UserSubsystem r,
     Member Events r,
+    Member Auth.AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   TeamId ->

@@ -120,6 +120,7 @@ import Wire.API.UserEvent
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
+import Wire.AuthenticationSubsystem qualified as Auth
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
@@ -626,34 +627,21 @@ changeAccountStatus ::
   ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   NonEmpty UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
-  -- It is safe to not revoke any cookies here; if no valid access
-  -- token is available, cookies are only validated when calling `POST
-  -- /access`, and access token refresh only works on unsuspended
-  -- users.
-  --
-  -- Evidence: `git grep -Hn --color=never 'UserToken\b' | grep libs/wire-api/src/Wire/API/Routes/Public/`.
   ev <- mkUserEvent status
-  lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (update ev) usrs
-  where
-    update ::
-      (UserId -> UserEvent) ->
-      UserId ->
-      Sem r ()
-    update ev u = do
-      UserStore.updateAccountStatus u status
-      User.internalUpdateSearchIndex u
-      Events.generateUserEvent u Nothing (ev u)
+  lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (changeSingleAccountStatusInternal status ev) usrs
 
 changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatus ->
@@ -661,10 +649,38 @@ changeSingleAccountStatus ::
 changeSingleAccountStatus uid status = do
   unlessM (lift . liftSem $ UserStore.doesUserExist uid) $ throwE AccountNotFound
   ev <- mkUserEvent status
-  lift . liftSem $ do
-    UserStore.updateAccountStatus uid status
-    User.internalUpdateSearchIndex uid
-    Events.generateUserEvent uid Nothing (ev uid)
+  lift . liftSem $ changeSingleAccountStatusInternal status ev uid
+
+changeSingleAccountStatusInternal ::
+  ( Member UserSubsystem r,
+    Member Events r,
+    Member UserStore r,
+    Member AuthenticationSubsystem r
+  ) =>
+  AccountStatus ->
+  (UserId -> UserEvent) ->
+  UserId ->
+  Sem r ()
+changeSingleAccountStatusInternal status ev u = do
+  -- It is safe to *not* revoke any cookies here; if no valid access
+  -- token is available, cookies are only validated when calling `POST
+  -- /access`, and access token refresh only works on unsuspended
+  -- users.
+  --
+  -- Evidence: `git grep -Hn --color=never 'UserToken\b' | grep libs/wire-api/src/Wire/API/Routes/Public/`.
+  --
+  -- Having that said, we need to remove all *expired* cookies here,
+  -- otherwise /login considers the user inactive, see
+  -- 'mustSuspendInactiveUser'.
+  --
+  -- The intuition is that every change of account status can be
+  -- considered an account activity, so users that have their status
+  -- changed recently should not be considered inactive, even if they
+  -- haven't taken any action themselves.
+  Auth.revokeAllExpiredCookies u
+  UserStore.updateAccountStatus u status
+  User.internalUpdateSearchIndex u
+  Events.generateUserEvent u Nothing (ev u)
 
 mkUserEvent ::
   (Monad m) =>

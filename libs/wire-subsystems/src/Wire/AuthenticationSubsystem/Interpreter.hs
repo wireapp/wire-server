@@ -107,6 +107,7 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         NewCookie uid mcid typ mLabel policy -> newCookieImpl uid mcid typ mLabel policy
         NewCookieLimited uid mcid typ mLabel policy -> runError $ newCookieLimitedImpl uid mcid typ mLabel policy
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
+        RevokeAllExpiredCookies uid -> revokeAllExpiredCookiesImpl uid
         -- Verification Codes
         EnforceVerificationCodeEither luid mCode action -> runError $ enforceVerificationCodeImpl luid mCode action
         -- Testing

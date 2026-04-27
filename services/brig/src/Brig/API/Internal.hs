@@ -315,6 +315,7 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
+    Member AuthenticationSubsystem r,
     Member IndexedUserStore r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
@@ -782,7 +783,8 @@ getPasswordResetCode email =
 changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatusUpdate ->

@@ -19,12 +19,14 @@ module Wire.AuthenticationSubsystem.Cookie where
 
 import Data.Id
 import Data.RetryAfter
+import Data.Time
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Data.ZAuth.Token
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Util.Timeout
 import Wire.API.User.Auth
 import Wire.API.UserEvent (UserEvent (UserSessionRefreshSuggested))
 import Wire.AuthenticationSubsystem
@@ -142,3 +144,30 @@ revokeCookiesMatchingExcept u mself ids labels = do
         && ( c.cookieId `elem` ids
                || maybe False (`elem` labels) c.cookieLabel
            )
+
+-- Remove stale cookies.  Stale means either (1) cookie is expired, or
+-- (2) cookie creation time is further in the past than
+-- `env.suspendInactiveUsers` allows.
+revokeAllExpiredCookiesImpl ::
+  ( Member SessionStore r,
+    Member (Input AuthenticationSubsystemConfig) r,
+    Member Now r
+  ) =>
+  UserId ->
+  Sem r ()
+revokeAllExpiredCookiesImpl uid = do
+  now :: UTCTime <- Now.get
+  mbSuspendAge <- (.suspendInactiveUsers) <$> input
+
+  let dead :: Cookie () -> Bool
+      dead c = cookieExpired && userInactive
+        where
+          cookieExpired = c.cookieExpires < now
+          userInactive =
+            maybe
+              False
+              (\suspendAge -> c.cookieCreated < addUTCTime (-(timeoutDiff suspendAge)) now)
+              mbSuspendAge
+
+  cc <- filter dead <$> SessionStore.listCookies uid
+  SessionStore.deleteCookies uid cc

@@ -461,7 +461,8 @@ defaultAuthenticationSubsystemConfig =
       local = defaultLocalDomain,
       userCookieRenewAge = 2,
       userCookieLimit = 5,
-      userCookieThrottle = StdDevThrottle 5 3
+      userCookieThrottle = StdDevThrottle 5 3,
+      suspendInactiveUsers = Nothing
     }
 
 defaultLocalDomain :: Local ()

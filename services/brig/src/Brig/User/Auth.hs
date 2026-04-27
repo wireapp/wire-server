@@ -235,7 +235,8 @@ catchSuspendInactiveUser ::
   ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   e ->
