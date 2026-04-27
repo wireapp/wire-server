@@ -1,0 +1,1 @@
+Move conversation-related operations into a unified Polysemy `ConversationSubsystem` effect across the wire-server codebase.

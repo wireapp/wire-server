@@ -1,8 +1,0 @@
-### ConversationSubsystem Migration
-
-* Move conversation-related operations into a unified Polysemy `ConversationSubsystem` effect across the wire-server codebase.
-  This consolidation improves code organization and separation of concerns for conversation logic.
-
-* Library updates:
-  - Introduced dedicated error types for ConversationSubsystem to improve error handling
-  - Consolidated conversation-related operations that were previously scattered across multiple stores and subsystems
