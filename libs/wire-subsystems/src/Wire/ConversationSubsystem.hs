@@ -155,8 +155,7 @@ data ConversationSubsystem m a where
     ConvId ->
     ConversationSubsystem m Conversation
   RemoveClient ::
-    Local StoredConversation ->
-    Qualified UserId ->
+    UserId ->
     ClientId ->
     ConversationSubsystem m ()
   AddBot ::

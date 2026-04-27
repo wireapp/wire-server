@@ -552,7 +552,7 @@ type IMiscAPI =
                     (RespondEmpty 200 "OK")
            )
     :<|> Named
-           "test-delete-client"
+           "remove-client"
            ( "clients"
                :> ZUser
                :> Capture "cid" ClientId

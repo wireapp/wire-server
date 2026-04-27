@@ -45,6 +45,7 @@ import Galley.API.Teams.Features
 import Galley.App
 import Galley.Monad
 import Galley.Queue qualified as Q
+import Galley.Types.Clients
 import Galley.Types.Error
 import Imports hiding (head)
 import Network.AMQP qualified as Q
@@ -236,9 +237,9 @@ miscAPI :: API IMiscAPI GalleyEffects
 miscAPI =
   mkNamedAPI @"get-team-members" Teams.getBindingTeamMembers
     <@> mkNamedAPI @"get-team-id" lookupBindingTeam
-    <@> mkNamedAPI @"test-get-clients" UserClientIndexStore.getClientsId
+    <@> mkNamedAPI @"test-get-clients" (\uid -> clientIds uid <$> getClients [uid])
     <@> mkNamedAPI @"test-add-client" createClient
-    <@> mkNamedAPI @"test-delete-client" rmClient
+    <@> mkNamedAPI @"remove-client" removeClient
     <@> mkNamedAPI @"add-service" createService
     <@> mkNamedAPI @"delete-service" deleteService
     <@> mkNamedAPI @"i-add-bot" addBot

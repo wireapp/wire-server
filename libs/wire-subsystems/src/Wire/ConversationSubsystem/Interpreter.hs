@@ -45,6 +45,7 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem (ConversationSubsystem (..))
 import Wire.ConversationSubsystem.Action.Notify qualified as ActionNotify
+import Wire.ConversationSubsystem.Clients as Clients
 import Wire.ConversationSubsystem.Create qualified as Create
 import Wire.ConversationSubsystem.CreateInternal qualified as CreateInternal
 import Wire.ConversationSubsystem.Errors
@@ -317,8 +318,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Query.isMLSOne2OneEstablished lself qother
   GetLocalConversationInternal cid ->
     mapErrors $ Query.getLocalConversationInternal cid
-  RemoveClient lc qusr c ->
-    mapErrors $ MLSRemoval.removeClient lc qusr c
+  RemoveClient uid cid ->
+    mapErrors $ Clients.rmClient uid cid
   AddBot lusr zcon b ->
     mapErrors $ Update.addBot lusr zcon b
   RmBot lusr zcon b ->
