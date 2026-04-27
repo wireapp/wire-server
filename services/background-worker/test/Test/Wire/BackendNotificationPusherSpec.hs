@@ -382,7 +382,7 @@ spec = do
           checkGroupInfo = Nothing
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 
-      passwordHashingRateLimitEnv <- newRateLimitEnv undefined
+      passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
@@ -433,7 +433,7 @@ spec = do
           checkGroupInfo = Nothing
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 
-      passwordHashingRateLimitEnv <- newRateLimitEnv undefined
+      passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

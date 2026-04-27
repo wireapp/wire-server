@@ -56,6 +56,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
         (\members -> any (\member -> member ^. userId == uid) members)
         teams
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
+  FindTeam _ -> error "FindTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
   GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"

@@ -105,6 +105,9 @@ data GalleyAPIAccess m a where
   GetTeam ::
     TeamId ->
     GalleyAPIAccess m Team.TeamData
+  FindTeam ::
+    TeamId ->
+    GalleyAPIAccess m (Maybe Team.TeamData)
   GetTeamName ::
     TeamId ->
     GalleyAPIAccess m Team.TeamName

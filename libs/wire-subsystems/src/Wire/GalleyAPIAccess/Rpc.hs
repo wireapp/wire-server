@@ -92,6 +92,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           SelectTeamMembers tid uids -> selectTeamMembers tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
+          FindTeam id' -> findTeam id'
           GetTeamName id' -> getTeamName id'
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
@@ -432,6 +433,25 @@ getTeam tid = do
       method GET
         . paths ["i", "teams", toByteString' tid]
         . expect2xx
+
+-- | Like 'getTeam' but returns 'Nothing' on 404 instead of throwing.
+findTeam ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  TeamId ->
+  Sem r (Maybe Team.TeamData)
+findTeam tid = do
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    200 -> Just <$> decodeBodyOrThrow "galley" rs
+    _ -> pure Nothing
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid]
+        . expect [status200, status404]
 
 -- | Calls 'Wire.ConversationSubsystem.getTeamInternalH'.
 getTeamName ::

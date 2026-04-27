@@ -31,7 +31,7 @@ import Wire.BackgroundWorker.Env hiding (federatorInternal)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
 import Wire.PostgresMigrationOpts
-import Wire.RateLimit.Interpreter (newRateLimitEnv)
+import Wire.RateLimit.Interpreter (RateLimitConfig (..), TokenBucketConfig (..), newRateLimitEnv)
 
 testEnv :: IO Env
 testEnv = do
@@ -78,8 +78,20 @@ testEnv = do
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
-  passwordHashingRateLimitEnv <- newRateLimitEnv undefined
+  passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
   pure Env {..}
+
+defTestRateLimitConfig :: RateLimitConfig
+defTestRateLimitConfig =
+  RateLimitConfig
+    { ipv4CidrBlock = 32,
+      ipv6CidrBlock = 128,
+      ipAddressExceptions = [],
+      maxRateLimitedKeys = 1000,
+      ipAddrLimit = TokenBucketConfig {burst = 100, inverseRate = 1_000_000},
+      userLimit = TokenBucketConfig {burst = 100, inverseRate = 1_000_000},
+      internalLimit = TokenBucketConfig {burst = 100, inverseRate = 1_000_000}
+    }
 
 runTestAppT :: AppT IO a -> Int -> IO a
 runTestAppT app port = do

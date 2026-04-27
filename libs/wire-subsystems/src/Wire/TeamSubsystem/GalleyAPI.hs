@@ -27,8 +27,8 @@ import Wire.TeamSubsystem
 
 interpretTeamSubsystemToGalleyAPI ::
   ( Member GalleyAPIAccess r,
-    Member (ErrorS TeamMemberNotFound) r,
-    Member (ErrorS TeamNotFound) r
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TeamNotFound) r
   ) =>
   InterpreterFor TeamSubsystem r
 interpretTeamSubsystemToGalleyAPI = interpret $ \case
@@ -49,6 +49,7 @@ interpretTeamSubsystemToGalleyAPI = interpret $ \case
   GetTeamMembersForFanout tid ->
     GalleyAPIAccess.getTeamMembersWithLimit tid Nothing
   AssertTeamExists tid -> do
-    void $ GalleyAPIAccess.getTeam tid
+    found <- isJust <$> GalleyAPIAccess.findTeam tid
+    unless found $ throwS @'TeamNotFound
   GetLHStatusForUsers uids -> GalleyAPIAccess.getUsersLHStatus uids
   GetLHStatus mtid uid -> GalleyAPIAccess.getUserLHStatus mtid uid
