@@ -22,6 +22,7 @@ module Wire.PostgresMigrations where
 
 import Control.Exception
 import Data.FileEmbed
+import Data.Set qualified as Set
 import Hasql.Migration
 import Hasql.Pool
 import Hasql.Session
@@ -33,6 +34,10 @@ import System.Logger qualified as Log
 allMigrations :: [MigrationCommand]
 allMigrations = map (uncurry MigrationScript) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
+-- Scripts which cannot be run in a transaction
+nonTransactionMigrations :: Set ScriptName
+nonTransactionMigrations = Set.fromList ["20260428072649-create-conv-parent-index.sql"]
+
 data PostgresMigrationError = PostgresMigrationError MigrationError
   deriving (Show)
 
@@ -42,12 +47,15 @@ runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
         Log.info logger $ Log.msg (Log.val "Running migrations")
-        transaction Serializable Write $ do
-          forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
-            mErr <- runMigration migrationCmd
-            case mErr of
-              Nothing -> pure ()
-              Just err -> throw $ PostgresMigrationError err
+        forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
+          mErr <-
+            if maybe False (`Set.member` nonTransactionMigrations) (migrationScriptName migrationCmd)
+              then runMigrationWithoutTransactions migrationCmd
+              else transaction Serializable Write $ runMigration migrationCmd
+
+          case mErr of
+            Nothing -> pure ()
+            Just err -> throw $ PostgresMigrationError err
         Log.info logger $ Log.msg (Log.val "Migrations completed successfully")
 
   either throwIO pure =<< use pool session
@@ -57,6 +65,12 @@ migrationName = \case
   MigrationInitialization -> Log.field "migration" ("Initialize Migration Schema" :: ByteString)
   MigrationScript name _ -> Log.field "migration" name
   MigrationValidation cmd -> Log.field "type" ("validation" :: ByteString) . migrationName cmd
+
+migrationScriptName :: MigrationCommand -> Maybe ScriptName
+migrationScriptName = \case
+  MigrationScript name _ -> Just name
+  MigrationInitialization -> Nothing
+  MigrationValidation _ -> Nothing
 
 -- | Only to be used to reset the development DB
 resetSchema :: Pool -> Logger -> IO ()
