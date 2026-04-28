@@ -37,6 +37,11 @@ data MeetingsSubsystem m a where
     Qualified MeetingId ->
     UpdateMeeting ->
     MeetingsSubsystem m (Maybe Meeting)
+  DeleteMeeting ::
+    Local UserId ->
+    ConnId ->
+    Qualified MeetingId ->
+    MeetingsSubsystem m Bool
   GetMeeting ::
     Local UserId ->
     Qualified MeetingId ->

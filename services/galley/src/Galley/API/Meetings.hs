@@ -18,6 +18,7 @@
 module Galley.API.Meetings
   ( createMeeting,
     updateMeeting,
+    deleteMeeting,
     getMeeting,
     listMeetings,
     addMeetingInvitation,
@@ -88,6 +89,24 @@ updateMeeting zUser domain meetingId update = do
   case maybeMeeting of
     Nothing -> throwS @'MeetingNotFound
     Just meeting -> pure meeting
+
+deleteMeeting ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member TeamStore.TeamStore r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Domain ->
+  MeetingId ->
+  Sem r ()
+deleteMeeting zUser connId domain meetingId = do
+  checkMeetingsEnabled (tUnqualified zUser)
+  let qMeetingId = Qualified meetingId domain
+  success <- Meetings.deleteMeeting zUser connId qMeetingId
+  unless success $ throwS @'MeetingNotFound
 
 getMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
