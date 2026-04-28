@@ -22,6 +22,7 @@ spec:
       backoffLimit: 0
       template:
         spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
           restartPolicy: Never
           containers:
             - name: mlsstats
@@ -41,6 +42,7 @@ spec:
                       , "--s3-bucket-dir", {{ .Values.config.s3.bucket.directory | quote }}
                     ]
               resources:
+{{ toYaml .Values.resources | indent 16 }}
               env:
               {{- if hasKey .Values.secrets "awsKeyId" }}
               - name: AWS_ACCESS_KEY_ID
@@ -56,4 +58,5 @@ spec:
               {{- end }}
               - name: AWS_REGION
                 value: "{{ .Values.config.s3.region }}"
-{{ toYaml .Values.resources | indent 16 }}
+              - name: AWS_EC2_METADATA_DISABLED
+                value: "true"

@@ -1,1 +1,2 @@
 Add tools/mlsstats to the Docker images to be built in CI runs.
+mlsstats Helm chart now supports pod identity: ServiceAccount with configurable annotations is created and referenced by the CronJob pod, enabling OIDC-based AWS credential injection instead of static keys. AWS_EC2_METADATA_DISABLED is set so the AWS SDK uses web identity tokens on non-EC2 nodes. Secret creation is skipped when no static credentials are provided.
