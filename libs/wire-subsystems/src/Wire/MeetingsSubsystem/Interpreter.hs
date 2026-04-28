@@ -200,13 +200,10 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       lift $ Store.deleteMeeting (qUnqualified meetingId)
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
-      maybeConv <- lift $ ConversationSubsystem.internalGetConversation convId
-      case maybeConv of
-        Just conv
-          | conv.metadata.cnvmGroupConvType == Just MeetingConversation ->
-              void $ lift $ ConversationSubsystem.deleteLocalConversation zUser connId lConvId
-        _ -> pure ()
-      pure ()
+      conv <- MaybeT $ ConversationSubsystem.getConversation convId
+      when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
+        lift $
+          ConversationSubsystem.deleteConversation convId
   pure $ isJust result
 
 getMeetingImpl ::
