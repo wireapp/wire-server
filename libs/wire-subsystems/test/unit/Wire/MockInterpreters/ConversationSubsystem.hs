@@ -41,8 +41,8 @@ type ConversationMembers = Map ConvId (Set UserId)
 inMemoryConversationSubsystemInterpreter ::
   (Member (State (Map ConvId StoredConversation)) r, Member (State ConversationMembers) r, Member Random r) =>
   InterpreterFor ConversationSubsystem r
-inMemoryConversationSubsystemInterpreter = interpret $ \case
-  CreateGroupConversation lusr _mconn newConv -> do
+inMemoryConversationSubsystemInterpreter = interpretH $ \case
+  InternalCreateGroupConversation lusr _mconn newConv -> do
     cid <- Random.newId
     let conv =
           StoredConversation
@@ -71,8 +71,8 @@ inMemoryConversationSubsystemInterpreter = interpret $ \case
             }
     modify (Map.insert cid conv)
     modify (Map.insert cid (Set.singleton (tUnqualified lusr)))
-    pure conv
+    pureT conv
   InternalGetLocalMember cid uid -> do
     members <- gets (Map.lookup cid)
-    pure $ if Set.member uid (fromMaybe Set.empty members) then Just (newMember uid) else Nothing
+    pureT $ if Set.member uid (fromMaybe Set.empty members) then Just (newMember uid) else Nothing
   _ -> error "ConversationSubsystem: not implemented in mock"

@@ -22,6 +22,7 @@ module Wire.GalleyAPIAccess where
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.Qualified
 import Data.Range
 import Imports
@@ -104,6 +105,9 @@ data GalleyAPIAccess m a where
   GetTeam ::
     TeamId ->
     GalleyAPIAccess m Team.TeamData
+  FindTeam ::
+    TeamId ->
+    GalleyAPIAccess m (Maybe Team.TeamData)
   GetTeamName ::
     TeamId ->
     GalleyAPIAccess m Team.TeamName
@@ -166,5 +170,7 @@ data GalleyAPIAccess m a where
   GetConversationConfig ::
     GalleyAPIAccess m ConversationSubsystemConfig
   GuardLegalHold :: LegalholdProtectee -> UserClients -> GalleyAPIAccess m ()
+  GetUserLHStatus :: Maybe TeamId -> UserId -> GalleyAPIAccess m UserLegalHoldStatus
+  GetUsersLHStatus :: [UserId] -> GalleyAPIAccess m [(UserId, UserLegalHoldStatus)]
 
 makeSem ''GalleyAPIAccess

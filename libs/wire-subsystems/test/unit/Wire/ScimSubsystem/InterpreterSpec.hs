@@ -75,10 +75,10 @@ runDependenciesSafe ::
   [StoredUser] ->
   Map TeamId [TeamMember] ->
   Sem AllDependencies a ->
-  Either UGS.UserGroupSubsystemError (Either ScimSubsystemError a)
+  Either UGS.LocalErrors (Either ScimSubsystemError a)
 runDependenciesSafe initialUsers initialTeams =
   run
-    . runError
+    . UGS.runLocalErrors
     . UGS.interpretDependencies initialUsers initialTeams
     . UGS.interpretUserGroupSubsystem
     . mockBrigAPIAccess initialUsers

@@ -200,7 +200,7 @@ testRemoveLegalHoldFromTeam = do
 testEnablePerTeamTooLarge :: TestM ()
 testEnablePerTeamTooLarge = do
   o <- view tsGConf
-  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
+  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimitOpts o
   -- TODO: it is impossible in this test to create teams bigger than the fanout limit.
   -- Change the +1 to anything else and look at the logs
   (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 5)
@@ -215,7 +215,7 @@ testEnablePerTeamTooLarge = do
 testAddTeamUserTooLargeWithLegalhold :: TestM ()
 testAddTeamUserTooLargeWithLegalhold = do
   o <- view tsGConf
-  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
+  let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimitOpts o
   (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
   feat :: Public.Feature Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   liftIO $ assertEqual "Teams should start with LegalHold disabled" feat.status Public.FeatureStatusDisabled

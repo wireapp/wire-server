@@ -6,6 +6,7 @@ import Data.LegalHold (UserLegalHoldStatus (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map qualified as Map
 import Data.Set qualified as Set
+import Data.Tagged (Tagged)
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Text.Lazy.IO qualified as TL
@@ -14,6 +15,7 @@ import Data.X509.CertificateStore qualified as X509
 import Imports
 import Network.Mail.Mime (Address (..), Mail (..), Part (..), PartContent (..))
 import Polysemy
+import Polysemy.Error (runError)
 import Polysemy.State
 import SAML2.WebSSO
 import System.FilePath
@@ -23,6 +25,8 @@ import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Text.Email.Parser (unsafeEmailAddress)
 import URI.ByteString
+import Wire.API.Error (ErrorS)
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Locale
 import Wire.API.Password
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
@@ -347,6 +351,8 @@ runInterpreters ::
        Logger (Logger.Msg -> Logger.Msg),
        EmailSending,
        State [Mail],
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'TeamNotFound,
        Embed IO
      ]
     a ->
@@ -355,6 +361,9 @@ runInterpreters users teamMap teamTemplates branding action = do
   lr <- newLogRecorder
   (mails, res) <-
     runM
+      . fmap (either (error . show) (either (error . show) Imports.id))
+      . runError @(Tagged 'TeamNotFound ())
+      . runError @(Tagged 'TeamMemberNotFound ())
       . runState @[Mail] [] -- Use runState to capture and return the Mail state
       . recordingEmailSendingInterpreter
       . recordLogs lr

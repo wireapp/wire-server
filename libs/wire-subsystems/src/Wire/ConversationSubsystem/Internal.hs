@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.ConversationSubsystem.Internal (internalGetClientIdsImpl) where
+module Wire.ConversationSubsystem.Internal (internalGetClientIds) where
 
 import Data.Id
 import Galley.Types.Clients (Clients, fromUserClients)
@@ -27,14 +27,14 @@ import Wire.BrigAPIAccess
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserClientIndexStore qualified as UserClientIndexStore
 
-internalGetClientIdsImpl ::
+internalGetClientIds ::
   ( Member BrigAPIAccess r,
     Member UserClientIndexStore r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   [UserId] ->
   Sem r Clients
-internalGetClientIdsImpl users = do
+internalGetClientIds users = do
   isInternal <- inputs (.listClientsUsingBrig)
   if isInternal
     then fromUserClients <$> lookupClients users

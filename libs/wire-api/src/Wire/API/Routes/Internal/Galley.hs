@@ -20,10 +20,11 @@ module Wire.API.Routes.Internal.Galley where
 import Control.Lens ((.~))
 import Data.Domain
 import Data.Id as Id
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.OpenApi (OpenApi, info, title)
 import Data.Range
 import GHC.TypeLits (AppendSymbol)
-import Imports hiding (head)
+import Imports
 import Servant
 import Servant.OpenApi
 import Wire.API.Bot
@@ -52,6 +53,7 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold qualified as LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info
 import Wire.API.Team.SearchVisibility
@@ -550,7 +552,7 @@ type IMiscAPI =
                     (RespondEmpty 200 "OK")
            )
     :<|> Named
-           "test-delete-client"
+           "remove-client"
            ( "clients"
                :> ZUser
                :> Capture "cid" ClientId
@@ -621,6 +623,21 @@ type IMiscAPI =
                :> "by-domain"
                :> Capture "domain" Domain
                :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "OK")
+           )
+    :<|> Named
+           "get-user-lh-status"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "lh-status"
+               :> QueryParam "team_id" TeamId
+               :> Get '[JSON] UserLegalHoldStatus
+           )
+    :<|> Named
+           "get-users-lh-status"
+           ( "users"
+               :> "lh-status"
+               :> ReqBody '[JSON] UserIds
+               :> Post '[JSON] [LegalHold.UserLegalHoldStatusEntry]
            )
 
 type IEJPDAPI =

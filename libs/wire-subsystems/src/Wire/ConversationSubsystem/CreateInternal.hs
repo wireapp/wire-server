@@ -80,7 +80,7 @@ import Wire.StoredConversation qualified as Data
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as TeamStore
-import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.TeamSubsystem (TeamSubsystem, permissionCheck)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 import Wire.UserList (UserList (UserList), toUserList, ulAddLocal, ulAll, ulFromLocals, ulLocals, ulRemotes)
 

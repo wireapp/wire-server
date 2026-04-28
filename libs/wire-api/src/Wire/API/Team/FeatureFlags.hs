@@ -25,6 +25,8 @@ module Wire.API.Team.FeatureFlags
     FeatureFlags,
     FanoutLimit,
     featureDefaults,
+    defaultFanoutLimit,
+    currentFanoutLimit,
     notTeamMember,
     findTeamMember,
     isTeamMember,
@@ -42,7 +44,7 @@ import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id (UserId)
 import Data.OpenApi qualified as S
-import Data.Range (Range)
+import Data.Range (Range, fromRange, toRange, unsafeRange)
 import Data.SOP
 import Data.Schema
 import Data.Set qualified as Set
@@ -52,6 +54,15 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 
 type FanoutLimit = Range 1 HardTruncationLimit Int32
+
+defaultFanoutLimit :: FanoutLimit
+defaultFanoutLimit = toRange (Proxy @HardTruncationLimit)
+
+currentFanoutLimit :: Word32 -> Maybe FanoutLimit -> FanoutLimit
+currentFanoutLimit maxTeamSize maxFanoutSize =
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defaultFanoutLimit maxFanoutSize
+      maxSize = fromIntegral maxTeamSize
+   in unsafeRange (min maxSize optFanoutLimit)
 
 -- | Used to extract the feature config type out of 'FeatureDefaults' or
 -- related types.

@@ -17,15 +17,19 @@
 
 module Galley.API.Federation where
 
-import Galley.API.Federation.Handlers
+import Data.Domain
 import Galley.App
+import Imports
 import Polysemy
 import Servant (ServerT)
 import Servant.API
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Common (EmptyResponse (..))
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
 import Wire.API.Routes.Named
+import Wire.ConversationSubsystem as ConversationSubsystem
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -33,26 +37,42 @@ type FederationAPI = "federation" :> FedApi 'Galley
 federationSitemap ::
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
-  Named @"on-conversation-created" onConversationCreated
-    :<|> Named @"get-conversations@v1" getConversationsV1
-    :<|> Named @"get-conversations" getConversations
-    :<|> Named @"leave-conversation" leaveConversation
-    :<|> Named @"send-message" sendMessage
-    :<|> Named @"update-conversation" updateConversation
-    :<|> Named @"mls-welcome" mlsSendWelcome
-    :<|> Named @"send-mls-message" sendMLSMessage
-    :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
-    :<|> Named @"query-group-info" queryGroupInfo
-    :<|> Named @"update-typing-indicator" updateTypingIndicator
-    :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
-    :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
-    :<|> Named @"delete-sub-conversation" deleteSubConversationForRemoteUser
-    :<|> Named @"leave-sub-conversation" leaveSubConversation
-    :<|> Named @"get-one2one-conversation@v1" getOne2OneConversationV1
-    :<|> Named @"get-one2one-conversation" getOne2OneConversation
-    :<|> Named @"on-client-removed" onClientRemoved
-    :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"on-mls-message-sent" onMLSMessageSent
+  Named @"on-conversation-created" federationOnConversationCreated
+    :<|> Named @"get-conversations@v1" federationGetLegacyConversations
+    :<|> Named @"get-conversations" federationGetConversations
+    :<|> Named @"leave-conversation" federationLeaveConversation
+    :<|> Named @"send-message" federationSendMessage
+    :<|> Named @"update-conversation" federationUpdateConversation
+    :<|> Named @"mls-welcome" federationMlsSendWelcome
+    :<|> Named @"send-mls-message" federationSendMLSMessage
+    :<|> Named @"send-mls-commit-bundle" federationSendMLSCommitBundle
+    :<|> Named @"query-group-info" federationQueryGroupInfo
+    :<|> Named @"update-typing-indicator" federationUpdateTypingIndicator
+    :<|> Named @"on-typing-indicator-updated" federationOnTypingIndicatorUpdated
+    :<|> Named @"get-sub-conversation" federationGetSubConversationForRemoteUser
+    :<|> Named @"delete-sub-conversation" federationDeleteSubConversationForRemoteUser
+    :<|> Named @"leave-sub-conversation" federationLeaveSubConversation
+    :<|> Named @"get-one2one-conversation@v1" federationGetLegacyOne2OneConversation
+    :<|> Named @"get-one2one-conversation" federationGetOne2OneConversation
+    :<|> Named @"on-client-removed" federationOnClientRemoved
+    :<|> Named @"on-message-sent" federationOnMessageSent
+    :<|> Named @"on-mls-message-sent" federationOnMLSMessageSent
     :<|> Named @(Versioned 'V0 "on-conversation-updated") onConversationUpdatedV0
-    :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"on-user-deleted-conversations" onUserDeleted
+    :<|> Named @"on-conversation-updated" federationOnConversationUpdated
+    :<|> Named @"on-user-deleted-conversations" federationOnUserDeleted
+
+onConversationUpdatedV0 ::
+  (Member ConversationSubsystem r) =>
+  Domain ->
+  ConversationUpdateV0 ->
+  Sem r EmptyResponse
+onConversationUpdatedV0 domain cu =
+  federationOnConversationUpdated domain (conversationUpdateFromV0 cu)
+
+federationGetLegacyConversations ::
+  (Member ConversationSubsystem r) =>
+  Domain ->
+  GetConversationsRequest ->
+  Sem r GetConversationsResponse
+federationGetLegacyConversations domain req =
+  getConversationsResponseFromView <$> ConversationSubsystem.federationGetConversations domain req

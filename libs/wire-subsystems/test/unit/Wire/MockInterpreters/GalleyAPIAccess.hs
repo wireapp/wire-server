@@ -56,6 +56,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
         (\members -> any (\member -> member ^. userId == uid) members)
         teams
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
+  FindTeam _ -> error "FindTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
   GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"
@@ -92,6 +93,8 @@ miniGalleyAPIAccess teams configs = interpret $ \case
           maxConvSize = 500,
           listClientsUsingBrig = False
         }
+  GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
+  GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
   GuardLegalHold {} -> pure ()
 
 -- this is called but the result is not needed in unit tests

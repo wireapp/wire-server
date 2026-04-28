@@ -75,6 +75,9 @@ module Wire.BrigAPIAccess
 
     -- * Account status
     setAccountStatus,
+
+    -- * Assertions
+    ensureConnectedToLocals,
   )
 where
 
@@ -92,6 +95,7 @@ import Polysemy
 import Polysemy.Error
 import Web.Scim.Filter qualified as Scim
 import Wire.API.Connection
+import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig
@@ -198,3 +202,17 @@ getConnectionsUnqualifiedBidi uids1 uids2 mrel1 mrel2 = do
   res1 <- getConnectionsUnqualified uids1 (Just uids2) mrel1
   res2 <- getConnectionsUnqualified uids2 (Just uids1) mrel2
   pure (res1, res2)
+
+ensureConnectedToLocals ::
+  ( Member (ErrorS 'NotConnected) r,
+    Member BrigAPIAccess r
+  ) =>
+  UserId ->
+  [UserId] ->
+  Sem r ()
+ensureConnectedToLocals _ [] = pure ()
+ensureConnectedToLocals u uids = do
+  (connsFrom, connsTo) <-
+    getConnectionsUnqualifiedBidi [u] uids (Just Accepted) (Just Accepted)
+  unless (length connsFrom == length uids && length connsTo == length uids) $
+    throwS @'NotConnected

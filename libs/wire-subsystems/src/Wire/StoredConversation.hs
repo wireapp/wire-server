@@ -30,9 +30,11 @@ import Data.Time (UTCTime)
 import Data.UUID.Tagged qualified as U
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Federation.API.Galley
 import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group.Serialisation qualified as MLS
@@ -351,6 +353,135 @@ defAccess ConnectConv (Just []) = [PrivateAccess]
 defAccess One2OneConv (Just []) = [PrivateAccess]
 defAccess RegularConv (Just []) = defRegularConvAccess
 defAccess _ (Just xs@(_ : _)) = xs
+
+-- MAPPING -------------------------------------------------------------------
+
+-- | View for a given user of a stored conversation.
+--
+-- Throws @BadMemberState@ when the user is not part of the conversation.
+ownConversationView ::
+  Local UserId ->
+  StoredConversation ->
+  Maybe OwnConversation
+ownConversationView luid conv = do
+  let remoteOthers = map remoteMemberToOther $ conv.remoteMembers
+      localOthers = map (localMemberToOther (tDomain luid)) $ conv.localMembers
+  conversationViewWithCachedOthers remoteOthers localOthers conv luid
+
+conversationView ::
+  Local x ->
+  Maybe (Local UserId) ->
+  StoredConversation ->
+  Conversation
+conversationView l luid conv =
+  let remoteMembers = map remoteMemberToOther $ conv.remoteMembers
+      localMembers = map (localMemberToOther (tDomain l)) $ conv.localMembers
+      selfs = filter (\m -> fmap tUnqualified luid == Just m.id_) (conv.localMembers)
+      mSelf = localMemberToPublic l <$> listToMaybe selfs
+      others = filter (\oth -> (tUntagged <$> luid) /= Just (omQualifiedId oth)) localMembers <> remoteMembers
+   in Conversation
+        { members = ConvMembers mSelf others,
+          qualifiedId = (tUntagged . qualifyAs l $ conv.id_),
+          metadata = conv.metadata,
+          protocol = conv.protocol
+        }
+
+-- | Like 'conversationView' but optimized for situations which could benefit
+-- from pre-computing the list of @OtherMember@s in the conversation. For
+-- instance, creating @ConversationView@ for more than 1 member of the same conversation.
+conversationViewWithCachedOthers ::
+  [OtherMember] ->
+  [OtherMember] ->
+  StoredConversation ->
+  Local UserId ->
+  Maybe OwnConversation
+conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
+  conversationViewMaybe luid remoteOthers localOthers conv
+
+-- | View for a given user of a stored conversation.
+--
+-- Returns 'Nothing' if the user is not part of the conversation.
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe OwnConversation
+conversationViewMaybe luid remoteOthers localOthers conv = do
+  let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
+  self <- localMemberToPublic luid <$> listToMaybe selfs
+  let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
+  pure $
+    OwnConversation
+      (tUntagged . qualifyAs luid $ conv.id_)
+      conv.metadata
+      (OwnConvMembers self others)
+      conv.protocol
+
+-- | View for a local user of a remote conversation.
+remoteConversationView ::
+  Local UserId ->
+  MemberStatus ->
+  Remote RemoteConversationView ->
+  OwnConversation
+remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
+  let mems = rconv.members
+      others = mems.others
+      self =
+        localMemberToPublic
+          uid
+          LocalMember
+            { id_ = tUnqualified uid,
+              service = Nothing,
+              status = status,
+              convRoleName = mems.selfRole
+            }
+   in OwnConversation
+        (Qualified rconv.id rDomain)
+        rconv.metadata
+        (OwnConvMembers self others)
+        rconv.protocol
+
+-- | Convert a local conversation member (as stored in the DB) to a publicly
+-- facing 'Member' structure.
+localMemberToPublic :: Local x -> LocalMember -> Public.Member
+localMemberToPublic loc lm =
+  Public.Member
+    { memId = tUntagged . qualifyAs loc $ lm.id_,
+      memService = lm.service,
+      memOtrMutedStatus = msOtrMutedStatus st,
+      memOtrMutedRef = msOtrMutedRef st,
+      memOtrArchived = msOtrArchived st,
+      memOtrArchivedRef = msOtrArchivedRef st,
+      memHidden = msHidden st,
+      memHiddenRef = msHiddenRef st,
+      memConvRoleName = lm.convRoleName
+    }
+  where
+    st = lm.status
+
+-- | Convert a local conversation to a structure to be returned to a remote
+-- backend.
+--
+-- This returns 'Nothing' if the given remote user is not part of the conversation.
+conversationToRemote ::
+  Domain ->
+  Remote UserId ->
+  StoredConversation ->
+  Maybe RemoteConversationView
+conversationToRemote localDomain ruid conv = do
+  let (selfs, rothers) = partition (\r -> r.id_ == ruid) (conv.remoteMembers)
+      lothers = conv.localMembers
+  selfRole' <- (.convRoleName) <$> listToMaybe selfs
+  let others' =
+        map (localMemberToOther localDomain) lothers
+          <> map remoteMemberToOther rothers
+  pure $
+    RemoteConversationView
+      { id = conv.id_,
+        metadata = conv.metadata,
+        members =
+          RemoteConvMembers
+            { selfRole = selfRole',
+              others = others'
+            },
+        protocol = conv.protocol
+      }
 
 -- BotMember ------------------------------------------------------------------
 

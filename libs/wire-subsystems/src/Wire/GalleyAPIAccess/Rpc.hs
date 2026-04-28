@@ -27,6 +27,7 @@ import Data.Coerce (coerce)
 import Data.Currency qualified as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.LegalHold (UserLegalHoldStatus)
 import Data.Qualified
 import Data.Range
 import Imports
@@ -38,6 +39,7 @@ import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog, debug)
 import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
@@ -66,7 +68,8 @@ import Wire.Rpc
 interpretGalleyAPIAccessToRpc ::
   ( Member (Error ParseException) r,
     Member Rpc r,
-    Member (Error ClientError) r
+    Member (Error ClientError) r,
+    Member TinyLog r
   ) =>
   Set Version ->
   Endpoint ->
@@ -89,6 +92,7 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           SelectTeamMembers tid uids -> selectTeamMembers tid uids
           GetTeamId id' -> getTeamId id'
           GetTeam id' -> getTeam id'
+          FindTeam id' -> findTeam id'
           GetTeamName id' -> getTeamName id'
           GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
           GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
@@ -109,6 +113,8 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamContacts uid -> getTeamContacts uid
           GetConversationConfig -> getConversationConfig
           GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
+          GetUserLHStatus mtid uid -> getUserLHStatus mtid uid
+          GetUsersLHStatus uids -> getUsersLHStatus uids
 
 getUserLegalholdStatus ::
   ( Member (Error ParseException) r,
@@ -132,7 +138,7 @@ galleyRequest req = do
   ep <- input
   rpcWithRetries "galley" ep req
 
--- | Calls 'Galley.API.createSelfConversationH'.
+-- | Calls 'Wire.ConversationSubsystem.createSelfConversationH'.
 createSelfConv ::
   ( Member Rpc r,
     Member (Input Endpoint) r
@@ -148,7 +154,7 @@ createSelfConv v u = do
         . zUser u
         . expect2xx
 
--- | Calls 'Galley.API.getConversationH'.
+-- | Calls 'Wire.ConversationSubsystem.getConversationH'.
 getConv ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -175,7 +181,7 @@ getConv v usr lcnv = do
         . zUser usr
         . expect [status200, status404]
 
--- | Calls 'Galley.API.getTeamConversationH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamConversationH'.
 getTeamConv ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -204,7 +210,7 @@ getTeamConv v usr tid cnv = do
         . zUser usr
         . expect [status200, status404]
 
--- | Calls 'Galley.API.addClientH'.
+-- | Calls 'Wire.ConversationSubsystem.addClientH'.
 newClient ::
   ( Member Rpc r,
     Member (Input Endpoint) r
@@ -219,7 +225,7 @@ newClient u c = do
       . zUser u
       . expect2xx
 
--- | Calls 'Galley.API.canUserJoinTeamH'.
+-- | Calls 'Wire.ConversationSubsystem.canUserJoinTeamH'.
 checkUserCanJoinTeam ::
   ( Member Rpc r,
     Member (Input Endpoint) r
@@ -239,7 +245,7 @@ checkUserCanJoinTeam tid = do
         . paths ["i", "teams", toByteString' tid, "members", "check"]
         . header "Content-Type" "application/json"
 
--- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
+-- | Calls 'Wire.ConversationSubsystem.uncheckedAddTeamMemberH'.
 addTeamMember ::
   ( Member Rpc r,
     Member (Input Endpoint) r
@@ -265,7 +271,7 @@ addTeamMember u tid minvmeta role = do
         . expect [status200, status403]
         . lbytes (encode bdy)
 
--- | Calls 'Galley.API.createBindingTeamH'.
+-- | Calls 'Wire.ConversationSubsystem.createBindingTeamH'.
 createTeam ::
   ( Member Rpc r,
     Member (Input Endpoint) r
@@ -285,7 +291,7 @@ createTeam u t teamid = do
         . expect2xx
         . lbytes (encode t)
 
--- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
+-- | Calls 'Wire.ConversationSubsystem.uncheckedGetTeamMemberH'.
 getTeamMember ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -306,7 +312,7 @@ getTeamMember u tid = do
         . zUser u
         . expect [status200, status404]
 
--- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
+-- | Calls 'Wire.ConversationSubsystem.uncheckedGetTeamMembersH'.
 --
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
@@ -393,7 +399,7 @@ memberIsTeamOwner tid uid = do
         . paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   pure $ responseStatus r /= status403
 
--- | Calls 'Galley.API.getBindingTeamIdH'.
+-- | Calls 'Wire.ConversationSubsystem.getBindingTeamIdH'.
 getTeamId ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -412,7 +418,7 @@ getTeamId u = do
         . paths ["i", "users", toByteString' u, "team"]
         . expect [status200, status404]
 
--- | Calls 'Galley.API.getTeamInternalH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamInternalH'.
 getTeam ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -428,7 +434,26 @@ getTeam tid = do
         . paths ["i", "teams", toByteString' tid]
         . expect2xx
 
--- | Calls 'Galley.API.getTeamInternalH'.
+-- | Like 'getTeam' but returns 'Nothing' on 404 instead of throwing.
+findTeam ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  TeamId ->
+  Sem r (Maybe Team.TeamData)
+findTeam tid = do
+  rs <- galleyRequest req
+  case Bilge.statusCode rs of
+    200 -> Just <$> decodeBodyOrThrow "galley" rs
+    _ -> pure Nothing
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid]
+        . expect [status200, status404]
+
+-- | Calls 'Wire.ConversationSubsystem.getTeamInternalH'.
 getTeamName ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -444,7 +469,7 @@ getTeamName tid = do
         . paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
--- | Calls 'Galley.API.getTeamFeatureStatusH'.
+-- | Calls 'Wire.ConversationSubsystem.getTeamFeatureStatusH'.
 getTeamLegalHoldStatus ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -460,7 +485,7 @@ getTeamLegalHoldStatus tid = do
         . paths ["i", "teams", toByteString' tid, "features", featureNameBS @LegalholdConfig]
         . expect2xx
 
--- | Calls 'Galley.API.getSearchVisibilityInternalH'.
+-- | Calls 'Wire.ConversationSubsystem.getSearchVisibilityInternalH'.
 getTeamSearchVisibility ::
   ( Member (Error ParseException) r,
     Member Rpc r,
@@ -541,7 +566,7 @@ getConfiguredFeatureFlags = do
           . expect2xx
       )
 
--- | Calls 'Galley.API.updateTeamStatusH'.
+-- | Calls 'Wire.ConversationSubsystem.updateTeamStatusH'.
 changeTeamStatus ::
   ( Member Rpc r,
     Member (Input Endpoint) r
@@ -748,3 +773,48 @@ guardLegalhold protectee userClients = do
         . paths ["i", "guard-legalhold-policy-conflicts"]
         . header "Content-Type" "application/json"
         . lbytes (encode $ GuardLegalholdPolicyConflicts protectee userClients)
+
+getUserLHStatus ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  Maybe TeamId ->
+  UserId ->
+  Sem r UserLegalHoldStatus
+getUserLHStatus mtid uid = do
+  debug $
+    remote "galley"
+      . field "user" (toByteString uid)
+      . msg (val "Get user legalhold status")
+  galleyRequest req >>= decodeBodyOrThrow "galley"
+  where
+    req =
+      method GET
+        . paths ["i", "users", toByteString' uid, "lh-status"]
+        . maybe id (queryItem "team_id" . toByteString') mtid
+        . expect2xx
+
+getUsersLHStatus ::
+  ( Member (Error ParseException) r,
+    Member Rpc r,
+    Member (Input Endpoint) r,
+    Member TinyLog r
+  ) =>
+  [UserId] ->
+  Sem r [(UserId, UserLegalHoldStatus)]
+getUsersLHStatus uids = do
+  debug $
+    remote "galley"
+      . msg (val "Get users legalhold status")
+  let bdy = UserIds uids
+  entries :: [UserLegalHoldStatusEntry] <- galleyRequest (req bdy) >>= decodeBodyOrThrow "galley"
+  pure $ map (\e -> (e.ulhseUser, e.ulhseStatus)) entries
+  where
+    req bdy =
+      method POST
+        . paths ["i", "users", "lh-status"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode bdy)
+        . expect2xx
