@@ -7,7 +7,7 @@
 
 tags:
   legalhold: false
-  federation: false 
+  federation: false
   backoffice: false
   mlsstats: false
   integration: false
@@ -145,7 +145,8 @@ galley:
       # To disable proteus for new federated conversations:
       # federationProtocols: ["mls"]
 
-      featureFlags: # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
+      featureFlags:
+        # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
         appLock:
           defaults:
             config:
@@ -340,8 +341,7 @@ galley:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
 
@@ -509,8 +509,8 @@ cannon:
       #   name: <secret-name>
       #   key: <ca-attribute>
 
-    # See also the section 'Controlling the speed of websocket draining during
-    # cannon pod replacement' in docs/how-to/install/configuration-options.rst
+      # See also the section 'Controlling the speed of websocket draining during
+      # cannon pod replacement' in docs/how-to/install/configuration-options.rst
     drainOpts:
       # The following drains a minimum of 400 connections/second
       # for a total of 10000 over 25 seconds
@@ -719,21 +719,21 @@ gundeck:
       #   name: <secret-name>
       #   key: <ca-attribute>
 
-    # To enable additional writes during a migration:
-    # redisAdditionalWrite:
-    #   host: redis-two
-    #   port: 6379
-    #   connectionMode: master
-    #   enableTls: false
-    #   insecureSkipVerifyTls: false
-    #
-    # # To configure custom TLS CA, please provide one of these:
-    # # tlsCa: <CA in PEM format (can be self-signed)>
-    # #
-    # # Or refer to an existing secret (containing the CA):
-    # # tlsCaSecretRef:
-    # #   name: <secret-name>
-    # #   key: <ca-attribute>
+      # To enable additional writes during a migration:
+      # redisAdditionalWrite:
+      #   host: redis-two
+      #   port: 6379
+      #   connectionMode: master
+      #   enableTls: false
+      #   insecureSkipVerifyTls: false
+      #
+      # # To configure custom TLS CA, please provide one of these:
+      # # tlsCa: <CA in PEM format (can be self-signed)>
+      # #
+      # # Or refer to an existing secret (containing the CA):
+      # # tlsCaSecretRef:
+      # #   name: <secret-name>
+      # #   key: <ca-attribute>
     aws:
       region: "eu-west-1"
     proxy: {}
@@ -759,7 +759,6 @@ gundeck:
     # will be deleted and thus not delivered.
     # The default is 28 days.
     notificationTTL: 2419200
-
     # To enable cells notifications
     # cellsEventQueue: cells_events
 
@@ -835,7 +834,6 @@ spar:
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     disabledAPIVersions: [development]
-
     # SAML - ServiceProvider configuration
     # Usually, one would configure one set of options for a single domain. For
     # multi-ingress setups (one backend is available through multiple domains),
@@ -982,8 +980,22 @@ background-worker:
       # Total attempts, including the first try
       maxAttempts: 3
 
-  secrets:
-    {}
+    # Meetings cleanup configuration
+    meetingsCleanup:
+      # Delete meetings older than this many hours (48 hours = 2 days)
+      cleanOlderThanHours: 48.0
+      # Maximum number of meetings to delete per batch
+      batchSize: 1000
+      # Cron schedule for the cleanup job (0 * * * * = every hour)
+      schedule: "0 * * * *"
+
+    # Controls where conversation data is stored/accessed
+    postgresMigration:
+      conversation: cassandra
+      conversationCodes: cassandra
+      teamFeatures: cassandra
+
+  secrets: {}
 
   podSecurityContext:
     allowPrivilegeEscalation: false
@@ -1031,7 +1043,7 @@ brig:
     #   tlsCaSecretRef:
     #     name: <secret-name>
     #     key: <ca-attribute>
-  
+
     elasticsearch:
       scheme: http
       host: elasticsearch-client
@@ -1062,7 +1074,7 @@ brig:
       sesEndpoint: https://email.eu-west-1.amazonaws.com
       sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
       # dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
-    # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
+      # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
     randomPrekeys: true
     useSES: true
     multiSFT:
@@ -1077,19 +1089,19 @@ brig:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
-  
-    # Postgres connection settings
-    #
-    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    # To set the password via a brig secret see `secrets.pgPassword`.
-    #
-    # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
-    # additional files (e.g. certificates) into the brig container. This way
-    # does not work for password files (parameter `passfile`), because
-    # libpq-connect requires access rights (mask 0600) for them that we cannot
-    # provide for random uids.
-    #
-    # Below is an example configuration we're using for our CI tests.
+
+      # Postgres connection settings
+      #
+      # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+      # To set the password via a brig secret see `secrets.pgPassword`.
+      #
+      # `additionalVolumeMounts` and `additionalVolumes` can be used to mount
+      # additional files (e.g. certificates) into the brig container. This way
+      # does not work for password files (parameter `passfile`), because
+      # libpq-connect requires access rights (mask 0600) for them that we cannot
+      # provide for random uids.
+      #
+      # Below is an example configuration we're using for our CI tests.
     postgresql:
       host: postgresql # DNS name without protocol
       port: "5432"
@@ -1100,7 +1112,7 @@ brig:
       acquisitionTimeout: 10s
       agingTimeout: 1d
       idlenessTimeout: 10m
-  
+
     emailSMS:
       general:
         templateBranding:
@@ -1195,25 +1207,25 @@ brig:
         maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
       # setAuditLogEmailRecipient: security@wire.com
       setEphemeralUserCreationEnabled: true
-  
+
     smtp:
       passwordFile: /etc/wire/brig/secrets/smtp-password.txt
     proxy: {}
     wireServerEnterprise:
       enabled: false
-  
+
   turnStatic:
     v1:
       - turn:localhost:3478
     v2:
       - turn:localhost:3478
       - turn:localhost:3478?transport=tcp
-  
+
   turn:
     serversSource: files # files | dns
     # baseDomain: turn.wire.example # Must be configured if serversSource is dns
     discoveryIntervalSeconds: 10 # Used only if serversSource is dns
-  
+
   serviceAccount:
     # When setting this to 'false', either make sure that a service account named
     # 'brig' exists or change the 'name' field to 'default'
@@ -1221,9 +1233,9 @@ brig:
     name: brig
     annotations: {}
     automountServiceAccountToken: true
-  
+
   secrets: {}
-  
+
   podSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -1233,15 +1245,14 @@ brig:
     seccompProfile:
       type: RuntimeDefault
   tests:
-    config:
-      {}
+    config: {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
-  
+
     secrets:
       # uploadXmlAwsAccessKeyId: <key-id>
       # uploadXmlAwsSecretAccessKey: <secret>
-  
+
       # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
       providerPrivateKey: |
         -----BEGIN RSA PRIVATE KEY-----
@@ -1303,7 +1314,6 @@ brig:
         hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
         T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
         -----END CERTIFICATE-----
-  
       # pgPassword: <postgres-password>
   test:
     elasticsearch:

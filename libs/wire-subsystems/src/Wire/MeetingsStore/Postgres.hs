@@ -64,6 +64,10 @@ interpretMeetingsStoreToPostgres =
       addInvitedEmailsImpl meetingId email
     RemoveInvitedEmails meetingId emails ->
       removeInvitedEmailsImpl meetingId emails
+    GetOldMeetings cutoffTime batchSize ->
+      getOldMeetingsImpl cutoffTime batchSize
+    DeleteMeetingBatch meetingIds ->
+      deleteMeetingBatchImpl meetingIds
 
 -- * Create
 
@@ -362,4 +366,57 @@ removeInvitedEmailsImpl meetingId emails = do
         SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[]))),
             updated_at = NOW()
         WHERE id = ($2 :: uuid)
+      |]
+
+getOldMeetingsImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UTCTime ->
+  Int ->
+  Sem r [StoredMeeting]
+getOldMeetingsImpl cutoffTime batchSize = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [StoredMeeting]
+    session = statement (cutoffTime, fromIntegral batchSize) $ V.toList <$> listStatement
+    listStatement :: Statement (UTCTime, Int32) (V.Vector StoredMeeting)
+    listStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+          WHERE end_time < ($1 :: timestamptz)
+          ORDER BY end_time ASC
+          LIMIT ($2 :: int4)
+        |]
+
+deleteMeetingBatchImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  [MeetingId] ->
+  Sem r Int64
+deleteMeetingBatchImpl meetingIds = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session Int64
+    session = statement (V.fromList (toUUID <$> meetingIds)) deleteStatement
+    deleteStatement :: Statement (V.Vector UUID) Int64
+    deleteStatement =
+      [rowsAffectedStatement|
+        DELETE FROM meetings
+        WHERE id IN (SELECT unnest($1::uuid[]))
       |]

@@ -34,6 +34,7 @@ import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
+import Wire.MeetingsCleanupWorker qualified as MeetingsCleanupWorker
 import Wire.Migration
 import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrations qualified as Migrations
@@ -82,6 +83,10 @@ run opts galleyOpts = do
     runAppT env $
       withNamedLogger "background-job-consumer" $
         Jobs.startWorker amqpEP
+  cleanupMeetings <-
+    runAppT env $
+      withNamedLogger "meetings-cleanup" $
+        MeetingsCleanupWorker.startWorker opts.meetingsCleanup
   let cleanup =
         void $
           runConcurrently $
@@ -93,6 +98,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupTeamFeaturesMigration
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupJobs
+              <*> Concurrently cleanupMeetings
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server

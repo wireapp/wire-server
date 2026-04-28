@@ -21,6 +21,7 @@ library
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
+    Wire.MeetingsCleanupWorker
     Wire.PostgresMigrations
 
   hs-source-dirs:     src
@@ -39,6 +40,7 @@ library
     , bytestring-conversion
     , cassandra-util
     , containers
+    , cron
     , data-timeout
     , exceptions
     , extended
@@ -61,6 +63,7 @@ library
     , ssl-util
     , tagged
     , text
+    , time
     , tinylog
     , transformers
     , transformers-base
