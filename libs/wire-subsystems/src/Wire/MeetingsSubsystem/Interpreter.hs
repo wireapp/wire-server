@@ -197,13 +197,13 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       let cutoff = addUTCTime (negate validityPeriod) now
       guard $ meeting.endTime >= cutoff
       guard $ meeting.creator == tUnqualified zUser
-      lift $ Store.deleteMeeting (qUnqualified meetingId)
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
       conv <- MaybeT $ ConversationSubsystem.getConversation convId
       when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
         lift $
           ConversationSubsystem.deleteConversation convId
+      lift $ Store.deleteMeeting (qUnqualified meetingId)
   pure $ isJust result
 
 getMeetingImpl ::
