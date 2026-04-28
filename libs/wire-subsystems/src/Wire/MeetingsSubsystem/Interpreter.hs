@@ -196,6 +196,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       now <- lift Now.get
       let cutoff = addUTCTime (negate validityPeriod) now
       guard $ meeting.endTime >= cutoff
+      guard $ qDomain meetingId == tDomain zUser
       guard $ meeting.creator == tUnqualified zUser
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId

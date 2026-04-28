@@ -465,10 +465,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         (meeting, _) <- createMeeting zUser1 newMeeting
-        _ <- deleteMeeting zUser1 testConnId meeting.id
-        pure meeting
+        deleteResult <- deleteMeeting zUser1 testConnId meeting.id
+        getResult <- getMeeting zUser1 meeting.id
+        pure (deleteResult, getResult)
 
-      result `shouldSatisfy` isRight
+      result `shouldBe` Right (True, Nothing)
 
     it "returns False when non-creator tries to delete" $ do
       let newMeeting =
@@ -524,9 +525,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         (meeting, conv) <- createMeeting zUser1 newMeeting
         _ <- internalGetConversation conv.id_
         _ <- deleteMeeting zUser1 testConnId meeting.id
-        pure ()
+        internalGetConversation conv.id_
 
-      result `shouldSatisfy` isRight
+      result `shouldBe` Right Nothing
 
     it "preserves non-meeting conversation" $ do
       let newMeeting =
