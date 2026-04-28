@@ -85,7 +85,7 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
     modify @ConversationMembers (Map.delete (tUnqualified lcnv))
     pureT Unchanged
   GetConversationIds _lusr _range _pagingState -> do
-    pureT $ MultiTablePaging.MultiTablePage [] False (ConversationPagingState PagingLocals Nothing)
+    pureT $ MultiTablePaging.MultiTablePage [] False (Public.ConversationPagingState MultiTablePaging.PagingLocals Nothing)
   GetConversations cids -> do
     convs <- gets (\s -> [c | cid <- cids, Just c <- [Map.lookup cid s]])
     pureT convs
