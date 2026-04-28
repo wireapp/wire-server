@@ -34,7 +34,7 @@ import System.Logger qualified as Log
 allMigrations :: [MigrationCommand]
 allMigrations = map (uncurry MigrationScript) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
--- Scripts which cannot be run in a transaction
+-- | Scripts which cannot be run in a transaction
 nonTransactionMigrations :: Set ScriptName
 nonTransactionMigrations = Set.fromList ["20260428072649-create-conv-parent-index.sql"]
 
