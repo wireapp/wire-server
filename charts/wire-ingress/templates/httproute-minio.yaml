@@ -3,6 +3,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: {{ include "wire-ingress.fullname" . }}-minio
+  namespace: {{ .Release.Namespace }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"

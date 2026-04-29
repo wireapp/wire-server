@@ -13,6 +13,7 @@ apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyPatchPolicy
 metadata:
   name: {{ include "wire-ingress.fullname" . }}-federator-fqdn-domain
+  namespace: {{ .Release.Namespace }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
