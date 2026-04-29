@@ -19,6 +19,8 @@ spec:
     - type: Inline
       inline: |
         function envoy_on_request(request_handle)
+          {{/* Strip any client-provided header to prevent spoofing */}}
+          request_handle:headers():remove("X-SSL-Certificate")
           local ssl = request_handle:connection():ssl()
           if ssl ~= nil then
             local cert = ssl:urlEncodedPemEncodedPeerCertificate()
