@@ -13,6 +13,7 @@ Name of the Gateway resource for dynamic backends in envoy mode.
 {{/*
 Federation origin domain for a given namespace (used as originDomain in the config).
 Returns the SRV hostname that other backends use to reach this namespace's federator.
+NOTE: Keep the naming assumption %s-fed in sync with the wire-ingress and nginx-ingress-services chart!
 Args: list $namespace $envoyEnabled $controllerNamespace
 */}}
 {{- define "integration.federationOriginDomain" -}}
