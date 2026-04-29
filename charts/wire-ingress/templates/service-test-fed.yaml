@@ -20,6 +20,10 @@ kind: Service
 metadata:
   name: {{ .Release.Namespace }}-fed
   namespace: {{ .Values.gateway.controllerNamespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
 spec:
   type: ClusterIP
   ports:

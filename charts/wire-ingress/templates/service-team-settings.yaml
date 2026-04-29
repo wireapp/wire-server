@@ -4,6 +4,10 @@ kind: Service
 metadata:
   name: team-settings-http
   namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
 spec:
   type: ClusterIP
   ports:

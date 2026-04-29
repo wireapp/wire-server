@@ -5,6 +5,10 @@ kind: Service
 metadata:
   name: webapp-http
   namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
 spec:
   type: ClusterIP
   ports:
