@@ -174,6 +174,10 @@ cmSingleton cid idx =
       (cidQualifiedUser cid)
       (Map.singleton (ciClient cid) idx)
 
+-- | Construct the subset of the first client map consisting of users that are present in the second.
+cmIntersect :: ClientMap a -> ClientMap b -> ClientMap a
+cmIntersect (ClientMap m1) (ClientMap m2) = ClientMap (Map.intersection m1 m2)
+
 -- | Inform a handler for 'POST /conversations/list-ids' if the MLS global team
 -- conversation and the MLS self-conversation should be included in the
 -- response.

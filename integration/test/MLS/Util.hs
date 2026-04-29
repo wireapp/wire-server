@@ -682,7 +682,8 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
 
     -- at this point we know that every new user has been added to the
     -- conversation
-    for_ (zip clients wss) $ \((cid, t), ws) -> case t of
+    let clients' = filter (\(ci, _) -> ci `Set.notMember` conv.membersToBeRemoved) clients
+    for_ (zip clients' wss) $ \((cid, t), ws) -> case t of
       MLSNotificationMessageTag ->
         when (conv.epoch > 0) $
           void $
