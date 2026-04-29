@@ -162,6 +162,11 @@ let
         amazonka-test = "lib/amazonka-test";
       };
     };
+
+    # PR: https://github.com/tvh/hasql-migration/pull/19
+    hasql-migration = {
+      src = inputs.hasql-migration;
+    };
   };
 
   hackagePins = {

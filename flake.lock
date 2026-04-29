@@ -183,6 +183,23 @@
         "type": "github"
       }
     },
+    "hasql-migration": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1777384964,
+        "narHash": "sha256-NRFZUDR4cW6jRihO311glqtlIlcRKSKeBXJErHuXf+k=",
+        "owner": "wireapp",
+        "repo": "hasql-migration",
+        "rev": "ef03ac6410c94444bf1807fc4eda1db6b0974984",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "ref": "allow-no-transaction",
+        "repo": "hasql-migration",
+        "type": "github"
+      }
+    },
     "hedis": {
       "flake": false,
       "locked": {
@@ -321,6 +338,7 @@
         "cql": "cql",
         "cql-io": "cql-io",
         "flake-utils": "flake-utils",
+        "hasql-migration": "hasql-migration",
         "hedis": "hedis",
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",
