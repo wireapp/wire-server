@@ -1,1 +1,2 @@
 Add zone-level topologySpreadConstraints to nginz deployment so pods are spread evenly across availability zones, ensuring traffic reaches all AZs when zone-aware routing is in use.
+topologySpreadConstraints are now configurable via values.yaml (defaulting to zone + hostname spreading), allowing chart users to customise pod scheduling without patching the chart.
