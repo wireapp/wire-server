@@ -8,7 +8,7 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ## Status
 
-**This chart is in development. Dont use it in production yet!**
+**This chart is in development. Don't use it in production yet!**
 
 ---
 
@@ -17,7 +17,7 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 ### Gateway API
 
 Install the [Gateway API](https://gateway-api.sigs.k8s.io/) into your cluster.
-This chart makes use of the of the kinds defined in the `gateway.networking.k8s.io/v1` API.
+This chart makes use of the kinds defined in the `gateway.networking.k8s.io/v1` API.
 
 ### Envoy Gateway
 
@@ -32,13 +32,13 @@ config:
       enableEnvoyPatchPolicy: true
 ```
 
-Also make sure also you've created a `GatewayClass` object with 
+Also make sure you've created a `GatewayClass` object with 
 ```
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
 ```
 
-You need to refer to this object in the `gateway.className` paramter.
+You need to refer to this object in the `gateway.className` parameter.
 
 ---
 
@@ -63,10 +63,10 @@ Add a `gateway` block to your values and review at least the following keys:
 
 `secrets.tlsClientCA` is no longer needed and can be removed.
 
-### Behaviour changes
+### Behavior changes
 
 * non-tls ingress disabled by default. If you want to make use of automated certificate validation via http01, you need `gateway.listeners.http.enabled: true`
-* s3 ingress b`/minio/` path blocking. Returns 301 redirect to "/" (was 403).
+* s3 ingress `/minio/` path blocking. Returns 301 redirect to "/" (was 403).
 
 ### New values (no equivalent in nginx-ingress-services)
 
