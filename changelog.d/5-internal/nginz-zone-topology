@@ -1,0 +1,1 @@
+Add zone-level topologySpreadConstraints to nginz deployment so pods are spread evenly across availability zones, ensuring traffic reaches all AZs when zone-aware routing is in use.
