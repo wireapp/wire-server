@@ -58,7 +58,7 @@ runAllMigrations pool logger = do
                 | name `Set.member` nonTransactionMigrations -> do
                     -- Locking the migration makes sure that only one process is
                     -- running this migration at a time. Without this `CREATE
-                    -- INDEX CONCURRENRLY` can deadlock with other processes
+                    -- INDEX CONCURRENTLY` can deadlock with other processes
                     -- causing a silent failure.
                     let lockId = fromIntegral $ Hashable.hash name
                     Session.statement lockId lockNonTransactionMigration
