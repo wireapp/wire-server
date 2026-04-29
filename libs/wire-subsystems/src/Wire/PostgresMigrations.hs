@@ -22,10 +22,14 @@ module Wire.PostgresMigrations where
 
 import Control.Exception
 import Data.FileEmbed
+import Data.Hashable qualified as Hashable
 import Data.Set qualified as Set
 import Hasql.Migration
 import Hasql.Pool
 import Hasql.Session
+import Hasql.Session qualified as Session
+import Hasql.Statement qualified as Hasql
+import Hasql.TH (resultlessStatement)
 import Hasql.Transaction.Sessions
 import Imports
 import System.Logger (Logger)
@@ -49,9 +53,20 @@ runAllMigrations pool logger = do
         Log.info logger $ Log.msg (Log.val "Running migrations")
         forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
           mErr <-
-            if maybe False (`Set.member` nonTransactionMigrations) (migrationScriptName migrationCmd)
-              then runMigrationWithoutTransactions migrationCmd
-              else transaction Serializable Write $ runMigration migrationCmd
+            case migrationScriptName migrationCmd of
+              (Just name)
+                | name `Set.member` nonTransactionMigrations -> do
+                    -- Locking the migration makes sure that only one process is
+                    -- running this migration at a time. Without this `CREATE
+                    -- INDEX CONCURRENRLY` can deadlock with other processes
+                    -- causing a silent failure.
+                    let lockId = fromIntegral $ Hashable.hash name
+                    Session.statement lockId lockNonTransactionMigration
+                    migRes <- runMigrationWithoutTransactions migrationCmd
+                    Session.statement lockId unlockNonTransactionMigration
+                    pure migRes
+              _ ->
+                transaction Serializable Write $ runMigration migrationCmd
 
           case mErr of
             Nothing -> pure ()
@@ -59,6 +74,14 @@ runAllMigrations pool logger = do
         Log.info logger $ Log.msg (Log.val "Migrations completed successfully")
 
   either throwIO pure =<< use pool session
+  where
+    lockNonTransactionMigration :: Hasql.Statement Int64 ()
+    lockNonTransactionMigration =
+      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_lock($1 :: bigint))|]
+
+    unlockNonTransactionMigration :: Hasql.Statement Int64 ()
+    unlockNonTransactionMigration =
+      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
 
 migrationName :: MigrationCommand -> (Log.Msg -> Log.Msg)
 migrationName = \case
