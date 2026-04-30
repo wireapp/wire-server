@@ -682,8 +682,8 @@ consumingMessages mlsProtocol mp = Codensity $ \k -> do
 
     -- at this point we know that every new user has been added to the
     -- conversation
-    let clients' = filter (\(ci, _) -> ci `Set.notMember` conv.membersToBeRemoved) clients
-    for_ (zip clients' wss) $ \((cid, t), ws) -> case t of
+    let cssNoToBeRemoved = filter (\((ci, _), _) -> ci `Set.notMember` conv.membersToBeRemoved) (zip clients wss)
+    for_ cssNoToBeRemoved $ \((cid, t), ws) -> case t of
       MLSNotificationMessageTag ->
         when (conv.epoch > 0) $
           void $
@@ -718,7 +718,7 @@ consumeMessageNoExternal cs cid mp = consumeMessageWithPredicate isNewMLSMessage
   where
     -- the backend (correctly) reacts to a commit removing someone from a parent conversation with a
     -- remove proposal, however, we don't want to consume this here
-    isNewMLSMessageNotifButNoProposal :: Value -> App Bool
+    isNewMLSMessageNotifButNoProposal :: (HasCallStack) => Value -> App Bool
     isNewMLSMessageNotifButNoProposal n = do
       isRelevantNotif <- isNewMLSMessageNotif n &&~ isNotifConvId mp.convId n
       if isRelevantNotif
