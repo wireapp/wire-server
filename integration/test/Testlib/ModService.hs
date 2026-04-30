@@ -242,7 +242,8 @@ startDynamicBackend resource beOverrides = do
           gundeckCfg = setField "cassandra.keyspace" resource.berGundeckKeyspace,
           backgroundWorkerCfg =
             setField "cassandra.keyspace" resource.berGundeckKeyspace
-              >=> setField "cassandraGalley.keyspace" resource.berGalleyKeyspace,
+              >=> setField "cassandraGalley.keyspace" resource.berGalleyKeyspace
+              >=> setField "cassandraBrig.keyspace" resource.berBrigKeyspace,
           cannonCfg =
             setField "cassandra.keyspace" resource.berGundeckKeyspace
         }
