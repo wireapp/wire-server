@@ -429,31 +429,31 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
       findUserWithUref idp team' uref >>= \case
         Just uid -> pure uid
         Nothing -> do
-              -- Cross-IdP SSO migration only for email-based NameIDs in multi-ingress mode
-              let isEmailNameId = case uref of
-                    SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> True
-                    _ -> False
-              if SAML.isMultiIngressConfig samlConfig && isEmailNameId
-                then do
-                  -- In multi-ingress mode with email NameID, try to find the user via other IdPs
-                  -- in the team by patching the UserRef with each matching IdP's issuer
-                  teamIdPs <- IdPConfigStore.getConfigsByTeam team'
-                  let urefIssuer = uref ^. SAML.uidTenant
-                  let matchingIdPs = filter (\idp' -> idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer) teamIdPs
-                  case matchingIdPs of
-                    [] -> provisionNewUser
-                    _ -> do
-                      let subject = uref ^. SAML.uidSubject
-                          tryFindWithIdP :: Maybe UserId -> IdP -> Sem r (Maybe UserId)
-                          tryFindWithIdP found@(Just _) _ = pure found
-                          tryFindWithIdP Nothing idp' = do
-                            let patchedIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
-                                patchedUref = SAML.UserRef patchedIssuer subject
-                            findUserWithUref idp' team' patchedUref
-                      mUid <- foldM tryFindWithIdP Nothing teamIdPs
-                      maybe provisionNewUser pure mUid
-                else
-                  provisionNewUser
+          -- Cross-IdP SSO migration only for email-based NameIDs in multi-ingress mode
+          let isEmailNameId = case uref of
+                SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> True
+                _ -> False
+          if SAML.isMultiIngressConfig samlConfig && isEmailNameId
+            then do
+              -- In multi-ingress mode with email NameID, try to find the user via other IdPs
+              -- in the team by patching the UserRef with each matching IdP's issuer
+              teamIdPs <- IdPConfigStore.getConfigsByTeam team'
+              let urefIssuer = uref ^. SAML.uidTenant
+              let matchingIdPs = filter (\idp' -> idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer) teamIdPs
+              case matchingIdPs of
+                [] -> provisionNewUser
+                _ -> do
+                  let subject = uref ^. SAML.uidSubject
+                      tryFindWithIdP :: Maybe UserId -> IdP -> Sem r (Maybe UserId)
+                      tryFindWithIdP found@(Just _) _ = pure found
+                      tryFindWithIdP Nothing idp' = do
+                        let patchIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
+                            patchedUref = SAML.UserRef patchIssuer subject
+                        findUserWithUref idp' team' patchedUref
+                  mUid <- foldM tryFindWithIdP Nothing teamIdPs
+                  maybe provisionNewUser pure mUid
+            else
+              provisionNewUser
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
     cky <- BrigAPIAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
