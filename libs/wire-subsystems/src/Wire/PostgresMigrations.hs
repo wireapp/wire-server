@@ -91,7 +91,7 @@ runAllMigrations pool logger = do
     withLock name migration = do
       let lockId = fromIntegral $ Hashable.hash name
 
-      void . retrying (constantDelay 1_000_000) (const pure) $ \_ ->
+      void . retrying (constantDelay 1_000_000) (const $ pure . not) $ \_ ->
         Session.statement lockId tryLockNonTransactionMigration
 
       migRes <- migration
