@@ -54,7 +54,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
-import Debug.Trace
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -404,6 +403,7 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
+  forall r.
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
@@ -445,24 +445,38 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
             -- so, we return the userId (migrating the user to the new issuer should be stated as future improvement)
             -- Issuer/IdP
             Nothing -> do
-              traceM $ "XXX user not found case"
-              if SAML.isMultiIngressConfig samlConfig
+              -- Cross-IdP SSO migration only for email-based NameIDs in multi-ingress mode
+              let isEmailNameId = case uref of
+                    SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> True
+                    _ -> False
+              if SAML.isMultiIngressConfig samlConfig && isEmailNameId
                 then do
+                  -- In multi-ingress mode with email NameID, try to find the user via other IdPs
+                  -- in the team by patching the UserRef with each matching IdP's issuer
                   teamIdPs <- IdPConfigStore.getConfigsByTeam team'
                   let urefIssuer = uref ^. SAML.uidTenant
                   let matchingIdPs = filter (\idp' -> idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer) teamIdPs
-                  let mbEmail = case uref of
-                        SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email) ->
-                          Just . Intra.emailFromSAML . CI.original $ email
-                        _ -> Nothing
-                  case (matchingIdPs, mbEmail) of
-                    ([], _) -> provisionNewUser
-                    (_, Nothing) -> provisionNewUser
-                    (_, Just email) -> do
-                      mbUser <- BrigAccess.getByEmail email
-                      case mbUser of
-                        Just usr | userTeam usr == Just team' -> pure (userId usr)
-                        _ -> provisionNewUser
+                  case matchingIdPs of
+                    [] -> provisionNewUser
+                    _ -> do
+                      let subject = uref ^. SAML.uidSubject
+                          tryFindWithIdP :: Maybe UserId -> IdP -> Sem r (Maybe UserId)
+                          tryFindWithIdP found@(Just _) _ = pure found
+                          tryFindWithIdP Nothing idp' = do
+                            let patchedIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
+                                patchedUref = SAML.UserRef patchedIssuer subject
+                            getUserByUrefUnsafe patchedUref >>= \case
+                              Just usr | userTeam usr == Just team' -> pure (Just (userId usr))
+                              _ -> do
+                                -- Try old issuers as fallback
+                                getUserByUrefViaOldIssuerUnsafe idp' patchedUref >>= \case
+                                  Just (oldUref, usr) | userTeam usr == Just team' -> do
+                                    let uid = userId usr
+                                    moveUserToNewIssuer oldUref patchedUref uid
+                                    pure (Just uid)
+                                  _ -> pure Nothing
+                      mUid <- foldM tryFindWithIdP Nothing teamIdPs
+                      maybe provisionNewUser pure mUid
                 else
                   provisionNewUser
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
