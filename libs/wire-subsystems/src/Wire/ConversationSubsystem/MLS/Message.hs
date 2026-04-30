@@ -35,7 +35,6 @@ import Data.Set qualified as Set
 import Data.Tagged
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
-import Debug.Trace
 import Galley.Types.Error
 import Imports
 import Polysemy
@@ -349,8 +348,6 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
       let convOrSub' = tUnqualified lConvOrSub'
           mems = cmIntersect (void convOrSub.members) convOrSub'.members
-      traceM $ "original: " <> show convOrSub.members
-      traceM $ "intersected: " <> show mems
       propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
       pure lConvOrSub'
     pure (events, newClients, lConvOrSub')
