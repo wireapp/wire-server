@@ -34,6 +34,7 @@ import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Spar.App as Spar
+import Spar.Options (saml)
 import Spar.Orphans ()
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Text.XML as XML
@@ -174,8 +175,10 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
         if isGranted
           then SAML.AccessGranted uref
           else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
+  env <- ask
+  let samlConfig = saml (env ^. teOpts)
   outcome <- do
-    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp
+    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp samlConfig
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)

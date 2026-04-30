@@ -54,7 +54,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
-import Debug.Trace
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -283,6 +282,7 @@ verdictHandler ::
     Member AReqIDStore r,
     Member VerdictFormatStore r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member Reporter r,
@@ -291,8 +291,9 @@ verdictHandler ::
   NonEmpty SAML.Assertion ->
   SAML.AccessVerdict ->
   IdP ->
+  SAML.Config ->
   Sem r SAML.ResponseVerdict
-verdictHandler aresp verdict idp = do
+verdictHandler aresp verdict idp samlConfig = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
@@ -306,9 +307,9 @@ verdictHandler aresp verdict idp = do
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just (VerdictFormatWeb mlabel) ->
-      verdictHandlerResult verdict idp mlabel >>= verdictHandlerWeb
+      verdictHandlerResult verdict idp mlabel samlConfig >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied mlabel) ->
-      verdictHandlerResult verdict idp mlabel >>= verdictHandlerMobile granted denied
+      verdictHandlerResult verdict idp mlabel samlConfig >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
@@ -328,6 +329,7 @@ verdictHandlerResult ::
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member Reporter r,
@@ -336,10 +338,11 @@ verdictHandlerResult ::
   SAML.AccessVerdict ->
   IdP ->
   Maybe CookieLabel ->
+  SAML.Config ->
   Sem r VerdictHandlerResult
-verdictHandlerResult verdict idp mlabel = do
+verdictHandlerResult verdict idp mlabel samlConfig = do
   Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel samlConfig
   Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
@@ -406,6 +409,7 @@ verdictHandlerResultCore ::
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
     Member SAMLUserStore r
@@ -413,8 +417,9 @@ verdictHandlerResultCore ::
   IdP ->
   SAML.AccessVerdict ->
   Maybe CookieLabel ->
+  SAML.Config ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore idp verdict mlabel = case verdict of
+verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
@@ -436,18 +441,35 @@ verdictHandlerResultCore idp verdict mlabel = case verdict of
             -- TODO: In the `Nothing` case, we'd like to check if we're using
             -- multi-ingress AND the response issuer matches any IDP of the
             -- team AND the stored request belongs to the targeted domain AND the UserRef is an email address (pattern match). If
-            -- so, we return the userId and migrate the user to the new
+            -- so, we return the userId (migrating the user to the new issuer should be stated as future improvement)
             -- Issuer/IdP
             Nothing -> do
-              traceM $ "XXX - uref " <> show uref
-              buid <- Id <$> Random.uuid
-              autoprovisionSamlUser idp buid uref
-              validateSamlEmailIfExists buid uref
-              pure buid
-
+              if SAML.isMultiIngressConfig samlConfig
+                then do
+                  teamIdPs <- IdPConfigStore.getConfigsByTeam team'
+                  let urefIssuer = uref ^. SAML.uidTenant
+                  let matchingIdPs = filter (\idp' -> idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer) teamIdPs
+                  let mbEmail = case uref of
+                        SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email) ->
+                          Just . Intra.emailFromSAML . CI.original $ email
+                        _ -> Nothing
+                  case (matchingIdPs, mbEmail) of
+                    ([], _) -> provisionNewUser
+                    (_, Nothing) -> provisionNewUser
+                    (_, Just email) -> do
+                      let emailText = fromEmail email
+                      maybe provisionNewUser pure =<< getUserIdByScimExternalId team' emailText
+                else
+                  provisionNewUser
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
     cky <- BrigAPIAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
+    where
+      provisionNewUser = do
+        buid <- Id <$> Random.uuid
+        autoprovisionSamlUser idp buid uref
+        validateSamlEmailIfExists buid uref
+        pure buid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.

@@ -206,6 +206,7 @@ apiSSO ::
     Member VerdictFormatStore r,
     Member AReqIDStore r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member DefaultSsoCode r,
     Member IdPConfigStore r,
     Member IdPSubsystem r,
@@ -224,8 +225,8 @@ apiSSO opts =
     :<|> Named @"sso-team-metadata" (\mbHost tid -> getMetadata (Just tid) mbHost)
     :<|> Named @"auth-req-precheck" authreqPrecheck
     :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
-    :<|> Named @"auth-resp-legacy" (authresp Nothing)
-    :<|> Named @"auth-resp" (authresp . Just)
+    :<|> Named @"auth-resp-legacy" (authresp opts.saml Nothing)
+    :<|> Named @"auth-resp" (authresp opts.saml . Just)
     :<|> Named @"sso-settings" ssoSettings
     :<|> Named @"sso-get-by-email" getSsoCodeByEmail
 
@@ -390,6 +391,7 @@ authresp ::
     Member VerdictFormatStore r,
     Member AReqIDStore r,
     Member ScimTokenStore r,
+    Member ScimExternalIdStore r,
     Member IdPConfigStore r,
     Member SAML2 r,
     Member SamlProtocolSettings r,
@@ -397,11 +399,12 @@ authresp ::
     Member Reporter r,
     Member SAMLUserStore r
   ) =>
+  SAML.Config ->
   Maybe TeamId ->
   SAML.AuthnResponseBody ->
   Maybe Text ->
   Sem r Void
-authresp mbtid arbody mbHost = do
+authresp samlConfig mbtid arbody mbHost = do
   let err :: Sem r any
       err = throwSparSem (SparSPNotFound "")
 
@@ -419,9 +422,9 @@ authresp mbtid arbody mbHost = do
     go _assertions idp (SAML.AccessDenied (shouldRedirectToInit -> True)) = do
       -- redirect back to idp for idp-initiated login.
       redirectToInit idp
-    go assertions verdict idp = do
+    go assertions idp verdict = do
       -- handle the verdict
-      SAML.ResponseVerdict result <- verdictHandler assertions idp verdict
+      SAML.ResponseVerdict result <- verdictHandler assertions verdict idp samlConfig
       throw @SparError $ SAML.CustomServant result
 
     -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.
