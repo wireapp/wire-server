@@ -54,6 +54,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
+import Debug.Trace
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -432,7 +433,13 @@ verdictHandlerResultCore idp verdict mlabel = case verdict of
               if userTeam usr == Just team'
                 then moveUserToNewIssuer olduref uref uid >> pure uid
                 else throwSparSem err
+            -- TODO: In the `Nothing` case, we'd like to check if we're using
+            -- multi-ingress AND the response issuer matches any IDP of the
+            -- team AND the stored request belongs to the targeted domain AND the UserRef is an email address (pattern match). If
+            -- so, we return the userId and migrate the user to the new
+            -- Issuer/IdP
             Nothing -> do
+              traceM $ "XXX - uref " <> show uref
               buid <- Id <$> Random.uuid
               autoprovisionSamlUser idp buid uref
               validateSamlEmailIfExists buid uref
