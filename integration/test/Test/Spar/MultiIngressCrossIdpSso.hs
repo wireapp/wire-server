@@ -20,9 +20,7 @@ module Test.Spar.MultiIngressCrossIdpSso where
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Spar (finalizeSamlLoginWithZHost, getSPMetadataWithZHost, initiateSamlLoginWithZHost)
-import Data.String.Conversions (cs)
-import qualified Data.UUID as UUID
+import Data.Text (pack)
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import SetupHelpers
@@ -98,7 +96,7 @@ testCrossIdpSsoCreatesDistinctUsers = do
       suffix <- take 8 <$> randomId
       let biboNameId =
             fromRight (error "could not create name id")
-              $ SAML.mkNameID (SAML.mkUNameIDUnspecified (cs ("bibo" <> suffix))) Nothing Nothing Nothing
+              $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack ("bibo" <> suffix))) Nothing Nothing Nothing
 
       -- Step 2: Bibo logs in on Ernie ingress
       (mUserIdErnie, _) <-
@@ -208,10 +206,11 @@ testCrossIdpSsoCreatesDistinctUsers = do
 -- | Test that demonstrates email uniqueness constraint in multi-ingress SSO.
 --
 -- When using email-based NameID, the second login attempt on a different ingress
--- fails with "email already in use" error because emails are unique system-wide.
+-- succeeds and returns the same user ID. This is cross-IdP SSO migration:
+-- if the email matches an existing user in the team, the login succeeds.
 --
 -- This is different from username-based NameID (tested above) where duplicate
--- users are silently created.
+-- users are silently created because usernames are not unique identifiers.
 testCrossIdpSsoEmailConflict :: (HasCallStack) => App ()
 testCrossIdpSsoEmailConflict = do
   let ernieZHost = "nginz-https.ernie.example.com"
@@ -258,7 +257,7 @@ testCrossIdpSsoEmailConflict = do
       biboEmail <- randomEmail
       let biboNameId =
             fromRight (error "could not create name id")
-              $ SAML.emailNameID (cs biboEmail)
+              $ SAML.emailNameID (pack biboEmail)
 
       -- Step 1: Bibo logs in on Ernie ingress (should succeed)
       (mUserIdErnie, _) <-
@@ -294,20 +293,19 @@ testCrossIdpSsoEmailConflict = do
         Just uid -> uid `shouldMatch` userIdErnie
         Nothing -> error "Expected user ID from re-login on Ernie domain"
 
-      -- Step 2: Same Bibo tries to login on Bert ingress with SAME email
-      -- This should FAIL because email is already in use
-      -- We call the lower-level functions to check the error message
-      let idpConfig2 = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpId2))) (fst idpMeta2) ()
-      spmeta2 <- getSPMetadataWithZHost domain (Just bertZHost) tid
-      authnreq2 <- initiateSamlLoginWithZHost domain (Just bertZHost) idpId2
-      let spMetaData2 = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta2.body
-          parsedAuthnReq2 = parseAuthnReqResp authnreq2.body
-      authnReqResp2 <- makeAuthnResponse biboNameId (snd idpMeta2) idpConfig2 spMetaData2 parsedAuthnReq2
+      -- Step 2: Same Bibo logs in on Bert ingress with SAME email
+      -- This should SUCCEED because cross-IdP SSO migration is enabled:
+      -- the email matches an existing user in the team, so we return that user
+      (mUserIdBert, _) <-
+        loginWithSamlWithZHost
+          (Just bertZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpId2, idpMeta2)
 
-      finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp2 `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        let bdy = cs @_ @String resp.body
-        -- Verify it's an SSO error
-        bdy `shouldContain` "<title>wire:sso:error:"
-        -- Verify the specific error: email already in use
-        bdy `shouldContain` "The given e-mail address is in use."
+      -- Verify the same user ID is returned (cross-IdP SSO migration worked)
+      case mUserIdBert of
+        Just uid -> uid `shouldMatch` userIdErnie
+        Nothing -> error "Expected user ID from cross-IdP SSO login on Bert domain"

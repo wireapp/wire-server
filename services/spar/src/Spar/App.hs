@@ -54,6 +54,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
+import Debug.Trace
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -444,6 +445,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
             -- so, we return the userId (migrating the user to the new issuer should be stated as future improvement)
             -- Issuer/IdP
             Nothing -> do
+              traceM $ "XXX user not found case"
               if SAML.isMultiIngressConfig samlConfig
                 then do
                   teamIdPs <- IdPConfigStore.getConfigsByTeam team'
@@ -457,8 +459,10 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
                     ([], _) -> provisionNewUser
                     (_, Nothing) -> provisionNewUser
                     (_, Just email) -> do
-                      let emailText = fromEmail email
-                      maybe provisionNewUser pure =<< getUserIdByScimExternalId team' emailText
+                      mbUser <- BrigAccess.getByEmail email
+                      case mbUser of
+                        Just usr | userTeam usr == Just team' -> pure (userId usr)
+                        _ -> provisionNewUser
                 else
                   provisionNewUser
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
