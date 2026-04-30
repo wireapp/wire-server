@@ -426,25 +426,9 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
   SAML.AccessGranted uref -> do
     uid :: UserId <- do
       let team' = idp ^. idpExtraInfo . team
-          err = SparUserRefInNoOrMultipleTeams . LText.pack . show $ uref
-      getUserByUrefUnsafe uref >>= \case
-        Just usr -> do
-          if userTeam usr == Just team'
-            then pure (userId usr)
-            else throwSparSem err
+      findUserWithUref idp team' uref >>= \case
+        Just uid -> pure uid
         Nothing -> do
-          getUserByUrefViaOldIssuerUnsafe idp uref >>= \case
-            Just (olduref, usr) -> do
-              let uid = userId usr
-              if userTeam usr == Just team'
-                then moveUserToNewIssuer olduref uref uid >> pure uid
-                else throwSparSem err
-            -- TODO: In the `Nothing` case, we'd like to check if we're using
-            -- multi-ingress AND the response issuer matches any IDP of the
-            -- team AND the stored request belongs to the targeted domain AND the UserRef is an email address (pattern match). If
-            -- so, we return the userId (migrating the user to the new issuer should be stated as future improvement)
-            -- Issuer/IdP
-            Nothing -> do
               -- Cross-IdP SSO migration only for email-based NameIDs in multi-ingress mode
               let isEmailNameId = case uref of
                     SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> True
@@ -465,16 +449,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
                           tryFindWithIdP Nothing idp' = do
                             let patchedIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
                                 patchedUref = SAML.UserRef patchedIssuer subject
-                            getUserByUrefUnsafe patchedUref >>= \case
-                              Just usr | userTeam usr == Just team' -> pure (Just (userId usr))
-                              _ -> do
-                                -- Try old issuers as fallback
-                                getUserByUrefViaOldIssuerUnsafe idp' patchedUref >>= \case
-                                  Just (oldUref, usr) | userTeam usr == Just team' -> do
-                                    let uid = userId usr
-                                    moveUserToNewIssuer oldUref patchedUref uid
-                                    pure (Just uid)
-                                  _ -> pure Nothing
+                            findUserWithUref idp' team' patchedUref
                       mUid <- foldM tryFindWithIdP Nothing teamIdPs
                       maybe provisionNewUser pure mUid
                 else
@@ -488,6 +463,27 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
         autoprovisionSamlUser idp buid uref
         validateSamlEmailIfExists buid uref
         pure buid
+
+      -- Try to find a user by UserRef, with fallback to old issuers.
+      -- Returns the UserId if found and in the correct team, Nothing if not found.
+      -- Throws SparUserRefInNoOrMultipleTeams if user is found but in the wrong team.
+      -- Side effect: Old-style users (found via old issuers) are migrated to the new issuer.
+      findUserWithUref :: IdP -> TeamId -> SAML.UserRef -> Sem r (Maybe UserId)
+      findUserWithUref idp' team'' uref' = do
+        let err = SparUserRefInNoOrMultipleTeams . LText.pack . show $ uref'
+        getUserByUrefUnsafe uref' >>= \case
+          Just usr -> do
+            if userTeam usr == Just team''
+              then pure (Just (userId usr))
+              else throwSparSem err
+          Nothing -> do
+            getUserByUrefViaOldIssuerUnsafe idp' uref' >>= \case
+              Just (olduref, usr) -> do
+                let uid = userId usr
+                if userTeam usr == Just team''
+                  then moveUserToNewIssuer olduref uref' uid >> pure (Just uid)
+                  else throwSparSem err
+              Nothing -> pure Nothing
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
