@@ -206,6 +206,7 @@ library
     Test.Shape
     Test.Spar
     Test.Spar.GetByEmail
+    Test.Spar.MultiIngressCrossIdpSso
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO
     Test.Spar.STM
