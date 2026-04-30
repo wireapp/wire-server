@@ -84,7 +84,7 @@ runAllMigrations pool logger = do
     unlockNonTransactionMigration =
       [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
 
-    -- We don't have to use 'bracket' here becasue failing in the session should
+    -- We don't have to use 'bracket' here because failing in the session should
     -- cause the session to drop and any acquired locks get automatically
     -- released.
     withLock :: ScriptName -> Session a -> Session a
