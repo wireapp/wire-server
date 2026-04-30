@@ -18,10 +18,11 @@
 module Test.Spar.MultiIngressCrossIdpSso where
 
 import API.BrigInternal (getUsersId)
-import API.Common ()
+import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Spar ()
+import API.Spar (finalizeSamlLoginWithZHost, getSPMetadataWithZHost, initiateSamlLoginWithZHost)
 import Data.String.Conversions (cs)
+import qualified Data.UUID as UUID
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import SetupHelpers
@@ -203,3 +204,110 @@ testCrossIdpSsoCreatesDistinctUsers = do
       case mUidBertFinal of
         Just uid -> uid `shouldMatch` userIdBert
         Nothing -> error "Expected user ID from Bert final re-login"
+
+-- | Test that demonstrates email uniqueness constraint in multi-ingress SSO.
+--
+-- When using email-based NameID, the second login attempt on a different ingress
+-- fails with "email already in use" error because emails are unique system-wide.
+--
+-- This is different from username-based NameID (tested above) where duplicate
+-- users are silently created.
+testCrossIdpSsoEmailConflict :: (HasCallStack) => App ()
+testCrossIdpSsoEmailConflict = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+      }
+    $ \domain -> do
+      -- Create team and enable SSO
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register IdP1 for Ernie domain
+      (_idp1, idpMeta1) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just ernieZHost)
+      idpId1 <- asString $ _idp1.json %. "id"
+
+      -- Register IdP2 for Bert domain
+      (_idp2, idpMeta2) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just bertZHost)
+      idpId2 <- asString $ _idp2.json %. "id"
+
+      -- Create email-based NameID for "bibo"
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (cs biboEmail)
+
+      -- Step 1: Bibo logs in on Ernie ingress (should succeed)
+      (mUserIdErnie, _) <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpId1, idpMeta1)
+
+      -- Verify user was created
+      userIdErnie <- case mUserIdErnie of
+        Just uid -> pure uid
+        Nothing -> error "Expected user ID from SSO login on Ernie domain"
+
+      activateEmail domain biboEmail
+
+      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+
+      -- Step 1.5: Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
+      (mUserIdErnieAgain, _) <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpId1, idpMeta1)
+
+      case mUserIdErnieAgain of
+        Just uid -> uid `shouldMatch` userIdErnie
+        Nothing -> error "Expected user ID from re-login on Ernie domain"
+
+      -- Step 2: Same Bibo tries to login on Bert ingress with SAME email
+      -- This should FAIL because email is already in use
+      -- We call the lower-level functions to check the error message
+      let idpConfig2 = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpId2))) (fst idpMeta2) ()
+      spmeta2 <- getSPMetadataWithZHost domain (Just bertZHost) tid
+      authnreq2 <- initiateSamlLoginWithZHost domain (Just bertZHost) idpId2
+      let spMetaData2 = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta2.body
+          parsedAuthnReq2 = parseAuthnReqResp authnreq2.body
+      authnReqResp2 <- makeAuthnResponse biboNameId (snd idpMeta2) idpConfig2 spMetaData2 parsedAuthnReq2
+
+      finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp2 `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        let bdy = cs @_ @String resp.body
+        -- Verify it's an SSO error
+        bdy `shouldContain` "<title>wire:sso:error:"
+        -- Verify the specific error: email already in use
+        bdy `shouldContain` "The given e-mail address is in use."
