@@ -60,29 +60,9 @@ spec:
         - name: federator-ca
           kind: ConfigMap
 ---
-# EnvoyPatchPolicy strips the trailing dot that Kubernetes DNS appends to FQDNs.
-# Wire federator resolves targets via SRV and sends the raw FQDN (with trailing dot)
-# as the HTTP/2 :authority header; strip_trailing_host_dot normalises it before
-# Envoy's virtual-host matching, preventing route_not_found errors.
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: EnvoyPatchPolicy
-metadata:
-  name: {{ $gatewayName }}-strip-dot
-spec:
-  targetRef:
-    group: gateway.networking.k8s.io
-    kind: Gateway
-    name: {{ $gatewayName | quote }}
-  type: JSONPatch
-  jsonPatches:
-    - type: "type.googleapis.com/envoy.config.listener.v3.Listener"
-      # Single HTTPS listener → only one filter chain at index 0.
-      name: {{ printf "%s/%s/https" .Release.Namespace $gatewayName | quote }}
-      operation:
-        op: add
-        path: "/filter_chains/0/filters/0/typed_config/strip_trailing_host_dot"
-        value: true
-{{- range $name, $dynamicBackend := .Values.config.dynamicBackends }}
+{{- $backendNames := keys .Values.config.dynamicBackends | sortAlpha }}
+{{- range $index, $name := $backendNames }}
+{{- $dynamicBackend := index $.Values.config.dynamicBackends $name }}
 {{- $httpRouteName := printf "%s-dynbackend-%s" $gatewayName $name }}
 {{- $svcDomain := printf "%s-%s.%s.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $.Release.Namespace $controllerNs }}
 ---
@@ -133,6 +113,31 @@ spec:
             end
           end
         end
+---
+# EnvoyPatchPolicy adds the FQDN variant (with trailing dot) of the backend domain
+# to the virtual host's domain list. Wire federator resolves targets via DNS SRV records;
+# per RFC 2782, SRV record targets are FQDNs (e.g. "backend-fed.ns.svc.cluster.local.").
+# HTTP/2 passes that dot in :authority; without this patch the virtual host only matches
+# the bare domain and returns route_not_found. Adding the FQDN allows Envoy to match both.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: {{ $httpRouteName }}-fqdn-domain
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ $gatewayName | quote }}
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
+      # RouteConfiguration is per-listener, named <namespace>/<gateway>/<listener>
+      name: {{ printf "%s/%s/https" $.Release.Namespace $gatewayName | quote }}
+      operation:
+        op: add
+        # Virtual hosts are indexed in the order of stable key sorting (sortAlpha).
+        path: {{ printf "/virtual_hosts/%d/domains/-" $index | quote }}
+        value: {{ printf "%s." $svcDomain | quote }}
 ---
 # ClusterIP service in {{ $controllerNs }} selects the Envoy proxy pods for this Gateway.
 # The service name determines the SRV record used by federation discovery:
