@@ -51,8 +51,6 @@ import qualified Text.XML.DSig as SAML
 -- Expected future behavior (when multi-IdP is implemented):
 -- - Step 3 should recognize that this is the same person and link to the existing user
 -- - OR provide a controlled flow for identity linking/merging
---
--- See also: fst_plan.md for the multi-IdP implementation plan
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
