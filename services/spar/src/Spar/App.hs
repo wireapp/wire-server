@@ -404,6 +404,8 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   BrigAPIAccess.setSSOId uid (UserSSOId newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
+-- TODO: Ideally, we would leave this function untouched to make obvious that the behaviour hasn't changed.
+-- As it has side-effects, this ideal can probably not be reached. However, we could consider to let it return a result and act accordingly.
 verdictHandlerResultCore ::
   forall r.
   (HasCallStack) =>
