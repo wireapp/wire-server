@@ -54,7 +54,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
-import Debug.Trace (traceM)
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -443,7 +442,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
               -- in the team by patching the UserRef with each IdP's issuer.
               teamIdPs <- IdPConfigStore.getConfigsByTeam team'
               let urefIssuer = uref ^. SAML.uidTenant
-              -- Step 1: Verify the authenticating IdP exists (issuer + domain must match)
+              -- Step 1: Verify the authenticating IdP exists (issuer + domain must match) for this team.
               let authenticatingIdP =
                     filter
                       ( \idp' ->
@@ -452,18 +451,34 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                       )
                       teamIdPs
               case authenticatingIdP of
-                [] -> provisionNewUser -- No valid IdP for this authentication
+                [] ->
+                  -- TODO: We do not know the IdP: This is surely an error. Can this happen or has this been checked before?
+                  --
+                  provisionNewUser -- No valid IdP for this authentication
                 _ -> do
-                  -- Step 2: Search for user across ALL team IdPs (including other domains)
+                  -- Step 2: Try to autheiticate the potential user against ALL team IdPs (including other domains)
                   let subject = uref ^. SAML.uidSubject
-                      tryFindWithIdP :: Maybe UserId -> IdP -> Sem r (Maybe UserId)
+                      tryFindWithIdP :: Maybe (UserId, SAML.UserRef) -> IdP -> Sem r (Maybe (UserId, SAML.UserRef))
                       tryFindWithIdP found@(Just _) _ = pure found
                       tryFindWithIdP Nothing idp' = do
-                        let patchIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
-                            patchedUref = SAML.UserRef patchIssuer subject
-                        findUserWithUref idp' team' patchedUref
-                  mUid <- foldM tryFindWithIdP Nothing teamIdPs -- Search ALL team IdPs
-                  maybe provisionNewUser pure mUid
+                        let oldIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
+                            oldUref = SAML.UserRef oldIssuer subject
+                        findUserWithUref idp' team' oldUref >>= \case
+                          Nothing -> pure Nothing
+                          Just uid -> pure (Just (uid, oldUref))
+                  mResult <- foldM tryFindWithIdP Nothing teamIdPs -- Search ALL team IdPs
+                  case mResult of
+                    Nothing -> provisionNewUser
+                    Just (uid, oldUref) -> do
+                      -- Migrate user to new issuer if found via different IdP
+                      --
+                      -- The benefit is that the next authentication with this
+                      -- new IdP will be a simple database query (and not
+                      -- many).
+                      when (oldUref ^. SAML.uidTenant /= uref ^. SAML.uidTenant) $
+                        -- TODO: This needs to be better understood and tested.
+                        moveUserToNewIssuer oldUref uref uid
+                      pure uid
             else
               provisionNewUser
     Logger.log Logger.Debug ("granting sso login for " <> show uid)

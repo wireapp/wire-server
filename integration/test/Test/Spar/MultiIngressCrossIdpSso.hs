@@ -20,11 +20,15 @@ module Test.Spar.MultiIngressCrossIdpSso where
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
+import API.Spar (createIdpWithZHostV2)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (pack)
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Util (SampleIdP (..))
 import SetupHelpers
 import Testlib.Prelude
+import qualified Text.XML.DSig as SAML
 
 -- | Test that demonstrates current behavior in multi-ingress setups where each
 -- domain has its own IdP: when a user (representing the same person) logs in via
@@ -49,6 +53,17 @@ import Testlib.Prelude
 -- - OR provide a controlled flow for identity linking/merging
 --
 -- See also: fst_plan.md for the multi-IdP implementation plan
+
+-- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
+makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
+makeSampleIdPMetadataWithIssuer suffix = do
+  let issuerUri = pack $ "https://issuer.net/_" <> suffix
+      requriUri = pack $ "https://requri.net/_req_" <> suffix
+  let issuer = either (error . show) SAML.Issuer $ SAML.parseURI' issuerUri
+      requri = either (error . show) id $ SAML.parseURI' requriUri
+  (privcreds, creds, cert) <- liftIO $ SAML.mkSignCredsWithCert Nothing 96
+  pure $ SampleIdP (SAML.IdPMetadata issuer requri (cert :| [])) privcreds creds cert
+
 testCrossIdpSsoCreatesDistinctUsers :: (HasCallStack) => App ()
 testCrossIdpSsoCreatesDistinctUsers = do
   let ernieZHost = "nginz-https.ernie.example.com"
@@ -245,12 +260,14 @@ testCrossIdpSsoEmailConflict = do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register IdP1 for Ernie domain
-      (_idp1, idpMeta1) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just ernieZHost)
+      -- Register IdP1 for Ernie domain with fixed issuer "ernie"
+      SampleIdP idpMeta1 pCreds1 _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+      _idp1 <- createIdpWithZHostV2 owner (Just ernieZHost) idpMeta1
       idpId1 <- asString $ _idp1.json %. "id"
 
-      -- Register IdP2 for Bert domain
-      (_idp2, idpMeta2) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just bertZHost)
+      -- Register IdP2 for Bert domain with fixed issuer "bert"
+      SampleIdP idpMeta2 pCreds2 _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      _idp2 <- createIdpWithZHostV2 owner (Just bertZHost) idpMeta2
       idpId2 <- asString $ _idp2.json %. "id"
 
       -- Create email-based NameID for "bibo"
@@ -267,7 +284,7 @@ testCrossIdpSsoEmailConflict = do
           True -- expect success
           tid
           biboNameId
-          (idpId1, idpMeta1)
+          (idpId1, (idpMeta1, pCreds1))
 
       -- Verify user was created
       userIdErnie <- case mUserIdErnie of
@@ -287,7 +304,7 @@ testCrossIdpSsoEmailConflict = do
           True -- expect success
           tid
           biboNameId
-          (idpId1, idpMeta1)
+          (idpId1, (idpMeta1, pCreds1))
 
       case mUserIdErnieAgain of
         Just uid -> uid `shouldMatch` userIdErnie
@@ -303,7 +320,7 @@ testCrossIdpSsoEmailConflict = do
           True -- expect success
           tid
           biboNameId
-          (idpId2, idpMeta2)
+          (idpId2, (idpMeta2, pCreds2))
 
       -- Verify the same user ID is returned (cross-IdP SSO migration worked)
       case mUserIdBert of
