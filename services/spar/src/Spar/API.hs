@@ -424,7 +424,7 @@ authresp samlConfig mbtid arbody mbHost = do
       redirectToInit idp
     go assertions idp verdict = do
       -- handle the verdict
-      SAML.ResponseVerdict result <- verdictHandler assertions verdict idp samlConfig
+      SAML.ResponseVerdict result <- verdictHandler assertions verdict idp samlConfig mbHost
       throw @SparError $ SAML.CustomServant result
 
     -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.

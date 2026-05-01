@@ -54,6 +54,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
 import Data.These
+import Debug.Trace (traceM)
 import Imports hiding (MonadReader, asks, log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -292,8 +293,9 @@ verdictHandler ::
   SAML.AccessVerdict ->
   IdP ->
   SAML.Config ->
+  Maybe Text ->
   Sem r SAML.ResponseVerdict
-verdictHandler aresp verdict idp samlConfig = do
+verdictHandler aresp verdict idp samlConfig mbHost = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
@@ -307,9 +309,9 @@ verdictHandler aresp verdict idp samlConfig = do
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just (VerdictFormatWeb mlabel) ->
-      verdictHandlerResult verdict idp mlabel samlConfig >>= verdictHandlerWeb
+      verdictHandlerResult verdict idp mlabel samlConfig mbHost >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied mlabel) ->
-      verdictHandlerResult verdict idp mlabel samlConfig >>= verdictHandlerMobile granted denied
+      verdictHandlerResult verdict idp mlabel samlConfig mbHost >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
@@ -339,10 +341,11 @@ verdictHandlerResult ::
   IdP ->
   Maybe CookieLabel ->
   SAML.Config ->
+  Maybe Text ->
   Sem r VerdictHandlerResult
-verdictHandlerResult verdict idp mlabel samlConfig = do
+verdictHandlerResult verdict idp mlabel samlConfig mbHost = do
   Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel samlConfig
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost
   Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
@@ -419,8 +422,9 @@ verdictHandlerResultCore ::
   SAML.AccessVerdict ->
   Maybe CookieLabel ->
   SAML.Config ->
+  Maybe Text ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
+verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
@@ -436,13 +440,21 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
           if SAML.isMultiIngressConfig samlConfig && isEmailNameId
             then do
               -- In multi-ingress mode with email NameID, try to find the user via other IdPs
-              -- in the team by patching the UserRef with each matching IdP's issuer
+              -- in the team by patching the UserRef with each IdP's issuer.
               teamIdPs <- IdPConfigStore.getConfigsByTeam team'
               let urefIssuer = uref ^. SAML.uidTenant
-              let matchingIdPs = filter (\idp' -> idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer) teamIdPs
-              case matchingIdPs of
-                [] -> provisionNewUser
+              -- Step 1: Verify the authenticating IdP exists (issuer + domain must match)
+              let authenticatingIdP =
+                    filter
+                      ( \idp' ->
+                          idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer
+                            && idp' ^. idpExtraInfo . domain == mbHost
+                      )
+                      teamIdPs
+              case authenticatingIdP of
+                [] -> provisionNewUser -- No valid IdP for this authentication
                 _ -> do
+                  -- Step 2: Search for user across ALL team IdPs (including other domains)
                   let subject = uref ^. SAML.uidSubject
                       tryFindWithIdP :: Maybe UserId -> IdP -> Sem r (Maybe UserId)
                       tryFindWithIdP found@(Just _) _ = pure found
@@ -450,7 +462,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig = case verdict of
                         let patchIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
                             patchedUref = SAML.UserRef patchIssuer subject
                         findUserWithUref idp' team' patchedUref
-                  mUid <- foldM tryFindWithIdP Nothing teamIdPs
+                  mUid <- foldM tryFindWithIdP Nothing teamIdPs -- Search ALL team IdPs
                   maybe provisionNewUser pure mUid
             else
               provisionNewUser

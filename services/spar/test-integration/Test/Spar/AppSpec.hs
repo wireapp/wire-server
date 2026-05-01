@@ -178,7 +178,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
   env <- ask
   let samlConfig = saml (env ^. teOpts)
   outcome <- do
-    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp samlConfig
+    runSpar $ Spar.verdictHandler (authnresp ^. rspPayload) verdict idp samlConfig Nothing
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)
