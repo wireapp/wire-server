@@ -276,7 +276,6 @@ executable spar-integration
     Test.Spar.APISpec
     Test.Spar.AppSpec
     Test.Spar.DataSpec
-    Test.Spar.Intra.BrigSpec
     Test.Spar.Scim.AuthSpec
     Test.Spar.Scim.UserSpec
     Util
