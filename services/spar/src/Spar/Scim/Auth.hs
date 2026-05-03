@@ -50,7 +50,7 @@ import qualified SAML2.WebSSO as SAML
 import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (throwSparSem)
 import qualified Spar.Error as E
-import qualified Spar.Intra.BrigApp as Intra.Brig
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -117,7 +117,7 @@ updateScimTokenName ::
   ScimTokenName ->
   Sem r ()
 updateScimTokenName lusr tokenId name = do
-  teamid <- Intra.Brig.authorizeScimTokenManagement (Just lusr)
+  teamid <- Intra.authorizeScimTokenManagement (Just lusr)
   ScimTokenStore.updateName teamid tokenId name.fromScimTokenName
 
 -- | > docs/reference/provisioning/scim-token.md {#RefScimTokenCreate}
@@ -197,8 +197,8 @@ guardScimTokenCreation ::
   Maybe Code.Value ->
   Sem r TeamId
 guardScimTokenCreation zusr password verificationCode = do
-  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  Intra.Brig.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
+  teamid <- Intra.authorizeScimTokenManagement zusr
+  Intra.ensureReAuthorised zusr password verificationCode (Just User.CreateScimToken)
   tokenNumber <- length <$> ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $
@@ -249,7 +249,7 @@ deleteScimToken ::
   ScimTokenId ->
   Sem r NoContent
 deleteScimToken zusr tokenid = do
-  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  teamid <- Intra.authorizeScimTokenManagement zusr
   ScimTokenStore.delete teamid tokenid
   pure NoContent
 
@@ -284,5 +284,5 @@ listScimTokens ::
   Maybe UserId ->
   Sem r ScimTokenList
 listScimTokens zusr = do
-  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
+  teamid <- Intra.authorizeScimTokenManagement zusr
   ScimTokenList <$> ScimTokenStore.lookupByTeam teamid

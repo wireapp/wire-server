@@ -25,7 +25,7 @@ import Data.These
 import Data.These.Combinators
 import Imports
 import SAML2.WebSSO as SAML
-import Spar.Intra.BrigApp
+import Spar.Intra.RpcApp
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)

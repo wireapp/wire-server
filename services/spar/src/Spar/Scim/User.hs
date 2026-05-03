@@ -74,8 +74,7 @@ import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import Spar.App (getUserByUrefUnsafe, getUserByUrefViaOldIssuerUnsafe, getUserIdByScimExternalId)
 import qualified Spar.App
-import Spar.Intra.BrigApp as Intra
-import qualified Spar.Intra.BrigApp as Brig
+import Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
@@ -316,7 +315,7 @@ validateScimUser' errloc midp richInfoLimit user = do
               <> " ("
               <> errloc
               <> ")"
-    either err pure $ Brig.mkUserName (Scim.displayName user) (ST.validScimIdAuthInfo veid)
+    either err pure $ Intra.mkUserName (Scim.displayName user) (ST.validScimIdAuthInfo veid)
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
   lang <- maybe (throw $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
@@ -580,7 +579,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser {..}
       -- to reload the Account from brig.
       storedUser <- do
         acc <-
-          lift (BrigAPIAccess.getAccount Brig.WithPendingInvitations buid)
+          lift (BrigAPIAccess.getAccount Intra.WithPendingInvitations buid)
             >>= maybe (throwError $ Scim.serverError "Server error: user vanished") pure
         synthesizeStoredUser acc externalId
       lift $ Logger.debug ("createValidScimUser: spar says " <> show storedUser)
@@ -853,14 +852,14 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
       -- delete user with idp associated *before* this update.
-      case Brig.oldVeidFromBrigUser account of
+      case Intra.oldVeidFromBrigUser account of
         Nothing -> pure ()
         Just veid -> lift $ do
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
           ScimExternalIdStore.delete stiTeam veid.validScimIdExternal
 
       -- delete user with idp associated to current scim token.
-      case Brig.newVeidFromBrigUser account ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+      case Intra.newVeidFromBrigUser account ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
         Left _ -> pure ()
         Right veid -> lift $ do
           for_ (justThere veid.validScimIdAuthInfo) (SAMLUserStore.delete uid)
@@ -957,7 +956,7 @@ assertHandleUnused' msg hndl =
 
 assertHandleNotUsedElsewhere :: (Member BrigAPIAccess r) => UserId -> Handle -> Scim.ScimHandler (Sem r) ()
 assertHandleNotUsedElsewhere uid hndl = do
-  musr <- lift $ BrigAPIAccess.getAccount Brig.WithPendingInvitations uid
+  musr <- lift $ BrigAPIAccess.getAccount Intra.WithPendingInvitations uid
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName already in use by another wire user" hndl
 
@@ -1011,7 +1010,7 @@ synthesizeStoredUser acc veid =
       now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
-      handle <- lift $ Brig.giveDefaultHandle acc
+      handle <- lift $ Intra.giveDefaultHandle acc
 
       let emails =
             maybeToList $
@@ -1109,9 +1108,9 @@ getUserById ::
   UserId ->
   MaybeT (Scim.ScimHandler (Sem r)) (Scim.StoredUser ST.SparTag)
 getUserById midp stiTeam uid = do
-  brigUser <- MaybeT . lift $ BrigAPIAccess.getAccount Brig.WithPendingInvitations uid
-  let mbOldVeid = Brig.oldVeidFromBrigUser brigUser
-      mbNewVeid = Brig.newVeidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
+  brigUser <- MaybeT . lift $ BrigAPIAccess.getAccount Intra.WithPendingInvitations uid
+  let mbOldVeid = Intra.oldVeidFromBrigUser brigUser
+      mbNewVeid = Intra.newVeidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> midp)
   case mbNewVeid of
     Right veid | userTeam brigUser == Just stiTeam -> lift $ do
       storedUser :: Scim.StoredUser ST.SparTag <- synthesizeStoredUser brigUser veid
@@ -1191,7 +1190,7 @@ scimFindUserByExternalId mIdpConfig stiTeam eid = do
         mViaUref :: Maybe UserId <- join <$> (for (justThere veid.validScimIdAuthInfo) SAMLUserStore.get)
         pure $ mViaEmail <|> mViaUref
     Just uid -> pure uid
-  acc <- MaybeT . lift . BrigAPIAccess.getAccount Brig.WithPendingInvitations $ uid
+  acc <- MaybeT . lift . BrigAPIAccess.getAccount Intra.WithPendingInvitations $ uid
   getUserById mIdpConfig stiTeam (userId acc)
 
 logFilter :: Filter -> (Msg -> Msg)

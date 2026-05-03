@@ -24,7 +24,7 @@ import Control.Lens ((^.))
 import Data.Id (Id (Id), UserId)
 import qualified Data.UUID as UUID
 import Imports hiding (head)
-import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Intra.RpcApp as Intra
 import Test.QuickCheck
 import Util
 import qualified Web.Scim.Schema.User as Scim.User

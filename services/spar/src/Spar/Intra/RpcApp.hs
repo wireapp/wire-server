@@ -19,8 +19,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Client functions for interacting with the Brig API.
-module Spar.Intra.BrigApp
+-- | Client functions for interacting with the APIs of Brig, Galley, and possibly others.
+module Spar.Intra.RpcApp
   ( veidToUserSSOId,
     urefToExternalId,
     oldVeidFromBrigUser,

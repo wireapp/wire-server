@@ -63,7 +63,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util.TestSP (makeSampleIdPMetadata)
 import qualified SAML2.WebSSO.Test.Util.Types as SAML
-import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Scim
 import Spar.Scim.Types (normalizeLikeStored)

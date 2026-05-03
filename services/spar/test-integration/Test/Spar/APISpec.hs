@@ -73,7 +73,7 @@ import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import Spar.Error
-import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)

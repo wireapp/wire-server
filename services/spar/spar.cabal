@@ -30,7 +30,7 @@ library
     Spar.Data
     Spar.Data.Instances
     Spar.Error
-    Spar.Intra.BrigApp
+    Spar.Intra.RpcApp
     Spar.Options
     Spar.Orphans
     Spar.Run

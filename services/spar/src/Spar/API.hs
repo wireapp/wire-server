@@ -88,7 +88,7 @@ import Servant.Server.Experimental.Auth
 import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
-import qualified Spar.Intra.BrigApp as Brig
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Scim hiding (handle)
@@ -542,7 +542,7 @@ idpGetAll ::
   Maybe UserId ->
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
+  teamid <- Intra.getZUsrCheckPerm zusr ReadIdp
   idpGetAllByTeamId teamid
 
 idpGetAllByTeamId ::
@@ -682,7 +682,7 @@ idpCreate ::
   Sem r IdP
 idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
-  Brig.assertSSOEnabled tid
+  Intra.assertSSOEnabled tid
   guardMultiIngressDuplicateDomain tid mbHost
   idp <-
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
@@ -877,7 +877,7 @@ idpUpdateXML ::
   Sem r IdP
 idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (zUsr, teamid, idp, previousIdP) <- validateIdPUpdate mbZUsr idpmeta idpid
-  Brig.assertSSOEnabled teamid
+  Intra.assertSSOEnabled teamid
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of
@@ -1063,7 +1063,7 @@ authorizeIdP Nothing _ =
     )
 authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . team
-  Brig.assertHasPermission teamid CreateUpdateDeleteIdp zusr
+  Intra.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure (zusr, teamid)
 
 enforceHttps :: (Member (Error SparError) r) => URI.URI -> Sem r ()

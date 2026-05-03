@@ -182,7 +182,7 @@ import qualified Spar.App as IdpConfigStire
 import qualified Spar.App as Spar
 import Spar.CanonicalInterpreter
 import Spar.Error (SparError)
-import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Run
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
