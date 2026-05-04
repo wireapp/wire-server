@@ -282,10 +282,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
       -- This is also very difficult to test, so is not tested.
       (TeamSize possiblyStaleSize) <- E.getSize tid
-      let size =
-            if possiblyStaleSize == 0
-              then 1
-              else possiblyStaleSize
+      let size = min 1 possiblyStaleSize
       Journal.teamActivate tid size c teamCreationTime
     runJournal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: (Member (ErrorS 'InvalidTeamStatusUpdate) r) => (TeamStatus, TeamStatus) -> Sem r Bool
