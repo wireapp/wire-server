@@ -656,67 +656,77 @@ deleteServiceUserImpl _ _ bid =
         [resultlessStatement|DELETE FROM bot_conv where id = $1 :: uuid|]
 
 lookupServiceUsersImpl :: (PGConstraints r) => ProviderId -> ServiceId -> Maybe BotId -> Sem r (PageWithState BotId (BotId, ConvId, Maybe TeamId))
-lookupServiceUsersImpl _ _ mBotId = do
+lookupServiceUsersImpl pid sid mBotId = do
   bots <- case mBotId of
-    Nothing -> runStatement () selectStart
-    Just bid -> runStatement bid selectFrom
+    Nothing -> runStatement (pid, sid) selectStart
+    Just bid -> runStatement (pid, sid, bid) selectFrom
   pure
     PageWithState
       { pwsState = PaginationStatePostgres . fst3 <$> (bots V.!? (V.length bots - 1)),
         pwsResults = V.toList bots
       }
   where
-    selectStart :: Hasql.Statement () (Vector (BotId, ConvId, Maybe TeamId))
+    selectStart :: Hasql.Statement (ProviderId, ServiceId) (Vector (BotId, ConvId, Maybe TeamId))
     selectStart =
       dimapPG
         [vectorStatement|
           SELECT id :: uuid, conv :: uuid, conv_team :: uuid?
           FROM bot_conv
+          WHERE provider = $1 :: uuid
+          AND   service = $2 :: uuid
           ORDER BY id
           LIMIT 100
         |]
 
-    selectFrom :: Hasql.Statement (BotId) (Vector (BotId, ConvId, Maybe TeamId))
+    selectFrom :: Hasql.Statement (ProviderId, ServiceId, BotId) (Vector (BotId, ConvId, Maybe TeamId))
     selectFrom =
       dimapPG
         [vectorStatement|
           SELECT id :: uuid, conv :: uuid, conv_team :: uuid?
           FROM bot_conv
-          WHERE id > $1 :: uuid
+          WHERE provider = $1 :: uuid
+          AND   service = $2 :: uuid
+          AND   id > $3 :: uuid
           ORDER BY id
           LIMIT 100
         |]
 
 lookupServiceUsersForTeamImpl :: (PGConstraints r) => ProviderId -> ServiceId -> TeamId -> Maybe BotId -> Sem r (PageWithState BotId (BotId, ConvId))
-lookupServiceUsersForTeamImpl _ _ tid mBotId = do
+lookupServiceUsersForTeamImpl pid sid tid mBotId = do
   bots <- case mBotId of
-    Nothing -> runStatement (tid) selectStart
-    Just bid -> runStatement (tid, bid) selectFrom
+    Nothing -> runStatement (pid, sid, tid) selectStart
+    Just bid -> runStatement (pid, sid, tid, bid) selectFrom
   pure
     PageWithState
       { pwsState = PaginationStatePostgres . fst <$> (bots V.!? (V.length bots - 1)),
         pwsResults = V.toList bots
       }
   where
-    selectStart :: Hasql.Statement (TeamId) (Vector (BotId, ConvId))
+    selectStart :: Hasql.Statement (ProviderId, ServiceId, TeamId) (Vector (BotId, ConvId))
     selectStart =
       dimapPG
         [vectorStatement|
-          SELECT id :: uuid, conv :: uuid
+          SELECT bot_conv.id :: uuid, bot_conv.conv :: uuid
           FROM bot_conv
-          WHERE conv_team = $1 :: uuid
+          JOIN wire_user ON bot_conv.id = wire_user.id
+          WHERE wire_user.provider = $1 :: uuid
+          AND   wire_user.service = $2 :: uuid
+          AND   bot_conv.conv_team = $3 :: uuid
           ORDER BY id
           LIMIT 100
         |]
 
-    selectFrom :: Hasql.Statement (TeamId, BotId) (Vector (BotId, ConvId))
+    selectFrom :: Hasql.Statement (ProviderId, ServiceId, TeamId, BotId) (Vector (BotId, ConvId))
     selectFrom =
       dimapPG
         [vectorStatement|
-          SELECT id :: uuid, conv :: uuid
+          SELECT bot_conv.id :: uuid, bot_conv.conv :: uuid
           FROM bot_conv
-          WHERE conv_team = $1 :: uuid
-          AND   id > $2 :: uuid
+          JOIN wire_user ON bot_conv.id = wire_user.id
+          WHERE wire_user.provider = $1 :: uuid
+          AND   wire_user.service = $2 :: uuid
+          AND   bot_conv.conv_team = $3 :: uuid
+          AND   id > $4 :: uuid
           ORDER BY id
           LIMIT 100
         |]
