@@ -1066,20 +1066,6 @@ ensureNotElevated targetPermissions member =
     )
     $ throwS @'InvalidPermissions
 
-ensureNotTooLarge ::
-  ( Member E.BrigAPIAccess r,
-    Member (ErrorS 'TooManyTeamMembers) r,
-    Member (Input Opts) r
-  ) =>
-  TeamId ->
-  Sem r TeamSize
-ensureNotTooLarge tid = do
-  o <- input
-  (TeamSize size) <- E.getSize tid
-  unless (size < fromIntegral (o ^. settings . maxTeamSize)) $
-    throwS @'TooManyTeamMembers
-  pure $ TeamSize size
-
 -- | Ensure that a team doesn't exceed the member count limit for the LegalHold
 -- feature. A team with more members than the fanout limit is too large, because
 -- the fanout limit would prevent turning LegalHold feature _off_ again (for
@@ -1157,6 +1143,20 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
 
   APITeamQueue.pushTeamEvent tid e
   pure sizeBeforeAdd
+  where
+    ensureNotTooLarge ::
+      ( Member E.BrigAPIAccess r,
+        Member (ErrorS 'TooManyTeamMembers) r,
+        Member (Input Opts) r
+      ) =>
+      TeamId ->
+      Sem r TeamSize
+    ensureNotTooLarge tid = do
+      o <- input
+      (TeamSize size) <- E.getSize tid
+      unless (size < fromIntegral (o ^. settings . maxTeamSize)) $
+        throwS @'TooManyTeamMembers
+      pure $ TeamSize size
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
