@@ -554,8 +554,6 @@ addTeamMember lzusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   E.ensureConnectedToLocals zusr [uid]
-  (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
@@ -581,8 +579,6 @@ uncheckedAddTeamMember ::
   NewTeamMember ->
   Sem r ()
 uncheckedAddTeamMember tid nmem = do
-  (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem
   owners <- E.getBillingTeamMembers tid
   Journal.teamUpdate tid (sizeBeforeAdd + 1) owners
@@ -1113,12 +1109,17 @@ addTeamMemberInternal ::
   ( Member E.BrigAPIAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'TooManyTeamAdmins) r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member NotificationSubsystem r,
     Member (Input Opts) r,
     Member Now r,
+    Member LegalHoldStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
-    Member P.TinyLog r
+    Member P.TinyLog r,
+    Member (Input FanoutLimit) r,
+    Member (Input (FeatureDefaults LegalholdConfig)) r,
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -1129,7 +1130,8 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   P.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
-  sizeBeforeAdd <- ensureNotTooLarge tid
+  sizeBeforeAdd@(TeamSize size) <- ensureNotTooLarge tid
+  ensureNotTooLargeForLegalHold tid (fromIntegral size + 1)
 
   admins <- E.getTeamAdmins tid
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
