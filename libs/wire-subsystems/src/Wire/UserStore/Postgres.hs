@@ -163,7 +163,7 @@ createUserImpl new mbConv =
            VALUES
            ($1 :: uuid, $2 :: text, $3 :: text?, $4 :: jsonb, $5 :: text?,
             $6 :: jsonb?, $7 :: integer, $8 :: text?, $9 :: boolean, $10 :: integer,
-	    $11 :: timestamptz?, $12 :: text, $13 :: text?, $14 :: uuid?, $15 :: uuid?,
+            $11 :: timestamptz?, $12 :: text, $13 :: text?, $14 :: uuid?, $15 :: uuid?,
             $16 :: text?, $17 :: uuid?, $18 :: integer, $19 :: integer, $20 :: boolean,
             $21 :: integer)
            ON CONFLICT (id) DO UPDATE
