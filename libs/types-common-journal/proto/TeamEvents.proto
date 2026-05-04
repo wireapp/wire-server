@@ -13,6 +13,19 @@ message TeamEvent {
         required int32  member_count = 1;
         repeated bytes  billing_user = 2;
         optional string currency     = 3; // ISO_4217
+
+        // the following fields are at the end of the declaration
+        // for backwards compatibility.
+        //
+        // this declaration is used to generate producer code, so it
+        // is ok and desirable to make this fields mandatory (they
+        // are guaranteed to be present).
+        //
+        // for backwards compatibility, clients should make these
+        // fields optional, and fall back to using `member_count` if
+        // they are missing.
+        required int32  member_count_regular = 4;
+        required int32  member_count_app = 5;
     }
 
     enum EventType {

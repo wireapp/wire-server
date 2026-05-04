@@ -186,6 +186,11 @@ refreshIndex domain = do
   res <- submit "POST" req
   res.status `shouldMatchInt` 200
 
+getTeamSize :: (HasCallStack, MakesValue caller) => caller -> String -> App Response
+getTeamSize caller tid = do
+  req <- baseRequest caller Brig Unversioned $ joinHttpPath ["i", "teams", tid, "size"]
+  submit "GET" req
+
 addFederationRemoteTeam :: (HasCallStack, MakesValue domain, MakesValue remoteDomain, MakesValue team) => domain -> remoteDomain -> team -> App ()
 addFederationRemoteTeam domain remoteDomain team = do
   void $ addFederationRemoteTeam' domain remoteDomain team >>= getBody 200

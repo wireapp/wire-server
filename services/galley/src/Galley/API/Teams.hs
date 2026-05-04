@@ -115,6 +115,7 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.Team.SearchVisibility qualified as Public
 import Wire.API.Team.Size
 import Wire.API.User qualified as U
+import Wire.API.User.Search
 import Wire.BrigAPIAccess
 import Wire.BrigAPIAccess qualified as Brig
 import Wire.BrigAPIAccess qualified as E
@@ -281,9 +282,12 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
       -- This is also very difficult to test, so is not tested.
-      (TeamSize possiblyStaleSize) <- E.getSize tid
-      let size = min 1 possiblyStaleSize
-      Journal.teamActivate tid size c teamCreationTime
+      -- We could also write `updateTeamSize 1 size 0` here, but it seems clearer to do it
+      -- inline.
+      teamSize <- do
+        (TeamSize numRegulars numApps) <- E.getSize tid
+        pure $ TeamSize (max 1 numRegulars) numApps
+      Journal.teamActivate tid teamSize c teamCreationTime
     runJournal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: (Member (ErrorS 'InvalidTeamStatusUpdate) r) => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
@@ -576,9 +580,9 @@ uncheckedAddTeamMember ::
   NewTeamMember ->
   Sem r ()
 uncheckedAddTeamMember tid nmem = do
-  (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem
+  newTeamSize <- addTeamMemberInternal tid Nothing Nothing nmem
   owners <- E.getBillingTeamMembers tid
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) owners
+  Journal.teamUpdate tid newTeamSize owners
 
 uncheckedUpdateTeamMember ::
   forall r.
@@ -620,9 +624,9 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMem = do
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
 
   when (team ^. teamBinding == Binding) $ do
-    (TeamSize size) <- E.getSize tid
+    teamSize <- E.getSize tid
     owners <- E.getBillingTeamMembers tid
-    Journal.teamUpdate tid size owners
+    Journal.teamUpdate tid teamSize owners
 
   now <- Now.get
   let event = newEvent tid now (EdMemberUpdate targetId (Just targetPermissions))
@@ -787,18 +791,19 @@ deleteTeamMember' lusr zcon tid remove mBody = do
     then do
       body <- mBody & note (InvalidPayload "missing request body")
       ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) Nothing Nothing
-      (TeamSize sizeBeforeDelete) <- E.getSize tid
-      -- TeamSize is 'Natural' and subtracting from  0 is an error
-      -- TeamSize could be reported as 0 if team members are added and removed very quickly,
-      -- which happens in tests
-      let sizeAfterDelete =
-            if sizeBeforeDelete == 0
-              then 0
-              else sizeBeforeDelete - 1
+      uType <-
+        E.getUser remove <&> \case
+          Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
+          _ -> UserTypeFilterRegular
+      teamSizeAfterDelete <- do
+        before <- E.getSize tid
+        pure $ updateTeamSize uType before (-1)
       E.deleteUser remove
-      E.deleteApp tid remove
+      case uType of
+        UserTypeFilterRegular -> pure ()
+        UserTypeFilterApp -> E.deleteApp tid remove
       owners <- E.getBillingTeamMembers tid
-      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) owners
+      Journal.teamUpdate tid teamSizeAfterDelete $ filter (/= remove) owners
       pure TeamMemberDeleteAccepted
     else do
       (feat :: LockableFeature LimitedEventFanoutConfig) <- getFeatureForTeam tid
@@ -1081,7 +1086,7 @@ ensureNotTooLargeForLegalHold ::
     Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
-  Int ->
+  TeamSize ->
   Sem r ()
 ensureNotTooLargeForLegalHold tid teamSize =
   whenM (isLegalHoldEnabledForTeam tid) $
@@ -1113,8 +1118,14 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
   P.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
-  sizeBeforeAdd@(TeamSize size) <- ensureNotTooLarge tid
-  ensureNotTooLargeForLegalHold tid (fromIntegral size + 1)
+  sizeAfterAdd <- do
+    n <- ensureNotTooLarge tid
+    uType <-
+      E.getUser (new ^. userId) <&> \case
+        Just u | u.userType == U.UserTypeApp -> UserTypeFilterApp
+        _ -> UserTypeFilterRegular
+    pure $ updateTeamSize uType n 1
+  ensureNotTooLargeForLegalHold tid sizeAfterAdd
 
   admins <- E.getTeamAdmins tid
   let admins' = [new ^. userId | isAdminOrOwner (new ^. M.permissions)] <> admins
@@ -1139,7 +1150,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
     ]
 
   APITeamQueue.pushTeamEvent tid e
-  pure sizeBeforeAdd
+  pure sizeAfterAdd
   where
     ensureNotTooLarge ::
       ( Member E.BrigAPIAccess r,
@@ -1148,12 +1159,12 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) = do
       ) =>
       TeamId ->
       Sem r TeamSize
-    ensureNotTooLarge tid = do
+    ensureNotTooLarge teamid = do
       o <- input
-      (TeamSize size) <- E.getSize tid
-      unless (size < fromIntegral (o ^. settings . maxTeamSize)) $
+      teamSize <- E.getSize teamid
+      unless (teamSizeTotal teamSize < fromIntegral (o ^. settings . maxTeamSize)) $
         throwS @'TooManyTeamMembers
-      pure $ TeamSize size
+      pure teamSize
 
 getBindingTeamMembers ::
   ( Member (ErrorS 'TeamNotFound) r,
@@ -1194,8 +1205,15 @@ canUserJoinTeam ::
 canUserJoinTeam tid = do
   lhEnabled <- isLegalHoldEnabledForTeam tid
   when lhEnabled $ do
-    (TeamSize sizeBeforeJoin) <- E.getSize tid
-    ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
+    sizeBeforeJoin <- E.getSize tid
+    let uType =
+          -- We do not have a `UserId` to check here.  Also,
+          -- `canUserJoinTeam` is called by Brig during user
+          -- registration via invitation (POST /register), where apps
+          -- never go.  So it is safe to assume "regular"
+          UserTypeFilterRegular
+    let sizeAfterJoin = updateTeamSize uType sizeBeforeJoin 1
+    ensureNotTooLargeForLegalHold tid sizeAfterJoin
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::

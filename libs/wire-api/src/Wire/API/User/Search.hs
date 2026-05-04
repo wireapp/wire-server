@@ -319,7 +319,7 @@ instance FromByteString RoleFilter where
 
 -- In some places, we don't have bots as an option, so we don't want
 -- to use 'UserType'.  Once bots are removed from the picture,
--- 'UserType' and 'UserTypeFilter' will be the sam ething.
+-- 'UserType' and 'UserTypeFilter' will be the same ething.
 data UserTypeFilter = UserTypeFilterRegular | UserTypeFilterApp
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserTypeFilter)

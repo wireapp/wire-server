@@ -19,7 +19,7 @@
 
 module Test.Apps where
 
-import API.Brig
+import API.Brig as Brig
 import qualified API.BrigInternal as BrigI
 import API.Common
 import API.Galley
@@ -28,6 +28,7 @@ import Data.Aeson.QQ.Simple
 import MLS.Util
 import Notifications
 import SetupHelpers
+import System.Random (randomRIO)
 import Testlib.Prelude
 
 testCreateGetApp :: (HasCallStack) => Domain -> App ()
@@ -561,3 +562,34 @@ testAppReceivesMemberJoinNotification = do
     memberJoinApp <- awaitMatch isTeamMemberJoinNotif wsApp
     memberJoinApp %. "payload.0.team" `shouldMatch` tid
     memberJoinApp %. "payload.0.data.user" `shouldMatch` objId newMember
+
+testTeamSizeWithApps :: (HasCallStack) => TaggedBool "test internal api" -> App ()
+testTeamSizeWithApps (TaggedBool testInternalApi) = do
+  domain <- make OwnDomain
+  numRegulars <- liftIO $ randomRIO (1 :: Int, 3)
+  numApps <- liftIO $ randomRIO (1 :: Int, 3)
+
+  (owner, tid, extraMembers) <- createTeam domain (numRegulars + 1)
+
+  apps <- replicateM numApps $ bindResponse (createApp owner tid def) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  let checkSize :: (HasCallStack) => Int -> Int -> App ()
+      checkSize wantRegulars wantApps =
+        (if testInternalApi then BrigI.getTeamSize else Brig.getTeamSize) owner tid `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "teamSize" `shouldMatchInt` (1 + wantRegulars + wantApps)
+          resp.json %. "teamSizeRegulars" `shouldMatchInt` (1 + wantRegulars)
+          resp.json %. "teamSizeApps" `shouldMatchInt` wantApps
+
+  BrigI.refreshIndex domain
+  eventually $ do
+    checkSize numRegulars numApps
+
+  deleteTeamMember tid owner (head apps) >>= assertSuccess
+  deleteTeamMember tid owner (head extraMembers) >>= assertSuccess
+
+  BrigI.refreshIndex domain
+  eventually $ do
+    checkSize (numRegulars - 1) (numApps - 1)

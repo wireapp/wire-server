@@ -81,18 +81,39 @@ getTeamSizeImpl ::
   TeamId ->
   Sem r TeamSize
 getTeamSizeImpl cfg tid = do
-  let indexName = cfg.conn.indexName
-  countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
-  countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
-  pure . TeamSize $ ES.crCount countRes
+  regulars <- countWith regularQuery
+  apps <- countWith appQuery
+  pure $ TeamSize regulars apps
   where
-    query =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = "team",
-            ES.termValue = idToText tid
+    countWith query = do
+      let indexName = cfg.conn.indexName
+      countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
+      countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
+      pure $ ES.crCount countRes
+    teamQ = termQ "team" (idToText tid)
+    -- Regular users: type = "regular" or type field absent (legacy documents)
+    regularQuery =
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryMustMatch =
+              [ teamQ,
+                ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryShouldMatch =
+                        [ termQ "type" "regular",
+                          ES.QueryBoolQuery
+                            boolQuery
+                              { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery (ES.FieldName "type")]
+                              }
+                        ]
+                    }
+              ]
           }
-        Nothing
+    appQuery =
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryMustMatch = [teamQ, termQ "type" "app"]
+          }
 
 upsertImpl ::
   forall r.
