@@ -751,3 +751,128 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           removeInvitedEmails zUser1 nonExistentId [email1]
 
       result `shouldBe` Right False
+
+  describe "checkMeetingsEnabled" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uidPersonal = Id $ read "00000000-0000-0000-0000-000000000001"
+        uidTeam = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUserPersonal = toLocalUnsafe (Domain "wire.com") uidPersonal
+        zUserTeam = toLocalUnsafe (Domain "wire.com") uidTeam
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember = mkTeamMember uidTeam fullPermissions Nothing UserLegalHoldDisabled
+        meetingsEnabled =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        meetingsDisabled =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def) def
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Test Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    it "allows operations for personal user even when meetings disabled" $ do
+      result <-
+        runTestStack now gen Map.empty meetingsDisabled $
+          createMeeting zUserPersonal newMeeting
+
+      result `shouldSatisfy` isRight
+
+    it "allows operations for team user with meetings enabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
+          createMeeting zUserTeam newMeeting
+
+      result `shouldSatisfy` isRight
+
+    it "throws MeetingsFeatureDisabled on createMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+          createMeeting zUserTeam newMeeting
+
+      result `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on getMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              getMeeting zUserTeam meeting.id
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              updateMeeting zUserTeam meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on deleteMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              deleteMeeting zUserTeam (ConnId "test-conn") meeting.id
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on listMeetings for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+          listMeetings zUserTeam
+
+      result `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              addInvitedEmails zUserTeam meeting.id [unsafeEmailAddress "test" "example.com"]
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on removeInvitedEmails for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              removeInvitedEmails zUserTeam meeting.id [unsafeEmailAddress "test" "example.com"]
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled

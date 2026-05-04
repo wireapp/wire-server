@@ -34,48 +34,20 @@ import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Meeting
-import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
-import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.MeetingsSubsystem qualified as Meetings
-import Wire.TeamStore qualified as TeamStore
-
--- | Check if meetings feature is enabled for the user (if they're in a team)
-checkMeetingsEnabled ::
-  ( Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
-  ) =>
-  UserId ->
-  Sem r ()
-checkMeetingsEnabled userId = do
-  maybeTeamId <- TeamStore.getOneUserTeam userId
-  case maybeTeamId of
-    Nothing -> pure () -- Personal users can use meetings
-    Just teamId -> do
-      meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
-      unless (meetingFeature.status == FeatureStatusEnabled) $
-        throwS @'InvalidOperation
 
 createMeeting ::
-  ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r
-  ) =>
+  (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
   NewMeeting ->
   Sem r Meeting
 createMeeting lUser newMeeting = do
-  checkMeetingsEnabled (tUnqualified lUser)
   (meeting, _conversation) <- Meetings.createMeeting lUser newMeeting
   pure meeting
 
 updateMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r
+    Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
   Domain ->
@@ -83,7 +55,6 @@ updateMeeting ::
   UpdateMeeting ->
   Sem r Meeting
 updateMeeting zUser domain meetingId update = do
-  checkMeetingsEnabled (tUnqualified zUser)
   let qMeetingId = Qualified meetingId domain
   maybeMeeting <- Meetings.updateMeeting zUser qMeetingId update
   case maybeMeeting of
@@ -92,10 +63,7 @@ updateMeeting zUser domain meetingId update = do
 
 deleteMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r
+    Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -103,24 +71,19 @@ deleteMeeting ::
   MeetingId ->
   Sem r ()
 deleteMeeting zUser connId domain meetingId = do
-  checkMeetingsEnabled (tUnqualified zUser)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.deleteMeeting zUser connId qMeetingId
   unless success $ throwS @'MeetingNotFound
 
 getMeeting ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
   Domain ->
   MeetingId ->
   Sem r Meeting
 getMeeting zUser domain meetingId = do
-  checkMeetingsEnabled (tUnqualified zUser)
   let qMeetingId = Qualified meetingId domain
   maybeMeeting <- Meetings.getMeeting zUser qMeetingId
   case maybeMeeting of
@@ -128,23 +91,14 @@ getMeeting zUser domain meetingId = do
     Just meeting -> pure meeting
 
 listMeetings ::
-  ( Member Meetings.MeetingsSubsystem r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
-  ) =>
+  (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
   Sem r [Meeting]
-listMeetings lUser = do
-  checkMeetingsEnabled (tUnqualified lUser)
-  Meetings.listMeetings lUser
+listMeetings lUser = Meetings.listMeetings lUser
 
 addMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
   Domain ->
@@ -152,17 +106,13 @@ addMeetingInvitation ::
   MeetingEmailsInvitation ->
   Sem r ()
 addMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
-  checkMeetingsEnabled (tUnqualified zUser)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.addInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
 
 removeMeetingInvitation ::
   ( Member Meetings.MeetingsSubsystem r,
-    Member (ErrorS 'MeetingNotFound) r,
-    Member TeamStore.TeamStore r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'InvalidOperation) r
+    Member (ErrorS 'MeetingNotFound) r
   ) =>
   Local UserId ->
   Domain ->
@@ -170,7 +120,6 @@ removeMeetingInvitation ::
   MeetingEmailsInvitation ->
   Sem r ()
 removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
-  checkMeetingsEnabled (tUnqualified zUser)
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.removeInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
