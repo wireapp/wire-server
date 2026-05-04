@@ -39,6 +39,7 @@ import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystemCleaning qualified as Meetings
 import Wire.MeetingsSubsystemCleaning.Interpreter (interpretMeetingsSubsystemCleaning)
+import Wire.PostgresMigrationOpts
 
 data CleanupConfig = CleanupConfig
   { retentionHours :: Double,
@@ -99,6 +100,11 @@ cleanupOldMeetings config = do
 
 cleanupLoop :: Env -> UTCTime -> Int -> Int64 -> AppT IO Int64
 cleanupLoop env cutoffTime batchSize totalSoFar = do
+  when (batchSize <= 0) $ do
+    Log.err env.logger $
+      Log.msg (Log.val "Invalid batch size: must be greater than 0")
+        . Log.field "batch_size" batchSize
+    error "Invalid batch size: must be greater than 0"
   -- Run the subsystem to handle cleanup logic
   result <- liftIO $ runMeetingsCleanup env cutoffTime batchSize
 
@@ -121,8 +127,21 @@ cleanupLoop env cutoffTime batchSize totalSoFar = do
         else pure newTotal
 
 -- Run the meetings cleanup using the subsystem
+-- Note: Meetings are stored only in PostgreSQL. Conversations may be in Cassandra,
+-- PostgreSQL, or both during migration. Currently we only support PostgreSQL conversations.
+-- For Cassandra or migration modes, conversations won't be properly cleaned up.
+-- TODO: Add full migration awareness to support Cassandra and migration modes.
 runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either String Int64)
-runMeetingsCleanup env cutoffTime batchSize =
+runMeetingsCleanup env cutoffTime batchSize = do
+  -- Log a warning if we're not in pure PostgreSQL mode
+  case env.postgresMigration.conversation of
+    CassandraStorage -> do
+      Log.err env.logger $
+        Log.msg (Log.val "Meetings cleanup: conversations are in Cassandra mode, but cleanup only supports PostgreSQL")
+    MigrationToPostgresql -> do
+      Log.warn env.logger $
+        Log.msg (Log.val "Meetings cleanup: conversations are in migration mode. Only PostgreSQL conversations will be cleaned up.")
+    PostgresqlStorage -> pure ()
   fmap (first show)
     . runM
     . runError @UsageError

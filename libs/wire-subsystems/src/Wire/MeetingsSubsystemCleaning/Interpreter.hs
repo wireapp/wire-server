@@ -45,29 +45,21 @@ cleanupOldMeetingsImpl ::
   Int ->
   Sem r Int64
 cleanupOldMeetingsImpl cutoffTime batchSize = do
-  -- 1. Fetch old meetings
   oldMeetings <- Store.getOldMeetings cutoffTime batchSize
-
   if null oldMeetings
     then pure 0
     else do
-      -- 2. Extract meeting IDs and conversation IDs
-      let meetingIds = map (\Store.StoredMeeting {id = mid} -> mid) oldMeetings
-          convIds = map (\Store.StoredMeeting {conversationId = cid} -> cid) oldMeetings
-
-      -- 3. Delete meetings from database
-      deletedCount <- Store.deleteMeetingBatch meetingIds
-
-      -- 4. Delete associated conversations if they are meeting conversations
-      -- We need to check if conversation has GroupConvType = MeetingConversation
-      for_ (zip oldMeetings convIds) $ \(meeting, convId) -> do
-        maybeConv <- ConvStore.getConversation convId
+      -- 2. Delete associated conversations first (before meetings)
+      -- This ensures proper cleanup: conversation data should be removed before meeting records
+      -- We only delete conversations that are meeting conversations (GroupConvType = MeetingConversation)
+      for_ oldMeetings $ \meeting -> do
+        maybeConv <- ConvStore.getConversation meeting.conversationId
         case maybeConv of
           Just conv
             | conv.metadata.cnvmGroupConvType == Just MeetingConversation,
-              conv.id_ == convId,
-              meeting.conversationId == convId ->
-                ConvStore.deleteConversation convId
+              conv.id_ == meeting.conversationId ->
+                ConvStore.deleteConversation meeting.conversationId
           _ -> pure ()
 
-      pure deletedCount
+      -- 3. Now delete the meeting records from the database
+      Store.deleteMeetingBatch $ map (\Store.StoredMeeting {id = mid} -> mid) oldMeetings
