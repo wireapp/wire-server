@@ -68,11 +68,12 @@ where
 import Control.Monad.Trans.State
 import Data.Functor.Contravariant
 import Data.Id
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock
 import Hasql.Decoders qualified as Dec
 import Hasql.Encoders qualified as Enc
+import Hasql.Errors
 import Hasql.Pipeline (Pipeline)
 import Hasql.Pool
 import Hasql.Pool qualified as Hasql
@@ -85,6 +86,7 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
+import PostgreSQL.ErrorCodes qualified as PostgreSQL
 import Wire.API.Pagination
 
 type PGConstraints r =
@@ -93,13 +95,36 @@ type PGConstraints r =
     Member (Error Hasql.UsageError) r
   )
 
+-- Inspired by https://github.com/nikita-volkov/hasql-pool/issues/27
+useWithResetAndRetry :: forall a. Pool -> Session a -> IO (Either UsageError a)
+useWithResetAndRetry pool sess = go maxRetries
+  where
+    maxRetries :: Int
+    maxRetries = 5
+
+    resettableErrors :: [ByteString]
+    resettableErrors = [PostgreSQL.admin_shutdown, PostgreSQL.crash_shutdown, PostgreSQL.cannot_connect_now, PostgreSQL.database_dropped]
+
+    go :: Int -> IO (Either UsageError a)
+    go 0 = use pool sess
+    go n = do
+      eithRes <- use pool sess
+      case eithRes of
+        Left (SessionUsageError (StatementSessionError _ _ _ _ _ (ServerStatementError (ServerError errCode _ _ _ _)))) -> do
+          if (Text.encodeUtf8 errCode `elem` resettableErrors)
+            then do
+              release pool
+              go (n - 1)
+            else pure eithRes
+        _ -> pure eithRes
+
 runSession ::
   (PGConstraints r) =>
   Session a ->
   Sem r a
 runSession sess = do
   pool <- input
-  liftIO (use pool sess) >>= either throw pure
+  liftIO (useWithResetAndRetry pool sess) >>= either throw pure
 
 runStatement ::
   (PGConstraints r) =>
@@ -200,7 +225,7 @@ paramLiteral encoder q =
     }
 
 argPattern0 :: Text -> Int -> Text
-argPattern0 t i = "$" <> T.pack (show i) <> " :: " <> t
+argPattern0 t i = "$" <> Text.pack (show i) <> " :: " <> t
 
 argPattern :: Text -> Int -> Text
 argPattern t i = "(" <> argPattern0 t i <> ")"
@@ -266,7 +291,7 @@ clause op cl =
     }
   where
     wrap :: [Text] -> Text
-    wrap xs = "(" <> T.intercalate ", " xs <> ")"
+    wrap xs = "(" <> Text.intercalate ", " xs <> ")"
 
 -- | Fragment for a clause with a single value.
 clause1 :: forall a. (PostgresValue a) => Text -> Text -> a -> QueryFragment
@@ -276,7 +301,7 @@ orderBy :: [(Text, SortOrder)] -> QueryFragment
 orderBy os =
   literal $
     "order by "
-      <> T.intercalate ", " (map (\(field, o) -> field <> " " <> sortOrderClause o) os)
+      <> Text.intercalate ", " (map (\(field, o) -> field <> " " <> sortOrderClause o) os)
 
 limit :: forall a. (PostgresValue a) => a -> QueryFragment
 limit n = paramLiteral (valueEncoder n) $ \i ->
