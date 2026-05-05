@@ -8,7 +8,7 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 ## Status
 
-**This chart is in development. Don't use it in production yet!**
+**This chart is in development. Don't use it in production yet! See FUTUREWORK below**
 
 ---
 
@@ -18,6 +18,9 @@ The chart targets **Envoy Gateway** as the Gateway API controller.
 
 Install the [Gateway API](https://gateway-api.sigs.k8s.io/) into your cluster.
 This chart makes use of the kinds defined in the `gateway.networking.k8s.io/v1` API.
+
+You must use install it in the same namespace as the `wire-server` helm chart, otherwise references will not work.
+FUTUREWORK: Make this helm chart a subchart of `wire-server` before releasing it and remove this paragraph.
 
 ### Envoy Gateway
 
