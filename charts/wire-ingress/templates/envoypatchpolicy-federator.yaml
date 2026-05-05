@@ -26,14 +26,14 @@ spec:
     name: {{ .Values.gateway.className | quote }}
     {{- else }}
     kind: Gateway
-    name: {{ include "wire-ingress.getGatewayName" . | quote }}
+    name: {{ include "wire-ingress.gatewayName" . | quote }}
     namespace: {{ .Release.Namespace | quote }}
     {{- end }}
   type: JSONPatch
   jsonPatches:
     - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
       # Route config name: <namespace>/<gateway-name>/federator
-      name: {{ printf "%s/%s/federator" .Release.Namespace (include "wire-ingress.getGatewayName" .) | quote }}
+      name: {{ printf "%s/%s/federator" .Release.Namespace (include "wire-ingress.gatewayName" .) | quote }}
       operation:
         op: add
         path: "/virtual_hosts/0/domains/-"

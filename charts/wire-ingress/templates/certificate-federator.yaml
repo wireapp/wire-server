@@ -17,7 +17,7 @@ spec:
     group: {{ .Values.federator.tls.issuer.group }}
     {{- end }}
     {{- else }}
-    name: {{ include "wire-ingress.getIssuerName" . | quote }}
+    name: {{ include "wire-ingress.issuerName" . | quote }}
     kind: {{ .Values.tls.issuer.kind }}
     {{- end }}
   usages:

@@ -10,14 +10,14 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   issuerRef:
-    name: {{ include "wire-ingress.getIssuerName" . | quote }}
+    name: {{ include "wire-ingress.issuerName" . | quote }}
     kind: {{ .Values.tls.issuer.kind }}
   usages:
     - server auth
   duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
   renewBefore: 360h   # 15d
   isCA: false
-  secretName: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
+  secretName: {{ include "wire-ingress.certificateSecretName" . | quote }}
 
   privateKey:
     algorithm: {{ .Values.tls.privateKey.algorithm }}

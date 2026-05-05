@@ -10,7 +10,7 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   parentRefs:
-    - name: {{ include "wire-ingress.getGatewayName" . | quote }}
+    - name: {{ include "wire-ingress.gatewayName" . | quote }}
       namespace: {{ .Release.Namespace | quote }}
       kind: Gateway
       sectionName: federator

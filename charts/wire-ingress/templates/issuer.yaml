@@ -6,7 +6,7 @@ kind: "{{ .Values.tls.issuer.kind }}"
 {{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .Values.tls.issuer.kind) }}
 {{- end }}
 metadata:
-  name: {{ include "wire-ingress.getIssuerName" . | quote }}
+  name: {{ include "wire-ingress.issuerName" . | quote }}
   {{- if eq .Values.tls.issuer.kind "Issuer" }}
   namespace: {{ .Release.Namespace }}
   {{- end }}
@@ -20,7 +20,7 @@ spec:
     email: {{ required "Missing value: certmasterEmail" .Values.certManager.certmasterEmail | quote }}
     # NOTE: this secret doesn't need to be created manually, cert-manager manages it
     privateKeySecretRef:
-      name: {{ include "wire-ingress.getIssuerName" . -}}-account-key
+      name: {{ include "wire-ingress.issuerName" . -}}-account-key
     solvers:
 {{- if .Values.certManager.customSolvers }}
 {{ toYaml .Values.certManager.customSolvers | indent 6 }}
@@ -31,7 +31,7 @@ spec:
       - http01:
           gatewayHTTPRoute:
             parentRefs:
-              - name: {{ include "wire-ingress.getGatewayName" . | quote }}
+              - name: {{ include "wire-ingress.gatewayName" . | quote }}
                 namespace: {{ .Release.Namespace | quote }}
                 kind: Gateway
 {{- end }}

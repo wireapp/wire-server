@@ -5,7 +5,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: {{ include "wire-ingress.getGatewayName" . | quote }}
+  name: {{ include "wire-ingress.gatewayName" . | quote }}
   namespace: {{ .Release.Namespace }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
@@ -15,7 +15,7 @@ spec:
   gatewayClassName: {{ .Values.gateway.className | quote }}
   {{- $envoyProxyName := "" }}
   {{- if .Values.gateway.envoyProxy.create }}
-  {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.getGatewayName" .) }}
+  {{- $envoyProxyName = .Values.gateway.envoyProxy.name | default (include "wire-ingress.gatewayName" .) }}
   {{- else if .Values.gateway.envoyProxy.name }}
   {{- $envoyProxyName = .Values.gateway.envoyProxy.name }}
   {{- end }}
@@ -40,7 +40,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: {{ include "wire-ingress.getCertificateSecretName" . | quote }}
+          - name: {{ include "wire-ingress.certificateSecretName" . | quote }}
             kind: Secret
     {{- if .Values.federator.enabled }}
     - name: federator

@@ -20,7 +20,7 @@ Determine DNS zone based on the HTTPS FQDN (e.g. "nginz-https.example.com" → "
 {{/*
 Name of the TLS certificate secret. Differs based on whether cert-manager is used.
 */}}
-{{- define "wire-ingress.getCertificateSecretName" -}}
+{{- define "wire-ingress.certificateSecretName" -}}
 {{- if .Values.tls.secret.nameOverride -}}
     {{- .Values.tls.secret.nameOverride -}}
 {{- else -}}
@@ -38,7 +38,7 @@ Name of the TLS certificate secret. Differs based on whether cert-manager is use
 {{/*
 Name of the custom ACME solver secret.
 */}}
-{{- define "wire-ingress.getCustomSolversSecretName" -}}
+{{- define "wire-ingress.customSolversSecretName" -}}
 {{- $nameParts := list (include "wire-ingress.fullname" .) -}}
 {{- $nameParts = append $nameParts "cert-manager-custom-solvers" -}}
 {{- join "-" $nameParts -}}
@@ -59,14 +59,14 @@ Returns the Letsencrypt ACME API server URL.
 {{/*
 Name of the cert-manager Issuer / ClusterIssuer.
 */}}
-{{- define "wire-ingress.getIssuerName" -}}
+{{- define "wire-ingress.issuerName" -}}
 {{ .Values.tls.issuer.name }}
 {{- end -}}
 
 {{/*
 Name of the Gateway resource. Uses gateway.name if set, otherwise derives one from the release name.
 */}}
-{{- define "wire-ingress.getGatewayName" -}}
+{{- define "wire-ingress.gatewayName" -}}
 {{- if .Values.gateway.name -}}
 {{ .Values.gateway.name }}
 {{- else -}}

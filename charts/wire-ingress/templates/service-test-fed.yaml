@@ -33,6 +33,6 @@ spec:
     protocol: TCP
     targetPort: {{ $httpsPort }}
   selector:
-    gateway.envoyproxy.io/owning-gateway-name: {{ include "wire-ingress.getGatewayName" . }}
+    gateway.envoyproxy.io/owning-gateway-name: {{ include "wire-ingress.gatewayName" . }}
     gateway.envoyproxy.io/owning-gateway-namespace: {{ .Release.Namespace }}
 {{- end }}
