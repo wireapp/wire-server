@@ -291,8 +291,15 @@ testCrossIdpSsoEmailConflict = do
 
       activateEmail domain biboEmail
 
+      -- Verify user's SSO ID has Ernie's issuer (not Bert's)
       getUsersId domain [userIdErnie] `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        ernieIssuer <- _idp1.json %. "metadata.issuer" >>= asString
+        bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` ernieIssuer
+        ssoIdTenant `shouldNotMatch` bertIssuer
 
       -- Step 1.5: Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
       (mUserIdErnieAgain, _) <-
@@ -324,3 +331,37 @@ testCrossIdpSsoEmailConflict = do
       case mUserIdBert of
         Just uid -> uid `shouldMatch` userIdErnie
         Nothing -> error "Expected user ID from cross-IdP SSO login on Bert domain"
+
+      -- Verify user's SSO ID was migrated to Bert's issuer (not Ernie's anymore)
+      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        ernieIssuer <- _idp1.json %. "metadata.issuer" >>= asString
+        bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` bertIssuer
+        ssoIdTenant `shouldNotMatch` ernieIssuer
+
+      -- Step 3: Login on Ernie again to show back-and-forth migration works
+      (mUserIdErnieFinal, _) <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpId1, (idpMeta1, pCreds1))
+
+      case mUserIdErnieFinal of
+        Just uid -> uid `shouldMatch` userIdErnie
+        Nothing -> error "Expected user ID from final login on Ernie domain"
+
+      -- Verify user's SSO ID was migrated back to Ernie's issuer
+      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        ernieIssuer <- _idp1.json %. "metadata.issuer" >>= asString
+        bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` ernieIssuer
+        ssoIdTenant `shouldNotMatch` bertIssuer
