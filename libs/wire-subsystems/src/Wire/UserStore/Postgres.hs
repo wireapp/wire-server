@@ -670,11 +670,12 @@ lookupServiceUsersImpl pid sid mBotId = do
     selectStart =
       dimapPG
         [vectorStatement|
-          SELECT id :: uuid, conv :: uuid, conv_team :: uuid?
+          SELECT bot_conv.id :: uuid, bot_conv.conv :: uuid, bot_conv.conv_team :: uuid?
           FROM bot_conv
-          WHERE provider = $1 :: uuid
-          AND   service = $2 :: uuid
-          ORDER BY id
+          JOIN wire_user ON bot_conv.id = wire_user.id
+          WHERE wire_user.provider = $1 :: uuid
+          AND   wire_user.service = $2 :: uuid
+          ORDER BY bot_conv.id
           LIMIT 100
         |]
 
@@ -682,12 +683,13 @@ lookupServiceUsersImpl pid sid mBotId = do
     selectFrom =
       dimapPG
         [vectorStatement|
-          SELECT id :: uuid, conv :: uuid, conv_team :: uuid?
+          SELECT bot_conv.id :: uuid, bot_conv.conv :: uuid, bot_conv.conv_team :: uuid?
           FROM bot_conv
-          WHERE provider = $1 :: uuid
-          AND   service = $2 :: uuid
-          AND   id > $3 :: uuid
-          ORDER BY id
+          JOIN wire_user ON bot_conv.id = wire_user.id
+          WHERE wire_user.provider = $1 :: uuid
+          AND   wire_user.service = $2 :: uuid
+          AND   bot_conv.id > $3 :: uuid
+          ORDER BY bot_conv.id
           LIMIT 100
         |]
 
@@ -712,7 +714,7 @@ lookupServiceUsersForTeamImpl pid sid tid mBotId = do
           WHERE wire_user.provider = $1 :: uuid
           AND   wire_user.service = $2 :: uuid
           AND   bot_conv.conv_team = $3 :: uuid
-          ORDER BY id
+          ORDER BY bot_conv.id
           LIMIT 100
         |]
 
@@ -726,8 +728,8 @@ lookupServiceUsersForTeamImpl pid sid tid mBotId = do
           WHERE wire_user.provider = $1 :: uuid
           AND   wire_user.service = $2 :: uuid
           AND   bot_conv.conv_team = $3 :: uuid
-          AND   id > $4 :: uuid
-          ORDER BY id
+          AND   bot_conv.id > $4 :: uuid
+          ORDER BY bot_conv.id
           LIMIT 100
         |]
 
