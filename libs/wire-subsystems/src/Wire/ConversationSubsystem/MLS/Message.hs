@@ -297,7 +297,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
 
-  (events, newClients) <- handleGroupInfoMismatch lConvOrSubId bundle $ lowerCodensity $ do
+  (events, newClients, lConvOrSub') <- handleGroupInfoMismatch lConvOrSubId bundle $ lowerCodensity $ do
     (events, newClients) <- case senderIdentity.index of
       Just _ -> do
         -- extract added/removed clients from bundle
@@ -341,11 +341,16 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           action
           bundle.commit.value.path
         pure ([], mempty)
-    lift $ do
+    lConvOrSub' <- lift $ do
       updateOutOfSyncFlag senderIdentity.client lConvOrSub
       storeGroupInfo convOrSub.id (GroupInfoData bundle.groupInfo.raw)
-      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage convOrSub.members
-    pure (events, newClients)
+      -- reload conversation from db to make sure we have an up-to-date list of members
+      lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
+      let convOrSub' = tUnqualified lConvOrSub'
+          mems = cmIntersect (void convOrSub.members) convOrSub'.members
+      propagateMessage qusr (Just c) lConvOrSub conn bundle.rawMessage mems
+      pure lConvOrSub'
+    pure (events, newClients, lConvOrSub')
 
   -- send welcome messages
   for_ bundle.welcome $ \welcome ->
@@ -353,11 +358,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
   -- send application message
   for_ bundle.appMessage $ \msg -> do
-    -- reload conversation from db to make sure we have an up-to-date list of members
-    lConvOrSub' <- fetchConvOrSub qusr bundle.groupId ctype lConvOrSubId
     let convOrSub' = tUnqualified lConvOrSub'
-    propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage $
-      void convOrSub'.members
+    propagateMessage qusr (Just c) lConvOrSub' conn msg.rawMessage convOrSub'.members
 
   pure events
 

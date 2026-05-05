@@ -1209,3 +1209,13 @@ testGroupIdParseError = do
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
     msg <- resp.json %. "message" & asString
     assertBool "unexpected error message" $ "Could not parse group ID:" `isPrefixOf` msg
+
+testFederatedRemove :: (HasCallStack) => App ()
+testFederatedRemove = do
+  [alice, amy, bob] <- createAndConnectUsers [OwnDomain, OwnDomain, OtherDomain]
+  [alice1, amy1, bob1] <- traverse (createMLSClient def) [alice, amy, bob]
+  traverse_ (uploadNewKeyPackage def) [amy1, bob1]
+  convId <- createNewGroup def alice1
+
+  void $ createAddCommit alice1 convId [amy, bob] >>= sendAndConsumeCommitBundle
+  void $ createRemoveCommit alice1 convId [amy1, bob1] >>= sendAndConsumeCommitBundle
