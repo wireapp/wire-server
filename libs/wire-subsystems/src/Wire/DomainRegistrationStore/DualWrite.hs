@@ -23,24 +23,37 @@ where
 import Cassandra (ClientState)
 import Imports
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race
+import Polysemy.Error
+import Polysemy.Time
+import Polysemy.TinyLog
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore qualified as DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra qualified as Cassandra
 import Wire.DomainRegistrationStore.Postgres qualified as Postgres
+import Wire.MigrationLock
 import Wire.Postgres
 
 interpretDomainRegistrationStoreToCassandraAndPostgres ::
-  (PGConstraints r) =>
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member Async r,
+    Member Race r,
+    Member (Error MigrationLockError) r
+  ) =>
   ClientState ->
   InterpreterFor DomainRegistrationStore r
 interpretDomainRegistrationStoreToCassandraAndPostgres cs = interpret $ \case
-  UpsertInternal dr -> do
-    Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.upsertInternal dr
-    Postgres.interpretDomainRegistrationStoreToPostgres $ DomainRegistrationStore.upsertInternal dr
+  UpsertInternal dr ->
+    withMigrationLocks LockShared (MilliSeconds 500) [dr.domain] $ do
+      Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.upsertInternal dr
+      Postgres.interpretDomainRegistrationStoreToPostgres $ DomainRegistrationStore.upsertInternal dr
   LookupInternal domain ->
     Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.lookupInternal domain
   LookupByTeamInternal tid ->
     Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.lookupByTeamInternal tid
-  DeleteInternal domain -> do
-    Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.deleteInternal domain
-    Postgres.interpretDomainRegistrationStoreToPostgres $ DomainRegistrationStore.deleteInternal domain
+  DeleteInternal domain ->
+    withMigrationLocks LockShared (MilliSeconds 500) [domain] $ do
+      Cassandra.interpretDomainRegistrationStoreToCassandra cs $ DomainRegistrationStore.deleteInternal domain
+      Postgres.interpretDomainRegistrationStoreToPostgres $ DomainRegistrationStore.deleteInternal domain

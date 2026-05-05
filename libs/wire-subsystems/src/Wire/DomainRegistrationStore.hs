@@ -39,6 +39,7 @@ import Data.ByteString.Conversion
 import Data.CaseInsensitive
 import Data.CaseInsensitive qualified as CI
 import Data.Domain as Domain
+import Data.Hashable (hash)
 import Data.Id
 import Data.Misc
 import Data.Text as T
@@ -53,6 +54,7 @@ import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
 import Wire.API.EnterpriseLogin
 import Wire.API.PostgresMarshall
+import Wire.MigrationLock
 
 newtype DomainKey = DomainKey {unDomainKey :: CI Text}
   deriving stock (Eq, Ord, Show)
@@ -74,6 +76,10 @@ instance PostgresMarshall Text DomainKey where
 
 instance PostgresUnmarshall Text DomainKey where
   postgresUnmarshall = Right . DomainKey . CI.mk
+
+instance MigrationLockable DomainKey where
+  lockKey = fromIntegral . hash . CI.foldedCase . unDomainKey
+  lockScope = "domain_registration"
 
 type DomainRegistrationRow =
   ( Text,

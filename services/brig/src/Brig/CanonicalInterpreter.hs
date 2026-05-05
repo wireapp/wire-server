@@ -42,6 +42,7 @@ import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
 import Hasql.Pool qualified as Hasql
 import Imports
+import Network.HTTP.Types.Status (status500)
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Async
@@ -111,6 +112,7 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -211,6 +213,7 @@ type BrigLowerLevelEffects =
      Error TeamCollaboratorsError,
      Error UsageError,
      Error EnterpriseLoginSubsystemError,
+     Error MigrationLockError,
      Error UserSubsystemError,
      Error UserGroupSubsystemError,
      Error TeamInvitationSubsystemError,
@@ -468,6 +471,7 @@ runBrigToIO e (AppT ma) = do
               . mapError teamInvitationErrorToHttpError
               . mapError userGroupSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . mapError migrationLockErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
@@ -499,6 +503,10 @@ runBrigToIO e (AppT ma) = do
           )
     )
     $ runReaderT ma e
+
+migrationLockErrorToHttpError :: MigrationLockError -> HttpError
+migrationLockErrorToHttpError _ =
+  StdError (Wai.mkError status500 "internal-server-error" "Internal Server Error")
 
 mkEnterpriseLoginSubsystemEmailConfig :: Env -> Maybe EnterpriseLoginSubsystemEmailConfig
 mkEnterpriseLoginSubsystemEmailConfig env = do

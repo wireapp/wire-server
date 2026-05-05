@@ -30,19 +30,25 @@ import Database.CQL.Protocol (Record (asRecord), TupleType)
 import Hasql.Pool qualified as Hasql
 import Imports hiding (lookup)
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc (interpretRace)
+import Polysemy.Conc.Effect.Race hiding (Timeout)
+import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
+import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import Util.Timeout
 import Wire.API.EnterpriseLogin
 import Wire.DomainRegistrationStore
-import Wire.DomainRegistrationStore.Cassandra ()
+import Wire.DomainRegistrationStore.Cassandra qualified as DomainRegistrationCassandra
 import Wire.DomainRegistrationStore.Postgres qualified as DomainRegistrationPostgres
 import Wire.DomainVerificationChallengeStore
 import Wire.DomainVerificationChallengeStore.Postgres qualified as ChallengePostgres
 import Wire.Migration
+import Wire.MigrationLock
 import Wire.Postgres
 import Wire.Sem.Logger (mapLogger)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
@@ -51,6 +57,8 @@ type EffectStack =
   [ State Int,
     Input ClientState,
     Input Hasql.Pool,
+    Async,
+    Race,
     TinyLog,
     Embed IO,
     Final IO
@@ -81,6 +89,8 @@ interpreter cassClient pgPool logger name =
     . loggerToTinyLog logger
     . mapLogger (Log.field "migration" (Log.val name) .)
     . raiseUnder
+    . interpretRace
+    . asyncToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
     . runState 0
@@ -90,7 +100,9 @@ migrateAllDomainRegistrations ::
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
-    Member (State Int) r
+    Member (State Int) r,
+    Member Async r,
+    Member Race r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
@@ -104,17 +116,30 @@ migrateAllDomainRegistrations migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrations")
   withCount (paginateSem selectAllRegistrations (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize asRecord
-    .| C.mapM_ (traverse_ (\row -> handleErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migCounter row)))
-
+    .| C.mapM_ (traverse_ (\row -> handleRegistrationErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migCounter row)))
 
 migrateDomainRegistrationRow ::
-  (PGConstraints r) =>
+  ( PGConstraints r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r
+  ) =>
   Prometheus.Counter ->
   StoredDomainRegistration ->
   Sem r ()
 migrateDomainRegistrationRow migCounter row = do
-  DomainRegistrationPostgres.interpretDomainRegistrationStoreToPostgres $ upsertInternal row
-  liftIO $ Prometheus.incCounter migCounter
+  void . withMigrationLocks LockExclusive (Seconds 10) [row.domain] $ do
+    isMigrated <- DomainRegistrationPostgres.exists row.domain
+    unless isMigrated $ do
+      cassClient <- input @ClientState
+      mCurrentRow <-
+        DomainRegistrationCassandra.interpretDomainRegistrationStoreToCassandra cassClient $
+          lookupInternal row.domain
+      for_ mCurrentRow $ \currentRow -> do
+        DomainRegistrationPostgres.interpretDomainRegistrationStoreToPostgres $ upsertInternal currentRow
+        liftIO $ Prometheus.incCounter migCounter
 
 migrateDomainVerificationChallengeRow ::
   (PGConstraints r) =>
@@ -141,3 +166,24 @@ selectAllRegistrations =
 selectAllChallenges :: PrepQuery R () (ChallengeId, Domain, Token, DnsVerificationToken, Int32)
 selectAllChallenges =
   "SELECT id, domain, challenge_token_hash, dns_verification_token, ttl(challenge_token_hash) FROM domain_registration_challenge"
+
+handleRegistrationErrors ::
+  ( Member (State Int) r,
+    Member TinyLog r
+  ) =>
+  ByteString ->
+  (Sem (Error MigrationLockError : Error Hasql.UsageError : r) ()) ->
+  Sem r ()
+handleRegistrationErrors key action = do
+  eithErr <- runError (runError action)
+  case eithErr of
+    Right (Right _) -> pure ()
+    Right (Left e) -> logError (show e)
+    Left e -> logError (show e)
+  where
+    logError e = do
+      warn $
+        Log.msg (Log.val "error occurred during migration")
+          . Log.field "key" (show key)
+          . Log.field "error" e
+      modify (+ 1)

@@ -19,6 +19,7 @@
 
 module Wire.DomainRegistrationStore.Postgres
   ( interpretDomainRegistrationStoreToPostgres,
+    exists,
   )
 where
 
@@ -109,3 +110,16 @@ deleteImpl domain =
         [resultlessStatement|DELETE FROM domain_registration
                              WHERE domain = ($1 :: text)
                             |]
+
+exists :: (PGConstraints r) => DomainKey -> Sem r Bool
+exists domain =
+  runStatement domain existsStatement
+  where
+    existsStatement :: Hasql.Statement DomainKey Bool
+    existsStatement =
+      lmapPG @Text @DomainKey
+        [singletonStatement|SELECT EXISTS (
+                             SELECT 1
+                             FROM domain_registration
+                             WHERE domain = ($1 :: text)
+                           ) :: bool|]
