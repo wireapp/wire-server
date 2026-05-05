@@ -21,7 +21,9 @@ if [[ "$WIRE_INGRESS_MODE" != "nginx" ]] && echo "$changed_files" | grep -q "^ch
   echo "ERROR: Changes detected in charts/nginx-ingress-services but WIRE_INGRESS_MODE is '${WIRE_INGRESS_MODE}'."
   echo "This failure is intentional: changes to nginx-ingress-services are not exercised by the"
   echo "integration test suite when running in envoy mode, and would be merged without any test coverage."
-  echo "To test these changes, re-run with WIRE_INGRESS_MODE=nginx."
+  echo "To test these changes, change to WIRE_INGRESS_MODE=nginx. and merge the changes"
+  echo "Then in a follow-up PR change WIRE_INGRESS_MODE=envoy and re-implement the changes also in charts/wire-ingress"
+  echo "FUTUREWORK: Remove WIRE_INGRESS_MODE once ingress-nginx is no longer supported by wire-server"
   exit 1
 fi
 
