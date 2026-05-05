@@ -101,7 +101,7 @@ existingGroupStateMismatch convOrSub = do
     case groupStateMismatch convOrSub.indexMap groupInfo of
       Left _ -> throw ConversationSubsystemErrorMLSMissingGroupInfo
       Right m -> pure m
-  pure $ either (const Nothing) id result
+  pure $ fromRight Nothing result
 
 isGroupInfoCheckEnabled ::
   ( Member FeaturesConfigSubsystem r,
