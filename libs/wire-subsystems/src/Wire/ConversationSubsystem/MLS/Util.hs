@@ -41,6 +41,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ProposalStore
 import Wire.StoredConversation
 
@@ -101,7 +102,7 @@ withCommitLock ::
   forall r.
   ( Member Resource r,
     Member ConversationStore r,
-    Member (ErrorS 'MLSStaleMessage) r,
+    Member (Error ConversationSubsystemError) r,
     Member MLSCommitLockStore r
   ) =>
   Local ConvOrSubConvId ->
@@ -113,7 +114,7 @@ withCommitLock lConvOrSubId gid epoch =
     bracket
       ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
           when (lockAcquired == NotAcquired) $
-            throwS @'MLSStaleMessage
+            throw ConversationSubsystemErrorMLSStaleMessage
       )
       (const $ releaseCommitLock gid epoch)
       ( const $ do
@@ -121,7 +122,7 @@ withCommitLock lConvOrSubId gid epoch =
             fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
               Conv cnv -> getConversationEpoch cnv
               SubConv cnv sub -> getSubConversationEpoch cnv sub
-          unless (actualEpoch == epoch) $ throwS @'MLSStaleMessage
+          unless (actualEpoch == epoch) $ throw ConversationSubsystemErrorMLSStaleMessage
           k ()
       )
   where

@@ -122,6 +122,7 @@ import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember)
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Message
 import Wire.ConversationSubsystem.Query qualified as Query
 import Wire.ConversationSubsystem.Util
@@ -466,7 +467,7 @@ addCodeUnqualified ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
-    Member (ErrorS 'CreateConversationCodeConflict) r,
+    Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -495,7 +496,7 @@ addCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
-    Member (ErrorS 'CreateConversationCodeConflict) r,
+    Member (Error ConversationSubsystemError) r,
     Member E.ExternalAccess r,
     Member HashPassword r,
     Member NotificationSubsystem r,
@@ -533,7 +534,7 @@ addCode lusr mbZHost mZcon lcnv mReq = do
       pure $ CodeAdded event
     -- In case conversation already has a code this case covers the allowed no-ops
     Just (code, mPw) -> do
-      when (isJust mPw || isJust (mReq >>= (.password))) $ throwS @'CreateConversationCodeConflict
+      when (isJust mPw || isJust (mReq >>= (.password))) $ throw ConversationSubsystemErrorCreateConversationCodeConflict
       pure $ CodeAlreadyExisted (mkConversationCodeInfo (isJust mPw) (codeKey code) (codeValue code) convUri)
   where
     ensureGuestsOrNonTeamMembersAllowed :: StoredConversation -> Sem r ()
@@ -621,9 +622,9 @@ checkReusableCode ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member FeaturesConfigSubsystem r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'CodeNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -726,8 +727,8 @@ joinConversationByReusableCode ::
   ( Member BrigAPIAccess r,
     Member CodeStore r,
     Member ConversationStore r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -1061,7 +1062,7 @@ updateOtherMemberLocalConv ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidTarget) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
@@ -1079,7 +1080,7 @@ updateOtherMemberLocalConv ::
   Sem r ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
   when (tUntagged lusr == qvictim) $
-    throwS @'InvalidTarget
+    throw ConversationSubsystemErrorInvalidTarget
   updateLocalConversationMemberUpdate lcnv (tUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
 
@@ -1087,7 +1088,7 @@ updateOtherMember ::
   ( Member ConversationStore r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
-    Member (ErrorS 'InvalidTarget) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvMemberNotFound) r,
@@ -1276,6 +1277,7 @@ postProteusMessage ::
     Member ConversationStore r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
@@ -1301,7 +1303,7 @@ postProteusBroadcast ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
     Member (Input FeatureFlags) r,
@@ -1356,6 +1358,7 @@ postBotMessageUnqualified ::
     Member ConversationStore r,
     Member E.ExternalAccess r,
     Member (E.FederationAPIAccess FederatorClient) r,
+    Member (Error ConversationSubsystemError) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -1385,7 +1388,7 @@ postOtrBroadcastUnqualified ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
     Member (Input FeatureFlags) r,
@@ -1413,6 +1416,7 @@ postOtrMessageUnqualified ::
     Member E.UserClientIndexStore r,
     Member ConversationStore r,
     Member (E.FederationAPIAccess FederatorClient) r,
+    Member (Error ConversationSubsystemError) r,
     Member BackendNotificationQueueAccess r,
     Member E.ExternalAccess r,
     Member NotificationSubsystem r,

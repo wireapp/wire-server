@@ -46,6 +46,7 @@ import Wire.API.VersionInfo
 import Wire.BackendNotificationQueueAccess
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Action.Kick
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.Util
 import Wire.ExternalAccess
@@ -58,9 +59,8 @@ import Wire.StoredConversation as Data
 
 resetLocalMLSMainConversation ::
   ( Member Now r,
-    Member (ErrorS MLSStaleMessage) r,
     Member (ErrorS ConvNotFound) r,
-    Member (ErrorS InvalidOperation) r,
+    Member (Error ConversationSubsystemError) r,
     Member BackendNotificationQueueAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member ExternalAccess r,
@@ -85,9 +85,9 @@ resetLocalMLSMainConversation qusr lcnv reset = do
   mlsData <- case cnv.protocol of
     ProtocolMLS md -> pure md
     ProtocolMixed md -> pure md
-    ProtocolProteus -> throwS @'InvalidOperation
+    ProtocolProteus -> throw ConversationSubsystemErrorInvalidOperation
   epoch <- case mlsData.cnvmlsActiveData of
-    Nothing -> throwS @'InvalidOperation
+    Nothing -> throw ConversationSubsystemErrorInvalidOperation
     Just ad -> pure ad.epoch
   let gid = mlsData.cnvmlsGroupId
 
@@ -95,7 +95,7 @@ resetLocalMLSMainConversation qusr lcnv reset = do
     withCommitLock lcnvOrSub reset.groupId reset.epoch
     lift $ do
       unless (reset.groupId == gid) $ throwS @'ConvNotFound
-      unless (reset.epoch == epoch) $ throwS @'MLSStaleMessage
+      unless (reset.epoch == epoch) $ throw ConversationSubsystemErrorMLSStaleMessage
       removeAllMLSClients gid
 
       let newGid = case nextGenGroupId gid of

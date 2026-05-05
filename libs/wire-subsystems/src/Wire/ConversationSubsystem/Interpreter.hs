@@ -34,7 +34,6 @@ import Polysemy.Input
 import Polysemy.Resource (Resource)
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Conversation.Config
-import Wire.API.Error
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
@@ -86,7 +85,6 @@ import Wire.UserGroupStore (UserGroupStore)
 interpretConversationSubsystem ::
   ( Member (Error ConversationSubsystemError) r,
     Member (Error JSONResponse) r,
-    Member (Error DynError) r,
     Member UserGroupStore r,
     Member (Input (Maybe GuestLinkTTLSeconds)) r,
     Member HashPassword r,

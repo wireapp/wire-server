@@ -118,6 +118,7 @@ import Wire.ConversationSubsystem.Action.Kick
 import Wire.ConversationSubsystem.Action.Leave
 import Wire.ConversationSubsystem.Action.Notify
 import Wire.ConversationSubsystem.Action.Reset
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.Migration
 import Wire.ConversationSubsystem.MLS.Removal
@@ -696,9 +697,9 @@ instance IsConversationAction 'ConversationResetTag where
         Member E.MLSCommitLockStore r,
         Member Resource r,
         Member (Input ConversationSubsystemConfig) r,
-        Member (ErrorS MLSStaleMessage) r,
         Member (ErrorS ConvNotFound) r,
         Member (ErrorS InvalidOperation) r,
+        Member (Error ConversationSubsystemError) r,
         Member Random r,
         Member Now r,
         Member TinyLog r
@@ -1277,7 +1278,7 @@ updateLocalConversationReset ::
     Member E.MLSCommitLockStore r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member (ErrorS MLSStaleMessage) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvId ->
   Qualified UserId ->

@@ -81,6 +81,7 @@ import Wire.BrigAPIAccess
 import Wire.CodeStore
 import Wire.CodeStore.Code as DataTypes
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ExternalAccess
 import Wire.FederationAPIAccess
 import Wire.FederationSubsystem (ensureNoUnreachableBackends)
@@ -649,7 +650,7 @@ newConversationEventPush st e users =
 verifyReusableCode ::
   ( Member CodeStore r,
     Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (Error ConversationSubsystemError) r,
     Member HashPassword r,
     Member RateLimit r
   ) =>
@@ -666,9 +667,9 @@ verifyReusableCode rateLimitKey checkPw mPtpw convCode = do
     throwS @'CodeNotFound
   case (checkPw, mPtpw, mPw) of
     (True, Just ptpw, Just pw) -> do
-      unlessM (HashPassword.verifyPassword rateLimitKey ptpw pw) $ throwS @'InvalidConversationPassword
+      unlessM (HashPassword.verifyPassword rateLimitKey ptpw pw) $ throw ConversationSubsystemErrorInvalidConversationPassword
     (True, Nothing, Just _) ->
-      throwS @'InvalidConversationPassword
+      throw ConversationSubsystemErrorInvalidConversationPassword
     (_, _, _) -> pure ()
   pure c
 

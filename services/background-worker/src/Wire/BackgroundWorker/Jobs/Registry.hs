@@ -53,7 +53,7 @@ import System.Logger.Class qualified as Log
 import URI.ByteString (uriPath)
 import Wire.API.BackgroundJobs (Job (..))
 import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
-import Wire.API.Error (APIError (toResponse), DynError (..))
+import Wire.API.Error (APIError (toResponse))
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error (FederationError)
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
@@ -203,7 +203,6 @@ dispatchJob job = do
         . runDelay
         . resourceToIOFinal
         . runError
-        . mapError @DynError (.eMessage)
         . mapError @JSONResponse (T.pack . show . (.value))
         . mapError @ConversationSubsystemError toResponse
         . mapError @ClientError (T.pack . displayException)

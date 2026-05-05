@@ -32,7 +32,6 @@ import Data.Tuple.Extra
 import Imports
 import Polysemy
 import Polysemy.Error
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
@@ -42,14 +41,14 @@ import Wire.API.MLS.LeafNode
 import Wire.API.User.Client
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.FederationAPIAccess (FederationAPIAccess)
 
 checkClients ::
   ( Member BrigAPIAccess r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS MLSClientMismatch) r,
-    Member (ErrorS MLSIdentityMismatch) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r
   ) =>
   Local ConvOrSubConv ->
@@ -98,7 +97,7 @@ checkClients lConvOrSub ciphersuite newCM = do
             )
             $
             -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
+            throw ConversationSubsystemErrorMLSClientMismatch
 
           pure False
 

@@ -30,7 +30,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.NonDet
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
@@ -42,6 +41,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Team.Feature
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 
 data GroupInfoMismatch = GroupInfoMismatch
@@ -92,16 +92,16 @@ existingGroupStateMismatch ::
   (Member ConversationStore r) =>
   ConvOrSubConv ->
   Sem r (Maybe GroupInfoMismatch)
-existingGroupStateMismatch convOrSub =
-  fmap join . runErrorS @MLSMissingGroupInfo $
-    do
-      groupInfoData <- getConvOrSubGroupInfo convOrSub.id >>= noteS @MLSMissingGroupInfo
-      groupInfo <-
-        either (\_ -> throwS @MLSMissingGroupInfo) pure $
-          decodeMLS' (unGroupInfoData groupInfoData)
-      case groupStateMismatch convOrSub.indexMap groupInfo of
-        Left _ -> throwS @MLSMissingGroupInfo
-        Right m -> pure m
+existingGroupStateMismatch convOrSub = do
+  result <- runError @ConversationSubsystemError $ do
+    groupInfoData <- getConvOrSubGroupInfo convOrSub.id >>= note ConversationSubsystemErrorMLSMissingGroupInfo
+    groupInfo <-
+      either (\_ -> throw ConversationSubsystemErrorMLSMissingGroupInfo) pure $
+        decodeMLS' (unGroupInfoData groupInfoData)
+    case groupStateMismatch convOrSub.indexMap groupInfo of
+      Left _ -> throw ConversationSubsystemErrorMLSMissingGroupInfo
+      Right m -> pure m
+  pure $ either (const Nothing) id result
 
 isGroupInfoCheckEnabled ::
   ( Member FeaturesConfigSubsystem r,

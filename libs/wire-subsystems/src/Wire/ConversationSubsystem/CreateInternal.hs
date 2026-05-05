@@ -64,6 +64,7 @@ import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BrigAPIAccess
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.One2One
 import Wire.ConversationSubsystem.Util
 import Wire.FeaturesConfigSubsystem
@@ -93,12 +94,7 @@ createGroupConversationGeneric ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSNonEmptyMemberList) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
-    Member (ErrorS HistoryNotSupported) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -122,7 +118,7 @@ createGroupConversationGeneric lusr conn newConv = do
   checkCreateConvPermissions lusr newConv newConv.newConvTeam allUsers
   ensureNoLegalholdConflicts allUsers
   when (newConv.newConvHistory /= HistoryPrivate && newConv.newConvGroupConvType /= Channel) $
-    throwS @HistoryNotSupported
+    throw ConversationSubsystemErrorHistoryNotSupported
 
   when (Public.newConvProtocol newConv == BaseProtocolMLSTag) $ do
     assertMLSEnabled
@@ -141,9 +137,7 @@ createOne2OneConversationLogic ::
     Member (Error InvalidInput) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'NoBindingTeamMembers) r,
-    Member (ErrorS 'TeamNotFound) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotConnected) r,
     Member TeamStore r,
@@ -288,7 +282,7 @@ createConnectConversationLogic lusr conn j = do
       | otherwise = pure conv
 
 ensureNoLegalholdConflicts ::
-  ( Member (ErrorS 'MissingLegalholdConsent) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Input ConversationSubsystemConfig) r,
     Member LegalHoldStore r,
     Member TeamStore r,
@@ -300,7 +294,7 @@ ensureNoLegalholdConflicts (UserList locals remotes) = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      throwS @'MissingLegalholdConsent
+      throw ConversationSubsystemErrorMissingLegalholdConsent
 
 checkCreateConvPermissions ::
   ( Member BrigAPIAccess r,
@@ -308,8 +302,7 @@ checkCreateConvPermissions ::
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'ChannelsNotEnabled) r,
-    Member (ErrorS 'NotAnMlsConversation) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamStore r,
     Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
@@ -356,22 +349,21 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
       ( Member (ErrorS OperationDenied) r,
         Member FeaturesConfigSubsystem r,
         Member (ErrorS 'NotATeamMember) r,
-        Member (ErrorS 'ChannelsNotEnabled) r,
-        Member (ErrorS 'NotAnMlsConversation) r
+        Member (Error ConversationSubsystemError) r
       ) =>
       TeamId ->
       Maybe TeamMember ->
       Sem r ()
     ensureCreateChannelPermissions tid (Just tm) = do
       channelsConf :: LockableFeature ChannelsConfig <- getFeatureForTeam tid
-      when (channelsConf.status == FeatureStatusDisabled) $ throwS @'ChannelsNotEnabled
-      when (Public.newConvProtocol newConv /= BaseProtocolMLSTag) $ throwS @'NotAnMlsConversation
+      when (channelsConf.status == FeatureStatusDisabled) $ throw ConversationSubsystemErrorChannelsNotEnabled
+      when (Public.newConvProtocol newConv /= BaseProtocolMLSTag) $ throw ConversationSubsystemErrorNotAnMlsConversation
       case channelsConf.config.allowedToCreateChannels of
         Conf.Everyone -> pure ()
         Conf.TeamMembers -> void $ permissionCheck AddRemoveConvMember $ Just tm
         Conf.Admins -> unless (isAdminOrOwner (tm ^. permissions)) $ throwS @OperationDenied
     ensureCreateChannelPermissions _ Nothing = do
-      throwS @'NotATeamMember
+      throw ConversationSubsystemErrorNotATeamMember
 
 getTeamMember :: (Member TeamStore r, Member TeamSubsystem r) => UserId -> Maybe TeamId -> Sem r (Maybe TeamMember)
 getTeamMember uid (Just tid) = TeamSubsystem.internalGetTeamMember uid tid
@@ -490,7 +482,7 @@ createOne2OneConversationRemotely _ _ _ _name _mtid _ =
   throw FederationNotImplemented
 
 newRegularConversation ::
-  ( Member (ErrorS 'MLSNonEmptyMemberList) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (ErrorS OperationDenied) r,
     Member (Error InvalidInput) r,
     Member (Input ConversationSubsystemConfig) r,
@@ -509,7 +501,7 @@ newRegularConversation lusr newConv = do
   users <- case Public.newConvProtocol newConv of
     BaseProtocolProteusTag -> checkedConvSize cfg uncheckedUsers
     BaseProtocolMLSTag -> do
-      unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
+      unless (null uncheckedUsers) $ throw ConversationSubsystemErrorMLSNonEmptyMemberList
       pure mempty
   let usersWithoutCreator = (,newConvUsersRole newConv) <$> fromConvSize users
       newConvUsersRoles =
@@ -586,10 +578,10 @@ ensureOne :: (Member (Error InvalidInput) r) => [a] -> Sem r a
 ensureOne [x] = pure x
 ensureOne _ = throw (InvalidRange "One-to-one conversations can only have a single invited member")
 
-assertMLSEnabled :: (Member (Input ConversationSubsystemConfig) r, Member (ErrorS 'MLSNotEnabled) r) => Sem r ()
+assertMLSEnabled :: (Member (Input ConversationSubsystemConfig) r, Member (Error ConversationSubsystemError) r) => Sem r ()
 assertMLSEnabled = do
   cfg <- input
-  when (null cfg.mlsKeys) $ throwS @'MLSNotEnabled
+  when (null cfg.mlsKeys) $ throw ConversationSubsystemErrorMLSNotEnabled
 
 newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)
@@ -623,11 +615,9 @@ throwErr :: (Member (Error InvalidInput) r) => String -> Sem r a
 throwErr = throw . InvalidRange . fromString
 
 checkBindingTeamPermissions ::
-  ( Member (ErrorS 'NoBindingTeamMembers) r,
-    Member (ErrorS 'NonBindingTeam) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'TeamNotFound) r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamStore r,
     Member TeamSubsystem r
@@ -653,8 +643,8 @@ checkBindingTeamPermissions lusr lother tid = do
       unless (isJust mOtherTeamCollaborator) $
         verifyMembership tid (tUnqualified lother)
       pure (Just tid)
-    Just _ -> throwS @'NonBindingTeam
-    Nothing -> throwS @'TeamNotFound
+    Just _ -> throw ConversationSubsystemErrorNonBindingTeam
+    Nothing -> throw ConversationSubsystemErrorTeamNotFound
   where
     guardPerm p m =
       if m `hasPermission` p
@@ -662,7 +652,7 @@ checkBindingTeamPermissions lusr lother tid = do
         else throwS @OperationDenied
 
 verifyMembership ::
-  ( Member (ErrorS 'NoBindingTeamMembers) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   TeamId ->
@@ -671,7 +661,7 @@ verifyMembership ::
 verifyMembership tid u = do
   membership <- TeamSubsystem.internalGetTeamMember u tid
   when (isNothing membership) $
-    throwS @'NoBindingTeamMembers
+    throw ConversationSubsystemErrorNoBindingTeamMembers
 
 sendCellsNotification ::
   ( Member NotificationSubsystem r,

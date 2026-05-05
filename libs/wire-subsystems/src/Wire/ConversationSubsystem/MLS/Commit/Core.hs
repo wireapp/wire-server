@@ -63,6 +63,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.IncomingMessage
 import Wire.ConversationSubsystem.MLS.Proposal
@@ -81,15 +82,13 @@ type HasProposalActionEffects r =
     Member BrigAPIAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientMismatch) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member (Error MLSProtocolError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -105,10 +104,7 @@ type HasProposalActionEffects r =
   )
 
 getCommitData ::
-  ( HasProposalEffects r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
-  ) =>
+  (HasProposalEffects r) =>
   SenderIdentity ->
   Local ConvOrSubConv ->
   Epoch ->
@@ -225,7 +221,7 @@ getRemoteMLSClient rusr cid suite = do
       <|> fmap extractClient (fedClient @'Brig @(Versioned 'V0 "get-mls-clients") (mlsClientsRequestToV0 mcr))
 
 checkSignatureKey ::
-  (Member (ErrorS MLSIdentityMismatch) r) =>
+  (Member (Error ConversationSubsystemError) r) =>
   Maybe LeafNode ->
   Maybe ByteString ->
   Sem r ()
@@ -241,16 +237,15 @@ checkSignatureKey mLeaf mKey = do
           key -> key /= Just leaf.signatureKey
         Nothing -> False
     )
-    $ throwS @'MLSIdentityMismatch
+    $ throw ConversationSubsystemErrorMLSIdentityMismatch
 
 -- | Check that the leaf node in an update path, if present, has the correct signature key.
 checkUpdatePath ::
-  ( Member (ErrorS MLSIdentityMismatch) r,
-    Member (Error MLSProtocolError) r,
+  ( Member (Error MLSProtocolError) r,
     Member (Error FederationError) r,
     Member BrigAPIAccess r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local ConvOrSubConv ->
   SenderIdentity ->
@@ -261,7 +256,7 @@ checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity
   let groupId = cnvmlsGroupId (tUnqualified lConvOrSub).mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId index
   case validateLeafNode ciphersuite (Just senderIdentity.client) extra path.leaf.value of
-    Left InvalidLeafNodeSignature -> throwS @'MLSInvalidLeafNodeSignature
+    Left InvalidLeafNodeSignature -> throw ConversationSubsystemErrorMLSInvalidLeafNodeSignature
     Left errMsg ->
       throw $
         mlsProtocolError ("Tried to add invalid LeafNode: " <> toText errMsg)

@@ -53,6 +53,7 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.CheckClients
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.ConversationSubsystem.MLS.Conversation
@@ -71,15 +72,10 @@ processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSIdentityMismatch) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
     Member Resource r,
     Member Random r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
@@ -139,12 +135,12 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
 
                 -- return error if the user is trying to remove themself
                 when (cidQualifiedUser senderIdentity.client == qtarget) $
-                  throwS @'MLSSelfRemovalNotAllowed
+                  throw ConversationSubsystemErrorMLSSelfRemovalNotAllowed
 
                 -- FUTUREWORK: add tests against this situation for conv v subconv
                 when (removedClients /= clientsInConv) $ do
                   -- FUTUREWORK: turn this error into a proper response
-                  throwS @'MLSClientMismatch
+                  throw ConversationSubsystemErrorMLSClientMismatch
 
                 pure qtarget
 
@@ -323,7 +319,7 @@ existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lcon
 
 checkReferences ::
   ( Member ProposalStore r,
-    Member (ErrorS MLSCommitMissingReferences) r
+    Member (Error ConversationSubsystemError) r
   ) =>
   ConvOrSubConv -> Epoch -> Commit -> Sem r ()
 checkReferences convOrSub epoch commit = do
@@ -345,4 +341,4 @@ checkReferences convOrSub epoch commit = do
     for_ missingProposals $ \prop -> do
       case getDeletedIndex prop of
         Just i | Set.member i deletedIndices -> pure ()
-        _ -> throwS @'MLSCommitMissingReferences
+        _ -> throw ConversationSubsystemErrorMLSCommitMissingReferences

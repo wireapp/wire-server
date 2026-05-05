@@ -68,6 +68,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core (getCommitData)
 import Wire.ConversationSubsystem.MLS.Commit.ExternalCommit
 import Wire.ConversationSubsystem.MLS.Commit.InternalCommit
@@ -105,13 +106,7 @@ type MLSMessageStaticErrors =
      ErrorS 'ConvNotFound,
      ErrorS 'MLSNotEnabled,
      ErrorS 'MLSUnsupportedMessage,
-     ErrorS 'MLSStaleMessage,
-     ErrorS 'MLSProposalNotFound,
-     ErrorS 'MissingLegalholdConsent,
-     ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSSelfRemovalNotAllowed,
-     ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSSubConvClientNotInParent
+     ErrorS 'MissingLegalholdConsent
    ]
 
 enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
@@ -126,15 +121,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'ConvMemberNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
@@ -146,7 +134,7 @@ postMLSMessageFromLocalUser ::
   Sem r MLSMessageSendingStatus
 postMLSMessageFromLocalUser v lusr c conn smsg = do
   assertMLSEnabled
-  imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
+  imsg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage smsg
   (ctype, cnvOrSub) <- getConvFromGroupId imsg.groupId
   events <-
     map lcuEvent
@@ -155,16 +143,13 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundle ::
-  ( Member (ErrorS MLSLegalholdIncompatible) r,
-    Member (ErrorS MLSIdentityMismatch) r,
-    Member (Error GroupInfoDiagnostics) r,
+  ( Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -190,9 +175,7 @@ postMLSCommitBundle loc qusr c ctype qConvOrSub conn oosCheck bundle =
       qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
-  ( Member (ErrorS MLSLegalholdIncompatible) r,
-    Member (ErrorS MLSIdentityMismatch) r,
-    Member (Error GroupInfoDiagnostics) r,
+  ( Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input (Maybe GroupInfoCheckEnabled)) r,
@@ -200,7 +183,6 @@ postMLSCommitBundleFromLocalUser ::
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -216,7 +198,7 @@ postMLSCommitBundleFromLocalUser ::
   Sem r MLSMessageSendingStatus
 postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
   assertMLSEnabled
-  ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+  ibundle <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
 
   events <-
@@ -226,9 +208,7 @@ postMLSCommitBundleFromLocalUser v lusr c conn bundle = do
   pure $ MLSMessageSendingStatus events t
 
 postMLSCommitBundleToLocalConv ::
-  ( Member (ErrorS MLSLegalholdIncompatible) r,
-    Member (ErrorS MLSIdentityMismatch) r,
-    Member (Error GroupInfoDiagnostics) r,
+  ( Member (Error GroupInfoDiagnostics) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS GroupIdVersionNotSupported) r,
     Member (Input EnableOutOfSyncCheck) r,
@@ -236,7 +216,6 @@ postMLSCommitBundleToLocalConv ::
     Member Random r,
     Member Resource r,
     Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeSignature) r,
     HasProposalEffects r,
     Member MLSCommitLockStore r,
     Member FederationSubsystem r,
@@ -276,8 +255,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           case resp of
             Left _ -> throw $ InternalErrorWithDescription "Server error. Team member must have vanished with the legal hold check"
             Right r -> case r.ulhsrStatus of
-              UserLegalHoldPending -> throwS @MLSLegalholdIncompatible
-              UserLegalHoldEnabled -> throwS @MLSLegalholdIncompatible
+              UserLegalHoldPending -> throw ConversationSubsystemErrorMLSLegalholdIncompatible
+              UserLegalHoldEnabled -> throw ConversationSubsystemErrorMLSLegalholdIncompatible
               UserLegalHoldDisabled -> pure ()
               UserLegalHoldNoConsent -> pure ()
 
@@ -292,7 +271,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       unless (ciphersuite == activeData.ciphersuite) $
         throw $
           mlsProtocolError "GroupInfo ciphersuite does not match conversation"
-      unless (bundle.epoch == activeData.epoch) $ throwS @'MLSStaleMessage
+      unless (bundle.epoch == activeData.epoch) $ throw ConversationSubsystemErrorMLSStaleMessage
       pure False
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
@@ -382,6 +361,7 @@ handleGroupInfoMismatch lConvId bundle m =
 
 postMLSCommitBundleToRemoteConv ::
   ( Member BrigAPIAccess r,
+    Member (Error ConversationSubsystemError) r,
     Members MLSMessageStaticErrors r,
     Member (Error FederationError) r,
     Member (Error MLSProtocolError) r,
@@ -411,7 +391,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
 
   unless (bundle.epoch == Epoch 0 && ctype == One2OneConv) $
     -- only members may send commit bundles to a remote conversation
-    flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+    flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   enableOutOfSyncCheck <- Just <$> input
   resp <-
@@ -440,19 +420,7 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
 
 postMLSMessage ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvMemberNotFound) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
-    Member (ErrorS 'MLSSubConvClientNotInParent) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
+    Members MLSMessageStaticErrors r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r
   ) =>
@@ -474,7 +442,7 @@ postMLSMessage loc qusr c ctype qconvOrSub con oosCheck msg = do
       qconvOrSub
 
 getSenderIdentity ::
-  ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error MLSProtocolError) r
   ) =>
   Qualified UserId ->
@@ -489,7 +457,7 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
     SenderMember idx -> do
       when (epoch > 0) $ do
         cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
-        unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
+        unless (cid' == cid) $ throw ConversationSubsystemErrorMLSClientSenderUserMismatch
       pure (Just idx)
     _ -> pure Nothing
   pure SenderIdentity {client = cid, index}
@@ -497,11 +465,7 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Input EnableOutOfSyncCheck) r
   ) =>
   Qualified UserId ->
@@ -521,11 +485,7 @@ postMLSMessageToLocalConv qusr c con msg ctype convOrSubId = do
 validateMessage ::
   ( HasProposalEffects r,
     Member (ErrorS ConvNotFound) r,
-    Member (ErrorS MLSClientSenderUserMismatch) r,
-    Member (ErrorS MLSStaleMessage) r,
-    Member (ErrorS MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Input EnableOutOfSyncCheck) r
   ) =>
   Qualified UserId ->
@@ -542,8 +502,8 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
   -- validate message
   case msg.content of
     IncomingMessageContentPublic pub -> case pub.content of
-      FramedContentCommit _commit -> throwS @'MLSUnsupportedMessage
-      FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
+      FramedContentCommit _commit -> throw ConversationSubsystemErrorMLSUnsupportedMessage
+      FramedContentApplicationData _ -> throw ConversationSubsystemErrorMLSUnsupportedMessage
       -- proposal message
       FramedContentProposal prop ->
         processProposal qusr lConvOrSub msg.groupId msg.epoch pub prop
@@ -552,7 +512,7 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
 
       -- reject all application messages if the conv is in mixed state
       when (convOrSub.migrationState == MLSMigrationMixed) $
-        throwS @'MLSUnsupportedMessage
+        throw ConversationSubsystemErrorMLSUnsupportedMessage
 
       -- reject message if the conversation is out of sync
       for_ convOrSub.ciphersuite $ \ciphersuite -> do
@@ -574,7 +534,7 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
             ( epochInt msg.epoch < epochInt epoch - 2
                 || epochInt msg.epoch > epochInt epoch
             )
-            $ throwS @'MLSStaleMessage
+            $ throw ConversationSubsystemErrorMLSStaleMessage
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -594,7 +554,7 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
+  flip unless (throw ConversationSubsystemErrorConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) ((.conv) <$> rConvOrSubId)
 
   enableOutOfSyncCheck <- Just <$> input
   resp <-

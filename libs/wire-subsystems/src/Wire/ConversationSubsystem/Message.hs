@@ -77,6 +77,7 @@ import Wire.API.UserMap (UserMap (..))
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess
 import Wire.ConversationStore
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Internal qualified as ConvSubsystem
 import Wire.ConversationSubsystem.LegalholdConflicts
 import Wire.ConversationSubsystem.Util
@@ -262,7 +263,7 @@ postBroadcast ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
-    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member (Error ConversationSubsystemError) r,
     Member ExternalAccess r,
     Member (Input FeatureFlags) r,
     Member Now r,
@@ -294,7 +295,7 @@ postBroadcast lusr con msg = runError $ do
   limit <- fromIntegral . fromRange <$> input @FanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $
-    throwS @'BroadcastLimitExceeded
+    throw ConversationSubsystemErrorBroadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
@@ -343,7 +344,7 @@ postBroadcast lusr con msg = runError $ do
   pure otrResult {mssFailedToSend = failedToSend}
   where
     maybeFetchLimitedTeamMemberList ::
-      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member TeamSubsystem r
       ) =>
       Int ->
@@ -355,11 +356,11 @@ postBroadcast lusr con msg = runError $ do
       let localUserIdsInRcps = Map.keys rcps
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
-        throwS @'BroadcastLimitExceeded
+        throw ConversationSubsystemErrorBroadcastLimitExceeded
       TeamSubsystem.internalSelectTeamMembers tid localUserIdsToLookup
 
     maybeFetchAllMembersInTeam ::
-      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member TeamSubsystem r
       ) =>
       TeamId ->
@@ -367,7 +368,7 @@ postBroadcast lusr con msg = runError $ do
     maybeFetchAllMembersInTeam tid = do
       mems <- getTeamMembersForFanout tid
       when (mems ^. teamMemberListType == ListTruncated) $
-        throwS @'BroadcastLimitExceeded
+        throw ConversationSubsystemErrorBroadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
@@ -382,7 +383,8 @@ postQualifiedOtrMessage ::
     Member Now r,
     Member P.TinyLog r,
     Member NotificationSubsystem r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -404,7 +406,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
       unless (protocolTag conv.protocol `elem` [ProtocolProteusTag, ProtocolMixedTag]) $
-        throwS @'InvalidOperation
+        throw ConversationSubsystemErrorInvalidOperation
 
       let localMemberIds = (.id_) <$> conv.localMembers
           botMap :: BotMap

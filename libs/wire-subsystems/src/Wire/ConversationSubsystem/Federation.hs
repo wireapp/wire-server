@@ -76,6 +76,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.GroupInfo
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (GroupInfoCheckEnabled)
@@ -341,6 +342,7 @@ sendMessage ::
     Member (Input FeatureFlags) r,
     Member E.ConversationStore r,
     Member (Error InvalidInput) r,
+    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
@@ -426,6 +428,7 @@ updateConversation ::
     Member E.FireAndForget r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
+    Member (Error ConversationSubsystemError) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
@@ -580,9 +583,7 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -613,9 +614,9 @@ sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
     either (throw . mlsProtocolError) pure $
       decodeMLS' (fromBase64ByteString msr.rawMessage)
 
-  ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+  ibundle <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingBundle bundle
   (ctype, qConvOrSub) <- getConvFromGroupId ibundle.groupId
-  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
 
   -- this cannot throw the error since we always pass the sender which is qualified to be remote
   MLSMessageResponseUpdates
@@ -645,10 +646,8 @@ sendMLSMessage ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -667,9 +666,9 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
   raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString msr.rawMessage)
-  msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
+  msg <- note ConversationSubsystemErrorMLSUnsupportedMessage $ mkIncomingMessage raw
   (ctype, qConvOrSub) <- getConvFromGroupId msg.groupId
-  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throwS @'MLSGroupConversationMismatch
+  when (qUnqualified qConvOrSub /= msr.convOrSubId) $ throw ConversationSubsystemErrorLSGroupConversationMismatch
   MLSMessageResponseUpdates . map lcuUpdate
     <$> postMLSMessage
       loc
@@ -684,6 +683,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
 getSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
+    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Domain ->
@@ -701,6 +701,7 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
@@ -725,6 +726,7 @@ leaveSubConversation domain lscr = do
 deleteSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
+    Member (Error ConversationSubsystemError) r,
     Member Resource r,
     Member TeamSubsystem r,
     Member E.MLSCommitLockStore r
@@ -911,6 +913,7 @@ mlsSendWelcome origDomain req = do
 queryGroupInfo ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
   ) =>
   Domain ->
