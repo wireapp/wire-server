@@ -200,6 +200,7 @@ api opts =
 apiSSO ::
   ( Member GalleyAPIAccess r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Input Opts) r,
     Member BrigAPIAccess r,
     Member AssIDStore r,
@@ -383,7 +384,7 @@ validateRedirectURL uri = do
 authresp ::
   forall r.
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,

@@ -85,6 +85,8 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
+import System.Logger (Msg)
+import qualified System.Logger as Log
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -276,7 +278,7 @@ validateEmail _ _ _ = pure ()
 verdictHandler ::
   (HasCallStack) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member AReqIDStore r,
@@ -298,7 +300,7 @@ verdictHandler aresp verdict idp samlConfig mbHost = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
-  Logger.log Logger.Debug $ "entering verdictHandler: " <> show (aresp, verdict)
+  Logger.debug $ Log.msg ("entering verdictHandler" :: String) . Log.field "aresp" (show aresp) . Log.field "verdict" (show verdict)
   reqid <- do
     let xs = SAML.assertionToInResponseTo `mapM` aresp
     case NonEmpty.nub <$> xs of
@@ -314,7 +316,7 @@ verdictHandler aresp verdict idp samlConfig mbHost = do
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
-  Logger.log Logger.Debug $ "leaving verdictHandler: " <> show resp
+  Logger.debug $ Log.msg ("leaving verdictHandler" :: String) . Log.field "resp" (show resp)
   pure resp
 
 data VerdictHandlerResult
@@ -326,7 +328,7 @@ data VerdictHandlerResult
 verdictHandlerResult ::
   (HasCallStack) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
@@ -343,9 +345,9 @@ verdictHandlerResult ::
   Maybe Text ->
   Sem r VerdictHandlerResult
 verdictHandlerResult verdict idp mlabel samlConfig mbHost = do
-  Logger.log Logger.Debug $ "entering verdictHandlerResult"
+  Logger.debug $ Log.msg ("entering verdictHandlerResult" :: String)
   result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost
-  Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
+  Logger.debug $ Log.msg ("leaving verdictHandlerResult" :: String) . Log.field "result" (show result)
   pure result
 
 catchVerdictErrors ::
@@ -410,7 +412,7 @@ verdictHandlerResultCore ::
   forall r.
   (HasCallStack) =>
   ( Member Random r,
-    Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
@@ -477,14 +479,24 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                       -- The benefit is that the next authentication with this
                       -- new IdP will be a simple database query (and not
                       -- many).
-                      when (oldUref ^. SAML.uidTenant /= uref ^. SAML.uidTenant) $
+                      when (oldUref ^. SAML.uidTenant /= uref ^. SAML.uidTenant) $ do
+                        -- Log cross-IdP SSO migration
+                        Logger.info $
+                          Log.msg ("Cross-IdP SSO migration: user found via different IdP, migrating issuer" :: String)
+                            . Log.field "team" (team' & idToText)
+                            . Log.field "user" (idToText uid)
+                            . Log.field "old_issuer" (oldUref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+                            . Log.field "new_issuer" (uref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+                            . Log.field "subject" (uref ^. SAML.uidSubject . to show)
+                            . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
+                            . Log.field "domain" (mbHost & fromMaybe "None")
                         -- TODO: This needs to be better understood and tested.
                         moveUserToNewIssuer oldUref uref uid
                       pure uid
             else
               provisionNewUser
-    Logger.log Logger.Debug ("granting sso login for " <> show uid)
-    cky <- BrigAPIAccess.ssoLogin uid mlabel
+    Logger.debug $ Log.msg ("granting sso login" :: String) . Log.field "user" (idToText uid)
+    cky <- BrigAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
     where
       provisionNewUser = do
