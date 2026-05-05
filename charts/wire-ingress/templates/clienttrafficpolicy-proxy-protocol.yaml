@@ -14,5 +14,5 @@ spec:
       kind: Gateway
       name: {{ include "wire-ingress.getGatewayName" . | quote }}
   proxyProtocol:
-    optional: {{ .Values.gateway.proxyProtocol.optional | default false }}
+    optional: {{ .Values.gateway.proxyProtocol.optional }}
 {{- end }}
