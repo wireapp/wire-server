@@ -20,7 +20,7 @@ module Test.Spar.MultiIngressCrossIdpSso where
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Spar (createIdpWithZHostV2, getSsoCodeByEmailWithZHost)
+import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, getSsoCodeByEmailWithZHost)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (pack)
 import GHC.Stack
@@ -225,8 +225,8 @@ testCrossIdpSsoCreatesDistinctUsers = do
 --
 -- This is different from username-based NameID (tested above) where duplicate
 -- users are silently created because usernames are not unique identifiers.
-testCrossIdpSsoEmailConflict :: (HasCallStack) => App ()
-testCrossIdpSsoEmailConflict = do
+testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
+testCrossIdpSsoEmailConflict useSCIM = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
@@ -276,6 +276,25 @@ testCrossIdpSsoEmailConflict = do
             fromRight (error "could not create name id")
               $ SAML.emailNameID (pack biboEmail)
 
+      -- Optionally create the user via SCIM (and not automatically)
+      mScimUserId <-
+        if useSCIM
+          then do
+            -- Create SCIM token associated with Ernie's IdP
+            scimTok <- createScimToken owner (def {idp = Just idpId1})
+            scimToken <- scimTok.json %. "token" & asString
+
+            -- Create SCIM user with the email
+            scimUser <- randomScimUserWithEmail biboEmail biboEmail
+            scimUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+              resp.status `shouldMatchInt` 201
+              resp.json %. "id" >>= asString
+
+            activateEmail domain biboEmail
+
+            pure (Just scimUid)
+          else pure Nothing
+
       -- Step 1: Bibo logs in on Ernie ingress (should succeed)
       (mUserIdErnie, _) <-
         loginWithSamlWithZHost
@@ -291,7 +310,11 @@ testCrossIdpSsoEmailConflict = do
         Just uid -> pure uid
         Nothing -> error "Expected user ID from SSO login on Ernie domain"
 
-      activateEmail domain biboEmail
+      case mScimUserId of
+        Just scimUid ->
+          -- Validate that SCIM-created user matches SSO login user
+          scimUid `shouldMatch` userIdErnie
+        Nothing -> activateEmail domain biboEmail
 
       -- Verify user's SSO ID has Ernie's issuer (not Bert's)
       getUsersId domain [userIdErnie] `bindResponse` \resp -> do
