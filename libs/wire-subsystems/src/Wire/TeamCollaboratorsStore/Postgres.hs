@@ -37,7 +37,6 @@ import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
-import PostgreSQL.ErrorCodes
 import Wire.API.Team.Collaborator
 import Wire.TeamCollaboratorsStore
 
@@ -95,31 +94,25 @@ createTeamCollaboratorImpl ::
   Sem r ()
 createTeamCollaboratorImpl userId teamId permissions = do
   pool <- input
-  eitherErrorOrUnit <- liftIO $ use pool session
-  either errHandler pure eitherErrorOrUnit
+  eitherRowsAffected <- liftIO $ use pool session
+  rowsAffected <- either throw pure eitherRowsAffected
+  if rowsAffected > 0
+    then pure ()
+    else throw AlreadyExists
   where
-    session :: Session ()
+    session :: Session Int64
     session = statement (userId, teamId, permissions) insertStatement
 
-    insertStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) ()
+    insertStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) Int64
     insertStatement =
       lmap
         ( \(uid, tid, pms) ->
             (toUUID uid, toUUID tid, collaboratorPermissionToPostgreslRep <$> (Data.Vector.fromList . toAscList) pms)
         )
-        $ [resultlessStatement|
+        $ [rowsAffectedStatement|
           insert into collaborators (user_id, team_id, permissions) values ($1 :: uuid, $2 :: uuid, $3 :: smallint[])
+          on conflict do nothing
           |]
-
-    errHandler ::
-      ( Member (Error UsageError) r',
-        Member (Error TeamCollaboratorsError) r'
-      ) =>
-      UsageError ->
-      Sem r' ()
-    errHandler (SessionUsageError (QueryError _ _ (ResultError (ServerError code _ _ _ _))))
-      | code == unique_violation = throw AlreadyExists
-    errHandler e = throw e
 
 getAllTeamCollaboratorsImpl ::
   ( Member (Input Pool) r,

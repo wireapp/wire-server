@@ -288,11 +288,10 @@ offset n = paramLiteral (valueEncoder n) $ \i ->
 
 buildStatement :: QueryFragment -> Dec.Result b -> Statement () b
 buildStatement frag dec =
-  Statement
-    (T.encodeUtf8 (evalState frag.query 1))
+  preparable
+    (evalState frag.query 1)
     frag.encoder
     dec
-    True
 
 nextIndex :: State Int Int
 nextIndex = get <* modify succ

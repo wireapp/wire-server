@@ -87,7 +87,7 @@
     };
 
     hasql-migration = {
-      url = "github:wireapp/hasql-migration?ref=allow-no-transaction";
+      url = "github:wireapp/hasql-migration?ref=upgrade-hasql";
       flake = false;
     };
   };

@@ -164,6 +164,7 @@ let
     };
 
     # PR: https://github.com/tvh/hasql-migration/pull/19
+    # and hasql-upgrade, no PR yet.
     hasql-migration = {
       src = inputs.hasql-migration;
     };
@@ -193,6 +194,31 @@ let
     hsaml2 = {
       version = "0.2.0";
       sha256 = "sha256-kEalrs79uI8CMaVa7suYEzeer/YqFoJOqkV+LhiUwY4=";
+    };
+
+    postgresql-binary = {
+      version = "0.15.0.1";
+      sha256 = "sha256-q5t2OgiDxyt8WU+zHVxpyVhFF9PtDu2BlQRfuPpBkgk=";
+    };
+
+    hasql = {
+      version = "1.10.3";
+      sha256 = "sha256-aJg6+oSWGkXm9pYLVv15d7M7HcnHhZpkw5c7ezxh2Yc=";
+    };
+
+    hasql-th = {
+      version = "0.5";
+      sha256 = "sha256-qD9RljGDwMpPZ2epCxzL3Sbbn2Ce1472Vf2AGFroIW8=";
+    };
+
+    hasql-transaction = {
+      version = "1.2.2";
+      sha256 = "sha256-o53h6ly2Kukhw9dcyAOvywzwlZDdgb+b/jqbw72lLHg=";
+    };
+
+    hasql-pool = {
+      version = "1.4.2";
+      sha256 = "sha256-iQB2TD9hsPnqoVh5mR3Y2K8Cv67rWqBR0WHxOWZeiD8=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
