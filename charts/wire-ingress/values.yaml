@@ -111,6 +111,21 @@ webapp:
   enabled: true
 fakeS3:
   enabled: true
+  # Guard rules applied BEFORE the default catch-all rule.
+  # These handle provider-specific paths. Adjust if using a different S3 provider.
+  # Uses Gateway API HTTPRoute rule format (matches/filters/backendRefs).
+  guardingRules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /minio/
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /
+            statusCode: 301
 teamSettings:
   enabled: false
 accountPages:

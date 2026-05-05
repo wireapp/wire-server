@@ -17,17 +17,8 @@ spec:
   hostnames:
     - {{ required "config.dns.fakeS3 is required when fakeS3.enabled is true" .Values.config.dns.fakeS3 | quote }}
   rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /minio/
-      filters:
-        - type: RequestRedirect
-          requestRedirect:
-            path:
-              type: ReplaceFullPath
-              replaceFullPath: /
-            statusCode: 301
+    {{- toYaml .Values.fakeS3.guardingRules | nindent 4 }}
+    {{/* Default catch-all rule routes to the S3 backend */}}
     - matches:
         - path:
             type: PathPrefix
