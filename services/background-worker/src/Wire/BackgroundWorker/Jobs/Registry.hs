@@ -70,8 +70,7 @@ import Wire.ClientSubsystem.Error (ClientError)
 import Wire.CodeStore.Cassandra (interpretCodeStoreToCassandra)
 import Wire.CodeStore.DualWrite (interpretCodeStoreToCassandraAndPostgres)
 import Wire.CodeStore.Postgres (interpretCodeStoreToPostgres)
-import Wire.ConversationStore.Cassandra
-import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (..), interpretConversationSubsystem)
 import Wire.ExternalAccess.External
 import Wire.FeaturesConfigSubsystem (getAllTeamFeaturesForServer)
@@ -171,13 +170,11 @@ dispatchJob job = do
   env <- ask @Env
   let disableTlsV1 = True
   extEnv <- liftIO (initExtEnv disableTlsV1)
-  liftIO $ runInterpreters env extEnv $ runJob job
+  let mergeErrors = either (Left . T.pack . show) id
+  liftIO $ fmap mergeErrors $ runInterpreters env extEnv $ runJob job
   where
     convStoreInterpreter env =
-      case env.postgresMigration.conversation of
-        CassandraStorage -> interpretConversationStoreToCassandra env.cassandraGalley
-        MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres env.cassandraGalley
-        PostgresqlStorage -> interpretConversationStoreToPostgres
+      interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     runInterpreters env extEnv = do
       let federationAPIAccessConfig =
             FederationAPIAccessConfig
@@ -203,6 +200,7 @@ dispatchJob job = do
         . interpretRace
         . runDelay
         . resourceToIOFinal
+        . runError @MigrationError
         . runError
         . mapError @DynError (.eMessage)
         . mapError @JSONResponse (T.pack . show . (.value))

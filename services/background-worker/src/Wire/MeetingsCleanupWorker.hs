@@ -27,15 +27,21 @@ import Data.Time.Clock
 import Hasql.Pool (UsageError)
 import Imports
 import Polysemy
+import Polysemy.Async (asyncToIOFinal)
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
+import Polysemy.Conc
 import Polysemy.Error (runError)
 import Polysemy.Input (runInputConst)
+import Polysemy.Resource (resourceToIOFinal)
+import Polysemy.TinyLog qualified as P
 import Prometheus (incCounter)
 import System.Cron (Job (..), forkJob)
 import System.Logger qualified as Log
+import System.Logger.Class (Logger)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util (CleanupAction)
-import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
 import Wire.MeetingsSubsystemCleaning qualified as Meetings
 import Wire.MeetingsSubsystemCleaning.Interpreter (interpretMeetingsSubsystemCleaning)
@@ -126,28 +132,30 @@ cleanupLoop env cutoffTime batchSize totalSoFar = do
         then cleanupLoop env cutoffTime batchSize newTotal
         else pure newTotal
 
+interpretTinyLog ::
+  (Member (Embed IO) r) =>
+  Logger ->
+  Sem (P.TinyLog ': r) a ->
+  Sem r a
+interpretTinyLog logger = interpret $ \case
+  P.Log lvl msg -> Log.log logger lvl msg
+
 -- Run the meetings cleanup using the subsystem
--- Note: Meetings are stored only in PostgreSQL. Conversations may be in Cassandra,
--- PostgreSQL, or both during migration. Currently we only support PostgreSQL conversations.
--- For Cassandra or migration modes, conversations won't be properly cleaned up.
--- TODO: Add full migration awareness to support Cassandra and migration modes.
 runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either String Int64)
-runMeetingsCleanup env cutoffTime batchSize = do
-  -- Log a warning if we're not in pure PostgreSQL mode
-  case env.postgresMigration.conversation of
-    CassandraStorage -> do
-      Log.err env.logger $
-        Log.msg (Log.val "Meetings cleanup: conversations are in Cassandra mode, but cleanup only supports PostgreSQL")
-    MigrationToPostgresql -> do
-      Log.warn env.logger $
-        Log.msg (Log.val "Meetings cleanup: conversations are in migration mode. Only PostgreSQL conversations will be cleaned up.")
-    PostgresqlStorage -> pure ()
-  fmap (first show)
-    . runM
+runMeetingsCleanup env cutoffTime batchSize =
+  fmap (either (Left . show) (first show))
+    . runFinal @IO
+    . unsafelyPerformConcurrency
+    . resourceToIOFinal
+    . runError @MigrationError
     . runError @UsageError
+    . embedToFinal @IO
+    . interpretTinyLog env.logger
+    . interpretRace
+    . asyncToIOFinal
     . runInputConst env.hasqlPool
     . interpretMeetingsStoreToPostgres
     . runInputConst env.hasqlPool
-    . interpretConversationStoreToPostgres
+    . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretMeetingsSubsystemCleaning
     $ Meetings.cleanupOldMeetings cutoffTime batchSize

@@ -31,11 +31,12 @@ import Data.Time.Clock
 import Data.UUID (UUID, nil)
 import Data.Vector qualified as V
 import Hasql.Pool
+import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error)
+import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
