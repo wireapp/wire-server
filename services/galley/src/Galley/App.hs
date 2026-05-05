@@ -581,3 +581,4 @@ meetingError =
   \case
     Meeting.InvalidTimes -> Servant.Tagged @'InvalidOperation ()
     Meeting.EmptyUpdate -> Servant.Tagged @'InvalidOperation ()
+    Meeting.MeetingsFeatureDisabled -> Servant.Tagged @'InvalidOperation ()
