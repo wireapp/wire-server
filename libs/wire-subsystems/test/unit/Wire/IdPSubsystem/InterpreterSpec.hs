@@ -37,7 +37,6 @@ import System.Logger.Message qualified as Log
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Test.QuickCheck.Gen
 import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.User.IdentityProvider
@@ -313,19 +312,12 @@ spec = describe "IdPSubsystem.Interpreter" $ do
       result `shouldBe` Right Nothing
       expectedSevereLogs logs mempty
 
-    prop "returns Nothing for non SCIM/SSO user" $ \(teamMember :: TeamMember) user idp userRef email teamId -> do
-      (userIdentity, userManagedBy) <-
-        generate $
-          ( do
-              ui <- Test.QuickCheck.Gen.elements [Just (SSOIdentity (UserSSOId userRef) (Just email)), Nothing]
-              mngtBy :: ManagedBy <- arbitrary
-              pure (ui, mngtBy)
-          )
-            `suchThat` (\(ui, mngtBy) -> isNothing ui || mngtBy == ManagedByWire)
+    prop "returns Nothing for non SSO user" $ \(teamMember :: TeamMember) user idp email teamId -> do
+      userManagedBy <- generate (arbitrary :: Gen ManagedBy)
 
       let userWithEmail =
             user
-              { userIdentity = userIdentity,
+              { userIdentity = Nothing, -- No SSO identity
                 userEmailUnvalidated = Just email,
                 userTeam = Just teamId,
                 userManagedBy = userManagedBy

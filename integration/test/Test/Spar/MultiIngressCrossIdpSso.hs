@@ -20,7 +20,7 @@ module Test.Spar.MultiIngressCrossIdpSso where
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Spar (createIdpWithZHostV2)
+import API.Spar (createIdpWithZHostV2, getSsoCodeByEmailWithZHost)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (pack)
 import GHC.Stack
@@ -90,6 +90,7 @@ testCrossIdpSsoCreatesDistinctUsers = do
                         ]
                   ]
               )
+            >=> setField "enableIdPByEmailDiscovery" True
       }
     $ \domain -> do
       -- Create team and enable SSO
@@ -252,6 +253,7 @@ testCrossIdpSsoEmailConflict = do
                         ]
                   ]
               )
+            >=> setField "enableIdPByEmailDiscovery" True
       }
     $ \domain -> do
       -- Create team and enable SSO
@@ -301,6 +303,12 @@ testCrossIdpSsoEmailConflict = do
         ssoIdTenant `shouldContain` ernieIssuer
         ssoIdTenant `shouldNotMatch` bertIssuer
 
+      -- Verify sso/get-by-email returns Ernie's IdP
+      getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
+        ssoCodeStr `shouldMatch` idpId1
+
       -- Step 1.5: Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
       (mUserIdErnieAgain, _) <-
         loginWithSamlWithZHost
@@ -342,6 +350,12 @@ testCrossIdpSsoEmailConflict = do
         ssoIdTenant `shouldContain` bertIssuer
         ssoIdTenant `shouldNotMatch` ernieIssuer
 
+      -- Verify sso/get-by-email returns Bert's IdP after migration
+      getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
+        ssoCodeStr `shouldMatch` idpId2
+
       -- Step 3: Login on Ernie again to show back-and-forth migration works
       (mUserIdErnieFinal, _) <-
         loginWithSamlWithZHost
@@ -365,3 +379,9 @@ testCrossIdpSsoEmailConflict = do
         bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
         ssoIdTenant `shouldContain` ernieIssuer
         ssoIdTenant `shouldNotMatch` bertIssuer
+
+      -- Verify sso/get-by-email returns Ernie's IdP after migration back
+      getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
+        ssoCodeStr `shouldMatch` idpId1

@@ -123,7 +123,11 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
 
     isScimOrSsoUser :: User -> Bool
     isScimOrSsoUser user =
-      userManagedBy user == ManagedByScim && isJust (userSSOId user)
+      -- TODO: This used to check if the user is SCIM AND SSO! The RFC not
+      -- really unambiguous about this. The customer currently provisions
+      -- non-SCIM. So, that would fit. However, this change needs a sing-off by
+      -- security.
+      isJust (userSSOId user)
 
     findIdPByDomain :: (Member (Logger (Log.Msg -> Log.Msg)) r) => [IP.IdP] -> Sem r (Maybe SAML.IdPId)
     findIdPByDomain idps = do
