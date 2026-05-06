@@ -15,20 +15,32 @@ import Testlib.ResourcePool
 
 data DomainRegistrationTestCase = TeamFlow TeamStep | OnPremFlow OnPremStep
 
+type EmailDomain = String
+
+type AuthToken = String
+
+type TeamId = String
+
+type Owner = Value
+
+type Config = Value
+
+type OwnershipToken = String
+
 data OnPremStep
-  = PreAuthorization String
-  | SetupChallenge String
-  | VerifyDomain String ChallengeSetup
-  | PostConfig String String Value
-  | OnPremVerify String Value
-  | OnPremSuccess String Value
+  = PreAuthorization EmailDomain
+  | SetupChallenge EmailDomain
+  | VerifyDomain EmailDomain ChallengeSetup
+  | PostConfig EmailDomain AuthToken Config
+  | OnPremVerify EmailDomain Config
+  | OnPremSuccess EmailDomain Config
 
 data TeamStep
-  = TeamSetupChallenge (Value, String) String
-  | TeamVerifyDomain (Value, String) String ChallengeSetup
-  | TeamAuthorizeTeam (Value, String) String String
-  | TeamUpdateConfig (Value, String) String
-  | TeamSuccess (Value, String) String
+  = TeamSetupChallenge (Owner, TeamId) EmailDomain
+  | TeamVerifyDomain (Owner, TeamId) EmailDomain ChallengeSetup
+  | TeamAuthorizeTeam (Owner, TeamId) EmailDomain OwnershipToken
+  | TeamUpdateConfig (Owner, TeamId) EmailDomain
+  | TeamSuccess (Owner, TeamId) EmailDomain
 
 testDomainRegistrationMigration :: (HasCallStack) => App ()
 testDomainRegistrationMigration = do
