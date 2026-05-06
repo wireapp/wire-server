@@ -81,16 +81,16 @@ getTeamSizeImpl ::
   TeamId ->
   Sem r TeamSize
 getTeamSizeImpl cfg tid = do
-  regulars <- countWith regularQuery
-  apps <- countWith appQuery
-  pure $ TeamSize regulars apps
+  r <- embed $ ES.runBH cfg.conn.env $ do
+    res <- ES.searchByType cfg.conn.indexName mappingName search
+    liftIO $ ES.parseEsResponse res
+  result <- either (embed . throwIO . IndexLookupError) pure (r :: Either ES.EsError (ES.SearchResult UserDoc))
+  let aggs = fromMaybe mempty (ES.aggregations result)
+      getCount name = maybe 0 (fromIntegral . ES.missingDocCount) $ ES.toMissing name aggs
+  pure $ TeamSize (getCount "regulars") (getCount "apps")
   where
-    countWith query = do
-      let indexName = cfg.conn.indexName
-      countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
-      countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
-      pure $ ES.crCount countRes
     teamQ = termQ "team" (idToText tid)
+
     -- Regular users: type = "regular" or type field absent (legacy documents)
     regularQuery =
       ES.QueryBoolQuery
@@ -109,11 +109,21 @@ getTeamSizeImpl cfg tid = do
                     }
               ]
           }
+
     appQuery =
       ES.QueryBoolQuery
         boolQuery
           { ES.boolQueryMustMatch = [teamQ, termQ "type" "app"]
           }
+
+    search =
+      (ES.mkSearch Nothing Nothing)
+        { ES.size = ES.Size 0,
+          ES.aggBody =
+            Just $
+              ES.mkAggregations "regulars" (ES.FilterAgg (ES.FilterAggregation (ES.Filter regularQuery) Nothing))
+                <> ES.mkAggregations "apps" (ES.FilterAgg (ES.FilterAggregation (ES.Filter appQuery) Nothing))
+        }
 
 upsertImpl ::
   forall r.
