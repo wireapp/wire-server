@@ -23,11 +23,13 @@ import Control.Error (lastMay)
 import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
+import Data.Aeson.Types (parseMaybe)
 import Data.ByteString qualified as LBS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Map.Strict qualified as M
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
@@ -35,6 +37,7 @@ import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
+import Numeric.Natural (Natural)
 import Polysemy
 import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
@@ -86,7 +89,7 @@ getTeamSizeImpl cfg tid = do
     liftIO $ ES.parseEsResponse res
   result <- either (embed . throwIO . IndexLookupError) pure (r :: Either ES.EsError (ES.SearchResult UserDoc))
   let aggs = fromMaybe mempty (ES.aggregations result)
-      getCount name = maybe 0 (fromIntegral . ES.missingDocCount) $ ES.toMissing name aggs
+      getCount name = maybe 0 (.filterDocCount) $ M.lookup name aggs >>= parseMaybe (parseJSON @FilterResult)
   pure $ TeamSize (getCount "regulars") (getCount "apps")
   where
     teamQ = termQ "team" (idToText tid)
@@ -678,3 +681,9 @@ mappingName = ES.MappingName "user"
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
+
+-- | (or can something like this be found in bloodhound?)
+newtype FilterResult = FilterResult {filterDocCount :: Natural}
+
+instance FromJSON FilterResult where
+  parseJSON = withObject "FilterResult" $ \o -> FilterResult <$> o .: "doc_count"
