@@ -49,7 +49,7 @@ import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as P
 import System.Logger.Message (msg, val, (+++))
-import Wire.API.Connection
+import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Conversation hiding (Member, cnvAccess, cnvAccessRoles, cnvName, cnvType)
 import Wire.API.Conversation qualified as Public
 import Wire.API.Conversation.Action
@@ -986,6 +986,94 @@ getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 --------------------------------------------------------------------------------
 -- Handling remote errors
+
+-- | Convert GalleyError from federation protocol to ConversationSubsystemError
+-- Returns Nothing for GalleyError values that don't have ConversationSubsystemError equivalents
+galleyErrorToConversationSubsystemError :: GalleyError -> Maybe ConversationSubsystemError
+galleyErrorToConversationSubsystemError = \case
+  ConvAccessDenied -> Just ConversationSubsystemErrorConvAccessDenied
+  NotATeamMember -> Just ConversationSubsystemErrorNotATeamMember
+  InvalidOperation -> Just ConversationSubsystemErrorInvalidOperation
+  NotConnected -> Just ConversationSubsystemErrorNotConnected
+  MLSNotEnabled -> Just ConversationSubsystemErrorMLSNotEnabled
+  MLSNonEmptyMemberList -> Just ConversationSubsystemErrorMLSNonEmptyMemberList
+  MissingLegalholdConsent -> Just ConversationSubsystemErrorMissingLegalholdConsent
+  NonBindingTeam -> Just ConversationSubsystemErrorNonBindingTeam
+  NoBindingTeamMembers -> Just ConversationSubsystemErrorNoBindingTeamMembers
+  TeamNotFound -> Just ConversationSubsystemErrorTeamNotFound
+  ConvNotFound -> Just ConversationSubsystemErrorConvNotFound
+  ChannelsNotEnabled -> Just ConversationSubsystemErrorChannelsNotEnabled
+  NotAnMlsConversation -> Just ConversationSubsystemErrorNotAnMlsConversation
+  MLSLegalholdIncompatible -> Just ConversationSubsystemErrorMLSLegalholdIncompatible
+  MLSIdentityMismatch -> Just ConversationSubsystemErrorMLSIdentityMismatch
+  MLSUnsupportedMessage -> Just ConversationSubsystemErrorMLSUnsupportedMessage
+  MLSStaleMessage -> Just ConversationSubsystemErrorMLSStaleMessage
+  MLSProposalNotFound -> Just ConversationSubsystemErrorMLSProposalNotFound
+  MLSCommitMissingReferences -> Just ConversationSubsystemErrorMLSCommitMissingReferences
+  MLSSelfRemovalNotAllowed -> Just ConversationSubsystemErrorMLSSelfRemovalNotAllowed
+  MLSClientSenderUserMismatch -> Just ConversationSubsystemErrorMLSClientSenderUserMismatch
+  MLSSubConvClientNotInParent -> Just ConversationSubsystemErrorMLSSubConvClientNotInParent
+  MLSInvalidLeafNodeSignature -> Just ConversationSubsystemErrorMLSInvalidLeafNodeSignature
+  MLSClientMismatch -> Just ConversationSubsystemErrorMLSClientMismatch
+  MLSInvalidLeafNodeIndex -> Just ConversationSubsystemErrorMLSInvalidLeafNodeIndex
+  MLSUnsupportedProposal -> Just ConversationSubsystemErrorMLSUnsupportedProposal
+  GroupIdVersionNotSupported -> Just ConversationSubsystemErrorGroupIdVersionNotSupported
+  ConvMemberNotFound -> Just ConversationSubsystemErrorConvMemberNotFound
+  HistoryNotSupported -> Just ConversationSubsystemErrorHistoryNotSupported
+  MLSGroupConversationMismatch -> Just ConversationSubsystemErrorLSGroupConversationMismatch
+  MLSFederatedResetNotSupported -> Just ConversationSubsystemErrorMLSFederatedResetNotSupported
+  MLSSubConvUnsupportedConvType -> Just ConversationSubsystemErrorMLSSubConvUnsupportedConvType
+  TeamMemberNotFound -> Just ConversationSubsystemErrorTeamMemberNotFound
+  AccessDenied -> Just ConversationSubsystemErrorAccessDenied
+  MLSMissingGroupInfo -> Just ConversationSubsystemErrorMLSMissingGroupInfo
+  CodeNotFound -> Just ConversationSubsystemErrorCodeNotFound
+  InvalidConversationPassword -> Just ConversationSubsystemErrorInvalidConversationPassword
+  GuestLinksDisabled -> Just ConversationSubsystemErrorGuestLinksDisabled
+  MLSFederatedOne2OneNotSupported -> Just ConversationSubsystemErrorMLSFederatedOne2OneNotSupported
+  TooManyMembers -> Just ConversationSubsystemErrorTooManyMembers
+  CreateConversationCodeConflict -> Just ConversationSubsystemErrorCreateConversationCodeConflict
+  InvalidTarget -> Just ConversationSubsystemErrorInvalidTarget
+  MLSReadReceiptsNotAllowed -> Just ConversationSubsystemErrorMLSReadReceiptsNotAllowed
+  InvalidTargetAccess -> Just ConversationSubsystemErrorInvalidTargetAccess
+  ConvInvalidProtocolTransition -> Just ConversationSubsystemErrorConvInvalidProtocolTransition
+  MLSMigrationCriteriaNotSatisfied -> Just ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied
+  MLSProtocolErrorTag -> Nothing
+  -- GalleyError values that don't have ConversationSubsystemError equivalents
+  InvalidAction -> Nothing
+  BroadcastLimitExceeded -> Nothing
+  UserBindingExists -> Nothing
+  NoAddToBinding -> Nothing
+  TooManyTeamMembers -> Nothing
+  TooManyTeamAdmins -> Nothing
+  MissingPermission _ -> Nothing
+  ActionDenied _ -> Nothing
+  MLSDuplicatePublicKey -> Nothing
+  MLSWelcomeMismatch -> Nothing
+  MLSUnexpectedSenderClient -> Nothing
+  NoBindingTeam -> Nothing
+  NotAOneMemberTeam -> Nothing
+  InvalidPermissions -> Nothing
+  InvalidTeamStatusUpdate -> Nothing
+  CustomBackendNotFound -> Nothing
+  DeleteQueueFull -> Nothing
+  TeamSearchVisibilityNotEnabled -> Nothing
+  CannotEnableLegalHoldServiceLargeTeam -> Nothing
+  MissingLegalholdConsentOldClients -> Nothing
+  NoUserLegalHoldConsent -> Nothing
+  LegalHoldNotEnabled -> Nothing
+  LegalHoldDisableUnimplemented -> Nothing
+  LegalHoldServiceInvalidKey -> Nothing
+  LegalHoldServiceBadResponse -> Nothing
+  UserLegalHoldAlreadyEnabled -> Nothing
+  LegalHoldServiceNotRegistered -> Nothing
+  LegalHoldCouldNotBlockConnections -> Nothing
+  UserLegalHoldIllegalOperation -> Nothing
+  TooManyTeamMembersOnTeamWithLegalhold -> Nothing
+  NoLegalHoldDeviceAllocated -> Nothing
+  UserLegalHoldNotPending -> Nothing
+  BulkGetMemberLimitExceeded -> Nothing
+  InvalidTeamNotificationId -> Nothing
+  MeetingNotFound -> Nothing
 
 class RethrowErrors (effs :: EffectRow) r where
   rethrowErrors :: GalleyError -> Sem r a

@@ -428,7 +428,6 @@ updateConversation ::
     Member E.FireAndForget r,
     Member (Error FederationError) r,
     Member (Error InvalidInput) r,
-    Member (Error ConversationSubsystemError) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
@@ -525,6 +524,7 @@ updateConversation origDomain updateRequest = do
     mkResponse =
       fmap (either ConversationUpdateResponseError Imports.id)
         . runError @GalleyError
+        . mapError conversationSubsystemErrorToGalleyError
         . fmap (fromRight ConversationUpdateResponseNoChanges)
         . runError @NoChanges
         . fmap (either ConversationUpdateResponseNonFederatingBackends Imports.id)
@@ -683,7 +683,6 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
 getSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Error ConversationSubsystemError) r,
     Member TeamSubsystem r
   ) =>
   Domain ->
@@ -692,6 +691,7 @@ getSubConversationForRemoteUser ::
 getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
   fmap (either GetSubConversationsResponseError GetSubConversationsResponseSuccess)
     . runError @GalleyError
+    . mapError conversationSubsystemErrorToGalleyError
     . mapToGalleyError @MLSGetSubConvStaticErrors
     $ do
       let qusr = Qualified gsreqUser domain
@@ -701,7 +701,6 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Member (Error FederationError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
@@ -719,6 +718,7 @@ leaveSubConversation domain lscr = do
     . runError @MLSProtocolError
     . fmap (either LeaveSubConversationResponseError Imports.id)
     . runError @GalleyError
+    . mapError conversationSubsystemErrorToGalleyError
     . mapToGalleyError @LeaveSubConversationStaticErrors
     $ leaveLocalSubConversation cid lcnv (lscrSubConv lscr)
       $> LeaveSubConversationResponseOk
@@ -726,7 +726,6 @@ leaveSubConversation domain lscr = do
 deleteSubConversationForRemoteUser ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Error ConversationSubsystemError) r,
     Member Resource r,
     Member TeamSubsystem r,
     Member E.MLSCommitLockStore r
@@ -741,6 +740,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
         (\() -> DeleteSubConversationResponseSuccess)
     )
     . runError @GalleyError
+    . mapError conversationSubsystemErrorToGalleyError
     . mapToGalleyError @MLSDeleteSubConvStaticErrors
     $ do
       let qusr = Qualified dscreqUser domain
@@ -808,6 +808,78 @@ getOne2OneConversation domain (GetOne2OneConversationRequest self other) =
 
 --------------------------------------------------------------------------------
 -- Error handling machinery
+
+-- | Convert ConversationSubsystemError to GalleyError for federation protocol
+conversationSubsystemErrorToGalleyError :: ConversationSubsystemError -> GalleyError
+conversationSubsystemErrorToGalleyError = \case
+  ConversationSubsystemErrorConvAccessDenied -> ConvAccessDenied
+  ConversationSubsystemErrorNotATeamMember -> NotATeamMember
+  ConversationSubsystemErrorOperationDenied -> InvalidOperation
+  ConversationSubsystemErrorNotConnected -> NotConnected
+  ConversationSubsystemErrorMLSNotEnabled -> MLSNotEnabled
+  ConversationSubsystemErrorMLSNonEmptyMemberList -> MLSNonEmptyMemberList
+  ConversationSubsystemErrorMissingLegalholdConsent -> MissingLegalholdConsent
+  ConversationSubsystemErrorNonBindingTeam -> NonBindingTeam
+  ConversationSubsystemErrorNoBindingTeamMembers -> NoBindingTeamMembers
+  ConversationSubsystemErrorTeamNotFound -> TeamNotFound
+  ConversationSubsystemErrorInvalidOperation -> InvalidOperation
+  ConversationSubsystemErrorConvNotFound -> ConvNotFound
+  ConversationSubsystemErrorChannelsNotEnabled -> ChannelsNotEnabled
+  ConversationSubsystemErrorNotAnMlsConversation -> NotAnMlsConversation
+  ConversationSubsystemErrorMLSLegalholdIncompatible -> MLSLegalholdIncompatible
+  ConversationSubsystemErrorMLSIdentityMismatch -> MLSIdentityMismatch
+  ConversationSubsystemErrorMLSUnsupportedMessage -> MLSUnsupportedMessage
+  ConversationSubsystemErrorMLSStaleMessage -> MLSStaleMessage
+  ConversationSubsystemErrorMLSProposalNotFound -> MLSProposalNotFound
+  ConversationSubsystemErrorMLSCommitMissingReferences -> MLSCommitMissingReferences
+  ConversationSubsystemErrorMLSSelfRemovalNotAllowed -> MLSSelfRemovalNotAllowed
+  ConversationSubsystemErrorMLSClientSenderUserMismatch -> MLSClientSenderUserMismatch
+  ConversationSubsystemErrorMLSSubConvClientNotInParent -> MLSSubConvClientNotInParent
+  ConversationSubsystemErrorMLSInvalidLeafNodeSignature -> MLSInvalidLeafNodeSignature
+  ConversationSubsystemErrorMLSClientMismatch -> MLSClientMismatch
+  ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> MLSInvalidLeafNodeIndex
+  ConversationSubsystemErrorMLSUnsupportedProposal -> MLSUnsupportedProposal
+  ConversationSubsystemErrorGroupIdVersionNotSupported -> GroupIdVersionNotSupported
+  ConversationSubsystemErrorConvMemberNotFound -> ConvMemberNotFound
+  ConversationSubsystemErrorHistoryNotSupported -> HistoryNotSupported
+  ConversationSubsystemErrorLSGroupConversationMismatch -> MLSGroupConversationMismatch
+  ConversationSubsystemErrorActionDeniedLeaveConversation -> ActionDenied LeaveConversation
+  ConversationSubsystemErrorActionDeniedRemoveConversationMember -> ActionDenied RemoveConversationMember
+  ConversationSubsystemErrorActionDeniedDeleteConversation -> ActionDenied DeleteConversation
+  ConversationSubsystemErrorBroadcastLimitExceeded -> BroadcastLimitExceeded
+  ConversationSubsystemErrorMLSFederatedResetNotSupported -> MLSFederatedResetNotSupported
+  ConversationSubsystemErrorMLSSubConvUnsupportedConvType -> MLSSubConvUnsupportedConvType
+  ConversationSubsystemErrorTeamMemberNotFound -> TeamMemberNotFound
+  ConversationSubsystemErrorAccessDenied -> AccessDenied
+  ConversationSubsystemErrorMLSMissingGroupInfo -> MLSMissingGroupInfo
+  ConversationSubsystemErrorCodeNotFound -> CodeNotFound
+  ConversationSubsystemErrorInvalidConversationPassword -> InvalidConversationPassword
+  ConversationSubsystemErrorGuestLinksDisabled -> GuestLinksDisabled
+  ConversationSubsystemErrorMLSFederatedOne2OneNotSupported -> MLSFederatedOne2OneNotSupported
+  ConversationSubsystemErrorTooManyMembers -> TooManyMembers
+  ConversationSubsystemErrorCreateConversationCodeConflict -> CreateConversationCodeConflict
+  ConversationSubsystemErrorInvalidTarget -> InvalidTarget
+  ConversationSubsystemErrorMLSReadReceiptsNotAllowed -> MLSReadReceiptsNotAllowed
+  ConversationSubsystemErrorInvalidTargetAccess -> InvalidTargetAccess
+  ConversationSubsystemErrorConvInvalidProtocolTransition -> ConvInvalidProtocolTransition
+  ConversationSubsystemErrorMLSMigrationCriteriaNotSatisfied -> MLSMigrationCriteriaNotSatisfied
+  ConversationSubsystemErrorActionDeniedAddConversationMember -> ActionDenied AddConversationMember
+  ConversationSubsystemErrorActionDeniedModifyOtherConversationMember -> ActionDenied ModifyOtherConversationMember
+  ConversationSubsystemErrorActionDeniedModifyConversationName -> ActionDenied ModifyConversationName
+  ConversationSubsystemErrorActionDeniedModifyConversationMessageTimer -> ActionDenied ModifyConversationMessageTimer
+  ConversationSubsystemErrorActionDeniedModifyConversationReceiptMode -> ActionDenied ModifyConversationReceiptMode
+  ConversationSubsystemErrorActionDeniedModifyConversationAccess -> ActionDenied ModifyConversationAccess
+  ConversationSubsystemErrorActionDeniedModifyAddPermission -> ActionDenied ModifyAddPermission
+  -- Fallback for errors that don't have direct GalleyError equivalents
+  ConversationSubsystemErrorFederationError _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorUnreachableBackends _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorInternalError _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorInvalidInput _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorMLSProtocolError _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorGroupInfoDiagnostics _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorMLSOutOfSyncError _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorNonFederatingBackends _ -> MLSProtocolErrorTag
+  ConversationSubsystemErrorUnreachableBackendsLegacy _ -> MLSProtocolErrorTag
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
@@ -913,7 +985,6 @@ mlsSendWelcome origDomain req = do
 queryGroupInfo ::
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
-    Member (Error ConversationSubsystemError) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r
   ) =>
   Domain ->
@@ -922,6 +993,7 @@ queryGroupInfo ::
 queryGroupInfo origDomain req =
   fmap (either GetGroupInfoResponseError GetGroupInfoResponseState)
     . runError @GalleyError
+    . mapError conversationSubsystemErrorToGalleyError
     . mapToGalleyError @MLSGroupInfoStaticErrors
     $ do
       assertMLSEnabled

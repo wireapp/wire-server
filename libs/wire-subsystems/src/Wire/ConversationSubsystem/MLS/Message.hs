@@ -33,6 +33,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Tagged
+import Data.Text qualified as Text
 import Data.Text.Lazy qualified as LT
 import Data.Tuple.Extra
 import Galley.Types.Error
@@ -405,7 +406,10 @@ postMLSCommitBundleToRemoteConv loc qusr c con bundle ctype rConvOrSubId = do
             enableOutOfSyncCheck
           }
   case resp of
-    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
+    MLSMessageResponseError e ->
+      case galleyErrorToConversationSubsystemError e of
+        Just cse -> throw cse
+        Nothing -> throw (FederationUnexpectedError (Text.pack . show $ e))
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUnreachableBackends ds -> throw (UnreachableBackends (toList ds))
@@ -568,7 +572,10 @@ postMLSMessageToRemoteConv loc qusr senderClient con msg rConvOrSubId = do
             enableOutOfSyncCheck
           }
   case resp of
-    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
+    MLSMessageResponseError e ->
+      case galleyErrorToConversationSubsystemError e of
+        Just cse -> throw cse
+        Nothing -> throw (FederationUnexpectedError (Text.pack . show $ e))
     MLSMessageResponseProtocolError e ->
       throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)

@@ -35,6 +35,7 @@ import Control.Arrow
 import Control.Monad.Codensity hiding (reset)
 import Data.Id
 import Data.Qualified
+import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -146,7 +147,7 @@ getRemoteSubConversation ::
          FederationAPIAccess FederatorClient
        ]
       r,
-    RethrowErrors MLSGetSubConvStaticErrors r
+    Member (Error ConversationSubsystemError) r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -162,7 +163,9 @@ getRemoteSubConversation lusr rcnv sconv = do
         }
   case res of
     GetSubConversationsResponseError e ->
-      rethrowErrors @MLSGetSubConvStaticErrors @r e
+      case galleyErrorToConversationSubsystemError e of
+        Just cse -> throw cse
+        Nothing -> throw (FederationUnexpectedError (T.pack . show $ e))
     GetSubConversationsResponseSuccess subconv ->
       pure subconv
 
@@ -217,7 +220,6 @@ deleteSubConversation ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSStaleMessage) r,
     Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -240,10 +242,7 @@ deleteSubConversation lusr qconv sconv reset = do
     qconv
 
 resetRemoteSubConversation ::
-  ( Member (ErrorS 'ConvAccessDenied) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSNotEnabled) r,
-    Member (ErrorS 'MLSStaleMessage) r,
+  ( Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r
   ) =>
@@ -266,7 +265,10 @@ resetRemoteSubConversation lusr rcnvId scnvId reset = do
       rcnvId
       (fedClient @'Galley @"delete-sub-conversation" deleteRequest)
   case response of
-    DeleteSubConversationResponseError e -> rethrowErrors @MLSDeleteSubConvStaticErrors e
+    DeleteSubConversationResponseError e ->
+      case galleyErrorToConversationSubsystemError e of
+        Just cse -> throw cse
+        Nothing -> throw (FederationUnexpectedError (T.pack . show $ e))
     DeleteSubConversationResponseSuccess -> pure ()
 
 type HasLeaveSubConversationEffects r =
@@ -369,7 +371,8 @@ leaveRemoteSubConversation ::
          Error MLSProtocolError,
          FederationAPIAccess FederatorClient
        ]
-      r
+      r,
+    Member (Error ConversationSubsystemError) r
   ) =>
   ClientIdentity ->
   Remote ConvId ->
@@ -387,7 +390,9 @@ leaveRemoteSubConversation cid rcnv sub = do
           }
   case res of
     LeaveSubConversationResponseError e ->
-      rethrowErrors @'[ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] e
+      case galleyErrorToConversationSubsystemError e of
+        Just cse -> throw cse
+        Nothing -> throw (FederationUnexpectedError (T.pack . show $ e))
     LeaveSubConversationResponseProtocolError e ->
       throw (mlsProtocolError e)
     LeaveSubConversationResponseOk -> pure ()

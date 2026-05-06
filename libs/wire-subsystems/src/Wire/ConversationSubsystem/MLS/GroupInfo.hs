@@ -26,6 +26,7 @@ where
 import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Text qualified as T
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -40,6 +41,7 @@ import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.MLS.SubConversation
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError)
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.Util
@@ -52,7 +54,8 @@ type MLSGroupInfoStaticErrors =
    ]
 
 getGroupInfo ::
-  ( Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
+  ( Member (Error ConversationSubsystemError) r,
+    Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member E.ConversationStore r,
     Member (Error FederationError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
@@ -81,10 +84,10 @@ getGroupInfoFromLocalConv qusr lcnvId = do
     >>= noteS @'MLSMissingGroupInfo
 
 getGroupInfoFromRemoteConv ::
-  ( Member (Error FederationError) r,
+  ( Member (Error ConversationSubsystemError) r,
+    Member (Error FederationError) r,
     Member (E.FederationAPIAccess FederatorClient) r
   ) =>
-  (Members MLSGroupInfoStaticErrors r) =>
   Local UserId ->
   Remote ConvOrSubConvId ->
   Sem r GroupInfoData
@@ -96,7 +99,10 @@ getGroupInfoFromRemoteConv lusr rcnv = do
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
   case response of
-    GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
+    GetGroupInfoResponseError e ->
+      case galleyErrorToConversationSubsystemError e of
+        Just cse -> throw cse
+        Nothing -> throw (FederationUnexpectedError (T.pack . show $ e))
     GetGroupInfoResponseState s ->
       pure
         . GroupInfoData

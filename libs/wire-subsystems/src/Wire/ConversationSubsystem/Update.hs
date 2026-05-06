@@ -79,6 +79,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
+import Data.Text qualified as T
 import Data.Vector qualified as V
 import Galley.Types.Error
 import Imports hiding (forkIO)
@@ -330,6 +331,7 @@ updateConversationHistory lusr con qcnv update = do
 updateConversationReceiptMode ::
   ( Member BrigAPIAccess r,
     Member ConversationStore r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'ModifyConversationReceiptMode)) r,
@@ -375,7 +377,7 @@ updateRemoteConversation ::
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member TinyLog r,
-    RethrowErrors (HasConversationActionGalleyErrors tag) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error NonFederatingBackends) r,
     Member (Error UnreachableBackends) r,
     Member (Error FederationError) r,
@@ -399,7 +401,10 @@ updateRemoteConversation rcnv lusr mconn action = getUpdateResult $ do
     Right x -> pure x
   convUpdate <- case response of
     ConversationUpdateResponseNoChanges -> throw NoChanges
-    ConversationUpdateResponseError err' -> raise $ rethrowErrors @(HasConversationActionGalleyErrors tag) err'
+    ConversationUpdateResponseError err' ->
+      case galleyErrorToConversationSubsystemError err' of
+        Just cse -> throw cse
+        Nothing -> throw $ FederationUnexpectedError (T.pack . show $ err')
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
     ConversationUpdateResponseNonFederatingBackends e -> throw e
     ConversationUpdateResponseUnreachableBackends e -> throw e
@@ -643,6 +648,7 @@ updateConversationProtocolWithLocalUser ::
     Member (ErrorS 'ConvInvalidProtocolTransition) r,
     Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
     Member (ErrorS 'InvalidOperation) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (ErrorS 'MLSMigrationCriteriaNotSatisfied) r,
     Member (Error InternalError) r,
@@ -685,6 +691,7 @@ updateConversationProtocolWithLocalUser lusr conn qcnv (P.ProtocolUpdate newProt
 
 updateChannelAddPermission ::
   ( Member ConversationStore r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS ('ActionDenied 'ModifyAddPermission)) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
