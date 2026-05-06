@@ -583,7 +583,6 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -606,7 +605,7 @@ sendMLSCommitBundle ::
   Domain ->
   MLSMessageSendRequest ->
   Sem r MLSMessageResponse
-sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors $ do
+sendMLSCommitBundle remoteDomain msr = handleMLSMessageErrors . mapError conversationSubsystemErrorToGalleyError $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
@@ -646,7 +645,6 @@ sendMLSMessage ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -661,7 +659,7 @@ sendMLSMessage ::
   Domain ->
   MLSMessageSendRequest ->
   Sem r MLSMessageResponse
-sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
+sendMLSMessage remoteDomain msr = handleMLSMessageErrors . mapError conversationSubsystemErrorToGalleyError $ do
   assertMLSEnabled
   loc <- qualifyLocal ()
   let sender = toRemoteUnsafe remoteDomain msr.sender
