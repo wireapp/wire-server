@@ -17,35 +17,26 @@
 
 module Wire.MeetingsCleanupWorker
   ( startWorker,
-    cleanupOldMeetings,
     CleanupConfig (..),
   )
 where
 
-import Data.Bifunctor (first)
+import Data.Id (RequestId (RequestId))
+import Data.Text qualified as T
 import Data.Time.Clock
-import Hasql.Pool (UsageError)
 import Imports
-import Polysemy
-import Polysemy.Async (asyncToIOFinal)
-import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
-import Polysemy.Conc
 import Polysemy.Error (runError)
-import Polysemy.Input (runInputConst)
-import Polysemy.Resource (resourceToIOFinal)
-import Polysemy.TinyLog qualified as P
 import Prometheus (incCounter)
 import System.Cron (Job (..), forkJob)
 import System.Logger qualified as Log
-import System.Logger.Class (Logger)
 import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util (CleanupAction)
-import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration)
+import Wire.Effects
+import Wire.ExternalAccess.External
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
-import Wire.MeetingsSubsystemCleaning qualified as Meetings
-import Wire.MeetingsSubsystemCleaning.Interpreter (interpretMeetingsSubsystemCleaning)
-import Wire.PostgresMigrationOpts
+import Wire.MeetingsSubsystem
+import Wire.MeetingsSubsystem.Interpreter
 
 data CleanupConfig = CleanupConfig
   { retentionHours :: Double,
@@ -71,7 +62,7 @@ startWorker config = do
       Job config.schedule $
         runAppT env $ do
           Log.info env.logger $ Log.msg (Log.val "Starting scheduled meetings cleanup")
-          cleanupOldMeetings (configFromOptions config)
+          runCleanupOldMeetings (configFromOptions config)
           liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
 
   pure $ pure ()
@@ -85,8 +76,8 @@ configFromOptions cfg =
     }
 
 -- | Main cleanup function that orchestrates the cleanup process
-cleanupOldMeetings :: CleanupConfig -> AppT IO ()
-cleanupOldMeetings config = do
+runCleanupOldMeetings :: CleanupConfig -> AppT IO ()
+runCleanupOldMeetings config = do
   env <- ask
   now <- liftIO getCurrentTime
   let cutoffTime = addUTCTime (negate $ realToFrac config.retentionHours * 3600) now
@@ -132,30 +123,16 @@ cleanupLoop env cutoffTime batchSize totalSoFar = do
         then cleanupLoop env cutoffTime batchSize newTotal
         else pure newTotal
 
-interpretTinyLog ::
-  (Member (Embed IO) r) =>
-  Logger ->
-  Sem (P.TinyLog ': r) a ->
-  Sem r a
-interpretTinyLog logger = interpret $ \case
-  P.Log lvl msg -> Log.log logger lvl msg
-
 -- Run the meetings cleanup using the subsystem
-runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either String Int64)
-runMeetingsCleanup env cutoffTime batchSize =
-  fmap (either (Left . show) (first show))
-    . runFinal @IO
-    . unsafelyPerformConcurrency
-    . resourceToIOFinal
-    . runError @MigrationError
-    . runError @UsageError
-    . embedToFinal @IO
-    . interpretTinyLog env.logger
-    . interpretRace
-    . asyncToIOFinal
-    . runInputConst env.hasqlPool
+runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either Text Int64)
+runMeetingsCleanup env cutoffTime batchSize = do
+  let disableTlsV1 = True
+  extEnv <- initExtEnv disableTlsV1
+  let validityPeriod = realToFrac batchSize * 3600
+  let mergeErrors = either (Left . T.pack . show) Right
+  fmap (either Left mergeErrors)
+    . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
     . interpretMeetingsStoreToPostgres
-    . runInputConst env.hasqlPool
-    . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
-    . interpretMeetingsSubsystemCleaning
-    $ Meetings.cleanupOldMeetings cutoffTime batchSize
+    . runError @MeetingError
+    . interpretMeetingsSubsystem validityPeriod
+    $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize

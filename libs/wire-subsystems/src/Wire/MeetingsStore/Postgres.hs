@@ -67,8 +67,6 @@ interpretMeetingsStoreToPostgres =
       removeInvitedEmailsImpl meetingId emails
     GetOldMeetings cutoffTime batchSize ->
       getOldMeetingsImpl cutoffTime batchSize
-    DeleteMeetingBatch meetingIds ->
-      deleteMeetingBatchImpl meetingIds
 
 -- * Create
 
@@ -396,28 +394,7 @@ getOldMeetingsImpl cutoffTime batchSize = do
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
           FROM meetings
-          WHERE end_time < ($1 :: timestamptz)
-          ORDER BY end_time ASC
-          LIMIT ($2 :: int4)
-        |]
-
-deleteMeetingBatchImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
-  [MeetingId] ->
-  Sem r Int64
-deleteMeetingBatchImpl meetingIds = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
-  where
-    session :: Session Int64
-    session = statement (V.fromList (toUUID <$> meetingIds)) deleteStatement
-    deleteStatement :: Statement (V.Vector UUID) Int64
-    deleteStatement =
-      [rowsAffectedStatement|
-        DELETE FROM meetings
-        WHERE id IN (SELECT unnest($1::uuid[]))
-      |]
+           WHERE end_time < ($1 :: timestamptz)
+           ORDER BY end_time ASC
+           LIMIT ($2 :: int4)
+         |]

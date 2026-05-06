@@ -172,8 +172,5 @@ data MeetingsStore m a where
     UTCTime ->
     Int ->
     MeetingsStore m [StoredMeeting]
-  DeleteMeetingBatch ::
-    [MeetingId] ->
-    MeetingsStore m Int64
 
 makeSem ''MeetingsStore

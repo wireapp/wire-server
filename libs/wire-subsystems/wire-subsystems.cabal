@@ -373,8 +373,6 @@ library
     Wire.MeetingsStore.Postgres
     Wire.MeetingsSubsystem
     Wire.MeetingsSubsystem.Interpreter
-    Wire.MeetingsSubsystemCleaning
-    Wire.MeetingsSubsystemCleaning.Interpreter
     Wire.Migration
     Wire.MigrationLock
     Wire.NotificationSubsystem

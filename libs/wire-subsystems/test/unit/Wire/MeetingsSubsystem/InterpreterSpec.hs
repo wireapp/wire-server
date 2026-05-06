@@ -32,6 +32,7 @@ import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.State
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
@@ -70,6 +71,7 @@ type TestStack =
      GalleyAPIAccess,
      Now,
      State UTCTime,
+     Input (Local ()),
      Random,
      State StdGen,
      ErrorS 'TeamMemberNotFound,
@@ -107,6 +109,7 @@ runTestStack now gen teams configs =
     . runError @(Tagged 'TeamMemberNotFound ())
     . evalState gen
     . randomToStatefulStdGen
+    . runInputConst (toLocalUnsafe (Domain "my-domain") ())
     . evalState now
     . interpretNowAsState
     . miniGalleyAPIAccess teams configs

@@ -109,9 +109,3 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
         . List.sortOn (.endTime)
         . filter (\sm -> sm.endTime < cutoffTime)
         . Map.elems
-  DeleteMeetingBatch meetingIds -> do
-    let deleteOne mid = do
-          exists <- gets (Map.member mid)
-          when exists $ modify (Map.delete mid)
-          pure exists
-    fromIntegral . length <$> traverse deleteOne meetingIds

@@ -21,6 +21,7 @@ library
     Wire.BackgroundWorker.Options
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
+    Wire.Effects
     Wire.MeetingsCleanupWorker
     Wire.PostgresMigrations
 
