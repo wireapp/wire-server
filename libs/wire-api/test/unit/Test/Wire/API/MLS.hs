@@ -89,7 +89,7 @@ testParseKeyPackage = do
 
   case keyPackageIdentity kp of
     Left err -> assertFailure $ "Failed to parse identity: " <> T.unpack err
-    Right identity -> identity @?= alice
+    Right identity -> identity @?= RegularClient alice
 
 testParseKeyPackageWithCapabilities :: IO ()
 testParseKeyPackageWithCapabilities = do

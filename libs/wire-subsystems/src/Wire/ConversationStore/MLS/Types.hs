@@ -54,6 +54,17 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 import Wire.StoredConversation
 
+mkGroupMember ::
+  Maybe Domain ->
+  Maybe UserId ->
+  Maybe ClientId ->
+  Maybe HistoryClientId ->
+  Maybe GroupMember
+mkGroupMember (Just dom) (Just uid) (Just cid) Nothing =
+  Just (RegularClient (ClientIdentity dom uid cid))
+mkGroupMember Nothing Nothing Nothing (Just hid) = Just (HistoryClient hid)
+mkGroupMember _ _ _ _ = Nothing
+
 -- | A map of leaf index to members.
 --
 -- This is used to reconstruct client
@@ -63,20 +74,29 @@ import Wire.StoredConversation
 -- Note that clients that are in the process of being removed from a group
 -- (i.e. there is a pending remove proposals for them) are included in this
 -- mapping.
-newtype IndexMap = IndexMap {unIndexMap :: IntMap ClientIdentity}
+newtype IndexMap = IndexMap {unIndexMap :: IntMap GroupMember}
   deriving (Eq, Show)
   deriving newtype (Semigroup, Monoid)
 
-mkIndexMap :: [(Domain, UserId, ClientId, Int32, Bool)] -> IndexMap
-mkIndexMap = IndexMap . foldr addEntry mempty
+mkIndexMapFromParts ::
+  [(Domain, UserId, ClientId, Int32, Bool)] ->
+  [(HistoryClientId, Int32, Bool)] ->
+  IndexMap
+mkIndexMapFromParts rows1 rows2 =
+  IndexMap
+    . flip (foldr addHistoryClient) rows2
+    . flip (foldr addRegularClient) rows1
+    $ mempty
   where
-    addEntry (dom, usr, c, leafidx, _pending_removal) =
-      IntMap.insert (fromIntegral leafidx) (ClientIdentity dom usr c)
+    addHistoryClient (h, leafidx, _) =
+      IntMap.insert (fromIntegral leafidx) (HistoryClient h)
+    addRegularClient (dom, usr, c, leafidx, _) =
+      IntMap.insert (fromIntegral leafidx) (RegularClient (ClientIdentity dom usr c))
 
-imLookup :: IndexMap -> LeafIndex -> Maybe ClientIdentity
+imLookup :: IndexMap -> LeafIndex -> Maybe GroupMember
 imLookup m i = IntMap.lookup (fromIntegral i) (unIndexMap m)
 
-imFromList :: [(LeafIndex, ClientIdentity)] -> IndexMap
+imFromList :: [(LeafIndex, GroupMember)] -> IndexMap
 imFromList = IndexMap . IntMap.fromList . map (first fromIntegral)
 
 imNextIndex :: IndexMap -> LeafIndex
@@ -84,10 +104,10 @@ imNextIndex im =
   fromIntegral . fromJust $
     find (\n -> not $ IntMap.member n (unIndexMap im)) [0 ..]
 
-imAddClient :: IndexMap -> ClientIdentity -> (LeafIndex, IndexMap)
+imAddClient :: IndexMap -> GroupMember -> (LeafIndex, IndexMap)
 imAddClient im cid = let idx = imNextIndex im in (idx, IndexMap $ IntMap.insert (fromIntegral idx) cid $ unIndexMap im)
 
-imRemoveClient :: IndexMap -> LeafIndex -> Maybe (ClientIdentity, IndexMap)
+imRemoveClient :: IndexMap -> LeafIndex -> Maybe (GroupMember, IndexMap)
 imRemoveClient im idx = do
   cid <- imLookup im idx
   pure (cid, IndexMap . IntMap.delete (fromIntegral idx) $ unIndexMap im)
@@ -98,7 +118,7 @@ imRemoveIndices keys =
     . flip IntMap.withoutKeys (IntSet.fromList (map fromIntegral keys))
     . unIndexMap
 
-imAssocs :: IndexMap -> [(Int, ClientIdentity)]
+imAssocs :: IndexMap -> [(Int, GroupMember)]
 imAssocs = IntMap.assocs . unIndexMap
 
 -- | A two-level map of users to clients to leaf indices.
@@ -111,6 +131,7 @@ imAssocs = IntMap.assocs . unIndexMap
 -- this mapping.
 newtype ClientMap a = ClientMap
   { unClientMap :: Map (Qualified UserId) (Map ClientId a)
+  -- TODO: add historyClients
   }
   deriving (Show, Eq, Functor)
 

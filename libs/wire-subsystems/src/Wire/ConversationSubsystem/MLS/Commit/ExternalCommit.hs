@@ -114,7 +114,7 @@ getExternalCommitData senderIdentity lConvOrSub epoch commit = do
 
     -- add sender client
     im <- get
-    let (addedIndex, im') = imAddClient im senderIdentity
+    let (addedIndex, im') = imAddClient im (RegularClient senderIdentity)
     put im'
 
     pure

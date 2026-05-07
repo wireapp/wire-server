@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,7 +19,7 @@
 
 module Wire.API.MLS.Credential where
 
-import Control.Lens ((?~))
+import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Binary
 import Data.Binary.Get
@@ -120,16 +122,29 @@ instance ToHttpApiData ClientIdentity where
   toHeader = encodeMLS'
   toUrlPiece = T.decodeUtf8 . encodeMLS'
 
+parseId :: Get (Id a)
+parseId = maybe (fail "Invalid UUID") (pure . Id) . fromASCIIBytes =<< getByteString 36
+
 instance ParseMLS ClientIdentity where
   parseMLS = do
-    uid <-
-      maybe (fail "Invalid UUID") (pure . Id) . fromASCIIBytes =<< getByteString 36
+    uid <- parseId
     char ':'
     cid <- ClientId <$> hexadecimal
     char '@'
     dom <-
       either fail pure . (mkDomain . T.pack) =<< many' anyChar
     pure $ ClientIdentity dom uid cid
+
+data GroupMember = RegularClient ClientIdentity | HistoryClient HistoryClientId
+  deriving (Eq, Show)
+
+parseHistoryClient :: Get HistoryClientId
+parseHistoryClient = string "history-client:" *> parseId
+
+instance ParseMLS GroupMember where
+  parseMLS =
+    (HistoryClient <$> parseHistoryClient)
+      <|> (RegularClient <$> parseMLS)
 
 -- format of the x509 client identity: {userid}%21{deviceid}@{host}
 parseX509ClientIdentity :: Get ClientIdentity
@@ -154,3 +169,11 @@ instance SerialiseMLS ClientIdentity where
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
 mkClientIdentity (Qualified uid domain) = ClientIdentity domain uid
+
+makePrisms ''GroupMember
+
+instance ToSchema GroupMember where
+  schema =
+    named "GroupMember" $
+      tag _RegularClient (unnamed schema)
+        <> tag _HistoryClient (unnamed schema)

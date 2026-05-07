@@ -1065,10 +1065,19 @@ selectMLSClients =
                      WHERE group_id = ($1 :: bytea)
                     |]
 
+selectHistoryClients :: Hasql.Statement GroupId [(HistoryClientId, Int32, Bool)]
+selectHistoryClients =
+  dimapPG
+    [vectorStatement|SELECT (id :: uuid), (leaf_node_index :: integer), (removal_pending :: bool)
+                     FROM mls_history_client
+                     WHERE group_id = ($1 :: bytea)
+                    |]
+
 lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl gid = do
-  rows <- runStatement gid selectMLSClients
-  pure (mkClientMap rows, mkIndexMap rows)
+  rows1 <- runStatement gid selectMLSClients
+  rows2 <- runStatement gid selectHistoryClients
+  pure (mkClientMap rows1, mkIndexMapFromParts rows1 rows2)
 
 -- SUB CONVERSATION OPERATIONS
 createSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> GroupId -> Sem r SubConversation

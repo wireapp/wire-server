@@ -237,6 +237,7 @@ deleteConvFromCassandra allConvData = withCassandra $ do
     Nothing -> deleteConversation allConvData.conv.id_
     Just tid -> deleteTeamConversation tid allConvData.conv.id_
 
+-- TODO: (leif) migrate history client data
 saveConvToPostgres :: (PGConstraints r) => AllConvData -> Sem r ()
 saveConvToPostgres allConvData = do
   let meta = storedConv.metadata
@@ -384,11 +385,12 @@ saveConvToPostgres allConvData = do
 
     mlsClientRows :: GroupId -> ClientMap LeafIndex -> IndexMap -> [(GroupId, Domain, UserId, ClientId, Int32, Bool)]
     mlsClientRows gid clientMap indexMap =
-      let clients :: [(LeafIndex, ClientIdentity, Bool)] =
-            IntMap.elems $
-              IntMap.mapWithKey
-                (\idx ci -> (fromIntegral idx, ci, isNothing (cmLookupIndex ci clientMap)))
-                indexMap.unIndexMap
+      let clients :: [(LeafIndex, ClientIdentity, Bool)] = do
+            (idx, element) <- IntMap.assocs indexMap.unIndexMap
+            case element of
+              RegularClient ci ->
+                pure (fromIntegral idx, ci, isNothing (cmLookupIndex ci clientMap))
+              HistoryClient _ -> []
        in flip map clients $ \(idx, ci, removalPending) ->
             (gid, ci.ciDomain, ci.ciUser, ci.ciClient, fromIntegral idx, removalPending)
 

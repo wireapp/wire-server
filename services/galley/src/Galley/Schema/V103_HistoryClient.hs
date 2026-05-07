@@ -25,9 +25,14 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 103 "add column history client to mls_group_member_client" $ do
+  Migration 103 "add history client table" $ do
     schema'
-      [r| ALTER TABLE mls_group_member_client ADD (
-            history_client_id uuid
-        )
+      [r| CREATE TABLE mls_history_client (
+                group_id blob,
+                id uuid,
+                key_package_ref blob,
+                leaf_node_index int,
+                removal_pending boolean,
+                PRIMARY KEY (group_id, id)
+            ) 
      |]

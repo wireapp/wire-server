@@ -631,7 +631,7 @@ data GroupInfoDiagnostics = GroupInfoDiagnostics
   { commit :: ByteString,
     groupInfo :: ByteString,
     groupId :: GroupId,
-    clients :: [(Int, ClientIdentity)],
+    clients :: [(Int, GroupMember)],
     convId :: ConvOrSubConvId,
     domain :: Domain
   }
@@ -649,7 +649,7 @@ instance APIError GroupInfoDiagnostics where
         headers = []
       }
 
-indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, ClientIdentity)
+indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, GroupMember)
 indexedClientSchema =
   object $
     (,)

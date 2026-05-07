@@ -307,9 +307,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
         let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
-        if sharedHistoryEnabled
-          then todo "check if history client exists"
-          else todo "check no history client exists"
+        _ <- todo "check if history client exists" sharedHistoryEnabled
 
         -- reject message if the conversation is out of sync
         lift $ do
@@ -497,7 +495,7 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
     SenderMember idx -> do
       when (epoch > 0) $ do
         cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
-        unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
+        unless (cid' == RegularClient cid) $ throwS @'MLSClientSenderUserMismatch
       pure (Just idx)
     _ -> pure Nothing
   pure SenderIdentity {client = cid, index}

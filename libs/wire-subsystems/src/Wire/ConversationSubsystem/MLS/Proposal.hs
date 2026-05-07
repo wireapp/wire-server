@@ -79,22 +79,27 @@ import Wire.Util
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
-    paRemove :: ClientMap LeafIndex
+    paRemove :: ClientMap LeafIndex,
+    paHistoryClientAdd :: Maybe (HistoryClientId, LeafIndex, Maybe KeyPackage),
+    paHistoryClientRemove :: Maybe (HistoryClientId, LeafIndex)
   }
   deriving (Show)
 
+-- TODO: (leif) check this
 instance Semigroup ProposalAction where
-  ProposalAction add1 rem1 <> ProposalAction add2 rem2 =
-    ProposalAction (add1 <> add2) (rem1 <> rem2)
+  ProposalAction add1 rem1 hadd1 hrem1 <> ProposalAction add2 rem2 hadd2 hrem2 =
+    ProposalAction (add1 <> add2) (rem1 <> rem2) (hadd1 <|> hadd2) (hrem1 <|> hrem2)
 
 instance Monoid ProposalAction where
-  mempty = ProposalAction mempty mempty
+  mempty = ProposalAction mempty mempty Nothing Nothing
 
-paAddClient :: ClientIdentity -> LeafIndex -> Maybe KeyPackage -> ProposalAction
-paAddClient cid idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
+paAddClient :: GroupMember -> LeafIndex -> Maybe KeyPackage -> ProposalAction
+paAddClient (RegularClient cid) idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
+paAddClient (HistoryClient hid) idx kp = mempty {paHistoryClientAdd = Just (hid, idx, kp)}
 
-paRemoveClient :: ClientIdentity -> LeafIndex -> ProposalAction
-paRemoveClient cid idx = mempty {paRemove = cmSingleton cid idx}
+paRemoveClient :: GroupMember -> LeafIndex -> ProposalAction
+paRemoveClient (RegularClient cid) idx = mempty {paRemove = cmSingleton cid idx}
+paRemoveClient (HistoryClient hid) idx = mempty {paHistoryClientRemove = Just (hid, idx)}
 
 -- | This is used to sort proposals into the correct processing order, as defined by the spec
 data ProposalProcessingStage
@@ -179,7 +184,7 @@ addProposedClient ::
   ( Member (State IndexMap) r,
     Member (ErrorS MLSUnsupportedProposal) r
   ) =>
-  Either ClientIdentity KeyPackage ->
+  Either GroupMember KeyPackage ->
   Sem r ProposalAction
 addProposedClient cidOrKp = do
   (cid, mKp) <- case cidOrKp of
@@ -280,7 +285,7 @@ processProposal qusr lConvOrSub groupId epoch pub prop = do
 getKeyPackageIdentity ::
   (Member (ErrorS 'MLSUnsupportedProposal) r) =>
   KeyPackage ->
-  Sem r ClientIdentity
+  Sem r GroupMember
 getKeyPackageIdentity =
   either (\_ -> throwS @'MLSUnsupportedProposal) pure
     . keyPackageIdentity
@@ -304,15 +309,18 @@ checkExternalProposalUser qusr prop = do
     loc
     ( \lusr -> case prop of
         AddProposal kp -> do
-          ClientIdentity {ciUser, ciClient} <- getKeyPackageIdentity kp.value
-          -- requesting user must match key package owner
-          when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
-          -- client referenced in key package must be one of the user's clients
-          UserClients {userClients} <- lookupClients [ciUser]
-          maybe
-            (throwS @'MLSUnsupportedProposal)
-            (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
-            $ userClients Map.!? ciUser
+          groupMember <- getKeyPackageIdentity kp.value
+          case groupMember of
+            RegularClient (ClientIdentity {ciUser, ciClient}) -> do 
+              -- requesting user must match key package owner
+              when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
+              -- client referenced in key package must be one of the user's clients
+              UserClients {userClients} <- lookupClients [ciUser]
+              maybe
+                (throwS @'MLSUnsupportedProposal)
+                (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
+                $ userClients Map.!? ciUser
+            HistoryClient _ -> pure ()
         _ -> throwS @'MLSUnsupportedProposal
     )
     (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
