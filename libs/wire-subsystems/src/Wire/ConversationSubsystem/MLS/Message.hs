@@ -52,6 +52,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
@@ -304,6 +305,11 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
         (newIndexMap, action) <-
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
+
+        let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+        if sharedHistoryEnabled
+          then todo "check if history client exists"
+          else todo "check no history client exists"
 
         -- reject message if the conversation is out of sync
         lift $ do
