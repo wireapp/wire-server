@@ -53,8 +53,7 @@ testDomainRegistrationMigration = do
             (owner, tid, _) <- createTeam domain 1
             GalleyInternal.setTeamFeatureLockStatus owner tid "domainRegistration" "unlocked"
             GalleyInternal.setTeamFeatureStatus owner tid "domainRegistration" "enabled" >>= assertSuccess
-            emailDomain <- randomDomain
-            pure $ TeamFlow $ TeamSetupChallenge (owner, tid) emailDomain
+            TeamFlow . TeamSetupChallenge (owner, tid) <$> randomDomain
 
           sequence
             [ pure t1,
