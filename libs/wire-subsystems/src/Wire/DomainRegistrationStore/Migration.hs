@@ -108,7 +108,7 @@ migrateAllDomainRegistrations ::
   Prometheus.Counter ->
   ConduitM () Void (Sem r) ()
 migrateAllDomainRegistrations migOpts migCounter = do
-  lift $ info $ Log.msg (Log.val "migrateAllDomainVerificationChallenges")
+  lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrationChallenges")
   withCount (paginateSem selectAllChallenges (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
     .| C.mapM_ (traverse_ (\row@(cid, _, _, _, _) -> handleErrors (toByteString' cid) (migrateDomainVerificationChallengeRow migCounter row)))
