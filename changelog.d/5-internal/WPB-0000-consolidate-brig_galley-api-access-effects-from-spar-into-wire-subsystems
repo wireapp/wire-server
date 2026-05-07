@@ -1,1 +1,3 @@
 Consolidate brig/galley api access effects from spar into wire-subsystems.
+
+NB: calls to internal galley end-points were *sometimes* propagating unexpected errors (eg. 400) to the client, sometimes they were turned into a fixed 5xx error.  we now consistently do the latter, which is more accurate (we don't want this to ever happen).
