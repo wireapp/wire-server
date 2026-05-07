@@ -476,21 +476,27 @@ selectUserIdByHandleStatement =
     |]
 
 updateUserHandleEitherImpl :: (PGConstraints r) => UserId -> StoredUserHandleUpdate -> Sem r (Either StoredUserUpdateError ())
-updateUserHandleEitherImpl uid upd =
-  runTransaction ReadCommitted Write $ do
-    mOwner <- Transaction.statement upd.new selectUserIdByHandleStatement
-    case mOwner of
-      Just uid' | uid' /= uid -> pure $ Left StoredUserUpdateHandleExists
-      Just _ -> pure $ Right ()
-      Nothing -> Right <$> Transaction.statement (uid, upd.new) update
+updateUserHandleEitherImpl uid upd = do
+  updates <-
+    runTransaction Serializable Write $
+      Transaction.statement (uid, upd.new) update
+  case updates of
+    0 -> pure $ Left StoredUserUpdateHandleExists
+    _ -> pure $ Right ()
   where
-    update :: Hasql.Statement (UserId, Handle) ()
+    update :: Hasql.Statement (UserId, Handle) Int64
     update =
       lmapPG
-        [resultlessStatement|
+        [rowsAffectedStatement|
           UPDATE wire_user
           SET handle = $2 :: text
           WHERE id = $1 :: uuid
+          AND NOT EXISTS (
+             SELECT 1
+             FROM wire_user
+             WHERE handle = $2 :: text
+             AND id != $1 :: uuid
+             )
         |]
 
 deleteUserImpl :: (PGConstraints r) => User -> Sem r ()
