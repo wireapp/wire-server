@@ -27,6 +27,7 @@ import Hasql.Pool as HasqlPool
 import Hasql.Pool.Config qualified as HasqlPool
 import Hasql.Pool.Observation
 import Imports
+import PostgresqlConnectionString qualified
 import Prometheus
 import Util.Options
 
@@ -56,7 +57,7 @@ initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO H
 initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   let pgSettings =
-        Map.foldMapWithKey (\k v -> HasqlConnSettings.other k v) pgConfig
+        HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl $ PostgresqlConnectionString.fromKeyValueParams pgConfig)
           <> maybe mempty HasqlConnSettings.password mPw
   metrics <- initHasqlPoolMetrics
   connsRef <- newIORef $ Connections mempty mempty mempty

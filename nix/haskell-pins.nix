@@ -168,6 +168,11 @@ let
     hasql-migration = {
       src = inputs.hasql-migration;
     };
+
+    # PR: https://github.com/nikita-volkov/postgresql-connection-string/pull/4
+    postgresql-connection-string = {
+      src = inputs.postgresql-connection-string;
+    };
   };
 
   hackagePins = {

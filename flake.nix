@@ -90,6 +90,11 @@
       url = "github:wireapp/hasql-migration?ref=upgrade-hasql";
       flake = false;
     };
+
+    postgresql-connection-string = {
+      url = "github:wireapp/postgresql-connection-string?ref=expose-from-key-value-params";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, sbomnix, ... }:

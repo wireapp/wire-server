@@ -98,6 +98,7 @@ library
     , crypton
     , crypton-connection
     , crypton-x509
+    , postgresql-connection-string
     , crypton-x509-store
     , data-default
     , errors
