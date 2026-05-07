@@ -27,11 +27,11 @@ import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Data.Time.Clock.POSIX
 import Imports hiding (head)
-import Numeric.Natural
 import Polysemy
 import Proto.TeamEvents (TeamEvent, TeamEvent'EventData, TeamEvent'EventType (..))
 import Proto.TeamEvents_Fields qualified as T
 import Wire.API.Team (TeamCreationTime (..))
+import Wire.API.Team.Size
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.TeamStore
@@ -52,7 +52,7 @@ teamActivate ::
     Member TeamJournal r
   ) =>
   TeamId ->
-  Natural ->
+  TeamSize ->
   Maybe Currency.Alpha ->
   Maybe TeamCreationTime ->
   Sem r ()
@@ -65,7 +65,7 @@ teamUpdate ::
     Member TeamJournal r
   ) =>
   TeamId ->
-  Natural ->
+  TeamSize ->
   [UserId] ->
   Sem r ()
 teamUpdate tid teamSize billingUserIds =
@@ -111,9 +111,15 @@ journalEvent typ tid dat tim = do
 ----------------------------------------------------------------------------
 -- utils
 
-evData :: Natural -> [UserId] -> Maybe Currency.Alpha -> TeamEvent'EventData
-evData memberCount billingUserIds cur =
+evData :: TeamSize -> [UserId] -> Maybe Currency.Alpha -> TeamEvent'EventData
+evData teamSize@(TeamSize regulars apps) billingUserIds cur =
   defMessage
-    & T.memberCount .~ fromIntegral memberCount
+    & T.memberCount .~ memberCountTotal
     & T.billingUser .~ (toBytes <$> billingUserIds)
     & T.maybe'currency .~ (pack . show <$> cur)
+    & T.memberCountRegular .~ memberCountRegulars
+    & T.memberCountApp .~ memberCountApps
+  where
+    memberCountTotal, memberCountRegulars, memberCountApps :: Int32
+    (memberCountTotal, memberCountRegulars, memberCountApps) =
+      (fromIntegral $ teamSizeTotal teamSize, fromIntegral regulars, fromIntegral apps)

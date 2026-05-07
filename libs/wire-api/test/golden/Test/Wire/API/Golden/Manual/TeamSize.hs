@@ -21,10 +21,10 @@ import Imports
 import Wire.API.Team.Size
 
 testObject_TeamSize_1 :: TeamSize
-testObject_TeamSize_1 = TeamSize 0
+testObject_TeamSize_1 = TeamSize 0 0
 
 testObject_TeamSize_2 :: TeamSize
-testObject_TeamSize_2 = TeamSize 100
+testObject_TeamSize_2 = TeamSize 100 400
 
 testObject_TeamSize_3 :: TeamSize
-testObject_TeamSize_3 = TeamSize (fromIntegral $ maxBound @Word64)
+testObject_TeamSize_3 = TeamSize (fromIntegral $ maxBound @Word64) (fromIntegral $ maxBound @Word64)

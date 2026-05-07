@@ -932,6 +932,12 @@ activateSend domain email locale = do
   req <- rawBaseRequest domain Brig Versioned $ joinHttpPath ["activate", "send"]
   submit "POST" $ req & addJSONObject (["email" .= email] <> maybeToList (((.=) "locale") <$> locale))
 
+-- https://staging-nginz-https.zinfra.io/v16/api/swagger-ui/#/default/get-team-size
+getTeamSize :: (HasCallStack, MakesValue user) => user -> String -> App Response
+getTeamSize user tid = do
+  req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", tid, "size"]
+  submit "GET" req
+
 acceptTeamInvitation :: (HasCallStack, MakesValue user) => user -> String -> Maybe String -> App Response
 acceptTeamInvitation user code mPw = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["teams", "invitations", "accept"]

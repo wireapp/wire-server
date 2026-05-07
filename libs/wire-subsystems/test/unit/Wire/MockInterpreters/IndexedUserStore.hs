@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -28,6 +30,7 @@ import Imports
 import Polysemy
 import Polysemy.State
 import Wire.API.Team.Size
+import Wire.API.User
 import Wire.API.User.Search
 import Wire.IndexedUserStore
 import Wire.UserSearch.Types
@@ -84,10 +87,13 @@ inMemoryIndexedUserStoreInterpreter =
       error "IndexedUserStore: unimplemented in memory interpreter"
     GetTeamSize tid ->
       gets $ \index ->
-        TeamSize
-          . fromIntegral
-          . length
-          $ Map.filter (\(doc, _) -> doc.udTeam == Just tid) index.docs
+        let regulars = help [Just UserTypeRegular, Nothing]
+            apps = help [Just UserTypeApp]
+            help allowedTypes =
+              fromIntegral
+                . length
+                $ Map.filter (\(doc, _) -> doc.udTeam == Just tid && doc.udType `elem` allowedTypes) index.docs
+         in TeamSize {..}
 
 upsertImpl :: (Member (State UserIndex) r) => ES.DocId -> UserDoc -> ES.VersionControl -> Sem r ()
 upsertImpl docId userDoc versionControl =

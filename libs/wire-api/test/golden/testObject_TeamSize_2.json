@@ -1,3 +1,5 @@
 {
-    "teamSize": 100
+    "teamSize": 500,
+    "teamSizeApps": 400,
+    "teamSizeRegulars": 100
 }

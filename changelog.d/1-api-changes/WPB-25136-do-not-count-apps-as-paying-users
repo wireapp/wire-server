@@ -1,0 +1,1 @@
+`GET /teams/:tid/size` response body lists `teamSizeRegulars`, `teamSizeApps`.

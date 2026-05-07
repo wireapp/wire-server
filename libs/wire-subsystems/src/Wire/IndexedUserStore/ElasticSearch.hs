@@ -23,11 +23,13 @@ import Control.Error (lastMay)
 import Control.Exception (throwIO)
 import Data.Aeson
 import Data.Aeson.Key qualified as Key
+import Data.Aeson.Types (parseMaybe)
 import Data.ByteString qualified as LBS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Map.Strict qualified as M
 import Data.Text qualified as Text
 import Data.Text.Ascii
 import Data.Text.Encoding qualified as Text
@@ -35,6 +37,7 @@ import Database.Bloodhound qualified as ES
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Types
+import Numeric.Natural (Natural)
 import Polysemy
 import Wire.API.Team.Role (roleName)
 import Wire.API.Team.Size (TeamSize (TeamSize))
@@ -81,18 +84,49 @@ getTeamSizeImpl ::
   TeamId ->
   Sem r TeamSize
 getTeamSizeImpl cfg tid = do
-  let indexName = cfg.conn.indexName
-  countResEither <- embed $ ES.runBH cfg.conn.env $ ES.countByIndex indexName (ES.CountQuery query)
-  countRes <- either (liftIO . throwIO . IndexLookupError) pure countResEither
-  pure . TeamSize $ ES.crCount countRes
+  r <- embed $ ES.runBH cfg.conn.env $ do
+    res <- ES.searchByType cfg.conn.indexName mappingName search
+    liftIO $ ES.parseEsResponse res
+  result <- either (embed . throwIO . IndexLookupError) pure (r :: Either ES.EsError (ES.SearchResult UserDoc))
+  let aggs = fromMaybe mempty (ES.aggregations result)
+      getCount name = maybe 0 (.filterDocCount) $ M.lookup name aggs >>= parseMaybe (parseJSON @FilterResult)
+  pure $ TeamSize (getCount "regulars") (getCount "apps")
   where
-    query =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = "team",
-            ES.termValue = idToText tid
+    teamQ = termQ "team" (idToText tid)
+
+    -- Regular users: type = "regular" or type field absent (legacy documents)
+    regularQuery =
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryMustMatch =
+              [ teamQ,
+                ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryShouldMatch =
+                        [ termQ "type" "regular",
+                          ES.QueryBoolQuery
+                            boolQuery
+                              { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery (ES.FieldName "type")]
+                              }
+                        ]
+                    }
+              ]
           }
-        Nothing
+
+    appQuery =
+      ES.QueryBoolQuery
+        boolQuery
+          { ES.boolQueryMustMatch = [teamQ, termQ "type" "app"]
+          }
+
+    search =
+      (ES.mkSearch Nothing Nothing)
+        { ES.size = ES.Size 0,
+          ES.aggBody =
+            Just $
+              ES.mkAggregations "regulars" (ES.FilterAgg (ES.FilterAggregation (ES.Filter regularQuery) Nothing))
+                <> ES.mkAggregations "apps" (ES.FilterAgg (ES.FilterAggregation (ES.Filter appQuery) Nothing))
+        }
 
 upsertImpl ::
   forall r.
@@ -647,3 +681,9 @@ mappingName = ES.MappingName "user"
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
+
+-- | (or can something like this be found in bloodhound?)
+newtype FilterResult = FilterResult {filterDocCount :: Natural}
+
+instance FromJSON FilterResult where
+  parseJSON = withObject "FilterResult" $ \o -> FilterResult <$> o .: "doc_count"
