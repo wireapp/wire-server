@@ -71,6 +71,10 @@ module Wire.API.Team.Member
     IsPerm (..),
     HiddenPerm (..),
     mkSingleTeamMembersPage,
+
+    -- * TeamPrincipal
+    TeamPrincipal,
+    isFullTeamMember,
   )
 where
 
@@ -656,6 +660,22 @@ collaboratorToTeamPermissions =
         Collaborator.CreateTeamConversation -> Set.fromList [CreateConversation, AddRemoveConvMember]
         Collaborator.ImplicitConnection -> mempty
     )
+
+-- | A user associated with a team, either as a collaborator (@Left@) or as a
+-- full team member (@Right@).  The 'IsPerm' instance is derived automatically
+-- via the 'Either' instance, using 'collaboratorToTeamPermissions' for the
+-- @Left@ case.
+type TeamPrincipal = Either TeamCollaborator TeamMember
+
+-- | True only for full team members, not for collaborators.
+-- Used in conversation access-role checks that enforce team-member-only
+-- conversations, preserving the invariant that collaborators are not
+-- considered equivalent to full members for access control.
+--
+-- (We probably do not want to discriminate against collaborators in
+-- this way, but that's a semantic change for another PR.)
+isFullTeamMember :: TeamPrincipal -> Bool
+isFullTeamMember = isRight
 
 ----------------------------------------------------------------------
 

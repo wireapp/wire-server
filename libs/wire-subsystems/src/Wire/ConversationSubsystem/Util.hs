@@ -115,12 +115,12 @@ ensureAccessRole ::
     Member (ErrorS 'ConvAccessDenied) r
   ) =>
   Set Public.AccessRole ->
-  [(UserId, Maybe TeamMember {- isJust iff user and conv are in the same team -})] ->
+  [(UserId, Maybe TeamPrincipal {- Just (Right tm) iff full team member, Just (Left c) iff collaborator, Nothing otherwise -})] ->
   Sem r ()
 ensureAccessRole roles users = do
   when (Set.null roles) $ throwS @'ConvAccessDenied
   unless (NonTeamMemberAccessRole `Set.member` roles) $
-    when (any (isNothing . snd) users) $
+    when (any (maybe True (not . isFullTeamMember) . snd) users) $
       throwS @'NotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
     activated <- lookupActivatedUsers (fst <$> users)
@@ -685,7 +685,7 @@ ensureConversationAccess ::
 ensureConversationAccess zusr conv access = do
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember zusr) (Data.convTeam conv)
-  ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrMembership)]
+  ensureAccessRole (Data.convAccessRoles conv) [(zusr, fmap Right zusrMembership)]
 
 ensureAccess ::
   (Member (ErrorS 'ConvAccessDenied) r) =>

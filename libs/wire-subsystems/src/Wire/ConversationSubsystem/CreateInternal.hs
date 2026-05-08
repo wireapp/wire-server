@@ -330,11 +330,8 @@ checkCreateConvPermissions lusr newConv Nothing allUsers = do
   ensureConnected lusr allUsers
 checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   let convTeam = cnvTeamId tinfo
-  mTeamMember <- getTeamMember (tUnqualified lusr) (Just convTeam)
-  teamAssociation <- case mTeamMember of
-    Just tm -> pure (Just (Right tm))
-    Nothing -> do
-      Left <$$> internalGetTeamCollaborator convTeam (tUnqualified lusr)
+  teamAssociation <- TeamSubsystem.lookupTeamPrincipal convTeam (tUnqualified lusr)
+  let mTeamMember = teamAssociation >>= either (const Nothing) Just
 
   let checkGroup = do
         void $ permissionCheck CreateConversation teamAssociation
@@ -347,7 +344,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     MeetingConversation -> checkGroup
 
   convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
-  ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) convLocalMemberships)
+  ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) (fmap (fmap Right) convLocalMemberships))
   ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
   where

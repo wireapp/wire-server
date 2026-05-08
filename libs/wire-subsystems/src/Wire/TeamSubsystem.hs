@@ -33,6 +33,7 @@ import Wire.API.Team.LegalHold (UserLegalHoldStatusResponse)
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Error
 import Wire.API.Team.Member.Info (TeamMemberInfoList)
+import Wire.TeamCollaboratorsSubsystem
 
 data PermissionCheckArgs teamAssociation where
   PermissionCheckArgs ::
@@ -144,3 +145,18 @@ checkConsent ::
   Sem r ConsentGiven
 checkConsent teamsOfUsers other = do
   consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
+
+-- | Look up a user as a 'TeamPrincipal': a full member (@Right@) takes
+-- precedence over a collaborator (@Left@).  Returns 'Nothing' if the user has
+-- no association with the team.
+lookupTeamPrincipal ::
+  ( Member TeamSubsystem r,
+    Member TeamCollaboratorsSubsystem r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r (Maybe TeamPrincipal)
+lookupTeamPrincipal tid uid =
+  internalGetTeamMember uid tid >>= \case
+    Just m -> pure (Just (Right m))
+    Nothing -> fmap Left <$> internalGetTeamCollaborator tid uid

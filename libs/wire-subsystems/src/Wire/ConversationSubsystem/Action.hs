@@ -794,8 +794,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
       tms <-
         Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
           <$> TeamSubsystem.internalSelectTeamMembers tid newUsers
-      let userMembershipMap = map (Imports.id &&& flip Map.lookup tms) newUsers
-      ensureAccessRole (convAccessRoles conv) userMembershipMap
+      let userMembershipMap = map (Imports.id &&& (fmap Right . flip Map.lookup tms)) newUsers
+       in ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
       ensureAccessRole (convAccessRoles conv) (map (,Nothing) newUsers)
