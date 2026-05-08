@@ -31,6 +31,11 @@ import SetupHelpers
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
 
+-- TODO:
+-- - Test New user creation with email (user has NO representation in spar)
+-- - Test with wrong IdP
+-- - Check duplication with MultiIngressSSO and MultiIngressIdP
+
 -- | Test that demonstrates username-based NameID behavior in multi-ingress SSO.
 --
 -- When using username-based (unspecified) NameID, logging in via different
