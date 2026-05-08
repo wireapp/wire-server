@@ -92,14 +92,14 @@ testCrossIdpSsoCreatesDistinctUsers = do
               $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack ("bibo" <> suffix))) Nothing Nothing Nothing
 
       -- Step 2: Bibo logs in on Ernie ingress
-      userIdErnie <- fst <$> loginWithSamlWithZHost
+      userIdErnie <- loginWithSamlWithZHost
         (Just ernieZHost)
         domain
         True
         tid
         biboNameId
         (idpIdErnie, idpMetaErnie)
-        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
+        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure . fst
 
       -- No email activation needed - using username-based NameID
 
@@ -124,14 +124,14 @@ testCrossIdpSsoCreatesDistinctUsers = do
 
       -- Step 3: SAME Bibo logs in on Bert ingress WITH THE SAME NAMEID
       -- This is the core of the test: same identity, different ingress → duplicate user!
-      userIdBert <- fst <$> loginWithSamlWithZHost
+      userIdBert <- loginWithSamlWithZHost
         (Just bertZHost)
         domain
         True
         tid
         biboNameId -- SAME NameID!
         (idpIdBert, idpMetaBert)
-        >>= maybe (error "Expected user ID from SSO login on Bert domain") pure
+        >>= maybe (error "Expected user ID from SSO login on Bert domain") pure . fst
 
       -- Verify user was created
       getUsersId domain [userIdBert] `bindResponse` \resp -> do
@@ -261,14 +261,14 @@ testCrossIdpSsoEmailConflict useSCIM = do
           else pure Nothing
 
       -- Step 1: Bibo logs in on Ernie ingress (should succeed)
-      userIdErnie <- fst <$> loginWithSamlWithZHost
+      userIdErnie <- loginWithSamlWithZHost
         (Just ernieZHost)
         domain
         True -- expect success
         tid
         biboNameId
         (idpIdErnie, (idpMetaErnie, pCredsErnie))
-        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
+        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure . fst
 
       case mScimUserId of
         Just scimUid ->
@@ -451,14 +451,14 @@ testScimUserLoginsDifferentIdP = do
 
       -- Step 1: Charlie logs in for the FIRST time on Bert's IdP (NOT Ernie!)
       -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
-      userIdBert <- fst <$> loginWithSamlWithZHost
+      userIdBert <- loginWithSamlWithZHost
         (Just bertZHost)
         domain
         True -- expect success
         tid
         charlieNameId
         (idpIdBert, (idpMetaBert, pCredsBert))
-        >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure
+        >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure . fst
 
       -- Verify the same user ID is returned (cross-IdP SSO migration worked)
       userIdBert `shouldMatch` charlieUid
