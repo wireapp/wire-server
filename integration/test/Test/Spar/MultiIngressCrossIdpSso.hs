@@ -31,27 +31,6 @@ import SetupHelpers
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
 
--- | Test that demonstrates current behavior in multi-ingress setups where each
--- domain has its own IdP: when a user (representing the same person) logs in via
--- SSO on different domains with different IdPs, TWO separate user accounts are created.
---
--- This behavior is problematic because the same person ends up with multiple Wire accounts,
--- one per domain/IdP combination. This test documents the current behavior and will serve
--- as a baseline for implementing cross-IdP SSO support.
---
--- Current behavior demonstrated:
--- 1. User logs in on domain A with IdP1 (ernie) → User account 1 created
--- 2. User re-logs in on domain A → Same user account 1 (correct - SSO works)
--- 3. User (same person) logs in on domain B with IdP2 (bert) → User account 2 created (duplicate!)
--- 4. Both users can re-login independently on their respective domains
---
--- Note: We use the SAME NameID for both logins to demonstrate the core issue:
--- even with identical SAML identity, logging in through different ingresses/IdPs
--- creates separate user accounts. This is the exact scenario we want to fix.
---
--- Expected future behavior (when multi-IdP is implemented):
--- - Step 3 should recognize that this is the same person and link to the existing user
--- - OR provide a controlled flow for identity linking/merging
 testCrossIdpSsoCreatesDistinctUsers :: (HasCallStack) => App ()
 testCrossIdpSsoCreatesDistinctUsers = do
   let ernieZHost = "nginz-https.ernie.example.com"
