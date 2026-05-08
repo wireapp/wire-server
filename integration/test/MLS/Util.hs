@@ -46,6 +46,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDV4
 import GHC.Stack
 import Notifications
+import SetupHelpers (randomUUIDString)
 import System.Directory
 import System.Exit
 import System.FilePath
@@ -69,6 +70,9 @@ mkClientIdentity u c = do
 cid2Str :: ClientIdentity -> String
 cid2Str cid = cid.user <> ":" <> cid.client <> "@" <> cid.domain
 
+hid2Str :: String -> String
+hid2Str hid = "history-client:" <> hid
+
 data MessagePackage = MessagePackage
   { sender :: ClientIdentity,
     convId :: ConvId,
@@ -91,12 +95,22 @@ randomFileName = do
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
 mlscli :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli mConvId cs cid args mbstdin = do
+mlscli mConvId cs cid = mlscli' mConvId cs (Right cid)
+
+-- TODO: (leif)
+mlscli' :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> Either String ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
+mlscli' mConvId cs cid args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
   let scheme = csSignatureScheme cs
 
-  gs <- getClientGroupState cid
+  gs <- case cid of
+    Right cid' -> getClientGroupState cid'
+    Left _ -> do
+      convId <- assertOne mConvId
+      state <- getMLSState
+      let keyStore = Map.findWithDefault mempty convId state.historyClientState
+      pure $ ClientGroupState mempty keyStore BasicCredentialType
 
   substIn <- case flip Map.lookup gs.groups =<< mConvId of
     Nothing -> pure id
@@ -106,7 +120,7 @@ mlscli mConvId cs cid args mbstdin = do
   store <- case Map.lookup scheme gs.keystore of
     Nothing -> do
       bd <- getBaseDir
-      liftIO (createDirectory (bd </> cid2Str cid))
+      liftIO (createDirectory (bd </> either hid2Str cid2Str cid))
         `catch` \e ->
           if (isAlreadyExistsError e)
             then pure () -- creates a file per signature scheme
@@ -115,7 +129,7 @@ mlscli mConvId cs cid args mbstdin = do
       -- initialise new keystore
       path <- randomFileName
       ctype <- make gs.credType & asString
-      void $ runCli path ["init", "--ciphersuite", cs.code, "-t", ctype, cid2Str cid] Nothing
+      void $ runCli path ["init", "--ciphersuite", cs.code, "-t", ctype, either hid2Str cid2Str cid] Nothing
       pure path
     Just s -> toRandomFile s
 
@@ -136,11 +150,15 @@ mlscli mConvId cs cid args mbstdin = do
         print =<< liftIO (prettierCallStack callStack)
         pure id
       _ -> pure id
-  setStore <- do
-    storeData <- liftIO (BS.readFile store)
-    pure $ \x -> x {keystore = Map.insert scheme storeData x.keystore}
+  storeData <- liftIO (BS.readFile store)
+  let setStore x = x {keystore = Map.insert scheme storeData x.keystore}
 
-  setClientGroupState cid (setGroup (setStore gs))
+  case cid of
+    Right cid' -> setClientGroupState cid' (setGroup (setStore gs))
+    Left _ -> do
+      convId <- assertOne mConvId
+      modifyMLSState $ \s ->
+        s {historyClientState = Map.alter (Just . Map.insert scheme storeData . fromMaybe mempty) convId s.historyClientState}
 
   pure out
 
@@ -218,9 +236,18 @@ generateKeyPackage :: (HasCallStack) => ClientIdentity -> Ciphersuite -> App (By
 generateKeyPackage cid suite = do
   kp <- mlscli Nothing suite cid ["key-package", "create", "--ciphersuite", suite.code] Nothing
   ref <- B8.unpack . Base64.encode <$> mlscli Nothing suite cid ["key-package", "ref", "-"] (Just kp)
-  fp <- keyPackageFile cid ref
+  fp <- keyPackageFile (cid2Str cid) ref
   liftIO $ BS.writeFile fp kp
   pure (kp, ref)
+
+generateHistoryClient :: (HasCallStack) => ConvId -> Ciphersuite -> App (ByteString, String, String)
+generateHistoryClient convId suite = do
+  hid <- randomUUIDString
+  kp <- mlscli' (Just convId) suite (Left hid) ["key-package", "create", "--ciphersuite", suite.code] Nothing
+  ref <- B8.unpack . Base64.encode <$> mlscli' (Just convId) suite (Left hid) ["key-package", "ref", "-"] (Just kp)
+  fp <- keyPackageFile (hid2Str hid) ref
+  liftIO $ BS.writeFile fp kp
+  pure (kp, ref, hid)
 
 -- | Create conversation and corresponding group.
 createNewGroup :: (HasCallStack) => Ciphersuite -> ClientIdentity -> App ConvId
@@ -348,11 +375,11 @@ resetClientGroup cs cid gid convId keys = do
       ]
       (Just removalKey)
 
-keyPackageFile :: (HasCallStack) => ClientIdentity -> String -> App FilePath
-keyPackageFile cid ref = do
+keyPackageFile :: (HasCallStack) => String -> String -> App FilePath
+keyPackageFile name ref = do
   let ref' = map urlSafe ref
   bd <- getBaseDir
-  pure $ bd </> cid2Str cid </> ref'
+  pure $ bd </> name </> ref'
   where
     urlSafe '+' = '-'
     urlSafe '/' = '_'
@@ -383,7 +410,7 @@ createAddCommit cid convId users = do
   kps <- fmap concat . for users $ \user -> do
     bundle <- claimKeyPackages conv.ciphersuite cid user >>= getJSON 200
     unbundleKeyPackages bundle
-  createAddCommitWithKeyPackages cid convId kps
+  createAddCommitWithKeyPackages cid convId kps Nothing
 
 withTempKeyPackageFile :: ByteString -> ContT a App FilePath
 withTempKeyPackageFile bs = do
@@ -396,19 +423,29 @@ withTempKeyPackageFile bs = do
         liftIO $ BS.hPut h bs `finally` hClose h
         k fp
 
+createAddCommitWithHistoryClient :: (HasCallStack) => ClientIdentity -> ConvId -> [Value] -> App MessagePackage
+createAddCommitWithHistoryClient cid convId users = do
+  conv <- getMLSConv convId
+  kps <- fmap concat . for users $ \user -> do
+    bundle <- claimKeyPackages conv.ciphersuite cid user >>= getJSON 200
+    unbundleKeyPackages bundle
+  (hckp, _, _) <- generateHistoryClient convId conv.ciphersuite
+  createAddCommitWithKeyPackages cid convId kps (Just hckp)
+
 createAddCommitWithKeyPackages ::
   (HasCallStack) =>
   ClientIdentity ->
   ConvId ->
   [(ClientIdentity, ByteString)] ->
+  Maybe ByteString ->
   App MessagePackage
-createAddCommitWithKeyPackages cid convId clientsAndKeyPackages = do
+createAddCommitWithKeyPackages cid convId clientsAndKeyPackages hckp = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   giFile <- liftIO $ emptyTempFile bd "gi"
   Just conv <- Map.lookup convId . (.convs) <$> getMLSState
 
-  commit <- runContT (traverse (withTempKeyPackageFile . snd) clientsAndKeyPackages) $ \kpFiles ->
+  commit <- runContT (traverse withTempKeyPackageFile (maybeToList hckp <> fmap snd clientsAndKeyPackages)) $ \kpFiles ->
     mlscli
       (Just convId)
       conv.ciphersuite
