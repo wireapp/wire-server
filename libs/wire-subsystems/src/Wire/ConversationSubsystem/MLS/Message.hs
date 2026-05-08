@@ -27,6 +27,7 @@ where
 import Control.Monad.Codensity
 import Data.Domain
 import Data.Id
+import Data.IntMap qualified as IntMap
 import Data.Json.Util
 import Data.LegalHold
 import Data.Map qualified as Map
@@ -307,7 +308,8 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
         let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
-        _ <- todo "check if history client exists" sharedHistoryEnabled
+        let historyClientExists = any isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
+        when (sharedHistoryEnabled /= historyClientExists) $ todo "throw reject commit"
 
         -- reject message if the conversation is out of sync
         lift $ do

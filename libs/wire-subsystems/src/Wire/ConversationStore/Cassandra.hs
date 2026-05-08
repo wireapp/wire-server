@@ -27,7 +27,6 @@ import Cassandra
 import Cassandra qualified as Cql
 import Cassandra.Settings
 import Cassandra.Util
-import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
@@ -767,10 +766,9 @@ addBotMember s bot cnv = do
 
 lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndices groupId = do
-  entries <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
-  -- TODO: (leif) lookup history client
-  historyClientEntries <- todo
-  pure $ (mkClientMap entries, mkIndexMapFromParts entries historyClientEntries )
+  mlsClients <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
+  hClients <- (runIdentity =<<) <$> retry x5 (query1 Cql.lookupHistoryClient (params LocalQuorum (Identity groupId)))
+  pure $ (mkClientMap mlsClients, mkIndexMapFromParts mlsClients (maybeToList hClients))
 
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap fst . lookupMLSClientLeafIndices

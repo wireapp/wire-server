@@ -138,6 +138,10 @@ instance ParseMLS ClientIdentity where
 data GroupMember = RegularClient ClientIdentity | HistoryClient HistoryClientId
   deriving (Eq, Show)
 
+isHistoryClient :: GroupMember -> Bool
+isHistoryClient (HistoryClient _) = True
+isHistoryClient (RegularClient _) = False
+
 parseHistoryClient :: Get HistoryClientId
 parseHistoryClient = string "history-client:" *> parseId
 

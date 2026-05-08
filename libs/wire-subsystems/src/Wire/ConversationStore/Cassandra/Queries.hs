@@ -355,6 +355,9 @@ removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
 lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32, Bool)
 lookupMLSClients = "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
 
+lookupHistoryClient :: PrepQuery R (Identity GroupId) (Identity (Maybe (HistoryClientId, Int32, Bool)))
+lookupHistoryClient = "select id, leaf_node_index, removal_pending from mls_history_client where group_id = ?"
+
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"
 
