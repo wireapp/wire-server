@@ -14,7 +14,8 @@ spec:
         name: "cargohold"
   containers:
     # NOTE: the bucket for these tests must be created.
-    # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created.
+    # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created
+    # by the configured S3 bootstrap logic.
   - name: integration
     image: "{{ .Values.cargohold.image.repository }}-integration:{{ .Values.cargohold.image.tag }}"
         {{- if eq (include "includeSecurityContext" .) "true" }}

@@ -20,7 +20,11 @@ SQS      : http://fake-aws-sqs:{{ index .Values "fake-aws-sqs" "service" "httpPo
 {{- end }}
 {{- if index .Values "fake-aws-s3" "enabled" }}
 S3       : http://fake-aws-s3:9000
-  bucket: {{ index .Values "fake-aws-s3" "minio" "buckets" 0 "name" }}
+  bucket: {{ index .Values "fake-aws-s3" "bootstrap" "buckets" 0 "name" }}
+{{- end }}
+{{- if index .Values "fake-aws-s3-legacy-minio" "enabled" }}
+S3       : http://fake-aws-s3:9000
+  bucket: {{ index .Values "fake-aws-s3-legacy-minio" "minio" "buckets" 0 "name" }}
 {{- end }}
 {{- if index .Values "fake-aws-ses" "enabled" }}
 SES      : http://fake-aws-ses:{{ index .Values "fake-aws-ses" "service" "externalPort" }}

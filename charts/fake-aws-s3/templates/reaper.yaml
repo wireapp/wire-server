@@ -1,9 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "fake-aws-s3.fullname" . }}-bootstrap
+  labels:
+    app: {{ include "fake-aws-s3.fullname" . }}-bootstrap
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: {{ include "fake-aws-s3.fullname" . }}-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: bootstrap-fake-aws-s3
+        image: "{{ .Values.bootstrap.image.repository }}:{{ .Values.bootstrap.image.tag }}"
+        imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+        command: [/bin/sh]
+        args:
+        - -c
+        - |
+          set -euo pipefail
+
+          export AWS_ACCESS_KEY_ID="$RUSTFS_ACCESS_KEY"
+          export AWS_SECRET_ACCESS_KEY="$RUSTFS_SECRET_KEY"
+          export AWS_REGION="${AWS_REGION:-eu-west-1}"
+
+          endpoint="http://{{ include "fake-aws-s3.fullname" . }}:{{ .Values.service.port }}"
+
+          until aws --endpoint-url="$endpoint" s3api list-buckets >/dev/null 2>&1; do
+            echo "waiting for RustFS"
+            sleep 2
+          done
+
+          {{- range .Values.bootstrap.buckets }}
+          if aws --endpoint-url="$endpoint" s3api head-bucket --bucket {{ .name | quote }} >/dev/null 2>&1; then
+            echo "bucket {{ .name }} already exists"
+          else
+            aws --endpoint-url="$endpoint" s3api create-bucket --bucket {{ .name | quote }}
+            aws --endpoint-url="$endpoint" s3api wait bucket-exists --bucket {{ .name | quote }}
+          fi
+          {{- end }}
+        env:
+        - name: RUSTFS_ACCESS_KEY
+          value: {{ .Values.credentials.accessKey | quote }}
+        - name: RUSTFS_SECRET_KEY
+          value: {{ .Values.credentials.secretKey | quote }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}-reaper
+  name: {{ include "fake-aws-s3.fullname" . }}
   labels:
-    app: {{ template "fullname" . }}-reaper
+    app: {{ include "fake-aws-s3.fullname" . }}
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
@@ -11,11 +63,11 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ template "fullname" . }}-reaper
+      app: {{ include "fake-aws-s3.fullname" . }}
   template:
     metadata:
       labels:
-        app: {{ template "fullname" . }}-reaper
+        app: {{ include "fake-aws-s3.fullname" . }}
     spec:
       topologySpreadConstraints:
         - maxSkew: 1
@@ -23,37 +75,60 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: {{ template "fullname" . }}-reaper
-      volumes:
-      - name: minio-configuration
-        projected:
-          # These are created by the minio chart and used for create buckets and
-          # users after deployment.
-          sources:
-          - configMap:
-              name: {{ .Values.minio.fullnameOverride }}
-          - secret:
-              name: {{ .Values.minio.fullnameOverride }}
+              app: {{ include "fake-aws-s3.fullname" . }}
       containers:
-      - name: initiate-fake-aws-s3
-        image: "{{ .Values.minio.mcImage.repository }}:{{ .Values.minio.mcImage.tag }}"
-        imagePullPolicy: {{ .Values.minio.mcImage.pullPolicy }}
-        command: [/bin/sh]
+      - name: fake-aws-s3
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         args:
-        - -c
-        - |
-          echo 'Creating MinIO Users and Buckets'
-          while true
-          do
-              /bin/sh /config/initialize
-              /bin/sh /config/add-user
-              sleep 10
-          done
+        - {{ .Values.storage.dataPath | quote }}
         env:
-        - name: MINIO_ENDPOINT
-          value: {{ .Values.minio.fullnameOverride | quote }}
-        - name: MINIO_PORT
-          value: {{ .Values.minio.service.port | quote }}
+        - name: RUSTFS_ACCESS_KEY
+          value: {{ .Values.credentials.accessKey | quote }}
+        - name: RUSTFS_SECRET_KEY
+          value: {{ .Values.credentials.secretKey | quote }}
+        - name: RUSTFS_VOLUMES
+          value: {{ .Values.storage.dataPath | quote }}
+        - name: RUSTFS_ADDRESS
+          value: ":{{ .Values.service.port }}"
+        - name: RUSTFS_CONSOLE_ENABLE
+          value: "false"
+        ports:
+        - containerPort: {{ .Values.service.port }}
+          name: s3
+        readinessProbe:
+          tcpSocket:
+            port: s3
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: s3
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
-        - name: minio-configuration
-          mountPath: /config
+        - name: data
+          mountPath: {{ .Values.storage.dataPath }}
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fake-aws-s3.fullname" . }}
+  labels:
+    app: {{ include "fake-aws-s3.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  type: ClusterIP
+  ports:
+  - name: s3
+    port: {{ .Values.service.port }}
+    targetPort: s3
+  selector:
+    app: {{ include "fake-aws-s3.fullname" . }}

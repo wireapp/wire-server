@@ -1,4 +1,4 @@
 apiVersion: v1
-description: Wrapper chart for stable/minio
+description: Wrapper chart for RustFS used by fake-aws-s3
 name: fake-aws-s3
 version: 0.0.42

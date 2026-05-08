@@ -1,8 +1,14 @@
+{{- $s3Mode := env "WIRE_S3_MODE" | default "rustfs" -}}
+
 fake-aws-ses:
   enabled: true
   sesSender: "backend-integrationk8s@wire.com"
 
 fake-aws-s3:
+  enabled: {{ eq $s3Mode "rustfs" }}
+
+fake-aws-s3-legacy-minio:
+  enabled: {{ eq $s3Mode "minio" }}
   minio:
     mcImage: {}
 

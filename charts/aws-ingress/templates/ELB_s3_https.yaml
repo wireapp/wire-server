@@ -20,7 +20,7 @@ spec:
   - name: https
     protocol: TCP
     port: {{ .https.externalPort }}
-    # NOTE: This value should match s3 http listening port on the s3 service (minio)
+    # NOTE: This value should match the S3-compatible HTTP listening port on the selected service.
     targetPort: {{ .http.s3Port }}
 {{- end }}
 {{- end }}

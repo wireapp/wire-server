@@ -1,15 +1,8 @@
 {{- if .Values.fakeS3.enabled }}
-# We use a separate ingress for minio because we want to restrict access to /minio/ path
-# for security reasons
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "nginx-ingress-services.getMinioIngressName" . | quote }}
-  annotations:
-    nginx.ingress.kubernetes.io/server-snippet: |
-      location /minio/ {
-        return 403;
-      }
+  name: {{ include "nginx-ingress-services.getS3IngressName" . | quote }}
 spec:
   ingressClassName: "{{ .Values.config.ingressClass }}"
   tls:

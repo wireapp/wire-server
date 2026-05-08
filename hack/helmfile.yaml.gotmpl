@@ -100,13 +100,13 @@ releases:
     namespace: '{{ .Values.namespace1 }}'
     chart: '../.local/charts/fake-aws'
     values:
-      - './helm_vars/fake-aws/values.yaml'
+      - './helm_vars/fake-aws/values.yaml.gotmpl'
 
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/fake-aws'
     values:
-      - './helm_vars/fake-aws/values.yaml'
+      - './helm_vars/fake-aws/values.yaml.gotmpl'
 
   - name: 'certs'
     namespace: '{{ .Values.namespace1 }}'
