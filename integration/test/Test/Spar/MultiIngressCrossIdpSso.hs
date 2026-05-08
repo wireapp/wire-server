@@ -422,46 +422,46 @@ testScimUserLoginsDifferentIdP = do
       idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
       idpIdBert <- asString $ idpBert.json %. "id"
 
-      -- Create email-based NameID for "charlie"
-      charlieEmail <- randomEmail
-      let charlieNameId =
+      -- Create email-based NameID for "bibo"
+      biboEmail <- randomEmail
+      let biboNameId =
             fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack charlieEmail)
+              $ SAML.emailNameID (pack biboEmail)
 
       -- Provision SCIM user for Ernie's IdP
       scimTok <- createScimToken owner (def {idp = Just idpIdErnie})
       scimToken <- scimTok.json %. "token" & asString
 
       -- Create SCIM user with the email (associated with Ernie's IdP)
-      scimUser <- randomScimUserWithEmail charlieEmail charlieEmail
-      charlieUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+      scimUser <- randomScimUserWithEmail biboEmail biboEmail
+      biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
         resp.status `shouldMatchInt` 201
         resp.json %. "id" >>= asString
 
       -- Activate the email
-      activateEmail domain charlieEmail
+      activateEmail domain biboEmail
 
       -- Verify user was created with Ernie's SSO ID
-      getUsersId domain [charlieUid] `bindResponse` \resp -> do
+      getUsersId domain [biboUid] `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         ssoId <- resp.json %. "0.sso_id"
         ssoIdTenant <- ssoId %. "tenant" >>= asString
         ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
         ssoIdTenant `shouldContain` ernieIssuer
 
-      -- Step 1: Charlie logs in for the FIRST time on Bert's IdP (NOT Ernie!)
+      -- Step 1: Bibo logs in for the FIRST time on Bert's IdP (NOT Ernie!)
       -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
       userIdBert <- loginWithSamlWithZHost
         (Just bertZHost)
         domain
         True -- expect success
         tid
-        charlieNameId
+        biboNameId
         (idpIdBert, (idpMetaBert, pCredsBert))
         >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure . fst
 
       -- Verify the same user ID is returned (cross-IdP SSO migration worked)
-      userIdBert `shouldMatch` charlieUid
+      userIdBert `shouldMatch` biboUid
 
       -- Verify user's SSO ID was migrated to Bert's issuer
       getUsersId domain [userIdBert] `bindResponse` \resp -> do
@@ -474,7 +474,7 @@ testScimUserLoginsDifferentIdP = do
         ssoIdTenant `shouldNotMatch` ernieIssuer
 
       -- Verify sso/get-by-email returns Bert's IdP after migration
-      getSsoCodeByEmailWithZHost domain (Just bertZHost) charlieEmail `bindResponse` \resp -> do
+      getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpIdBert
@@ -486,15 +486,15 @@ testScimUserLoginsDifferentIdP = do
           domain
           True -- expect success
           tid
-          charlieNameId
+          biboNameId
           (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
       case mUserIdErnie of
-        Just uid -> uid `shouldMatch` charlieUid
+        Just uid -> uid `shouldMatch` biboUid
         Nothing -> error "Expected user ID from login on Ernie domain"
 
       -- Verify user's SSO ID was migrated back to Ernie's issuer
-      getUsersId domain [charlieUid] `bindResponse` \resp -> do
+      getUsersId domain [biboUid] `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         ssoId <- resp.json %. "0.sso_id"
         ssoIdTenant <- ssoId %. "tenant" >>= asString
