@@ -38,6 +38,7 @@ import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Set qualified as Set
 import Data.Qualified
 import Data.Range
 import Data.Text.Encoding (encodeUtf8)
@@ -56,12 +57,14 @@ import URI.ByteString (Absolute, URIRef, laxURIParserOptions, parseURI)
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import Wire.API.Error.Brig
-import Wire.API.Routes.Internal.Brig (FoundInvitationCode (FoundInvitationCode))
+import Wire.API.Routes.Internal.Brig (GetBy (..), FoundInvitationCode (FoundInvitationCode), getByNoFilters)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
 import Wire.API.Team.Collaborator
+import Wire.API.Team.Feature (AppsConfig, FeatureStatus (..), LockableFeature (..))
+import Wire.API.User (UserType (..))
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Public
 import Wire.API.Team.Member (teamMembers)
@@ -115,7 +118,36 @@ servantAPI =
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
     :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid perms) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
-    :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
+    :<|> Named @"get-team-collaborators" (\zuidLocal tid -> lift . liftSem $ do
+          collabs <- getAllTeamCollaborators zuidLocal tid
+          enrichCollaboratorsWithStatus tid collabs)
+
+-- | Compute a 'CollaboratorStatus' for each collaborator.  App-type collaborators
+-- in a team whose @apps@ feature is disabled are returned as 'CollaboratorPseudoSuspended'.
+enrichCollaboratorsWithStatus ::
+  ( Member GalleyAPIAccess r,
+    Member UserSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  TeamId ->
+  [TeamCollaborator] ->
+  Sem r [TeamCollaboratorView]
+enrichCollaboratorsWithStatus _ [] = pure []
+enrichCollaboratorsWithStatus tid collabs = do
+  appsFeature <- GalleyAPIAccess.getFeatureConfigForTeam @_ @AppsConfig tid
+  if appsFeature.status == FeatureStatusEnabled
+    then pure (map (collaboratorToView CollaboratorActive) collabs)
+    else do
+      localUnit <- input @(Local ())
+      let uids = map (.gUser) collabs
+      users <- getAccountsBy (qualifyAs localUnit (getByNoFilters {getByUserId = uids}))
+      let appUserIds = Set.fromList [qUnqualified u.userQualifiedId | u <- users, u.userType == UserTypeApp]
+      pure
+        [ collaboratorToView
+            (if c.gUser `Set.member` appUserIds then CollaboratorPseudoSuspended else CollaboratorActive)
+            c
+          | c <- collabs
+        ]
 
 teamSizePublic ::
   ( Member (Error UserSubsystemError) r,

@@ -741,6 +741,7 @@ joinConversationByReusableCode ::
     Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member Now r,
@@ -770,6 +771,7 @@ joinConversationById ::
     Member BackendNotificationQueueAccess r,
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
+    Member FeaturesConfigSubsystem r,
     Member Now r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
@@ -794,6 +796,7 @@ joinConversation ::
     Member BackendNotificationQueueAccess r,
     Member E.ExternalAccess r,
     Member ConversationStore r,
+    Member FeaturesConfigSubsystem r,
     Member Now r,
     Member NotificationSubsystem r,
     Member TeamCollaboratorsSubsystem r,
@@ -860,6 +863,7 @@ addMembers ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -911,6 +915,7 @@ addQualifiedMembersUnqualified ::
     Member TeamStore r,
     Member TinyLog r,
     Member TeamCollaboratorsSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
@@ -958,6 +963,7 @@ replaceMembers ::
     Member TeamCollaboratorsSubsystem r,
     Member UserGroupStore r,
     Member FederationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>

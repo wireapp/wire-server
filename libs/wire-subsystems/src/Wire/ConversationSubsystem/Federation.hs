@@ -657,7 +657,8 @@ sendMLSMessage ::
     Member P.TinyLog r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member FeaturesConfigSubsystem r
   ) =>
   Domain ->
   MLSMessageSendRequest ->

@@ -190,6 +190,7 @@ instance IsConversationAction 'ConversationJoinTag where
         Member BackendNotificationQueueAccess r,
         Member TeamCollaboratorsSubsystem r,
         Member FederationSubsystem r,
+        Member FeaturesConfigSubsystem r,
         Member TeamSubsystem r,
         Member (Input ConversationSubsystemConfig) r,
         Member E.BrigAPIAccess r,
@@ -798,9 +799,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
       collabs <-
         Map.fromList . map (\c -> (c.gUser, c))
           <$> internalGetTeamCollaboratorsWithIds (Set.singleton tid) (Set.fromList newUsers)
-      let principalFor uid =
+      pseudoSusp <- TeamSubsystem.pseudoSuspendedCollaborators tid (Map.keys collabs)
+      let activeCollabs = Map.filterWithKey (\uid _ -> uid `Set.notMember` pseudoSusp) collabs
+          principalFor uid =
             fmap Right (Map.lookup uid tms)
-              <|> fmap Left (Map.lookup uid collabs)
+              <|> fmap Left (Map.lookup uid activeCollabs)
           userMembershipMap = map (Imports.id &&& principalFor) newUsers
       ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
@@ -998,6 +1001,7 @@ updateLocalConversationJoin ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member FederationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
@@ -1322,6 +1326,7 @@ updateLocalConversationUncheckedJoin ::
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member FederationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,

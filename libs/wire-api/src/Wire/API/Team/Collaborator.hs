@@ -74,3 +74,40 @@ instance ToSchema TeamCollaborator where
         <$> (gUser .= field "user" schema)
         <*> (gTeam .= field "team" schema)
         <*> (gPermissions .= field "permissions" (set schema))
+
+data CollaboratorStatus = CollaboratorActive | CollaboratorPseudoSuspended
+  deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via GenericUniform CollaboratorStatus
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema CollaboratorStatus)
+
+instance ToSchema CollaboratorStatus where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "active" CollaboratorActive,
+          element "pseudo_suspended" CollaboratorPseudoSuspended
+        ]
+
+-- | API response type for collaborators, enriched with a computed status field.
+-- The status is not stored; it is derived server-side from the user type and
+-- the team's feature configuration.
+data TeamCollaboratorView = TeamCollaboratorView
+  { tcvUser :: UserId,
+    tcvTeam :: TeamId,
+    tcvPermissions :: Set CollaboratorPermission,
+    tcvStatus :: CollaboratorStatus
+  }
+  deriving (Eq, Show)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema TeamCollaboratorView)
+
+instance ToSchema TeamCollaboratorView where
+  schema =
+    object $
+      TeamCollaboratorView
+        <$> (.tcvUser) .= field "user" schema
+        <*> (.tcvTeam) .= field "team" schema
+        <*> (.tcvPermissions) .= field "permissions" (set schema)
+        <*> (.tcvStatus) .= field "status" schema
+
+collaboratorToView :: CollaboratorStatus -> TeamCollaborator -> TeamCollaboratorView
+collaboratorToView status c = TeamCollaboratorView c.gUser c.gTeam c.gPermissions status

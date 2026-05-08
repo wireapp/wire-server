@@ -73,6 +73,7 @@ import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.ProposalStore
 import Wire.Sem.Now (Now)
+import Wire.FeaturesConfigSubsystem
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 import Wire.Util
@@ -138,7 +139,8 @@ type HasProposalEffects r =
     Member ProposalStore r,
     Member TeamStore r,
     Member TinyLog r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member FeaturesConfigSubsystem r
   )
 
 derefOrCheckProposal ::

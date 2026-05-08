@@ -92,6 +92,7 @@ import Wire.RateLimit
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation as Data
+import Wire.FeaturesConfigSubsystem
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 import Wire.TeamSubsystem (ConsentGiven (..), TeamSubsystem, consentGiven, getLHStatus)
@@ -676,6 +677,7 @@ ensureConversationAccess ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>

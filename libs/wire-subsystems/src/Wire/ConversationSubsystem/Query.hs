@@ -645,9 +645,9 @@ getConversationByReusableCode ::
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
-    Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
+    Member FeaturesConfigSubsystem r,
     Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>

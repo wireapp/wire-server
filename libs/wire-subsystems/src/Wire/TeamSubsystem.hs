@@ -22,17 +22,23 @@ module Wire.TeamSubsystem where
 import Data.Id
 import Data.LegalHold
 import Data.Map qualified as Map
+import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
+import Data.Set qualified as Set
 import Data.Singletons (Demote, Sing, SingKind, fromSing)
 import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Team.Feature (AppsConfig)
 import Wire.API.Team.LegalHold (UserLegalHoldStatusResponse)
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Error
 import Wire.API.Team.Member.Info (TeamMemberInfoList)
+import Wire.API.User (User (..), UserType (..))
+import Wire.BrigAPIAccess
+import Wire.FeaturesConfigSubsystem
 import Wire.TeamCollaboratorsSubsystem
 
 data PermissionCheckArgs teamAssociation where
@@ -146,12 +152,44 @@ checkConsent ::
 checkConsent teamsOfUsers other = do
   consentGiven <$> getLHStatus (Map.lookup other teamsOfUsers) other
 
+-- | Returns the set of user IDs from @uids@ that are pseudo-suspended as
+-- collaborators in @tid@.  A collaborator is pseudo-suspended when they are an
+-- app user and the team's @apps@ feature is disabled.  The feature is checked
+-- once; user types are only fetched when the feature is off.
+pseudoSuspendedCollaborators ::
+  ( Member BrigAPIAccess r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  TeamId ->
+  [UserId] ->
+  Sem r (Set UserId)
+pseudoSuspendedCollaborators _ [] = pure Set.empty
+pseudoSuspendedCollaborators tid uids = do
+  appsEnabled <- featureEnabledForTeam (Proxy @AppsConfig) tid
+  if appsEnabled
+    then pure Set.empty
+    else do
+      users <- getUsers uids
+      pure $ Set.fromList [qUnqualified u.userQualifiedId | u <- users, u.userType == UserTypeApp]
+
+isPseudoSuspended ::
+  ( Member BrigAPIAccess r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  TeamId ->
+  UserId ->
+  Sem r Bool
+isPseudoSuspended tid uid = Set.member uid <$> pseudoSuspendedCollaborators tid [uid]
+
 -- | Look up a user as a 'TeamPrincipal': a full member (@Right@) takes
 -- precedence over a collaborator (@Left@).  Returns 'Nothing' if the user has
--- no association with the team.
+-- no association with the team, or if they are a pseudo-suspended collaborator
+-- (an app user whose team has the @apps@ feature disabled).
 lookupTeamPrincipal ::
   ( Member TeamSubsystem r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member BrigAPIAccess r,
+    Member FeaturesConfigSubsystem r
   ) =>
   TeamId ->
   UserId ->
@@ -159,4 +197,9 @@ lookupTeamPrincipal ::
 lookupTeamPrincipal tid uid =
   internalGetTeamMember uid tid >>= \case
     Just m -> pure (Just (Right m))
-    Nothing -> fmap Left <$> internalGetTeamCollaborator tid uid
+    Nothing ->
+      internalGetTeamCollaborator tid uid >>= \case
+        Nothing -> pure Nothing
+        Just c -> do
+          pseudo <- isPseudoSuspended tid uid
+          pure $ if pseudo then Nothing else Just (Left c)

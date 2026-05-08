@@ -73,6 +73,7 @@ import Wire.NotificationSubsystem
 import Wire.ProposalStore (ProposalStore)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
+import Wire.FeaturesConfigSubsystem
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 
@@ -101,7 +102,8 @@ type HasProposalActionEffects r =
     Member TinyLog r,
     Member NotificationSubsystem r,
     Member Random r,
-    Member TeamCollaboratorsSubsystem r
+    Member TeamCollaboratorsSubsystem r,
+    Member FeaturesConfigSubsystem r
   )
 
 getCommitData ::
