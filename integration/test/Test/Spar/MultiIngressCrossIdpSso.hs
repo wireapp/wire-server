@@ -21,6 +21,7 @@ import API.BrigInternal (getUsersId)
 import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, getSsoCodeByEmailWithZHost)
+import Data.Either.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (pack)
 import GHC.Stack
@@ -51,17 +52,6 @@ import qualified Text.XML.DSig as SAML
 -- Expected future behavior (when multi-IdP is implemented):
 -- - Step 3 should recognize that this is the same person and link to the existing user
 -- - OR provide a controlled flow for identity linking/merging
-
--- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
-makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
-makeSampleIdPMetadataWithIssuer suffix = do
-  let issuerUri = pack $ "https://issuer.net/_" <> suffix
-      requriUri = pack $ "https://requri.net/_req_" <> suffix
-  let issuer = either (error . show) SAML.Issuer $ SAML.parseURI' issuerUri
-      requri = either (error . show) id $ SAML.parseURI' requriUri
-  (privcreds, creds, cert) <- liftIO $ SAML.mkSignCredsWithCert Nothing 96
-  pure $ SampleIdP (SAML.IdPMetadata issuer requri (cert :| [])) privcreds creds cert
-
 testCrossIdpSsoCreatesDistinctUsers :: (HasCallStack) => App ()
 testCrossIdpSsoCreatesDistinctUsers = do
   let ernieZHost = "nginz-https.ernie.example.com"
@@ -546,3 +536,13 @@ testScimUserLoginsDifferentIdP = do
         bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
         ssoIdTenant `shouldContain` ernieIssuer
         ssoIdTenant `shouldNotMatch` bertIssuer
+
+-- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
+makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
+makeSampleIdPMetadataWithIssuer suffix = do
+  let issuerUri = pack $ "https://issuer.net/_" <> suffix
+      requriUri = pack $ "https://requri.net/_req_" <> suffix
+      issuer = SAML.Issuer . fromRight' $ SAML.parseURI' issuerUri
+      requri = fromRight' $ SAML.parseURI' requriUri
+  (privcreds, creds, cert) <- liftIO $ SAML.mkSignCredsWithCert Nothing 96
+  pure $ SampleIdP (SAML.IdPMetadata issuer requri (cert :| [])) privcreds creds cert
