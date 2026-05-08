@@ -92,14 +92,16 @@ testCrossIdpSsoCreatesDistinctUsers = do
               $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack ("bibo" <> suffix))) Nothing Nothing Nothing
 
       -- Step 2: Bibo logs in on Ernie ingress
-      userIdErnie <- loginWithSamlWithZHost
-        (Just ernieZHost)
-        domain
-        True
-        tid
-        biboNameId
-        (idpIdErnie, idpMetaErnie)
-        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure . fst
+      userIdErnie <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True
+          tid
+          biboNameId
+          (idpIdErnie, idpMetaErnie)
+          >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
+          . fst
 
       -- No email activation needed - using username-based NameID
 
@@ -124,14 +126,16 @@ testCrossIdpSsoCreatesDistinctUsers = do
 
       -- Step 3: SAME Bibo logs in on Bert ingress WITH THE SAME NAMEID
       -- This is the core of the test: same identity, different ingress → duplicate user!
-      userIdBert <- loginWithSamlWithZHost
-        (Just bertZHost)
-        domain
-        True
-        tid
-        biboNameId -- SAME NameID!
-        (idpIdBert, idpMetaBert)
-        >>= maybe (error "Expected user ID from SSO login on Bert domain") pure . fst
+      userIdBert <-
+        loginWithSamlWithZHost
+          (Just bertZHost)
+          domain
+          True
+          tid
+          biboNameId -- SAME NameID!
+          (idpIdBert, idpMetaBert)
+          >>= maybe (error "Expected user ID from SSO login on Bert domain") pure
+          . fst
 
       -- Verify user was created
       getUsersId domain [userIdBert] `bindResponse` \resp -> do
@@ -261,14 +265,16 @@ testCrossIdpSsoEmailConflict useSCIM = do
           else pure Nothing
 
       -- Step 1: Bibo logs in on Ernie ingress (should succeed)
-      userIdErnie <- loginWithSamlWithZHost
-        (Just ernieZHost)
-        domain
-        True -- expect success
-        tid
-        biboNameId
-        (idpIdErnie, (idpMetaErnie, pCredsErnie))
-        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure . fst
+      userIdErnie <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+          >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
+          . fst
 
       case mScimUserId of
         Just scimUid ->
@@ -451,14 +457,16 @@ testScimUserLoginsDifferentIdP = do
 
       -- Step 1: Bibo logs in for the FIRST time on Bert's IdP (NOT Ernie!)
       -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
-      userIdBert <- loginWithSamlWithZHost
-        (Just bertZHost)
-        domain
-        True -- expect success
-        tid
-        biboNameId
-        (idpIdBert, (idpMetaBert, pCredsBert))
-        >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure . fst
+      userIdBert <-
+        loginWithSamlWithZHost
+          (Just bertZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpIdBert, (idpMetaBert, pCredsBert))
+          >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure
+          . fst
 
       -- Verify the same user ID is returned (cross-IdP SSO migration worked)
       userIdBert `shouldMatch` biboUid
@@ -502,6 +510,104 @@ testScimUserLoginsDifferentIdP = do
         bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
         ssoIdTenant `shouldContain` ernieIssuer
         ssoIdTenant `shouldNotMatch` bertIssuer
+
+-- | Test cross-domain login when team has a single IdP.
+--
+-- As IdPs cannot be deleted when users are bound to them, having a single IdP
+-- implies that all SSO users are bound to it.
+testSingleIdp :: (HasCallStack) => App ()
+testSingleIdp = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      -- Create team and enable SSO
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register ONLY ONE IdP for Bert domain
+      -- This is the key: there's only a single IdP for the team
+      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+      idpIdBert <- asString $ idpBert.json %. "id"
+
+      -- Create email-based NameID for "bibo"
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack biboEmail)
+
+      -- Provision SCIM user for Bert's IdP
+      scimTok <- createScimToken owner (def {idp = Just idpIdBert})
+      scimToken <- scimTok.json %. "token" & asString
+
+      -- Create SCIM user with the email (associated with Bert's IdP)
+      scimUser <- randomScimUserWithEmail biboEmail biboEmail
+      biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+        resp.status `shouldMatchInt` 201
+        resp.json %. "id" >>= asString
+
+      -- Activate the email
+      activateEmail domain biboEmail
+
+      -- Verify user was created with Bert's SSO ID
+      getUsersId domain [biboUid] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` bertIssuer
+
+      -- User logs in via ERNIE ingress (different domain from IdP registration)
+      -- Since user is already bound to Bert's IdP, this succeeds via direct match.
+      -- NOTE: This does NOT exercise multiIngressFlow fallback behavior, as the
+      -- user's SSO ID already matches the authenticating IdP.
+      userIdFromErnie <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect success
+          tid
+          biboNameId
+          (idpIdBert, (idpMetaBert, pCredsBert))
+          >>= maybe (error "Expected user ID from cross-domain login") pure
+          . fst
+
+      -- Verify it's the same user
+      userIdFromErnie `shouldMatch` biboUid
+
+      -- Verify user's SSO ID is still Bert's issuer
+      getUsersId domain [userIdFromErnie] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` bertIssuer
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
