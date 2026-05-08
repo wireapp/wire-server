@@ -39,6 +39,7 @@ import Bilge
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
+import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.Aeson.Text as Aeson (encodeToLazyText)
 import Data.ByteString (toStrict)
@@ -435,70 +436,15 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
       let team' = idp ^. idpExtraInfo . team
       findUserWithUref idp team' uref >>= \case
         Just uid -> pure uid
-        Nothing -> do
-          -- Cross-IdP SSO migration only for email-based NameIDs in multi-ingress mode
-          let isEmailNameId = case uref of
-                SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> True
-                _ -> False
-          if SAML.isMultiIngressConfig samlConfig && isEmailNameId
-            then do
-              -- In multi-ingress mode with email NameID, try to find the user via other IdPs
-              -- in the team by patching the UserRef with each IdP's issuer.
-              teamIdPs <- IdPConfigStore.getConfigsByTeam team'
-              let urefIssuer = uref ^. SAML.uidTenant
-              -- Step 1: Verify the authenticating IdP exists (issuer + domain must match) for this team.
-              let authenticatingIdP =
-                    filter
-                      ( \idp' ->
-                          idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer
-                            && idp' ^. idpExtraInfo . domain == mbHost
-                      )
-                      teamIdPs
-              case authenticatingIdP of
-                [] ->
-                  -- TODO: We do not know the IdP: This is surely an error. Can this happen or has this been checked before?
-                  --
-                  provisionNewUser -- No valid IdP for this authentication
-                _ -> do
-                  -- Step 2: Try to autheiticate the potential user against ALL team IdPs (including other domains)
-                  let subject = uref ^. SAML.uidSubject
-                      tryFindWithIdP :: Maybe (UserId, SAML.UserRef) -> IdP -> Sem r (Maybe (UserId, SAML.UserRef))
-                      tryFindWithIdP found@(Just _) _ = pure found
-                      tryFindWithIdP Nothing idp' = do
-                        let oldIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
-                            oldUref = SAML.UserRef oldIssuer subject
-                        findUserWithUref idp' team' oldUref >>= \case
-                          Nothing -> pure Nothing
-                          Just uid -> pure (Just (uid, oldUref))
-                  mResult <- foldM tryFindWithIdP Nothing teamIdPs -- Search ALL team IdPs
-                  case mResult of
-                    Nothing -> provisionNewUser
-                    Just (uid, oldUref) -> do
-                      -- Migrate user to new issuer if found via different IdP
-                      --
-                      -- The benefit is that the next authentication with this
-                      -- new IdP will be a simple database query (and not
-                      -- many).
-                      when (oldUref ^. SAML.uidTenant /= uref ^. SAML.uidTenant) $ do
-                        -- Log cross-IdP SSO migration
-                        Logger.info $
-                          Log.msg ("Cross-IdP SSO migration: user found via different IdP, migrating issuer" :: String)
-                            . Log.field "team" (team' & idToText)
-                            . Log.field "user" (idToText uid)
-                            . Log.field "old_issuer" (oldUref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
-                            . Log.field "new_issuer" (uref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
-                            . Log.field "subject" (uref ^. SAML.uidSubject . to show)
-                            . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
-                            . Log.field "domain" (mbHost & fromMaybe "None")
-                        -- TODO: This needs to be better understood and tested.
-                        moveUserToNewIssuer oldUref uref uid
-                      pure uid
-            else
-              provisionNewUser
+        Nothing
+          | SAML.isMultiIngressConfig samlConfig ->
+              multiIngressFlow team'
+        Nothing -> provisionNewUser
     Logger.debug $ Log.msg ("granting sso login" :: String) . Log.field "user" (idToText uid)
     cky <- BrigAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
     where
+      provisionNewUser :: Sem r UserId
       provisionNewUser = do
         buid <- Id <$> Random.uuid
         autoprovisionSamlUser idp buid uref
@@ -525,6 +471,61 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                   then moveUserToNewIssuer olduref uref' uid >> pure (Just uid)
                   else throwSparSem err
               Nothing -> pure Nothing
+
+      multiIngressFlow :: TeamId -> Sem r UserId
+      multiIngressFlow team' =
+        case uref of
+          -- Cross-IdP SSO migration only for email-based NameIDs in
+          -- multi-ingress mode. We may consider to lower the email-only
+          -- constraint in future. For now, Emil and Sven decided that emails
+          -- might be a bit more consistent across IdPs then usernames.
+          SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> do
+            teamIdPs <- IdPConfigStore.getConfigsByTeam team'
+            let urefIssuer = uref ^. SAML.uidTenant
+                isAuthenticatingIdP idp' =
+                  idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer
+                    && idp' ^. idpExtraInfo . domain == mbHost
+
+            -- Step 1: Verify the authenticating IdP exists (issuer + domain must match) for this team.
+            case find isAuthenticatingIdP teamIdPs of
+              Nothing ->
+                -- TODO: Test this
+                provisionNewUser -- No valid IdP for this authentication, But, as we reached this line, we know that the auth response was valid. So, this is a new user.
+              Just _ -> do
+                -- Step 2: Try to authenticate the potential user against ALL
+                -- team IdPs (including other domains) When we found one
+                -- succeeding IdP for this user in this team, we consider them
+                -- authenticated and migrate them to the other (requesting)
+                -- IdP.
+                let subject = uref ^. SAML.uidSubject
+                findUserInTeamIdPs team' subject teamIdPs >>= \case
+                  Nothing -> provisionNewUser
+                  Just (uid, oldUref) ->
+                    do
+                      Logger.info $
+                        Log.msg ("Cross-IdP SSO migration: user found via different IdP, migrating issuer" :: String)
+                          . Log.field "team" (idToText (idp ^. idpExtraInfo . team))
+                          . Log.field "user" (idToText uid)
+                          . Log.field "old_issuer" (oldUref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+                          . Log.field "new_issuer" (uref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+                          . Log.field "subject" (uref ^. SAML.uidSubject . to show)
+                          . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
+                          . Log.field "domain" (mbHost & fromMaybe "None")
+                      -- TODO: This needs to be better understood and tested.
+                      moveUserToNewIssuer oldUref uref uid
+                      pure uid
+          _ -> provisionNewUser
+
+      -- Try to authenticate against all IdPs. In case, return the UserId and the old UserRef.
+      findUserInTeamIdPs :: TeamId -> SAML.NameID -> [IdP] -> Sem r (Maybe (UserId, SAML.UserRef))
+      findUserInTeamIdPs team'' subject idps = runMaybeT $ asum $ map tryIdP idps
+        where
+          tryIdP :: IdP -> MaybeT (Sem r) (UserId, SAML.UserRef)
+          tryIdP idp' = do
+            let oldIssuer = idp' ^. SAML.idpMetadata . SAML.edIssuer
+                oldUref = SAML.UserRef oldIssuer subject
+            uid <- MaybeT $ findUserWithUref idp' team'' oldUref
+            pure (uid, oldUref)
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
