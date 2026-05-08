@@ -441,7 +441,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
               multiIngressFlow team'
         Nothing -> provisionNewUser
     Logger.debug $ Log.msg ("granting sso login" :: String) . Log.field "user" (idToText uid)
-    cky <- BrigAccess.ssoLogin uid mlabel
+    cky <- BrigAPIAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
     where
       provisionNewUser :: Sem r UserId
