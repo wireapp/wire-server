@@ -1,1 +1,0 @@
-Move meetings feature check from galley service layer into the MeetingsSubsystem interpreter, ensuring the check is enforced consistently within the subsystem.

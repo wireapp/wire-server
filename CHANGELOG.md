@@ -1,3 +1,49 @@
+# [2026-05-08] (Chart Release 5.31.0)
+
+## API changes
+
+
+* `GET /teams/:tid/size` response body lists `teamSizeRegulars`, `teamSizeApps`. (#5213)
+
+
+## Features
+
+
+* `DELETE /meetings/:domain/:meetingId` for deleting meetings. (#5066)
+
+
+## Bug fixes and other updates
+
+
+* Fix: Inconsistent removal messages across local and federated conversation members (#5210)
+
+* Do not count apps as paying users. (#5213)
+
+* brig-index: Continue indexing even when an invalid user is found in the DB (#4839)
+
+* Postgres: Index the parent_conv column in the conversation table (#5205, #5209, #5205)
+
+
+## Internal changes
+
+
+* Consolidate brig/galley api access effects from spar into wire-subsystems.
+
+  NB: calls to internal galley end-points were *sometimes* propagating unexpected errors (eg. 400) to the client, sometimes they were turned into a fixed 5xx error.  we now consistently do the latter, which is more accurate (we don't want this to ever happen). (#5189)
+
+* Using a random-generated index name to stabilize `testSearchNoExtraResults` (`brig-integration`). (#5198)
+
+* Move conversation-related operations into a unified Polysemy `ConversationSubsystem` effect across the wire-server codebase. (#5126)
+
+* Move meetings feature check from galley service layer into the MeetingsSubsystem interpreter, ensuring the check is enforced consistently within the subsystem. (#5214)
+
+* Add tools/mlsstats to the Docker images to be built in CI runs.
+  mlsstats Helm chart now supports pod identity: ServiceAccount with configurable annotations is created and referenced by the CronJob pod, enabling OIDC-based AWS credential injection instead of static keys. AWS_EC2_METADATA_DISABLED is set so the AWS SDK uses web identity tokens on non-EC2 nodes. Secret creation is skipped when no static credentials are provided. (#5200)
+
+* Add zone-level topologySpreadConstraints to nginz deployment so pods are spread evenly across availability zones, ensuring traffic reaches all AZs when zone-aware routing is in use.
+  topologySpreadConstraints are now configurable via values.yaml (defaulting to zone + hostname spreading), allowing chart users to customise pod scheduling without patching the chart. (#5208)
+
+
 # [2026-04-20] (Chart Release 5.30.0)
 
 ## Release notes
