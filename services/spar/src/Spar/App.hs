@@ -71,14 +71,10 @@ import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.Error hiding (sparToServerErrorWithLogging)
-import qualified Spar.Intra.BrigApp as Intra
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
-import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.Reporter (Reporter)
 import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -97,7 +93,11 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import qualified Wire.BrigAPIAccess as BrigAPIAccess
 import Wire.Error
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import qualified Wire.GalleyAPIAccess as GalleyAPIAccess
 import Wire.IdPConfigStore (IdPConfigStore)
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.ScimSubsystem.Interpreter
@@ -139,17 +139,17 @@ data Env = Env
 --
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
 getUserByUrefUnsafe ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   SAML.UserRef ->
   Sem r (Maybe User)
 getUserByUrefUnsafe uref = do
-  maybe (pure Nothing) (getAccount Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
+  maybe (pure Nothing) (BrigAPIAccess.getAccount Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member ScimExternalIdStore r
   ) =>
   TeamId ->
@@ -182,7 +182,7 @@ getUserIdByScimExternalId tid eid = do
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
 createSamlUserWithId ::
   ( Member (Error SparError) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   TeamId ->
@@ -194,7 +194,7 @@ createSamlUserWithId teamid buid suid role = do
   uname <-
     either (throwSparSem . SparBadUserName . LText.pack) pure $
       Intra.mkUserName Nothing (That suid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
+  buid' <- BrigAPIAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 
@@ -203,8 +203,8 @@ createSamlUserWithId teamid buid suid role = do
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-1655)
 autoprovisionSamlUser ::
   forall r.
-  ( Member GalleyAccess r,
-    Member BrigAccess r,
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
@@ -237,8 +237,8 @@ autoprovisionSamlUser idp buid suid = do
 -- make brig initiate the email validate procedure.
 validateSamlEmailIfExists ::
   forall r.
-  ( Member GalleyAccess r,
-    Member BrigAccess r
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r
   ) =>
   UserId ->
   SAML.UserRef ->
@@ -251,17 +251,17 @@ validateSamlEmailIfExists uid = \case
 
 validateEmail ::
   forall r.
-  ( Member GalleyAccess r,
-    Member BrigAccess r
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r
   ) =>
   Maybe TeamId ->
   UserId ->
   EmailAddress ->
   Sem r ()
 validateEmail (Just tid) uid email = do
-  enabled <- GalleyAccess.isEmailValidationEnabledTeam tid
+  enabled <- GalleyAPIAccess.isEmailValidationEnabledTeam tid
   let activation = if enabled then SendActivationEmail else AutoActivate
-  BrigAccess.updateEmail uid email activation
+  BrigAPIAccess.updateEmail uid email activation
 validateEmail _ _ _ = pure ()
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
@@ -277,8 +277,8 @@ verdictHandler ::
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member AReqIDStore r,
     Member VerdictFormatStore r,
     Member ScimTokenStore r,
@@ -324,8 +324,8 @@ verdictHandlerResult ::
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
@@ -368,7 +368,7 @@ catchVerdictErrors = (`catch` hndlr)
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
 getUserByUrefViaOldIssuerUnsafe ::
   forall r.
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   IdP ->
@@ -386,7 +386,7 @@ getUserByUrefViaOldIssuerUnsafe idp (SAML.UserRef _ subject) = do
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
 moveUserToNewIssuer ::
-  ( Member BrigAccess r,
+  ( Member BrigAPIAccess r,
     Member SAMLUserStore r
   ) =>
   SAML.UserRef ->
@@ -395,15 +395,15 @@ moveUserToNewIssuer ::
   Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
-  BrigAccess.setSSOId uid (UserSSOId newUserRef)
+  BrigAPIAccess.setSSOId uid (UserSSOId newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
 verdictHandlerResultCore ::
   (HasCallStack) =>
   ( Member Random r,
     Member (Logger String) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member (Error SparError) r,
@@ -439,7 +439,7 @@ verdictHandlerResultCore idp verdict mlabel = case verdict of
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
-    cky <- BrigAccess.ssoLogin uid mlabel
+    cky <- BrigAPIAccess.ssoLogin uid mlabel
     pure $ VerifyHandlerGranted cky uid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether

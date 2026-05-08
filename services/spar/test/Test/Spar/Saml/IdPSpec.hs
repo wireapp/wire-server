@@ -1,6 +1,7 @@
 module Test.Spar.Saml.IdPSpec where
 
 import Arbitrary ()
+import Data.Default (Default (..))
 import Data.Domain
 import Data.Id (idToText, parseIdFromText)
 import qualified Data.List.NonEmpty as NonEmptyL
@@ -18,8 +19,6 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
 import Spar.API (idpCreate, idpCreateV7, idpDelete, idpUpdate)
 import Spar.Error
-import Spar.Sem.BrigAccess
-import Spar.Sem.GalleyAccess
 import Spar.Sem.IdPRawMetadataStore
 import Spar.Sem.IdPRawMetadataStore.Mem
 import Spar.Sem.SAMLUserStore
@@ -35,8 +34,15 @@ import qualified Text.XML.DSig as DSig
 import URI.ByteString (parseURI, strictURIParserOptions)
 import URI.ByteString.QQ (uri)
 import Wire.API.Routes.Internal.Brig (IdpChangedNotification (..))
+import Wire.API.Team.Feature (FeatureStatus (FeatureStatusEnabled), LockableFeature (..))
+import Wire.API.Team.Member (mkNewTeamMember, ntmNewTeamMember, rolePermissions)
+import Wire.API.Team.Role (Role (RoleOwner))
 import Wire.API.User (User (..))
 import Wire.API.User.IdentityProvider (IdPMetadataInfo (..), WireIdPAPIVersion (..))
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import qualified Wire.BrigAPIAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
+import qualified Wire.GalleyAPIAccess
 import Wire.IdPConfigStore
 import Wire.IdPConfigStore.Mem
 import Wire.Sem.Logger.TinyLog (LogRecorder (..), newLogRecorder, recordLogs)
@@ -519,41 +525,18 @@ interpretWithLoggingMock mbAccount action = do
   let (notifs, res) = either (error . show) id a
   pure (logs, notifs, res)
 
-galleyAccessMock :: Sem (GalleyAccess ': r) a -> Sem r a
+galleyAccessMock :: Sem (GalleyAPIAccess ': r) a -> Sem r a
 galleyAccessMock = interpret $ \case
-  GetTeamMembers _teamId -> undefined
-  GetTeamMember _teamId _userId -> undefined
-  AssertHasPermission _teamId _perm _userId -> pure ()
-  AssertSSOEnabled _teamId -> pure ()
-  IsEmailValidationEnabledTeam _teamId -> undefined
-  UpdateTeamMember _userId _teamId _role -> undefined
+  Wire.GalleyAPIAccess.GetTeamMember uid _teamId -> pure (Just $ ntmNewTeamMember $ mkNewTeamMember uid (rolePermissions RoleOwner) Nothing)
+  Wire.GalleyAPIAccess.GetFeatureConfigForTeam _teamId -> pure (def {status = FeatureStatusEnabled})
+  _ -> undefined
 
-brigAccessMock :: Maybe User -> Sem (BrigAccess ': r) a -> Sem r ([IdpChangedNotification], a)
+brigAccessMock :: Maybe User -> Sem (BrigAPIAccess ': r) a -> Sem r ([IdpChangedNotification], a)
 brigAccessMock mbAccount = (runState @([IdpChangedNotification]) mempty .) $
   reinterpret $ \case
-    CreateSAML _userRef _userId _teamId _name _managedBy _mHandle _mRichInfo _mLocale _role -> undefined
-    CreateNoSAML _txt _email _userId _teamId _name _mLocale _role -> undefined
-    UpdateEmail _userId _email _activation -> undefined
-    GetAccount _havePendingInvitations _userId -> pure mbAccount
-    GetByHandle _handle -> undefined
-    GetByEmail _email -> undefined
-    SetName _userId _name -> undefined
-    SetHandle _userId _handle -> undefined
-    SetManagedBy _userId _managedBy -> undefined
-    SetSSOId _userId _ssoId -> undefined
-    SetRichInfo _userId _richInfo -> undefined
-    SetLocale _userId _mLocale -> undefined
-    GetRichInfo _userId -> undefined
-    CheckHandleAvailable _handle -> undefined
-    DeleteUser _userId -> undefined
-    EnsureReAuthorised _mUserId _mPassword _mCode _mAction -> undefined
-    SsoLogin _userId _label -> undefined
-    GetStatus _userId -> undefined
-    GetStatusMaybe _userId -> undefined
-    SetStatus _userId _status -> undefined
-    GetDefaultUserLocale -> undefined
-    CheckAdminGetTeamId _userId -> undefined
-    SendSAMLIdPChangedEmail notif -> modify (notif :)
+    Wire.BrigAPIAccess.GetAccount _havePendingInvitations _userId -> pure mbAccount
+    Wire.BrigAPIAccess.SendSAMLIdPChangedEmail notif -> modify (notif :)
+    _ -> undefined
 
 ignoringState :: (Functor f) => (a -> f (c, b)) -> a -> f b
 ignoringState f = fmap snd . f
@@ -561,8 +544,8 @@ ignoringState f = fmap snd . f
 type Effs =
   '[ Random,
      SAMLUserStore,
-     GalleyAccess,
-     BrigAccess,
+     GalleyAPIAccess,
+     BrigAPIAccess,
      ScimTokenStore,
      IdPConfigStore,
      IdPRawMetadataStore,

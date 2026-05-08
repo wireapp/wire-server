@@ -30,6 +30,7 @@
 , constraints
 , containers
 , contravariant
+, cookie
 , cql
 , crypton
 , crypton-pem
@@ -171,6 +172,7 @@ mkDerivation {
     constraints
     containers
     contravariant
+    cookie
     cql
     crypton
     crypton-pem
@@ -298,6 +300,7 @@ mkDerivation {
     constraints
     containers
     contravariant
+    cookie
     cql
     crypton
     crypton-pem

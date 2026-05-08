@@ -17,69 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.BrigAPIAccess
-  ( -- * Brig access effect
-    BrigAPIAccess (..),
-
-    -- * Connections
-    getConnectionsUnqualified,
-    getConnectionsUnqualifiedBidi,
-    getConnections,
-    putConnectionInternal,
-
-    -- * Users
-    reauthUser,
-    lookupActivatedUsers,
-    getUser,
-    getUsers,
-    deleteUser,
-    getContactList,
-    getRichInfoMultiUser,
-    getUserExportData,
-    updateSearchIndex,
-    getAccountsBy,
-    getUsersByVariousKeys,
-
-    -- * Teams
-    getSize,
-
-    -- * Clients
-    lookupClients,
-    lookupClientsFull,
-    notifyClientsAboutLegalHoldRequest,
-    getLegalHoldAuthToken,
-    addLegalHoldClientToUser,
-    removeLegalHoldClientFromUser,
-    OpaqueAuthToken (..),
-
-    -- * MLS
-    getLocalMLSClients,
-    getLocalMLSClient,
-
-    -- * Features
-    getAccountConferenceCallingConfigClient,
-    updateSearchVisibilityInbound,
-
-    -- * Bots
-    deleteBot,
-    getAppIdsForTeam,
-
-    -- * User Groups
-    createGroupInternal,
-    getGroupInternal,
-    getGroupsInternal,
-    updateGroup,
-    deleteGroupInternal,
-    deleteApp,
-    DeleteGroupManagedError (..),
-
-    -- * Account status
-    setAccountStatus,
-
-    -- * Assertions
-    ensureConnectedToLocals,
-  )
-where
+module Wire.BrigAPIAccess where
 
 import Data.Aeson
 import Data.ByteString.Conversion
@@ -93,18 +31,23 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Polysemy.Error
+import SAML2.WebSSO qualified as SAML
+import Web.Cookie (SetCookie)
 import Web.Scim.Filter qualified as Scim
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Locale
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
+import Wire.API.Team.Role (Role)
 import Wire.API.Team.Size
 import Wire.API.User
+import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -180,6 +123,46 @@ data BrigAPIAccess m a where
   DeleteApp :: TeamId -> UserId -> BrigAPIAccess m ()
   GetAppIdsForTeam :: TeamId -> BrigAPIAccess m [UserId]
   SetAccountStatus :: UserId -> AccountStatus -> BrigAPIAccess m ()
+  -- SAML / SCIM user management (migrated from Spar.Sem.BrigAccess)
+  CreateSAML ::
+    SAML.UserRef ->
+    UserId ->
+    TeamId ->
+    Name ->
+    ManagedBy ->
+    Maybe Handle ->
+    Maybe RichInfo ->
+    Maybe Locale ->
+    Role ->
+    BrigAPIAccess m UserId
+  CreateNoSAML ::
+    Text ->
+    EmailAddress ->
+    UserId ->
+    TeamId ->
+    Name ->
+    Maybe Locale ->
+    Role ->
+    BrigAPIAccess m UserId
+  UpdateEmail :: UserId -> EmailAddress -> EmailActivation -> BrigAPIAccess m ()
+  GetAccount :: HavePendingInvitations -> UserId -> BrigAPIAccess m (Maybe User)
+  GetAccountByHandle :: Handle -> BrigAPIAccess m (Maybe User)
+  GetByEmail :: EmailAddress -> BrigAPIAccess m (Maybe User)
+  SetName :: UserId -> Name -> BrigAPIAccess m ()
+  SetHandle :: UserId -> Handle -> BrigAPIAccess m ()
+  SetManagedBy :: UserId -> ManagedBy -> BrigAPIAccess m ()
+  SetSSOId :: UserId -> UserSSOId -> BrigAPIAccess m ()
+  SetRichInfo :: UserId -> RichInfo -> BrigAPIAccess m ()
+  SetLocale :: UserId -> Maybe Locale -> BrigAPIAccess m ()
+  GetRichInfo :: UserId -> BrigAPIAccess m RichInfo
+  CheckHandleAvailable :: Handle -> BrigAPIAccess m Bool
+  SsoLogin :: UserId -> Maybe CookieLabel -> BrigAPIAccess m SetCookie
+  GetStatus :: UserId -> BrigAPIAccess m AccountStatus
+  GetStatusMaybe :: UserId -> BrigAPIAccess m (Maybe AccountStatus)
+  SetStatus :: UserId -> AccountStatus -> BrigAPIAccess m ()
+  GetDefaultUserLocale :: BrigAPIAccess m Locale
+  CheckAdminGetTeamId :: UserId -> BrigAPIAccess m (Either Wai.Error TeamId)
+  SendSAMLIdPChangedEmail :: IdpChangedNotification -> BrigAPIAccess m ()
 
 makeSem ''BrigAPIAccess
 

@@ -94,6 +94,7 @@ import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
 import Wire.RateLimit (RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
+import Wire.RpcException
 import Wire.Sem.Concurrency (ConcurrencySafety (Unsafe))
 import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 import Wire.Sem.Delay (runDelay)
@@ -206,6 +207,7 @@ dispatchJob job = do
         . mapError @DynError (.eMessage)
         . mapError @JSONResponse (T.pack . show . (.value))
         . mapError @ConversationSubsystemError toResponse
+        . mapError @RpcException (T.pack . displayException)
         . mapError @ClientError (T.pack . displayException)
         . mapError @FederationError (T.pack . displayException)
         . mapError @UsageError (T.pack . show)

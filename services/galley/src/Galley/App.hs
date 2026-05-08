@@ -148,6 +148,7 @@ import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.RpcException
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
@@ -264,6 +265,7 @@ type GalleyEffects =
      ErrorS 'NotATeamMember,
      ErrorS 'MeetingNotFound,
      ErrorS 'InvalidOperation,
+     Error RpcException,
      Input ClientState,
      Input Hasql.Pool,
      Input Env,
@@ -483,6 +485,7 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
+        . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
         . mapError toResponse -- ErrorS 'InvalidOperation
         . mapError toResponse -- ErrorS 'MeetingNotFound
         . mapError toResponse -- ErrorS 'NotATeamMember

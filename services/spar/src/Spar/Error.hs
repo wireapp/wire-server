@@ -31,8 +31,6 @@ module Spar.Error
     IdpDbError (..),
     throwSpar,
     sparToServerErrorWithLogging,
-    rethrow,
-    parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
     sparToServerError,
@@ -44,15 +42,11 @@ module Spar.Error
   )
 where
 
-import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
-import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Encoding as LText
-import Data.Typeable (typeRep)
-import GHC.Stack (callStack, prettyCallStack)
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
@@ -67,6 +61,7 @@ import Wire.API.User.Saml (TTLError)
 import Wire.Error
 import Wire.IdPConfigStore
 import Wire.IdPSubsystem.Interpreter
+import Wire.RpcException
 import Wire.ScimSubsystem.Interpreter
 
 type SparError = SAML.Error SparCustomError
@@ -99,11 +94,13 @@ data SparCustomError
   | SparCannotCreateUsersOnReplacedIdP LText
   | SparCouldNotParseRfcResponse LText LText
   | SparReAuthRequired
+  | SparReAuthRateLimitExceeded
   | SparReAuthCodeAuthFailed
   | SparReAuthCodeAuthRequired
   | SparCouldNotRetrieveCookie
   | SparCassandraError LText
   | SparCassandraTTLError TTLError
+  | SparRpcException RpcException
   | SparNewIdPBadMetadata LText
   | SparNewIdPPubkeyMismatch
   | SparNewIdPAlreadyInUse LText
@@ -163,6 +160,7 @@ renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingI
 -- RFC-specific errors
 renderSparError (SAML.CustomError (SparCouldNotParseRfcResponse service msg)) = StdError $ Wai.mkError status502 "bad-upstream" ("Could not parse " <> service <> " response body: " <> msg)
 renderSparError (SAML.CustomError SparReAuthRequired) = StdError $ Wai.mkError status403 "access-denied" "This operation requires reauthentication."
+renderSparError (SAML.CustomError SparReAuthRateLimitExceeded) = StdError $ Wai.mkError status429 "rate-limit-exceeded" "Please use exponential backoff throttling to mitigate this."
 renderSparError (SAML.CustomError SparReAuthCodeAuthFailed) = StdError $ Wai.mkError status403 "code-authentication-failed" "Reauthentication failed with invalid verification code."
 renderSparError (SAML.CustomError SparReAuthCodeAuthRequired) = StdError $ Wai.mkError status403 "code-authentication-required" "Reauthentication failed. Verification code required."
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = StdError $ Wai.mkError status502 "bad-upstream" "Unable to get a cookie from an upstream server."
@@ -173,6 +171,7 @@ renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) =
       status400
       "ttl-error"
       (LText.pack $ show ttlerr)
+renderSparError (SAML.CustomError (SparRpcException err)) = StdError $ rpcExcepctionToWaiError err
 renderSparError (SAML.UnknownIdP msg) = StdError $ Wai.mkError status404 "not-found" ("IdP not found: " <> msg)
 renderSparError (SAML.Forbidden msg) = StdError $ Wai.mkError status403 "forbidden" ("Forbidden: " <> msg)
 renderSparError (SAML.BadSamlResponseBase64Error msg) =
@@ -238,47 +237,6 @@ renderSparError (SAML.CustomError (SparInternalError err)) = StdError $ Wai.mkEr
 renderSparError (SAML.CustomError (SparSomeHttpError err)) = err
 -- Other
 renderSparError (SAML.CustomServant err) = serverErrorToHttpError err
-
--- | If a call to another backend service fails, just respond with whatever it said.
---
--- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
--- handle all exceptions that brig can legally throw!
-rethrow :: LText -> ResponseLBS -> (HasCallStack, Log.MonadLogger m, MonadError SparError m) => m a
-rethrow serviceName resp = do
-  Log.info
-    ( Log.msg ("rfc error" :: Text)
-        . Log.field "status" (Bilge.statusCode resp)
-        . Log.field "error" (show err)
-        . Log.field "callstack" (prettyCallStack callStack)
-    )
-  throwError err
-  where
-    err :: SparError
-    err =
-      responseJsonMaybe resp
-        & maybe
-          ( SAML.CustomError
-              . SparCouldNotParseRfcResponse serviceName
-              . ("internal error: " <>)
-              . LText.pack
-              . show
-              . (Bilge.statusCode resp,)
-              . fromMaybe "<empty body>"
-              . responseBody
-              $ resp
-          )
-          (SAML.CustomServant . waiToServant)
-
-parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LText -> ResponseLBS -> m a
-parseResponse serviceName resp = do
-  let typeinfo :: LText
-      typeinfo = LText.pack $ show (typeRep ([] @a)) <> ": "
-
-      err :: forall a'. LText -> m a'
-      err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
-
-  bdy <- maybe (err "no body") pure $ responseBody resp
-  either (err . LText.pack) pure $ eitherDecode' bdy
 
 mapScimSubsystemErrors :: (Member (Error SparError) r) => InterpreterFor (Error ScimSubsystemError) r
 mapScimSubsystemErrors =

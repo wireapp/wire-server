@@ -75,6 +75,7 @@ import qualified Data.X509 as X509
 import Data.X509.Extended
 import Imports
 import Network.Wai (Request, requestHeaders)
+import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
 import Polysemy
@@ -87,18 +88,14 @@ import Servant.Server.Experimental.Auth
 import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
-import qualified Spar.Intra.BrigApp as Brig
+import qualified Spar.Intra.RpcApp as Intra
 import Spar.Options
 import Spar.Orphans ()
 import Spar.Scim hiding (handle)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.BrigAccess (BrigAccess, getAccount)
-import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
 import qualified Spar.Sem.DefaultSsoCode as DefaultSsoCode
-import Spar.Sem.GalleyAccess (GalleyAccess)
-import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Reporter (Reporter)
@@ -128,6 +125,9 @@ import Wire.API.User
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.BrigAPIAccess (BrigAPIAccess)
+import qualified Wire.BrigAPIAccess as BrigAPIAccess
+import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.IdPSubsystem (IdPSubsystem)
@@ -159,8 +159,8 @@ app ctx0 req cont = do
     cont
 
 api ::
-  ( Member GalleyAccess r,
-    Member BrigAccess r,
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member (Input Opts) r,
     Member AssIDStore r,
     Member AReqIDStore r,
@@ -198,10 +198,10 @@ api opts =
     :<|> apiINTERNAL
 
 apiSSO ::
-  ( Member GalleyAccess r,
+  ( Member GalleyAPIAccess r,
     Member (Logger String) r,
     Member (Input Opts) r,
-    Member BrigAccess r,
+    Member BrigAPIAccess r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
     Member AReqIDStore r,
@@ -233,8 +233,8 @@ apiIDP ::
   ( Member Random r,
     Member (Logger String) r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -261,8 +261,8 @@ apiINTERNAL ::
     Member ScimUserTimesStore r,
     Member (Logger (Msg -> Msg)) r,
     Member Random r,
-    Member GalleyAccess r,
-    Member BrigAccess r
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r
   ) =>
   ServerT InternalAPI (Sem r)
 apiINTERNAL =
@@ -384,8 +384,8 @@ authresp ::
   ( Member Random r,
     Member (Logger String) r,
     Member (Input Opts) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
     Member AReqIDStore r,
@@ -491,7 +491,7 @@ authHandler :: Env -> AuthHandler Request TeamId
 authHandler ctx = mkAuthHandler $ \req -> (either throwError' pure =<<) $ runSparToHandler ctx $ runError $ do
   bs <- maybe (throwSparSem SparMissingZUsr) pure $ lookup "Z-User" (requestHeaders req)
   uid <- maybe (throwSparSem $ SparNoPermission "[internal error] Can't parse Z-User header") pure $ fromByteString bs
-  BrigAccess.checkAdminGetTeamId uid
+  BrigAPIAccess.checkAdminGetTeamId uid >>= either (\e -> throwSparSem $ SparNoPermission (Wai.message e)) pure
   where
     throwError' se = Spar.Error.sparToServerErrorWithLogging (sparCtxLogger ctx) se >>= throwError
 
@@ -501,8 +501,8 @@ authContext e = authHandler e :. EmptyContext
 idpGet ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -515,8 +515,8 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   pure idp
 
 idpGetRaw ::
-  ( Member GalleyAccess r,
-    Member BrigAccess r,
+  ( Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
@@ -534,22 +534,22 @@ idpGetRaw zusr idpid = do
 idpGetAll ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
   Maybe UserId ->
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
+  teamid <- Intra.getZUsrCheckPerm zusr ReadIdp
   idpGetAllByTeamId teamid
 
 idpGetAllByTeamId ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -571,8 +571,8 @@ idpDelete ::
   forall r.
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member SAMLUserStore r,
     Member IdPConfigStore r,
@@ -603,7 +603,7 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
     when (SAML.isMultiIngressConfig samlConfig) $
-      BrigAccess.sendSAMLIdPChangedEmail $
+      BrigAPIAccess.sendSAMLIdPChangedEmail $
         IdPDeleted zusr idp
   logIdPAction
     "IdP deleted"
@@ -615,13 +615,13 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     assertEmptyOrPurge :: TeamId -> Cas.Page (SAML.UserRef, UserId) -> Sem r ()
     assertEmptyOrPurge teamId page = do
       forM_ (Cas.result page) $ \(uref, uid) -> do
-        mAccount <- BrigAccess.getAccount NoPendingInvitations uid
+        mAccount <- BrigAPIAccess.getAccount NoPendingInvitations uid
         let mUserTeam = userTeam =<< mAccount
         when (mUserTeam == Just teamId) $ do
           if purge
             then do
               SAMLUserStore.delete uid uref
-              void $ BrigAccess.deleteUser uid
+              void $ BrigAPIAccess.deleteUser uid
             else do
               throwSparSem SparIdPHasBoundUsers
       when (Cas.hasMore page) $
@@ -648,7 +648,7 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
     idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
     idpDoesAuthSelf idp uid = do
       let idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-      mUserIssuer <- (>>= userIssuer) <$> getAccount NoPendingInvitations uid
+      mUserIssuer <- (>>= userIssuer) <$> BrigAPIAccess.getAccount NoPendingInvitations uid
       pure $ mUserIssuer == Just idpIssuer
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
@@ -664,8 +664,8 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
 idpCreate ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -682,7 +682,7 @@ idpCreate ::
   Sem r IdP
 idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata idpmeta) mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
-  GalleyAccess.assertSSOEnabled tid
+  Intra.assertSSOEnabled tid
   guardMultiIngressDuplicateDomain tid mbHost
   idp <-
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
@@ -692,7 +692,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   when (SAML.isMultiIngressConfig samlConfig) $
-    BrigAccess.sendSAMLIdPChangedEmail $
+    BrigAPIAccess.sendSAMLIdPChangedEmail $
       IdPCreated zUser idp
   logIdPAction
     "IdP created"
@@ -737,8 +737,8 @@ filterMultiIngressZHost _ _ = Nothing
 idpCreateV7 ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member ScimTokenStore r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
@@ -841,8 +841,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
 idpUpdate ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
@@ -861,8 +861,8 @@ idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
 idpUpdateXML ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member IdPRawMetadataStore r,
     Member (Error SparError) r
@@ -877,7 +877,7 @@ idpUpdateXML ::
   Sem r IdP
 idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (zUsr, teamid, idp, previousIdP) <- validateIdPUpdate mbZUsr idpmeta idpid
-  GalleyAccess.assertSSOEnabled teamid
+  Intra.assertSSOEnabled teamid
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of
@@ -895,7 +895,7 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
         WireIdPAPIV2 -> Just teamid
   forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
   when (SAML.isMultiIngressConfig samlConfig) $
-    BrigAccess.sendSAMLIdPChangedEmail $
+    BrigAPIAccess.sendSAMLIdPChangedEmail $
       IdPUpdated zUsr previousIdP idp''
   logIdPUpdate zUsr idp'' previousIdP
   pure idp''
@@ -982,8 +982,8 @@ validateIdPUpdate ::
   (HasCallStack, m ~ Sem r) =>
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
-    Member GalleyAccess r,
-    Member BrigAccess r,
+    Member GalleyAPIAccess r,
+    Member BrigAPIAccess r,
     Member IdPConfigStore r,
     Member (Error SparError) r
   ) =>
@@ -1048,8 +1048,8 @@ withDebugLog msg showval action = do
 
 authorizeIdP ::
   ( HasCallStack,
-    ( Member GalleyAccess r,
-      Member BrigAccess r,
+    ( Member GalleyAPIAccess r,
+      Member BrigAPIAccess r,
       Member (Error SparError) r
     )
   ) =>
@@ -1063,7 +1063,7 @@ authorizeIdP Nothing _ =
     )
 authorizeIdP (Just zusr) idp = do
   let teamid = idp ^. SAML.idpExtraInfo . team
-  GalleyAccess.assertHasPermission teamid CreateUpdateDeleteIdp zusr
+  Intra.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure (zusr, teamid)
 
 enforceHttps :: (Member (Error SparError) r) => URI.URI -> Sem r ()

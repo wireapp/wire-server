@@ -115,6 +115,8 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
           GetUserLHStatus mtid uid -> getUserLHStatus mtid uid
           GetUsersLHStatus uids -> getUsersLHStatus uids
+          UpdateTeamMember uid tid role -> updateTeamMember uid tid role
+          IsEmailValidationEnabledTeam tid -> isEmailValidationEnabledTeam tid
 
 getUserLegalholdStatus ::
   ( Member (Error ParseException) r,
@@ -818,3 +820,39 @@ getUsersLHStatus uids = do
         . header "Content-Type" "application/json"
         . lbytes (encode bdy)
         . expect2xx
+
+updateTeamMember ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  UserId ->
+  TeamId ->
+  Role ->
+  Sem r ()
+updateTeamMember uid tid role = do
+  let reqBody = mkNewTeamMember uid (rolePermissions role) Nothing
+  void $
+    galleyRequest $
+      method PUT
+        . paths ["i", "teams", toByteString' tid, "members"]
+        . header "Content-Type" "application/json"
+        . lbytes (encode reqBody)
+
+isEmailValidationEnabledTeam ::
+  ( Member Rpc r,
+    Member (Input Endpoint) r
+  ) =>
+  TeamId ->
+  Sem r Bool
+isEmailValidationEnabledTeam tid = do
+  rs <- galleyRequest req
+  pure
+    ( Bilge.statusCode rs == 200
+        && ( ((.status) <$> responseJsonMaybe @(LockableFeature RequireExternalEmailVerificationConfig) rs)
+               == Just FeatureStatusEnabled
+           )
+    )
+  where
+    req =
+      method GET
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @RequireExternalEmailVerificationConfig]

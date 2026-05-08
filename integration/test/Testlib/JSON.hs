@@ -243,7 +243,7 @@ lookupField ::
 lookupField val selector = do
   v <- make val
   vp <- prettyJSON v
-  addFailureContext ("Loooking up (nested) field " <> selector <> " of object:\n" <> vp) $ do
+  addFailureContext ("Looking up (nested) field " <> selector <> " of object:\n" <> vp) $ do
     let keys = splitOn "." selector
     case keys of
       (k : ks) -> go k ks v
