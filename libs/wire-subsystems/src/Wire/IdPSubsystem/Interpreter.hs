@@ -125,7 +125,7 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
     isScimOrSsoUser user =
       -- TODO: This used to check if the user is SCIM AND SSO! The RFC not
       -- really unambiguous about this. The customer currently provisions
-      -- non-SCIM. So, that would fit. However, this change needs a sing-off by
+      -- non-SCIM. So, that would fit. However, this change needs a sign-off by
       -- security.
       isJust (userSSOId user)
 
