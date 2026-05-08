@@ -408,3 +408,141 @@ testCrossIdpSsoEmailConflict useSCIM = do
         resp.status `shouldMatchInt` 200
         ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpId1
+
+-- | Test that demonstrates cross-IdP SSO migration when a SCIM user provisioned for one IdP
+-- logs in for the first time via a different IdP.
+--
+-- Scenario:
+-- 1. SCIM user is provisioned for Ernie's IdP (has SSO credentials for Ernie)
+-- 2. User has NEVER logged in via SSO before (only provisioned via SCIM)
+-- 3. User logs in for the FIRST time via Bert's IdP (different IdP)
+-- 4. Expected: Cross-IdP SSO migration should work, user should be migrated to Bert's IdP
+testScimUserLoginsDifferentIdP :: (HasCallStack) => App ()
+testScimUserLoginsDifferentIdP = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      -- Create team and enable SSO
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register IdP1 for Ernie domain with fixed issuer "ernie"
+      SampleIdP idpMeta1 pCreds1 _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+      _idp1 <- createIdpWithZHostV2 owner (Just ernieZHost) idpMeta1
+      idpId1 <- asString $ _idp1.json %. "id"
+
+      -- Register IdP2 for Bert domain with fixed issuer "bert"
+      SampleIdP idpMeta2 pCreds2 _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      _idp2 <- createIdpWithZHostV2 owner (Just bertZHost) idpMeta2
+      idpId2 <- asString $ _idp2.json %. "id"
+
+      -- Create email-based NameID for "charlie"
+      charlieEmail <- randomEmail
+      let charlieNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack charlieEmail)
+
+      -- Provision SCIM user for Ernie's IdP
+      scimTok <- createScimToken owner (def {idp = Just idpId1})
+      scimToken <- scimTok.json %. "token" & asString
+
+      -- Create SCIM user with the email (associated with Ernie's IdP)
+      scimUser <- randomScimUserWithEmail charlieEmail charlieEmail
+      charlieUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+        resp.status `shouldMatchInt` 201
+        resp.json %. "id" >>= asString
+
+      -- Activate the email
+      activateEmail domain charlieEmail
+
+      -- Verify user was created with Ernie's SSO ID
+      getUsersId domain [charlieUid] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        ernieIssuer <- _idp1.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` ernieIssuer
+
+      -- Step 1: Charlie logs in for the FIRST time on Bert's IdP (NOT Ernie!)
+      -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
+      (mUserIdBert, _) <-
+        loginWithSamlWithZHost
+          (Just bertZHost)
+          domain
+          True -- expect success
+          tid
+          charlieNameId
+          (idpId2, (idpMeta2, pCreds2))
+
+      -- Verify the same user ID is returned (cross-IdP SSO migration worked)
+      userIdBert <- case mUserIdBert of
+        Just uid -> do
+          uid `shouldMatch` charlieUid
+          pure uid
+        Nothing -> error "Expected user ID from cross-IdP SSO login on Bert domain"
+
+      -- Verify user's SSO ID was migrated to Bert's issuer
+      getUsersId domain [userIdBert] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        ernieIssuer <- _idp1.json %. "metadata.issuer" >>= asString
+        bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` bertIssuer
+        ssoIdTenant `shouldNotMatch` ernieIssuer
+
+      -- Verify sso/get-by-email returns Bert's IdP after migration
+      getSsoCodeByEmailWithZHost domain (Just bertZHost) charlieEmail `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoCodeStr <- resp.json %. "sso_code" >>= asString
+        ssoCodeStr `shouldMatch` idpId2
+
+      -- Step 2: Login on Ernie to verify back-migration also works
+      (mUserIdErnie, _) <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect success
+          tid
+          charlieNameId
+          (idpId1, (idpMeta1, pCreds1))
+
+      case mUserIdErnie of
+        Just uid -> uid `shouldMatch` charlieUid
+        Nothing -> error "Expected user ID from login on Ernie domain"
+
+      -- Verify user's SSO ID was migrated back to Ernie's issuer
+      getUsersId domain [charlieUid] `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ssoId <- resp.json %. "0.sso_id"
+        ssoIdTenant <- ssoId %. "tenant" >>= asString
+        ernieIssuer <- _idp1.json %. "metadata.issuer" >>= asString
+        bertIssuer <- _idp2.json %. "metadata.issuer" >>= asString
+        ssoIdTenant `shouldContain` ernieIssuer
+        ssoIdTenant `shouldNotMatch` bertIssuer
