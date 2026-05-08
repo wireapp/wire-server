@@ -31,6 +31,12 @@ import SetupHelpers
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
 
+-- | Test that demonstrates username-based NameID behavior in multi-ingress SSO.
+--
+-- When using username-based (unspecified) NameID, logging in via different
+-- ingresses with different IdPs creates SEPARATE user accounts, even with the
+-- same NameID. We decided this because username NameIDs are more likely
+-- ambiguous across IdPs than email addresses.
 testCrossIdpSsoCreatesDistinctUsers :: (HasCallStack) => App ()
 testCrossIdpSsoCreatesDistinctUsers = do
   let ernieZHost = "nginz-https.ernie.example.com"
@@ -186,14 +192,10 @@ testCrossIdpSsoCreatesDistinctUsers = do
         Just uid -> uid `shouldMatch` userIdBert
         Nothing -> error "Expected user ID from Bert final re-login"
 
--- | Test that demonstrates email uniqueness constraint in multi-ingress SSO.
+-- | Test that demonstrates cross-IdP login with an email address
 --
--- When using email-based NameID, the second login attempt on a different ingress
--- succeeds and returns the same user ID. This is cross-IdP SSO migration:
--- if the email matches an existing user in the team, the login succeeds.
---
--- This is different from username-based NameID (tested above) where duplicate
--- users are silently created because usernames are not unique identifiers.
+-- User can login with different IdPs. This is different from username-based
+-- NameID (tested above) where duplicate users are created.
 testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
 testCrossIdpSsoEmailConflict useSCIM = do
   let ernieZHost = "nginz-https.ernie.example.com"
