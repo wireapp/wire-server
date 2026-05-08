@@ -172,7 +172,8 @@ postMLSCommitBundle ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'MLSHistoryClientConflict) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -208,7 +209,8 @@ postMLSCommitBundleFromLocalUser ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'MLSHistoryClientConflict) r
   ) =>
   Version ->
   Local UserId ->
@@ -244,7 +246,8 @@ postMLSCommitBundleToLocalConv ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member (ErrorS 'MLSHistoryClientConflict) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -309,7 +312,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
 
         let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
         let historyClientExists = any isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
-        when (sharedHistoryEnabled /= historyClientExists) $ todo "throw reject commit"
+        lift $ when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
 
         -- reject message if the conversation is out of sync
         lift $ do

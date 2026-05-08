@@ -600,7 +600,8 @@ sendMLSCommitBundle ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member FeaturesConfigSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS 'MLSHistoryClientConflict) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->

@@ -179,6 +179,7 @@ data GalleyError
   | MLSReadReceiptsNotAllowed
   | MLSInvalidLeafNodeSignature
   | MeetingNotFound
+  | MLSHistoryClientConflict
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -378,6 +379,8 @@ type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-convers
 type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
 
 type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
+
+type instance MapError 'MLSHistoryClientConflict = 'StaticError 400 "mls-history-client-conflict" "History sharing settings of the conversation are conflicting with this request"
 
 --------------------------------------------------------------------------------
 -- Meeting errors
