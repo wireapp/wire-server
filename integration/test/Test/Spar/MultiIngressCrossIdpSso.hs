@@ -34,7 +34,6 @@ import qualified Text.XML.DSig as SAML
 -- TODO:
 -- - Test New user creation with email (user has NO representation in spar)
 -- - Test with wrong IdP
--- - Check duplication with MultiIngressSSO and MultiIngressIdP
 
 -- | Test that demonstrates username-based NameID behavior in multi-ingress SSO.
 --
@@ -93,19 +92,14 @@ testCrossIdpSsoCreatesDistinctUsers = do
               $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack ("bibo" <> suffix))) Nothing Nothing Nothing
 
       -- Step 2: Bibo logs in on Ernie ingress
-      (mUserIdErnie, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True
-          tid
-          biboNameId
-          (idpIdErnie, idpMetaErnie)
-
-      -- Extract user ID
-      userIdErnie <- case mUserIdErnie of
-        Just uid -> pure uid
-        Nothing -> error "Expected user ID from SSO login on Ernie domain"
+      userIdErnie <- fst <$> loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True
+        tid
+        biboNameId
+        (idpIdErnie, idpMetaErnie)
+        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
 
       -- No email activation needed - using username-based NameID
 
@@ -130,19 +124,14 @@ testCrossIdpSsoCreatesDistinctUsers = do
 
       -- Step 3: SAME Bibo logs in on Bert ingress WITH THE SAME NAMEID
       -- This is the core of the test: same identity, different ingress → duplicate user!
-      (mUserIdBert, _) <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True
-          tid
-          biboNameId -- SAME NameID!
-          (idpIdBert, idpMetaBert)
-
-      -- Extract user ID
-      userIdBert <- case mUserIdBert of
-        Just uid -> pure uid
-        Nothing -> error "Expected user ID from SSO login on Bert domain"
+      userIdBert <- fst <$> loginWithSamlWithZHost
+        (Just bertZHost)
+        domain
+        True
+        tid
+        biboNameId -- SAME NameID!
+        (idpIdBert, idpMetaBert)
+        >>= maybe (error "Expected user ID from SSO login on Bert domain") pure
 
       -- Verify user was created
       getUsersId domain [userIdBert] `bindResponse` \resp -> do
@@ -272,19 +261,14 @@ testCrossIdpSsoEmailConflict useSCIM = do
           else pure Nothing
 
       -- Step 1: Bibo logs in on Ernie ingress (should succeed)
-      (mUserIdErnie, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
-
-      -- Verify user was created
-      userIdErnie <- case mUserIdErnie of
-        Just uid -> pure uid
-        Nothing -> error "Expected user ID from SSO login on Ernie domain"
+      userIdErnie <- fst <$> loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
+        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
 
       case mScimUserId of
         Just scimUid ->
@@ -467,21 +451,17 @@ testScimUserLoginsDifferentIdP = do
 
       -- Step 1: Charlie logs in for the FIRST time on Bert's IdP (NOT Ernie!)
       -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
-      (mUserIdBert, _) <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True -- expect success
-          tid
-          charlieNameId
-          (idpIdBert, (idpMetaBert, pCredsBert))
+      userIdBert <- fst <$> loginWithSamlWithZHost
+        (Just bertZHost)
+        domain
+        True -- expect success
+        tid
+        charlieNameId
+        (idpIdBert, (idpMetaBert, pCredsBert))
+        >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure
 
       -- Verify the same user ID is returned (cross-IdP SSO migration worked)
-      userIdBert <- case mUserIdBert of
-        Just uid -> do
-          uid `shouldMatch` charlieUid
-          pure uid
-        Nothing -> error "Expected user ID from cross-IdP SSO login on Bert domain"
+      userIdBert `shouldMatch` charlieUid
 
       -- Verify user's SSO ID was migrated to Bert's issuer
       getUsersId domain [userIdBert] `bindResponse` \resp -> do
