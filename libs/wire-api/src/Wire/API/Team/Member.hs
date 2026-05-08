@@ -74,7 +74,6 @@ module Wire.API.Team.Member
 
     -- * TeamPrincipal
     TeamPrincipal,
-    isFullTeamMember,
   )
 where
 
@@ -666,16 +665,6 @@ collaboratorToTeamPermissions =
 -- via the 'Either' instance, using 'collaboratorToTeamPermissions' for the
 -- @Left@ case.
 type TeamPrincipal = Either TeamCollaborator TeamMember
-
--- | True only for full team members, not for collaborators.
--- Used in conversation access-role checks that enforce team-member-only
--- conversations, preserving the invariant that collaborators are not
--- considered equivalent to full members for access control.
---
--- (We probably do not want to discriminate against collaborators in
--- this way, but that's a semantic change for another PR.)
-isFullTeamMember :: TeamPrincipal -> Bool
-isFullTeamMember = isRight
 
 ----------------------------------------------------------------------
 

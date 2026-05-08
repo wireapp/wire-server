@@ -55,7 +55,6 @@ import Wire.API.Team
 import Wire.API.Team.Collaborator qualified as CollaboratorPermission
 import Wire.API.Team.Feature
 import Wire.API.Team.Feature qualified as Conf
-import Wire.API.Team.FeatureFlags (notTeamMember)
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
@@ -343,9 +342,10 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
     GroupConversation -> checkGroup
     MeetingConversation -> checkGroup
 
-  convLocalMemberships <- mapM (flip TeamSubsystem.internalGetTeamMember convTeam) (ulLocals allUsers)
-  ensureAccessRole (accessRoles newConv) (zip (ulLocals allUsers) (fmap (fmap Right) convLocalMemberships))
-  ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
+  convLocalMemberships <- mapM (TeamSubsystem.lookupTeamPrincipal convTeam) (ulLocals allUsers)
+  let allUsersWithPrincipal = zip (ulLocals allUsers) convLocalMemberships
+  ensureAccessRole (accessRoles newConv) allUsersWithPrincipal
+  ensureConnectedToLocals (tUnqualified lusr) [uid | (uid, Nothing) <- allUsersWithPrincipal]
   ensureConnectedToRemotes lusr (ulRemotes allUsers)
   where
     ensureCreateChannelPermissions ::

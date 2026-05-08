@@ -136,6 +136,7 @@ import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as Data
+import Wire.API.Team.Collaborator (TeamCollaborator (..))
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamStore
 import Wire.TeamSubsystem (ConsentGiven (..), TeamSubsystem, consentGiven)
@@ -794,8 +795,14 @@ performConversationJoin qusr lconv (ConversationJoin invited role joinType) = do
       tms <-
         Map.fromList . map (view Wire.API.Team.Member.userId &&& Imports.id)
           <$> TeamSubsystem.internalSelectTeamMembers tid newUsers
-      let userMembershipMap = map (Imports.id &&& (fmap Right . flip Map.lookup tms)) newUsers
-       in ensureAccessRole (convAccessRoles conv) userMembershipMap
+      collabs <-
+        Map.fromList . map (\c -> (c.gUser, c))
+          <$> internalGetTeamCollaboratorsWithIds (Set.singleton tid) (Set.fromList newUsers)
+      let principalFor uid =
+            fmap Right (Map.lookup uid tms)
+              <|> fmap Left (Map.lookup uid collabs)
+          userMembershipMap = map (Imports.id &&& principalFor) newUsers
+      ensureAccessRole (convAccessRoles conv) userMembershipMap
       ensureConnectedToLocalsOrSameTeam lusr newUsers
     checkLocals lusr Nothing newUsers = do
       ensureAccessRole (convAccessRoles conv) (map (,Nothing) newUsers)

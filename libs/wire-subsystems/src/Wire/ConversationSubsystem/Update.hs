@@ -741,6 +741,7 @@ joinConversationByReusableCode ::
     Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
+    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member Now r,
     Member (Input ConversationSubsystemConfig) r
@@ -770,6 +771,7 @@ joinConversationById ::
     Member NotificationSubsystem r,
     Member E.ExternalAccess r,
     Member Now r,
+    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -794,6 +796,7 @@ joinConversation ::
     Member ConversationStore r,
     Member Now r,
     Member NotificationSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->

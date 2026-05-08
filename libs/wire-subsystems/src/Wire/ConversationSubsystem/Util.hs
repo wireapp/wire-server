@@ -120,7 +120,7 @@ ensureAccessRole ::
 ensureAccessRole roles users = do
   when (Set.null roles) $ throwS @'ConvAccessDenied
   unless (NonTeamMemberAccessRole `Set.member` roles) $
-    when (any (maybe True (not . isFullTeamMember) . snd) users) $
+    when (any (isNothing . snd) users) $
       throwS @'NotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
     activated <- lookupActivatedUsers (fst <$> users)
@@ -676,6 +676,7 @@ ensureConversationAccess ::
   ( Member BrigAPIAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
+    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   UserId ->
@@ -684,8 +685,8 @@ ensureConversationAccess ::
   Sem r ()
 ensureConversationAccess zusr conv access = do
   ensureAccess conv access
-  zusrMembership <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember zusr) (Data.convTeam conv)
-  ensureAccessRole (Data.convAccessRoles conv) [(zusr, fmap Right zusrMembership)]
+  zusrPrincipal <- maybe (pure Nothing) (\tid -> TeamSubsystem.lookupTeamPrincipal tid zusr) (Data.convTeam conv)
+  ensureAccessRole (Data.convAccessRoles conv) [(zusr, zusrPrincipal)]
 
 ensureAccess ::
   (Member (ErrorS 'ConvAccessDenied) r) =>

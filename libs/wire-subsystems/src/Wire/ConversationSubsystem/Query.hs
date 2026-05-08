@@ -648,6 +648,7 @@ getConversationByReusableCode ::
     Member FeaturesConfigSubsystem r,
     Member HashPassword r,
     Member RateLimit r,
+    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
