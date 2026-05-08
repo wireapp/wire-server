@@ -472,6 +472,15 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                   else throwSparSem err
               Nothing -> pure Nothing
 
+      -- In multi-ingress scenarios users can be already assigned to one IdP,
+      -- but try to authenticate with another. We allow this, when the new IdP
+      -- is configured for the user's team and the used domain. Additionally,
+      -- the provided NameId must be an email address (no username) to prevent
+      -- ambiguities (though, we know this won't be guarding against all
+      -- ambiguity cases).
+      -- When we've found the matching IdP and the user's old one, we migrate
+      -- the user to the new one to not have to run this search again when the
+      -- user logs in with this IdP.
       multiIngressFlow :: TeamId -> Sem r UserId
       multiIngressFlow team' =
         case uref of
@@ -486,17 +495,17 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                   idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer
                     && idp' ^. idpExtraInfo . domain == mbHost
 
-            -- Step 1: Verify the authenticating IdP exists (issuer + domain must match) for this team.
+            -- Verify the authenticating IdP exists (issuer + domain must
+            -- match) for this team.
             case find isAuthenticatingIdP teamIdPs of
               Nothing ->
                 -- TODO: Test this
                 provisionNewUser -- No valid IdP for this authentication, But, as we reached this line, we know that the auth response was valid. So, this is a new user.
               Just _ -> do
-                -- Step 2: Try to authenticate the potential user against ALL
-                -- team IdPs (including other domains) When we found one
-                -- succeeding IdP for this user in this team, we consider them
-                -- authenticated and migrate them to the other (requesting)
-                -- IdP.
+                -- Try to authenticate the potential user against ALL team IdPs
+                -- (including other domains) When we found one succeeding IdP
+                -- for this user in this team, we consider them authenticated
+                -- and migrate them to the other (requesting) IdP.
                 let subject = uref ^. SAML.uidSubject
                 findUserInTeamIdPs team' subject teamIdPs >>= \case
                   Nothing -> provisionNewUser
