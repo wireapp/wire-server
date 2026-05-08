@@ -516,6 +516,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                           . Log.field "team" (idToText (idp ^. idpExtraInfo . team))
                           . Log.field "user" (idToText uid)
                           . Log.field "old_issuer" (oldUref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+                          -- TODO: This reveals the email address (personal data). We should probably not log this.
                           . Log.field "new_issuer" (uref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
                           . Log.field "subject" (uref ^. SAML.uidSubject . to show)
                           . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
