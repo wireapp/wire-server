@@ -19,6 +19,7 @@ module Test.MLS.History where
 
 import API.Galley
 import qualified API.GalleyInternal as I
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text.Encoding as T
 import MLS.Util
@@ -139,18 +140,15 @@ testSetHistory = do
 
 testHistoryConflict :: App ()
 testHistoryConflict = do
-  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
+  (alice, tid, [bob, charlie, dorothy, emily]) <- createTeam OwnDomain 5
 
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
   setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
 
-  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
-  for_ [bob1, charlie1] $ uploadNewKeyPackage def
+  [alice1, bob1, charlie1, dorothy1, emily1] <- traverse (createMLSClient def) [alice, bob, charlie, dorothy, emily]
+  for_ [bob1, charlie1, dorothy1, emily1] $ uploadNewKeyPackage def
   convId <- createNewGroupWith def alice1 defMLS {team = Just tid, groupConvType = Just "channel"}
-
-  let history = object ["depth" .= "infinite"]
-  bindResponse (updateHistory alice convId history) $ \resp -> do
-    resp.status `shouldMatchInt` 200
+  enableHistorySharing convId alice
 
   -- an add commit must be rejected if history is enable and no history client exists
   withMLSStateReset $ do
@@ -160,10 +158,33 @@ testHistoryConflict = do
       resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
 
   -- now the history client is included in the add commit
-  void $ createAddCommitWithHistoryClient alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  hid <- do
+    (mp, hid) <- createAddCommitWithHistoryClient alice1 convId [bob]
+    void $ sendAndConsumeCommitBundle mp
+    pure hid
 
   -- now that the history client was added a noremal add commit will not be rejected
   void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
+
+  disableHistorySharing convId alice
+  withMLSStateReset $ do
+    mp <- createAddCommit alice1 convId [dorothy]
+    postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+  void $ createRemoveCommit' alice1 convId [HistoryClient hid] >>= sendAndConsumeCommitBundle
+
+  void $ createAddCommit alice1 convId [emily] >>= sendAndConsumeCommitBundle
+  where
+    enableHistorySharing convId user = do
+      let history = object ["depth" .= "infinite"]
+      bindResponse (updateHistory user convId history) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+
+    disableHistorySharing convId user = do
+      bindResponse (updateHistory user convId A.Null) $ \resp -> do
+        resp.status `shouldMatchInt` 200
 
 channelsConfig :: Value
 channelsConfig =

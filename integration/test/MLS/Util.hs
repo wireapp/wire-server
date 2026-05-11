@@ -22,6 +22,7 @@ module MLS.Util where
 import API.Brig
 import API.BrigCommon
 import API.Galley
+import Control.Applicative
 import Control.Concurrent.Async hiding (link)
 import Control.Monad
 import Control.Monad.Catch
@@ -73,6 +74,11 @@ cid2Str cid = cid.user <> ":" <> cid.client <> "@" <> cid.domain
 hid2Str :: String -> String
 hid2Str hid = "history-client:" <> hid
 
+mem2Str :: GroupMember -> String
+mem2Str = \case
+  RegularClient cid -> cid2Str cid
+  HistoryClient hid -> hid2Str hid
+
 data MessagePackage = MessagePackage
   { sender :: ClientIdentity,
     convId :: ConvId,
@@ -95,18 +101,18 @@ randomFileName = do
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
 mlscli :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli mConvId cs cid = mlscli' mConvId cs (Right cid)
+mlscli mConvId cs cid = mlscli' mConvId cs (RegularClient cid)
 
 -- TODO: (leif)
-mlscli' :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> Either String ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli' mConvId cs cid args mbstdin = do
+mlscli' :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> GroupMember -> [String] -> Maybe ByteString -> App ByteString
+mlscli' mConvId cs groupMem args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
   let scheme = csSignatureScheme cs
 
-  gs <- case cid of
-    Right cid' -> getClientGroupState cid'
-    Left _ -> do
+  gs <- case groupMem of
+    RegularClient cid -> getClientGroupState cid
+    HistoryClient _ -> do
       convId <- assertOne mConvId
       state <- getMLSState
       let keyStore = Map.findWithDefault mempty convId state.historyClientState
@@ -120,7 +126,7 @@ mlscli' mConvId cs cid args mbstdin = do
   store <- case Map.lookup scheme gs.keystore of
     Nothing -> do
       bd <- getBaseDir
-      liftIO (createDirectory (bd </> either hid2Str cid2Str cid))
+      liftIO (createDirectory (bd </> mem2Str groupMem))
         `catch` \e ->
           if (isAlreadyExistsError e)
             then pure () -- creates a file per signature scheme
@@ -129,7 +135,7 @@ mlscli' mConvId cs cid args mbstdin = do
       -- initialise new keystore
       path <- randomFileName
       ctype <- make gs.credType & asString
-      void $ runCli path ["init", "--ciphersuite", cs.code, "-t", ctype, either hid2Str cid2Str cid] Nothing
+      void $ runCli path ["init", "--ciphersuite", cs.code, "-t", ctype, mem2Str groupMem] Nothing
       pure path
     Just s -> toRandomFile s
 
@@ -153,9 +159,9 @@ mlscli' mConvId cs cid args mbstdin = do
   storeData <- liftIO (BS.readFile store)
   let setStore x = x {keystore = Map.insert scheme storeData x.keystore}
 
-  case cid of
-    Right cid' -> setClientGroupState cid' (setGroup (setStore gs))
-    Left _ -> do
+  case groupMem of
+    RegularClient cid -> setClientGroupState cid (setGroup (setStore gs))
+    HistoryClient _ -> do
       convId <- assertOne mConvId
       modifyMLSState $ \s ->
         s {historyClientState = Map.alter (Just . Map.insert scheme storeData . fromMaybe mempty) convId s.historyClientState}
@@ -243,8 +249,8 @@ generateKeyPackage cid suite = do
 generateHistoryClient :: (HasCallStack) => ConvId -> Ciphersuite -> App (ByteString, String, String)
 generateHistoryClient convId suite = do
   hid <- randomUUIDString
-  kp <- mlscli' (Just convId) suite (Left hid) ["key-package", "create", "--ciphersuite", suite.code] Nothing
-  ref <- B8.unpack . Base64.encode <$> mlscli' (Just convId) suite (Left hid) ["key-package", "ref", "-"] (Just kp)
+  kp <- mlscli' (Just convId) suite (HistoryClient hid) ["key-package", "create", "--ciphersuite", suite.code] Nothing
+  ref <- B8.unpack . Base64.encode <$> mlscli' (Just convId) suite (HistoryClient hid) ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile (hid2Str hid) ref
   liftIO $ BS.writeFile fp kp
   pure (kp, ref, hid)
@@ -423,14 +429,15 @@ withTempKeyPackageFile bs = do
         liftIO $ BS.hPut h bs `finally` hClose h
         k fp
 
-createAddCommitWithHistoryClient :: (HasCallStack) => ClientIdentity -> ConvId -> [Value] -> App MessagePackage
+createAddCommitWithHistoryClient :: (HasCallStack) => ClientIdentity -> ConvId -> [Value] -> App (MessagePackage, String)
 createAddCommitWithHistoryClient cid convId users = do
   conv <- getMLSConv convId
   kps <- fmap concat . for users $ \user -> do
     bundle <- claimKeyPackages conv.ciphersuite cid user >>= getJSON 200
     unbundleKeyPackages bundle
-  (hckp, _, _) <- generateHistoryClient convId conv.ciphersuite
-  createAddCommitWithKeyPackages cid convId kps (Just hckp)
+  (hckp, _, hid) <- generateHistoryClient convId conv.ciphersuite
+  mp <- createAddCommitWithKeyPackages cid convId kps (Just hckp)
+  pure (mp, hid)
 
 createAddCommitWithKeyPackages ::
   (HasCallStack) =>
@@ -489,7 +496,10 @@ createAddCommitWithKeyPackages cid convId clientsAndKeyPackages hckp = do
       }
 
 createRemoveCommit :: (HasCallStack) => ClientIdentity -> ConvId -> [ClientIdentity] -> App MessagePackage
-createRemoveCommit cid convId targets = do
+createRemoveCommit cid convId targets = createRemoveCommit' cid convId (fmap RegularClient targets)
+
+createRemoveCommit' :: (HasCallStack) => ClientIdentity -> ConvId -> [GroupMember] -> App MessagePackage
+createRemoveCommit' cid convId targets = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   giFile <- liftIO $ emptyTempFile bd "gi"
@@ -522,12 +532,16 @@ createRemoveCommit cid convId targets = do
       )
       Nothing
 
+  let toRegular :: (Alternative f) => GroupMember -> f ClientIdentity
+      toRegular (RegularClient x) = pure x
+      toRegular (HistoryClient _) = empty
+
   modifyMLSState $ \mls ->
     mls
       { convs =
           Map.adjust
             ( \oldConvState ->
-                oldConvState {membersToBeRemoved = Set.fromList targets}
+                oldConvState {membersToBeRemoved = Set.fromList (foldMap toRegular targets)}
             )
             convId
             mls.convs
@@ -921,7 +935,7 @@ showMessage cs cid msg = do
   bs <- mlscli Nothing cs cid ["show", "message", "-"] (Just msg)
   assertOne (Aeson.decode (BS.fromStrict bs))
 
-readGroupState :: (HasCallStack) => ByteString -> App [(ClientIdentity, Word32)]
+readGroupState :: (HasCallStack) => ByteString -> App [(GroupMember, Word32)]
 readGroupState gs = do
   v :: Value <- assertJust "Could not decode group state" (Aeson.decode (BS.fromStrict gs))
   lnodes <- v %. "group" %. "public_group" %. "treesync" %. "tree" %. "leaf_nodes" & asList
@@ -934,10 +948,16 @@ readGroupState gs = do
             vecb <- lnode %. "payload" %. "credential" %. "credential" %. "Basic" %. "identity" %. "vec"
             vec <- asList vecb
             ws <- BS.pack <$> for vec (\x -> asIntegral @Word8 x)
-            [uc, domain] <- pure (C8.split '@' ws)
-            [uid, client] <- pure (C8.split ':' uc)
-            let cid = ClientIdentity (C8.unpack domain) (C8.unpack uid) (C8.unpack client)
-            pure (Just (cid, leafNodeIndex))
+            let prefix = fromString "history-client:"
+            if (prefix `BS.isPrefixOf` ws)
+              then do
+                hid <- pure $ BS.drop (BS.length prefix) ws
+                pure $ Just (HistoryClient $ C8.unpack hid, leafNodeIndex)
+              else do
+                [uc, domain] <- pure (C8.split '@' ws)
+                [uid, client] <- pure (C8.split ':' uc)
+                let cid = RegularClient $ ClientIdentity (C8.unpack domain) (C8.unpack uid) (C8.unpack client)
+                pure (Just (cid, leafNodeIndex))
       Nothing ->
         pure Nothing
 

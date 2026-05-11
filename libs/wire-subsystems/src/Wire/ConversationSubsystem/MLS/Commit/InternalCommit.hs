@@ -248,6 +248,8 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     -- TODO: (leif) should we enforce 1 history client max? and if so where?
     for_ action.paHistoryClientAdd $ \(hid, idx, _) -> addHistoryClient gid hid idx
 
+    for_ action.paHistoryClientRemove $ \(hid, _) -> removeHistoryClient gid hid
+
     -- set cipher suite
     when ciphersuiteUpdate $ case convOrSub.id of
       Conv cid -> setConversationCipherSuite cid ciphersuite

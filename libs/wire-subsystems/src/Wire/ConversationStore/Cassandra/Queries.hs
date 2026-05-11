@@ -346,6 +346,9 @@ addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user
 addHistoryClient :: PrepQuery W (GroupId, HistoryClientId, Int32) ()
 addHistoryClient = "insert into mls_history_client (group_id, id, leaf_node_index, removal_pending) values (?, ?, ?, false)"
 
+removeHistoryClient :: PrepQuery W (GroupId, HistoryClientId) ()
+removeHistoryClient = "delete from mls_history_client where group_id = ? and id = ?"
+
 planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
 
