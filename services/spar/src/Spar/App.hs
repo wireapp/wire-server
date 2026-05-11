@@ -508,7 +508,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                 throwSparSem $ SparIdPNotFound errorMsg
               Just multiIngressIdp -> do
                 -- Try to authenticate the potential user against ALL team IdPs
-                -- (including other domains) When we found one succeeding IdP
+                -- (including other domains). When we found one succeeding IdP
                 -- for this user in this team, we consider them authenticated
                 -- and migrate them to the other (requesting) IdP.
                 let subject = uref ^. SAML.uidSubject
@@ -551,7 +551,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
             uid <- MaybeT $ findUserWithUref idp' team'' oldUref
             pure (uid, oldUref)
 
-      -- \| Select the authenticating IdP for multi-ingress SSO.
+      -- Select the authenticating IdP for multi-ingress SSO.
       --
       -- Rules:
       -- 1. If an IdP matches both issuer AND domain, use it (exact match)
@@ -562,10 +562,9 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
         case find matchesIssuerAndDomain teamIdPs of
           Just matchingIdp -> pure $ Just matchingIdp
           Nothing ->
-            -- No exact match. Check if singleton IdP case.
             case teamIdPs of
-              [singleIdP] -> pure $ Just singleIdP -- Singleton: use for all domains
-              _ -> pure Nothing -- Multiple IdPs but no match: error
+              [singleIdP] -> pure $ Just singleIdP
+              _ -> pure Nothing
         where
           matchesIssuerAndDomain idp' =
             idp' ^. SAML.idpMetadata . SAML.edIssuer == issuer
