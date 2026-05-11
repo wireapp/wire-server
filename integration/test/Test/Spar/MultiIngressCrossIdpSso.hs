@@ -793,6 +793,94 @@ testIdpNotFoundError = do
                 <> "' is not configured for this team"
         bdy `shouldContain` expectedErrorMsg
 
+-- | Test that a new user is provisioned when the IdP is correct but the user doesn't exist.
+--
+-- This tests the case in multiIngressFlow (services/spar/src/Spar/App.hs:516) where:
+-- 1. Multi-ingress SSO is enabled with multiple IdPs
+-- 2. A user tries to authenticate with an email-based NameID
+-- 3. The IdP matches (issuer + domain are correct)
+-- 4. But the user doesn't exist in ANY IdP for this team yet
+-- 5. Expected: A new user should be provisioned
+testNewUserProvisioningWithMultipleIdPs :: (HasCallStack) => App ()
+testNewUserProvisioningWithMultipleIdPs = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      -- Create team and enable SSO
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register TWO IdPs: one for Ernie domain, one for Bert domain
+      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+      idpIdErnie <- asString $ idpErnie.json %. "id"
+
+      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+      idpIdBert <- asString $ idpBert.json %. "id"
+
+      -- Create email-based NameID for NEW user Bibo (doesn't exist yet)
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack biboEmail)
+
+      -- First login: Bibo tries to log in on Bert domain with Bert's IdP
+      -- This should SUCCEED and create a new user because:
+      -- - The IdP matches (issuer=bert, domain=bert)
+      -- - Bibo doesn't exist in any IdP yet
+      -- - So multiIngressFlow provisions a new user
+      (mUserIdBert, _) <-
+        loginWithSamlWithZHost
+          (Just bertZHost)
+          domain
+          True -- expect SUCCESS
+          tid
+          biboNameId
+          (idpIdBert, (idpMetaBert, pCredsBert))
+
+      -- Verify user was created
+      biboId <- assertOne mUserIdBert
+
+      -- Login on Ernie domain with same email -> cross-IdP migration
+      (mUserIdErnie, _) <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True
+          tid
+          biboNameId -- Same email
+          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+
+      -- Should return same user (migration, not new user)
+      mUserIdErnie `shouldMatch` Just biboId
+
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
 makeSampleIdPMetadataWithIssuer suffix = do
