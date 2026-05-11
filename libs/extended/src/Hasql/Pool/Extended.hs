@@ -58,7 +58,7 @@ initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   let pgSettings =
         HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl $ PostgresqlConnectionString.fromKeyValueParams pgConfig)
-          <> maybe mempty HasqlConnSettings.password mPw
+          <> foldMap HasqlConnSettings.password mPw
   metrics <- initHasqlPoolMetrics
   connsRef <- newIORef $ Connections mempty mempty mempty
   HasqlPool.acquire $
