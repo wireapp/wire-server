@@ -138,7 +138,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r
+    Member (Error GroupInfoDiagnostics) r,
+    Member (Error (Tagged MLSHistoryClientConflict ())) r
   ) =>
   Version ->
   Local UserId ->
@@ -311,6 +312,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
         -- TODO: (leif) enfore max 1 history client
+        -- TODO: extract
         let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
         let historyClientExists = any isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
         lift $ when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
@@ -466,7 +468,8 @@ postMLSMessage ::
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r
+    Member (Error GroupInfoDiagnostics) r,
+    Member (Error (Tagged MLSHistoryClientConflict ())) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -514,7 +517,8 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member (Input EnableOutOfSyncCheck) r
+    Member (Input EnableOutOfSyncCheck) r,
+    Member (ErrorS MLSHistoryClientConflict) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -538,7 +542,8 @@ validateMessage ::
     Member (ErrorS MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member (Input EnableOutOfSyncCheck) r
+    Member (Input EnableOutOfSyncCheck) r,
+    Member (ErrorS MLSHistoryClientConflict) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -587,6 +592,10 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
                 || epochInt msg.epoch > epochInt epoch
             )
             $ throwS @'MLSStaleMessage
+
+      let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+      let historyClientExists = any isHistoryClient (IntMap.elems convOrSub.indexMap.unIndexMap)
+      when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,

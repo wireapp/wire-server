@@ -658,7 +658,8 @@ sendMLSMessage ::
     Member P.TinyLog r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Error (Tagged MLSHistoryClientConflict ())) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
