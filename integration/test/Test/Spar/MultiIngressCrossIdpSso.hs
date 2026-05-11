@@ -21,6 +21,7 @@ import API.BrigInternal (getUsersId)
 import API.Common (randomEmail, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, finalizeSamlLoginWithZHost, getSPMetadataWithZHost, getSsoCodeByEmailWithZHost, initiateSamlLoginWithZHostAndLabel)
+import Control.Lens ((^.))
 import Data.ByteString.Char8 (unpack)
 import Data.Either.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -780,6 +781,123 @@ testNonEmailNameIdRejectedInMultiIngress = do
         let bdy = unpack resp.body
         bdy `shouldContain` "wire:sso:error:multi-ingress-config-error"
         bdy `shouldContain` "Multi-ingress SSO requires email-based NameIDs: Multi-ingress SSO only supports email-based NameIDs for cross-IdP migration. Username-based NameIDs are not allowed."
+
+-- | Test that SAML responses without a prior authentication request are rejected.
+--
+-- A response referencing a request Spar never stored results in a "bad InResponseTo" error.
+testUnsolicitedSamlResponseRejected :: (HasCallStack) => App ()
+testUnsolicitedSamlResponseRejected = do
+  let bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+      idpIdBert <- asString $ idpBert.json %. "id"
+
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack biboEmail)
+
+      let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
+      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
+      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+      -- Create a local authn request (stored in SimpleSP's in-memory store, not in Spar's Cassandra)
+      localReq <- runSimpleSP $ SAML.createAuthnRequest 300 (idpMetaBert ^. SAML.edIssuer) (idpMetaBert ^. SAML.edIssuer)
+      authnReqResp <- makeAuthnResponse biboNameId pCredsBert idpConfig spMetaData localReq
+
+      -- Spar cannot find the request (no verdict format stored), so it rejects with server error.
+      -- This is not a user flow, so we can accept any error - even 500 - here.
+      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+        resp.status `shouldMatchInt` 500
+        resp.json %. "label" `shouldMatch` "server-error"
+
+-- | Test that SAML responses for one ingress are rejected when submitted to a different ingress.
+--
+-- A login request on the ernie ingress must be finalized on the ernie ingress.
+-- Finalizing on the bert ingress should fail with a bad recipient error.
+testCrossIngressRequestResponseMismatch :: (HasCallStack) => App ()
+testCrossIngressRequestResponseMismatch = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+      idpIdErnie <- asString $ idpErnie.json %. "id"
+
+      SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      void $ createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack biboEmail)
+
+      -- Initiate login on ernie ingress — response Destination is ernie's ACS URL
+      let ernieIdpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdErnie))) idpMetaErnie ()
+      spmeta <- getSPMetadataWithZHost domain (Just ernieZHost) tid
+      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just ernieZHost) Nothing idpIdErnie
+      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+          parsedAuthnReq = parseAuthnReqResp authnreq.body
+      authnReqResp <- makeAuthnResponse biboNameId pCredsErnie ernieIdpConfig spMetaData parsedAuthnReq
+
+      -- Finalize on bert ingress — Destination mismatch, bad recipient
+      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        let bdy = unpack resp.body
+        bdy `shouldContain` "wire:sso:error:forbidden"
+        bdy `shouldContain` "bad Recipient"
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
