@@ -407,8 +407,6 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
   BrigAPIAccess.setSSOId uid (UserSSOId newUserRef)
   SAMLUserStore.delete uid oldUserRef
 
--- TODO: Ideally, we would leave this function untouched to make obvious that the behaviour hasn't changed.
--- As it has side-effects, this ideal can probably not be reached. However, we could consider to let it return a result and act accordingly.
 verdictHandlerResultCore ::
   forall r.
   (HasCallStack) =>
@@ -492,10 +490,8 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
             teamIdPs <- IdPConfigStore.getConfigsByTeam team'
             let urefIssuer = uref ^. SAML.uidTenant
 
-            -- Select the authenticating IdP from the team's IdPs
-            selectAuthenticatingIdP teamIdPs urefIssuer mbHost >>= \case
+            case selectAuthenticatingIdP teamIdPs urefIssuer mbHost of
               Nothing -> do
-                -- No matching IdP found and it's not a singleton case
                 let issuerText = urefIssuer ^. SAML.fromIssuer . to URI.serializeURIRef'
                     domainText = fromMaybe "default" mbHost
                     errorMsg =
@@ -507,10 +503,6 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                           <> "' is not configured for this team"
                 throwSparSem $ SparIdPNotFound errorMsg
               Just multiIngressIdp -> do
-                -- Try to authenticate the potential user against ALL team IdPs
-                -- (including other domains). When we found one succeeding IdP
-                -- for this user in this team, we consider them authenticated
-                -- and migrate them to the other (requesting) IdP.
                 let subject = uref ^. SAML.uidSubject
                 findUserInTeamIdPs team' subject teamIdPs >>= \case
                   Nothing -> do
@@ -557,14 +549,12 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
       -- 1. If an IdP matches both issuer AND domain, use it (exact match)
       -- 2. If no exact match and there's only ONE IdP for the team, use it (singleton)
       -- 3. If no exact match and multiple IdPs exist, return Nothing (error case)
-      selectAuthenticatingIdP :: [IdP] -> Issuer -> Maybe Text -> Sem r (Maybe IdP)
+      selectAuthenticatingIdP :: [IdP] -> Issuer -> Maybe Text -> Maybe IdP
       selectAuthenticatingIdP teamIdPs issuer mbDomain =
-        case find matchesIssuerAndDomain teamIdPs of
-          Just matchingIdp -> pure $ Just matchingIdp
-          Nothing ->
-            case teamIdPs of
-              [singleIdP] -> pure $ Just singleIdP
-              _ -> pure Nothing
+        find matchesIssuerAndDomain teamIdPs
+          <|> case teamIdPs of
+            [singleIdP] -> Just singleIdP
+            _ -> Nothing
         where
           matchesIssuerAndDomain idp' =
             idp' ^. SAML.idpMetadata . SAML.edIssuer == issuer
