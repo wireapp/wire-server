@@ -42,7 +42,7 @@ import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
 import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.MeetingsStore
-import Wire.Postgres (PGConstraints)
+import Wire.Postgres
 
 interpretMeetingsStoreToPostgres ::
   (PGConstraints r) =>
@@ -80,7 +80,6 @@ createMeetingImpl ::
   Bool ->
   Sem r StoredMeeting
 createMeetingImpl title creator startTime endTime recurrence convId emails trial = do
-  pool <- input
   now <- liftIO getCurrentTime
   let sm =
         StoredMeeting
@@ -96,8 +95,7 @@ createMeetingImpl title creator startTime endTime recurrence convId emails trial
             createdAt = now,
             updatedAt = now
           }
-  result <- liftIO $ use pool $ statement sm insertStatement
-  either throw pure result
+  runStatement sm insertStatement
 
 insertStatement :: Statement StoredMeeting StoredMeeting
 insertStatement =
@@ -187,18 +185,12 @@ updateMeetingImpl ::
   Maybe (Maybe Recurrence) ->
   Sem r (Maybe StoredMeeting)
 updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  case mRecurrence of
+    Nothing ->
+      runStatement (mTitle, mStartDate, mEndDate, meetingId) updateWithoutRecurrenceStatement
+    Just recurrence ->
+      runStatement (mTitle, mStartDate, mEndDate, recurrence, meetingId) updateWithRecurrenceStatement
   where
-    session :: Session (Maybe StoredMeeting)
-    session =
-      case mRecurrence of
-        Nothing ->
-          statement (mTitle, mStartDate, mEndDate, meetingId) updateWithoutRecurrenceStatement
-        Just recurrence ->
-          statement (mTitle, mStartDate, mEndDate, recurrence, meetingId) updateWithRecurrenceStatement
-
     updateWithRecurrenceStatement :: Statement UpdateMeetingWithRecurrenceTuple (Maybe StoredMeeting)
     updateWithRecurrenceStatement =
       dimapPG
