@@ -144,26 +144,26 @@ testHistoryConflict = do
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
   setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
 
-  let history = object ["depth" .= "infinite"]
-
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
-  convId <-
-    createNewGroupWith
-      def
-      alice1
-      defMLS
-        { team = Just tid,
-          groupConvType = Just "channel"
-        }
+  convId <- createNewGroupWith def alice1 defMLS {team = Just tid, groupConvType = Just "channel"}
 
+  let history = object ["depth" .= "infinite"]
   bindResponse (updateHistory alice convId history) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-  mp <- createAddCommit alice1 convId [bob]
-  postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 400
-    resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+  -- an add commit must be rejected if history is enable and no history client exists
+  do
+    mp <- createAddCommit alice1 convId [bob]
+    postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 400
+      resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+  -- now the history client is included in the add commit
+  do
+    mp <- createAddCommitWithHistoryClient alice1 convId [bob]
+    postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
 
 channelsConfig :: Value
 channelsConfig =
