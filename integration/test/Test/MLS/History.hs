@@ -139,13 +139,13 @@ testSetHistory = do
 
 testHistoryConflict :: App ()
 testHistoryConflict = do
-  (alice, tid, [bob]) <- createTeam OwnDomain 2
+  (alice, tid, [bob, charlie]) <- createTeam OwnDomain 3
 
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
   setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
 
-  [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
-  void $ uploadNewKeyPackage def bob1
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  for_ [bob1, charlie1] $ uploadNewKeyPackage def
   convId <- createNewGroupWith def alice1 defMLS {team = Just tid, groupConvType = Just "channel"}
 
   let history = object ["depth" .= "infinite"]
@@ -160,9 +160,10 @@ testHistoryConflict = do
       resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
 
   -- now the history client is included in the add commit
-  mp <- createAddCommitWithHistoryClient alice1 convId [bob]
-  postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
+  void $ createAddCommitWithHistoryClient alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- now that the history client was added a noremal add commit will not be rejected
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
 channelsConfig :: Value
 channelsConfig =
