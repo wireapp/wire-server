@@ -153,17 +153,16 @@ testHistoryConflict = do
     resp.status `shouldMatchInt` 200
 
   -- an add commit must be rejected if history is enable and no history client exists
-  do
+  withMLSStateReset $ do
     mp <- createAddCommit alice1 convId [bob]
     postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 400
       resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
 
   -- now the history client is included in the add commit
-  do
-    mp <- createAddCommitWithHistoryClient alice1 convId [bob]
-    postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 200
+  mp <- createAddCommitWithHistoryClient alice1 convId [bob]
+  postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
 
 channelsConfig :: Value
 channelsConfig =

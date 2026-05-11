@@ -1099,3 +1099,8 @@ resetMLSConversation cid conv = do
   keys <- getMLSPublicKeys cid >>= getJSON 200
   resetClientGroup mlsConv'.ciphersuite cid mlsConv'.groupId convId' keys
   pure conv'
+
+withMLSStateReset :: App a -> App a
+withMLSStateReset f = do
+  mlsState <- getMLSState
+  f <* modifyMLSState (const mlsState)
