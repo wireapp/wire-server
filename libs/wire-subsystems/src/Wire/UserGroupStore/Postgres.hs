@@ -358,7 +358,7 @@ getUserGroups tid req@(UserGroupPageRequest {..}) = do
             )
             decodeRow
 
-    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID))]
+    decodeRow :: HD.Result [(UUID, Text, Int32, UTCTime, Maybe Int64, Int64, Maybe (Vector UUID))]
     decodeRow =
       HD.rowList
         ( (,,,,,,)
@@ -366,15 +366,15 @@ getUserGroups tid req@(UserGroupPageRequest {..}) = do
             <*> HD.column (HD.nonNullable HD.text)
             <*> HD.column (HD.nonNullable HD.int4)
             <*> HD.column (HD.nonNullable HD.timestamptz)
-            <*> (if req.includeMemberCount then Just <$> HD.column (HD.nonNullable HD.int4) else pure Nothing)
-            <*> HD.column (HD.nonNullable HD.int4)
+            <*> (if req.includeMemberCount then Just <$> HD.column (HD.nonNullable HD.int8) else pure Nothing)
+            <*> HD.column (HD.nonNullable HD.int8)
             <*> ( if req.includeChannels
                     then Just <$> decodeUuidVector
                     else pure Nothing
                 )
         )
 
-    parseRow :: Local a -> (UUID, Text, Int32, UTCTime, Maybe Int32, Int32, Maybe (Vector UUID)) -> Either Text UserGroupMeta
+    parseRow :: Local a -> (UUID, Text, Int32, UTCTime, Maybe Int64, Int64, Maybe (Vector UUID)) -> Either Text UserGroupMeta
     parseRow loc (Id -> id_, namePre, managedByPre, toUTCTimeMillis -> createdAt, membersCountRaw, channelsCountRaw, maybeChannels) = do
       managedBy <- parseManagedBy managedByPre
       name <- userGroupNameFromText namePre
