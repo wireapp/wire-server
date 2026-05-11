@@ -30,7 +30,6 @@ import Data.Set qualified as Set
 import Data.UUID
 import Data.Vector hiding (mapM)
 import Hasql.Pool
-import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
@@ -38,6 +37,7 @@ import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Team.Collaborator
+import Wire.Postgres
 import Wire.TeamCollaboratorsStore
 
 interpretTeamCollaboratorsStoreToPostgres ::
@@ -58,21 +58,13 @@ interpretTeamCollaboratorsStoreToPostgres =
     RemoveTeamCollaborator userId teamId -> removeTeamCollaboratorImpl userId teamId
 
 getTeamCollaboratorImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   TeamId ->
   UserId ->
   Sem r (Maybe TeamCollaborator)
 getTeamCollaboratorImpl teamId userId = do
-  pool <- input
-  eitherTeamCollaborator <- liftIO $ use pool session
-  either throw pure eitherTeamCollaborator
+  runStatement (teamId, userId) getTeamCollaboratorStatement
   where
-    session :: Session (Maybe TeamCollaborator)
-    session = statement (teamId, userId) getTeamCollaboratorStatement
-
     getTeamCollaboratorStatement :: Statement (TeamId, UserId) (Maybe TeamCollaborator)
     getTeamCollaboratorStatement =
       dimap
@@ -83,9 +75,7 @@ getTeamCollaboratorImpl teamId userId = do
           |]
 
 createTeamCollaboratorImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r,
+  ( PGConstraints r,
     Member (Error TeamCollaboratorsError) r
   ) =>
   UserId ->
@@ -93,16 +83,11 @@ createTeamCollaboratorImpl ::
   Set CollaboratorPermission ->
   Sem r ()
 createTeamCollaboratorImpl userId teamId permissions = do
-  pool <- input
-  eitherRowsAffected <- liftIO $ use pool session
-  mReturn <- either throw pure eitherRowsAffected
+  mReturn <- runStatement (userId, teamId, permissions) insertStatement
   case mReturn of
     Just _ -> pure ()
     Nothing -> throw AlreadyExists
   where
-    session :: Session (Maybe Int32)
-    session = statement (userId, teamId, permissions) insertStatement
-
     insertStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) (Maybe Int32)
     insertStatement =
       lmap
@@ -123,13 +108,8 @@ getAllTeamCollaboratorsImpl ::
   TeamId ->
   Sem r [TeamCollaborator]
 getAllTeamCollaboratorsImpl teamId = do
-  pool <- input
-  eitherTeamCollaborators <- liftIO $ use pool session
-  either throw pure eitherTeamCollaborators
+  runStatement teamId getAllTeamCollaboratorsStatement
   where
-    session :: Session [TeamCollaborator]
-    session = statement teamId getAllTeamCollaboratorsStatement
-
     getAllTeamCollaboratorsStatement :: Statement TeamId [TeamCollaborator]
     getAllTeamCollaboratorsStatement =
       dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
@@ -147,13 +127,8 @@ updateTeamCollaboratorImpl ::
   Set CollaboratorPermission ->
   Sem r ()
 updateTeamCollaboratorImpl userId teamId permissions = do
-  pool <- input
-  eitherErrorOrUnit <- liftIO $ use pool session
-  either throw pure eitherErrorOrUnit
+  runStatement (userId, teamId, permissions) updateStatement
   where
-    session :: Session ()
-    session = statement (userId, teamId, permissions) updateStatement
-
     updateStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) ()
     updateStatement =
       lmap
@@ -173,13 +148,8 @@ removeTeamCollaboratorImpl ::
   TeamId ->
   Sem r ()
 removeTeamCollaboratorImpl userId teamId = do
-  pool <- input
-  eitherErrorOrUnit <- liftIO $ use pool session
-  either throw pure eitherErrorOrUnit
+  runStatement (userId, teamId) deleteStatement
   where
-    session :: Session ()
-    session = statement (userId, teamId) deleteStatement
-
     deleteStatement :: Statement (UserId, TeamId) ()
     deleteStatement =
       lmap
@@ -218,13 +188,8 @@ getTeamCollaborationsImpl ::
   UserId ->
   Sem r [TeamCollaborator]
 getTeamCollaborationsImpl teamId = do
-  pool <- input
-  eitherTeamCollaborators <- liftIO $ use pool session
-  either throw pure eitherTeamCollaborators
+  runStatement teamId getAllCollaborationsByUserStatement
   where
-    session :: Session [TeamCollaborator]
-    session = statement teamId getAllCollaborationsByUserStatement
-
     getAllCollaborationsByUserStatement :: Statement UserId [TeamCollaborator]
     getAllCollaborationsByUserStatement =
       dimap toUUID (Data.Vector.toList . (toTeamCollaborator <$>)) $
@@ -241,13 +206,8 @@ getTeamCollaboratorsWithIdsImpl ::
   Set UserId ->
   Sem r [TeamCollaborator]
 getTeamCollaboratorsWithIdsImpl teamIds userIds = do
-  pool <- input
-  eitherTeamCollaborators <- liftIO $ use pool session
-  either throw pure eitherTeamCollaborators
+  runStatement (Data.Set.toList teamIds, Data.Set.toList userIds) getTeamCollaboratorStatement
   where
-    session :: Session [TeamCollaborator]
-    session = statement (Data.Set.toList teamIds, Data.Set.toList userIds) getTeamCollaboratorStatement
-
     getTeamCollaboratorStatement :: Statement ([TeamId], [UserId]) [TeamCollaborator]
     getTeamCollaboratorStatement =
       dimap
