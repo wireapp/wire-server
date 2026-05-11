@@ -138,7 +138,7 @@ testSetHistory = do
   conv <- getConversation alice convId >>= getJSON 200
   conv %. "history" `shouldMatch` history
 
-testHistoryConflict :: App ()
+testHistoryConflict :: (HasCallStack) => App ()
 testHistoryConflict = do
   (alice, tid, [bob, charlie, dorothy, emily]) <- createTeam OwnDomain 5
 
@@ -148,40 +148,63 @@ testHistoryConflict = do
   [alice1, bob1, charlie1, dorothy1, emily1] <- traverse (createMLSClient def) [alice, bob, charlie, dorothy, emily]
   for_ [bob1, charlie1, dorothy1, emily1] $ uploadNewKeyPackage def
   convId <- createNewGroupWith def alice1 defMLS {team = Just tid, groupConvType = Just "channel"}
+
+  -- adding an empty commit to be able to test application message rejection
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
+
+  -- HISTORY ENABLED
   enableHistorySharing convId alice
 
-  -- an add commit must be rejected if history is enable and no history client exists
-  withMLSStateReset $ do
-    mp <- createAddCommit alice1 convId [bob]
-    postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+  -- application message and add commit are rejected
+  assertApplicationMessageFailure convId alice1
+  assertAddCommitIsRejected convId alice1 [bob]
 
-  -- now the history client is included in the add commit
+  -- HISTORY CLIENT ADDED
   hid <- do
     (mp, hid) <- createAddCommitWithHistoryClient alice1 convId [bob]
     void $ sendAndConsumeCommitBundle mp
     pure hid
 
-  -- now that the history client was added a noremal add commit will not be rejected
+  -- application message and add commits are accepted
+  void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
   void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
 
+  -- HISTORY DISABLED
   disableHistorySharing convId alice
-  withMLSStateReset $ do
-    mp <- createAddCommit alice1 convId [dorothy]
-    postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
-      resp.status `shouldMatchInt` 400
-      resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
 
+  -- application message and add commit are rejected
+  assertApplicationMessageFailure convId alice1
+  assertAddCommitIsRejected convId alice1 [dorothy]
+
+  -- HISTORY CLIENT REMOVED
   void $ createRemoveCommit' alice1 convId [HistoryClient hid] >>= sendAndConsumeCommitBundle
 
+  -- application message and add commits are accepted
+  void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
   void $ createAddCommit alice1 convId [emily] >>= sendAndConsumeCommitBundle
   where
+    assertAddCommitIsRejected :: (HasCallStack) => ConvId -> ClientIdentity -> [Value] -> App ()
+    assertAddCommitIsRejected convId user users =
+      withMLSStateReset $ do
+        mp <- createAddCommit user convId users
+        postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+    assertApplicationMessageFailure :: (HasCallStack) => ConvId -> ClientIdentity -> App ()
+    assertApplicationMessageFailure convId user = do
+      mp <- createApplicationMessage convId user "hello"
+      postMLSMessage mp.sender mp.message `bindResponse` \res -> do
+        res.status `shouldMatchInt` 400
+        res.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+    enableHistorySharing :: (HasCallStack) => ConvId -> Value -> App ()
     enableHistorySharing convId user = do
       let history = object ["depth" .= "infinite"]
       bindResponse (updateHistory user convId history) $ \resp -> do
         resp.status `shouldMatchInt` 200
 
+    disableHistorySharing :: (HasCallStack) => ConvId -> Value -> App ()
     disableHistorySharing convId user = do
       bindResponse (updateHistory user convId A.Null) $ \resp -> do
         resp.status `shouldMatchInt` 200
