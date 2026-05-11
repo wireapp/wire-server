@@ -533,7 +533,6 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                           . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
                           . Log.field "multi_ingress_idp" (multiIngressIdp ^. SAML.idpId . to SAML.fromIdPId . to show)
                           . Log.field "domain" (mbHost & fromMaybe "None")
-                      -- TODO: This needs to be better understood and tested.
                       moveUserToNewIssuer oldUref uref uid
                       pure uid
           _ ->
