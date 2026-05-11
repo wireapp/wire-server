@@ -43,6 +43,7 @@ import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Pagination
+import Wire.API.PostgresMarshall
 import Wire.API.User.Profile
 import Wire.API.UserGroup hiding (UpdateUserGroupChannels)
 import Wire.API.UserGroup.Pagination
@@ -79,13 +80,8 @@ interpretUserGroupStoreToPostgres =
 
 getUserGroupsForConv :: (UserGroupStorePostgresEffectConstraints r) => ConvId -> Sem r (Vector UserGroup)
 getUserGroupsForConv convId = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runStatement convId stmt
   where
-    session :: Session (Vector UserGroup)
-    session = statement convId stmt
-
     decodeRow :: (UUID, Text, Int32, UTCTime, Vector UUID) -> Either Text UserGroup
     decodeRow (uuid, nameTxt, managedByInt, createdAtUtc, memberIds) = do
       name <- userGroupNameFromText nameTxt
@@ -112,15 +108,9 @@ getUserGroupsForConv convId = do
 
 getUserGroupIdsForUsers :: (UserGroupStorePostgresEffectConstraints r) => [UserId] -> Sem r (Map UserId [UserGroupId])
 getUserGroupIdsForUsers uidsList = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  rows <- runStatement (V.fromList (toUUID <$> uidsList)) stmt
+  pure $ Map.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
   where
-    session :: Session (Map UserId [UserGroupId])
-    session = do
-      rows <- statement (V.fromList (toUUID <$> uidsList)) stmt
-      pure $ Map.fromListWith (<>) [(Id u, [Id g]) | (u, g) <- V.toList rows]
-
     stmt :: Statement (Vector UUID) (Vector (UUID, UUID))
     stmt =
       [vectorStatement|
@@ -131,15 +121,10 @@ getUserGroupIdsForUsers uidsList = do
 
 updateUsers :: (UserGroupStorePostgresEffectConstraints r) => UserGroupId -> Vector UserId -> Sem r ()
 updateUsers gid uids = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runTransactionWithRetry TxSessions.Serializable TxSessions.Write do
+    Tx.statement gid deleteAllUsersStatement
+    Tx.statement (toUUID gid, uids) insertGroupMembersStatement
   where
-    session :: Session ()
-    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write do
-      Tx.statement gid deleteAllUsersStatement
-      Tx.statement (toUUID gid, uids) insertGroupMembersStatement
-
     deleteAllUsersStatement :: Statement UserGroupId ()
     deleteAllUsersStatement =
       dimap (.toUUID) (const ()) $
@@ -155,10 +140,11 @@ getUserGroup ::
   Bool ->
   Sem r (Maybe UserGroup)
 getUserGroup team id_ includeChannels = do
-  pool <- input
   loc <- inputQualifyLocal ()
-  eitherUserGroup <- liftIO $ use pool (if includeChannels then sessionWithChannels loc else session)
-  either throw pure eitherUserGroup
+  runSessionWithRetry $
+    if includeChannels
+      then sessionWithChannels loc
+      else session
   where
     session :: Session (Maybe UserGroup)
     session = runMaybeT do
@@ -400,26 +386,21 @@ createUserGroup ::
   ManagedBy ->
   Sem r UserGroup
 createUserGroup team newUserGroup managedBy = do
-  pool <- input
-  eitherUuid <- liftIO $ use pool session
-  either throw pure eitherUuid
+  runTransaction TxSessions.Serializable TxSessions.Write do
+    (id_, name, managedBy_, createdAt) <- Tx.statement (newUserGroup.name, team, managedBy) insertGroupStatement
+    Tx.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
+    pure
+      UserGroup_
+        { membersCount = Nothing,
+          members = Identity newUserGroup.members,
+          channels = mempty,
+          managedBy = managedBy_,
+          channelsCount = Nothing,
+          id_,
+          name,
+          createdAt
+        }
   where
-    session :: Session UserGroup
-    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write do
-      (id_, name, managedBy_, createdAt) <- Tx.statement (newUserGroup.name, team, managedBy) insertGroupStatement
-      Tx.statement (toUUID id_, newUserGroup.members) insertGroupMembersStatement
-      pure
-        UserGroup_
-          { membersCount = Nothing,
-            members = Identity newUserGroup.members,
-            channels = mempty,
-            managedBy = managedBy_,
-            channelsCount = Nothing,
-            id_,
-            name,
-            createdAt
-          }
-
     decodeMetadataRow :: (UUID, Text, Int32, UTCTime) -> Either Text (UserGroupId, UserGroupName, ManagedBy, UTCTimeMillis)
     decodeMetadataRow (groupId, name, managedByInt, utcTime) =
       (Id groupId,,,toUTCTimeMillis utcTime)
@@ -452,15 +433,9 @@ updateGroup ::
   UserGroupUpdate ->
   Sem r (Maybe ())
 updateGroup tid gid gup = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  found <- isJust <$> runStatement (tid, gid, gup.name) updateGroupStatement
+  pure $ if found then Just () else Nothing
   where
-    session :: Session (Maybe ())
-    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write do
-      found <- isJust <$> Tx.statement (tid, gid, gup.name) updateGroupStatement
-      pure $ if found then Just () else Nothing
-
     updateGroupStatement :: Statement (TeamId, UserGroupId, UserGroupName) (Maybe Bool)
     updateGroupStatement =
       lmap (\(t, g, n) -> (t.toUUID, g.toUUID, userGroupNameToText n)) $
@@ -477,15 +452,9 @@ deleteGroup ::
   UserGroupId ->
   Sem r (Maybe ())
 deleteGroup tid gid = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  found <- isJust <$> runStatement (tid, gid) deleteGroupStatement
+  pure $ if found then Just () else Nothing
   where
-    session :: Session (Maybe ())
-    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write do
-      found <- isJust <$> Tx.statement (tid, gid) deleteGroupStatement
-      pure $ if found then Just () else Nothing
-
     deleteGroupStatement :: Statement (TeamId, UserGroupId) (Maybe Bool)
     deleteGroupStatement =
       lmap (\(t, g) -> (t.toUUID, g.toUUID)) $
@@ -501,11 +470,15 @@ addUser ::
   UserGroupId ->
   UserId ->
   Sem r ()
-addUser =
-  crudUser
-    [resultlessStatement|
-      insert into user_group_member (user_group_id, user_id) values (($1 :: uuid), ($2 :: uuid))
-      |]
+addUser ugid uid =
+  runStatement (ugid, uid) insertStatement
+  where
+    insertStatement :: Statement (UserGroupId, UserId) ()
+    insertStatement =
+      lmapPG
+        [resultlessStatement|
+        insert into user_group_member (user_group_id, user_id) values (($1 :: uuid), ($2 :: uuid))
+        |]
 
 removeUser ::
   forall r.
@@ -513,11 +486,15 @@ removeUser ::
   UserGroupId ->
   UserId ->
   Sem r ()
-removeUser =
-  crudUser
-    [resultlessStatement|
-      delete from user_group_member where user_group_id = ($1 :: uuid) and user_id = ($2 :: uuid)
-      |]
+removeUser ugid uid =
+  runStatement (ugid, uid) deleteStatement
+  where
+    deleteStatement :: Statement (UserGroupId, UserId) ()
+    deleteStatement =
+      lmapPG
+        [resultlessStatement|
+        delete from user_group_member where user_group_id = ($1 :: uuid) and user_id = ($2 :: uuid)
+        |]
 
 updateUserGroupChannels ::
   forall r.
@@ -527,16 +504,11 @@ updateUserGroupChannels ::
   Vector ConvId ->
   Sem r ()
 updateUserGroupChannels appendOnly gid convIds = do
-  pool <- input
-  eitherErrorOrUnit <- liftIO $ use pool session
-  either throw pure eitherErrorOrUnit
+  runTransaction TxSessions.Serializable TxSessions.Write $ do
+    unless appendOnly $
+      Tx.statement (gid, convIds) deleteStatement
+    Tx.statement (gid, convIds) insertStatement
   where
-    session :: Session ()
-    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write $ do
-      unless appendOnly $
-        Tx.statement (gid, convIds) deleteStatement
-      Tx.statement (gid, convIds) insertStatement
-
     deleteStatement :: Statement (UserGroupId, Vector ConvId) ()
     deleteStatement =
       lmap
@@ -560,15 +532,9 @@ getUserGroupChannels ::
   UserGroupId ->
   Sem r (Maybe (Vector ConvId))
 getUserGroupChannels tid gid = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  mbUuids <- runStatement (gid, tid) getChannelsStatement
+  pure (fmap (fmap Id) mbUuids)
   where
-    session :: Session (Maybe (Vector ConvId))
-    session = do
-      mbUuids <- statement (gid, tid) getChannelsStatement
-      pure (fmap (fmap Id) mbUuids)
-
     getChannelsStatement :: Statement (UserGroupId, TeamId) (Maybe (Vector UUID))
     getChannelsStatement =
       lmap (\(g, t) -> (g.toUUID, t.toUUID)) $
@@ -581,24 +547,6 @@ getUserGroupChannels tid gid = do
           from user_group ug
           where ug.id = ($1 :: uuid) and ug.team_id = ($2 :: uuid)
         |]
-
-crudUser ::
-  forall r.
-  (UserGroupStorePostgresEffectConstraints r) =>
-  Statement (UUID, UUID) () ->
-  UserGroupId ->
-  UserId ->
-  Sem r ()
-crudUser op gid uid = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
-  where
-    session :: Session ()
-    session = TxSessions.transaction TxSessions.Serializable TxSessions.Write do
-      Tx.statement
-        (gid, uid)
-        (lmap (\(gid_, uid_) -> (gid_.toUUID, uid_.toUUID)) op)
 
 toRelationTable :: a -> Vector b -> (Vector a, Vector b)
 toRelationTable a bs = (a <$ bs, bs)
