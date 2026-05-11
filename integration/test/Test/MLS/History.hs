@@ -163,7 +163,7 @@ testHistoryConflict = do
   void $ createAddCommitWithHistoryClient alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   -- now that the history client was added a noremal add commit will not be rejected
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
 
 channelsConfig :: Value
 channelsConfig =

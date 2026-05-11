@@ -729,6 +729,13 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \(c, idx) ->
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
+addHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> Client ()
+addHistoryClient groupId hid idx =
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery Cql.addHistoryClient (groupId, hid, fromIntegral idx)
+
 planMLSClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> Client ()
 planMLSClientRemoval groupId cids =
   retry x5 . batch $ do
@@ -1026,6 +1033,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   AddMLSClients lcnv quid cs -> do
     logEffect "ConversationStore.AddMLSClients"
     embedClient client $ addMLSClients lcnv quid cs
+  AddHistoryClient groupId hid idx -> do
+    logEffect "ConversationStore.AddHistoryClient"
+    embedClient client $ addHistoryClient groupId hid idx
   PlanClientRemoval lcnv cids -> do
     logEffect "ConversationStore.PlanClientRemoval"
     embedClient client $ planMLSClientRemoval lcnv cids
@@ -1404,6 +1414,13 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ addMLSClients groupId quid cs
         True -> interpretConversationStoreToPostgres (ConvStore.addMLSClients groupId quid cs)
+  AddHistoryClient groupId hid idx -> do
+    logEffect "ConversationStore.AddHistoryClient"
+    cid <- groupIdToConvId groupId
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ addHistoryClient groupId hid idx
+        True -> interpretConversationStoreToPostgres (ConvStore.addHistoryClient groupId hid idx)
   PlanClientRemoval gid clients -> do
     logEffect "ConversationStore.PlanClientRemoval"
     cid <- groupIdToConvId gid

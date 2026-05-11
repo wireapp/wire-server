@@ -120,6 +120,7 @@ data ConversationStore m a where
   DeleteMembers :: ConvId -> UserList UserId -> ConversationStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> ConversationStore m ()
+  AddHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> ConversationStore m ()
   PlanClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> ConversationStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> ConversationStore m ()
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()

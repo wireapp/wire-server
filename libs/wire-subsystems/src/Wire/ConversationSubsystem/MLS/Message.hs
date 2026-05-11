@@ -310,6 +310,7 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
+        -- TODO: (leif) enfore max 1 history client
         let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
         let historyClientExists = any isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
         lift $ when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict

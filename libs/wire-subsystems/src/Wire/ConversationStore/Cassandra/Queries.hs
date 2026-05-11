@@ -343,6 +343,9 @@ deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subco
 addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
 addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, false)"
 
+addHistoryClient :: PrepQuery W (GroupId, HistoryClientId, Int32) ()
+addHistoryClient = "insert into mls_history_client (group_id, id, leaf_node_index, removal_pending) values (?, ?, ?, false)"
+
 planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
 

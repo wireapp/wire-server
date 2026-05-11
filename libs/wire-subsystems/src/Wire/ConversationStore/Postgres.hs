@@ -112,6 +112,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   DeleteMembers cnv ul -> deleteMembersImpl cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> deleteMembersInRemoteConversationImpl rcnv uids
   AddMLSClients lcnv quid cs -> addMLSClientsImpl lcnv quid cs
+  AddHistoryClient groupId hid idx -> addHistoryClientImpl groupId hid idx
   PlanClientRemoval lcnv cids -> planClientRemovalImpl lcnv cids
   RemoveMLSClients lcnv quid cs -> removeMLSClientsImpl lcnv quid cs
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
@@ -1007,6 +1008,20 @@ addMLSClientsImpl gid (Qualified uid domain) clients =
                              (group_id, user_domain, "user", client, leaf_node_index, removal_pending)
                              VALUES
                              ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
+                            |]
+
+addHistoryClientImpl :: (PGConstraints r) => GroupId -> HistoryClientId -> LeafIndex -> Sem r ()
+addHistoryClientImpl gid hid idx =
+  runPipeline $
+    Pipeline.statement (gid, hid, fromIntegral idx) insert
+  where
+    insert :: Hasql.Statement (GroupId, HistoryClientId, Int32) ()
+    insert =
+      lmapPG
+        [resultlessStatement|INSERT INTO mls_history_client
+                             (group_id, id, leaf_node_index, removal_pending)
+                             VALUES
+                             ($1 :: bytea, $2 :: uuid, $3 :: integer, false)
                             |]
 
 planClientRemovalImpl :: (PGConstraints r, Foldable f) => GroupId -> f ClientIdentity -> Sem r ()
