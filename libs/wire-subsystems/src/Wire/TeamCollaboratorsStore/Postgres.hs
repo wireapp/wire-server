@@ -95,23 +95,24 @@ createTeamCollaboratorImpl ::
 createTeamCollaboratorImpl userId teamId permissions = do
   pool <- input
   eitherRowsAffected <- liftIO $ use pool session
-  rowsAffected <- either throw pure eitherRowsAffected
-  if rowsAffected > 0
-    then pure ()
-    else throw AlreadyExists
+  mReturn <- either throw pure eitherRowsAffected
+  case mReturn of
+    Just _ -> pure ()
+    Nothing -> throw AlreadyExists
   where
-    session :: Session Int64
+    session :: Session (Maybe Int32)
     session = statement (userId, teamId, permissions) insertStatement
 
-    insertStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) Int64
+    insertStatement :: Statement (UserId, TeamId, Set CollaboratorPermission) (Maybe Int32)
     insertStatement =
       lmap
         ( \(uid, tid, pms) ->
             (toUUID uid, toUUID tid, collaboratorPermissionToPostgreslRep <$> (Data.Vector.fromList . toAscList) pms)
         )
-        $ [rowsAffectedStatement|
+        $ [maybeStatement|
           insert into collaborators (user_id, team_id, permissions) values ($1 :: uuid, $2 :: uuid, $3 :: smallint[])
           on conflict do nothing
+          returning (1 :: integer)
           |]
 
 getAllTeamCollaboratorsImpl ::
