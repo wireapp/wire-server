@@ -1,0 +1,1 @@
+Reconnect and retry queries when the PostgreSQL server restarts
