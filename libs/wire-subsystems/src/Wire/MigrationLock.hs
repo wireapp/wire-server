@@ -30,7 +30,7 @@ import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
 import Network.HTTP.Types.Status (status500)
-import Network.Wai.Utilities.Error qualified as WaiError
+import Network.Wai.Utilities.Error qualified as Wai
 import Network.Wai.Utilities.JSONResponse
 import Polysemy
 import Polysemy.Async
@@ -43,6 +43,7 @@ import Polysemy.TinyLog qualified as TinyLog
 import System.Logger.Message qualified as Log
 import Wire.API.Error
 import Wire.API.PostgresMarshall
+import Wire.Error
 import Wire.Postgres
 
 class MigrationLockable a where
@@ -62,7 +63,13 @@ data MigrationLockError = TimedOutAcquiringLock
   deriving (Show)
 
 instance APIError MigrationLockError where
-  toResponse _ = waiErrorToJSONResponse $ WaiError.mkError status500 "internal-server-error" "Internal Server Error"
+  toResponse = waiErrorToJSONResponse . migrationLockErrorToWai
+
+migrationLockErrorToHttpError :: MigrationLockError -> HttpError
+migrationLockErrorToHttpError = StdError . migrationLockErrorToWai
+
+migrationLockErrorToWai :: MigrationLockError -> Wai.Error
+migrationLockErrorToWai _ = Wai.mkError status500 "internal-server-error" "Internal Server Error"
 
 withMigrationLocks ::
   forall x a u r.

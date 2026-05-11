@@ -306,8 +306,13 @@ library
     Wire.DeleteQueue.InMemory
     Wire.DomainRegistrationStore
     Wire.DomainRegistrationStore.Cassandra
+    Wire.DomainRegistrationStore.DualWrite
+    Wire.DomainRegistrationStore.Migration
+    Wire.DomainRegistrationStore.Postgres
     Wire.DomainVerificationChallengeStore
     Wire.DomainVerificationChallengeStore.Cassandra
+    Wire.DomainVerificationChallengeStore.DualWrite
+    Wire.DomainVerificationChallengeStore.Postgres
     Wire.EmailSending
     Wire.EmailSending.SES
     Wire.EmailSending.SMTP

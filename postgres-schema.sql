@@ -9,8 +9,8 @@
 
 \restrict 79bbfb4630959c48307653a5cd3d83f2582b3c2210f75f10d79e3ebf0015620
 
--- Dumped from database version 17.7
--- Dumped by pg_dump version 17.7
+-- Dumped from database version 17.9
+-- Dumped by pg_dump version 17.9
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -177,6 +177,41 @@ CREATE TABLE public.conversation_out_of_sync (
 
 
 ALTER TABLE public.conversation_out_of_sync OWNER TO "wire-server";
+
+--
+-- Name: domain_registration; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.domain_registration (
+    domain text NOT NULL,
+    authorized_team uuid,
+    domain_redirect integer,
+    team_invite integer,
+    idp_id uuid,
+    backend_url bytea,
+    team uuid,
+    dns_verification_token text,
+    ownership_token_hash bytea,
+    webapp_url bytea
+);
+
+
+ALTER TABLE public.domain_registration OWNER TO "wire-server";
+
+--
+-- Name: domain_registration_challenge; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.domain_registration_challenge (
+    id uuid NOT NULL,
+    domain text NOT NULL,
+    challenge_token_hash bytea NOT NULL,
+    dns_verification_token text NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
 
 --
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
@@ -394,6 +429,22 @@ ALTER TABLE ONLY public.conversation
 
 
 --
+-- Name: domain_registration_challenge domain_registration_challenge_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.domain_registration_challenge
+    ADD CONSTRAINT domain_registration_challenge_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: domain_registration domain_registration_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.domain_registration
+    ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
 -- Name: local_conversation_remote_member local_conversation_remote_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -520,6 +571,20 @@ CREATE INDEX conversation_team_group_type_lower_name_id_idx ON public.conversati
 --
 
 CREATE INDEX conversation_team_idx ON public.conversation USING btree (team);
+
+
+--
+-- Name: domain_registration_authorized_team_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX domain_registration_authorized_team_idx ON public.domain_registration USING btree (authorized_team);
+
+
+--
+-- Name: domain_registration_challenge_expires_at_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX domain_registration_challenge_expires_at_idx ON public.domain_registration_challenge USING btree (expires_at);
 
 
 --

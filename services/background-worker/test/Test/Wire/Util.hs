@@ -44,7 +44,8 @@ testEnv = do
         PostgresMigrationOpts
           { conversation = CassandraStorage,
             conversationCodes = CassandraStorage,
-            teamFeatures = CassandraStorage
+            teamFeatures = CassandraStorage,
+            domainRegistration = CassandraStorage
           }
   statuses <- newIORef mempty
   backendNotificationMetrics <- mkBackendNotificationMetrics

@@ -50,6 +50,7 @@ data Opts = Opts
     migrateConversationsOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
+    migrateDomainRegistration :: !Bool,
     backgroundJobs :: BackgroundJobsConfig
   }
   deriving (Show, Generic)

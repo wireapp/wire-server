@@ -304,6 +304,7 @@ galley:
       conversation: {{ .Values.conversationStore }}
       conversationCodes: {{ .Values.conversationCodesStore }}
       teamFeatures: {{ .Values.teamFeaturesStore }}
+      domainRegistration: {{ .Values.domainRegistration }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -661,10 +662,6 @@ background-worker:
           name: "cassandra-jks-keystore"
           key: "ca.crt"
       {{- end }}
-    postgresMigration:
-      conversation: {{ .Values.conversationStore }}
-      conversationCodes: {{ .Values.conversationCodesStore }}
-      teamFeatures: {{ .Values.teamFeaturesStore }}
     rabbitmq:
       port: 5671
       adminPort: 15671
