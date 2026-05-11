@@ -228,7 +228,7 @@ getUserGroupsWithMembers ::
   UserGroupPageRequest ->
   Sem r UserGroupPageWithMembers
 getUserGroupsWithMembers tid req =
-  runTransaction TxSessions.ReadCommitted TxSessions.Read $
+  runTransactionWithRetry TxSessions.ReadCommitted TxSessions.Read $
     UserGroupPage
       <$> Tx.statement () (refineResult (mapM toUserGroup) $ buildStatement query rows)
       <*> getUserGroupCount tid req
@@ -340,7 +340,7 @@ getUserGroups ::
   Sem r UserGroupPage
 getUserGroups tid req@(UserGroupPageRequest {..}) = do
   loc <- inputQualifyLocal ()
-  runTransaction TxSessions.ReadCommitted TxSessions.Read $
+  runTransactionWithRetry TxSessions.ReadCommitted TxSessions.Read $
     UserGroupPage <$> getUserGroupsSession loc <*> getUserGroupCount tid req
   where
     getUserGroupsSession :: Local () -> Tx.Transaction [UserGroupMeta]

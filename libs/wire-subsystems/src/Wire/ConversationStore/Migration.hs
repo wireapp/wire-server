@@ -263,7 +263,7 @@ saveConvToPostgres allConvData = do
           meta.cnvmCellsState,
           meta.cnvmParent
         )
-  runTransaction ReadCommitted Write $ do
+  runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement convRow insertConv
     Transaction.statement localMemberColumns insertLocalMembers
     Transaction.statement remoteMemberColumns insertRemoteMembers
@@ -468,7 +468,7 @@ getRemoteMemberStatusFromCassandra uid = withCassandra $ do
 
 saveRemoteMemberStatusToPostgres :: (PGConstraints r) => UserId -> Map (Remote ConvId) MemberStatus -> Sem r ()
 saveRemoteMemberStatusToPostgres uid statusses =
-  runTransaction ReadCommitted Write $ do
+  runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement statusColumns insertStatuses
     Transaction.statement (DeleteUser, uid) markDeletionPendingStmt
   where

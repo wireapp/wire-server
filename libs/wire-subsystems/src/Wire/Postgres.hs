@@ -39,7 +39,9 @@ module Wire.Postgres
     -- * Runners
     runStatement,
     runSession,
+    runSessionWithRetry,
     runTransaction,
+    runTransactionWithRetry,
     runPipeline,
     parseCount,
     PGConstraints,
@@ -95,6 +97,9 @@ type PGConstraints r =
     Member (Error Hasql.UsageError) r
   )
 
+-- | Resets the pool if it detects server errors due to admin intervention.
+-- Things like server restart. Then retries the session.
+--
 -- Inspired by https://github.com/nikita-volkov/hasql-pool/issues/27
 useWithResetAndRetry :: forall a. Pool -> Session a -> IO (Either UsageError a)
 useWithResetAndRetry pool sess = go maxRetries
@@ -118,22 +123,43 @@ useWithResetAndRetry pool sess = go maxRetries
             else pure eithRes
         _ -> pure eithRes
 
-runSession ::
+-- | Runs a 'Session' using the 'Hasql.Pool'. Retries on server errors due to
+-- admin intervention. Things like server restart.
+runSessionWithRetry ::
   (PGConstraints r) =>
   Session a ->
   Sem r a
-runSession sess = do
+runSessionWithRetry sess = do
   pool <- input
   liftIO (useWithResetAndRetry pool sess) >>= either throw pure
 
+-- | Runs a 'Session' using the 'Hasql.Pool'. Unlike 'runSessionWithRetry' it
+-- doesn't retry on server errors due to admin intervention. Things like server
+-- restart.
+--
+-- This should only be used if a session cannot be retried due to some other
+-- 'IO' happening within the session, which cannot be repeated.
+runSession :: (PGConstraints r) => Session a -> Sem r a
+runSession sess = do
+  pool <- input
+  liftIO (use pool sess) >>= either throw pure
+
+-- | Runs a 'Statement' using the 'Hasql.Pool'. Always retries on server errors
+-- due to admin intervention. Things like server restart.
 runStatement ::
   (PGConstraints r) =>
   a ->
   Statement a b ->
   Sem r b
 runStatement a stmt =
-  runSession $ statement a stmt
+  runSessionWithRetry $ statement a stmt
 
+-- | Runs a 'Transaction' using the 'Hasql.Pool'. Unlike
+-- 'runTransactionWithRetry' it doesn't retry on server errors due to admin
+-- intervention. Things like server restart.
+--
+-- This should only be used if a transaction cannot be retried due to some other
+-- 'IO' happening within the transaction, which cannot be repeated.
 runTransaction ::
   (PGConstraints r) =>
   IsolationLevel ->
@@ -143,6 +169,19 @@ runTransaction ::
 runTransaction isolationLevel mode t =
   runSession $ Transaction.transaction isolationLevel mode t
 
+-- | Runs a 'Transaction' using the 'Hasql.Pool'. Retries on server errors due
+-- to admin intervention. Things like server restart.
+runTransactionWithRetry ::
+  (PGConstraints r) =>
+  IsolationLevel ->
+  Mode ->
+  Transaction a ->
+  Sem r a
+runTransactionWithRetry isolationLevel mode t =
+  runSessionWithRetry $ Transaction.transaction isolationLevel mode t
+
+-- | Runs a 'Pipeline' using the 'Hasql.Pool'. Always retries on server errors
+-- due to admin intervention. Things like server restart.
 runPipeline ::
   (PGConstraints r) =>
   Pipeline a ->
