@@ -506,25 +506,32 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                           <> Text.unpack domainText
                           <> "' is not configured for this team"
                 throwSparSem $ SparIdPNotFound errorMsg
-              Just _ -> do
+              Just multiIngressIdp -> do
                 -- Try to authenticate the potential user against ALL team IdPs
                 -- (including other domains) When we found one succeeding IdP
                 -- for this user in this team, we consider them authenticated
                 -- and migrate them to the other (requesting) IdP.
                 let subject = uref ^. SAML.uidSubject
                 findUserInTeamIdPs team' subject teamIdPs >>= \case
-                  Nothing -> provisionNewUser
+                  Nothing -> do
+                    Logger.info $
+                      Log.msg ("Multi-ingress SSO: IdP found but user does not exist, provisioning new user" :: String)
+                        . Log.field "team" (idToText (idp ^. idpExtraInfo . team))
+                        . Log.field "issuer" (uref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
+                        . Log.field "multi_ingress_idp" (multiIngressIdp ^. SAML.idpId . to SAML.fromIdPId . to show)
+                        . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
+                        . Log.field "domain" (mbHost & fromMaybe "None")
+                    provisionNewUser
                   Just (uid, oldUref) ->
                     do
                       Logger.info $
-                        Log.msg ("Cross-IdP SSO migration: user found via different IdP, migrating issuer" :: String)
+                        Log.msg ("Multi-ingress SSO: user found via different IdP, migrating issuer" :: String)
                           . Log.field "team" (idToText (idp ^. idpExtraInfo . team))
                           . Log.field "user" (idToText uid)
                           . Log.field "old_issuer" (oldUref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
-                          -- TODO: This reveals the email address (personal data). We should probably not log this.
                           . Log.field "new_issuer" (uref ^. SAML.uidTenant . SAML.fromIssuer . to URI.serializeURIRef')
-                          . Log.field "subject" (uref ^. SAML.uidSubject . to show)
                           . Log.field "authenticating_idp" (idp ^. SAML.idpId . to SAML.fromIdPId . to show)
+                          . Log.field "multi_ingress_idp" (multiIngressIdp ^. SAML.idpId . to SAML.fromIdPId . to show)
                           . Log.field "domain" (mbHost & fromMaybe "None")
                       -- TODO: This needs to be better understood and tested.
                       moveUserToNewIssuer oldUref uref uid
@@ -542,7 +549,7 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
             uid <- MaybeT $ findUserWithUref idp' team'' oldUref
             pure (uid, oldUref)
 
-      -- | Select the authenticating IdP for multi-ingress SSO.
+      -- \| Select the authenticating IdP for multi-ingress SSO.
       --
       -- Rules:
       -- 1. If an IdP matches both issuer AND domain, use it (exact match)
