@@ -163,6 +163,7 @@ type ServicesAPI =
     :<|> Named
            "post-team-whitelist-by-team-id"
            ( Summary "Update service whitelist"
+               :> CanThrow 'MLSServicesNotAllowed
                :> ZUser
                :> ZConn
                :> "teams"
