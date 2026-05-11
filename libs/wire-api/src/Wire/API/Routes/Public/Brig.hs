@@ -1242,6 +1242,7 @@ type ClientAPI =
     :<|> Named
            "get-user-client-qualified"
            ( Summary "Get a specific client of a user"
+               :> Description "Hint: to list all clients of one or more users, use <code>POST /users/list-clients</code>."
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -1445,12 +1446,29 @@ type ConnectionAPI =
     :<|> Named
            "search-contacts"
            ( Summary "Search for users"
-               :> Description "Optional user-type filter semantics: omitted or empty (type=) means no filtering."
                :> ZLocalUser
                :> CanThrow 'InsufficientPermissions
                :> "search"
                :> "contacts"
-               :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
+               :> QueryParam'
+                    '[ Required,
+                       Strict,
+                       Description
+                         "Search query\
+                         \ <p>The search query is normalized: lower-cased and diacritics are removed ('Björn' becomes 'bjorn').\
+                         \ The normalized search query matches accounts that, in this order of priority:</p>\
+                         \ <ul>\
+                         \ <li>are equal to the normalized full handle;\
+                         \ <li>are equal to the normalized full user display name;\
+                         \ <li>prefix-match the normalized handle;\
+                         \ <li>prefix-match the normalized user display name.\
+                         \ </ul>\
+                         \ <p>NB: '@' Does NOT do anything special, ignoring user display names.</p>\
+                         \ <p>See also: [authoritative ElasticSearch query](https://github.com/wireapp/wire-server/blob/83c25cca6a5e9d2205c102410b452eb78fc50a00/libs/wire-subsystems/src/Wire/IndexedUserStore/ElasticSearch.hs#L251-L288)</p>\
+                         \"
+                     ]
+                    "q"
+                    Text
                :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
                :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
                :> QueryParam' '[Optional, Strict, Description "Only user types. Omitted or empty (type=) means no filtering."] "type" (CommaSeparatedList UserTypeFilter)

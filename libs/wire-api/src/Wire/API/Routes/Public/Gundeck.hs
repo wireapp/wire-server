@@ -115,6 +115,7 @@ type NotificationAPI =
     :<|> Named
            "get-notifications"
            ( Summary "Fetch notifications"
+               :> Description "See also: <code>GET /teams/notifications</code>"
                :> From 'V3
                :> ZUser
                :> "notifications"
