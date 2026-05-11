@@ -98,7 +98,6 @@ library
     , crypton
     , crypton-connection
     , crypton-x509
-    , postgresql-connection-string
     , crypton-x509-store
     , data-default
     , errors
@@ -113,6 +112,7 @@ library
     , memory
     , metrics-wai
     , monad-control
+    , postgresql-connection-string
     , prometheus-client
     , retry
     , servant
