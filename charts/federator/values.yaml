@@ -57,6 +57,10 @@ podSecurityContext:
     type: RuntimeDefault
 
 tests:
+  # The host used for the nginxIngress endpoint and originDomain in the integration
+  # test config. Depends on the release name of the "wire-ingress" helm chart
+  # (see federation-test-helper.yaml in that chart).
+  nginxIngressHost: "set-me"
   config: {}
 #  config:
 #   uploadXml:

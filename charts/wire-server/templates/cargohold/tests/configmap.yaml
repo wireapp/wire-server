@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "cargohold-integration"
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
   integration.yaml: |
