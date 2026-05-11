@@ -30,14 +30,17 @@ import Data.Text (pack)
 import qualified Data.UUID as UUID
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..))
 import SetupHelpers
 import Testlib.Prelude
 import qualified Text.XML.DSig as SAML
 
--- TODO:
--- - Test New user creation with email (user has NO representation in spar)
--- - Test with wrong IdP
+ernieDomain, bertDomain, ernieZHost, bertZHost :: String
+ernieDomain = "ernie.example.com"
+bertDomain = "bert.example.com"
+ernieZHost = "nginz-https." <> ernieDomain
+bertZHost = "nginz-https." <> bertDomain
 
 -- | Test that demonstrates cross-IdP login with an email address
 --
@@ -45,35 +48,7 @@ import qualified Text.XML.DSig as SAML
 -- NameID (tested above) where duplicate users are created.
 testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
 testCrossIdpSsoEmailConflict useSCIM = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       -- Create team and enable SSO
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -234,35 +209,7 @@ testCrossIdpSsoEmailConflict useSCIM = do
 -- 4. Expected: Cross-IdP SSO migration should work, user should be migrated to Bert's IdP
 testScimUserLoginsDifferentIdP :: (HasCallStack) => App ()
 testScimUserLoginsDifferentIdP = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       -- Create team and enable SSO
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -366,35 +313,7 @@ testScimUserLoginsDifferentIdP = do
 -- implies that all SSO users are bound to it.
 testSingleIdp :: (HasCallStack) => App ()
 testSingleIdp = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       -- Create team and enable SSO
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -464,35 +383,7 @@ testSingleIdp = do
 -- regardless of which domain it was originally registered for.
 testSingletonIdpWorksOnAllDomains :: (HasCallStack) => App ()
 testSingletonIdpWorksOnAllDomains = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       -- Create team and enable SSO
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -544,35 +435,7 @@ testSingletonIdpWorksOnAllDomains = do
 -- 3. The SAML response is valid BUT the IdP (issuer + domain) is not registered for the team
 testIdpNotFoundError :: (HasCallStack) => App ()
 testIdpNotFoundError = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
@@ -585,52 +448,22 @@ testIdpNotFoundError = do
       SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
       _idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
 
-      -- Now we'll try to authenticate on BERT domain with ERNIE's credentials
-      -- This should trigger the "IdP not found" error because:
-      -- - We're looking for issuer="ernie" + domain="bert"
-      -- - But Ernie IdP is registered for ernie domain, not bert
-      -- - Since there are MULTIPLE IdPs, it won't fall back to singleton behavior
-
-      -- Create email-based NameID for Bibo
+      -- Ernie's IdP is registered for ernieZHost, so authenticating on bertZHost with Ernie's
+      -- credentials triggers a "not found" error (multiple IdPs, no singleton fallback).
       biboEmail <- randomEmail
       let biboNameId =
             fromRight (error "could not create name id")
               $ SAML.emailNameID (pack biboEmail)
 
-      -- Try to log in on Bert domain with Ernie's IdP credentials
-      -- This should FAIL because:
-      -- - We have two IdPs registered: Ernie (for ernie domain) and Bert (for bert domain)
-      -- - The SAML response will have issuer "ernie" (from pCredsErnie)
-      -- - We're authenticating on bertZHost domain
-      -- - The IdP check (issuer + domain) will fail: Ernie IdP is registered for ERNIE domain, not BERT
-      -- - Since there are MULTIPLE IdPs, no singleton fallback
-      -- - multiIngressFlow should throw SparIdPNotFound error in services/spar/src/Spar/App.hs
+      authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
 
-      -- Manually construct the SAML flow to capture the error response
-      let ernieIdpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdErnie))) idpMetaErnie ()
-      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
-      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just bertZHost) Nothing idpIdErnie
-      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
-          parsedAuthnReq = parseAuthnReqResp authnreq.body
-      authnReqResp <- makeAuthnResponse biboNameId pCredsErnie ernieIdpConfig spMetaData parsedAuthnReq
-
-      -- Finalize the login and verify the error
       bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
-        -- SAML errors are wrapped in HTML with status 200
         resp.status `shouldMatchInt` 200
-
         let bdy = unpack resp.body
-        -- Should contain error page markers
         bdy `shouldContain` "wire:sso:error:"
         bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
-
-        -- The HTML title should indicate "not-found" error type
         bdy `shouldContain` "wire:sso:error:not-found"
-
-        -- Note: The JSON payload label is hardcoded to "forbidden" for web compatibility
         bdy `shouldContain` "\"label\":\"forbidden\""
-
-        -- Assert the exact error message
         let expectedErrorMsg =
               "Could not find IdP: IdP with issuer '\\\""
                 <> ernieIssuer
@@ -645,35 +478,7 @@ testIdpNotFoundError = do
 -- well-formed.
 testCrossTeamIdpLoginRejected :: (HasCallStack) => App ()
 testCrossTeamIdpLoginRejected = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       -- Team A with IdP A on bert domain
       (ownerA, tidA, _) <- createTeam domain 1
       void $ setTeamFeatureStatus ownerA tidA "sso" "enabled"
@@ -696,14 +501,8 @@ testCrossTeamIdpLoginRejected = do
       _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA aliceNameId (idpIdA, (idpMetaA, pCredsA))
       activateEmail domain aliceEmail
 
-      -- Attempting to log Alice into Team A using Team B's IdP must fail.
       -- Team B's IdP issuer is not registered under Team A, so spar returns 404.
-      let idpBConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdB))) idpMetaB ()
-      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tidA
-      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just bertZHost) Nothing idpIdB
-      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
-          parsedAuthnReq = parseAuthnReqResp authnreq.body
-      authnReqResp <- makeAuthnResponse aliceNameId pCredsB idpBConfig spMetaData parsedAuthnReq
+      authnReqResp <- buildSamlAuthnResponse domain bertZHost tidA idpIdB idpMetaB pCredsB aliceNameId
       bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tidA authnReqResp) $ \resp ->
         resp.status `shouldMatchInt` 404
 
@@ -717,35 +516,7 @@ testCrossTeamIdpLoginRejected = do
 -- 5. Expected: A new user should be provisioned
 testNewUserProvisioningWithMultipleIdPs :: (HasCallStack) => App ()
 testNewUserProvisioningWithMultipleIdPs = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       -- Create team and enable SSO
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
@@ -800,28 +571,7 @@ testNewUserProvisioningWithMultipleIdPs = do
 -- Multi-ingress cross-IdP SSO requires email-based NameIDs to prevent ambiguities.
 testNonEmailNameIdRejectedInMultiIngress :: (HasCallStack) => App ()
 testNonEmailNameIdRejectedInMultiIngress = do
-  let bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [bertDomain] $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
@@ -830,20 +580,12 @@ testNonEmailNameIdRejectedInMultiIngress = do
       idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
       idpIdBert <- asString $ idpBert.json %. "id"
 
-      -- Try to log in with USERNAME-based NameID (not email)
       randomUsername <- randomHandle
       let usernameNameId =
             fromRight (error "could not create name id")
               $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack randomUsername)) Nothing Nothing Nothing
 
-      let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
-      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
-      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just bertZHost) Nothing idpIdBert
-      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
-          parsedAuthnReq = parseAuthnReqResp authnreq.body
-      authnReqResp <- makeAuthnResponse usernameNameId pCredsBert idpConfig spMetaData parsedAuthnReq
-
-      -- Should fail with multi-ingress configuration error
+      authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdBert idpMetaBert pCredsBert usernameNameId
       bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
         resp.status `shouldMatchInt` 200
         let bdy = unpack resp.body
@@ -855,28 +597,7 @@ testNonEmailNameIdRejectedInMultiIngress = do
 -- A response referencing a request Spar never stored results in a "bad InResponseTo" error.
 testUnsolicitedSamlResponseRejected :: (HasCallStack) => App ()
 testUnsolicitedSamlResponseRejected = do
-  let bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [bertDomain] $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
@@ -908,35 +629,7 @@ testUnsolicitedSamlResponseRejected = do
 -- Finalizing on the bert ingress should fail with a bad recipient error.
 testCrossIngressRequestResponseMismatch :: (HasCallStack) => App ()
 testCrossIngressRequestResponseMismatch = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
@@ -952,13 +645,8 @@ testCrossIngressRequestResponseMismatch = do
             fromRight (error "could not create name id")
               $ SAML.emailNameID (pack biboEmail)
 
-      -- Initiate login on ernie ingress — response Destination is ernie's ACS URL
-      let ernieIdpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdErnie))) idpMetaErnie ()
-      spmeta <- getSPMetadataWithZHost domain (Just ernieZHost) tid
-      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just ernieZHost) Nothing idpIdErnie
-      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
-          parsedAuthnReq = parseAuthnReqResp authnreq.body
-      authnReqResp <- makeAuthnResponse biboNameId pCredsErnie ernieIdpConfig spMetaData parsedAuthnReq
+      -- Response Destination is ernie's ACS URL; finalizing on bert causes a mismatch.
+      authnReqResp <- buildSamlAuthnResponse domain ernieZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
 
       -- Finalize on bert ingress — Destination mismatch, bad recipient
       bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
@@ -966,6 +654,50 @@ testCrossIngressRequestResponseMismatch = do
         let bdy = unpack resp.body
         bdy `shouldContain` "wire:sso:error:forbidden"
         bdy `shouldContain` "bad Recipient"
+
+-- | Run a test with the standard multi-ingress backend configuration.
+-- Takes base domain names (e.g. "ernie.example.com"); the ZHost and SSO/webapp URLs
+-- are derived from each base domain.
+withMultiIngressBackend :: (HasCallStack) => [String] -> (String -> App ()) -> App ()
+withMultiIngressBackend baseDomains action =
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField "saml.spDomainConfigs" (object (map mkDomainEntry baseDomains))
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    action
+  where
+    mkDomainEntry base =
+      ("nginz-https." <> base)
+        .= object
+          [ "spAppUri" .= ("https://webapp." <> base :: String),
+            "spSsoUri" .= ("https://nginz-https." <> base <> "/sso" :: String),
+            "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+          ]
+
+-- | Initiate a SAML login and build a signed authn response for the given NameID.
+-- Use this when testing error cases that require manual control over the finalize step.
+buildSamlAuthnResponse ::
+  (HasCallStack, MakesValue domain) =>
+  domain ->
+  String ->
+  String ->
+  String ->
+  SAML.IdPMetadata ->
+  SAML.SignPrivCreds ->
+  SAML.NameID ->
+  App SAML.SignedAuthnResponse
+buildSamlAuthnResponse domain mbZHost tid idpId idpMeta pcreds nameId = do
+  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpId))) idpMeta ()
+  spmeta <- getSPMetadataWithZHost domain (Just mbZHost) tid
+  authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just mbZHost) Nothing idpId
+  let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+      parsedAuthnReq = parseAuthnReqResp authnreq.body
+  makeAuthnResponse nameId pcreds idpConfig spMetaData parsedAuthnReq
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
