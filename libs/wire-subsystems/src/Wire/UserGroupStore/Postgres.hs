@@ -40,7 +40,7 @@ import Hasql.Transaction qualified as Tx
 import Hasql.Transaction.Sessions qualified as TxSessions
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error (Error)
 import Polysemy.Input
 import Wire.API.Pagination
 import Wire.API.PostgresMarshall
