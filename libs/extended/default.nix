@@ -32,6 +32,7 @@
 , memory
 , metrics-wai
 , monad-control
+, postgresql-connection-string
 , prometheus-client
 , retry
 , servant
@@ -80,6 +81,7 @@ mkDerivation {
     memory
     metrics-wai
     monad-control
+    postgresql-connection-string
     prometheus-client
     retry
     servant
