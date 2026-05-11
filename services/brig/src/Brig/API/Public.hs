@@ -154,7 +154,7 @@ import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap qualified as Public
 import Wire.API.Wrapped qualified as Public
 import Wire.ActivationCodeStore (ActivationCodeStore)
-import Wire.AppSubsystem (AppSubsystem)
+import Wire.AppSubsystem (AppSubsystem, AppSubsystemError)
 import Wire.AppSubsystem qualified as AppSubsystem
 import Wire.AuthenticationSubsystem as AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config (AuthenticationSubsystemConfig)
@@ -373,6 +373,7 @@ servantSitemap ::
   ( Member (Embed HttpClientIO) r,
     Member (Embed IO) r,
     Member (Error UserSubsystemError) r,
+    Member (Error AppSubsystemError) r,
     Member (Input (Local ())) r,
     Member (UserPendingActivationStore p) r,
     Member AuthenticationSubsystem r,
@@ -642,6 +643,7 @@ servantSitemap =
         :<|> Named @"get-app" getApp
         :<|> Named @"get-apps" getApps
         :<|> Named @"put-app" putApp
+        :<|> Named @"refresh-app-cookie@v15" refreshAppCookieV15
         :<|> Named @"refresh-app-cookie" refreshAppCookie
 
 ---------------------------------------------------------------------------
@@ -1785,6 +1787,20 @@ getApps lusr tid = lift . liftSem $ do
 
 putApp :: (_) => Local UserId -> TeamId -> UserId -> Public.PutApp -> Handler r ()
 putApp lusr tid uid put = lift . liftSem $ AppSubsystem.updateApp lusr tid uid put
+
+refreshAppCookieV15 :: (_) => Local UserId -> TeamId -> UserId -> Public.RefreshAppCookieRequest -> Handler r Public.RefreshAppCookieResponse
+refreshAppCookieV15 lusr tid appId req = do
+  mc <-
+    lift . liftSem $
+      catch
+        (AppSubsystem.refreshAppCookie lusr tid appId req.password)
+        ( throw . \case
+            AppSubsystem.AppSubsystemErrorNoPerm -> AppSubsystem.AppSubsystemErrorUnauthorized
+            other -> other
+        )
+  case mc of
+    Left delay -> throwE $ loginError (LoginThrottled delay)
+    Right c -> pure $ Public.RefreshAppCookieResponse c
 
 refreshAppCookie :: (_) => Local UserId -> TeamId -> UserId -> Public.RefreshAppCookieRequest -> Handler r Public.RefreshAppCookieResponse
 refreshAppCookie lusr tid appId req = do

@@ -46,7 +46,7 @@ import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
 import Wire.API.Error
-import Wire.API.Error.Brig
+import Wire.API.Error.Brig as ErrorBrig
 import Wire.API.Error.Empty
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
@@ -2151,9 +2151,25 @@ type AppsAPI =
                :> Put '[JSON] ()
            )
     :<|> Named
-           "refresh-app-cookie"
+           "refresh-app-cookie@v15"
            ( Summary "Get a new app authentication token"
                :> From 'V12
+               :> Until 'V16
+               -- can throw 403 instead of 401.  fixed in V16.
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "apps"
+               :> Capture "app" UserId
+               :> "cookies"
+               :> ReqBody '[JSON] RefreshAppCookieRequest
+               :> Post '[JSON] RefreshAppCookieResponse
+           )
+    :<|> Named
+           "refresh-app-cookie"
+           ( Summary "Get a new app authentication token"
+               :> From 'V16
+               :> CanThrow 'ErrorBrig.Unauthorized
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

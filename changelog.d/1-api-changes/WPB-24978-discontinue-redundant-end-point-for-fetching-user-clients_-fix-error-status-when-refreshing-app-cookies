@@ -1,1 +1,1 @@
-Discontinue redundant end-point for fetching user clients; fix error status when refreshing app cookies.
+Fix error status when refreshing app cookies.
