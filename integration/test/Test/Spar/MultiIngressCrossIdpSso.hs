@@ -20,10 +20,13 @@ module Test.Spar.MultiIngressCrossIdpSso where
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, getSsoCodeByEmailWithZHost)
+import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, finalizeSamlLoginWithZHost, getSPMetadataWithZHost, getSsoCodeByEmailWithZHost, initiateSamlLoginWithZHostAndLabel)
+import Data.ByteString.Char8 (unpack)
 import Data.Either.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.String.Conversions (cs)
 import Data.Text (pack)
+import qualified Data.UUID as UUID
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Util (SampleIdP (..))
@@ -608,6 +611,187 @@ testSingleIdp = do
         ssoIdTenant <- ssoId %. "tenant" >>= asString
         bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
         ssoIdTenant `shouldContain` bertIssuer
+
+-- | Test that a singleton IdP (only one IdP for the team) works on all domains.
+--
+-- When there is only ONE IdP configured for a team, it should be usable on any domain,
+-- regardless of which domain it was originally registered for.
+testSingletonIdpWorksOnAllDomains :: (HasCallStack) => App ()
+testSingletonIdpWorksOnAllDomains = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      -- Create team and enable SSO
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register a SINGLE IdP for Ernie domain
+      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+      idpIdErnie <- asString $ idpErnie.json %. "id"
+
+      -- Create email-based NameID for Bibo
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack biboEmail)
+
+      -- Login on Ernie domain (same as IdP registration domain) - should work
+      (mUserIdErnie, _) <-
+        loginWithSamlWithZHost
+          (Just ernieZHost)
+          domain
+          True -- expect SUCCESS
+          tid
+          biboNameId
+          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+
+      -- Verify user was created
+      biboIdErnie <- assertOne mUserIdErnie
+      biboIdErnie `shouldMatch` mUserIdErnie
+
+      -- Login on BERT domain (different from IdP registration domain) - should ALSO work
+      -- because there's only one IdP for this team
+      (mUserIdBert, _) <-
+        loginWithSamlWithZHost
+          (Just bertZHost)
+          domain
+          True -- expect SUCCESS
+          tid
+          biboNameId
+          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+
+      -- Verify the SAME user is returned (not a new user)
+      mUserIdBert `shouldMatch` mUserIdErnie
+
+-- | Test that login fails with a meaningful error when the authenticating IdP is not found.
+--
+-- This tests the error case in multiIngressFlow when:
+-- 1. Multi-ingress SSO is enabled
+-- 2. A user tries to authenticate with an email-based NameID
+-- 3. The SAML response is valid BUT the IdP (issuer + domain) is not registered for the team
+testIdpNotFoundError :: (HasCallStack) => App ()
+testIdpNotFoundError = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register TWO IdPs: one for Ernie domain, one for Bert domain
+      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+      idpIdErnie <- asString $ idpErnie.json %. "id"
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+
+      SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      _idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+
+      -- Now we'll try to authenticate on BERT domain with ERNIE's credentials
+      -- This should trigger the "IdP not found" error because:
+      -- - We're looking for issuer="ernie" + domain="bert"
+      -- - But Ernie IdP is registered for ernie domain, not bert
+      -- - Since there are MULTIPLE IdPs, it won't fall back to singleton behavior
+
+      -- Create email-based NameID for Bibo
+      biboEmail <- randomEmail
+      let biboNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack biboEmail)
+
+      -- Try to log in on Bert domain with Ernie's IdP credentials
+      -- This should FAIL because:
+      -- - We have two IdPs registered: Ernie (for ernie domain) and Bert (for bert domain)
+      -- - The SAML response will have issuer "ernie" (from pCredsErnie)
+      -- - We're authenticating on bertZHost domain
+      -- - The IdP check (issuer + domain) will fail: Ernie IdP is registered for ERNIE domain, not BERT
+      -- - Since there are MULTIPLE IdPs, no singleton fallback
+      -- - multiIngressFlow should throw SparIdPNotFound error in services/spar/src/Spar/App.hs
+
+      -- Manually construct the SAML flow to capture the error response
+      let ernieIdpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdErnie))) idpMetaErnie ()
+      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
+      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just bertZHost) Nothing idpIdErnie
+      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+          parsedAuthnReq = parseAuthnReqResp authnreq.body
+      authnReqResp <- makeAuthnResponse biboNameId pCredsErnie ernieIdpConfig spMetaData parsedAuthnReq
+
+      -- Finalize the login and verify the error
+      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+        -- SAML errors are wrapped in HTML with status 200
+        resp.status `shouldMatchInt` 200
+
+        let bdy = unpack resp.body
+        -- Should contain error page markers
+        bdy `shouldContain` "wire:sso:error:"
+        bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+
+        -- The HTML title should indicate "not-found" error type
+        bdy `shouldContain` "wire:sso:error:not-found"
+
+        -- Note: The JSON payload label is hardcoded to "forbidden" for web compatibility
+        bdy `shouldContain` "\"label\":\"forbidden\""
+
+        -- Assert the exact error message
+        let expectedErrorMsg =
+              "Could not find IdP: IdP with issuer '\\\""
+                <> ernieIssuer
+                <> "\\\"' for domain '"
+                <> bertZHost
+                <> "' is not configured for this team"
+        bdy `shouldContain` expectedErrorMsg
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP

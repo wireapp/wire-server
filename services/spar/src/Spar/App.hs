@@ -491,16 +491,21 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
           SAML.UserRef _ (view SAML.nameID -> UNameIDEmail _) -> do
             teamIdPs <- IdPConfigStore.getConfigsByTeam team'
             let urefIssuer = uref ^. SAML.uidTenant
-                isAuthenticatingIdP idp' =
-                  idp' ^. SAML.idpMetadata . SAML.edIssuer == urefIssuer
-                    && idp' ^. idpExtraInfo . domain == mbHost
 
-            -- Verify the authenticating IdP exists (issuer + domain must
-            -- match) for this team.
-            case find isAuthenticatingIdP teamIdPs of
-              Nothing ->
-                -- TODO: Test this
-                provisionNewUser -- No valid IdP for this authentication, But, as we reached this line, we know that the auth response was valid. So, this is a new user.
+            -- Select the authenticating IdP from the team's IdPs
+            selectAuthenticatingIdP teamIdPs urefIssuer mbHost >>= \case
+              Nothing -> do
+                -- No matching IdP found and it's not a singleton case
+                let issuerText = urefIssuer ^. SAML.fromIssuer . to URI.serializeURIRef'
+                    domainText = fromMaybe "default" mbHost
+                    errorMsg =
+                      LText.pack $
+                        "IdP with issuer '"
+                          <> show issuerText
+                          <> "' for domain '"
+                          <> Text.unpack domainText
+                          <> "' is not configured for this team"
+                throwSparSem $ SparIdPNotFound errorMsg
               Just _ -> do
                 -- Try to authenticate the potential user against ALL team IdPs
                 -- (including other domains) When we found one succeeding IdP
@@ -536,6 +541,26 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                 oldUref = SAML.UserRef oldIssuer subject
             uid <- MaybeT $ findUserWithUref idp' team'' oldUref
             pure (uid, oldUref)
+
+      -- | Select the authenticating IdP for multi-ingress SSO.
+      --
+      -- Rules:
+      -- 1. If an IdP matches both issuer AND domain, use it (exact match)
+      -- 2. If no exact match and there's only ONE IdP for the team, use it (singleton)
+      -- 3. If no exact match and multiple IdPs exist, return Nothing (error case)
+      selectAuthenticatingIdP :: [IdP] -> Issuer -> Maybe Text -> Sem r (Maybe IdP)
+      selectAuthenticatingIdP teamIdPs issuer mbDomain =
+        case find matchesIssuerAndDomain teamIdPs of
+          Just matchingIdp -> pure $ Just matchingIdp
+          Nothing ->
+            -- No exact match. Check if singleton IdP case.
+            case teamIdPs of
+              [singleIdP] -> pure $ Just singleIdP -- Singleton: use for all domains
+              _ -> pure Nothing -- Multiple IdPs but no match: error
+        where
+          matchesIssuerAndDomain idp' =
+            idp' ^. SAML.idpMetadata . SAML.edIssuer == issuer
+              && idp' ^. idpExtraInfo . domain == mbDomain
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
