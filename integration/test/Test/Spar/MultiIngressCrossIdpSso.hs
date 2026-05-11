@@ -18,7 +18,7 @@
 module Test.Spar.MultiIngressCrossIdpSso where
 
 import API.BrigInternal (getUsersId)
-import API.Common (randomEmail)
+import API.Common (randomEmail, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, finalizeSamlLoginWithZHost, getSPMetadataWithZHost, getSsoCodeByEmailWithZHost, initiateSamlLoginWithZHostAndLabel)
 import Data.ByteString.Char8 (unpack)
@@ -37,161 +37,6 @@ import qualified Text.XML.DSig as SAML
 -- TODO:
 -- - Test New user creation with email (user has NO representation in spar)
 -- - Test with wrong IdP
-
--- | Test that demonstrates username-based NameID behavior in multi-ingress SSO.
---
--- When using username-based (unspecified) NameID, logging in via different
--- ingresses with different IdPs creates SEPARATE user accounts, even with the
--- same NameID. We decided this because username NameIDs are more likely
--- ambiguous across IdPs than email addresses.
-testCrossIdpSsoCreatesDistinctUsers :: (HasCallStack) => App ()
-testCrossIdpSsoCreatesDistinctUsers = do
-  let ernieZHost = "nginz-https.ernie.example.com"
-      bertZHost = "nginz-https.bert.example.com"
-
-  withModifiedBackend
-    def
-      { sparCfg =
-          removeField "saml.spSsoUri"
-            >=> removeField "saml.spAppUri"
-            >=> removeField "saml.contacts"
-            >=> setField
-              "saml.spDomainConfigs"
-              ( object
-                  [ ernieZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ],
-                    bertZHost
-                      .= object
-                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
-                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
-                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
-                        ]
-                  ]
-              )
-            >=> setField "enableIdPByEmailDiscovery" True
-      }
-    $ \domain -> do
-      -- Create team and enable SSO
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
-
-      -- Register IdP for Ernie domain
-      (idpErnie, idpMetaErnie) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just ernieZHost)
-      idpIdErnie <- asString $ idpErnie.json %. "id"
-
-      -- Register IdP for Bert domain
-      (idpBert, idpMetaBert) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just bertZHost)
-      idpIdBert <- asString $ idpBert.json %. "id"
-
-      -- Create user identity "bibo" - this same person will login on both ingresses
-      -- Use unspecified NameID format (not email) to avoid email uniqueness constraint
-      suffix <- take 8 <$> randomId
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack ("bibo" <> suffix))) Nothing Nothing Nothing
-
-      -- Step 2: Bibo logs in on Ernie ingress
-      userIdErnie <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True
-          tid
-          biboNameId
-          (idpIdErnie, idpMetaErnie)
-          >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
-          . fst
-
-      -- No email activation needed - using username-based NameID
-
-      -- Verify user was created
-      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-
-      -- Step 2.5: Verify re-login on Ernie domain (prove SSO works correctly)
-      (mUserIdErnieAgain, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True
-          tid
-          biboNameId
-          (idpIdErnie, idpMetaErnie)
-
-      -- Verify it's the same user ID (no new user created)
-      case mUserIdErnieAgain of
-        Just uid -> uid `shouldMatch` userIdErnie
-        Nothing -> error "Expected user ID from re-login on Ernie domain"
-
-      -- Step 3: SAME Bibo logs in on Bert ingress WITH THE SAME NAMEID
-      -- This is the core of the test: same identity, different ingress → duplicate user!
-      userIdBert <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True
-          tid
-          biboNameId -- SAME NameID!
-          (idpIdBert, idpMetaBert)
-          >>= maybe (error "Expected user ID from SSO login on Bert domain") pure
-          . fst
-
-      -- Verify user was created
-      getUsersId domain [userIdBert] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-
-      -- Step 4: Verification - CORE ASSERTION
-      -- This is the key finding: same person (conceptually) has two separate Wire accounts
-      userIdErnie `shouldNotMatch` userIdBert
-
-      -- Verify both users exist independently and each user is bound to their respective IdP
-      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        idpErnieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        -- tenant contains XML with issuer inside
-        ssoIdTenant `shouldContain` idpErnieIssuer
-
-      getUsersId domain [userIdBert] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        idpBertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        -- tenant contains XML with issuer inside
-        ssoIdTenant `shouldContain` idpBertIssuer
-
-      -- Verify both users can re-login on their original ingresses
-      -- Same biboNameId, but each ingress returns a different user!
-      (mUidErnieFinal, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True
-          tid
-          biboNameId
-          (idpIdErnie, idpMetaErnie)
-
-      case mUidErnieFinal of
-        Just uid -> uid `shouldMatch` userIdErnie
-        Nothing -> error "Expected user ID from Ernie final re-login"
-
-      (mUidBertFinal, _) <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True
-          tid
-          biboNameId
-          (idpIdBert, idpMetaBert)
-
-      case mUidBertFinal of
-        Just uid -> uid `shouldMatch` userIdBert
-        Nothing -> error "Expected user ID from Bert final re-login"
 
 -- | Test that demonstrates cross-IdP login with an email address
 --
@@ -880,6 +725,61 @@ testNewUserProvisioningWithMultipleIdPs = do
 
       -- Should return same user (migration, not new user)
       mUserIdErnie `shouldMatch` Just biboId
+
+-- | Test that non-email NameIDs are rejected in multi-ingress mode.
+--
+-- Multi-ingress cross-IdP SSO requires email-based NameIDs to prevent ambiguities.
+testNonEmailNameIdRejectedInMultiIngress :: (HasCallStack) => App ()
+testNonEmailNameIdRejectedInMultiIngress = do
+  let bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Register IdP
+      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+      idpIdBert <- asString $ idpBert.json %. "id"
+
+      -- Try to log in with USERNAME-based NameID (not email)
+      randomUsername <- randomHandle
+      let usernameNameId =
+            fromRight (error "could not create name id")
+              $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack randomUsername)) Nothing Nothing Nothing
+
+      let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
+      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
+      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just bertZHost) Nothing idpIdBert
+      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+          parsedAuthnReq = parseAuthnReqResp authnreq.body
+      authnReqResp <- makeAuthnResponse usernameNameId pCredsBert idpConfig spMetaData parsedAuthnReq
+
+      -- Should fail with multi-ingress configuration error
+      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+        let bdy = unpack resp.body
+        bdy `shouldContain` "wire:sso:error:multi-ingress-config-error"
+        bdy `shouldContain` "Multi-ingress SSO requires email-based NameIDs: Multi-ingress SSO only supports email-based NameIDs for cross-IdP migration. Username-based NameIDs are not allowed."
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP

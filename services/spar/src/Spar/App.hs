@@ -536,7 +536,10 @@ verdictHandlerResultCore idp verdict mlabel samlConfig mbHost = case verdict of
                       -- TODO: This needs to be better understood and tested.
                       moveUserToNewIssuer oldUref uref uid
                       pure uid
-          _ -> provisionNewUser
+          _ ->
+            throwSparSem . SparMultiIngressIdPConfiguration $
+              "Multi-ingress SSO only supports email-based NameIDs for cross-IdP migration. "
+                <> "Username-based NameIDs are not allowed."
 
       -- Try to authenticate against all IdPs. In case, return the UserId and the old UserRef.
       findUserInTeamIdPs :: TeamId -> SAML.NameID -> [IdP] -> Sem r (Maybe (UserId, SAML.UserRef))
