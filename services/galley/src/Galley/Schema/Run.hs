@@ -23,7 +23,7 @@ import Control.Exception (finally)
 import Galley.Schema.V100_OutOfSync qualified as V100_OutOfSync
 import Galley.Schema.V101_ConversationLowerGCGracePeriod qualified as V101_ConversationLowerGCGracePeriod
 import Galley.Schema.V102_ConversationHistory qualified as V102_ConversationHistory
-import Galley.Schema.V103_HistoryClient qualified as V103_HistoryClient 
+import Galley.Schema.V103_HistoryClient qualified as V103_HistoryClient
 import Galley.Schema.V20 qualified as V20
 import Galley.Schema.V21 qualified as V21
 import Galley.Schema.V22 qualified as V22

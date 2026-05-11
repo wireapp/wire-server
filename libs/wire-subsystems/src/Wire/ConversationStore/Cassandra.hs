@@ -1045,7 +1045,7 @@ interpretConversationStoreToCassandra client = interpret $ \case
     embedClient client $ addHistoryClient groupId hid idx
   RemoveHistoryClient groupId hid -> do
     logEffect "ConversationStore.RemoveHistoryClient"
-    embedClient client $ removeHistoryClient groupId hid 
+    embedClient client $ removeHistoryClient groupId hid
   PlanClientRemoval lcnv cids -> do
     logEffect "ConversationStore.PlanClientRemoval"
     embedClient client $ planMLSClientRemoval lcnv cids
@@ -1436,8 +1436,8 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     cid <- groupIdToConvId groupId
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
-        False -> embedClient client $ removeHistoryClient groupId hid 
-        True -> interpretConversationStoreToPostgres (ConvStore.removeHistoryClient groupId hid )
+        False -> embedClient client $ removeHistoryClient groupId hid
+        True -> interpretConversationStoreToPostgres (ConvStore.removeHistoryClient groupId hid)
   PlanClientRemoval gid clients -> do
     logEffect "ConversationStore.PlanClientRemoval"
     cid <- groupIdToConvId gid

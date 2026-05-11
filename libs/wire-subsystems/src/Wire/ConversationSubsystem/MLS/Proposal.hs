@@ -311,7 +311,7 @@ checkExternalProposalUser qusr prop = do
         AddProposal kp -> do
           groupMember <- getKeyPackageIdentity kp.value
           case groupMember of
-            RegularClient (ClientIdentity {ciUser, ciClient}) -> do 
+            RegularClient (ClientIdentity {ciUser, ciClient}) -> do
               -- requesting user must match key package owner
               when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
               -- client referenced in key package must be one of the user's clients
