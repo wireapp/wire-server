@@ -639,6 +639,74 @@ testIdpNotFoundError = do
                 <> "' is not configured for this team"
         bdy `shouldContain` expectedErrorMsg
 
+-- | Test that a user of one team cannot log in using the IdP of a different team.
+--
+-- Team B's IdP must not grant access to Team A, even when the SAML response is otherwise
+-- well-formed.
+testCrossTeamIdpLoginRejected :: (HasCallStack) => App ()
+testCrossTeamIdpLoginRejected = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.ernie.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.ernie.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= ("https://webapp.bert.example.com" :: String),
+                          "spSsoUri" .= ("https://nginz-https.bert.example.com/sso" :: String),
+                          "contacts" .= [object ["type" .= ("ContactTechnical" :: String)]]
+                        ]
+                  ]
+              )
+            >=> setField "enableIdPByEmailDiscovery" True
+      }
+    $ \domain -> do
+      -- Team A with IdP A on bert domain
+      (ownerA, tidA, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus ownerA tidA "sso" "enabled"
+      SampleIdP idpMetaA pCredsA _ _ <- makeSampleIdPMetadataWithIssuer "team-a"
+      idpA <- createIdpWithZHostV2 ownerA (Just bertZHost) idpMetaA
+      idpIdA <- asString $ idpA.json %. "id"
+
+      -- Team B with IdP B on ernie domain
+      (ownerB, tidB, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus ownerB tidB "sso" "enabled"
+      SampleIdP idpMetaB pCredsB _ _ <- makeSampleIdPMetadataWithIssuer "team-b"
+      idpB <- createIdpWithZHostV2 ownerB (Just ernieZHost) idpMetaB
+      idpIdB <- asString $ idpB.json %. "id"
+
+      -- Create Alice as a user of Team A
+      aliceEmail <- randomEmail
+      let aliceNameId =
+            fromRight (error "could not create name id")
+              $ SAML.emailNameID (pack aliceEmail)
+      _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA aliceNameId (idpIdA, (idpMetaA, pCredsA))
+      activateEmail domain aliceEmail
+
+      -- Attempting to log Alice into Team A using Team B's IdP must fail.
+      -- Team B's IdP issuer is not registered under Team A, so spar returns 404.
+      let idpBConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdB))) idpMetaB ()
+      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tidA
+      authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just bertZHost) Nothing idpIdB
+      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+          parsedAuthnReq = parseAuthnReqResp authnreq.body
+      authnReqResp <- makeAuthnResponse aliceNameId pCredsB idpBConfig spMetaData parsedAuthnReq
+      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tidA authnReqResp) $ \resp ->
+        resp.status `shouldMatchInt` 404
+
 -- | Test that a new user is provisioned when the IdP is correct but the user doesn't exist.
 --
 -- This tests the case in multiIngressFlow (services/spar/src/Spar/App.hs:516) where:
