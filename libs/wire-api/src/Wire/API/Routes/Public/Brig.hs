@@ -1543,7 +1543,7 @@ type CipherSuiteParam =
   QueryParam'
     [ Required,
       Strict,
-      Description "Ciphersuite in hex format (e.g. 0xf031)"
+      Description "Ciphersuite in hex format (e.g. 0x0002)"
     ]
     "ciphersuite"
     CipherSuite
@@ -1552,7 +1552,7 @@ type CipherSuiteParamV7 =
   QueryParam'
     [ Optional,
       Strict,
-      Description "Ciphersuite in hex format (e.g. 0xf031) - default is 0x0001"
+      Description "Ciphersuite in hex format (e.g. 0x0002) - default is 0x0001"
     ]
     "ciphersuite"
     CipherSuite
@@ -1561,7 +1561,7 @@ type MultipleCipherSuitesParam =
   QueryParam'
     [ Required,
       Strict,
-      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031)"
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0x0002)"
     ]
     "ciphersuites"
     (CommaSeparatedList CipherSuite)
@@ -1570,7 +1570,7 @@ type MultipleCipherSuitesParamV7 =
   QueryParam'
     [ Optional,
       Strict,
-      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031) - default is 0x0001"
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0x0002) - default is 0x0001"
     ]
     "ciphersuites"
     (CommaSeparatedList CipherSuite)

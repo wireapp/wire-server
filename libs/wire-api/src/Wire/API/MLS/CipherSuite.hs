@@ -119,7 +119,6 @@ data CipherSuiteTag
   | MLS_128_DHKEMP256_AES128GCM_SHA256_P256
   | MLS_256_DHKEMP384_AES256GCM_SHA384_P384
   | MLS_256_DHKEMP521_AES256GCM_SHA512_P521
-  | MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
 
@@ -184,7 +183,6 @@ tagCipherSuite MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = CipherSuite 0x1
 tagCipherSuite MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = CipherSuite 0x2
 tagCipherSuite MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = CipherSuite 0x7
 tagCipherSuite MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = CipherSuite 0x5
-tagCipherSuite MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = CipherSuite 0xf031
 
 data SomeHashAlgorithm where
   SomeHashAlgorithm :: (HashAlgorithm a) => a -> SomeHashAlgorithm
@@ -194,7 +192,6 @@ csHashAlgorithm MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm
 csHashAlgorithm MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = SomeHashAlgorithm SHA256
 csHashAlgorithm MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = SomeHashAlgorithm SHA384
 csHashAlgorithm MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = SomeHashAlgorithm SHA512
-csHashAlgorithm MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = SomeHashAlgorithm SHA256
 
 csHash :: CipherSuiteTag -> ByteString -> RawMLS a -> ByteString
 csHash cs ctx value = case csHashAlgorithm cs of
@@ -208,7 +205,6 @@ csVerifySignature MLS_256_DHKEMP384_AES256GCM_SHA384_P384 =
   ECDSA.verifySignature (Proxy @Curve_P384R1) SHA384
 csVerifySignature MLS_256_DHKEMP521_AES256GCM_SHA512_P521 =
   ECDSA.verifySignature (Proxy @Curve_P521R1) SHA512
-csVerifySignature MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = ed25519VerifySignature
 
 ed25519VerifySignature :: ByteString -> RawMLS a -> ByteString -> Bool
 ed25519VerifySignature pub x sig =
@@ -265,7 +261,6 @@ csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
 csSignatureScheme MLS_128_DHKEMP256_AES128GCM_SHA256_P256 = Ecdsa_secp256r1_sha256
 csSignatureScheme MLS_256_DHKEMP384_AES256GCM_SHA384_P384 = Ecdsa_secp384r1_sha384
 csSignatureScheme MLS_256_DHKEMP521_AES256GCM_SHA512_P521 = Ecdsa_secp521r1_sha512
-csSignatureScheme MLS_128_X25519Kyber768Draft00_AES128GCM_SHA256_Ed25519 = Ed25519
 
 type family PrivateKey (ss :: SignatureSchemeTag)
 
