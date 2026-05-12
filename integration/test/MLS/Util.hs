@@ -951,7 +951,7 @@ readGroupState gs = do
             let prefix = fromString "history-client:"
             if (prefix `BS.isPrefixOf` ws)
               then do
-                hid <- pure $ BS.drop (BS.length prefix) ws
+                let hid = BS.drop (BS.length prefix) ws
                 pure $ Just (HistoryClient $ C8.unpack hid, leafNodeIndex)
               else do
                 [uc, domain] <- pure (C8.split '@' ws)
