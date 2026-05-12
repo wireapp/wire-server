@@ -38,6 +38,8 @@ import Spar.Sem.SAML2 (SAML2 (..))
 import Spar.Sem.SAMLUserStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem
+import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
+import Spar.Sem.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
 import Spar.Sem.ScimTokenStore
 import Spar.Sem.ScimTokenStore.Mem
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
@@ -1075,6 +1077,7 @@ type AuthrespEffs =
      GalleyAPIAccess,
      BrigAPIAccess,
      ScimTokenStore,
+     ScimExternalIdStore,
      IdPConfigStore,
      IdPRawMetadataStore,
      Logger (Msg -> Msg),
@@ -1123,6 +1126,7 @@ interpretAuthrespE opts mbAccount triplet action = do
       . recordLogs lr
       . ignoringState idpRawMetadataStoreToMem
       . ignoringState idPToMem
+      . ignoringState scimExternalIdStoreToMem
       . ignoringState scimTokenStoreToMem
       . brigAccessMock mbAccount
       . galleyAccessMock

@@ -1368,7 +1368,8 @@ Given an email address, the SSO code is looked up by these criteria:
 - The mapping must be unambiguous (there must be exactly one matching IdP).
   In multi-ingress mode, IdPs are always bound to one domain; the request domain
   must match the IdP's configured domain.
-- The user was created via SCIM
+- The user is a SSO user. So it was created via SCIM with SSO enabled (any IdP
+  configured in SCIM token) OR created via SSO (no SCIM involved).
 
 The last condition ensures that team admins cannot get into locked-out
 situations due to misconfigured IdPs.
@@ -1651,6 +1652,59 @@ Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP
 
 For multi-ingress setups, the [`idpCertFingerprintAllowlist`](#idp-certificate-fingerprint-allowlist)
 must be configured to restrict which X.509 certificates can be used in IdP metadata.
+This restriction was introduced to mitigate risks of
+[Multi-ingress cross-IdP SSO (fallback)](#multi-ingress-cross-idp-sso-fallback).
+
+#### Multi-ingress cross-IdP SSO (fallback)
+
+Terms used below:
+
+- _Authenticating IdP_ — the external identity provider that issued the SAML
+  assertion, identified by the `Issuer` URI inside it.
+- _IdP configuration_ — backend's IdP representation registered via
+  `/identity-providers`, storing the issuer URI, the associated multi-ingress
+  domain, and the team.
+
+In the normal SSO flow spar looks up the authenticating user by their `(issuer,
+NameID)` pair — matching the assertion's issuer against the IdP configuration
+the user was provisioned under.
+
+In a multi-ingress setup each domain has its own IdP configuration with its own
+issuer URI. A user provisioned under domain _A_ has their SSO identity tied to
+issuer _A_'s URI. When that user later authenticates via domain _B_, the IdP
+authentication response's assertion carries issuer _B_'s URI, so the primary
+`(issuer, NameID)` lookup finds nothing. Two IdPs can't have the same Issuer
+ID because those must be globally unique, and each external identity provider
+controls its own issuer URI (spar can't override it).
+
+When this primary lookup finds no user, spar therefore attempts a cross-IdP
+migration when multi-ingress is configured:
+
+1. **NameID must be an email address.** Username-based `NameID`s are rejected
+   to avoid ambiguity across authenticating IdPs.
+2. **The matching IdP configuration is resolved.** Spar looks for an IdP
+   configuration in the team whose issuer URI and configured domain both match
+   the assertion's issuer and the incoming `Z-Host` header (exact match).
+   If this condition is unmet, the login is rejected.
+3. **Team-wide user search.** The authenticating IdP is now known (step 2), but
+   the user may still be registered under a *different* team IdP from an
+   earlier login. Spar therefore searches every IdP configuration in the team,
+   pairing each one's issuer with the assertion's email NameID, and tries the
+   primary `(issuer, NameID)` lookup for each pairing until one matches.
+4. **Migrate or provision:**
+   - _Exactly one match found:_ The user's SSO identity is updated to point to
+     the IdP configuration for the authenticating IdP's issuer, so subsequent
+     logins hit the primary lookup directly. This saves the complexity of the IdP
+     configuration lookup and keeps the backend's representations of the user's
+     SSO data sound.
+   - _No match found:_ A new user account is auto-provisioned under the
+     authenticating IdP's configuration.
+   - _No matching IdP configuration can be resolved:_ Login is rejected.
+
+##### Security considerations
+
+It must be ensured that email `NameID`s are unique across IdPs by IdP
+administrators. Otherwise, users may be logged into other users' accounts!
 
 ### Webapp
 

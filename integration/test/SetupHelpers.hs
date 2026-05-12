@@ -31,12 +31,15 @@ import Crypto.Random (getRandomBytes)
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base16 as Base16
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Base64.URL as B64Url
 import Data.ByteString.Char8 (unpack)
 import qualified Data.CaseInsensitive as CI
 import Data.Default
+import Data.Either.Extra (fromRight')
 import Data.Function
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8)
@@ -44,6 +47,7 @@ import qualified Data.UUID as UUID
 import Data.UUID.V1 (nextUUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Vector (fromList)
+import qualified Data.X509 as X509
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
@@ -687,6 +691,35 @@ nextSubject = do
       0 -> either (error . show) id . SAML.mkUNameIDEmail . cs <$> randomEmail
       1 -> liftIO $ SAML.mkUNameIDUnspecified . UUID.toText <$> nextRandom
   either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
+
+-- | Generate a random email address and the corresponding email-based `SAML.NameID`.
+randomEmailNameId :: (HasCallStack) => App (String, SAML.NameID)
+randomEmailNameId = do
+  email <- randomEmail
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (Text.pack email)
+  pure (email, nameId)
+
+-- | Extract and decode base64 content from HTML error page <pre> tag.
+--
+-- This is meant to decode SAML errors embedded in HTML pages; e.g. from
+-- @/sso/finalize-login@.
+extractSAMLErrorPageContent :: (HasCallStack) => ByteString -> String
+extractSAMLErrorPageContent body =
+  let bdy = unpack body
+   in case bdy =~ ("<pre>([A-Za-z0-9+/=]+)</pre>" :: String) :: (String, String, String, [String]) of
+        (_, _, _, [b64Content]) -> cs $ Base64.decodeLenient (cs b64Content)
+        _ -> error "Could not extract base64 content from <pre> tag"
+
+-- | Helper to create IdP metadata with a fixed issuer suffix
+makeSampleIdPMetadataWithIssuer ::
+  (HasCallStack) =>
+  (SAML.SignPrivCreds, SAML.SignCreds, X509.SignedCertificate) -> String -> App SampleIdP
+makeSampleIdPMetadataWithIssuer (privcreds, creds, cert) suffix = do
+  let issuerUri = Text.pack $ "https://issuer.net/_" <> suffix
+      requriUri = Text.pack $ "https://requri.net/_req_" <> suffix
+      issuer = SAML.Issuer . fromRight' $ SAML.parseURI' issuerUri
+      requri = fromRight' $ SAML.parseURI' requriUri
+  pure $ SampleIdP (SAML.IdPMetadata issuer requri (cert NonEmpty.:| [])) privcreds creds cert
 
 -- helpers
 

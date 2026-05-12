@@ -118,6 +118,7 @@ data SparCustomError
     SparScimError Scim.ScimError
   | SparIdPDomainInUse
   | SparIdPCertNotAllowed LText
+  | SparMultiIngressIdPConfiguration LText
   deriving (Eq, Show)
 
 data SparProvisioningMoreThanOneIdP
@@ -230,6 +231,7 @@ renderSparError (SAML.CustomError (SparIdPCertNotAllowed fingerprint)) =
       status403
       "idp-cert-not-allowed"
       ("IdP certificate not in the configured allowlist: " <> fingerprint)
+renderSparError (SAML.CustomError (SparMultiIngressIdPConfiguration msg)) = StdError $ Wai.mkError status400 "multi-ingress-config-error" msg
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = StdError $
   Wai.mkError status400 "more-than-one-idp" do
