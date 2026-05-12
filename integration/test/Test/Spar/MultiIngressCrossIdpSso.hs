@@ -356,12 +356,8 @@ testSingletonIdpWorksOnAllDomains = do
       ssoIdTenant <- ssoId %. "tenant" >>= asString
       ssoIdTenant `shouldContain` bertIssuer
 
--- | Test that login fails with a meaningful error when the authenticating IdP is not found.
---
--- This tests the error case in multiIngressFlow when:
--- 1. Multi-ingress SSO is enabled
--- 2. A user tries to authenticate with an email-based NameID
--- 3. The SAML response is valid BUT the IdP (issuer + domain) is not registered for the team
+-- | Login fails when the authenticating IdP's issuer is not registered for the target domain.
+-- (Multiple IdPs configured, so the singleton fallback does not apply.)
 testIdpNotFoundError :: (HasCallStack) => App ()
 testIdpNotFoundError = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
