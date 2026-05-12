@@ -34,7 +34,7 @@ import Data.ByteString.Char8 (unpack)
 import Data.Either.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.String.Conversions (cs)
-import Data.Text (pack, singleton)
+import Data.Text (pack)
 import qualified Data.UUID as UUID
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
@@ -412,14 +412,18 @@ testCrossTeamIdpLoginRejected = do
     idpB <- createIdpWithZHostV2 ownerB (Just ernieZHost) idpMetaB
     idpIdB <- asString $ idpB.json %. "id"
 
-    -- Create Alice as a user of Team A
-    (aliceEmail, aliceNameId) <- randomEmailNameId
-    _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA aliceNameId (idpIdA, (idpMetaA, pCredsA))
-    activateEmail domain aliceEmail
+    -- Create Bibo as a user of Team A
+    (biboEmail, biboNameId) <- randomEmailNameId
+    _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA biboNameId (idpIdA, (idpMetaA, pCredsA))
+    activateEmail domain biboEmail
 
     -- Team B's IdP issuer is not registered under Team A, so spar returns 404.
-    authnReqResp <- buildSamlAuthnResponse domain bertZHost tidA idpIdB idpMetaB pCredsB aliceNameId
-    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tidA authnReqResp) $ \resp ->
+    authnReqRespBert <- buildSamlAuthnResponse domain bertZHost tidA idpIdB idpMetaB pCredsB biboNameId
+    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tidA authnReqRespBert) $ \resp ->
+      resp.status `shouldMatchInt` 404
+
+    authnReqRespErnie <- buildSamlAuthnResponse domain ernieZHost tidA idpIdB idpMetaB pCredsB biboNameId
+    bindResponse (finalizeSamlLoginWithZHost domain (Just ernieZHost) tidA authnReqRespErnie) $ \resp ->
       resp.status `shouldMatchInt` 404
 
 -- | Test that a new user is provisioned when the IdP is correct but the user doesn't exist.
