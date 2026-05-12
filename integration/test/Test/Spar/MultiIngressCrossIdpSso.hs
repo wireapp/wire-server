@@ -301,8 +301,8 @@ testScimUserLoginsDifferentIdP = do
 --
 -- As IdPs cannot be deleted when users are bound to them, having a single IdP
 -- implies that all SSO users are bound to it.
-testSingleIdp :: (HasCallStack) => App ()
-testSingleIdp = do
+testSingletonIdpWorksOnAllDomains :: (HasCallStack) => App ()
+testSingletonIdpWorksOnAllDomains = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
 
@@ -355,52 +355,6 @@ testSingleIdp = do
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
       ssoIdTenant `shouldContain` bertIssuer
-
--- | Test that a singleton IdP (only one IdP for the team) works on all domains.
---
--- When there is only ONE IdP configured for a team, it should be usable on any domain,
--- regardless of which domain it was originally registered for.
-testSingletonIdpWorksOnAllDomains :: (HasCallStack) => App ()
-testSingletonIdpWorksOnAllDomains = do
-  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-    -- Create team and enable SSO
-    (owner, tid, _) <- createTeam domain 1
-
-    -- Register a SINGLE IdP for Ernie domain
-    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-    idpIdErnie <- asString $ idpErnie.json %. "id"
-
-    -- Create email-based NameID for Bibo
-    (_biboEmail, biboNameId) <- randomEmailNameId
-
-    -- Login on Ernie domain (same as IdP registration domain) - should work
-    (mUserIdErnie, _) <-
-      loginWithSamlWithZHost
-        (Just ernieZHost)
-        domain
-        True -- expect SUCCESS
-        tid
-        biboNameId
-        (idpIdErnie, (idpMetaErnie, pCredsErnie))
-
-    -- Verify user was created
-    biboIdErnie <- assertOne mUserIdErnie
-    biboIdErnie `shouldMatch` mUserIdErnie
-
-    -- Login on BERT domain (different from IdP registration domain) - should ALSO work
-    -- because there's only one IdP for this team
-    (mUserIdBert, _) <-
-      loginWithSamlWithZHost
-        (Just bertZHost)
-        domain
-        True -- expect SUCCESS
-        tid
-        biboNameId
-        (idpIdErnie, (idpMetaErnie, pCredsErnie))
-
-    -- Verify the SAME user is returned (not a new user)
-    mUserIdBert `shouldMatch` mUserIdErnie
 
 -- | Test that login fails with a meaningful error when the authenticating IdP is not found.
 --
