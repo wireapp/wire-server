@@ -1,1 +1,0 @@
-`DELETE /meetings/:domain/:meetingId` for deleting meetings.
