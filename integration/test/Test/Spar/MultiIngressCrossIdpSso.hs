@@ -34,7 +34,7 @@ import Data.ByteString.Char8 (unpack)
 import Data.Either.Extra
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.String.Conversions (cs)
-import Data.Text (pack)
+import Data.Text (pack, singleton)
 import qualified Data.UUID as UUID
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
@@ -304,7 +304,6 @@ testScimUserLoginsDifferentIdP = do
 testSingleIdp :: (HasCallStack) => App ()
 testSingleIdp = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-    -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
 
     -- Register ONLY ONE IdP for Bert domain
@@ -315,20 +314,17 @@ testSingleIdp = do
 
     bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
 
-    -- Create email-based NameID for "bibo"
     (biboEmail, biboNameId) <- randomEmailNameId
 
     -- Provision SCIM user for Bert's IdP
     scimTok <- createScimToken owner (def {idp = Just idpIdBert})
     scimToken <- scimTok.json %. "token" & asString
 
-    -- Create SCIM user with the email (associated with Bert's IdP)
     scimUser <- randomScimUserWithEmail biboEmail biboEmail
     biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
       resp.status `shouldMatchInt` 201
       resp.json %. "id" >>= asString
 
-    -- Activate the email
     activateEmail domain biboEmail
 
     -- Verify user was created with Bert's SSO ID
@@ -339,9 +335,7 @@ testSingleIdp = do
       ssoIdTenant `shouldContain` bertIssuer
 
     -- User logs in via ERNIE ingress (different domain from IdP registration)
-    -- Since user is already bound to Bert's IdP, this succeeds via direct match.
-    -- NOTE: This does NOT exercise multiIngressFlow fallback behavior, as the
-    -- user's SSO ID already matches the authenticating IdP.
+    -- Bert's singleton IdP is valid here are well.
     userIdFromErnie <-
       loginWithSamlWithZHost
         (Just ernieZHost)
@@ -353,7 +347,6 @@ testSingleIdp = do
         >>= maybe (error "Expected user ID from cross-domain login") pure
         . fst
 
-    -- Verify it's the same user
     userIdFromErnie `shouldMatch` biboUid
 
     -- Verify user's SSO ID is still Bert's issuer
