@@ -500,7 +500,9 @@ testCrossIngressRequestResponseMismatch = do
 
     (_biboEmail, biboNameId) <- randomEmailNameId
 
-    -- Response Destination is ernie's ACS URL; finalizing on bert causes a mismatch.
+    -- The SAML response's Destination is ernie's ACS (Assertion Consumer Service) URL,
+    -- i.e. ernie's /sso/finalize-login endpoint. Submitting it to bert's endpoint causes
+    -- a Destination mismatch ("bad Recipient").
     authnReqResp <- buildSamlAuthnResponse domain ernieZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
 
     -- Finalize on bert ingress — Destination mismatch, bad recipient
@@ -548,11 +550,15 @@ buildSamlAuthnResponse ::
   SAML.NameID ->
   App SAML.SignedAuthnResponse
 buildSamlAuthnResponse domain mbZHost tid idpId idpMeta pcreds nameId = do
-  let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpId))) idpMeta ()
   spmeta <- getSPMetadataWithZHost domain (Just mbZHost) tid
   authnreq <- initiateSamlLoginWithZHostAndLabel domain (Just mbZHost) Nothing idpId
   let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
       parsedAuthnReq = parseAuthnReqResp authnreq.body
+      idpConfig =
+        SAML.IdPConfig
+          (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpId)))
+          idpMeta
+          ()
   makeAuthnResponse nameId pcreds idpConfig spMetaData parsedAuthnReq
 
 -- | Generate a random email address and the corresponding email-based SAML NameID.
@@ -562,7 +568,7 @@ randomEmailNameId = do
   let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (pack email)
   pure (email, nameId)
 
--- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
+-- | Helper to create IdP metadata with a fixed issuer suffix
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
 makeSampleIdPMetadataWithIssuer suffix = do
   let issuerUri = pack $ "https://issuer.net/_" <> suffix
