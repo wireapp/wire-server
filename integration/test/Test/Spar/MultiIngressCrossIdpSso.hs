@@ -50,12 +50,13 @@ bertDomain = "bert.example.com"
 ernieZHost = "nginz-https." <> ernieDomain
 bertZHost = "nginz-https." <> bertDomain
 
--- | Test that demonstrates cross-IdP login with an email address
+-- | Test that a user provisioned under one IdP can log in via another IdP,
+-- with their SSO identity migrating to the new IdP transparently.
 --
--- User can login with different IdPs. This is different from username-based
--- NameID that is disallowed.
-testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
-testCrossIdpSsoEmailConflict useSCIM = do
+-- Covers both SCIM-provisioned and auto-provisioned users, and verifies
+-- back-and-forth migration between IdPs.
+testCrossIdpSsoMigration :: (HasCallStack) => Bool -> App ()
+testCrossIdpSsoMigration useSCIM = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
 
