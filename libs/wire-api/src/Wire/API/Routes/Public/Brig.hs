@@ -46,7 +46,7 @@ import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
 import Wire.API.Error
-import Wire.API.Error.Brig
+import Wire.API.Error.Brig as ErrorBrig
 import Wire.API.Error.Empty
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
@@ -2174,6 +2174,7 @@ type AppsAPI =
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
                :> From 'V12
+               :> CanThrow 'ErrorBrig.MissingAuth
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

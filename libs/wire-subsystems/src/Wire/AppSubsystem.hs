@@ -41,6 +41,7 @@ instance Default AppSubsystemConfig where
 
 data AppSubsystemError
   = AppSubsystemErrorNoPerm
+  | AppSubsystemErrorMissingAuth
   | AppSubsystemErrorNoUser -- The user having created the app not found
   | AppSubsystemErrorAppUserNotFound -- The user used to "enact" the app not found
   | AppSubsystemErrorNoApp
@@ -52,6 +53,7 @@ appSubsystemErrorToHttpError :: AppSubsystemError -> HttpError
 appSubsystemErrorToHttpError =
   StdError . \case
     AppSubsystemErrorNoPerm -> Wai.mkError status403 "app-no-permission" "User does not have permission to create or manage apps"
+    AppSubsystemErrorMissingAuth -> Wai.mkError status403 "missing-auth" "Re-authentication via password required"
     AppSubsystemErrorNoUser -> Wai.mkError status403 "create-app-no-user" "App owner not found"
     AppSubsystemErrorAppUserNotFound -> Wai.mkError status403 "app-user-not-found" "App user not found"
     AppSubsystemErrorNoApp -> Wai.mkError status404 "app-not-found" "App not found"
