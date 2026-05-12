@@ -28,6 +28,7 @@ import Codec.MIME.Type qualified as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
+import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
@@ -225,12 +226,30 @@ getUserClientsUnqualified brig uid =
       . paths ["users", toByteString' uid, "clients"]
       . zUser uid
 
-getUserClientsQualified :: Brig -> UserId -> Domain -> UserId -> (MonadHttp m) => m ResponseLBS
-getUserClientsQualified brig zusr domain uid =
-  get $
-    brig
-      . paths ["users", toByteString' domain, toByteString' uid, "clients"]
-      . zUser zusr
+-- https://staging-nginz-https.zinfra.io/v15/api/swagger-ui/#/default/get-user-clients-qualified
+-- has been removed from the API in v16, so we call
+-- https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/list-clients-bulk%40v2
+-- under the hood.
+getUserClientsQualified :: forall m. (Monad m, Applicative m, MonadHttp m) => Brig -> UserId -> Domain -> UserId -> m ResponseLBS
+getUserClientsQualified brig zusr domain uid = do
+  r <-
+    post $
+      brig
+        . paths ["users", "list-clients"]
+        . contentJson
+        . zUser zusr
+        . body (RequestBodyLBS $ encode $ object ["qualified_users" .= [object ["domain" .= domain, "id" .= uid]]])
+  pure r {responseBody = fmap extractClients (responseBody r)}
+  where
+    extractClients bs =
+      fromMaybe bs $ do
+        v <- decode bs
+        clients <- lookupKey "qualified_user_map" v >>= lookupKey domStr >>= lookupKey uidStr
+        pure (encode clients)
+    lookupKey k (Object m) = KM.lookup (fromString k) m
+    lookupKey _ _ = Nothing
+    domStr = cs (toByteString' domain) :: String
+    uidStr = cs (toByteString' uid) :: String
 
 deleteClient :: Brig -> UserId -> ClientId -> Maybe Text -> (MonadHttp m) => m ResponseLBS
 deleteClient brig u c pw =

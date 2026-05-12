@@ -1224,6 +1224,8 @@ type ClientAPI =
     :<|> Named
            "get-user-clients-qualified"
            ( Summary "Get all of a user's clients"
+               :> Description "This will go away in V16, please use <code>POST /users/list-clients</code> instead."
+               :> Until 'V16
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
