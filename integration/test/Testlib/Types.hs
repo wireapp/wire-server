@@ -362,7 +362,7 @@ data MLSState = MLSState
   { baseDir :: FilePath,
     convs :: Map ConvId MLSConv,
     clientGroupState :: Map ClientIdentity ClientGroupState,
-    historyClientState :: Map ConvId (Map String ByteString)
+    historyClientState :: Map (ConvId, String) (Map String ByteString)
   }
   deriving (Show)
 

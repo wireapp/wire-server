@@ -112,10 +112,10 @@ mlscli' mConvId cs groupMem args mbstdin = do
 
   gs <- case groupMem of
     RegularClient cid -> getClientGroupState cid
-    HistoryClient _ -> do
+    HistoryClient hid -> do
       convId <- assertOne mConvId
       state <- getMLSState
-      let keyStore = Map.findWithDefault mempty convId state.historyClientState
+      let keyStore = Map.findWithDefault mempty (convId, hid) state.historyClientState
       pure $ ClientGroupState mempty keyStore BasicCredentialType
 
   substIn <- case flip Map.lookup gs.groups =<< mConvId of
@@ -161,10 +161,10 @@ mlscli' mConvId cs groupMem args mbstdin = do
 
   case groupMem of
     RegularClient cid -> setClientGroupState cid (setGroup (setStore gs))
-    HistoryClient _ -> do
+    HistoryClient hid -> do
       convId <- assertOne mConvId
       modifyMLSState $ \s ->
-        s {historyClientState = Map.alter (Just . Map.insert scheme storeData . fromMaybe mempty) convId s.historyClientState}
+        s {historyClientState = Map.alter (Just . Map.insert scheme storeData . fromMaybe mempty) (convId, hid) s.historyClientState}
 
   pure out
 
