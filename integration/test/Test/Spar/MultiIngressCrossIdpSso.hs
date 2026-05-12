@@ -20,7 +20,16 @@ module Test.Spar.MultiIngressCrossIdpSso where
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail, randomHandle)
 import API.GalleyInternal (setTeamFeatureStatus)
-import API.Spar (CreateScimToken (..), createIdpWithZHostV2, createScimToken, createScimUser, finalizeSamlLoginWithZHost, getSPMetadataWithZHost, getSsoCodeByEmailWithZHost, initiateSamlLoginWithZHostAndLabel)
+import API.Spar
+  ( CreateScimToken (..),
+    createIdpWithZHostV2,
+    createScimToken,
+    createScimUser,
+    finalizeSamlLoginWithZHost,
+    getSPMetadataWithZHost,
+    getSsoCodeByEmailWithZHost,
+    initiateSamlLoginWithZHostAndLabel,
+  )
 import Control.Lens ((^.))
 import Data.ByteString.Char8 (unpack)
 import Data.Either.Extra
@@ -49,155 +58,155 @@ bertZHost = "nginz-https." <> bertDomain
 testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
 testCrossIdpSsoEmailConflict useSCIM = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      -- Create team and enable SSO
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    -- Create team and enable SSO
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register IdP for Ernie domain with fixed issuer "ernie"
-      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-      idpIdErnie <- asString $ idpErnie.json %. "id"
+    -- Register IdP for Ernie domain with fixed issuer "ernie"
+    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+    idpIdErnie <- asString $ idpErnie.json %. "id"
 
-      -- Register IdP for Bert domain with fixed issuer "bert"
-      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
-      idpIdBert <- asString $ idpBert.json %. "id"
+    -- Register IdP for Bert domain with fixed issuer "bert"
+    SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    idpIdBert <- asString $ idpBert.json %. "id"
 
-      -- Create email-based NameID for "bibo"
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    -- Create email-based NameID for "bibo"
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      -- Optionally create the user via SCIM (and not automatically)
-      mScimUserId <-
-        if useSCIM
-          then do
-            -- Create SCIM token associated with Ernie's IdP
-            scimTok <- createScimToken owner (def {idp = Just idpIdErnie})
-            scimToken <- scimTok.json %. "token" & asString
+    -- Optionally create the user via SCIM (and not automatically)
+    mScimUserId <-
+      if useSCIM
+        then do
+          -- Create SCIM token associated with Ernie's IdP
+          scimTok <- createScimToken owner (def {idp = Just idpIdErnie})
+          scimToken <- scimTok.json %. "token" & asString
 
-            -- Create SCIM user with the email
-            scimUser <- randomScimUserWithEmail biboEmail biboEmail
-            scimUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
-              resp.status `shouldMatchInt` 201
-              resp.json %. "id" >>= asString
+          -- Create SCIM user with the email
+          scimUser <- randomScimUserWithEmail biboEmail biboEmail
+          scimUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+            resp.status `shouldMatchInt` 201
+            resp.json %. "id" >>= asString
 
-            activateEmail domain biboEmail
+          activateEmail domain biboEmail
 
-            pure (Just scimUid)
-          else pure Nothing
+          pure (Just scimUid)
+        else pure Nothing
 
-      -- Step 1: Bibo logs in on Ernie ingress (should succeed)
-      userIdErnie <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
-          >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
-          . fst
+    -- Step 1: Bibo logs in on Ernie ingress (should succeed)
+    userIdErnie <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
+        >>= maybe (error "Expected user ID from SSO login on Ernie domain") pure
+        . fst
 
-      case mScimUserId of
-        Just scimUid ->
-          -- Validate that SCIM-created user matches SSO login user
-          scimUid `shouldMatch` userIdErnie
-        Nothing -> activateEmail domain biboEmail
+    case mScimUserId of
+      Just scimUid ->
+        -- Validate that SCIM-created user matches SSO login user
+        scimUid `shouldMatch` userIdErnie
+      Nothing -> activateEmail domain biboEmail
 
-      -- Verify user's SSO ID has Ernie's issuer (not Bert's)
-      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` ernieIssuer
-        ssoIdTenant `shouldNotMatch` bertIssuer
+    -- Verify user's SSO ID has Ernie's issuer (not Bert's)
+    getUsersId domain [userIdErnie] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` ernieIssuer
+      ssoIdTenant `shouldNotMatch` bertIssuer
 
-      -- Verify sso/get-by-email returns Ernie's IdP
-      getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "sso_code" >>= asString
-        ssoCodeStr `shouldMatch` idpIdErnie
+    -- Verify sso/get-by-email returns Ernie's IdP
+    getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoCodeStr <- resp.json %. "sso_code" >>= asString
+      ssoCodeStr `shouldMatch` idpIdErnie
 
-      -- Step 1.5: Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
-      (mUserIdErnieAgain, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+    -- Step 1.5: Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
+    (mUserIdErnieAgain, _) <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
-      case mUserIdErnieAgain of
-        Just uid -> uid `shouldMatch` userIdErnie
-        Nothing -> error "Expected user ID from re-login on Ernie domain"
+    case mUserIdErnieAgain of
+      Just uid -> uid `shouldMatch` userIdErnie
+      Nothing -> error "Expected user ID from re-login on Ernie domain"
 
-      -- Step 2: Same Bibo logs in on Bert ingress with SAME email
-      -- This should SUCCEED because cross-IdP SSO migration is enabled:
-      -- the email matches an existing user in the team, so we return that user
-      (mUserIdBert, _) <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdBert, (idpMetaBert, pCredsBert))
+    -- Step 2: Same Bibo logs in on Bert ingress with SAME email
+    -- This should SUCCEED because cross-IdP SSO migration is enabled:
+    -- the email matches an existing user in the team, so we return that user
+    (mUserIdBert, _) <-
+      loginWithSamlWithZHost
+        (Just bertZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdBert, (idpMetaBert, pCredsBert))
 
-      -- Verify the same user ID is returned (cross-IdP SSO migration worked)
-      case mUserIdBert of
-        Just uid -> uid `shouldMatch` userIdErnie
-        Nothing -> error "Expected user ID from cross-IdP SSO login on Bert domain"
+    -- Verify the same user ID is returned (cross-IdP SSO migration worked)
+    case mUserIdBert of
+      Just uid -> uid `shouldMatch` userIdErnie
+      Nothing -> error "Expected user ID from cross-IdP SSO login on Bert domain"
 
-      -- Verify user's SSO ID was migrated to Bert's issuer (not Ernie's anymore)
-      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` bertIssuer
-        ssoIdTenant `shouldNotMatch` ernieIssuer
+    -- Verify user's SSO ID was migrated to Bert's issuer (not Ernie's anymore)
+    getUsersId domain [userIdErnie] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` bertIssuer
+      ssoIdTenant `shouldNotMatch` ernieIssuer
 
-      -- Verify sso/get-by-email returns Bert's IdP after migration
-      getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "sso_code" >>= asString
-        ssoCodeStr `shouldMatch` idpIdBert
+    -- Verify sso/get-by-email returns Bert's IdP after migration
+    getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoCodeStr <- resp.json %. "sso_code" >>= asString
+      ssoCodeStr `shouldMatch` idpIdBert
 
-      -- Step 3: Login on Ernie again to show back-and-forth migration works
-      (mUserIdErnieFinal, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+    -- Step 3: Login on Ernie again to show back-and-forth migration works
+    (mUserIdErnieFinal, _) <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
-      case mUserIdErnieFinal of
-        Just uid -> uid `shouldMatch` userIdErnie
-        Nothing -> error "Expected user ID from final login on Ernie domain"
+    case mUserIdErnieFinal of
+      Just uid -> uid `shouldMatch` userIdErnie
+      Nothing -> error "Expected user ID from final login on Ernie domain"
 
-      -- Verify user's SSO ID was migrated back to Ernie's issuer
-      getUsersId domain [userIdErnie] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` ernieIssuer
-        ssoIdTenant `shouldNotMatch` bertIssuer
+    -- Verify user's SSO ID was migrated back to Ernie's issuer
+    getUsersId domain [userIdErnie] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` ernieIssuer
+      ssoIdTenant `shouldNotMatch` bertIssuer
 
-      -- Verify sso/get-by-email returns Ernie's IdP after migration back
-      getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "sso_code" >>= asString
-        ssoCodeStr `shouldMatch` idpIdErnie
+    -- Verify sso/get-by-email returns Ernie's IdP after migration back
+    getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoCodeStr <- resp.json %. "sso_code" >>= asString
+      ssoCodeStr `shouldMatch` idpIdErnie
 
 -- | Test that demonstrates cross-IdP SSO migration when a SCIM user provisioned for one IdP
 -- logs in for the first time via a different IdP.
@@ -210,102 +219,102 @@ testCrossIdpSsoEmailConflict useSCIM = do
 testScimUserLoginsDifferentIdP :: (HasCallStack) => App ()
 testScimUserLoginsDifferentIdP = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      -- Create team and enable SSO
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    -- Create team and enable SSO
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register IdP for Ernie domain with fixed issuer "ernie"
-      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-      idpIdErnie <- asString $ idpErnie.json %. "id"
+    -- Register IdP for Ernie domain with fixed issuer "ernie"
+    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+    idpIdErnie <- asString $ idpErnie.json %. "id"
 
-      -- Register IdP for Bert domain with fixed issuer "bert"
-      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
-      idpIdBert <- asString $ idpBert.json %. "id"
+    -- Register IdP for Bert domain with fixed issuer "bert"
+    SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    idpIdBert <- asString $ idpBert.json %. "id"
 
-      -- Create email-based NameID for "bibo"
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    -- Create email-based NameID for "bibo"
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      -- Provision SCIM user for Ernie's IdP
-      scimTok <- createScimToken owner (def {idp = Just idpIdErnie})
-      scimToken <- scimTok.json %. "token" & asString
+    -- Provision SCIM user for Ernie's IdP
+    scimTok <- createScimToken owner (def {idp = Just idpIdErnie})
+    scimToken <- scimTok.json %. "token" & asString
 
-      -- Create SCIM user with the email (associated with Ernie's IdP)
-      scimUser <- randomScimUserWithEmail biboEmail biboEmail
-      biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
-        resp.status `shouldMatchInt` 201
-        resp.json %. "id" >>= asString
+    -- Create SCIM user with the email (associated with Ernie's IdP)
+    scimUser <- randomScimUserWithEmail biboEmail biboEmail
+    biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "id" >>= asString
 
-      -- Activate the email
-      activateEmail domain biboEmail
+    -- Activate the email
+    activateEmail domain biboEmail
 
-      -- Verify user was created with Ernie's SSO ID
-      getUsersId domain [biboUid] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` ernieIssuer
+    -- Verify user was created with Ernie's SSO ID
+    getUsersId domain [biboUid] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` ernieIssuer
 
-      -- Step 1: Bibo logs in for the FIRST time on Bert's IdP (NOT Ernie!)
-      -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
-      userIdBert <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdBert, (idpMetaBert, pCredsBert))
-          >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure
-          . fst
+    -- Step 1: Bibo logs in for the FIRST time on Bert's IdP (NOT Ernie!)
+    -- This tests cross-IdP migration when user has never logged in before (only SCIM provisioned)
+    userIdBert <-
+      loginWithSamlWithZHost
+        (Just bertZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdBert, (idpMetaBert, pCredsBert))
+        >>= maybe (error "Expected user ID from cross-IdP SSO login on Bert domain") pure
+        . fst
 
-      -- Verify the same user ID is returned (cross-IdP SSO migration worked)
-      userIdBert `shouldMatch` biboUid
+    -- Verify the same user ID is returned (cross-IdP SSO migration worked)
+    userIdBert `shouldMatch` biboUid
 
-      -- Verify user's SSO ID was migrated to Bert's issuer
-      getUsersId domain [userIdBert] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` bertIssuer
-        ssoIdTenant `shouldNotMatch` ernieIssuer
+    -- Verify user's SSO ID was migrated to Bert's issuer
+    getUsersId domain [userIdBert] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` bertIssuer
+      ssoIdTenant `shouldNotMatch` ernieIssuer
 
-      -- Verify sso/get-by-email returns Bert's IdP after migration
-      getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoCodeStr <- resp.json %. "sso_code" >>= asString
-        ssoCodeStr `shouldMatch` idpIdBert
+    -- Verify sso/get-by-email returns Bert's IdP after migration
+    getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoCodeStr <- resp.json %. "sso_code" >>= asString
+      ssoCodeStr `shouldMatch` idpIdBert
 
-      -- Step 2: Login on Ernie to verify back-migration also works
-      (mUserIdErnie, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+    -- Step 2: Login on Ernie to verify back-migration also works
+    (mUserIdErnie, _) <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
-      case mUserIdErnie of
-        Just uid -> uid `shouldMatch` biboUid
-        Nothing -> error "Expected user ID from login on Ernie domain"
+    case mUserIdErnie of
+      Just uid -> uid `shouldMatch` biboUid
+      Nothing -> error "Expected user ID from login on Ernie domain"
 
-      -- Verify user's SSO ID was migrated back to Ernie's issuer
-      getUsersId domain [biboUid] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` ernieIssuer
-        ssoIdTenant `shouldNotMatch` bertIssuer
+    -- Verify user's SSO ID was migrated back to Ernie's issuer
+    getUsersId domain [biboUid] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` ernieIssuer
+      ssoIdTenant `shouldNotMatch` bertIssuer
 
 -- | Test cross-domain login when team has a single IdP.
 --
@@ -314,68 +323,68 @@ testScimUserLoginsDifferentIdP = do
 testSingleIdp :: (HasCallStack) => App ()
 testSingleIdp = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      -- Create team and enable SSO
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    -- Create team and enable SSO
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register ONLY ONE IdP for Bert domain
-      -- This is the key: there's only a single IdP for the team
-      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
-      idpIdBert <- asString $ idpBert.json %. "id"
+    -- Register ONLY ONE IdP for Bert domain
+    -- This is the key: there's only a single IdP for the team
+    SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    idpIdBert <- asString $ idpBert.json %. "id"
 
-      -- Create email-based NameID for "bibo"
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    -- Create email-based NameID for "bibo"
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      -- Provision SCIM user for Bert's IdP
-      scimTok <- createScimToken owner (def {idp = Just idpIdBert})
-      scimToken <- scimTok.json %. "token" & asString
+    -- Provision SCIM user for Bert's IdP
+    scimTok <- createScimToken owner (def {idp = Just idpIdBert})
+    scimToken <- scimTok.json %. "token" & asString
 
-      -- Create SCIM user with the email (associated with Bert's IdP)
-      scimUser <- randomScimUserWithEmail biboEmail biboEmail
-      biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
-        resp.status `shouldMatchInt` 201
-        resp.json %. "id" >>= asString
+    -- Create SCIM user with the email (associated with Bert's IdP)
+    scimUser <- randomScimUserWithEmail biboEmail biboEmail
+    biboUid <- bindResponse (createScimUser domain scimToken scimUser) $ \resp -> do
+      resp.status `shouldMatchInt` 201
+      resp.json %. "id" >>= asString
 
-      -- Activate the email
-      activateEmail domain biboEmail
+    -- Activate the email
+    activateEmail domain biboEmail
 
-      -- Verify user was created with Bert's SSO ID
-      getUsersId domain [biboUid] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` bertIssuer
+    -- Verify user was created with Bert's SSO ID
+    getUsersId domain [biboUid] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` bertIssuer
 
-      -- User logs in via ERNIE ingress (different domain from IdP registration)
-      -- Since user is already bound to Bert's IdP, this succeeds via direct match.
-      -- NOTE: This does NOT exercise multiIngressFlow fallback behavior, as the
-      -- user's SSO ID already matches the authenticating IdP.
-      userIdFromErnie <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect success
-          tid
-          biboNameId
-          (idpIdBert, (idpMetaBert, pCredsBert))
-          >>= maybe (error "Expected user ID from cross-domain login") pure
-          . fst
+    -- User logs in via ERNIE ingress (different domain from IdP registration)
+    -- Since user is already bound to Bert's IdP, this succeeds via direct match.
+    -- NOTE: This does NOT exercise multiIngressFlow fallback behavior, as the
+    -- user's SSO ID already matches the authenticating IdP.
+    userIdFromErnie <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect success
+        tid
+        biboNameId
+        (idpIdBert, (idpMetaBert, pCredsBert))
+        >>= maybe (error "Expected user ID from cross-domain login") pure
+        . fst
 
-      -- Verify it's the same user
-      userIdFromErnie `shouldMatch` biboUid
+    -- Verify it's the same user
+    userIdFromErnie `shouldMatch` biboUid
 
-      -- Verify user's SSO ID is still Bert's issuer
-      getUsersId domain [userIdFromErnie] `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
-        ssoId <- resp.json %. "0.sso_id"
-        ssoIdTenant <- ssoId %. "tenant" >>= asString
-        bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
-        ssoIdTenant `shouldContain` bertIssuer
+    -- Verify user's SSO ID is still Bert's issuer
+    getUsersId domain [userIdFromErnie] `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoId <- resp.json %. "0.sso_id"
+      ssoIdTenant <- ssoId %. "tenant" >>= asString
+      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+      ssoIdTenant `shouldContain` bertIssuer
 
 -- | Test that a singleton IdP (only one IdP for the team) works on all domains.
 --
@@ -384,48 +393,48 @@ testSingleIdp = do
 testSingletonIdpWorksOnAllDomains :: (HasCallStack) => App ()
 testSingletonIdpWorksOnAllDomains = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      -- Create team and enable SSO
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    -- Create team and enable SSO
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register a SINGLE IdP for Ernie domain
-      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-      idpIdErnie <- asString $ idpErnie.json %. "id"
+    -- Register a SINGLE IdP for Ernie domain
+    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+    idpIdErnie <- asString $ idpErnie.json %. "id"
 
-      -- Create email-based NameID for Bibo
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    -- Create email-based NameID for Bibo
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      -- Login on Ernie domain (same as IdP registration domain) - should work
-      (mUserIdErnie, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True -- expect SUCCESS
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+    -- Login on Ernie domain (same as IdP registration domain) - should work
+    (mUserIdErnie, _) <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True -- expect SUCCESS
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
-      -- Verify user was created
-      biboIdErnie <- assertOne mUserIdErnie
-      biboIdErnie `shouldMatch` mUserIdErnie
+    -- Verify user was created
+    biboIdErnie <- assertOne mUserIdErnie
+    biboIdErnie `shouldMatch` mUserIdErnie
 
-      -- Login on BERT domain (different from IdP registration domain) - should ALSO work
-      -- because there's only one IdP for this team
-      (mUserIdBert, _) <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True -- expect SUCCESS
-          tid
-          biboNameId
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+    -- Login on BERT domain (different from IdP registration domain) - should ALSO work
+    -- because there's only one IdP for this team
+    (mUserIdBert, _) <-
+      loginWithSamlWithZHost
+        (Just bertZHost)
+        domain
+        True -- expect SUCCESS
+        tid
+        biboNameId
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
-      -- Verify the SAME user is returned (not a new user)
-      mUserIdBert `shouldMatch` mUserIdErnie
+    -- Verify the SAME user is returned (not a new user)
+    mUserIdBert `shouldMatch` mUserIdErnie
 
 -- | Test that login fails with a meaningful error when the authenticating IdP is not found.
 --
@@ -436,41 +445,41 @@ testSingletonIdpWorksOnAllDomains = do
 testIdpNotFoundError :: (HasCallStack) => App ()
 testIdpNotFoundError = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register TWO IdPs: one for Ernie domain, one for Bert domain
-      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-      idpIdErnie <- asString $ idpErnie.json %. "id"
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+    -- Register TWO IdPs: one for Ernie domain, one for Bert domain
+    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+    idpIdErnie <- asString $ idpErnie.json %. "id"
+    ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
 
-      SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      _idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    _idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
 
-      -- Ernie's IdP is registered for ernieZHost, so authenticating on bertZHost with Ernie's
-      -- credentials triggers a "not found" error (multiple IdPs, no singleton fallback).
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    -- Ernie's IdP is registered for ernieZHost, so authenticating on bertZHost with Ernie's
+    -- credentials triggers a "not found" error (multiple IdPs, no singleton fallback).
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
+    authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
 
-      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        let bdy = unpack resp.body
-        bdy `shouldContain` "wire:sso:error:"
-        bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
-        bdy `shouldContain` "wire:sso:error:not-found"
-        bdy `shouldContain` "\"label\":\"forbidden\""
-        let expectedErrorMsg =
-              "Could not find IdP: IdP with issuer '\\\""
-                <> ernieIssuer
-                <> "\\\"' for domain '"
-                <> bertZHost
-                <> "' is not configured for this team"
-        bdy `shouldContain` expectedErrorMsg
+    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      let bdy = unpack resp.body
+      bdy `shouldContain` "wire:sso:error:"
+      bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+      bdy `shouldContain` "wire:sso:error:not-found"
+      bdy `shouldContain` "\"label\":\"forbidden\""
+      let expectedErrorMsg =
+            "Could not find IdP: IdP with issuer '\\\""
+              <> ernieIssuer
+              <> "\\\"' for domain '"
+              <> bertZHost
+              <> "' is not configured for this team"
+      bdy `shouldContain` expectedErrorMsg
 
 -- | Test that a user of one team cannot log in using the IdP of a different team.
 --
@@ -479,32 +488,32 @@ testIdpNotFoundError = do
 testCrossTeamIdpLoginRejected :: (HasCallStack) => App ()
 testCrossTeamIdpLoginRejected = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      -- Team A with IdP A on bert domain
-      (ownerA, tidA, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus ownerA tidA "sso" "enabled"
-      SampleIdP idpMetaA pCredsA _ _ <- makeSampleIdPMetadataWithIssuer "team-a"
-      idpA <- createIdpWithZHostV2 ownerA (Just bertZHost) idpMetaA
-      idpIdA <- asString $ idpA.json %. "id"
+    -- Team A with IdP A on bert domain
+    (ownerA, tidA, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus ownerA tidA "sso" "enabled"
+    SampleIdP idpMetaA pCredsA _ _ <- makeSampleIdPMetadataWithIssuer "team-a"
+    idpA <- createIdpWithZHostV2 ownerA (Just bertZHost) idpMetaA
+    idpIdA <- asString $ idpA.json %. "id"
 
-      -- Team B with IdP B on ernie domain
-      (ownerB, tidB, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus ownerB tidB "sso" "enabled"
-      SampleIdP idpMetaB pCredsB _ _ <- makeSampleIdPMetadataWithIssuer "team-b"
-      idpB <- createIdpWithZHostV2 ownerB (Just ernieZHost) idpMetaB
-      idpIdB <- asString $ idpB.json %. "id"
+    -- Team B with IdP B on ernie domain
+    (ownerB, tidB, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus ownerB tidB "sso" "enabled"
+    SampleIdP idpMetaB pCredsB _ _ <- makeSampleIdPMetadataWithIssuer "team-b"
+    idpB <- createIdpWithZHostV2 ownerB (Just ernieZHost) idpMetaB
+    idpIdB <- asString $ idpB.json %. "id"
 
-      -- Create Alice as a user of Team A
-      aliceEmail <- randomEmail
-      let aliceNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack aliceEmail)
-      _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA aliceNameId (idpIdA, (idpMetaA, pCredsA))
-      activateEmail domain aliceEmail
+    -- Create Alice as a user of Team A
+    aliceEmail <- randomEmail
+    let aliceNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack aliceEmail)
+    _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA aliceNameId (idpIdA, (idpMetaA, pCredsA))
+    activateEmail domain aliceEmail
 
-      -- Team B's IdP issuer is not registered under Team A, so spar returns 404.
-      authnReqResp <- buildSamlAuthnResponse domain bertZHost tidA idpIdB idpMetaB pCredsB aliceNameId
-      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tidA authnReqResp) $ \resp ->
-        resp.status `shouldMatchInt` 404
+    -- Team B's IdP issuer is not registered under Team A, so spar returns 404.
+    authnReqResp <- buildSamlAuthnResponse domain bertZHost tidA idpIdB idpMetaB pCredsB aliceNameId
+    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tidA authnReqResp) $ \resp ->
+      resp.status `shouldMatchInt` 404
 
 -- | Test that a new user is provisioned when the IdP is correct but the user doesn't exist.
 --
@@ -517,54 +526,54 @@ testCrossTeamIdpLoginRejected = do
 testNewUserProvisioningWithMultipleIdPs :: (HasCallStack) => App ()
 testNewUserProvisioningWithMultipleIdPs = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      -- Create team and enable SSO
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    -- Create team and enable SSO
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register TWO IdPs: one for Ernie domain, one for Bert domain
-      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-      idpIdErnie <- asString $ idpErnie.json %. "id"
+    -- Register TWO IdPs: one for Ernie domain, one for Bert domain
+    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+    idpIdErnie <- asString $ idpErnie.json %. "id"
 
-      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
-      idpIdBert <- asString $ idpBert.json %. "id"
+    SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    idpIdBert <- asString $ idpBert.json %. "id"
 
-      -- Create email-based NameID for NEW user Bibo (doesn't exist yet)
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    -- Create email-based NameID for NEW user Bibo (doesn't exist yet)
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      -- First login: Bibo tries to log in on Bert domain with Bert's IdP
-      -- This should SUCCEED and create a new user because:
-      -- - The IdP matches (issuer=bert, domain=bert)
-      -- - Bibo doesn't exist in any IdP yet
-      -- - So multiIngressFlow provisions a new user
-      (mUserIdBert, _) <-
-        loginWithSamlWithZHost
-          (Just bertZHost)
-          domain
-          True -- expect SUCCESS
-          tid
-          biboNameId
-          (idpIdBert, (idpMetaBert, pCredsBert))
+    -- First login: Bibo tries to log in on Bert domain with Bert's IdP
+    -- This should SUCCEED and create a new user because:
+    -- - The IdP matches (issuer=bert, domain=bert)
+    -- - Bibo doesn't exist in any IdP yet
+    -- - So multiIngressFlow provisions a new user
+    (mUserIdBert, _) <-
+      loginWithSamlWithZHost
+        (Just bertZHost)
+        domain
+        True -- expect SUCCESS
+        tid
+        biboNameId
+        (idpIdBert, (idpMetaBert, pCredsBert))
 
-      -- Verify user was created
-      biboId <- assertOne mUserIdBert
+    -- Verify user was created
+    biboId <- assertOne mUserIdBert
 
-      -- Login on Ernie domain with same email -> cross-IdP migration
-      (mUserIdErnie, _) <-
-        loginWithSamlWithZHost
-          (Just ernieZHost)
-          domain
-          True
-          tid
-          biboNameId -- Same email
-          (idpIdErnie, (idpMetaErnie, pCredsErnie))
+    -- Login on Ernie domain with same email -> cross-IdP migration
+    (mUserIdErnie, _) <-
+      loginWithSamlWithZHost
+        (Just ernieZHost)
+        domain
+        True
+        tid
+        biboNameId -- Same email
+        (idpIdErnie, (idpMetaErnie, pCredsErnie))
 
-      -- Should return same user (migration, not new user)
-      mUserIdErnie `shouldMatch` Just biboId
+    -- Should return same user (migration, not new user)
+    mUserIdErnie `shouldMatch` Just biboId
 
 -- | Test that non-email NameIDs are rejected in multi-ingress mode.
 --
@@ -572,25 +581,25 @@ testNewUserProvisioningWithMultipleIdPs = do
 testNonEmailNameIdRejectedInMultiIngress :: (HasCallStack) => App ()
 testNonEmailNameIdRejectedInMultiIngress = do
   withMultiIngressBackend [bertDomain] $ \domain -> do
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      -- Register IdP
-      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
-      idpIdBert <- asString $ idpBert.json %. "id"
+    -- Register IdP
+    SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    idpIdBert <- asString $ idpBert.json %. "id"
 
-      randomUsername <- randomHandle
-      let usernameNameId =
-            fromRight (error "could not create name id")
-              $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack randomUsername)) Nothing Nothing Nothing
+    randomUsername <- randomHandle
+    let usernameNameId =
+          fromRight (error "could not create name id")
+            $ SAML.mkNameID (SAML.mkUNameIDUnspecified (pack randomUsername)) Nothing Nothing Nothing
 
-      authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdBert idpMetaBert pCredsBert usernameNameId
-      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        let bdy = unpack resp.body
-        bdy `shouldContain` "wire:sso:error:multi-ingress-config-error"
-        bdy `shouldContain` "Multi-ingress SSO requires email-based NameIDs: Multi-ingress SSO only supports email-based NameIDs for cross-IdP migration. Username-based NameIDs are not allowed."
+    authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdBert idpMetaBert pCredsBert usernameNameId
+    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      let bdy = unpack resp.body
+      bdy `shouldContain` "wire:sso:error:multi-ingress-config-error"
+      bdy `shouldContain` "Multi-ingress SSO requires email-based NameIDs: Multi-ingress SSO only supports email-based NameIDs for cross-IdP migration. Username-based NameIDs are not allowed."
 
 -- | Test that SAML responses without a prior authentication request are rejected.
 --
@@ -598,30 +607,30 @@ testNonEmailNameIdRejectedInMultiIngress = do
 testUnsolicitedSamlResponseRejected :: (HasCallStack) => App ()
 testUnsolicitedSamlResponseRejected = do
   withMultiIngressBackend [bertDomain] $ \domain -> do
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
-      idpIdBert <- asString $ idpBert.json %. "id"
+    SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    idpIdBert <- asString $ idpBert.json %. "id"
 
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
-      spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
-      let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
-      -- Create a local authn request (stored in SimpleSP's in-memory store, not in Spar's Cassandra)
-      localReq <- runSimpleSP $ SAML.createAuthnRequest 300 (idpMetaBert ^. SAML.edIssuer) (idpMetaBert ^. SAML.edIssuer)
-      authnReqResp <- makeAuthnResponse biboNameId pCredsBert idpConfig spMetaData localReq
+    let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
+    spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
+    let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
+    -- Create a local authn request (stored in SimpleSP's in-memory store, not in Spar's Cassandra)
+    localReq <- runSimpleSP $ SAML.createAuthnRequest 300 (idpMetaBert ^. SAML.edIssuer) (idpMetaBert ^. SAML.edIssuer)
+    authnReqResp <- makeAuthnResponse biboNameId pCredsBert idpConfig spMetaData localReq
 
-      -- Spar cannot find the request (no verdict format stored), so it rejects with server error.
-      -- This is not a user flow, so we can accept any error - even 500 - here.
-      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
-        resp.status `shouldMatchInt` 500
-        resp.json %. "label" `shouldMatch` "server-error"
+    -- Spar cannot find the request (no verdict format stored), so it rejects with server error.
+    -- This is not a user flow, so we can accept any error - even 500 - here.
+    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+      resp.status `shouldMatchInt` 500
+      resp.json %. "label" `shouldMatch` "server-error"
 
 -- | Test that SAML responses for one ingress are rejected when submitted to a different ingress.
 --
@@ -630,30 +639,30 @@ testUnsolicitedSamlResponseRejected = do
 testCrossIngressRequestResponseMismatch :: (HasCallStack) => App ()
 testCrossIngressRequestResponseMismatch = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-      (owner, tid, _) <- createTeam domain 1
-      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+    (owner, tid, _) <- createTeam domain 1
+    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
-      idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
-      idpIdErnie <- asString $ idpErnie.json %. "id"
+    SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
+    idpIdErnie <- asString $ idpErnie.json %. "id"
 
-      SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
-      void $ createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
+    SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
+    void $ createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
 
-      biboEmail <- randomEmail
-      let biboNameId =
-            fromRight (error "could not create name id")
-              $ SAML.emailNameID (pack biboEmail)
+    biboEmail <- randomEmail
+    let biboNameId =
+          fromRight (error "could not create name id")
+            $ SAML.emailNameID (pack biboEmail)
 
-      -- Response Destination is ernie's ACS URL; finalizing on bert causes a mismatch.
-      authnReqResp <- buildSamlAuthnResponse domain ernieZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
+    -- Response Destination is ernie's ACS URL; finalizing on bert causes a mismatch.
+    authnReqResp <- buildSamlAuthnResponse domain ernieZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
 
-      -- Finalize on bert ingress — Destination mismatch, bad recipient
-      bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
-        resp.status `shouldMatchInt` 200
-        let bdy = unpack resp.body
-        bdy `shouldContain` "wire:sso:error:forbidden"
-        bdy `shouldContain` "bad Recipient"
+    -- Finalize on bert ingress — Destination mismatch, bad recipient
+    bindResponse (finalizeSamlLoginWithZHost domain (Just bertZHost) tid authnReqResp) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      let bdy = unpack resp.body
+      bdy `shouldContain` "wire:sso:error:forbidden"
+      bdy `shouldContain` "bad Recipient"
 
 -- | Run a test with the standard multi-ingress backend configuration.
 -- Takes base domain names (e.g. "ernie.example.com"); the ZHost and SSO/webapp URLs
