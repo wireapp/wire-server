@@ -19,6 +19,7 @@
 , cookie
 , crypton
 , crypton-x509
+, data-default
 , exceptions
 , extended
 , filepath
@@ -208,6 +209,7 @@ mkDerivation {
     bytestring-conversion
     containers
     cookie
+    data-default
     filepath
     hscim
     hspec

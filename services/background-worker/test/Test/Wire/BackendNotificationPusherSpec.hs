@@ -57,7 +57,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Test.Wire.Util
 import UnliftIO.Async
-import Util.Options
+import Util.Options (Endpoint (..), PasswordHashingOptions (..))
 import Wire.API.Conversation.Action
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -70,6 +70,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util
 import Wire.PostgresMigrationOpts
+import Wire.RateLimit.Interpreter (newRateLimitEnv)
 
 spec :: Spec
 spec = do
@@ -371,7 +372,17 @@ spec = do
           brigEndpoint = undefined
           sparEndpoint = undefined
           galleyEndpoint = undefined
+          maxTeamSize = 1000
+          maxFanoutSize = Nothing
+          exposeInvitationURLsTeamAllowlist = Nothing
+          intraListing = True
+          federationProtocols = Nothing
+          guestLinkTTLSeconds = Nothing
+          passwordHashingOptions = PasswordHashingScrypt
+          checkGroupInfo = Nothing
+          convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 
+      passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
@@ -412,6 +423,17 @@ spec = do
           brigEndpoint = undefined
           sparEndpoint = undefined
           galleyEndpoint = undefined
+          maxTeamSize = 1000
+          maxFanoutSize = Nothing
+          exposeInvitationURLsTeamAllowlist = Nothing
+          intraListing = True
+          federationProtocols = Nothing
+          guestLinkTTLSeconds = Nothing
+          passwordHashingOptions = PasswordHashingScrypt
+          checkGroupInfo = Nothing
+          convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
+
+      passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)

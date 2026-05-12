@@ -36,7 +36,7 @@ import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (throw)
+import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
@@ -53,6 +53,8 @@ interpretMeetingsStoreToPostgres =
       createMeetingImpl title creator startTime endTime recurrence convId emails trial
     UpdateMeeting meetingId title startDate endDate schedule ->
       updateMeetingImpl meetingId title startDate endDate schedule
+    DeleteMeeting meetingId ->
+      deleteMeetingImpl meetingId
     GetMeeting meetingId ->
       getMeetingImpl meetingId
     ListMeetingsByUser userId cutoffTime ->
@@ -243,6 +245,29 @@ updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
         |]
+
+-- * Delete
+
+deleteMeetingImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  MeetingId ->
+  Sem r ()
+deleteMeetingImpl meetingId = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session ()
+    session = statement (toUUID meetingId) deleteStatement
+    deleteStatement :: Statement UUID ()
+    deleteStatement =
+      [resultlessStatement|
+        DELETE FROM meetings
+        WHERE id = ($1 :: uuid)
+      |]
 
 -- * Get
 

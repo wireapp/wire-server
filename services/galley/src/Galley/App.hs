@@ -52,7 +52,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Galley.API.MLS.GroupInfoCheck (GroupInfoCheckEnabled (GroupInfoCheckEnabled))
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -106,8 +105,8 @@ import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
 import Wire.ConversationStore.Cassandra
 import Wire.ConversationStore.Postgres
-import Wire.ConversationSubsystem (ConversationSubsystem)
-import Wire.ConversationSubsystem.Interpreter (interpretConversationSubsystem)
+import Wire.ConversationSubsystem
+import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
 import Wire.CustomBackendStore.Cassandra
 import Wire.Error
@@ -149,6 +148,7 @@ import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
 import Wire.RateLimit.Interpreter
 import Wire.Rpc
+import Wire.RpcException
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
 import Wire.Sem.Delay
@@ -233,6 +233,8 @@ type GalleyEffects =
      Input FanoutLimit,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
+     Input IntraListing,
+     Input (Maybe GuestLinkTTLSeconds),
      Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
      Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
@@ -242,7 +244,10 @@ type GalleyEffects =
      Error Meeting.MeetingError,
      Error DynError,
      Error RateLimitExceeded,
+     Error ConversationSubsystemError,
      ErrorS OperationDenied,
+     ErrorS 'AccessDenied,
+     ErrorS 'TeamMemberNotFound,
      ErrorS 'HistoryNotSupported,
      ErrorS 'NotATeamMember,
      ErrorS 'ConvAccessDenied,
@@ -260,6 +265,7 @@ type GalleyEffects =
      ErrorS 'NotATeamMember,
      ErrorS 'MeetingNotFound,
      ErrorS 'InvalidOperation,
+     Error RpcException,
      Input ClientState,
      Input Hasql.Pool,
      Input Env,
@@ -292,7 +298,7 @@ type GalleyEffects =
 validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
-      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
+      optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize
   when (settings'._maxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings' ^. maxTeamSize < optFanoutLimit) $
@@ -308,12 +314,7 @@ validateOptions o = do
     error "For starting MLS migration, MLS must be included in the supportedProtocol list"
   unless (mlsDefaultProtocol mlsConfig `elem` mlsSupportedProtocols mlsConfig) $
     error "The list 'settings.featureFlags.mls.supportedProtocols' must include the value in the field 'settings.featureFlags.mls.defaultProtocol'"
-  let errMsg = "Either conversationCodeURI or multiIngress needs to be set."
-  case (settings' ^. conversationCodeURI, settings' ^. multiIngress) of
-    (Nothing, Nothing) -> error errMsg
-    (Nothing, Just mi) -> pure (Right mi)
-    (Just uri, Nothing) -> pure (Left uri)
-    (Just _, Just _) -> error errMsg
+  conversationCodeURISettings o
 
 createEnv :: Opts -> Logger -> IO Env
 createEnv o l = do
@@ -484,6 +485,7 @@ evalGalley e =
         . runInputConst e
         . runInputConst (e ^. hasqlPool)
         . runInputConst (e ^. cstate)
+        . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
         . mapError toResponse -- ErrorS 'InvalidOperation
         . mapError toResponse -- ErrorS 'MeetingNotFound
         . mapError toResponse -- ErrorS 'NotATeamMember
@@ -501,7 +503,10 @@ evalGalley e =
         . mapError toResponse -- ErrorS 'ConvAccessDenied
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'HistoryNotSupported
+        . mapError toResponse -- ErrorS 'TeamMemberNotFound
+        . mapError toResponse -- ErrorS 'AccessDenied
         . mapError toResponse -- ErrorS OperationDenied
+        . mapError toResponse -- Error ConversationSubsystemError,
         . mapError rateLimitExceededToHttpError
         . mapError toResponse -- DynError
         . mapError meetingError
@@ -511,9 +516,11 @@ evalGalley e =
         . runInputConst (e ^. options)
         . runInputConst (GroupInfoCheckEnabled <$> e._options._settings._checkGroupInfo)
         . runInputConst e._mlsKeys
+        . runInputConst e._options._settings._guestLinkTTLSeconds
+        . runInputConst (IntraListing e._options._settings._intraListing)
         . runInputConst localUnit
         . interpretTeamFeatureSpecialContext e
-        . runInputConst (currentFanoutLimit (e ^. options))
+        . runInputConst (currentFanoutLimitOpts (e ^. options))
         . runInputSem (inputs @Opts $ view (O.settings . O.featureFlags))
         . runInputSem (inputs @Opts $ ExposeInvitationURLsAllowlist . fromMaybe [] . view (O.settings . O.exposeInvitationURLsTeamAllowlist))
         . interpretInternalTeamListToCassandra
@@ -577,3 +584,4 @@ meetingError =
   \case
     Meeting.InvalidTimes -> Servant.Tagged @'InvalidOperation ()
     Meeting.EmptyUpdate -> Servant.Tagged @'InvalidOperation ()
+    Meeting.MeetingsFeatureDisabled -> Servant.Tagged @'InvalidOperation ()

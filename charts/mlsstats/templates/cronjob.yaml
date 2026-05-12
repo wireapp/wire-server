@@ -22,13 +22,13 @@ spec:
       backoffLimit: 0
       template:
         spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
           restartPolicy: Never
           containers:
             - name: mlsstats
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
               imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
-              args: [ "mlsstats"
-                      , "--brig-cassandra-host", {{ .Values.config.cassandra.brig.host | quote }}
+              args: [ "--brig-cassandra-host", {{ .Values.config.cassandra.brig.host | quote }}
                       , "--brig-cassandra-port", {{ .Values.config.cassandra.brig.port | quote }}
                       , "--brig-cassandra-keyspace", {{ .Values.config.cassandra.brig.keyspace | quote }}
                       , "--galley-cassandra-host", {{ .Values.config.cassandra.galley.host | quote }}
@@ -42,19 +42,21 @@ spec:
                       , "--s3-bucket-dir", {{ .Values.config.s3.bucket.directory | quote }}
                     ]
               resources:
+{{ toYaml .Values.resources | indent 16 }}
               env:
               {{- if hasKey .Values.secrets "awsKeyId" }}
               - name: AWS_ACCESS_KEY_ID
                 valueFrom:
                   secretKeyRef:
-                    name: mlsstats
+                    name: {{ .Chart.Name }}
                     key: awsKeyId
               - name: AWS_SECRET_ACCESS_KEY
                 valueFrom:
                   secretKeyRef:
-                    name: mlsstats
+                    name: {{ .Chart.Name }}
                     key: awsSecretKey
               {{- end }}
               - name: AWS_REGION
                 value: "{{ .Values.config.s3.region }}"
-{{ toYaml .Values.resources | indent 16 }}
+              - name: AWS_EC2_METADATA_DISABLED
+                value: "true"

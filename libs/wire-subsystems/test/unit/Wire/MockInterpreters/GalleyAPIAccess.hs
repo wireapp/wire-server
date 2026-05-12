@@ -56,6 +56,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
         (\members -> any (\member -> member ^. userId == uid) members)
         teams
   GetTeam _ -> error "GetTeam not implemented in miniGalleyAPIAccess"
+  FindTeam _ -> error "FindTeam not implemented in miniGalleyAPIAccess"
   GetTeamName _ -> error "GetTeamName not implemented in miniGalleyAPIAccess"
   GetTeamLegalHoldStatus _ -> error "GetTeamLegalHoldStatus not implemented in miniGalleyAPIAccess"
   GetUserLegalholdStatus _ _ -> error "GetUserLegalholdStatus not implemented in miniGalleyAPIAccess"
@@ -80,7 +81,7 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   GetEJPDConvInfo _ -> error "GetEJPDConvInfo not implemented in miniGalleyAPIAccess"
   GetTeamAdmins tid -> pure $ newTeamMemberList (maybe [] (filter (\tm -> isAdminOrOwner (tm ^. permissions))) $ Map.lookup tid teams) ListComplete
   SelectTeamMemberInfos tid uids -> pure $ selectTeamMemberInfosImpl teams tid uids
-  InternalGetConversation _ -> error "GetConv not implemented in InternalGetConversation"
+  InternalGetConversation _ -> pure Nothing
   GetTeamContacts _ -> pure Nothing
   SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
   GetConversationConfig ->
@@ -92,7 +93,11 @@ miniGalleyAPIAccess teams configs = interpret $ \case
           maxConvSize = 500,
           listClientsUsingBrig = False
         }
+  GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
+  GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
   GuardLegalHold {} -> pure ()
+  UpdateTeamMember {} -> error "UpdateTeamMember not implemented in miniGalleyAPIAccess"
+  IsEmailValidationEnabledTeam {} -> error "IsEmailValidationEnabledTeam not implemented in miniGalleyAPIAccess"
 
 -- this is called but the result is not needed in unit tests
 selectTeamMemberInfosImpl :: Map TeamId [TeamMember] -> TeamId -> [UserId] -> TeamMemberInfoList

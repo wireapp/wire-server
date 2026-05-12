@@ -66,7 +66,7 @@ import Wire.API.Team.Member.Info (TeamMemberInfo (..), TeamMemberInfoList (membe
 import Wire.API.Team.Permission qualified as Permission
 import Wire.API.Team.Role (Role, defaultRole, permissionsToRole)
 import Wire.API.Team.SearchVisibility
-import Wire.API.Team.Size (TeamSize (TeamSize))
+import Wire.API.Team.Size
 import Wire.API.User as User
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
@@ -251,7 +251,7 @@ internalFindTeamInvitationImpl (Just e) c =
         NotAllowed -> throwGuardFailed TeamInviteSetToNotAllowed
 
       maxSize <- maxTeamSize <$> input
-      (TeamSize teamSize) <- IndexedUserStore.getTeamSize tid
+      teamSize <- teamSizeTotal <$> IndexedUserStore.getTeamSize tid
       when (teamSize >= fromIntegral maxSize) $
         throw UserSubsystemTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.

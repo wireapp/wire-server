@@ -17,21 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.UserClientIndexStore
-  ( -- * UserClientIndexStore Effect
-    UserClientIndexStore (..),
-
-    -- * Create client
-    createClient,
-
-    -- * Get client
-    getClients,
-
-    -- * Delete client
-    deleteClient,
-    deleteClients,
-  )
-where
+module Wire.UserClientIndexStore where
 
 import Data.Id
 import Galley.Types.Clients

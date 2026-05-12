@@ -154,7 +154,7 @@ testTeamSize brig req = do
       void $
         get (req tid uid) <!! do
           const 200 === statusCode
-          (const . Right $ TeamSize expectedSize) === responseJsonEither
+          (const . Right $ TeamSize expectedSize 0) === responseJsonEither
 
 -------------------------------------------------------------------------------
 -- Invitation Tests

@@ -17,12 +17,11 @@
 
 module Galley.API.Public.MLS where
 
-import Galley.API.MLS
-import Galley.API.MLS.Reset
 import Galley.App
 import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.MLS
+import Wire.ConversationSubsystem
 
 mlsAPI :: API MLSAPI GalleyEffects
 mlsAPI =

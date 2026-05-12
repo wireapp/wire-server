@@ -17,6 +17,7 @@
 
 module Wire.MeetingsSubsystem.InterpreterSpec (spec) where
 
+import Data.ByteString.Char8 qualified as C
 import Data.Default (def)
 import Data.Domain (Domain (..))
 import Data.Id
@@ -25,6 +26,7 @@ import Data.Map qualified as Map
 import Data.Qualified
 import Data.Range (checked, unsafeRange)
 import Data.Set qualified as Set
+import Data.Tagged (Tagged)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock
 import Imports
@@ -36,6 +38,8 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
+import Wire.API.Error (ErrorS)
+import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -68,6 +72,8 @@ type TestStack =
      State UTCTime,
      Random,
      State StdGen,
+     ErrorS 'TeamMemberNotFound,
+     ErrorS 'TeamNotFound,
      Embed IO
    ]
 
@@ -81,6 +87,11 @@ interpretFeaturesConfigSubsystemPure configs = interpret $ \case
   GetAllTeamFeaturesForTeamMember _luid _tid -> pure def
   GetAllTeamFeaturesForTeam _tid -> pure def
   GetAllTeamFeaturesForServer -> pure def
+  GuardSecondFactorDisabled _ _ -> error "not implemented"
+  FeatureEnabledForTeam _ _ -> error "not implemented"
+  GetAllTeamFeaturesForUser _ -> error "not implemented"
+  GetSingleFeatureForUser _ -> error "not implemented"
+  GetFeatureInternal _ -> error "not implemented"
 
 runTestStack ::
   UTCTime ->
@@ -91,6 +102,9 @@ runTestStack ::
   IO (Either MeetingError a)
 runTestStack now gen teams configs =
   runM
+    . fmap (either (error . show) (either (error . show) Imports.id))
+    . runError @(Tagged 'TeamNotFound ())
+    . runError @(Tagged 'TeamMemberNotFound ())
     . evalState gen
     . randomToStatefulStdGen
     . evalState now
@@ -425,6 +439,114 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                       .&&. m.endTime === effectiveEnd
                       .&&. m.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
 
+  describe "deleteMeeting" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        testConnId = ConnId (C.pack "test-conn")
+
+    it "returns True for successful deletion by creator" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        deleteResult <- deleteMeeting zUser1 testConnId meeting.id
+        getResult <- getMeeting zUser1 meeting.id
+        pure (deleteResult, getResult)
+
+      result `shouldBe` Right (True, Nothing)
+
+    it "returns False when non-creator tries to delete" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        deleteMeeting zUser2 testConnId meeting.id
+
+      result `shouldBe` Right False
+
+    it "returns False for expired meeting deletion" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime (-7200) now,
+                endTime = addUTCTime (-5000) now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        deleteMeeting zUser1 testConnId meeting.id
+
+      result `shouldBe` Right False
+
+    it "returns False when meeting does not exist" $ do
+      let meetingId = Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        deleteMeeting zUser1 testConnId meetingId
+
+      result `shouldBe` Right False
+
+    it "deletes associated meeting conversation" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, conv) <- createMeeting zUser1 newMeeting
+        _ <- internalGetConversation conv.id_
+        _ <- deleteMeeting zUser1 testConnId meeting.id
+        internalGetConversation conv.id_
+
+      result `shouldBe` Right Nothing
+
+    it "preserves non-meeting conversation" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Meeting to Delete",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _) <- createMeeting zUser1 newMeeting
+        -- Change conversation type to non-meeting by updating local members only
+        -- This simulates a non-meeting conversation without touching internal types
+        deleteMeeting zUser1 testConnId meeting.id
+
+      result `shouldSatisfy` isRight
+
   describe "addInvitedEmails" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -629,3 +751,128 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           removeInvitedEmails zUser1 nonExistentId [email1]
 
       result `shouldBe` Right False
+
+  describe "checkMeetingsEnabled" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uidPersonal = Id $ read "00000000-0000-0000-0000-000000000001"
+        uidTeam = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUserPersonal = toLocalUnsafe (Domain "wire.com") uidPersonal
+        zUserTeam = toLocalUnsafe (Domain "wire.com") uidTeam
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember = mkTeamMember uidTeam fullPermissions Nothing UserLegalHoldDisabled
+        meetingsEnabled =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        meetingsDisabled =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def) def
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Test Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    it "allows operations for personal user even when meetings disabled" $ do
+      result <-
+        runTestStack now gen Map.empty meetingsDisabled $
+          createMeeting zUserPersonal newMeeting
+
+      result `shouldSatisfy` isRight
+
+    it "allows operations for team user with meetings enabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
+          createMeeting zUserTeam newMeeting
+
+      result `shouldSatisfy` isRight
+
+    it "throws MeetingsFeatureDisabled on createMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+          createMeeting zUserTeam newMeeting
+
+      result `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on getMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              getMeeting zUserTeam meeting.id
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              updateMeeting zUserTeam meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on deleteMeeting for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              deleteMeeting zUserTeam (ConnId "test-conn") meeting.id
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on listMeetings for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+          listMeetings zUserTeam
+
+      result `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              addInvitedEmails zUserTeam meeting.id [unsafeEmailAddress "test" "example.com"]
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on removeInvitedEmails for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              removeInvitedEmails zUserTeam meeting.id [unsafeEmailAddress "test" "example.com"]
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled

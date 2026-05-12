@@ -26,7 +26,7 @@ import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Qualified (Local, Qualified (..), tDomain, tUnqualified)
+import Data.Qualified (Local, Qualified (..), qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
@@ -37,7 +37,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
-import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsPremiumConfig)
+import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig, MeetingsPremiumConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
@@ -50,8 +50,22 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
 
-data MeetingError = InvalidTimes | EmptyUpdate
+data MeetingError = InvalidTimes | EmptyUpdate | MeetingsFeatureDisabled
   deriving stock (Eq, Show)
+
+checkMeetingsEnabled ::
+  ( Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r
+  ) =>
+  Maybe TeamId ->
+  Sem r ()
+checkMeetingsEnabled maybeTeamId = do
+  case maybeTeamId of
+    Nothing -> pure ()
+    Just teamId -> do
+      meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
+      unless (meetingFeature.status == FeatureStatusEnabled) $
+        throw MeetingsFeatureDisabled
 
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
@@ -68,6 +82,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     createMeetingImpl zUser newMeeting
   UpdateMeeting zUser meetingId update ->
     updateMeetingImpl zUser meetingId update validityPeriod
+  DeleteMeeting zUser connId meetingId ->
+    deleteMeetingImpl zUser connId meetingId validityPeriod
   GetMeeting zUser meetingId ->
     getMeetingImpl zUser meetingId validityPeriod
   ListMeetings zUser ->
@@ -88,12 +104,14 @@ createMeetingImpl ::
   API.NewMeeting ->
   Sem r (API.Meeting, StoredConversation)
 createMeetingImpl zUser newMeeting = do
+  -- Look up user's team once and reuse for both checks
+  conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled conversationTeamId
   -- Validate that endTime > startTime
   when (newMeeting.endTime <= newMeeting.startTime) $
     throw InvalidTimes
 
   -- Determine trial status based on team membership and premium feature
-  conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   trial <- case conversationTeamId of
     Nothing -> pure True -- Personal users create trial meetings
     Just teamId -> do
@@ -122,7 +140,7 @@ createMeetingImpl zUser newMeeting = do
           }
 
   -- Create and store the conversation via ConversationSubsystem
-  storedConv <- ConversationSubsystem.createGroupConversation zUser Nothing newConv
+  storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
 
   -- Store meeting (trial status is provided by caller)
   storedMeeting <-
@@ -144,6 +162,8 @@ createMeetingImpl zUser newMeeting = do
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
@@ -153,6 +173,8 @@ updateMeetingImpl ::
   NominalDiffTime ->
   Sem r (Maybe API.Meeting)
 updateMeetingImpl zUser meetingId update validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
   when (isNothing update.title && isNothing update.startTime && isNothing update.endTime && isNothing update.recurrence) $
     throw EmptyUpdate
 
@@ -177,9 +199,46 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.recurrence
     pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
 
+deleteMeetingImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified MeetingId ->
+  NominalDiffTime ->
+  Sem r Bool
+deleteMeetingImpl zUser connId meetingId validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
+  result <-
+    runMaybeT $ do
+      meeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ meeting.endTime >= cutoff
+      guard $ qDomain meetingId == tDomain zUser
+      guard $ meeting.creator == tUnqualified zUser
+      let convId = meeting.conversationId
+          lConvId = qualifyAs zUser convId
+      conv <- MaybeT $ ConversationSubsystem.internalGetConversation convId
+      when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
+        lift $
+          void $
+            ConversationSubsystem.deleteLocalConversation zUser connId lConvId
+      lift $ Store.deleteMeeting (qUnqualified meetingId)
+  pure $ isJust result
+
 getMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -187,6 +246,8 @@ getMeetingImpl ::
   NominalDiffTime ->
   Sem r (Maybe API.Meeting)
 getMeetingImpl zUser meetingId validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
   -- Get meeting from store
   runMaybeT $ do
     storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -224,12 +285,17 @@ storedMeetingToMeeting domain sm =
 listMeetingsImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
   NominalDiffTime ->
   Sem r [API.Meeting]
 listMeetingsImpl zUser validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
   now <- Now.get
   let cutoff = addUTCTime (negate validityPeriod) now
   -- List all meetings created by the user
@@ -288,6 +354,9 @@ getAllMemberMeetings zUser cutoff = do
 
 addInvitedEmailsImpl ::
   ( Member Store.MeetingsStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -296,6 +365,8 @@ addInvitedEmailsImpl ::
   NominalDiffTime ->
   Sem r Bool
 addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
   result <-
     runMaybeT $ do
       storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
@@ -310,6 +381,9 @@ addInvitedEmailsImpl zUser meetingId emails validityPeriod = do
 
 removeInvitedEmailsImpl ::
   ( Member Store.MeetingsStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -318,6 +392,8 @@ removeInvitedEmailsImpl ::
   NominalDiffTime ->
   Sem r Bool
 removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
   result <-
     runMaybeT $ do
       storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)

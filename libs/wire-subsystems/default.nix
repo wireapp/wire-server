@@ -25,10 +25,12 @@
 , bytestring-conversion
 , case-insensitive
 , cassandra-util
+, comonad
 , conduit
 , constraints
 , containers
 , contravariant
+, cookie
 , cql
 , crypton
 , crypton-pem
@@ -69,6 +71,7 @@
 , imports
 , iproute
 , iso639
+, kan-extensions
 , lens
 , lens-aeson
 , lib
@@ -164,10 +167,12 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     cassandra-util
+    comonad
     conduit
     constraints
     containers
     contravariant
+    cookie
     cql
     crypton
     crypton-pem
@@ -204,6 +209,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    kan-extensions
     lens
     lens-aeson
     lrucaching
@@ -289,10 +295,12 @@ mkDerivation {
     bytestring-conversion
     case-insensitive
     cassandra-util
+    comonad
     conduit
     constraints
     containers
     contravariant
+    cookie
     cql
     crypton
     crypton-pem
@@ -330,6 +338,7 @@ mkDerivation {
     imports
     iproute
     iso639
+    kan-extensions
     lens
     lens-aeson
     lrucaching

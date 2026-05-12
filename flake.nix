@@ -85,6 +85,11 @@
       url = "github:brendanhay/amazonka?rev=a7d699be1076e2aad05a1930ca3937ffea954ad8";
       flake = false;
     };
+
+    hasql-migration = {
+      url = "github:wireapp/hasql-migration?ref=allow-no-transaction";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, sbomnix, ... }:

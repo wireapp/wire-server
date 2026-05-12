@@ -19,11 +19,18 @@ module Wire.TeamSubsystem.GalleyAPI where
 
 import Imports
 import Polysemy
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
 import Wire.TeamSubsystem
 
-interpretTeamSubsystemToGalleyAPI :: (Member GalleyAPIAccess r) => InterpreterFor TeamSubsystem r
+interpretTeamSubsystemToGalleyAPI ::
+  ( Member GalleyAPIAccess r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TeamNotFound) r
+  ) =>
+  InterpreterFor TeamSubsystem r
 interpretTeamSubsystemToGalleyAPI = interpret $ \case
   InternalGetTeamMember userId teamId -> GalleyAPIAccess.getTeamMember userId teamId
   InternalGetTeamMembersWithLimit teamId maxResults -> GalleyAPIAccess.getTeamMembersWithLimit teamId maxResults
@@ -32,3 +39,17 @@ interpretTeamSubsystemToGalleyAPI = interpret $ \case
   InternalGetTeamAdmins teamId -> GalleyAPIAccess.getTeamAdmins teamId
   InternalGetOneUserTeam userId -> GalleyAPIAccess.getTeamId userId
   InternalFinalizeDeleteTeam lusr mcon teamId -> GalleyAPIAccess.finalizeDeleteTeam lusr mcon teamId
+  GetUserStatus lusr tid uid -> do
+    GalleyAPIAccess.getTeamMember uid tid >>= \case
+      Nothing -> throwS @'TeamMemberNotFound
+      Just _ -> do
+        GalleyAPIAccess.getUserLegalholdStatus lusr tid >>= \case
+          Nothing -> throwS @'TeamNotFound
+          Just status -> pure status
+  GetTeamMembersForFanout tid ->
+    GalleyAPIAccess.getTeamMembersWithLimit tid Nothing
+  AssertTeamExists tid -> do
+    found <- isJust <$> GalleyAPIAccess.findTeam tid
+    unless found $ throwS @'TeamNotFound
+  GetLHStatusForUsers uids -> GalleyAPIAccess.getUsersLHStatus uids
+  GetLHStatus mtid uid -> GalleyAPIAccess.getUserLHStatus mtid uid

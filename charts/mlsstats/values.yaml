@@ -1,6 +1,6 @@
 image:
   repository: quay.io/wire/mlsstats
-  tag: 0.1
+  tag: 5.30.5
 resources:
   requests:
     memory: "256Mi"
@@ -9,6 +9,11 @@ resources:
     memory: "256Mi"
     cpu: "100m"
 schedule: "23 3 * * *"
+serviceAccount:
+  create: true
+  name: mlsstats
+  annotations: {}
+  automountServiceAccountToken: true
 config:
   cassandra:
     brig:

@@ -19,7 +19,7 @@
 
 module Wire.ConversationSubsystem.One2One
   ( one2OneConvId,
-    iUpsertOne2OneConversation,
+    internalUpsertOne2OneConversation,
   )
 where
 
@@ -51,12 +51,12 @@ newConnectConversationWithRemote creator users =
       groupId = Nothing
     }
 
-iUpsertOne2OneConversation ::
+internalUpsertOne2OneConversation ::
   forall r.
   (Member ConversationStore r) =>
   UpsertOne2OneConversationRequest ->
   Sem r ()
-iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
+internalUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
   let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do
         mbConv <- getConversation (tUnqualified lconvId)

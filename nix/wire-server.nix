@@ -63,7 +63,7 @@ let
         owner = "hercules-ci";
         repo = "gitignore.nix";
         # put the latest commit sha of gitignore Nix library here:
-        rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
+        rev = "a19de23b925fd8264fd7fad6454652e142fd7f73";
         # use what nix suggests in the mismatch message here:
         sha256 = "sha256:07vg2i9va38zbld9abs9lzqblz193vc5wvqd6h7amkmwf66ljcgh";
       };
@@ -90,6 +90,7 @@ let
     team-info = [ "team-info" ];
     wire-server-enterprise = [ "wire-server-enterprise" ];
     migrate-features = [ "migrate-features" ];
+    mlsstats = [ "mlsstats" ];
   };
 
   inherit (lib) attrsets;

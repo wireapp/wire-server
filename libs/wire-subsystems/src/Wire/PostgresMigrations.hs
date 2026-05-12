@@ -22,16 +22,26 @@ module Wire.PostgresMigrations where
 
 import Control.Exception
 import Data.FileEmbed
+import Data.Hashable qualified as Hashable
+import Data.Set qualified as Set
 import Hasql.Migration
 import Hasql.Pool
 import Hasql.Session
+import Hasql.Session qualified as Session
+import Hasql.Statement qualified as Hasql
+import Hasql.TH
 import Hasql.Transaction.Sessions
 import Imports
 import System.Logger (Logger)
 import System.Logger qualified as Log
+import UnliftIO.Retry
 
 allMigrations :: [MigrationCommand]
 allMigrations = map (uncurry MigrationScript) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
+
+-- | Scripts which cannot be run in a transaction
+nonTransactionMigrations :: Set ScriptName
+nonTransactionMigrations = Set.fromList ["20260428072649-create-conv-parent-index.sql"]
 
 data PostgresMigrationError = PostgresMigrationError MigrationError
   deriving (Show)
@@ -42,21 +52,65 @@ runAllMigrations :: Pool -> Logger -> IO ()
 runAllMigrations pool logger = do
   let session = do
         Log.info logger $ Log.msg (Log.val "Running migrations")
-        transaction Serializable Write $ do
-          forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
-            mErr <- runMigration migrationCmd
-            case mErr of
-              Nothing -> pure ()
-              Just err -> throw $ PostgresMigrationError err
+        forM_ (MigrationInitialization : allMigrations) $ \migrationCmd -> do
+          mErr <-
+            case migrationScriptName migrationCmd of
+              (Just name)
+                | name `Set.member` nonTransactionMigrations ->
+                    -- Locking the migration makes sure that only one process is
+                    -- running this migration at a time. Without this `CREATE
+                    -- INDEX CONCURRENTLY` can deadlock with other processes
+                    -- causing a silent failure.
+                    withLock name $ runMigrationWithoutTransactions migrationCmd
+              _ ->
+                transaction Serializable Write $ runMigration migrationCmd
+
+          case mErr of
+            Nothing -> pure ()
+            Just err -> throw $ PostgresMigrationError err
         Log.info logger $ Log.msg (Log.val "Migrations completed successfully")
 
   either throwIO pure =<< use pool session
+  where
+    -- We must use `try` instead of blocking on the lock because running `CREATE
+    -- INDEX CONCURRENTLY` requires all transactions to be complete and blocking
+    -- on the lock causes an implicit transaction to be blocked, which means we
+    -- would end up in a deadlock.
+    tryLockNonTransactionMigration :: Hasql.Statement Int64 Bool
+    tryLockNonTransactionMigration =
+      [singletonStatement|SELECT (pg_try_advisory_lock($1 :: bigint) :: bool)|]
+
+    unlockNonTransactionMigration :: Hasql.Statement Int64 ()
+    unlockNonTransactionMigration =
+      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
+
+    -- We don't have to use 'bracket' here because failing in the session should
+    -- cause the session to drop and any acquired locks get automatically
+    -- released.
+    withLock :: ScriptName -> Session a -> Session a
+    withLock name migration = do
+      let lockId = fromIntegral $ Hashable.hash name
+
+      void . retrying (constantDelay 1_000_000) (const $ pure . not) $ \_ ->
+        Session.statement lockId tryLockNonTransactionMigration
+
+      migRes <- migration
+
+      Session.statement lockId unlockNonTransactionMigration
+
+      pure migRes
 
 migrationName :: MigrationCommand -> (Log.Msg -> Log.Msg)
 migrationName = \case
   MigrationInitialization -> Log.field "migration" ("Initialize Migration Schema" :: ByteString)
   MigrationScript name _ -> Log.field "migration" name
   MigrationValidation cmd -> Log.field "type" ("validation" :: ByteString) . migrationName cmd
+
+migrationScriptName :: MigrationCommand -> Maybe ScriptName
+migrationScriptName = \case
+  MigrationScript name _ -> Just name
+  MigrationInitialization -> Nothing
+  MigrationValidation _ -> Nothing
 
 -- | Only to be used to reset the development DB
 resetSchema :: Pool -> Logger -> IO ()

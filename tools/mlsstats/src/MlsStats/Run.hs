@@ -197,7 +197,7 @@ uploadStream env bucket key stream = do
     runConduit $
       stream
         .| chunksOfE chunkSize
-        .| uploadParts env bucket key uploadId' 0
+        .| uploadParts env bucket key uploadId' 1
         .| mapC (uncurry newCompletedPart)
         .| sinkList
   void $

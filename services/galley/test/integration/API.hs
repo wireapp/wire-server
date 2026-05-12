@@ -66,7 +66,6 @@ import Data.Text.Ascii qualified as Ascii
 import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer hiding (status)
-import Galley.API.Mapping
 import Imports hiding (id)
 import Imports qualified as I
 import Network.HTTP.Types.Status qualified as HTTP
@@ -2375,8 +2374,8 @@ testBulkGetQualifiedConvs = do
     let mock = do
           d <- frTargetDomain <$> getRequest
           asum
-            [ guard (d == remoteDomainA) *> mockReply (GetConversationsResponseV2 [mockConversationA]),
-              guard (d == remoteDomainB) *> mockReply (GetConversationsResponseV2 [mockConversationB]),
+            [ guard (d == remoteDomainA) *> mockReply (GetRemoteConversationViewsResponse [mockConversationA]),
+              guard (d == remoteDomainB) *> mockReply (GetRemoteConversationViewsResponse [mockConversationB]),
               guard (d == remoteDomainC) *> liftIO (throw (DiscoveryFailureSrvNotAvailable "domainC")),
               do
                 r <- getRequest
@@ -3056,7 +3055,7 @@ putRemoteConvMemberOk update = do
           (qUnqualified qbob)
           roleNameWireMember
           [localMemberToOther remoteDomain bobAsLocal]
-      remoteConversationResponse = GetConversationsResponseV2 [mockConversation]
+      remoteConversationResponse = GetRemoteConversationViewsResponse [mockConversation]
   (rs, _) <-
     withTempMockFederator'
       (mockReply remoteConversationResponse)
@@ -3381,7 +3380,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
               pure . map omQualifiedId . cmOthers . cnvMembers $ conv
             RemoteActor -> do
               fedGalleyClient <- view tsFedGalleyClient
-              GetConversationsResponseV2 convs <-
+              GetRemoteConversationViewsResponse convs <-
                 runFedClient @"get-conversations" fedGalleyClient (tDomain bob) $
                   GetConversationsRequest
                     { userId = tUnqualified bob,
@@ -3400,7 +3399,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
           found <- do
             let rconv = mkProteusConv (qUnqualified convId) (tUnqualified bob) roleNameWireAdmin []
             (resp, _) <-
-              withTempMockFederator' (mockReply (GetConversationsResponseV2 [rconv])) $
+              withTempMockFederator' (mockReply (GetRemoteConversationViewsResponse [rconv])) $
                 getConvQualified (tUnqualified alice) convId
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))

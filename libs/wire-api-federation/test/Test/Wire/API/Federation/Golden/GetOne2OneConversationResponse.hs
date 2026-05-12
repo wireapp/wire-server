@@ -116,9 +116,9 @@ remoteConversation =
             }
     }
 
-remoteConversationV2 :: RemoteConversationV2
+remoteConversationV2 :: RemoteConversationView
 remoteConversationV2 =
-  RemoteConversationV2
+  RemoteConversationView
     { id = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200040001"))),
       metadata =
         ConversationMetadata

@@ -19,7 +19,8 @@
 
 module Wire.FeaturesConfigSubsystem where
 
-import Data.Id (TeamId, UserId)
+import Data.Id (ConvId, TeamId, UserId)
+import Data.Proxy (Proxy)
 import Data.Qualified (Local)
 import Imports
 import Polysemy
@@ -35,5 +36,27 @@ data FeaturesConfigSubsystem m a where
   GetAllTeamFeaturesForTeamMember :: Local UserId -> TeamId -> FeaturesConfigSubsystem m AllTeamFeatures
   GetAllTeamFeaturesForTeam :: TeamId -> FeaturesConfigSubsystem m AllTeamFeatures
   GetAllTeamFeaturesForServer :: FeaturesConfigSubsystem m AllTeamFeatures
+  GuardSecondFactorDisabled ::
+    UserId ->
+    ConvId ->
+    FeaturesConfigSubsystem m ()
+  FeatureEnabledForTeam ::
+    forall cfg m.
+    (GetFeatureConfig cfg) =>
+    Proxy cfg ->
+    TeamId ->
+    FeaturesConfigSubsystem m Bool
+  GetAllTeamFeaturesForUser ::
+    UserId ->
+    FeaturesConfigSubsystem m AllTeamFeatures
+  GetSingleFeatureForUser ::
+    forall cfg m.
+    (GetFeatureConfig cfg) =>
+    UserId ->
+    FeaturesConfigSubsystem m (LockableFeature cfg)
+  GetFeatureInternal ::
+    (GetFeatureConfig cfg) =>
+    TeamId ->
+    FeaturesConfigSubsystem m (LockableFeature cfg)
 
 makeSem ''FeaturesConfigSubsystem
