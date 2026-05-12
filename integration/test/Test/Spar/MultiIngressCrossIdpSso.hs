@@ -59,17 +59,19 @@ testCrossIdpSsoEmailConflict useSCIM = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
 
-    -- Register IdP for Ernie domain with fixed issuer "ernie"
+    -- Register IdP for Ernie's domain
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
     idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
     idpIdErnie <- asString $ idpErnie.json %. "id"
 
-    -- Register IdP for Bert domain with fixed issuer "bert"
+    -- Register IdP for Bert's domain
     SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
     idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
     idpIdBert <- asString $ idpBert.json %. "id"
 
-    -- Create email-based NameID for "bibo"
+    ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+    bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+
     (biboEmail, biboNameId) <- randomEmailNameId
 
     -- Optionally create the user via SCIM (and not automatically)
@@ -107,15 +109,15 @@ testCrossIdpSsoEmailConflict useSCIM = do
       Just scimUid ->
         -- Validate that SCIM-created user matches SSO login user
         scimUid `shouldMatch` userIdErnie
-      Nothing -> activateEmail domain biboEmail
+      Nothing ->
+        -- Non-SCIM user was auto-provisioned. Activate them.
+        activateEmail domain biboEmail
 
     -- Verify user's SSO ID has Ernie's issuer (not Bert's)
     getUsersId domain [userIdErnie] `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` ernieIssuer
       ssoIdTenant `shouldNotMatch` bertIssuer
 
@@ -161,8 +163,6 @@ testCrossIdpSsoEmailConflict useSCIM = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` bertIssuer
       ssoIdTenant `shouldNotMatch` ernieIssuer
 
@@ -191,8 +191,6 @@ testCrossIdpSsoEmailConflict useSCIM = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` ernieIssuer
       ssoIdTenant `shouldNotMatch` bertIssuer
 
@@ -226,6 +224,9 @@ testScimUserLoginsDifferentIdP = do
     idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
     idpIdBert <- asString $ idpBert.json %. "id"
 
+    ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
+    bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
+
     -- Create email-based NameID for "bibo"
     (biboEmail, biboNameId) <- randomEmailNameId
 
@@ -247,7 +248,6 @@ testScimUserLoginsDifferentIdP = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` ernieIssuer
 
     -- Step 1: Bibo logs in for the FIRST time on Bert's IdP (NOT Ernie!)
@@ -271,8 +271,6 @@ testScimUserLoginsDifferentIdP = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` bertIssuer
       ssoIdTenant `shouldNotMatch` ernieIssuer
 
@@ -301,8 +299,6 @@ testScimUserLoginsDifferentIdP = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      ernieIssuer <- idpErnie.json %. "metadata.issuer" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` ernieIssuer
       ssoIdTenant `shouldNotMatch` bertIssuer
 
@@ -321,6 +317,8 @@ testSingleIdp = do
     SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
     idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
     idpIdBert <- asString $ idpBert.json %. "id"
+
+    bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
 
     -- Create email-based NameID for "bibo"
     (biboEmail, biboNameId) <- randomEmailNameId
@@ -343,7 +341,6 @@ testSingleIdp = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` bertIssuer
 
     -- User logs in via ERNIE ingress (different domain from IdP registration)
@@ -369,7 +366,6 @@ testSingleIdp = do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
       ssoIdTenant <- ssoId %. "tenant" >>= asString
-      bertIssuer <- idpBert.json %. "metadata.issuer" >>= asString
       ssoIdTenant `shouldContain` bertIssuer
 
 -- | Test that a singleton IdP (only one IdP for the team) works on all domains.
