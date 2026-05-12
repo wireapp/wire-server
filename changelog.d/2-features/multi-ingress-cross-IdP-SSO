@@ -1,0 +1,7 @@
+When a team uses multiple SAML IdPs (one per ingress domain) in a multi-ingress
+setup, users can now authenticate via any of the team's IdPs even if their
+account was originally provisioned under a different one. Spar resolves the
+correct account by email-based NameID lookup across all team IdPs and migrates
+the user's SSO identity to the authenticating IdP transparently.
+
+Please refer to the documentation for further information.
