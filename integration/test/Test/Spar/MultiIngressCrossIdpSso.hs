@@ -93,7 +93,7 @@ testCrossIdpSsoEmailConflict useSCIM = do
           pure (Just scimUid)
         else pure Nothing
 
-    -- Step 1: Bibo logs in on Ernie ingress (should succeed)
+    -- Bibo logs in on Ernie ingress (should succeed)
     userIdErnie <-
       loginWithSamlWithZHost
         (Just ernieZHost)
@@ -127,7 +127,7 @@ testCrossIdpSsoEmailConflict useSCIM = do
       ssoCodeStr <- resp.json %. "sso_code" >>= asString
       ssoCodeStr `shouldMatch` idpIdErnie
 
-    -- Step 1.5: Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
+    -- Bibo re-logs in on Ernie (should succeed - proves SSO works on same ingress)
     (mUserIdErnieAgain, _) <-
       loginWithSamlWithZHost
         (Just ernieZHost)
@@ -141,9 +141,8 @@ testCrossIdpSsoEmailConflict useSCIM = do
       Just uid -> uid `shouldMatch` userIdErnie
       Nothing -> error "Expected user ID from re-login on Ernie domain"
 
-    -- Step 2: Same Bibo logs in on Bert ingress with SAME email
-    -- This should SUCCEED because cross-IdP SSO migration is enabled:
-    -- the email matches an existing user in the team, so we return that user
+    -- Same Bibo logs in on Bert ingress with SAME email
+    -- This should SUCCEED because of cross-IdP SSO migration.
     (mUserIdBert, _) <-
       loginWithSamlWithZHost
         (Just bertZHost)
@@ -166,13 +165,19 @@ testCrossIdpSsoEmailConflict useSCIM = do
       ssoIdTenant `shouldContain` bertIssuer
       ssoIdTenant `shouldNotMatch` ernieIssuer
 
-    -- Verify sso/get-by-email returns Bert's IdP after migration
+    -- Verify sso/get-by-email returns Bert's IdP for Bert's ingress after migration
     getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       ssoCodeStr <- resp.json %. "sso_code" >>= asString
       ssoCodeStr `shouldMatch` idpIdBert
 
-    -- Step 3: Login on Ernie again to show back-and-forth migration works
+    -- Verify sso/get-by-email returns Ernie's IdP for Ernie's ingress after migration
+    getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoCodeStr <- resp.json %. "sso_code" >>= asString
+      ssoCodeStr `shouldMatch` idpIdErnie
+
+    -- Login on Ernie again to show back-and-forth migration works
     (mUserIdErnieFinal, _) <-
       loginWithSamlWithZHost
         (Just ernieZHost)
@@ -186,7 +191,7 @@ testCrossIdpSsoEmailConflict useSCIM = do
       Just uid -> uid `shouldMatch` userIdErnie
       Nothing -> error "Expected user ID from final login on Ernie domain"
 
-    -- Verify user's SSO ID was migrated back to Ernie's issuer
+    -- Verify user's SSO ID was migrated back to Ernie's IdP
     getUsersId domain [userIdErnie] `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       ssoId <- resp.json %. "0.sso_id"
@@ -194,11 +199,16 @@ testCrossIdpSsoEmailConflict useSCIM = do
       ssoIdTenant `shouldContain` ernieIssuer
       ssoIdTenant `shouldNotMatch` bertIssuer
 
-    -- Verify sso/get-by-email returns Ernie's IdP after migration back
+    -- Verify sso/get-by-email returns correct IdP by ingress
     getSsoCodeByEmailWithZHost domain (Just ernieZHost) biboEmail `bindResponse` \resp -> do
       resp.status `shouldMatchInt` 200
       ssoCodeStr <- resp.json %. "sso_code" >>= asString
       ssoCodeStr `shouldMatch` idpIdErnie
+
+    getSsoCodeByEmailWithZHost domain (Just bertZHost) biboEmail `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      ssoCodeStr <- resp.json %. "sso_code" >>= asString
+      ssoCodeStr `shouldMatch` idpIdBert
 
 -- | Test that demonstrates cross-IdP SSO migration when a SCIM user provisioned for one IdP
 -- logs in for the first time via a different IdP.
