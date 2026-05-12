@@ -19,7 +19,6 @@ module Test.Spar.MultiIngressCrossIdpSso where
 
 import API.BrigInternal (getUsersId)
 import API.Common (randomEmail, randomHandle)
-import API.GalleyInternal (setTeamFeatureStatus)
 import API.Spar
   ( CreateScimToken (..),
     createIdpWithZHostV2,
@@ -54,13 +53,12 @@ bertZHost = "nginz-https." <> bertDomain
 -- | Test that demonstrates cross-IdP login with an email address
 --
 -- User can login with different IdPs. This is different from username-based
--- NameID (tested above) where duplicate users are created.
+-- NameID that is disallowed.
 testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
 testCrossIdpSsoEmailConflict useSCIM = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register IdP for Ernie domain with fixed issuer "ernie"
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
@@ -221,7 +219,6 @@ testScimUserLoginsDifferentIdP = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register IdP for Ernie domain with fixed issuer "ernie"
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
@@ -325,7 +322,6 @@ testSingleIdp = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register ONLY ONE IdP for Bert domain
     -- This is the key: there's only a single IdP for the team
@@ -395,7 +391,6 @@ testSingletonIdpWorksOnAllDomains = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register a SINGLE IdP for Ernie domain
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
@@ -446,7 +441,6 @@ testIdpNotFoundError :: (HasCallStack) => App ()
 testIdpNotFoundError = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register TWO IdPs: one for Ernie domain, one for Bert domain
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
@@ -490,14 +484,12 @@ testCrossTeamIdpLoginRejected = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     -- Team A with IdP A on bert domain
     (ownerA, tidA, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus ownerA tidA "sso" "enabled"
     SampleIdP idpMetaA pCredsA _ _ <- makeSampleIdPMetadataWithIssuer "team-a"
     idpA <- createIdpWithZHostV2 ownerA (Just bertZHost) idpMetaA
     idpIdA <- asString $ idpA.json %. "id"
 
     -- Team B with IdP B on ernie domain
-    (ownerB, tidB, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus ownerB tidB "sso" "enabled"
+    (ownerB, _, _) <- createTeam domain 1
     SampleIdP idpMetaB pCredsB _ _ <- makeSampleIdPMetadataWithIssuer "team-b"
     idpB <- createIdpWithZHostV2 ownerB (Just ernieZHost) idpMetaB
     idpIdB <- asString $ idpB.json %. "id"
@@ -528,7 +520,6 @@ testNewUserProvisioningWithMultipleIdPs = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register TWO IdPs: one for Ernie domain, one for Bert domain
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
@@ -582,7 +573,6 @@ testNonEmailNameIdRejectedInMultiIngress :: (HasCallStack) => App ()
 testNonEmailNameIdRejectedInMultiIngress = do
   withMultiIngressBackend [bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     -- Register IdP
     SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
@@ -608,7 +598,6 @@ testUnsolicitedSamlResponseRejected :: (HasCallStack) => App ()
 testUnsolicitedSamlResponseRejected = do
   withMultiIngressBackend [bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
     idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
@@ -640,7 +629,6 @@ testCrossIngressRequestResponseMismatch :: (HasCallStack) => App ()
 testCrossIngressRequestResponseMismatch = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
-    void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
     SampleIdP idpMetaErnie pCredsErnie _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
     idpErnie <- createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
@@ -676,7 +664,8 @@ withMultiIngressBackend baseDomains action =
             >=> removeField "saml.spAppUri"
             >=> removeField "saml.contacts"
             >=> setField "saml.spDomainConfigs" (object (map mkDomainEntry baseDomains))
-            >=> setField "enableIdPByEmailDiscovery" True
+            >=> setField "enableIdPByEmailDiscovery" True,
+        galleyCfg = setField "settings.featureFlags.sso" "enabled-by-default"
       }
     action
   where
