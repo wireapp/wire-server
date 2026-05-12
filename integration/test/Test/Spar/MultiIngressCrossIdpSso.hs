@@ -57,7 +57,6 @@ bertZHost = "nginz-https." <> bertDomain
 testCrossIdpSsoEmailConflict :: (HasCallStack) => Bool -> App ()
 testCrossIdpSsoEmailConflict useSCIM = do
   withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
-    -- Create team and enable SSO
     (owner, tid, _) <- createTeam domain 1
 
     -- Register IdP for Ernie domain with fixed issuer "ernie"
@@ -71,10 +70,7 @@ testCrossIdpSsoEmailConflict useSCIM = do
     idpIdBert <- asString $ idpBert.json %. "id"
 
     -- Create email-based NameID for "bibo"
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (biboEmail, biboNameId) <- randomEmailNameId
 
     -- Optionally create the user via SCIM (and not automatically)
     mScimUserId <-
@@ -231,10 +227,7 @@ testScimUserLoginsDifferentIdP = do
     idpIdBert <- asString $ idpBert.json %. "id"
 
     -- Create email-based NameID for "bibo"
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (biboEmail, biboNameId) <- randomEmailNameId
 
     -- Provision SCIM user for Ernie's IdP
     scimTok <- createScimToken owner (def {idp = Just idpIdErnie})
@@ -330,10 +323,7 @@ testSingleIdp = do
     idpIdBert <- asString $ idpBert.json %. "id"
 
     -- Create email-based NameID for "bibo"
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (biboEmail, biboNameId) <- randomEmailNameId
 
     -- Provision SCIM user for Bert's IdP
     scimTok <- createScimToken owner (def {idp = Just idpIdBert})
@@ -398,10 +388,7 @@ testSingletonIdpWorksOnAllDomains = do
     idpIdErnie <- asString $ idpErnie.json %. "id"
 
     -- Create email-based NameID for Bibo
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (_biboEmail, biboNameId) <- randomEmailNameId
 
     -- Login on Ernie domain (same as IdP registration domain) - should work
     (mUserIdErnie, _) <-
@@ -453,10 +440,7 @@ testIdpNotFoundError = do
 
     -- Ernie's IdP is registered for ernieZHost, so authenticating on bertZHost with Ernie's
     -- credentials triggers a "not found" error (multiple IdPs, no singleton fallback).
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (_biboEmail, biboNameId) <- randomEmailNameId
 
     authnReqResp <- buildSamlAuthnResponse domain bertZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
 
@@ -495,10 +479,7 @@ testCrossTeamIdpLoginRejected = do
     idpIdB <- asString $ idpB.json %. "id"
 
     -- Create Alice as a user of Team A
-    aliceEmail <- randomEmail
-    let aliceNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack aliceEmail)
+    (aliceEmail, aliceNameId) <- randomEmailNameId
     _ <- loginWithSamlWithZHost (Just bertZHost) domain True tidA aliceNameId (idpIdA, (idpMetaA, pCredsA))
     activateEmail domain aliceEmail
 
@@ -531,10 +512,7 @@ testNewUserProvisioningWithMultipleIdPs = do
     idpIdBert <- asString $ idpBert.json %. "id"
 
     -- Create email-based NameID for NEW user Bibo (doesn't exist yet)
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (_biboEmail, biboNameId) <- randomEmailNameId
 
     -- First login: Bibo tries to log in on Bert domain with Bert's IdP
     -- This should SUCCEED and create a new user because:
@@ -603,10 +581,7 @@ testUnsolicitedSamlResponseRejected = do
     idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
     idpIdBert <- asString $ idpBert.json %. "id"
 
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (_biboEmail, biboNameId) <- randomEmailNameId
 
     let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
     spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
@@ -637,10 +612,7 @@ testCrossIngressRequestResponseMismatch = do
     SampleIdP idpMetaBert _ _ _ <- makeSampleIdPMetadataWithIssuer "bert"
     void $ createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
 
-    biboEmail <- randomEmail
-    let biboNameId =
-          fromRight (error "could not create name id")
-            $ SAML.emailNameID (pack biboEmail)
+    (_biboEmail, biboNameId) <- randomEmailNameId
 
     -- Response Destination is ernie's ACS URL; finalizing on bert causes a mismatch.
     authnReqResp <- buildSamlAuthnResponse domain ernieZHost tid idpIdErnie idpMetaErnie pCredsErnie biboNameId
@@ -696,6 +668,13 @@ buildSamlAuthnResponse domain mbZHost tid idpId idpMeta pcreds nameId = do
   let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
       parsedAuthnReq = parseAuthnReqResp authnreq.body
   makeAuthnResponse nameId pcreds idpConfig spMetaData parsedAuthnReq
+
+-- | Generate a random email address and the corresponding email-based SAML NameID.
+randomEmailNameId :: (HasCallStack) => App (String, SAML.NameID)
+randomEmailNameId = do
+  email <- randomEmail
+  let nameId = fromRight (error "could not create name id") $ SAML.emailNameID (pack email)
+  pure (email, nameId)
 
 -- | Helper to create IdP metadata with a fixed issuer suffix for deterministic tests
 makeSampleIdPMetadataWithIssuer :: (HasCallStack) => String -> App SampleIdP
