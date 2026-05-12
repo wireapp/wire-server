@@ -227,7 +227,7 @@ refreshAppCookieImpl ::
   Sem r SomeUserToken
 refreshAppCookieImpl (tUnqualified -> uid) tid appId mbPassword = do
   reauthenticateEither uid mbPassword
-    >>= either (const $ throw AppSubsystemErrorUnauthorized) (const $ pure ())
+    >>= either (const $ throw AppSubsystemErrorMissingAuth) (const $ pure ())
 
   mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)

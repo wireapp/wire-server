@@ -2151,25 +2151,10 @@ type AppsAPI =
                :> Put '[JSON] ()
            )
     :<|> Named
-           "refresh-app-cookie@v15"
-           ( Summary "Get a new app authentication token"
-               :> From 'V12
-               :> Until 'V16
-               -- can throw 403 instead of 401.  fixed in V16.
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "apps"
-               :> Capture "app" UserId
-               :> "cookies"
-               :> ReqBody '[JSON] RefreshAppCookieRequest
-               :> Post '[JSON] RefreshAppCookieResponse
-           )
-    :<|> Named
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
-               :> From 'V16
-               :> CanThrow 'ErrorBrig.Unauthorized
+               :> From 'V12
+               :> CanThrow 'ErrorBrig.MissingAuth
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

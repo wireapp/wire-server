@@ -160,8 +160,8 @@ testRefreshAppCookie = do
   forM_
     [ (Nothing, 415),
       (Just Null, 400),
-      (Just (object []), 401),
-      (Just (object ["password" .= "this is not a good password"]), 401)
+      (Just (object []), 403),
+      (Just (object ["password" .= "this is not a good password"]), 403)
     ]
     $ \(badPassword, stat) -> do
       -- the status codes and error labels differ here, but the
