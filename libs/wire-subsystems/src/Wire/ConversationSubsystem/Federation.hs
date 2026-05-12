@@ -600,8 +600,7 @@ sendMLSCommitBundle ::
     Member TeamCollaboratorsSubsystem r,
     Member E.MLSCommitLockStore r,
     Member FeaturesConfigSubsystem r,
-    Member (Input ConversationSubsystemConfig) r,
-    Member (ErrorS 'MLSHistoryClientConflict) r
+    Member (Input ConversationSubsystemConfig) r
   ) =>
   Domain ->
   MLSMessageSendRequest ->
@@ -658,8 +657,7 @@ sendMLSMessage ::
     Member P.TinyLog r,
     Member ProposalStore r,
     Member TeamCollaboratorsSubsystem r,
-    Member TeamStore r,
-    Member (Error (Tagged MLSHistoryClientConflict ())) r
+    Member TeamStore r
   ) =>
   Domain ->
   MLSMessageSendRequest ->

@@ -104,6 +104,7 @@ data ConversationSubsystemError
   | ConversationSubsystemErrorNonFederatingBackends NonFederatingBackends
   | ConversationSubsystemErrorUnreachableBackendsLegacy UnreachableBackendsLegacy
   | ConversationSubsystemErrorMLSHistoryClientConflict
+  | ConversationSubsystemErrorMLSHistoryClientDuplication
 
 instance APIError ConversationSubsystemError where
   toResponse =
@@ -176,6 +177,7 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorNonFederatingBackends x -> toResponse x
       ConversationSubsystemErrorUnreachableBackendsLegacy x -> toResponse x
       ConversationSubsystemErrorMLSHistoryClientConflict -> toResponse $ Tagged @'MLSHistoryClientConflict ()
+      ConversationSubsystemErrorMLSHistoryClientDuplication -> toResponse $ Tagged @'MLSHistoryClientDuplication ()
 
 type ConversationSubsystemErrorEffects =
   '[ ErrorS 'ConvAccessDenied,
@@ -247,7 +249,8 @@ type ConversationSubsystemErrorEffects =
      Error MLSProposalFailure,
      Error NonFederatingBackends,
      Error UnreachableBackendsLegacy,
-     ErrorS 'MLSHistoryClientConflict
+     ErrorS 'MLSHistoryClientConflict,
+     ErrorS 'MLSHistoryClientDuplication
    ]
 
 mapErrors ::
@@ -257,7 +260,8 @@ mapErrors ::
   ) =>
   InterpretersFor ConversationSubsystemErrorEffects r
 mapErrors =
-  mapError (const ConversationSubsystemErrorMLSHistoryClientConflict)
+  mapError (const ConversationSubsystemErrorMLSHistoryClientDuplication)
+    . mapError (const ConversationSubsystemErrorMLSHistoryClientConflict)
     . mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
     . mapError (ConversationSubsystemErrorNonFederatingBackends)
     . interpretServerEffect

@@ -85,7 +85,6 @@ data ProposalAction = ProposalAction
   }
   deriving (Show)
 
--- TODO: (leif) check this
 instance Semigroup ProposalAction where
   ProposalAction add1 rem1 hadd1 hrem1 <> ProposalAction add2 rem2 hadd2 hrem2 =
     ProposalAction (add1 <> add2) (rem1 <> rem2) (hadd1 <|> hadd2) (hrem1 <|> hrem2)

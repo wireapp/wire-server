@@ -180,6 +180,7 @@ data GalleyError
   | MLSInvalidLeafNodeSignature
   | MeetingNotFound
   | MLSHistoryClientConflict
+  | MLSHistoryClientDuplication
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -381,6 +382,8 @@ type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receip
 type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
 
 type instance MapError 'MLSHistoryClientConflict = 'StaticError 400 "mls-history-client-conflict" "History sharing settings of the conversation are conflicting with this request"
+
+type instance MapError 'MLSHistoryClientDuplication = 'StaticError 400 "mls-history-client-duplication" "An MLS group can have at most one history client"
 
 --------------------------------------------------------------------------------
 -- Meeting errors

@@ -245,7 +245,6 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       addMLSClients gid qtarget $
         Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
 
-    -- TODO: (leif) should we enforce 1 history client max? and if so where?
     for_ action.paHistoryClientAdd $ \(hid, idx, _) -> addHistoryClient gid hid idx
 
     for_ action.paHistoryClientRemove $ \(hid, _) -> removeHistoryClient gid hid

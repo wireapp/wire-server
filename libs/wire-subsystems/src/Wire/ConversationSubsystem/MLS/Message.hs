@@ -113,7 +113,9 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSSubConvClientNotInParent
+     ErrorS 'MLSSubConvClientNotInParent,
+     ErrorS 'MLSHistoryClientConflict,
+     ErrorS 'MLSHistoryClientDuplication
    ]
 
 enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
@@ -139,7 +141,8 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
-    Member (Error (Tagged MLSHistoryClientConflict ())) r
+    Member (ErrorS MLSHistoryClientConflict) r,
+    Member (ErrorS MLSHistoryClientDuplication) r
   ) =>
   Version ->
   Local UserId ->
@@ -173,8 +176,7 @@ postMLSCommitBundle ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'MLSHistoryClientConflict) r
+    Member FeaturesConfigSubsystem r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -210,8 +212,7 @@ postMLSCommitBundleFromLocalUser ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'MLSHistoryClientConflict) r
+    Member FeaturesConfigSubsystem r
   ) =>
   Version ->
   Local UserId ->
@@ -247,8 +248,7 @@ postMLSCommitBundleToLocalConv ::
     Member FederationSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r,
-    Member FeaturesConfigSubsystem r,
-    Member (ErrorS 'MLSHistoryClientConflict) r
+    Member FeaturesConfigSubsystem r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -311,18 +311,19 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
-        -- TODO: (leif) enfore max 1 history client
-        -- TODO: extract
-        let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
-        let historyClientExists = any isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
-        lift $ when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
-
-        -- reject message if the conversation is out of sync
         lift $ do
+          let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+          let historyClients = filter isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
+          case historyClients of
+            (_ : _ : _) -> throwS @'MLSHistoryClientDuplication
+            _ -> pure ()
+          let historyClientExists = not (null historyClients)
+          when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+
+          -- reject message if the conversation is out of sync
           let newUsers = Map.keysSet (unClientMap action.paAdd)
           checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
-        lift $
           checkGroupState convOrSub newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
@@ -469,7 +470,8 @@ postMLSMessage ::
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
     Member (Error GroupInfoDiagnostics) r,
-    Member (Error (Tagged MLSHistoryClientConflict ())) r
+    Member (ErrorS MLSHistoryClientConflict) r,
+    Member (ErrorS MLSHistoryClientDuplication) r
   ) =>
   Local x ->
   Qualified UserId ->
