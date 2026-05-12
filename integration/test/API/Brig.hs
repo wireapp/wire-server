@@ -20,6 +20,7 @@ module API.Brig where
 import API.BrigCommon
 import API.Common
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Base64 as Base64
 import Data.Foldable
 import Data.Function
@@ -222,6 +223,9 @@ deleteClient user client = do
         ]
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/get_users__uid_domain___uid__clients
+--
+-- this end-point has been removed from V16, but we keep this helper
+-- and call listUserClients under the hood.
 getClientsQualified ::
   ( HasCallStack,
     MakesValue user,
@@ -232,17 +236,19 @@ getClientsQualified ::
   domain ->
   otherUser ->
   App Response
-getClientsQualified user domain otherUser = do
-  ouid <- objId otherUser
-  d <- objDomain domain
-  req <-
-    baseRequest user Brig Versioned $
-      "/users/"
-        <> d
-        <> "/"
-        <> ouid
-        <> "/clients"
-  submit "GET" req
+getClientsQualified user _domain otherUser = do
+  (dom, uid) <- objQid otherUser
+  r <- listUsersClients user [otherUser]
+  case (r.status, r.json) of
+    (200, Just v) -> do
+      let lookupKey k (Object m) = KM.lookup (fromString k) m
+          lookupKey _ _ = Nothing
+          clients = fromMaybe (Array mempty) $ do
+            qum <- lookupKey "qualified_user_map" v
+            domMap <- lookupKey dom qum
+            lookupKey uid domMap
+      pure r {json = Just clients}
+    _ -> pure r
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_users_list_clients
 listUsersClients :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
