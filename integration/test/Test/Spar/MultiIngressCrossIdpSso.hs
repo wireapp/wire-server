@@ -456,8 +456,11 @@ testNonEmailNameIdRejectedInMultiIngress = do
 -- A response referencing a request Spar never stored results in a "bad InResponseTo" error.
 testUnsolicitedSamlResponseRejected :: (HasCallStack) => App ()
 testUnsolicitedSamlResponseRejected = do
-  withMultiIngressBackend [bertDomain] $ \domain -> do
+  withMultiIngressBackend [ernieDomain, bertDomain] $ \domain -> do
     (owner, tid, _) <- createTeam domain 1
+
+    SampleIdP idpMetaErnie _ _ _ <- makeSampleIdPMetadataWithIssuer "ernie"
+    void $ createIdpWithZHostV2 owner (Just ernieZHost) idpMetaErnie
 
     SampleIdP idpMetaBert pCredsBert _ _ <- makeSampleIdPMetadataWithIssuer "bert"
     idpBert <- createIdpWithZHostV2 owner (Just bertZHost) idpMetaBert
@@ -465,10 +468,10 @@ testUnsolicitedSamlResponseRejected = do
 
     (_biboEmail, biboNameId) <- randomEmailNameId
 
-    let idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
     spmeta <- getSPMetadataWithZHost domain (Just bertZHost) tid
     let spMetaData = fromRight (error "could not decode spmetadata") $ SAML.decode $ cs spmeta.body
-    -- Create a local authn request (stored in SimpleSP's in-memory store, not in Spar's Cassandra)
+        idpConfig = SAML.IdPConfig (SAML.IdPId (fromMaybe (error "invalid idp id") (UUID.fromString idpIdBert))) idpMetaBert ()
+    -- Create a local authn request (stored in SimpleSP's in-memory store, not in Spar's database)
     localReq <- runSimpleSP $ SAML.createAuthnRequest 300 (idpMetaBert ^. SAML.edIssuer) (idpMetaBert ^. SAML.edIssuer)
     authnReqResp <- makeAuthnResponse biboNameId pCredsBert idpConfig spMetaData localReq
 
@@ -478,7 +481,8 @@ testUnsolicitedSamlResponseRejected = do
       resp.status `shouldMatchInt` 500
       resp.json %. "label" `shouldMatch` "server-error"
 
--- | Test that SAML responses for one ingress are rejected when submitted to a different ingress.
+-- | Test that SAML responses for one ingress are rejected when submitted to a
+-- different ingress.
 --
 -- A login request on the ernie ingress must be finalized on the ernie ingress.
 -- Finalizing on the bert ingress should fail with a bad recipient error.
