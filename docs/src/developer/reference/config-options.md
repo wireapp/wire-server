@@ -1500,6 +1500,41 @@ error. Though, IdPs can be reconfigured as long as this invariant holds.
 
 Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
 
+#### Cross-IdP SSO (multi-ingress fallback)
+
+Terms used below:
+
+- *Authenticating IdP* — the external identity provider that issued the SAML
+  assertion, identified by the `Issuer` URI inside it.
+- *IdP configuration* — a backend record registered via `/identity-providers`,
+  storing the issuer URI, the associated multi-ingress domain, and the team.
+
+In the normal SSO flow spar looks up the authenticating user by their
+`(issuer, NameID)` pair — matching the assertion's issuer against the IdP
+configuration the user was provisioned under.
+
+In a multi-ingress setup (`spDomainConfigs` is configured), when this primary
+lookup finds no user, spar attempts a cross-IdP migration:
+
+1. **NameID must be an email address.** Username-based NameIDs are rejected to
+   avoid ambiguity across IdP configurations.
+2. **The matching IdP configuration is resolved.** Spar looks for an IdP
+   configuration in the team whose issuer URI and configured domain both match
+   the assertion's issuer and the incoming `Z-Host` header (exact match). If no
+   exact match is found and the team has exactly one IdP configuration, that
+   one is used unconditionally (no issuer or domain check). If neither
+   condition is met, the login is rejected.
+3. **Team-wide user search.** Spar searches all of the team's IdP
+   configurations for a user whose email NameID matches the subject.
+4. **Migrate or provision:**
+   - *Exactly one match found:* The user's SSO identity is updated to point to
+     the authenticating IdP's issuer, so subsequent logins hit the primary
+     lookup directly.
+   - *No match found:* A new user account is auto-provisioned under the
+     authenticating IdP's configuration.
+   - *No matching IdP configuration can be resolved (step 2):* Login is
+     rejected.
+
 ### Webapp
 
 The webapp runs its own web server (a NodeJS server) to serve static files and the webapp config (based on environment variables).
