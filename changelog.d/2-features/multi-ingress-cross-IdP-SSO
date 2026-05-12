@@ -4,4 +4,7 @@ account was originally provisioned under a different one. Spar resolves the
 correct account by email-based NameID lookup across all team IdPs and migrates
 the user's SSO identity to the authenticating IdP transparently.
 
+**Important:** Emails addresses (`NameID`s) must be unique across configured
+IdPs! Otherwise, users may be logged in into wrong accounts!
+
 Please refer to the documentation for further information.
