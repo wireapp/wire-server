@@ -148,14 +148,14 @@ revokeCookiesMatchingExcept u mself ids labels = do
 -- Remove stale cookies.  Stale means either (1) cookie is expired, or
 -- (2) cookie creation time is further in the past than
 -- `env.suspendInactiveUsers` allows.
-revokeAllExpiredCookiesImpl ::
+revokeAllStaleCookiesImpl ::
   ( Member SessionStore r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r
   ) =>
   UserId ->
   Sem r ()
-revokeAllExpiredCookiesImpl uid = do
+revokeAllStaleCookiesImpl uid = do
   now :: UTCTime <- Now.get
   mbSuspendAge <- (.suspendInactiveUsers) <$> input
 

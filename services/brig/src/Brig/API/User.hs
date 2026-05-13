@@ -679,7 +679,7 @@ changeSingleAccountStatusInternal status ev u = do
   -- considered an account activity, so users that have their status
   -- changed recently should not be considered inactive, even if they
   -- haven't taken any action themselves.
-  Auth.revokeAllExpiredCookies u
+  Auth.revokeAllStaleCookies u
   UserStore.updateAccountStatus u status
   User.internalUpdateSearchIndex u
   Events.generateUserEvent u Nothing (ev u)
