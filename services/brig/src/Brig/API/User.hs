@@ -669,7 +669,9 @@ changeSingleAccountStatusInternal status ev u = do
   --
   -- Evidence: `git grep -Hn --color=never 'UserToken\b' | grep libs/wire-api/src/Wire/API/Routes/Public/`.
   --
-  -- Having that said, we need to remove all *expired* cookies here,
+  -- Having that said, we need to remove cookies here that are no
+  -- longer valid for login/inactivity handling (including both
+  -- expired cookies and cookies older than the inactivity threshold),
   -- otherwise /login considers the user inactive, see
   -- 'mustSuspendInactiveUser'.
   --
