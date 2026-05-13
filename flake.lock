@@ -186,16 +186,16 @@
     "hasql-migration": {
       "flake": false,
       "locked": {
-        "lastModified": 1777384964,
-        "narHash": "sha256-NRFZUDR4cW6jRihO311glqtlIlcRKSKeBXJErHuXf+k=",
+        "lastModified": 1777986637,
+        "narHash": "sha256-NdrqeecEdokSCqBm6BqZ9mCDnqgDzAiN5BMwjMcvv1Q=",
         "owner": "wireapp",
         "repo": "hasql-migration",
-        "rev": "ef03ac6410c94444bf1807fc4eda1db6b0974984",
+        "rev": "6fe20bfb145dde56254089902734e2fcb079fc19",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
-        "ref": "allow-no-transaction",
+        "ref": "upgrade-hasql",
         "repo": "hasql-migration",
         "type": "github"
       }
@@ -314,6 +314,23 @@
         "type": "github"
       }
     },
+    "postgresql-connection-string": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778144330,
+        "narHash": "sha256-w/TFQX7PIsLQTG+Es2yla584Y3T7Q6H1iIlqFap8qUk=",
+        "owner": "wireapp",
+        "repo": "postgresql-connection-string",
+        "rev": "ff98790cb3058545ea978ea143cd57b04360c48c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "ref": "expose-from-key-value-params",
+        "repo": "postgresql-connection-string",
+        "type": "github"
+      }
+    },
     "postie": {
       "flake": false,
       "locked": {
@@ -345,6 +362,7 @@
         "nixpkgs": "nixpkgs",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "nixpkgs_24_11": "nixpkgs_24_11",
+        "postgresql-connection-string": "postgresql-connection-string",
         "postie": "postie",
         "sbomnix": "sbomnix",
         "servant-openapi3": "servant-openapi3",

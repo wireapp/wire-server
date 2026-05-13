@@ -156,7 +156,7 @@ upsertConversationImpl lcnv nc = do
           meta.cnvmParent,
           fmap (.depth) hconfig
         )
-  runTransaction ReadCommitted Write $ do
+  runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement convRow insertConvStatement
     upsertMembersTransaction storedConv.id_ $ UserList localUsers remoteUsers
   pure storedConv
@@ -206,7 +206,7 @@ deleteConversationImpl cid =
 
 getConversationImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe StoredConversation)
 getConversationImpl cid =
-  runTransaction ReadCommitted Read $ do
+  runTransactionWithRetry ReadCommitted Read $ do
     mConvRow <- Transaction.statement cid selectConvMetadata
     case mConvRow of
       Nothing -> pure Nothing
@@ -624,7 +624,7 @@ deleteTeamConversationsImpl tid =
 -- MEMBER OPERATIONS
 upsertMembersImpl :: (PGConstraints r) => ConvId -> UserList (UserId, RoleName) -> Sem r ([LocalMember], [RemoteMember])
 upsertMembersImpl convId users@(UserList lusers rusers) = do
-  runTransaction ReadCommitted Write $ upsertMembersTransaction convId users
+  runTransactionWithRetry ReadCommitted Write $ upsertMembersTransaction convId users
   pure (map newMemberWithRole lusers, map newRemoteMemberWithRole rusers)
 
 upsertMembersTransaction :: ConvId -> UserList (UserId, RoleName) -> Transaction ()
@@ -680,7 +680,7 @@ createBotMemberImpl serviceRef botId convId = do
 getLocalMemberImpl :: (PGConstraints r) => ConvId -> UserId -> Sem r (Maybe LocalMember)
 getLocalMemberImpl convId userId = do
   mRow <-
-    runSession $ do
+    runSessionWithRetry $ do
       mDirectMember <- HasqlSession.statement (convId, userId) selectMember
       case mDirectMember of
         Nothing -> HasqlSession.statement (convId, userId) selectParentMember
@@ -769,7 +769,7 @@ type RemoteMemberRow = (ConvId, Domain, UserId, RoleName)
 getRemoteMemberImpl :: (PGConstraints r) => ConvId -> Remote UserId -> Sem r (Maybe RemoteMember)
 getRemoteMemberImpl convId (tUntagged -> Qualified uid domain) = do
   mRow <-
-    runSession $ do
+    runSessionWithRetry $ do
       mDirectMember <- HasqlSession.statement (convId, domain, uid) selectMember
       case mDirectMember of
         Nothing -> HasqlSession.statement (convId, domain, uid) selectParentMember
@@ -958,7 +958,7 @@ setOtherRemoteMember cid (tUntagged -> Qualified uid domain) upd =
 
 deleteMembersImpl :: (PGConstraints r) => ConvId -> UserList UserId -> Sem r ()
 deleteMembersImpl cid users =
-  runTransaction ReadCommitted Write $ do
+  runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement (cid, users.ulLocals) deleteLocalsStmt
     for_ (bucketRemote users.ulRemotes) $ \(tUntagged -> Qualified remotes domain) ->
       Transaction.statement (cid, domain, remotes) deleteRemotesStmt

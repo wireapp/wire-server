@@ -24,6 +24,7 @@ import Control.Exception
 import Data.FileEmbed
 import Data.Hashable qualified as Hashable
 import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
 import Hasql.Migration
 import Hasql.Pool
 import Hasql.Session
@@ -37,7 +38,7 @@ import System.Logger qualified as Log
 import UnliftIO.Retry
 
 allMigrations :: [MigrationCommand]
-allMigrations = map (uncurry MigrationScript) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
+allMigrations = map (\(name, contentBS) -> MigrationScript name (Text.decodeUtf8 contentBS)) $(makeRelativeToProject "postgres-migrations" >>= embedDir)
 
 -- | Scripts which cannot be run in a transaction
 nonTransactionMigrations :: Set ScriptName
@@ -117,6 +118,6 @@ resetSchema :: Pool -> Logger -> IO ()
 resetSchema pool logger = do
   Log.warn logger $ Log.msg (Log.val "resetting postgres schema")
   let session = do
-        sql "DROP SCHEMA IF EXISTS public CASCADE"
-        sql "CREATE SCHEMA IF NOT EXISTS public"
+        script "DROP SCHEMA IF EXISTS public CASCADE"
+        script "CREATE SCHEMA IF NOT EXISTS public"
   either throwIO pure =<< use pool session

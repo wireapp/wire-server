@@ -31,18 +31,17 @@ import Data.Time.Clock
 import Data.UUID (UUID, nil)
 import Data.Vector qualified as V
 import Hasql.Pool
-import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
+import Polysemy.Error (Error)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
 import Wire.API.User.Identity (EmailAddress, fromEmail)
 import Wire.MeetingsStore
-import Wire.Postgres (PGConstraints)
+import Wire.Postgres
 
 interpretMeetingsStoreToPostgres ::
   (PGConstraints r) =>
@@ -80,7 +79,6 @@ createMeetingImpl ::
   Bool ->
   Sem r StoredMeeting
 createMeetingImpl title creator startTime endTime recurrence convId emails trial = do
-  pool <- input
   now <- liftIO getCurrentTime
   let sm =
         StoredMeeting
@@ -96,8 +94,7 @@ createMeetingImpl title creator startTime endTime recurrence convId emails trial
             createdAt = now,
             updatedAt = now
           }
-  result <- liftIO $ use pool $ statement sm insertStatement
-  either throw pure result
+  runStatement sm insertStatement
 
 insertStatement :: Statement StoredMeeting StoredMeeting
 insertStatement =
@@ -187,18 +184,12 @@ updateMeetingImpl ::
   Maybe (Maybe Recurrence) ->
   Sem r (Maybe StoredMeeting)
 updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  case mRecurrence of
+    Nothing ->
+      runStatement (mTitle, mStartDate, mEndDate, meetingId) updateWithoutRecurrenceStatement
+    Just recurrence ->
+      runStatement (mTitle, mStartDate, mEndDate, recurrence, meetingId) updateWithRecurrenceStatement
   where
-    session :: Session (Maybe StoredMeeting)
-    session =
-      case mRecurrence of
-        Nothing ->
-          statement (mTitle, mStartDate, mEndDate, meetingId) updateWithoutRecurrenceStatement
-        Just recurrence ->
-          statement (mTitle, mStartDate, mEndDate, recurrence, meetingId) updateWithRecurrenceStatement
-
     updateWithRecurrenceStatement :: Statement UpdateMeetingWithRecurrenceTuple (Maybe StoredMeeting)
     updateWithRecurrenceStatement =
       dimapPG
@@ -256,12 +247,8 @@ deleteMeetingImpl ::
   MeetingId ->
   Sem r ()
 deleteMeetingImpl meetingId = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runStatement (toUUID meetingId) deleteStatement
   where
-    session :: Session ()
-    session = statement (toUUID meetingId) deleteStatement
     deleteStatement :: Statement UUID ()
     deleteStatement =
       [resultlessStatement|
@@ -276,9 +263,7 @@ getMeetingImpl ::
   MeetingId ->
   Sem r (Maybe StoredMeeting)
 getMeetingImpl meetingId = do
-  pool <- input
-  result <- liftIO $ use pool $ statement (toUUID meetingId) getMeetingStatement
-  either throw pure result
+  runStatement (toUUID meetingId) getMeetingStatement
 
 getMeetingStatement :: Statement UUID (Maybe StoredMeeting)
 getMeetingStatement =
@@ -303,12 +288,8 @@ listMeetingsByUserImpl ::
   UTCTime ->
   Sem r [StoredMeeting]
 listMeetingsByUserImpl userId cutoffTime = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runStatement (toUUID userId, cutoffTime) $ V.toList <$> listStatement
   where
-    session :: Session [StoredMeeting]
-    session = statement (toUUID userId, cutoffTime) $ V.toList <$> listStatement
     listStatement :: Statement (UUID, UTCTime) (V.Vector StoredMeeting)
     listStatement =
       refineResult
@@ -331,12 +312,8 @@ listMeetingsByConversationImpl ::
   UTCTime ->
   Sem r [StoredMeeting]
 listMeetingsByConversationImpl convId cutoffTime = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runStatement (toUUID convId, cutoffTime) $ V.toList <$> listStatement
   where
-    session :: Session [StoredMeeting]
-    session = statement (toUUID convId, cutoffTime) $ V.toList <$> listStatement
     listStatement :: Statement (UUID, UTCTime) (V.Vector StoredMeeting)
     listStatement =
       refineResult
@@ -359,13 +336,8 @@ addInvitedEmailsImpl ::
   [EmailAddress] ->
   Sem r ()
 addInvitedEmailsImpl meetingId emails = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runStatement (V.fromList (fromEmail <$> emails), toUUID meetingId) addEmailStatement
   where
-    session :: Session ()
-    session = statement (V.fromList (fromEmail <$> emails), toUUID meetingId) addEmailStatement
-
     addEmailStatement :: Statement (V.Vector Text, UUID) ()
     addEmailStatement =
       [resultlessStatement|
@@ -381,12 +353,8 @@ removeInvitedEmailsImpl ::
   [EmailAddress] ->
   Sem r ()
 removeInvitedEmailsImpl meetingId emails = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runStatement (V.fromList (fromEmail <$> emails), toUUID meetingId) removeEmailStatement
   where
-    session :: Session ()
-    session = statement (V.fromList (fromEmail <$> emails), toUUID meetingId) removeEmailStatement
     removeEmailStatement :: Statement (V.Vector Text, UUID) ()
     removeEmailStatement =
       [resultlessStatement|
