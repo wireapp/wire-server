@@ -160,7 +160,7 @@ revokeAllExpiredCookiesImpl uid = do
   mbSuspendAge <- (.suspendInactiveUsers) <$> input
 
   let dead :: Cookie () -> Bool
-      dead c = cookieExpired && userInactive
+      dead c = cookieExpired || userInactive
         where
           cookieExpired = c.cookieExpires < now
           userInactive =
