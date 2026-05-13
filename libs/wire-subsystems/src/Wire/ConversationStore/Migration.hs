@@ -55,6 +55,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -262,7 +263,8 @@ saveConvToPostgres allConvData = do
           meta.cnvmGroupConvType,
           meta.cnvmChannelAddPermission,
           meta.cnvmCellsState,
-          meta.cnvmParent
+          meta.cnvmParent,
+          fmap (.depth) (historyConfig meta.cnvmHistory)
         )
   runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement convRow insertConv
@@ -295,21 +297,22 @@ saveConvToPostgres allConvData = do
           Maybe GroupConvType,
           Maybe AddPermission,
           CellsState,
-          Maybe ConvId
+          Maybe ConvId,
+          Maybe HistoryDuration
         )
         ()
     insertConv =
-      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
                               group_id, epoch, epoch_timestamp, cipher_suite, public_group_state,
-                              group_conv_type, channel_add_permission, cells_state, parent_conv)
+                              group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 :: bigint?, $13 :: timestamptz?, $14 :: integer?,  $15 :: bytea?,
-                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?)
+                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?, $20 :: bigint?)
                              ON CONFLICT (id) DO NOTHING
                             |]
 
