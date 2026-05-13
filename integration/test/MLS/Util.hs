@@ -101,11 +101,10 @@ randomFileName = do
   (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
 
 mlscli :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> ClientIdentity -> [String] -> Maybe ByteString -> App ByteString
-mlscli mConvId cs cid = mlscli' mConvId cs (RegularClient cid)
+mlscli mConvId cs cid = mlscliGroupMem mConvId cs (RegularClient cid)
 
--- TODO: (leif)
-mlscli' :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> GroupMember -> [String] -> Maybe ByteString -> App ByteString
-mlscli' mConvId cs groupMem args mbstdin = do
+mlscliGroupMem :: (HasCallStack) => Maybe ConvId -> Ciphersuite -> GroupMember -> [String] -> Maybe ByteString -> App ByteString
+mlscliGroupMem mConvId cs groupMem args mbstdin = do
   groupOut <- randomFileName
   let substOut = argSubst "<group-out>" groupOut
   let scheme = csSignatureScheme cs
@@ -249,8 +248,8 @@ generateKeyPackage cid suite = do
 generateHistoryClient :: (HasCallStack) => ConvId -> Ciphersuite -> App (ByteString, String, String)
 generateHistoryClient convId suite = do
   hid <- randomUUIDString
-  kp <- mlscli' (Just convId) suite (HistoryClient hid) ["key-package", "create", "--ciphersuite", suite.code] Nothing
-  ref <- B8.unpack . Base64.encode <$> mlscli' (Just convId) suite (HistoryClient hid) ["key-package", "ref", "-"] (Just kp)
+  kp <- mlscliGroupMem (Just convId) suite (HistoryClient hid) ["key-package", "create", "--ciphersuite", suite.code] Nothing
+  ref <- B8.unpack . Base64.encode <$> mlscliGroupMem (Just convId) suite (HistoryClient hid) ["key-package", "ref", "-"] (Just kp)
   fp <- keyPackageFile (hid2Str hid) ref
   liftIO $ BS.writeFile fp kp
   pure (kp, ref, hid)
