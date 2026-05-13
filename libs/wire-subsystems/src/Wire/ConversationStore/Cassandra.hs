@@ -781,8 +781,8 @@ addBotMember s bot cnv = do
 lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndices groupId = do
   mlsClients <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
-  hClients <- (runIdentity =<<) <$> retry x5 (query1 Cql.lookupHistoryClient (params LocalQuorum (Identity groupId)))
-  pure $ (mkClientMap mlsClients, mkIndexMapFromParts mlsClients (maybeToList hClients))
+  hClients <- retry x5 (query Cql.lookupHistoryClients (params LocalQuorum (Identity groupId)))
+  pure $ (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
 
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap fst . lookupMLSClientLeafIndices
