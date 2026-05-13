@@ -781,8 +781,12 @@ addBotMember s bot cnv = do
 lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndices groupId = do
   mlsClients <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
-  hClients <- retry x5 (query Cql.lookupHistoryClients (params LocalQuorum (Identity groupId)))
+  hClients <- lookupHistoryClients groupId
   pure $ (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
+
+lookupHistoryClients :: GroupId -> Client [(HistoryClientId, Int32, Bool)]
+lookupHistoryClients groupId =
+  retry x5 (query Cql.lookupHistoryClients (params LocalQuorum (Identity groupId)))
 
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap fst . lookupMLSClientLeafIndices
@@ -1058,6 +1062,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
   LookupMLSClients lcnv -> do
     logEffect "ConversationStore.LookupMLSClients"
     embedClient client $ lookupMLSClients lcnv
+  LookupHistoryClients gid -> do
+    logEffect "ConversationStore.LookupHistoryClients"
+    embedClient client $ lookupHistoryClients gid
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     embedClient client $ lookupMLSClientLeafIndices lcnv
@@ -1464,6 +1471,13 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ lookupMLSClients gid
         True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClients gid)
+  LookupHistoryClients gid -> do
+    logEffect "ConversationStore.LookupHistoryClients"
+    cid <- groupIdToConvId gid
+    withMigrationLockAndCleanup client LockShared (Left cid) $
+      isConvInPostgres cid >>= \case
+        False -> embedClient client $ lookupHistoryClients gid
+        True -> interpretConversationStoreToPostgres (ConvStore.lookupHistoryClients gid)
   LookupMLSClientLeafIndices gid -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     cid <- groupIdToConvId gid

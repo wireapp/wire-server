@@ -118,6 +118,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   RemoveMLSClients lcnv quid cs -> removeMLSClientsImpl lcnv quid cs
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
+  LookupHistoryClients gid -> lookupHistoryClientsImpl gid
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
   UpsertSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
@@ -1102,11 +1103,14 @@ selectHistoryClients =
                      WHERE group_id = ($1 :: bytea)
                     |]
 
+lookupHistoryClientsImpl :: (PGConstraints r) => GroupId -> Sem r [(HistoryClientId, Int32, Bool)]
+lookupHistoryClientsImpl gid = runStatement gid selectHistoryClients
+
 lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl gid = do
-  rows1 <- runStatement gid selectMLSClients
-  rows2 <- runStatement gid selectHistoryClients
-  pure (mkClientMap rows1, mkIndexMapFromParts rows1 rows2)
+  regularClients <- runStatement gid selectMLSClients
+  historyClients <- lookupHistoryClientsImpl gid
+  pure (mkClientMap regularClients, mkIndexMapFromParts regularClients historyClients)
 
 -- SUB CONVERSATION OPERATIONS
 createSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> GroupId -> Sem r SubConversation

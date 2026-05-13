@@ -126,6 +126,7 @@ data ConversationStore m a where
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> ConversationStore m ()
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
+  LookupHistoryClients :: GroupId -> ConversationStore m [(HistoryClientId, Int32, Bool)]
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
   -- SUB CONVERSATION OPERATIONS
   UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation

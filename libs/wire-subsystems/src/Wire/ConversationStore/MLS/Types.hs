@@ -82,10 +82,10 @@ mkIndexMapFromParts ::
   [(Domain, UserId, ClientId, Int32, Bool)] ->
   [(HistoryClientId, Int32, Bool)] ->
   IndexMap
-mkIndexMapFromParts rows1 rows2 =
+mkIndexMapFromParts regular history =
   IndexMap
-    . flip (foldr addHistoryClient) rows2
-    . flip (foldr addRegularClient) rows1
+    . flip (foldr addHistoryClient) history
+    . flip (foldr addRegularClient) regular
     $ mempty
   where
     addHistoryClient (h, leafidx, _) =

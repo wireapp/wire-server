@@ -19,6 +19,7 @@
 
 module Wire.ConversationStore.Migration.Types where
 
+import Data.Id
 import Imports
 import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.LeafNode
@@ -28,12 +29,14 @@ import Wire.StoredConversation
 data ConvMLSDetails = ConvMLSDetails
   { groupInfoData :: GroupInfoData,
     clientMap :: ClientMap LeafIndex,
-    indexMap :: IndexMap
+    indexMap :: IndexMap,
+    historyClients :: [(HistoryClientId, Int32, Bool)]
   }
 
 data AllSubConvData = AllSubConvData
   { subConv :: SubConversation,
-    groupInfoData :: Maybe GroupInfoData
+    groupInfoData :: Maybe GroupInfoData,
+    historyClients :: [(HistoryClientId, Int32, Bool)]
   }
 
 data AllConvData = AllConvData

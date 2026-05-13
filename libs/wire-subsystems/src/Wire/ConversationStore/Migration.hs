@@ -32,7 +32,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Time
 import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
-import Data.Tuple.Extra
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Hasql.Pool qualified as Hasql
@@ -238,7 +237,6 @@ deleteConvFromCassandra allConvData = withCassandra $ do
     Nothing -> deleteConversation allConvData.conv.id_
     Just tid -> deleteTeamConversation tid allConvData.conv.id_
 
--- TODO: (leif) migrate history client data
 saveConvToPostgres :: (PGConstraints r) => AllConvData -> Sem r ()
 saveConvToPostgres allConvData = do
   let meta = storedConv.metadata
@@ -272,6 +270,7 @@ saveConvToPostgres allConvData = do
     Transaction.statement remoteMemberColumns insertRemoteMembers
     Transaction.statement subConvColumns insertSubConvs
     Transaction.statement mlsClientColumns insertMLSClients
+    Transaction.statement historyClientColumns insertHistoryClients
     Transaction.statement (DeleteConv, storedConv.id_) markDeletionPendingStmt
   where
     storedConv = allConvData.conv
@@ -399,11 +398,7 @@ saveConvToPostgres allConvData = do
 
     mlsClientColumns :: ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool])
     mlsClientColumns =
-      let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
-          mainConvInputs = maybeToList $ (,,) <$> mainConvGroupId <*> (fmap (.clientMap) allConvData.mlsDetails) <*> (fmap (.indexMap) allConvData.mlsDetails)
-          subConvsInputs = flip map allConvData.subConvs $ \(AllSubConvData sc _) -> (sc.scMLSData.cnvmlsGroupId, sc.scMembers, sc.scIndexMap)
-          allInputs = mainConvInputs <> subConvsInputs
-          allRows = concatMap (uncurry3 mlsClientRows) allInputs
+      let allRows = concatMap (\(gid, clientMap, indexMap, _) -> mlsClientRows gid clientMap indexMap) mlsInputs
        in unzip6 allRows
 
     insertMLSClients :: Hasql.Statement ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool]) ()
@@ -415,6 +410,36 @@ saveConvToPostgres allConvData = do
                              FROM UNNEST ($1 :: bytea[], $2 :: text[], $3 :: uuid[],
                                           $4 :: text[], $5 :: integer[], $6 :: bool[])
                             |]
+
+    historyClientColumns :: ([GroupId], [HistoryClientId], [Int32], [Bool])
+    historyClientColumns =
+      let allRows = concatMap (\(gid, _, _, hclients) -> fmap (\(hid, idx, removal) -> (gid, hid, idx, removal)) hclients) mlsInputs
+       in unzip4 allRows
+
+    insertHistoryClients :: Hasql.Statement ([GroupId], [HistoryClientId], [Int32], [Bool]) ()
+    insertHistoryClients =
+      lmapPG @(Vector _, Vector _, Vector _, Vector _) @_
+        [resultlessStatement|INSERT INTO mls_history_client
+                             (group_id, id, leaf_node_index, removal_pending)
+                             SELECT *
+                             FROM UNNEST ($1 :: bytea[], $2 :: uuid[], $3 :: integer[], $4 :: bool[])
+                            |]
+
+    mlsInputs :: [(GroupId, ClientMap LeafIndex, IndexMap, [(HistoryClientId, Int32, Bool)])]
+    mlsInputs =
+      let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
+          mainConvInputs =
+            maybeToList $
+              (,,,)
+                <$> mainConvGroupId
+                <*> (fmap (.clientMap) allConvData.mlsDetails)
+                <*> (fmap (.indexMap) allConvData.mlsDetails)
+                <*> (fmap (.historyClients) allConvData.mlsDetails)
+          subConvsInputs =
+            fmap
+              (\scData -> (scData.subConv.scMLSData.cnvmlsGroupId, scData.subConv.scMembers, scData.subConv.scIndexMap, scData.historyClients))
+              allConvData.subConvs
+       in mainConvInputs <> subConvsInputs
 
     zeroTime :: UTCTime
     zeroTime = UTCTime (fromOrdinalDate 1970 1) 0
