@@ -207,8 +207,7 @@ mkEnv currentTestName ge = do
         }
 
 allCiphersuites :: [Ciphersuite]
--- FUTUREWORK: add 0x0005 to this list once openmls supports it
-allCiphersuites = map Ciphersuite ["0x0001", "0xf031", "0x0002", "0x0007"]
+allCiphersuites = map Ciphersuite ["0x0001", "0x0002", "0x0005", "0x0007"]
 
 mkMLSState :: Codensity IO MLSState
 mkMLSState = Codensity $ \k ->
