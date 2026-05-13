@@ -80,7 +80,8 @@ name overrides, etc.) can be found in `values.yaml`.
 |---|---|---|
 | `gateway.create` | `true` | If `false`, no `Gateway` resource is created — set `gateway.name` to reference an existing one. Useful when sharing a Gateway across multiple releases. |
 | `gateway.className` | `""` | **Required.** Name of the `GatewayClass` installed by the Envoy Gateway controller (e.g. `envoy`). Must match the `GatewayClass` object whose `spec.controllerName` is `gateway.envoyproxy.io/gatewayclass-controller`. |
-| `gateway.listeners.https.hostname` | `""` | **Required when `federator.enabled: true`.** Restricts the HTTPS listener to a specific hostname (e.g. `*.example.com`). Without this, both the HTTPS and federator listeners are catch-all on the same port, causing Envoy to degrade ALPN to HTTP/1.1-only (`OverlappingTLSConfig`). |
+| `gateway.alpn.enabled` | `true` | Enables ALPN configuration via `ClientTrafficPolicy` to support HTTP/2 despite overlapping certificate SANs across multiple service listeners. When disabled, ALPN defaults to HTTP/1.1 only. |
+| `gateway.alpn.protocols` | `[h2, http/1.1]` | List of ALPN protocols to advertise to clients. Defaults to HTTP/2 with HTTP/1.1 fallback. |
 | `gateway.listeners.http.enabled` | `false` | Enables the HTTP listener on port 80. Required for HTTP01 ACME challenges via cert-manager's `gatewayHTTPRoute` solver — see [HTTP01 certificate challenges](#http01-certificate-challenges). |
 | `gateway.envoyProxy.create` | `true` | If `false`, no `EnvoyProxy` resource is created. Set `gateway.envoyProxy.name` to reference an existing one, or leave it empty to inherit the GatewayClass-level `EnvoyProxy`. |
 | `gateway.envoyProxy.name` | _(derived)_ | When `create: true` — name of the created resource. When `create: false` — name of an existing `EnvoyProxy` to reference via `infrastructure.parametersRef`. |
@@ -285,14 +286,25 @@ federator:
 
 ---
 
+### HTTP/2 support with ALPN ClientTrafficPolicy
+
+The chart creates a `ClientTrafficPolicy` resource that explicitly configures ALPN protocols when `gateway.alpn.enabled: true`. This is necessary because when a single certificate with multiple SANs is used across multiple listeners on the same port, Envoy would otherwise disable HTTP/2 as a safety measure to prevent connection coalescing attacks.
+
+The policy sets `spec.tls.alpnProtocols` to:
+```yaml
+- h2        # HTTP/2
+- http/1.1  # HTTP/1.1 fallback
+```
+
+This allows HTTP/2 to be negotiated while maintaining support for older clients via HTTP/1.1 fallback.
+
 ### Federator mTLS uses Envoy Gateway policies
 
 Federator mTLS is implemented using:
 
 - `ClientTrafficPolicy` to configure TLS settings on the federator `Gateway` listener (client
   certificate validation, verify depth)
-- A separate `Gateway` listener (or dedicated `Gateway`) for the federator so that mTLS settings
-  apply only to that listener
+- A separate `Gateway` listener for the federator so that mTLS settings apply only to that listener
 - `X-SSL-Certificate` header forwarding is handled via an `EnvoyExtensionPolicy` with an inline
   Lua filter that reads the URL-encoded PEM client certificate from the connection and injects it
   as a request header, matching nginx's `$ssl_client_escaped_cert` behaviour
