@@ -1877,12 +1877,13 @@ parameters](https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEY
 The `postgresqlPassword` file is read by `brig`, `galley`, and `background-worker`. Its content is
 used as `password` field.
 
-### Using PostgreSQL for storing conversation data
+### Using PostgreSQL for storing Cassandra-backed data
 
 #### New Installations
 
-For new installations, configure both `galley` and `background-worker` to use
-PostgreSQL for conversation data:
+For new installations, configure `galley.config.postgresMigration` to use
+PostgreSQL for migrated Cassandra-backed data. In the Helm charts, this is the single source
+of truth and is consumed by `galley`, `brig`, and `background-worker`:
 
 ```yaml
 galley:
@@ -1891,35 +1892,43 @@ galley:
       conversation: postgresql
       conversationCodes: postgresql
       teamFeatures: postgresql
+      domainRegistration: postgresql
 background-worker:
   config:
-    postgresMigration:
-      conversation: postgresql
-      conversationCodes: postgresql
-      teamFeatures: postgresql
     migrateConversations: false
+    migrateConversationCodes: false
+    migrateTeamFeatures: false
+    migrateDomainRegistration: false
 ```
 
 #### Migration for existing installations
 
-Existing installations should migrate conversation data to PostgreSQL from
-Cassandra. This is necessary for channel search and management of channels from
-the team-management UI. It is highly recommended to take a backup of the Galley
-Cassandra before triggering the migration.
+Existing installations should migrate Cassandra-backed data to PostgreSQL over
+time. For conversations, this is necessary for channel search and management of
+channels from the team-management UI. It is highly recommended to take a backup
+of the affected Cassandra data before triggering a migration.
 
 Migrations are independent and can be run separately, in batches, or all at
 once. This is expected, because migrations will be released over time. The
-pattern below applies per store. Use it for `conversation` and
-`conversationCodes` now, and for future stores as they are added.
+pattern below applies per `postgresMigration` setting. A single setting may
+cover multiple Cassandra tables, depending on the store.
 
-**Migration pattern per store(s)**
+The current settings and their background-worker flags are:
 
-1. Prepare the selected store(s) for migration by setting
-   `postgresMigration.<store>` to `migration-to-postgresql`. This enables the
-   migration interpreter for that store, which ensures data is written to
+- `conversation` -> `migrateConversations`
+- `conversationCodes` -> `migrateConversationCodes`
+- `teamFeatures` -> `migrateTeamFeatures`
+- `domainRegistration` -> `migrateDomainRegistration`
+
+**Migration pattern per migration setting**
+
+1. Prepare the selected migration setting(s) for migration by setting
+   `postgresMigration.<setting>` to `migration-to-postgresql`. This enables the
+   migration interpreter for that setting, which ensures data is written to
    PostgreSQL (store-specific details are handled internally).
-   The configuration must be consistent across `galley` and
-   `background-worker`.
+   In the Helm charts, configure this only under `galley.config.postgresMigration`.
+   `brig` and `background-worker` consume the same settings from there, so the
+   migration configuration remains consistent across services.
 
    ```yaml
    galley:
@@ -1928,21 +1937,19 @@ pattern below applies per store. Use it for `conversation` and
          conversation: migration-to-postgresql
          conversationCodes: migration-to-postgresql
          teamFeatures: migration-to-postgresql
+         domainRegistration: cassandra
    background-worker:
      config:
-      postgresMigration:
-        conversation: migration-to-postgresql
-        conversationCodes: migration-to-postgresql
-        teamFeatures: migration-to-postgresql
-      migrateConversations: false
-      migrateConversationCodes: false
-      migrateTeamFeatures: false
+       migrateConversations: false
+       migrateConversationCodes: false
+       migrateTeamFeatures: false
+       migrateDomainRegistration: false
    ```
 
-   This change should restart all the galley pods, and new writes will follow
-   the migration interpreter.
+   This change should restart the affected pods, and new writes will follow the
+   migration interpreter.
 
-2. Run the backfill for the selected store(s) via background-worker.
+2. Run the backfill for the selected migration setting(s) via background-worker.
 
    ```yaml
    background-worker:
@@ -1950,6 +1957,7 @@ pattern below applies per store. Use it for `conversation` and
        migrateConversations: true
        migrateConversationCodes: true
        migrateTeamFeatures: true
+       migrateDomainRegistration: true
    ```
 
    During migration, Cassandra rows are not deleted. Writes and migration share
@@ -1957,13 +1965,18 @@ pattern below applies per store. Use it for `conversation` and
    deferred to keep rollback options and to remove Cassandra only after a full
    cutover to PostgreSQL-only.
 
-   Wait for the store-specific migration metrics to reach `1.0`. For
-   conversations: `wire_local_convs_migration_finished` and
-   `wire_user_remote_convs_migration_finished`. For conversation codes:
-   `wire_conv_codes_migration_finished`.
+   Wait for the setting-specific migration metrics to reach `1.0`. Metric names
+   are store-specific. Current examples are:
 
-3. Cut over reads and writes to PostgreSQL for the selected store(s). This
-   configuration must be used from now on for every new release.
+   - `conversation`: `wire_local_convs_migration_finished` and
+     `wire_user_remote_convs_migration_finished`
+   - `conversationCodes`: `wire_conv_codes_migration_finished`
+   - `teamFeatures`: `wire_team_features_migration_finished`
+   - `domainRegistration`: `wire_domain_registration_migration_finished`
+
+3. Cut over reads and writes to PostgreSQL for the selected migration
+   setting(s). This configuration must be used from now on for every new
+   release.
 
    ```yaml
    galley:
@@ -1972,24 +1985,26 @@ pattern below applies per store. Use it for `conversation` and
          conversation: postgresql
          conversationCodes: postgresql
          teamFeatures: postgresql
+         domainRegistration: cassandra
    background-worker:
      config:
-      postgresMigration:
-        conversation: postgresql
-        conversationCodes: postgresql
-        teamFeatures: postgresql
-      migrateConversations: false
-      migrateConversationCodes: false
-      migrateTeamFeatures: false
+       migrateConversations: false
+       migrateConversationCodes: false
+       migrateTeamFeatures: false
+       migrateDomainRegistration: false
    ```
 
 **How to run migrations independently or in batches**
 
-- To migrate a single store, set only that store’s `postgresMigration.<store>`
-  and `migrate<Store>` flags; leave others unchanged.
-- To migrate a batch, set multiple stores to `migration-to-postgresql` and
-  enable only the matching `migrate<Store>` flags together.
+- To migrate a single setting, set only that setting’s
+  `postgresMigration.<setting>` and matching `migrate<...>` flag; leave
+  others unchanged.
+- To migrate a batch, set multiple settings to `migration-to-postgresql` and
+  enable only the matching `migrate<...>` flags together.
 - To reduce load, run large stores alone and group small stores together.
+- Some settings cover multiple Cassandra tables. For example,
+  `postgresMigration.domainRegistration` covers `domain_registration`,
+  `domain_registration_by_team`, and `domain_registration_challenge`.
 
 ## Configure Cells
 
@@ -2061,15 +2076,11 @@ postgresqlPool:
   agingTimeout: 1d
   idlenessTimeout: 10m
 
-# Controls where conversation data is read/written
-postgresMigration:
-  # Valid: cassandra | migration-to-postgresql | postgresql
-  conversation: postgresql
-  conversationCodes: postgresql
-  teamFeatures: postgresql
-
-# Start the migration worker when true
+# Start migration workers when true
 migrateConversations: false
+migrateConversationCodes: false
+migrateTeamFeatures: false
+migrateDomainRegistration: false
 
 # Background jobs consumer
 backgroundJobs:
@@ -2089,7 +2100,7 @@ Notes
 
 - `postgresql` values follow libpq keywords; password is sourced via `secrets.pgPassword`.
 - RabbitMQ admin fields (`adminHost`, `adminPort`) are templated only when `config.enableFederation` is true.
-- `postgresMigration.<store>` must match between `galley` and `background-worker` during migration phases.
-- `migrateConversations: true` triggers the conversation migration job; leave it `false` for new installs and after migration.
+- In the Helm charts, `background-worker` reads `postgresMigration` from `galley.config.postgresMigration`.
+- The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.

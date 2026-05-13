@@ -129,4 +129,27 @@ tls:
 ingress:
   class: nginx
 
+envoy:
+  # Set to true to deploy Gateway API resources instead of nginx Ingress objects
+  # for the dynamic backends. Requires an Envoy Gateway controller in the cluster.
+  enabled: false
+  # Namespace where the Envoy Gateway controller runs its proxy pods.
+  # Change only if you installed Envoy Gateway into a non-default namespace.
+  controllerNamespace: envoy-gateway-system
+  gateway:
+    # Name of the Gateway resource. Defaults to <release-name>-dynamic-backends if empty.
+    name: ""
+    # Name of the GatewayClass installed by the Envoy Gateway controller (e.g. "envoy").
+    className: ""
+    listeners:
+      https:
+        # Use a non-privileged port (>=1024) to avoid the +10000 container-port
+        # remapping applied by Envoy Gateway to privileged ports.
+        port: 10443
+  federator:
+    tls:
+      # Name of the TLS Secret presented by the Gateway for the dynamic-backend
+      # listeners. Must exist before deploying (created by the wire-ingress chart).
+      secretName: "federator-certificate-secret"
+
 secrets: {}

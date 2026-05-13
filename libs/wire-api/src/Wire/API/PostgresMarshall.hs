@@ -36,12 +36,15 @@ import Data.Misc
 import Data.Profunctor
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Ascii qualified as Ascii
 import Data.Text.Encoding qualified as Text
 import Data.UUID
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Hasql.Statement
 import Imports
+import SAML2.WebSSO qualified as SAML
+import Wire.API.EnterpriseLogin
 
 class PostgresMarshall db domain where
   postgresMarshall :: domain -> db
@@ -538,6 +541,33 @@ instance PostgresMarshall Text Code.Key where
 instance PostgresMarshall Text Code.Value where
   postgresMarshall = Text.decodeUtf8 . toByteString'
 
+instance PostgresMarshall ByteString HttpsUrl where
+  postgresMarshall = toByteString'
+
+instance PostgresMarshall ByteString Token where
+  postgresMarshall = (.unToken)
+
+instance PostgresMarshall Text DnsVerificationToken where
+  postgresMarshall = Ascii.toText . (.unDnsVerificationToken)
+
+instance PostgresMarshall Int32 DomainRedirectTag where
+  postgresMarshall = \case
+    NoneTag -> 1
+    LockedTag -> 2
+    SSOTag -> 3
+    BackendTag -> 4
+    NoRegistrationTag -> 5
+    PreAuthorizedTag -> 6
+
+instance PostgresMarshall Int32 TeamInviteTag where
+  postgresMarshall = \case
+    AllowedTag -> 1
+    NotAllowedTag -> 2
+    TeamTag -> 3
+
+instance PostgresMarshall UUID SAML.IdPId where
+  postgresMarshall = SAML.fromIdPId
+
 ---
 
 class PostgresUnmarshall db domain where
@@ -868,6 +898,35 @@ instance PostgresUnmarshall Text Code.Key where
 
 instance PostgresUnmarshall Text Code.Value where
   postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
+
+instance PostgresUnmarshall ByteString HttpsUrl where
+  postgresUnmarshall = first Text.pack . BSC.runParser BSC.parser
+
+instance PostgresUnmarshall ByteString Token where
+  postgresUnmarshall = Right . Token
+
+instance PostgresUnmarshall Text DnsVerificationToken where
+  postgresUnmarshall = first Text.pack . fmap DnsVerificationToken . Ascii.validate
+
+instance PostgresUnmarshall Int32 DomainRedirectTag where
+  postgresUnmarshall = \case
+    1 -> Right NoneTag
+    2 -> Right LockedTag
+    3 -> Right SSOTag
+    4 -> Right BackendTag
+    5 -> Right NoRegistrationTag
+    6 -> Right PreAuthorizedTag
+    n -> Left $ "Unexpected DomainRedirectTag value: " <> Text.pack (show n)
+
+instance PostgresUnmarshall Int32 TeamInviteTag where
+  postgresUnmarshall = \case
+    1 -> Right AllowedTag
+    2 -> Right NotAllowedTag
+    3 -> Right TeamTag
+    n -> Left $ "Unexpected TeamInviteTag value: " <> Text.pack (show n)
+
+instance PostgresUnmarshall UUID SAML.IdPId where
+  postgresUnmarshall = Right . SAML.IdPId
 
 ---
 

@@ -1,0 +1,18 @@
+{{- if .Values.webapp.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.webapp.externalPort }}
+      targetPort: 8080
+  selector:
+    app: webapp
+{{- end }}

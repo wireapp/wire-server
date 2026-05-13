@@ -176,6 +176,7 @@ library
     Test.MessageTimer
     Test.Migration.Conversation
     Test.Migration.ConversationCodes
+    Test.Migration.DomainRegistration
     Test.Migration.TeamFeatures
     Test.Migration.Util
     Test.MLS

@@ -25,6 +25,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Util
 import Wire.CodeStore.Migration
 import Wire.ConversationStore.Migration
+import Wire.DomainRegistrationStore.Migration
 import Wire.Migration (MigrationOptions)
 import Wire.TeamFeatureStore.Migration
 
@@ -83,4 +84,21 @@ teamFeatures migOpts = do
   Log.info logger $ Log.msg (Log.val "started team features migration")
   pure $ do
     Log.info logger $ Log.msg (Log.val "cancelling team features migration")
+    cancel migrationLoop
+
+domainRegistration :: MigrationOptions -> AppT IO CleanupAction
+domainRegistration migOpts = do
+  cassClient <- asks (.cassandraBrig)
+  pgPool <- asks (.hasqlPool)
+  logger <- asks (.logger)
+  Log.info logger $ Log.msg (Log.val "starting domain registration migration")
+  count <- register $ counter $ Prometheus.Info "wire_domain_registration_migrated_to_pg" "Number of domain registration rows migrated to Postgresql"
+  finished <- register $ counter $ Prometheus.Info "wire_domain_registration_migration_finished" "Whether the domain registration migration to Postgresql is finished successfully"
+  failed <- register $ counter $ Prometheus.Info "wire_domain_registration_migration_failed" "Whether the domain registration migration to Postgresql has failed"
+
+  migrationLoop <- async . lift $ migrateDomainRegistrationsLoop migOpts cassClient pgPool logger count finished failed
+
+  Log.info logger $ Log.msg (Log.val "started domain registration migration")
+  pure $ do
+    Log.info logger $ Log.msg (Log.val "cancelling domain registration migration")
     cancel migrationLoop

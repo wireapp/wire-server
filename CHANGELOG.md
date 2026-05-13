@@ -1,3 +1,33 @@
+# [2026-05-12] (Chart Release 5.32.0)
+
+## Release notes
+
+
+* - `postgresMigration` now has a single source of truth in the Galley chart values. Galley, Brig, and background-worker all read their PostgreSQL migration settings from there.
+  - If your deployment overrides the full `postgresMigration` object, add the new `domainRegistration` field to that override. Otherwise services may fail to start because the config is incomplete.
+  - To migrate domain registration data to PostgreSQL, set `postgresMigration.domainRegistration` to `migration-to-postgresql`, run the background-worker migration with `migrateDomainRegistration: true`, and switch the setting to `postgresql` after completion.
+  - The domain registration migration covers these Cassandra tables:
+    `domain_registration`, `domain_registration_by_team`, and `domain_registration_challenge`. (#5195)
+
+
+## API changes
+
+
+* Discontinue redundant end-point for fetching user clients. (#5222)
+
+
+## Documentation
+
+
+* Improve swagger API docs. (#5220)
+
+
+## Internal changes
+
+
+* New `wire-ingress` Helm chart — Gateway API / Envoy Gateway replacement for `nginx-ingress-services`. Not yet production-ready. (#5150)
+
+
 # [2026-05-08] (Chart Release 5.31.0)
 
 ## API changes

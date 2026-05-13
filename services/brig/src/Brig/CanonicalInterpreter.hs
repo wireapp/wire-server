@@ -81,8 +81,12 @@ import Wire.ClientSubsystem.Interpreter
 import Wire.DeleteQueue
 import Wire.DomainRegistrationStore
 import Wire.DomainRegistrationStore.Cassandra
+import Wire.DomainRegistrationStore.DualWrite
+import Wire.DomainRegistrationStore.Postgres (interpretDomainRegistrationStoreToPostgres)
 import Wire.DomainVerificationChallengeStore
 import Wire.DomainVerificationChallengeStore.Cassandra
+import Wire.DomainVerificationChallengeStore.DualWrite (interpretDomainVerificationChallengeStoreToCassandraAndPostgres)
+import Wire.DomainVerificationChallengeStore.Postgres (interpretDomainVerificationChallengeStoreToPostgres)
 import Wire.EmailSending
 import Wire.EmailSending.SES
 import Wire.EmailSending.SMTP
@@ -107,6 +111,7 @@ import Wire.IndexedUserStore
 import Wire.IndexedUserStore.ElasticSearch
 import Wire.InvitationStore (InvitationStore)
 import Wire.InvitationStore.Cassandra (interpretInvitationStoreToCassandra)
+import Wire.MigrationLock
 import Wire.NotificationSubsystem
 import Wire.NotificationSubsystem.Interpreter (defaultNotificationSubsystemConfig, runNotificationSubsystemGundeck)
 import Wire.ParseException
@@ -114,6 +119,7 @@ import Wire.PasswordResetCodeStore (PasswordResetCodeStore)
 import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordResetCodeStoreToCassandra)
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
+import Wire.PostgresMigrationOpts
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
 import Wire.PropertySubsystem
@@ -200,10 +206,13 @@ type BrigLowerLevelEffects =
      BackgroundJobsPublisher,
      RateLimit,
      UserGroupStore,
+     DomainRegistrationStore,
+     DomainVerificationChallengeStore,
      Error AppSubsystemError,
      Error TeamCollaboratorsError,
      Error UsageError,
      Error EnterpriseLoginSubsystemError,
+     Error MigrationLockError,
      Error UserSubsystemError,
      Error UserGroupSubsystemError,
      Error TeamInvitationSubsystemError,
@@ -216,8 +225,6 @@ type BrigLowerLevelEffects =
      ErrorS 'TeamNotFound,
      Error Wai.Error,
      Wire.FederationAPIAccess.FederationAPIAccess Wire.API.Federation.Client.FederatorClient,
-     DomainVerificationChallengeStore,
-     DomainRegistrationStore,
      CryptoSign,
      HashPassword,
      ClientStore,
@@ -232,6 +239,7 @@ type BrigLowerLevelEffects =
      PropertyStore,
      SFT,
      ConnectionStore InternalPaging,
+     Input Cas.ClientState,
      Input Hasql.Pool,
      Input AppSubsystemConfig,
      Input UserSubsystemConfig,
@@ -387,6 +395,15 @@ runBrigToIO e (AppT ma) = do
             local = localUnit,
             requestId = e.requestId
           }
+      domainRegistrationStore = case e.postgresMigration.domainRegistration of
+        CassandraStorage -> interpretDomainRegistrationStoreToCassandra e.casClient
+        PostgresqlStorage -> interpretDomainRegistrationStoreToPostgres
+        MigrationToPostgresql -> interpretDomainRegistrationStoreToCassandraAndPostgres e.casClient
+
+      domainVerificationChallengeStore = case e.postgresMigration.domainRegistration of
+        CassandraStorage -> interpretDomainVerificationChallengeStoreToCassandra e.settings.challengeTTL
+        PostgresqlStorage -> interpretDomainVerificationChallengeStoreToPostgres e.settings.challengeTTL
+        MigrationToPostgresql -> interpretDomainVerificationChallengeStoreToCassandraAndPostgres e.settings.challengeTTL
 
   ( either throwM pure
       <=< ( runFinal
@@ -426,6 +443,7 @@ runBrigToIO e (AppT ma) = do
               . runInputConst userSubsystemConfig
               . runInputConst appSubsystemConfig
               . runInputConst e.hasqlPool
+              . runInputConst e.casClient
               . connectionStoreToCassandra
               . interpretSFT e.httpManager
               . interpretPropertyStoreCassandra e.casClient
@@ -440,8 +458,6 @@ runBrigToIO e (AppT ma) = do
               . interpretClientStoreCassandra clientStoreCassandraEnv
               . runHashPassword e.settings.passwordHashingOptions
               . runCryptoSign
-              . interpretDomainRegistrationStoreToCassandra e.casClient
-              . interpretDomainVerificationChallengeStoreToCassandra e.casClient e.settings.challengeTTL
               . interpretFederationAPIAccess federationApiAccessConfig
               . mapError StdError -- Wai.Error
               . mapError (const $ errorToWai @'TeamNotFound) -- ErrorS 'TeamNotFound
@@ -454,10 +470,13 @@ runBrigToIO e (AppT ma) = do
               . mapError teamInvitationErrorToHttpError
               . mapError userGroupSubsystemErrorToHttpError
               . mapError userSubsystemErrorToHttpError
+              . mapError migrationLockErrorToHttpError
               . mapError enterpriseLoginSubsystemErrorToHttpError
               . mapError postgresUsageErrorToHttpError
               . mapError teamCollaboratorsSubsystemErrorToHttpError
               . mapError appSubsystemErrorToHttpError
+              . domainVerificationChallengeStore
+              . domainRegistrationStore
               . interpretUserGroupStoreToPostgres
               . interpretRateLimit e.rateLimitEnv
               . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel

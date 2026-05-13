@@ -1,0 +1,161 @@
+{{- if .Values.envoy.enabled }}
+{{- $gatewayName := include "integration.getDynBackendsGatewayName" . }}
+{{- $httpsPort := int .Values.envoy.gateway.listeners.https.port }}
+{{- $controllerNs := .Values.envoy.controllerNamespace }}
+{{- if lt $httpsPort 1024 }}
+{{- fail (printf "envoy.gateway.listeners.https.port is %d (privileged, <1024). Envoy Gateway remaps it to %d on the proxy pod. Set envoy.gateway.listeners.https.port to the actual container port (e.g. %d)." $httpsPort (add $httpsPort 10000) (add $httpsPort 10000)) }}
+{{- end }}
+---
+# EnvoyProxy configures the proxy deployment/service for the dynamic-backends Gateway.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: {{ $gatewayName }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        # ClusterIP: no external load balancer needed for in-cluster integration tests.
+        type: ClusterIP
+---
+# Gateway for all dynamic backends. A single HTTPS listener covers all backend hostnames.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $gatewayName }}
+spec:
+  gatewayClassName: {{ required "envoy.gateway.className is required when envoy.enabled is true" .Values.envoy.gateway.className | quote }}
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: {{ $gatewayName | quote }}
+  listeners:
+    - name: https
+      port: {{ $httpsPort }}
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Values.envoy.federator.tls.secretName | quote }}
+            kind: Secret
+---
+# ClientTrafficPolicy enforces optional mTLS client cert validation on all dynamic-backend
+# connections (mirrors the nginx auth-tls-verify-client: "on" annotation).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: {{ $gatewayName }}-mtls
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ $gatewayName | quote }}
+      sectionName: https
+  tls:
+    clientValidation:
+      optional: true
+      caCertificateRefs:
+        - name: federator-ca
+          kind: ConfigMap
+---
+{{- $backendNames := keys .Values.config.dynamicBackends | sortAlpha }}
+{{- range $index, $name := $backendNames }}
+{{- $dynamicBackend := index $.Values.config.dynamicBackends $name }}
+{{- $httpRouteName := printf "%s-dynbackend-%s" $gatewayName $name }}
+{{- $svcDomain := printf "%s-%s.%s.svc.cluster.local" $dynamicBackend.federatorExternalHostPrefix $.Release.Namespace $controllerNs }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $httpRouteName }}
+spec:
+  parentRefs:
+    - name: {{ $gatewayName | quote }}
+      namespace: {{ $.Release.Namespace | quote }}
+      kind: Gateway
+      sectionName: https
+  hostnames:
+    - {{ $svcDomain | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: integration
+          port: {{ $dynamicBackend.federatorExternalPort }}
+          kind: Service
+---
+# EnvoyExtensionPolicy injects the mTLS client certificate as X-SSL-Certificate request
+# header, matching the nginx $ssl_client_escaped_cert behaviour expected by federator.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyExtensionPolicy
+metadata:
+  name: {{ $httpRouteName }}-cert-header
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ $httpRouteName }}
+  lua:
+    - type: Inline
+      inline: |
+        function envoy_on_request(request_handle)
+          {{/* Strip any client-provided header to prevent spoofing */}}
+          request_handle:headers():remove("X-SSL-Certificate")
+          local ssl = request_handle:connection():ssl()
+          if ssl ~= nil then
+            local cert = ssl:urlEncodedPemEncodedPeerCertificate()
+            if cert ~= nil and cert ~= "" then
+              request_handle:headers():add("X-SSL-Certificate", cert)
+            end
+          end
+        end
+---
+# EnvoyPatchPolicy adds the FQDN variant (with trailing dot) of the backend domain
+# to the virtual host's domain list. Wire federator resolves targets via DNS SRV records;
+# per RFC 2782, SRV record targets are FQDNs (e.g. "backend-fed.ns.svc.cluster.local.").
+# HTTP/2 passes that dot in :authority; without this patch the virtual host only matches
+# the bare domain and returns route_not_found. Adding the FQDN allows Envoy to match both.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyPatchPolicy
+metadata:
+  name: {{ $httpRouteName }}-fqdn-domain
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: {{ $gatewayName | quote }}
+  type: JSONPatch
+  jsonPatches:
+    - type: "type.googleapis.com/envoy.config.route.v3.RouteConfiguration"
+      # RouteConfiguration is per-listener, named <namespace>/<gateway>/<listener>
+      name: {{ printf "%s/%s/https" $.Release.Namespace $gatewayName | quote }}
+      operation:
+        op: add
+        # Virtual hosts are indexed in the order of stable key sorting (sortAlpha).
+        path: {{ printf "/virtual_hosts/%d/domains/-" $index | quote }}
+        value: {{ printf "%s." $svcDomain | quote }}
+---
+# ClusterIP service in {{ $controllerNs }} selects the Envoy proxy pods for this Gateway.
+# The service name determines the SRV record used by federation discovery:
+#   _wire-server-federator._tcp.{{ $svcDomain }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $dynamicBackend.federatorExternalHostPrefix }}-{{ $.Release.Namespace }}
+  namespace: {{ $controllerNs }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: wire-server-federator
+    port: 443
+    protocol: TCP
+    targetPort: {{ $httpsPort }}
+  selector:
+    gateway.envoyproxy.io/owning-gateway-name: {{ $gatewayName }}
+    gateway.envoyproxy.io/owning-gateway-namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}

@@ -89,6 +89,7 @@ galley:
       conversation: cassandra
       conversationCodes: cassandra
       teamFeatures: cassandra
+      domainRegistration: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -962,6 +963,10 @@ background-worker:
     # It's important to set `settings.postgresMigration.teamFeatures` to `migration-to-postgresql`
     # before starting the migration.
     migrateTeamFeatures: false
+    # This will start the migration of domain registration data.
+    # It's important to set `settings.postgresMigration.domainRegistration` to `migration-to-postgresql`
+    # before starting the migration.
+    migrateDomainRegistration: false
 
     backendNotificationPusher:
       pushBackoffMinWait: 10000 # in microseconds, so 10ms
@@ -976,12 +981,6 @@ background-worker:
       jobTimeout: 60s
       # Total attempts, including the first try
       maxAttempts: 3
-
-    # Controls where conversation data is stored/accessed
-    postgresMigration:
-      conversation: cassandra
-      conversationCodes: cassandra
-      teamFeatures: cassandra
 
   secrets:
     {}

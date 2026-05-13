@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: "brig-integration"
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation
   labels:
     app: brig-integration

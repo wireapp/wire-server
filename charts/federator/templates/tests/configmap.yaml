@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "federator-integration"
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
   integration.yaml: |
@@ -23,6 +23,6 @@ data:
       host: cargohold
       port: 8080
     nginxIngress:
-      host: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+      host: {{ .Values.tests.nginxIngressHost }}
       port: 443
-    originDomain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
+    originDomain: {{ .Values.tests.nginxIngressHost }}
