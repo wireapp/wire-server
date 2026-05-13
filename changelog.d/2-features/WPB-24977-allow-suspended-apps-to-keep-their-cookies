@@ -1,1 +1,1 @@
-Allow suspended users to keep their cookies.
+Allow suspended users to keep their cookies.  (This has become necessary to allow apps to keep their cookies during (sufficiently brief) suspend periods.  It works because instead, there is a new guard now preventing session token refresh for suspended users with valid cookies.)
