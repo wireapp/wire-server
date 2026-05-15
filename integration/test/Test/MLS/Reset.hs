@@ -29,27 +29,35 @@ testResetGroupConversation domain = do
   [alice, bob, charlie] <- createAndConnectUsers [make OwnDomain, make domain, make OwnDomain]
   [alice1, bob1] <- traverse (createMLSClient def) [alice, bob]
   void $ uploadNewKeyPackage def bob1
-  conv <- createNewGroup def alice1
-  void $ createAddCommit alice1 conv [bob] >>= sendAndConsumeCommitBundle
-  mlsConv <- getMLSConv conv
+  convId <- createNewGroup def alice1
+  getGroupInfo alice convId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "mls-missing-group-info"
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  getGroupInfo alice convId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+  mlsConv <- getMLSConv convId
 
   resetConversation alice mlsConv.groupId 0 >>= assertStatus 409
   resetConversation bob mlsConv.groupId 0 >>= assertStatus 409
   resetConversation charlie mlsConv.groupId mlsConv.epoch >>= assertStatus 404
 
-  conv' <- withWebSocket alice $ \ws -> do
+  conv <- withWebSocket alice $ \ws -> do
     resetConversation bob mlsConv.groupId mlsConv.epoch >>= assertStatus 200
-    conv' <- getConversation alice conv >>= getJSON 200
+    getGroupInfo alice convId `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 404
+      resp.json %. "label" `shouldMatch` "mls-missing-group-info"
+    conv <- getConversation alice convId >>= getJSON 200
 
     e <- awaitMatch isConvResetNotif ws
     e %. "payload.0.data.group_id" `shouldMatch` mlsConv.groupId
-    e %. "payload.0.data.new_group_id" `shouldMatch` (conv' %. "group_id")
+    e %. "payload.0.data.new_group_id" `shouldMatch` (conv %. "group_id")
 
-    pure conv'
+    pure conv
 
-  conv' %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
-  conv' %. "epoch" `shouldMatchInt` 0
-  otherMember <- assertOne =<< asList (conv' %. "members.others")
+  conv %. "group_id" `shouldNotMatch` (mlsConv.groupId :: String)
+  conv %. "epoch" `shouldMatchInt` 0
+  otherMember <- assertOne =<< asList (conv %. "members.others")
   otherMember %. "qualified_id" `shouldMatch` (bob %. "qualified_id")
 
 testResetSelfConversation :: (HasCallStack) => App ()
