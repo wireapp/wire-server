@@ -138,9 +138,11 @@ testSetHistory = do
   conv <- getConversation alice convId >>= getJSON 200
   conv %. "history" `shouldMatch` history
 
-testHistoryConflict :: (HasCallStack) => App ()
-testHistoryConflict = do
-  (alice, tid, mems@[bob, charlie, dorothy, emily]) <- createTeam OwnDomain 5
+testHistoryConflicts :: (HasCallStack) => Domain -> App ()
+testHistoryConflicts domain = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  mems@[bob, charlie, dorothy, emily] <- replicateM 4 $ randomUser domain def
+  for_ mems $ connectTwoUsers alice
 
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
   setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
