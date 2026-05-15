@@ -201,8 +201,7 @@ renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
   traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
-  catchSuspendInactiveUser uid ZAuth.Expired
-  catchSuspendedUsers uid
+  guardSuspendedOrInactive uid ZAuth.Expired
   mapExceptT liftSem $ do
     ck' <- nextCookie ck mcid
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
@@ -230,6 +229,20 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
 
 --------------------------------------------------------------------------------
 -- Internal
+
+guardSuspendedOrInactive ::
+  ( Member TinyLog r,
+    Member UserSubsystem r,
+    Member Events r,
+    Member UserStore r,
+    Member AuthenticationSubsystem r
+  ) =>
+  UserId ->
+  e ->
+  ExceptT e (AppT r) ()
+guardSuspendedOrInactive u e = do
+  catchSuspendInactiveUser u e
+  catchSuspendedUsers u e
 
 catchSuspendInactiveUser ::
   ( Member TinyLog r,
@@ -268,14 +281,15 @@ catchSuspendInactiveUser uid errval = do
 catchSuspendedUsers ::
   (Member UserStore r) =>
   UserId ->
-  ExceptT ZAuth.Failure (AppT r) ()
-catchSuspendedUsers uid = do
+  e ->
+  ExceptT e (AppT r) ()
+catchSuspendedUsers uid e = do
   mb <- lift $ liftSem $ lookupStatus uid
   case mb of
-    Nothing -> throwE ZAuth.Invalid
+    Nothing -> throwE e
     Just Active -> pure ()
-    Just Suspended -> throwE ZAuth.Invalid
-    Just Deleted -> throwE ZAuth.Invalid -- (does not happen, but if it did, this is what we'd want to do)
+    Just Suspended -> throwE e
+    Just Deleted -> throwE e -- (does not happen, but if it did, this is what we'd want to do)
     Just Ephemeral -> pure ()
     Just PendingInvitation -> pure ()
 
@@ -300,10 +314,7 @@ newAccess ::
   Maybe CookieLabel ->
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid cid ct cl = do
-  catchSuspendInactiveUser uid LoginSuspended
-  -- NB: no need to call `catchSuspendedUsers` here.  `newAccess` is
-  -- called in 3 places (login, ssoLogin, legalHoldLogin), and all of
-  -- them reject suspended users before calling it.
+  guardSuspendedOrInactive uid LoginSuspended
   r <- lift $ liftSem $ newCookieLimited uid cid ct cl RevokeSameLabel
   case r of
     Left delay -> throwE $ LoginThrottled delay
