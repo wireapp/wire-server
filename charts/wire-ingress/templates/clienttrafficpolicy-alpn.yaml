@@ -1,0 +1,24 @@
+{{- if .Values.gateway.alpn.enabled }}
+{{/* Envoy Gateway-specific (gateway.envoyproxy.io/v1alpha1).
+     Configures ALPN to allow HTTP/2 despite overlapping certificate SANs
+     when using multiple listeners with the same certificate. */}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: {{ include "wire-ingress.gatewayName" . }}-alpn
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ include "wire-ingress.gatewayName" . | quote }}
+  tls:
+    alpnProtocols:
+      {{- range .Values.gateway.alpn.protocols }}
+      - {{ . }}
+      {{- end }}
+{{- end }}
