@@ -635,7 +635,7 @@ storeGroupInfo ::
   GroupInfoData ->
   Sem r ()
 storeGroupInfo convOrSub ginfo = case convOrSub of
-  Conv cid -> setGroupInfo cid ginfo
+  Conv cid -> setGroupInfo cid (Just ginfo)
   SubConv cid subconvid -> setSubConversationGroupInfo cid subconvid (Just ginfo)
 
 fetchConvOrSub ::

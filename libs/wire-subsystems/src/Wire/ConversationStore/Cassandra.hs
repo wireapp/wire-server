@@ -246,9 +246,9 @@ resetConversation cid groupId =
       Cql.resetConversation
       (params LocalQuorum (groupId, cid))
 
-setGroupInfo :: ConvId -> GroupInfoData -> Client ()
-setGroupInfo conv gid =
-  write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
+setGroupInfo :: ConvId -> Maybe GroupInfoData -> Client ()
+setGroupInfo conv mGid =
+  write Cql.updateGroupInfo (params LocalQuorum (mGid, conv))
 
 getConversation :: ConvId -> Client (Maybe StoredConversation)
 getConversation conv = do

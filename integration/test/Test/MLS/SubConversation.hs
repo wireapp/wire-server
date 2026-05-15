@@ -170,9 +170,17 @@ testDeleteSubConversation otherDomain = do
   void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
 
   createSubConv def convId alice1 "conference1"
+  subConvId <- getSubConvId alice convId "conference1"
+
+  void $ createExternalCommit subConvId bob1 Nothing >>= sendAndConsumeCommitBundle
+
   sub1 <- getSubConversation alice convId "conference1" >>= getJSON 200
   void $ deleteSubConversation charlie sub1 >>= getBody 403
   void $ deleteSubConversation alice sub1 >>= getBody 200
+
+  getGroupInfo alice subConvId `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 404
+    resp.json %. "label" `shouldMatch` "mls-missing-group-info"
 
   createSubConv def convId alice1 "conference2"
   sub2 <- getSubConversation alice convId "conference2" >>= getJSON 200

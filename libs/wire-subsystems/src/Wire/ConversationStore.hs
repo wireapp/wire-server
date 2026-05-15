@@ -94,7 +94,7 @@ data ConversationStore m a where
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
   ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
-  SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
+  SetGroupInfo :: ConvId -> Maybe GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
   UpdateToMLSProtocol :: ConvId -> ConversationStore m ()

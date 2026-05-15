@@ -534,18 +534,21 @@ resetConversationImpl convId groupId =
     update =
       lmapPG
         [resultlessStatement|UPDATE conversation
-                             SET group_id = ($2 :: bytea), epoch = 0, epoch_timestamp = NOW()
+                             SET group_id = ($2 :: bytea),
+                             epoch = 0,
+                             epoch_timestamp = NOW(),
+                             public_group_state = NULL
                              WHERE id = ($1 :: uuid)|]
 
-setGroupInfoImpl :: (PGConstraints r) => ConvId -> GroupInfoData -> Sem r ()
+setGroupInfoImpl :: (PGConstraints r) => ConvId -> Maybe GroupInfoData -> Sem r ()
 setGroupInfoImpl convId groupInfo =
   runStatement (convId, groupInfo) update
   where
-    update :: Hasql.Statement (ConvId, GroupInfoData) ()
+    update :: Hasql.Statement (ConvId, Maybe GroupInfoData) ()
     update =
       lmapPG
         [resultlessStatement|UPDATE conversation
-                             SET public_group_state = ($2 :: bytea)
+                             SET public_group_state = ($2 :: bytea?)
                              WHERE id = ($1 :: uuid)|]
 
 updateChannelAddPermissionsImpl :: (PGConstraints r) => ConvId -> AddPermission -> Sem r ()
