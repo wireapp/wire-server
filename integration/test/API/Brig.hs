@@ -1261,9 +1261,10 @@ createApp creator tid new = do
         ]
 
 -- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-app
-getApp :: (MakesValue self) => self -> String -> String -> App Response
-getApp self tid uid = do
-  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", uid]
+getApp :: (MakesValue self, MakesValue app) => self -> String -> app -> App Response
+getApp self tid appId = do
+  appIdStr <- asString appId
+  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", appIdStr]
   submit "GET" req
 
 -- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-apps
@@ -1272,9 +1273,10 @@ getApps self tid = do
   req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps"]
   submit "GET" req
 
-putAppMetadata :: (HasCallStack, MakesValue user) => String -> user -> String -> Value -> App Response
+putAppMetadata :: (HasCallStack, MakesValue user, MakesValue app) => String -> user -> app -> Value -> App Response
 putAppMetadata tid owner appId appMetadata = do
-  let path = joinHttpPath ["teams", tid, "apps", appId]
+  appIdStr <- asString appId
+  let path = joinHttpPath ["teams", tid, "apps", appIdStr]
   req <- baseRequest owner Brig Versioned path
   submit "PUT" (req & addJSON appMetadata)
 

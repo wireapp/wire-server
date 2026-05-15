@@ -221,14 +221,16 @@ testPutApp = do
   domain <- make OwnDomain
   (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "choppie"} :: NewApp
-  appId <- bindResponse (createApp owner tid new) $ \resp -> do
+  (app, appId) <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "user.id" & asString
+    (,)
+      <$> (resp.json %. "user")
+      <*> (resp.json %. "user.id")
 
   let Object appMetadata =
         [aesonQQ|
         {
-          "accent_id": 2147483647,
+          "accent_id": 126,
           "assets": [
             {
               "key": "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac",
@@ -241,11 +243,15 @@ testPutApp = do
           "description": "This is the best app ever."
         }|]
 
-  withWebSockets [owner, regularMember] \[wsOwner, wsRegularMember] -> do
+  withWebSockets [owner, regularMember, app] \[wsOwner, wsRegularMember, wsApp] -> do
     bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
       resp.status `shouldMatchInt` 200
-    void $ assertNoEvent 5 wsOwner
-    void $ assertNoEvent 5 wsRegularMember
+    notifOwner <- awaitMatch isUserUpdatedNotif wsOwner
+    notifMember <- awaitMatch isUserUpdatedNotif wsRegularMember
+    notifApp <- awaitMatch isUserUpdatedNotif wsApp
+    notifOwner %. "payload.0.user.id" `shouldMatch` appId
+    length (nub [notifOwner, notifMember, notifApp]) `shouldMatchInt` 1
+
   bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
