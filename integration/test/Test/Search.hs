@@ -19,6 +19,7 @@
 
 module Test.Search where
 
+import API.Brig
 import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import API.Common (defPassword)
@@ -351,6 +352,42 @@ testSearchForTeamMembersWithRoles = do
     length docs `shouldMatchInt` 4
     for_ docs $ \doc -> do
       doc %. "role" `shouldNotMatch` "member"
+
+testSearchWithDifferentEndpoints :: (HasCallStack) => App ()
+testSearchWithDifferentEndpoints = do
+  dom <- make OwnDomain
+  domStr <- asString dom
+
+  (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam dom 5
+  createApp owner tid (def {name = "flexo"} :: NewApp) >>= assertSuccess
+  updateTeamMember tid owner m1 Owner >>= assertSuccess
+  updateTeamMember tid owner m2 Member >>= assertSuccess
+  updateTeamMember tid owner m3 Partner >>= assertSuccess
+  updateTeamMember tid owner m4 Admin >>= assertSuccess
+
+  BrigI.refreshIndex dom
+
+  (allOfThemUnqualified, allOfThemQualified) <- bindResponse (BrigP.searchTeamAll owner) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    length docs `shouldMatchInt` 6
+    ids <- (%. "id") `mapM` docs
+    pure (ids, (\i -> object ["domain" .= domStr, "id" .= i]) <$> ids)
+
+  bindResponse (BrigP.searchTeam owner [("frole", "owner,admin,member,partner")]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "documents" >>= asList
+    ((%. "id") `mapM` docs) `shouldMatchSet` allOfThemUnqualified
+
+  bindResponse (BrigP.listUsers owner allOfThemQualified) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "found" >>= asList
+    ((%. "id") `mapM` docs) `shouldMatchSet` allOfThemUnqualified
+
+  bindResponse (Galley.getTeamMembersByIdsUsingPost owner tid allOfThemUnqualified) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    docs <- resp.json %. "members" >>= asList
+    ((%. "user") `mapM` docs) `shouldMatchSet` allOfThemUnqualified
 
 testTeamSearchEmailFilter :: (HasCallStack) => App ()
 testTeamSearchEmailFilter = do
