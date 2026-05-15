@@ -120,7 +120,6 @@ import Wire.API.UserEvent
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
-import Wire.AuthenticationSubsystem qualified as Auth
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
@@ -654,8 +653,7 @@ changeSingleAccountStatus uid status = do
 changeSingleAccountStatusInternal ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r,
-    Member AuthenticationSubsystem r
+    Member UserStore r
   ) =>
   AccountStatus ->
   (UserId -> UserEvent) ->
@@ -668,18 +666,6 @@ changeSingleAccountStatusInternal status ev u = do
   -- users.
   --
   -- Evidence: `git grep -Hn --color=never 'UserToken\b' | grep libs/wire-api/src/Wire/API/Routes/Public/`.
-  --
-  -- Having that said, we need to remove cookies here that are no
-  -- longer valid for login/inactivity handling (including both
-  -- expired cookies and cookies older than the inactivity threshold),
-  -- otherwise /login considers the user inactive, see
-  -- 'mustSuspendInactiveUser'.
-  --
-  -- The intuition is that every change of account status can be
-  -- considered an account activity, so users that have their status
-  -- changed recently should not be considered inactive, even if they
-  -- haven't taken any action themselves.
-  Auth.revokeAllStaleCookies u
   UserStore.updateAccountStatus u status
   User.internalUpdateSearchIndex u
   Events.generateUserEvent u Nothing (ev u)
