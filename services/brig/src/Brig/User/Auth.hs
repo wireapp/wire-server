@@ -234,8 +234,7 @@ guardSuspendedOrInactive ::
   ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member UserStore r,
-    Member AuthenticationSubsystem r
+    Member UserStore r
   ) =>
   UserId ->
   e ->
@@ -248,8 +247,7 @@ catchSuspendInactiveUser ::
   ( Member TinyLog r,
     Member UserSubsystem r,
     Member Events r,
-    Member UserStore r,
-    Member AuthenticationSubsystem r
+    Member UserStore r
   ) =>
   UserId ->
   e ->

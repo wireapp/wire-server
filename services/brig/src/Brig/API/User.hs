@@ -626,8 +626,7 @@ changeAccountStatus ::
   ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
-    Member UserStore r,
-    Member AuthenticationSubsystem r
+    Member UserStore r
   ) =>
   NonEmpty UserId ->
   AccountStatus ->
@@ -639,8 +638,7 @@ changeAccountStatus usrs status = do
 changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r,
-    Member AuthenticationSubsystem r
+    Member UserStore r
   ) =>
   UserId ->
   AccountStatus ->
