@@ -147,7 +147,8 @@ revokeCookiesMatchingExcept u mself ids labels = do
 
 -- Remove stale cookies.  Stale means either (1) cookie is expired, or
 -- (2) cookie creation time is further in the past than
--- `env.suspendInactiveUsers` allows.
+-- `optSettings.setSuspendInactiveUsers.suspendTimeout` in the brig
+-- config allows.
 revokeAllStaleCookiesImpl ::
   ( Member SessionStore r,
     Member (Input AuthenticationSubsystemConfig) r,
