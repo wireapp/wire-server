@@ -643,3 +643,4 @@ testZauthAndApps = do
     refreshFails app cookie =
       renewToken app cookie `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 403
+        (resp.json %. "label") `shouldMatch` "invalid-credentials"
