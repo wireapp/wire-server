@@ -1446,7 +1446,7 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         False -> embedClient client $ addHistoryClient groupId hid idx
         True -> interpretConversationStoreToPostgres (ConvStore.addHistoryClient groupId hid idx)
   RemoveHistoryClient groupId hid -> do
-    logEffect "ConversationStore.RemoveHistoryClient "
+    logEffect "ConversationStore.RemoveHistoryClient"
     cid <- groupIdToConvId groupId
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
