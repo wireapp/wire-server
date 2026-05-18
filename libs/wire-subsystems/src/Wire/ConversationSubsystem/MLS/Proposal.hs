@@ -319,7 +319,8 @@ checkExternalProposalUser qusr prop = do
                 (throwS @'MLSUnsupportedProposal)
                 (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
                 $ userClients Map.!? ciUser
-            HistoryClient _ -> pure ()
+            -- We currently do not support history-client adds in external proposals/commits.
+            HistoryClient _ -> throwS @'MLSUnsupportedProposal
         _ -> throwS @'MLSUnsupportedProposal
     )
     (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
