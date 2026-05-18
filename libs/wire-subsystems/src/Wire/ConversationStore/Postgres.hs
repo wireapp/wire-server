@@ -114,6 +114,7 @@ interpretConversationStoreToPostgres = interpret $ \case
   AddMLSClients lcnv quid cs -> addMLSClientsImpl lcnv quid cs
   AddHistoryClient groupId hid idx -> addHistoryClientImpl groupId hid idx
   RemoveHistoryClient groupId hid -> removeHistoryClientImpl groupId hid
+  RemoveAllHistoryClients groupId -> removeAllHistoryClientsImpl groupId
   PlanClientRemoval lcnv cids -> planClientRemovalImpl lcnv cids
   RemoveMLSClients lcnv quid cs -> removeMLSClientsImpl lcnv quid cs
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
@@ -1037,6 +1038,17 @@ removeHistoryClientImpl gid hid =
         [resultlessStatement|DELETE FROM mls_history_client
                              WHERE group_id = ($1 :: bytea)
                              AND id = ($2 :: uuid)
+                            |]
+
+removeAllHistoryClientsImpl :: (PGConstraints r) => GroupId -> Sem r ()
+removeAllHistoryClientsImpl gid =
+  runStatement gid delete
+  where
+    delete :: Hasql.Statement GroupId ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM mls_history_client
+                             WHERE group_id = ($1 :: bytea)
                             |]
 
 planClientRemovalImpl :: (PGConstraints r, Foldable f) => GroupId -> f ClientIdentity -> Sem r ()

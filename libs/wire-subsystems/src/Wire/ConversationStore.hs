@@ -122,6 +122,7 @@ data ConversationStore m a where
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> ConversationStore m ()
   AddHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> ConversationStore m ()
   RemoveHistoryClient :: GroupId -> HistoryClientId -> ConversationStore m ()
+  RemoveAllHistoryClients :: GroupId -> ConversationStore m ()
   PlanClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> ConversationStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> ConversationStore m ()
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()

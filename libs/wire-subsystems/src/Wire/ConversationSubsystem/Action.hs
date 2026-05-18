@@ -377,6 +377,7 @@ instance IsConversationAction 'ConversationDeleteTag where
         storedConv = tUnqualified lconv
     let deleteGroup groupId = do
           E.removeAllMLSClients groupId
+          E.removeAllHistoryClients groupId
           E.deleteAllProposals groupId
 
     let cid = storedConv.id_
