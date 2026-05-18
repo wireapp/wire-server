@@ -595,6 +595,8 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
             )
             $ throwS @'MLSStaleMessage
 
+      -- once an admin toggles history sharing, every subsequent application message will be rejected
+      -- until a commit that adds or removes the history client is processed.
       let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
       let historyClientExists = any isHistoryClient (IntMap.elems convOrSub.indexMap.unIndexMap)
       when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
