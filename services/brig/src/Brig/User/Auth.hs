@@ -284,7 +284,7 @@ catchSuspendedUsers ::
 catchSuspendedUsers uid e = do
   mb <- lift $ liftSem $ lookupStatus uid
   case mb of
-    Nothing -> throwE e
+    Nothing -> pure ()
     Just Active -> pure ()
     Just Suspended -> throwE e
     Just Deleted -> throwE e -- (does not happen, but if it did, this is what we'd want to do)
