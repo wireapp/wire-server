@@ -80,25 +80,25 @@ import Wire.Util
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap (LeafIndex, Maybe KeyPackage),
     paRemove :: ClientMap LeafIndex,
-    paHistoryClientAdd :: Maybe (HistoryClientId, LeafIndex, Maybe KeyPackage),
-    paHistoryClientRemove :: Maybe (HistoryClientId, LeafIndex)
+    paHistoryClientAdd :: Set (HistoryClientId, LeafIndex),
+    paHistoryClientRemove :: Set (HistoryClientId, LeafIndex)
   }
   deriving (Show)
 
 instance Semigroup ProposalAction where
   ProposalAction add1 rem1 hadd1 hrem1 <> ProposalAction add2 rem2 hadd2 hrem2 =
-    ProposalAction (add1 <> add2) (rem1 <> rem2) (hadd1 <|> hadd2) (hrem1 <|> hrem2)
+    ProposalAction (add1 <> add2) (rem1 <> rem2) (hadd1 <> hadd2) (hrem1 <> hrem2)
 
 instance Monoid ProposalAction where
-  mempty = ProposalAction mempty mempty Nothing Nothing
+  mempty = ProposalAction mempty mempty mempty mempty
 
 paAddClient :: GroupMember -> LeafIndex -> Maybe KeyPackage -> ProposalAction
 paAddClient (RegularClient cid) idx kp = mempty {paAdd = cmSingleton cid (idx, kp)}
-paAddClient (HistoryClient hid) idx kp = mempty {paHistoryClientAdd = Just (hid, idx, kp)}
+paAddClient (HistoryClient hid) idx _ = mempty {paHistoryClientAdd = Set.singleton (hid, idx)}
 
 paRemoveClient :: GroupMember -> LeafIndex -> ProposalAction
 paRemoveClient (RegularClient cid) idx = mempty {paRemove = cmSingleton cid idx}
-paRemoveClient (HistoryClient hid) idx = mempty {paHistoryClientRemove = Just (hid, idx)}
+paRemoveClient (HistoryClient hid) idx = mempty {paHistoryClientRemove = Set.singleton (hid, idx)}
 
 -- | This is used to sort proposals into the correct processing order, as defined by the spec
 data ProposalProcessingStage
