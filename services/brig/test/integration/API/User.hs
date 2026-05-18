@@ -66,8 +66,7 @@ tests conf fbc p b c ch g n aws db userJournalWatcher = do
             local = localUnit,
             userCookieRenewAge = conf.settings.userCookieRenewAge,
             userCookieLimit = conf.settings.userCookieLimit,
-            userCookieThrottle = conf.settings.userCookieThrottle,
-            suspendInactiveUsers = Nothing
+            userCookieThrottle = conf.settings.userCookieThrottle
           }
   pure $
     testGroup
