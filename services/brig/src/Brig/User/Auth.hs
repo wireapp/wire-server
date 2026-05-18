@@ -271,11 +271,13 @@ catchSuspendInactiveUser uid errval = do
 -- | Suspended users are not allowed to pick up new session tokens,
 -- even if they have a valid cookie.
 --
--- This does *not* change behavior for existing apps, because their
--- observations are the same: before, refreshing access tokens failed
--- because the cookie was invalid, now it fails with the same status
--- code if the user is suspended, whether there are valid cookies or
--- not.
+-- This does not throw if the user is not found; that case must be
+-- handled by the caller.
+--
+-- This does *not* change observable behavior for existing users:
+-- before, refreshing access tokens failed because the cookie was
+-- invalid, now it fails with the same status code if the user is
+-- suspended, whether there are valid cookies or not.
 catchSuspendedUsers ::
   (Member UserStore r) =>
   UserId ->
