@@ -147,12 +147,21 @@ testHistoryConflicts domain = do
   I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
   setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
 
-  clients@(alice1 : _) <- traverse (createMLSClient def) $ alice : mems
+  clients@(alice1 : bob1 : _) <- traverse (createMLSClient def) $ alice : mems
   for_ clients $ uploadNewKeyPackage def
   convId <- createNewGroupWith def alice1 defMLS {team = Just tid, groupConvType = Just "channel"}
 
   -- adding an empty commit to be able to test application message rejection
   void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
+
+  -- bob is added to the conversation as a wire-member (not a conversation admin)
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  getConversation alice convId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    other <- res.json %. "members.others" >>= asList >>= assertOne
+    other %. "id" `shouldMatch` (bob %. "id")
+    other %. "conversation_role" `shouldMatch` "wire_member"
 
   -- a history client cannot be added if shared history is disabled
   assertAddHistoryClientConflict convId alice1
@@ -162,16 +171,18 @@ testHistoryConflicts domain = do
 
   -- application message and add commit are rejected
   assertApplicationMessageFailure convId alice1
-  assertAddCommitIsRejected convId alice1 [bob]
+  assertAddCommitIsRejected convId alice1 [charlie]
 
   -- HISTORY CLIENT ADDED
   hid <- do
-    (mp, hid) <- createAddCommitWithHistoryClient alice1 convId [bob]
+    -- this verifies that history clients can be added by non-conversation admins including federated users
+    (mp, hid) <- createAddCommitWithHistoryClient bob1 convId []
     void $ sendAndConsumeCommitBundle mp
     pure hid
 
-  -- it is not possible to add more than 1 history client
+  -- it is not possible to add more than 1 history client or to remove it
   assertAddHistoryClientDuplication convId alice1
+  assertRemoveHistoryClientFailure convId alice1 hid
 
   -- application message and add commits are accepted
   void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
@@ -186,7 +197,7 @@ testHistoryConflicts domain = do
   assertAddHistoryClientDuplication convId alice1
 
   -- HISTORY CLIENT REMOVED
-  void $ createRemoveCommit' alice1 convId [HistoryClient hid] >>= sendAndConsumeCommitBundle
+  void $ createRemoveCommitGroupMember bob1 convId [HistoryClient hid] >>= sendAndConsumeCommitBundle
 
   -- application message and add commits are accepted
   void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
@@ -208,6 +219,14 @@ testHistoryConflicts domain = do
         postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
           resp.status `shouldMatchInt` status
           resp.json %. "label" `shouldMatch` label
+
+    assertRemoveHistoryClientFailure :: (HasCallStack) => ConvId -> ClientIdentity -> String -> App ()
+    assertRemoveHistoryClientFailure convId user hid =
+      withMLSStateReset $ do
+        mp <- createRemoveCommitGroupMember user convId [HistoryClient hid]
+        postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
 
     assertAddCommitIsRejected :: (HasCallStack) => ConvId -> ClientIdentity -> [Value] -> App ()
     assertAddCommitIsRejected convId user users =

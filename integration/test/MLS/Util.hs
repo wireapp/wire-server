@@ -495,10 +495,10 @@ createAddCommitWithKeyPackages cid convId clientsAndKeyPackages hckp = do
       }
 
 createRemoveCommit :: (HasCallStack) => ClientIdentity -> ConvId -> [ClientIdentity] -> App MessagePackage
-createRemoveCommit cid convId targets = createRemoveCommit' cid convId (fmap RegularClient targets)
+createRemoveCommit cid convId targets = createRemoveCommitGroupMember cid convId (fmap RegularClient targets)
 
-createRemoveCommit' :: (HasCallStack) => ClientIdentity -> ConvId -> [GroupMember] -> App MessagePackage
-createRemoveCommit' cid convId targets = do
+createRemoveCommitGroupMember :: (HasCallStack) => ClientIdentity -> ConvId -> [GroupMember] -> App MessagePackage
+createRemoveCommitGroupMember cid convId targets = do
   bd <- getBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   giFile <- liftIO $ emptyTempFile bd "gi"
