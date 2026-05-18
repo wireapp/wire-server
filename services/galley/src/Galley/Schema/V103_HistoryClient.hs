@@ -30,7 +30,6 @@ migration =
       [r| CREATE TABLE mls_history_client (
                 group_id blob,
                 id uuid,
-                key_package_ref blob,
                 leaf_node_index int,
                 removal_pending boolean,
                 PRIMARY KEY (group_id, id)

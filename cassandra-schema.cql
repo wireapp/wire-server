@@ -1635,7 +1635,6 @@ CREATE TABLE galley_test.mls_group_member_client (
 CREATE TABLE galley_test.mls_history_client (
     group_id blob,
     id uuid,
-    key_package_ref blob,
     leaf_node_index int,
     removal_pending boolean,
     PRIMARY KEY (group_id, id)
