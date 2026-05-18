@@ -210,9 +210,6 @@ isTeamMemberJoinNotif = notifTypeIsEqual "team.member-join"
 isTeamMemberLeaveNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isTeamMemberLeaveNotif = notifTypeIsEqual "team.member-leave"
 
-isTeamMemberUpdateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
-isTeamMemberUpdateNotif = notifTypeIsEqual "team.member-update"
-
 isTeamCollaboratorAddedNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isTeamCollaboratorAddedNotif = notifTypeIsEqual "team.collaborator-add"
 
