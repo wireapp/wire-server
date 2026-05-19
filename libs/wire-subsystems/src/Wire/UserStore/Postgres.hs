@@ -417,17 +417,20 @@ getIndexUsersPaginatedImpl lim mState = do
           LIMIT ($2 :: integer)
         |]
 
-updateUserImpl :: (PGConstraints r) => UserId -> StoredUserUpdate -> Sem r ()
-updateUserImpl uid MkStoredUserUpdate {..} =
-  runTransaction ReadCommitted Write $ do
+updateUserImpl :: (PGConstraints r, Member TinyLog r) => UserId -> StoredUserUpdate -> Sem r ()
+updateUserImpl uid MkStoredUserUpdate {..} = do
+  warn $ Log.msg (Log.val "Updating user") . Log.field "locale" (show locale)
+  runTransaction Serializable Write $ do
     Transaction.statement
-      (uid, name, textStatus, pict, accentId, lLanguage <$> locale, lCountry =<< locale, supportedProtocols)
+      (uid, name, textStatus, pict, accentId, supportedProtocols)
       updateUserFields
+    for_ locale $ \newLocale ->
+      Transaction.statement (uid, newLocale.lLanguage, newLocale.lCountry) updateLocale
     for_ assets $ \newAssets -> do
       Transaction.statement uid deleteAssetsStatement
       Transaction.statement (mkAssetRows uid newAssets) insertAssetsStatement
   where
-    updateUserFields :: Hasql.Statement (UserId, Maybe Name, Maybe TextStatus, Maybe Pict, Maybe ColourId, Maybe Language, Maybe Country, Maybe (Set BaseProtocolTag)) ()
+    updateUserFields :: Hasql.Statement (UserId, Maybe Name, Maybe TextStatus, Maybe Pict, Maybe ColourId, Maybe (Set BaseProtocolTag)) ()
     updateUserFields =
       lmapPG
         [resultlessStatement|
@@ -436,9 +439,16 @@ updateUserImpl uid MkStoredUserUpdate {..} =
               text_status =         COALESCE($3 :: text?,    text_status),
               picture =             COALESCE($4 :: jsonb?,   picture),
               accent_id =           COALESCE($5 :: integer?, accent_id),
-              language =            COALESCE($6 :: text?,    language),
-              country =             COALESCE($7 :: text?,    country),
-              supported_protocols = COALESCE($8 :: integer?, supported_protocols)
+              supported_protocols = COALESCE($6 :: integer?, supported_protocols)
+          WHERE id = ($1 :: uuid)
+        |]
+    updateLocale :: Hasql.Statement (UserId, Language, Maybe Country) ()
+    updateLocale =
+      lmapPG
+        [resultlessStatement|
+          UPDATE wire_user
+          SET language = $2 :: text,
+              country =  $3 :: text?
           WHERE id = ($1 :: uuid)
         |]
 
