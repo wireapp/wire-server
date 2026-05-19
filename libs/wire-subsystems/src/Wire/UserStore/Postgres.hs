@@ -473,16 +473,16 @@ lookupNameImpl uid = runStatement uid select
         |]
 
 lookupHandleImpl :: (PGConstraints r) => Handle -> Sem r (Maybe UserId)
-lookupHandleImpl h = runStatement h selectUserIdByHandleStatement
-
-selectUserIdByHandleStatement :: Hasql.Statement Handle (Maybe UserId)
-selectUserIdByHandleStatement =
-  dimapPG
-    [maybeStatement|
-      SELECT id :: uuid
-      FROM wire_user
-      WHERE handle = $1 :: text
-    |]
+lookupHandleImpl h = runStatement h select
+  where
+    select :: Hasql.Statement Handle (Maybe UserId)
+    select =
+      dimapPG
+        [maybeStatement|
+          SELECT id :: uuid
+          FROM wire_user
+          WHERE handle = $1 :: text
+        |]
 
 updateUserHandleEitherImpl :: (PGConstraints r) => UserId -> StoredUserHandleUpdate -> Sem r (Either StoredUserUpdateError ())
 updateUserHandleEitherImpl uid upd = do
