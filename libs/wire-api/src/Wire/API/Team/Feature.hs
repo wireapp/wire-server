@@ -78,6 +78,9 @@ module Wire.API.Team.Feature
     ChannelsConfig,
     ChannelsConfigB (..),
     ChannelPermissions (..),
+    PreventAdminlessGroupsConfig,
+    PreventAdminlessGroupsConfigB (..),
+    PreventAdminlessGroupsPromotionStrategy (..),
     OutlookCalIntegrationConfig (..),
     UseProxyOnMobile (..),
     MlsE2EIdConfigB (..),
@@ -274,6 +277,7 @@ data FeatureSingleton cfg where
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
+  FeatureSingletonPreventAdminlessGroupsConfig :: FeatureSingleton PreventAdminlessGroupsConfig
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
   FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
@@ -1219,6 +1223,79 @@ instance ToObjectSchema ChannelsConfig where
 instance IsFeatureConfig ChannelsConfig where
   type FeatureSymbol ChannelsConfig = "channels"
   featureSingleton = FeatureSingletonChannelsConfig
+
+----------------------------------------------------------------------
+-- PreventAdminlessGroupsConfig
+
+data PreventAdminlessGroupsPromotionStrategy
+  = PromotionStrategyAlphabetical
+  | PromotionStrategyRandom
+  | PromotionStrategyAll
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PreventAdminlessGroupsPromotionStrategy
+  deriving (Arbitrary) via (GenericUniform PreventAdminlessGroupsPromotionStrategy)
+
+instance ToSchema PreventAdminlessGroupsPromotionStrategy where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "alphabetical" PromotionStrategyAlphabetical,
+          element "random" PromotionStrategyRandom,
+          element "all" PromotionStrategyAll
+        ]
+
+data PreventAdminlessGroupsConfigB t f = PreventAdminlessGroupsConfig
+  { promotionStrategy :: Wear t f PreventAdminlessGroupsPromotionStrategy,
+    deletionTimeout :: Wear t f Word,
+    reminderTimeouts :: Wear t f [Word]
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (PreventAdminlessGroupsConfigB Covered)
+
+deriving instance ApplicativeB (PreventAdminlessGroupsConfigB Covered)
+
+deriving instance TraversableB (PreventAdminlessGroupsConfigB Covered)
+
+type PreventAdminlessGroupsConfig = PreventAdminlessGroupsConfigB Bare Identity
+
+deriving instance Eq PreventAdminlessGroupsConfig
+
+deriving instance Show PreventAdminlessGroupsConfig
+
+deriving via (RenderableTypeName PreventAdminlessGroupsConfig) instance (RenderableSymbol PreventAdminlessGroupsConfig)
+
+deriving via (GenericUniform PreventAdminlessGroupsConfig) instance (Arbitrary PreventAdminlessGroupsConfig)
+
+deriving via (BarbieFeature PreventAdminlessGroupsConfigB) instance (ParseDbFeature PreventAdminlessGroupsConfig)
+
+deriving via (BarbieFeature PreventAdminlessGroupsConfigB) instance (ToSchema PreventAdminlessGroupsConfig)
+
+instance Default PreventAdminlessGroupsConfig where
+  def =
+    PreventAdminlessGroupsConfig
+      { promotionStrategy = PromotionStrategyAlphabetical,
+        deletionTimeout = 7,
+        reminderTimeouts = [2, 4, 6]
+      }
+
+instance (Typeable f, FieldF f) => ToSchema (PreventAdminlessGroupsConfigB Covered f) where
+  schema =
+    object $
+      PreventAdminlessGroupsConfig
+        <$> promotionStrategy .= fieldF "promotionStrategy" schema
+        <*> deletionTimeout .= fieldF "deletionTimeout" schema
+        <*> reminderTimeouts .= fieldF "reminderTimeouts" (array schema)
+
+instance Default (LockableFeature PreventAdminlessGroupsConfig) where
+  def = defLockedFeature
+
+instance ToObjectSchema PreventAdminlessGroupsConfig where
+  objectSchema = field "config" schema
+
+instance IsFeatureConfig PreventAdminlessGroupsConfig where
+  type FeatureSymbol PreventAdminlessGroupsConfig = "preventAdminlessGroups"
+  featureSingleton = FeatureSingletonPreventAdminlessGroupsConfig
 
 ----------------------------------------------------------------------
 -- ExposeInvitationURLsToTeamAdminConfig
@@ -2222,6 +2299,7 @@ type Features =
     LimitedEventFanoutConfig,
     DomainRegistrationConfig,
     ChannelsConfig,
+    PreventAdminlessGroupsConfig,
     CellsConfig,
     AllowedGlobalOperationsConfig,
     ConsumableNotificationsConfig,

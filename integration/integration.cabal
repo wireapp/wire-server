@@ -158,6 +158,7 @@ library
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
     Test.FeatureFlags.OutlookCalIntegration
+    Test.FeatureFlags.PreventAdminlessGroups
     Test.FeatureFlags.RequireExternalEmailVerification
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound

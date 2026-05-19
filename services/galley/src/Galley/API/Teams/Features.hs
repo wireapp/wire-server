@@ -419,6 +419,8 @@ instance SetFeatureConfig MLSConfig where
 
 instance SetFeatureConfig ChannelsConfig
 
+instance SetFeatureConfig PreventAdminlessGroupsConfig
+
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 
 instance SetFeatureConfig OutlookCalIntegrationConfig

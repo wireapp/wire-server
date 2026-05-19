@@ -286,6 +286,13 @@ newtype instance FeatureDefaults ChannelsConfig
   deriving (FromJSON, ToJSON) via Defaults (LockableFeature ChannelsConfig)
   deriving (ParseFeatureDefaults) via OptionalField ChannelsConfig
 
+newtype instance FeatureDefaults PreventAdminlessGroupsConfig
+  = PreventAdminlessGroupsDefaults (LockableFeature PreventAdminlessGroupsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature PreventAdminlessGroupsConfig)
+  deriving (ParseFeatureDefaults) via OptionalField PreventAdminlessGroupsConfig
+
 newtype instance FeatureDefaults CellsInternalConfig
   = CellsInternalDefaults (LockableFeature CellsInternalConfig)
   deriving stock (Eq, Show)

@@ -91,6 +91,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
     :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
     :<|> IFeatureStatusLockStatusPut ChannelsConfig
+    :<|> IFeatureStatusLockStatusPut PreventAdminlessGroupsConfig
     :<|> IFeatureStatusLockStatusPut CellsConfig
     :<|> IFeatureStatusLockStatusPut ConsumableNotificationsConfig
     :<|> IFeatureStatusLockStatusPut ChatBubblesConfig

@@ -242,7 +242,19 @@ defAllFeatures =
                 ]
           ],
       "meetings" .= enabled,
-      "meetingsPremium" .= disabledLocked
+      "meetingsPremium" .= disabledLocked,
+      "preventAdminlessGroups"
+        .= object
+          [ "lockStatus" .= "locked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "promotionStrategy" .= "alphabetical",
+                  "deletionTimeout" .= (7 :: Int),
+                  "reminderTimeouts" .= ([2, 4, 6] :: [Int])
+                ]
+          ]
     ]
 
 hasExplicitLockStatus :: String -> Bool
@@ -323,6 +335,20 @@ defAllConfiguredFeatures =
       "searchVisibilityInbound" .= defaults disabled',
       "exposeInvitationURLsToTeamAdmin" .= "expose-invitation-urls-to-team-admin-defaults",
       "outlookCalIntegration" .= defaults disabledLocked,
+      "preventAdminlessGroups"
+        .= defaults
+          ( object
+              [ "config"
+                  .= object
+                    [ "deletionTimeout" .= (7 :: Int),
+                      "promotionStrategy" .= "alphabetical",
+                      "reminderTimeouts" .= ([2, 4, 6] :: [Int])
+                    ],
+                "lockStatus" .= "locked",
+                "status" .= "disabled",
+                "ttl" .= "unlimited"
+              ]
+          ),
       "mlsE2EId"
         .= defaults
           ( object
