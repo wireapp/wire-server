@@ -4,7 +4,6 @@
 
 
 * - `postgresMigration` now has a single source of truth in the Galley chart values. Galley, Brig, and background-worker all read their PostgreSQL migration settings from there.
-  - If your deployment overrides the full `postgresMigration` object, add the new `domainRegistration` field to that override. Otherwise services may fail to start because the config is incomplete.
   - To migrate domain registration data to PostgreSQL, set `postgresMigration.domainRegistration` to `migration-to-postgresql`, run the background-worker migration with `migrateDomainRegistration: true`, and switch the setting to `postgresql` after completion.
   - The domain registration migration covers these Cassandra tables:
     `domain_registration`, `domain_registration_by_team`, and `domain_registration_challenge`. (#5195)
