@@ -1003,7 +1003,7 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
         have <-
           retrying
             (exponentialBackoff 200000 <> limitRetries 6)
-            (\_ have -> pure $ have == Suspended)
+            (\_ have -> pure $ have /= want)
             (\_ -> getStatus brig (userId user))
         let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
         liftIO $ HUnit.assertEqual errmsg want have
