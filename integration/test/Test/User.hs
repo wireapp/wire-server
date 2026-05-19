@@ -185,16 +185,22 @@ testUpdateSelf (MkTagged mode) = do
     TestUpdateEmailAddress -> do
       -- allowed unconditionally *for owner* (this is a bit off-topic: team members can't
       -- change their email addresses themselves under any conditions)
-      someEmail <- (<> "@example.com") . UUID.toString <$> liftIO UUID.nextRandom
-      bindResponse (putUserEmail owner owner someEmail) $ \resp -> do
+      newEmail <- (<> "@example.com") . UUID.toString <$> liftIO UUID.nextRandom
+      bindResponse (putUserEmail owner owner newEmail) $ \resp -> do
         resp.status `shouldMatchInt` 200
+      getSelf owner `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "email_unvalidated" `shouldMatch` newEmail
     TestUpdateLocale -> do
       -- scim maps "User.preferredLanguage" to brig's locale field.  allowed unconditionally.
       -- we try two languages to make sure it doesn't work because it's already the active
       -- locale.
-      forM_ ["uk", "he"] $ \someLocale ->
-        bindResponse (putSelfLocale mem1 someLocale) $ \resp -> do
+      forM_ ["en-GB", "hi", "de-DE", "de", "he"] $ \newLocale -> do
+        bindResponse (putSelfLocale mem1 newLocale) $ \resp -> do
           resp.status `shouldMatchInt` 200
+        getSelf mem1 `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          resp.json %. "locale" `shouldMatch` newLocale
 
 data TestUpdateSelfMode
   = TestUpdateDisplayName
