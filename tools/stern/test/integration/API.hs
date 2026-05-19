@@ -108,6 +108,8 @@ tests s =
       test s "/teams/:tid/features/cells" testCellsConfigRoutes,
       test s "/teams/:tid/features/channels" $ testLockedFeatureConfig @ChannelsConfig,
       test s "PUT /teams/:tid/features/channels{,'?lockOrUnlock'}" $ testLockStatus @ChannelsConfig,
+      test s "/teams/:tid/features/preventAdminlessGroups" $ testLockedFeatureConfig @PreventAdminlessGroupsConfig,
+      test s "PUT /teams/:tid/features/preventAdminlessGroups{,'?lockOrUnlock'}" $ testLockStatus @PreventAdminlessGroupsConfig,
       test s "PUT /teams/:tid/features/digitalSignatures{,'?lockOrUnlock'}" $ testLockStatus @DigitalSignaturesConfig,
       test s "PUT /teams/:tid/features/fileSharing{,'?lockOrUnlock'}" $ testLockStatus @FileSharingConfig,
       test s "PUT /teams/:tid/features/conference-calling{,'?lockOrUnlock'}" $ testLockStatus @ConferenceCallingConfig,

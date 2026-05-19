@@ -462,6 +462,8 @@ type SternAPI =
     :<|> Named "domain-registration-put" (MkFeatureStatusPutRoute DomainRegistrationConfig)
     :<|> Named "channels-get" (MkFeatureGetRoute ChannelsConfig)
     :<|> Named "channels-put" (MkFeaturePutRoute ChannelsConfig)
+    :<|> Named "get-route-prevent-adminless-groups-config" (MkFeatureGetRoute PreventAdminlessGroupsConfig)
+    :<|> Named "put-route-prevent-adminless-groups-config" (MkFeaturePutRoute PreventAdminlessGroupsConfig)
     :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRoute OutlookCalIntegrationConfig)
     :<|> Named
            "lock-unlock-route-enforce-file-download-location"
@@ -471,6 +473,7 @@ type SternAPI =
            )
     :<|> Named "domain-registration-lock" (MkFeatureLockUnlockRoute DomainRegistrationConfig)
     :<|> Named "channels-lock" (MkFeatureLockUnlockRoute ChannelsConfig)
+    :<|> Named "lock-unlock-route-prevent-adminless-groups-config" (MkFeatureLockUnlockRoute PreventAdminlessGroupsConfig)
     :<|> Named "lock-unlock-route-digital-signatures-config" (MkFeatureLockUnlockRoute DigitalSignaturesConfig)
     :<|> Named "lock-unlock-route-file-sharing-config" (MkFeatureLockUnlockRoute FileSharingConfig)
     :<|> Named "lock-unlock-route-conference-calling-config" (MkFeatureLockUnlockRoute ConferenceCallingConfig)

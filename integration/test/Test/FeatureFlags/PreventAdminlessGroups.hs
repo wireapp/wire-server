@@ -53,14 +53,14 @@ invalidConfig =
 
 testPatchPreventAdminlessGroups :: (HasCallStack) => App ()
 testPatchPreventAdminlessGroups = do
-  checkPatch OwnDomain "preventAdminlessGroups" $
-    object ["lockStatus" .= "locked"]
-  checkPatch OwnDomain "preventAdminlessGroups" $
-    object ["status" .= "disabled"]
-  checkPatch OwnDomain "preventAdminlessGroups" $
-    object ["lockStatus" .= "locked", "status" .= "disabled"]
-  checkPatch OwnDomain "preventAdminlessGroups" $
-    object
+  checkPatch OwnDomain "preventAdminlessGroups"
+    $ object ["lockStatus" .= "locked"]
+  checkPatch OwnDomain "preventAdminlessGroups"
+    $ object ["status" .= "disabled"]
+  checkPatch OwnDomain "preventAdminlessGroups"
+    $ object ["lockStatus" .= "locked", "status" .= "disabled"]
+  checkPatch OwnDomain "preventAdminlessGroups"
+    $ object
       [ "lockStatus" .= "unlocked",
         "config"
           .= object
