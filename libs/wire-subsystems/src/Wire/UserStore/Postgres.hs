@@ -21,6 +21,8 @@ import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions
 import Imports
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
+import System.Logger.Message qualified as Log
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Password
 import Wire.API.PostgresMarshall
@@ -29,11 +31,12 @@ import Wire.API.User hiding (DeleteUser)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.Postgres
+import Wire.Sem.Logger
 import Wire.StoredUser
 import Wire.UserStore
 import Wire.UserStore.IndexUser
 
-interpretUserStorePostgres :: (PGConstraints r) => InterpreterFor UserStore r
+interpretUserStorePostgres :: (PGConstraints r, Member TinyLog r) => InterpreterFor UserStore r
 interpretUserStorePostgres =
   interpret $ \case
     CreateUser new mbConv -> createUserImpl new mbConv
@@ -221,7 +224,7 @@ deleteAssetsStatement =
   lmapPG
     [resultlessStatement|DELETE FROM asset where user_id = $1 :: uuid|]
 
-getUsersImpl :: (PGConstraints r) => [UserId] -> Sem r [StoredUser]
+getUsersImpl :: (PGConstraints r, Member TinyLog r) => [UserId] -> Sem r [StoredUser]
 getUsersImpl uids = do
   (userRows, deletedUserIds, assetRows) <-
     runPipeline $
@@ -272,8 +275,14 @@ getUsersImpl uids = do
           (\userRow -> let user = mkUser userRow in Map.insert user.id user)
           mempty
           userRows
+      inconsistentUsers = Map.intersection foundUsersMap deletedUsersMap
+  when (not (Map.null inconsistentUsers)) $
+    warn $
+      (Log.msg (Log.val "Found data about users which have been marked as deleted. This is likely a database inconsistence and must be addressed."))
+        . Log.field "userIds" (show (Map.keys inconsistentUsers))
+
   -- If a user is found in deletedUsers and normal users, prefer the deleted
-  -- user.
+  -- user. 'Map.union' is left biased.
   pure $ Map.elems $ Map.union deletedUsersMap foundUsersMap
   where
     selectUsers :: Hasql.Statement [UserId] [SelectUserRow]
