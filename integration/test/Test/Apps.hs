@@ -221,9 +221,11 @@ testPutApp = do
   domain <- make OwnDomain
   (owner, tid, [regularMember]) <- createTeam domain 2
   let new = def {name = "choppie"} :: NewApp
-  app <- bindResponse (createApp owner tid new) $ \resp -> do
+  (app, appId) <- bindResponse (createApp owner tid new) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    resp.json %. "user"
+    (,)
+      <$> (resp.json %. "user")
+      <*> (resp.json %. "user.id")
 
   let Object appMetadata =
         [aesonQQ|
@@ -242,15 +244,15 @@ testPutApp = do
         }|]
 
   withWebSockets [owner, regularMember, app] \[wsOwner, wsRegularMember, wsApp] -> do
-    bindResponse (putAppMetadata tid owner app (Object appMetadata)) $ \resp -> do
+    bindResponse (putAppMetadata tid owner appId (Object appMetadata)) $ \resp -> do
       resp.status `shouldMatchInt` 200
     notifOwner <- awaitMatch isUserUpdatedNotif wsOwner
     notifMember <- awaitMatch isUserUpdatedNotif wsRegularMember
     notifApp <- awaitMatch isUserUpdatedNotif wsApp
-    notifOwner %. "payload.0.user.id" `shouldMatch` app
+    notifOwner %. "payload.0.user.id" `shouldMatch` appId
     length (nub [notifOwner, notifMember, notifApp]) `shouldMatchInt` 1
 
-  bindResponse (getApp owner tid app) $ \resp -> do
+  bindResponse (getApp owner tid appId) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json
       `shouldMatchShapeLenient` SObject
@@ -260,8 +262,8 @@ testPutApp = do
           ("app", SObject [("category", SString), ("description", SString)])
         ]
 
-  let badApp = "5e002eca-114f-11f1-b5a3-7306b8837f91"
-  bindResponse (putAppMetadata tid owner badApp (Object appMetadata)) $ \resp -> do
+  let badAppId = "5e002eca-114f-11f1-b5a3-7306b8837f91"
+  bindResponse (putAppMetadata tid owner badAppId (Object appMetadata)) $ \resp -> do
     resp.status `shouldMatchInt` 404
 
 -- | FUTUREWORK: 'Test.Apps.testFindApp',
