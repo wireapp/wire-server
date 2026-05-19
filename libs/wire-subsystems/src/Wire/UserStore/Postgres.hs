@@ -650,7 +650,7 @@ getUserAuthenticationInfoImpl uid =
     select :: Hasql.Statement (UserId) (Maybe (Maybe Password, Maybe AccountStatus))
     select =
       dimapPG
-        [maybeStatement|SELECT password :: bytea?, account_status :: integer? FROM wire_user WHERE id = $1 :: uuid|]
+        [maybeStatement|SELECT password :: text?, account_status :: integer? FROM wire_user WHERE id = $1 :: uuid|]
 
 setUserSearchableImpl :: (PGConstraints r) => UserId -> SetSearchable -> Sem r ()
 setUserSearchableImpl uid (SetSearchable searchable) =
