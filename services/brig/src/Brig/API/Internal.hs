@@ -130,6 +130,7 @@ import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserActivityStore
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
@@ -156,6 +157,7 @@ servantSitemap ::
     Member TeamSubsystem r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member InvitationStore r,
     Member UserKeyStore r,
     Member Rpc r,
@@ -239,6 +241,7 @@ accountAPI ::
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member TinyLog r,
     Member EmailSubsystem r,
     Member PropertySubsystem r,
@@ -315,7 +318,8 @@ teamsAPI ::
     Member (Polysemy.Error UserSubsystemError) r,
     Member Events r,
     Member (Input (Local ())) r,
-    Member IndexedUserStore r
+    Member IndexedUserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI =
@@ -623,6 +627,7 @@ deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member Events r,
@@ -782,7 +787,8 @@ getPasswordResetCode email =
 changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatusUpdate ->

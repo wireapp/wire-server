@@ -42,6 +42,7 @@ import Wire.NotificationSubsystem
 import Wire.PropertySubsystem
 import Wire.Sem.Concurrency
 import Wire.Sem.Delay
+import Wire.UserActivityStore
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
@@ -59,6 +60,7 @@ onEvent ::
     Member (Input (Local ())) r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,

@@ -139,6 +139,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamCollaboratorsSubsystem.Interpreter
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserActivityStore (UserActivityStore)
 import Wire.UserClientIndexStore (UserClientIndexStore)
 import Wire.UserGroupStore (UserGroupStore)
 import Wire.UserKeyStore
@@ -280,6 +281,7 @@ type MiniBackendLowerEffects =
      ActivationCodeStore,
      BlockListStore,
      UserStore,
+     UserActivityStore,
      AppStore,
      TeamCollaboratorsStore,
      UserKeyStore,
@@ -343,6 +345,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryUserKeyStoreInterpreter
     . inMemoryTeamCollaboratorsStoreInterpreter
     . inMemoryAppStoreInterpreter
+    . noOpUserActivityStoreInterpreter
     . inMemoryUserStoreInterpreter
     . inMemoryBlockListStoreInterpreter
     . inMemoryActivationCodeStoreInterpreter
@@ -461,7 +464,8 @@ defaultAuthenticationSubsystemConfig =
       local = defaultLocalDomain,
       userCookieRenewAge = 2,
       userCookieLimit = 5,
-      userCookieThrottle = StdDevThrottle 5 3
+      userCookieThrottle = StdDevThrottle 5 3,
+      suspendInactiveUsersTimeout = Nothing
     }
 
 defaultLocalDomain :: Local ()

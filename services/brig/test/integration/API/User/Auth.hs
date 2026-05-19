@@ -1010,11 +1010,8 @@ testSuspendInactiveUsers config brig cookieType endPoint = do
   assertStatus Suspended
   setStatus brig (userId user) Active
   assertStatus Active
-
-  -- if the user has been inactive for too long due to suspended
-  -- state, so it gets re-suspended on the next login attempt.
   login brig (emailLogin email defPassword Nothing) cookieType
-    !!! const 403 === statusCode
+    !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Cookie Management

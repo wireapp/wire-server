@@ -100,8 +100,6 @@ accessH mcid ut' mat' = do
 
 access ::
   ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
     UserTokenLike u,
     AccessTokenLike a,
     AccessTokenType u ~ a,

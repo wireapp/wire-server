@@ -52,6 +52,7 @@ import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
 import Polysemy.Resource
 import Polysemy.TinyLog (TinyLog)
+import Util.Timeout (timeoutDiff)
 import Wire.API.Error (ErrorS, errorToWai)
 import Wire.API.Error.Galley
 import Wire.API.Federation.Client qualified
@@ -155,6 +156,8 @@ import Wire.TeamInvitationSubsystem.Error
 import Wire.TeamInvitationSubsystem.Interpreter
 import Wire.TeamSubsystem
 import Wire.TeamSubsystem.GalleyAPI
+import Wire.UserActivityStore
+import Wire.UserActivityStore.Postgres
 import Wire.UserGroupStore
 import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 import Wire.UserGroupSubsystem
@@ -196,6 +199,7 @@ type BrigLowerLevelEffects =
   '[ SAMLEmailSubsystem,
      TeamSubsystem,
      TeamCollaboratorsStore,
+     UserActivityStore,
      AppStore,
      EmailSubsystem,
      VerificationCodeSubsystem,
@@ -354,7 +358,8 @@ runBrigToIO e (AppT ma) = do
             local = localUnit,
             userCookieRenewAge = e.settings.userCookieRenewAge,
             userCookieLimit = e.settings.userCookieLimit,
-            userCookieThrottle = e.settings.userCookieThrottle
+            userCookieThrottle = e.settings.userCookieThrottle,
+            suspendInactiveUsersTimeout = fmap (timeoutDiff . Opt.suspendTimeout) e.settings.suspendInactiveUsers
           }
       mainESEnv = e.indexEnv ^. to idxElastic
       indexedUserStoreConfig =
@@ -491,6 +496,7 @@ runBrigToIO e (AppT ma) = do
               . interpretVerificationCodeSubsystem
               . emailSubsystemInterpreter e.userTemplates e.teamTemplates e.templateBrandingAsMap
               . interpretAppStoreToPostgres
+              . interpretUserActivityStoreToPostgres
               . interpretTeamCollaboratorsStoreToPostgres
               . interpretTeamSubsystemToGalleyAPI
               . samlEmailSubsystemInterpreter

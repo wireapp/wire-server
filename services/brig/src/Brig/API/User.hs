@@ -119,7 +119,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode, recordUserActivity)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
@@ -145,6 +145,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserActivityStore as UserActivityStore
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
@@ -626,6 +627,7 @@ changeAccountStatus ::
   ( Member (Concurrency 'Unsafe) r,
     Member UserSubsystem r,
     Member Events r,
+    Member AuthenticationSubsystem r,
     Member UserStore r
   ) =>
   NonEmpty UserId ->
@@ -638,7 +640,8 @@ changeAccountStatus usrs status = do
 changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatus ->
@@ -651,7 +654,8 @@ changeSingleAccountStatus uid status = do
 changeSingleAccountStatusInternal ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   AccountStatus ->
   (UserId -> UserEvent) ->
@@ -667,6 +671,9 @@ changeSingleAccountStatusInternal status ev u = do
   UserStore.updateAccountStatus u status
   User.internalUpdateSearchIndex u
   Events.generateUserEvent u Nothing (ev u)
+  -- Reactivation resets the inactivity clock so that the user has the
+  -- full window before being considered inactive again.
+  when (status == Active) $ recordUserActivity u
 
 mkUserEvent ::
   (Monad m) =>
@@ -937,6 +944,7 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
@@ -1014,6 +1022,7 @@ verifyDeleteUser ::
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
@@ -1045,6 +1054,7 @@ ensureAccountDeleted ::
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
@@ -1096,6 +1106,7 @@ deleteAccount ::
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
@@ -1114,6 +1125,7 @@ deleteAccount user = do
 
     PropertySubsystem.onUserDeleted uid
     UserStore.deleteUser user
+    UserActivityStore.deleteLastActivity uid
 
   traverse_ (removeUserFromAllGroups uid) user.userTeam
 
