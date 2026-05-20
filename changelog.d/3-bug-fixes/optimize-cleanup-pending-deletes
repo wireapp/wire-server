@@ -1,0 +1,1 @@
+Reduce connection usage and number of SQL queries for checking for pending PostgreSQL migration cleanup.
