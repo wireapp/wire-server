@@ -59,7 +59,6 @@ import Wire.ClientStore (ClientStore)
 import Wire.DomainRegistrationStore (DomainRegistrationStore)
 import Wire.EmailSubsystem (EmailSubsystem)
 import Wire.Error (HttpError (..))
-import Wire.Events (Events)
 import Wire.GalleyAPIAccess
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
@@ -75,8 +74,6 @@ import Wire.UserSubsystem.UserSubsystemConfig
 
 accessH ::
   ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member (Embed IO) r,
     Member Metrics r,
@@ -131,7 +128,6 @@ login ::
   ( Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
-    Member Events r,
     Member (Input (Local ())) r,
     Member UserSubsystem r,
     Member ActivationCodeStore r,
@@ -235,9 +231,6 @@ removeCookies lusr (RemoveCookies pw lls ids) =
 
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
@@ -253,10 +246,7 @@ legalHoldLogin lhl = do
   traverse mkUserTokenCookie c
 
 ssoLogin ::
-  ( Member TinyLog r,
-    Member AuthenticationSubsystem r,
-    Member UserSubsystem r,
-    Member Events r,
+  ( Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,

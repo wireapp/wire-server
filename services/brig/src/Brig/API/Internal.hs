@@ -344,9 +344,6 @@ clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member Events r,
-    Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,

@@ -378,8 +378,7 @@ validateToken ut at = do
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
-  ( Member TinyLog r,
-    Member AuthenticationSubsystem r,
+  ( Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member CryptoSign r,
@@ -414,7 +413,6 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
