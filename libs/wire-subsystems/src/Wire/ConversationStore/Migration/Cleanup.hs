@@ -135,8 +135,9 @@ cleanupIfNecessary ids = do
                         |]
     cleanupConvs :: [ConvId] -> Sem r ()
     cleanupConvs =
-      mapM_ $ \cid ->
-        maybe (pure ()) deleteConv =<< getAllConvData cid
+      mapM_ $ \cid -> do
+        mConvData <- getAllConvData cid
+        forM_ mConvData deleteConv
 
     cleanupUsers :: [UserId] -> Sem r ()
     cleanupUsers =
