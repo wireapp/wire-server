@@ -289,6 +289,7 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
+    <@> featureAPI1Full
     <@> featureAPI1Get
     <@> featureAPI1Full
     <@> featureAPI1Full
@@ -316,6 +317,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
     <@> mkNamedAPI @'("ilock", ChannelsConfig) (updateLockStatus @ChannelsConfig)
+    <@> mkNamedAPI @'("ilock", PreventAdminlessGroupsConfig) (updateLockStatus @PreventAdminlessGroupsConfig)
     <@> mkNamedAPI @'("ilock", CellsConfig) (updateLockStatus @CellsConfig)
     <@> mkNamedAPI @'("ilock", ConsumableNotificationsConfig) (updateLockStatus @ConsumableNotificationsConfig)
     <@> mkNamedAPI @'("ilock", ChatBubblesConfig) (updateLockStatus @ChatBubblesConfig)

@@ -149,3 +149,5 @@ instance GetFeatureConfig StealthUsersConfig
 instance GetFeatureConfig MeetingsConfig
 
 instance GetFeatureConfig MeetingsPremiumConfig
+
+instance GetFeatureConfig PreventAdminlessGroupsConfig

@@ -67,6 +67,7 @@ type FeatureAPI =
     :<|> AllDeprecatedFeatureConfigAPI DeprecatedFeatureConfigs
     :<|> FeatureAPIGet DomainRegistrationConfig
     :<|> FeatureAPIGetPut ChannelsConfig
+    :<|> FeatureAPIGetPut PreventAdminlessGroupsConfig
     :<|> FeatureAPIGet CellsConfig
     :<|> Until 'V14 ::> VersionedFeatureAPIPut "put-CellsConfig@v13" V13 CellsConfig
     :<|> From 'V14 ::> FeatureAPIPut CellsConfig
