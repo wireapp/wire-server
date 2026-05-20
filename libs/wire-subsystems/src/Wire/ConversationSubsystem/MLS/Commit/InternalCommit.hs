@@ -245,7 +245,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
       addMLSClients gid qtarget $
         Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
 
-    for_ action.paHistoryClientAdd $ \(hid, idx) -> addHistoryClient gid hid idx
+    for_ action.paHistoryClientAdd $ uncurry (addHistoryClient gid)
 
     for_ action.paHistoryClientRemove $ \(hid, _) -> removeHistoryClient gid hid
 
