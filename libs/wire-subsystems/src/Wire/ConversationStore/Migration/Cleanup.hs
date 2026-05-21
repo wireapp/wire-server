@@ -123,9 +123,21 @@ cleanupIfNecessary ids = do
     pendingConvIds <- Session.statement (DeleteConv, convIds) filterPendingDeletes
     pendingUserIds <- Session.statement (DeleteUser, userIds) filterPendingDeletes
     pure (pendingConvIds, pendingUserIds)
-  cleanupConvs pendingConvIds
-  cleanupUsers pendingUserIds
+
+  unless (null pendingConvIds) $ do
+    cleanupConvs pendingConvIds
+    runStatement (DeleteConv, pendingConvIds) markDeletionsComplete
+
+  unless (null pendingUserIds) $ do
+    cleanupUsers pendingUserIds
+    runStatement (DeleteUser, pendingUserIds) markDeletionsComplete
   where
+    markDeletionsComplete :: Statement (DeletionType, [Id a]) ()
+    markDeletionsComplete =
+      lmapPG @(_, Vector _)
+        [resultlessStatement|DELETE FROM conversation_migration_pending_deletes
+                             WHERE typ = $1 :: text AND id = ANY($2 :: uuid[])|]
+
     filterPendingDeletes :: Statement (DeletionType, [Id a]) [Id a]
     filterPendingDeletes =
       dimapPG @(_, Vector _) @_ @(Vector _) @[_]
