@@ -1515,8 +1515,8 @@ Example:
 
 ```yaml
 multiIngress:
-   red.example.com: https://accounts.red.example.com/conversation-join/
-   green.example.com: https://accounts.green.example.net/conversation-join/
+   red.example.com: https://account.red.example.com/conversation-join/
+   green.example.com: https://account.green.example.net/conversation-join/
 ```
 
 ### Spar

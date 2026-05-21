@@ -207,7 +207,7 @@ Otherwise you need to create a `.json` file, and host it somewhere users can get
       "backendWSURL" : "https://prod-nginz-ssl.wire.com",
       "blackListURL" : "https://clientblacklist.wire.com/prod",
       "teamsURL" : "https://teams.wire.com",
-      "accountsURL" : "https://accounts.wire.com",
+      "accountsURL" : "https://account.wire.com",
       "websiteURL" : "https://wire.com"
    },
    "apiProxy" : {
