@@ -175,6 +175,10 @@ config:
 # (multi-ingress), because the webapps can only provide CSP headers for one
 # (root) domain.
   renderCSPInIngress: false
+# Adds additional CSP connect-src entries. This is exclusive to `.config.dns.https`.
+# It is only respected when renderCSPInIngress=True. Multiple entries can be passed with a space in between.
+  cspExtraConnectSrc:
+# cspExtraConnectSrc: "https://sft.example-calling.com https://second-domain-example.com"
 # Is this a chart instantiation for an additional backend domain (multi-ingress)?
 #
 # If 'true' some resources aren't created because they're expected to already
