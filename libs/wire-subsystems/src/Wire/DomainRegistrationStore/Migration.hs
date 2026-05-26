@@ -35,8 +35,8 @@ import Polysemy.Conc (interpretRace)
 import Polysemy.Conc.Effect.Race hiding (Timeout)
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.State
 import Polysemy.Resource (Resource, resourceToIOFinal)
+import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified

@@ -29,8 +29,8 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.State
 import Polysemy.Resource (Resource, resourceToIOFinal)
+import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
