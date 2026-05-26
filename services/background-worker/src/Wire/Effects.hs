@@ -102,6 +102,7 @@ import Wire.ProposalStore.Cassandra (interpretProposalStoreToCassandra)
 import Wire.RateLimit (RateLimit, RateLimitExceeded)
 import Wire.RateLimit.Interpreter (interpretRateLimit)
 import Wire.Rpc
+import Wire.RpcException (RpcException)
 import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 import Wire.Sem.Delay (Delay, runDelay)
@@ -246,6 +247,7 @@ type BackgroundWorkerEffects =
      Error UsageError,
      Error FederationError,
      Error ClientError,
+     Error RpcException,
      Error ConversationSubsystemError,
      Error JSONResponse,
      Error DynError,
@@ -278,6 +280,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @DynError (.eMessage)
     . mapError @JSONResponse (T.pack . show . (.value))
     . mapError @ConversationSubsystemError toResponse
+    . mapError @RpcException (T.pack . displayException)
     . mapError @ClientError (T.pack . displayException)
     . mapError @FederationError (T.pack . displayException)
     . mapError @UsageError (T.pack . show)
