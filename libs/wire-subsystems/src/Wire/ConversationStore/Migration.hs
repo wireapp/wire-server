@@ -47,6 +47,7 @@ import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
@@ -83,6 +84,7 @@ type EffectStack =
   [ State Int,
     Input ClientState,
     Input Hasql.Pool,
+    Resource,
     Async,
     Race,
     TinyLog,
@@ -137,6 +139,7 @@ interpreter cassClient pgPool logger name =
     . raiseUnder
     . interpretRace
     . asyncToIOFinal
+    . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
     . runState 0
@@ -148,6 +151,7 @@ migrateAllConversations ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (State Int) r,
     Member (Concurrency Unsafe) r
   ) =>
@@ -170,6 +174,7 @@ migrateAllUsers ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (State Int) r,
     Member (Concurrency 'Unsafe) r
   ) =>
@@ -210,7 +215,8 @@ migrateConversation ::
     Member TinyLog r,
     Member Async r,
     Member (Error MigrationLockError) r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
   Prometheus.Counter ->
   ConvId ->
@@ -443,7 +449,7 @@ saveConvToPostgres allConvData = do
 
 -- * Users
 
-migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => Prometheus.Counter -> UserId -> Sem r ()
+migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r, Member Resource r) => Prometheus.Counter -> UserId -> Sem r ()
 migrateUser migCounter uid = do
   withMigrationLocks LockExclusive (Seconds 10) [uid] $ do
     statusses <- getRemoteMemberStatusFromCassandra uid

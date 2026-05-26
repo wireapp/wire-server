@@ -53,6 +53,7 @@ import Polysemy.Conc
 import Polysemy.Embed
 import Polysemy.Error (Error, mapError, throw)
 import Polysemy.Input
+import Polysemy.Resource (Resource)
 import Polysemy.Time
 import Polysemy.TinyLog
 import System.Logger qualified as Log
@@ -1086,7 +1087,8 @@ interpretConversationStoreToCassandraAndPostgres ::
     PGConstraints r,
     Member Async r,
     Member (Error MigrationError) r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
   ClientState ->
   Sem (ConversationStore ': r) a ->
@@ -1550,7 +1552,7 @@ instance APIError MigrationError where
   toResponse _ = waiErrorToJSONResponse $ WaiError.mkError status500 "internal-server-error" "Internal Server Error"
 
 withMigrationLockAndCleanup ::
-  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member (Error MigrationError) r) =>
+  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member Resource r, Member (Error MigrationError) r) =>
   ClientState ->
   LockType ->
   Either ConvId UserId ->
@@ -1566,6 +1568,7 @@ withMigrationLocksAndConvCleanup ::
     Member Async r,
     Member TinyLog r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationError) r,
     TimeUnit u
   ) =>
@@ -1587,6 +1590,7 @@ withMigrationLocksAndUserCleanup ::
     Member Async r,
     Member TinyLog r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationError) r,
     TimeUnit u
   ) =>

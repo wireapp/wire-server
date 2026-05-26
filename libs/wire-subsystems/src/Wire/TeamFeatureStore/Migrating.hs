@@ -27,6 +27,7 @@ import Polysemy.Async
 import Polysemy.Conc.Effect.Race
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource)
 import Polysemy.Time
 import Polysemy.TinyLog
 import Wire.API.Team.Feature
@@ -46,6 +47,7 @@ interpretTeamFeatureStoreToCassandraAndPostgres ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationLockError) r
   ) =>
   Sem (TeamFeatureStore ': r) a ->
@@ -66,6 +68,7 @@ getDbFeatureImpl ::
     Member Async r,
     Member Race r,
     Member (Input ClientState) r,
+    Member Resource r,
     Member (Error MigrationLockError) r
   ) =>
   FeatureSingleton cfg ->
@@ -105,6 +108,7 @@ setDbFeatureImpl ::
     Member Async r,
     Member Race r,
     Member (Input ClientState) r,
+    Member Resource r,
     Member (Error MigrationLockError) r
   ) =>
   FeatureSingleton cfg ->
@@ -121,6 +125,7 @@ setFeatureLockStatusImpl ::
     Member Async r,
     Member Race r,
     Member (Input ClientState) r,
+    Member Resource r,
     Member (Error MigrationLockError) r
   ) =>
   FeatureSingleton cfg ->
@@ -137,6 +142,7 @@ patchDbFeatureImpl ::
     Member Async r,
     Member Race r,
     Member (Input ClientState) r,
+    Member Resource r,
     Member (Error MigrationLockError) r
   ) =>
   FeatureSingleton cfg ->
@@ -159,6 +165,7 @@ withWritePathUnderLock ::
     Member Async r,
     Member Race r,
     Member (Input ClientState) r,
+    Member Resource r,
     Member (Error MigrationLockError) r,
     IsFeatureConfig cfg
   ) =>
@@ -184,6 +191,7 @@ withSharedLock ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationLockError) r,
     MigrationLockable x
   ) =>

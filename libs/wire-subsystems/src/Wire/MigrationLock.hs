@@ -37,6 +37,7 @@ import Polysemy.Async
 import Polysemy.Conc.Effect.Race
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, bracket)
 import Polysemy.Time.Data.TimeUnit
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as TinyLog
@@ -77,6 +78,7 @@ withMigrationLocks ::
     Member Async r,
     Member TinyLog r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationLockError) r,
     TimeUnit u,
     MigrationLockable x
@@ -87,42 +89,44 @@ withMigrationLocks ::
   Sem r a ->
   Sem r a
 withMigrationLocks lockType maxWait lockables action = do
-  lockAcquired <- embed newEmptyMVar
-  actionCompleted <- embed newEmptyMVar
-
-  pool <- input
-  lockThread <- async . embed . Hasql.use pool $ do
-    let lockIds = fmap lockKey lockables
-    Session.statement lockIds acquireLocks
-
-    liftIO $ putMVar lockAcquired ()
-    liftIO $ takeMVar actionCompleted
-
-    Session.statement lockIds releaseLocks
-
-  void . timeout (cancel lockThread >> throw TimedOutAcquiringLock) maxWait $ embed (takeMVar lockAcquired)
-  res <- action
-  embed $ putMVar actionCompleted ()
-
-  mEithErr <- timeout (cancel lockThread) (Seconds 1) $ await lockThread
-  let logFirstLock =
-        case lockables of
-          [] -> id
-          (x : _) -> Log.field ("first_" <> lockScope @x) (lockKey x)
-      logError errorStr =
-        TinyLog.warn $
-          Log.msg (Log.val "Failed to cleanly unlock the migration locks")
-            . logFirstLock
-            . Log.field "numberOfLocks" (length lockables)
-            . Log.field "error" errorStr
-  case mEithErr of
-    Left () -> logError "timed out waiting for unlock"
-    Right (Nothing) -> logError "lock/unlock thread didn't finish"
-    Right (Just (Left e)) -> logError (show e)
-    Right (Just (Right ())) -> pure ()
-
-  pure res
+  bracket acquire release (const action)
   where
+    acquire = do
+      lockAcquired <- embed newEmptyMVar
+      actionCompleted <- embed newEmptyMVar
+
+      pool <- input
+      lockThread <- async . embed . Hasql.use pool $ do
+        let lockIds = fmap lockKey lockables
+        Session.statement lockIds acquireLocks
+
+        liftIO $ putMVar lockAcquired ()
+        liftIO $ takeMVar actionCompleted
+
+        Session.statement lockIds releaseLocks
+
+      void . timeout (cancel lockThread >> throw TimedOutAcquiringLock) maxWait $ embed (takeMVar lockAcquired)
+      pure (actionCompleted, lockThread)
+
+    release (actionCompleted, lockThread) = do
+      let logFirstLock =
+            case lockables of
+              [] -> id
+              (x : _) -> Log.field ("first_" <> lockScope @x) (lockKey x)
+          logError errorStr =
+            TinyLog.warn $
+              Log.msg (Log.val "Failed to cleanly unlock the migration locks")
+                . logFirstLock
+                . Log.field "numberOfLocks" (length lockables)
+                . Log.field "error" errorStr
+      _ <- embed $ tryPutMVar actionCompleted ()
+      mEithErr <- timeout (cancel lockThread) (Seconds 1) $ await lockThread
+      case mEithErr of
+        Left () -> logError "timed out waiting for unlock"
+        Right (Nothing) -> logError "lock/unlock thread didn't finish"
+        Right (Just (Left e)) -> logError (show e)
+        Right (Just (Right ())) -> pure ()
+
     acquireLocks :: Hasql.Statement [Int64] ()
     acquireLocks =
       lmapPG @(Vector _)

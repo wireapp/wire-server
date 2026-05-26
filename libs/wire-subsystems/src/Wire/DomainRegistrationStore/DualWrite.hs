@@ -26,6 +26,7 @@ import Polysemy
 import Polysemy.Async
 import Polysemy.Conc.Effect.Race
 import Polysemy.Error
+import Polysemy.Resource (Resource)
 import Polysemy.Time
 import Polysemy.TinyLog
 import Wire.DomainRegistrationStore
@@ -40,6 +41,7 @@ interpretDomainRegistrationStoreToCassandraAndPostgres ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationLockError) r
   ) =>
   ClientState ->
