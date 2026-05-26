@@ -1,0 +1,1 @@
+Make migration locks release safely on failure
