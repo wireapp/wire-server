@@ -1,0 +1,1 @@
+Remove redundant "get-app" end-point (use `POST /list-users` instead).
