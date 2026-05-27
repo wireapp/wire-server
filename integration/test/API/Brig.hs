@@ -1264,7 +1264,9 @@ createApp creator tid new = do
 getApp :: (MakesValue self, MakesValue app) => self -> String -> app -> App Response
 getApp self tid appId = do
   appIdStr <- asString appId
-  req <- baseRequest self Brig Versioned $ joinHttpPath ["teams", tid, "apps", appIdStr]
+  req <-
+    baseRequest self Brig (ExplicitVersion 15 {- use `POST /list-users` from v16 onwards -}) $
+      joinHttpPath ["teams", tid, "apps", appIdStr]
   submit "GET" req
 
 -- | https://staging-nginz-https.zinfra.io/v14/api/swagger-ui/#/default/get-apps
