@@ -2141,6 +2141,7 @@ type AppsAPI =
            "get-app"
            ( Summary "Get app"
                :> From 'V14
+               :> Until 'V16
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
