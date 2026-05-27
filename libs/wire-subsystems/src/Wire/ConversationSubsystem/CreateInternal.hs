@@ -638,8 +638,8 @@ checkBindingTeamPermissions ::
   Sem r (Maybe TeamId)
 checkBindingTeamPermissions lusr lother tid = do
   mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
-  zusrMembership <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
-  case (mTeamCollaborator, zusrMembership) of
+  mTeamMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
+  case (mTeamCollaborator, mTeamMember) of
     (Just collaborator, Nothing) -> guardPerm CollaboratorPermission.ImplicitConnection collaborator
     (Nothing, mbMember) -> void $ permissionCheck CreateConversation mbMember
     (Just collaborator, Just member) ->
@@ -647,7 +647,7 @@ checkBindingTeamPermissions lusr lother tid = do
         throwS @OperationDenied
   TeamStore.getTeamBinding tid >>= \case
     Just Binding -> do
-      when (isJust zusrMembership) $
+      when (isJust mTeamMember) $
         verifyMembership tid (tUnqualified lusr)
       mOtherTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lother)
       unless (isJust mOtherTeamCollaborator) $
