@@ -34,14 +34,21 @@ import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import UnliftIO qualified
+import Util.Timeout (Timeout)
 import Wire.Util (embedClient)
 
 data MigrationOptions = MigrationOptions
   { pageSize :: Int32,
-    parallelism :: Int
+    parallelism :: Int,
+    timeout :: Maybe Timeout
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via Generically MigrationOptions
+
+data MigrationTimedOut = MigrationTimedOut Text Timeout
+  deriving stock (Show)
+
+instance Exception MigrationTimedOut
 
 migrationLoop ::
   Log.Logger ->

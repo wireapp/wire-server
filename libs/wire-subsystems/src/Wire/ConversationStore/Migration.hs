@@ -25,6 +25,7 @@ import Control.Error (lastMay)
 import Data.Conduit
 import Data.Conduit.List qualified as C
 import Data.Domain
+import Data.IORef qualified as IORef
 import Data.Id
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
@@ -46,12 +47,14 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.Resource (Resource, resourceToIOFinal)
+import Polysemy.Resource (Resource, bracket, resourceToIOFinal)
 import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
+import UnliftIO.Exception qualified as UnliftIO
+import Util.Timeout
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
@@ -101,15 +104,16 @@ migrateConvsLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateConvsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+migrateConvsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "conversations"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "conversations")
-    (migrateAllConversations migOpts migCounter)
+    (migrateAllConversations migOpts migCounter migDuration)
 
 migrateUsersLoop ::
   MigrationOptions ->
@@ -157,12 +161,13 @@ migrateAllConversations ::
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllConversations migOpts migCounter = do
+migrateAllConversations migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllConversations")
   withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize runIdentity
-    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateConversation migCounter) "conv"))
+    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateConversationWithLock migOpts.timeout migCounter migDuration) "conv"))
   where
     select :: PrepQuery R () (Identity ConvId)
     select = "select conv from conversation"
@@ -209,7 +214,7 @@ handleError action lockType id_ = do
 
 -- * Conversations
 
-migrateConversation ::
+migrateConversationWithLock ::
   ( PGConstraints r,
     Member (Input ClientState) r,
     Member TinyLog r,
@@ -218,17 +223,61 @@ migrateConversation ::
     Member Race r,
     Member Resource r
   ) =>
+  Maybe Timeout ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConvId ->
   Sem r ()
-migrateConversation migCounter cid = do
-  void . withMigrationLocks LockExclusive (Seconds 10) [cid] $ do
-    mConvData <- withCassandra $ getAllConvData cid
-    for_ mConvData $ \convData -> do
-      saveConvToPostgres convData
-      withCassandra $ deleteConv convData
-    markDeletionComplete DeleteConv cid
-    liftIO $ Prometheus.incCounter migCounter
+migrateConversationWithLock mTimeout migCounter migDuration cid = do
+  outcomeRef <- liftIO $ IORef.newIORef @Text "error"
+  bracket
+    (liftIO getCurrentTime)
+    (observeDuration migDuration outcomeRef)
+    ( const do
+        result <-
+          runError $
+            withMigrationLocks LockExclusive (Seconds 10) [cid] $ do
+              case mTimeout of
+                Just to -> do
+                  timeoutResult <- Polysemy.Conc.timeout (to <$ handleTimeout to) to $ migrateConversation
+                  case timeoutResult of
+                    Left timedOutAfter -> do
+                      markOutcome outcomeRef "timeout"
+                      -- this aborts the whole migration process
+                      liftIO . UnliftIO.throwIO $ MigrationTimedOut (idToText cid) timedOutAfter
+                    Right () -> do
+                      markOutcome outcomeRef "success"
+                Nothing -> do
+                  migrateConversation
+                  markOutcome outcomeRef "success"
+
+        case result of
+          Left TimedOutAcquiringLock -> do
+            markOutcome outcomeRef "lock_timeout"
+            throw TimedOutAcquiringLock
+          Right () -> pure ()
+    )
+  where
+    migrateConversation = do
+      mConvData <- withCassandra $ getAllConvData cid
+      for_ mConvData $ \convData -> do
+        saveConvToPostgres convData
+        withCassandra $ deleteConv convData
+      markDeletionComplete DeleteConv cid
+      liftIO $ Prometheus.incCounter migCounter
+
+    handleTimeout to = do
+      err $
+        Log.msg (Log.val "conversation migrations timed out")
+          . Log.field "conv" (idToText cid)
+          . Log.field "timeout" (show to)
+
+    markOutcome ref outcome = liftIO $ IORef.writeIORef ref outcome
+
+    observeDuration metric outcomeRef start = do
+      outcome <- liftIO $ IORef.readIORef outcomeRef
+      end <- liftIO getCurrentTime
+      liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))
 
 deleteConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => AllConvData -> Sem r ()
 deleteConvFromCassandra allConvData = withCassandra $ do

@@ -63,21 +63,21 @@ run opts galleyOpts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversation-codes" $
-            Migrations.conversationCodes (MigrationOptions 1000 1)
+            Migrations.conversationCodes (MigrationOptions 1000 1 Nothing)
       else pure $ pure ()
   cleanupTeamFeaturesMigration <-
     if opts.migrateTeamFeatures
       then
         runAppT env $
           withNamedLogger "migrate-team-features" $
-            Migrations.teamFeatures (MigrationOptions 1000 1)
+            Migrations.teamFeatures (MigrationOptions 1000 1 Nothing)
       else pure $ pure ()
   cleanupDomainRegistrationMigration <-
     if opts.migrateDomainRegistration
       then
         runAppT env $
           withNamedLogger "migrate-domain-registration" $
-            Migrations.domainRegistration (MigrationOptions 1000 1)
+            Migrations.domainRegistration (MigrationOptions 1000 1 Nothing)
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $

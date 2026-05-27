@@ -39,11 +39,12 @@ conversations migOpts = do
   convMigCounter <- register $ counter $ Prometheus.Info "wire_local_convs_migrated_to_pg" "Number of local conversations migrated to Postgresql"
   convMigFinished <- register $ counter $ Prometheus.Info "wire_local_convs_migration_finished" "Whether the conversation migration to Postgresql is finished successfully"
   convMigFailed <- register $ counter $ Prometheus.Info "wire_local_convs_migration_failed" "Whether the conversation migration to Postgresql has failed"
+  convMigDuration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_local_convs_migration_duration_seconds" "Duration of local conversation migration attempts") defaultBuckets
   userMigCounter <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migrated_to_pg" "Number of users whose remote conversation membership data is migrated to Postgresql"
   userMigFinished <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_finished" "Whether the migration of remote conversation membership data to Postgresql is finished successfully"
   userMigFailed <- register $ counter $ Prometheus.Info "wire_user_remote_convs_migration_failed" "Whether the migration of remote conversation membership data to Postgresql has failed"
 
-  convLoop <- async . lift $ migrateConvsLoop migOpts cassClient pgPool logger convMigCounter convMigFinished convMigFailed
+  convLoop <- async . lift $ migrateConvsLoop migOpts cassClient pgPool logger convMigCounter convMigFinished convMigFailed convMigDuration
   userLoop <- async . lift $ migrateUsersLoop migOpts cassClient pgPool logger userMigCounter userMigFinished userMigFailed
 
   Log.info logger $ Log.msg (Log.val "started conversation migration")
