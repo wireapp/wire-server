@@ -29,6 +29,7 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.State
 import Polysemy.Time
 import Polysemy.TinyLog
@@ -50,7 +51,8 @@ migrateAllTeamFeatures ::
     Member TinyLog r,
     Member (State Int) r,
     Member Async r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
@@ -65,6 +67,7 @@ type EffectStack =
   [ State Int,
     Input ClientState,
     Input Hasql.Pool,
+    Resource,
     Async,
     Race,
     TinyLog,
@@ -99,6 +102,7 @@ interpreter cassClient pgPool logger name =
     . raiseUnder
     . interpretRace
     . asyncToIOFinal
+    . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
     . runState 0
@@ -108,7 +112,8 @@ migrateTeamFeature ::
     Member TinyLog r,
     Member Async r,
     Member (Error MigrationLockError) r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
   Prometheus.Counter ->
   (TeamId, Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) ->

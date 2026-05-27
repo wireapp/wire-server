@@ -50,6 +50,7 @@ import Polysemy.Embed (runEmbedded)
 import Polysemy.Error (Error, errorToIOFinal, mapError, runError)
 import Polysemy.Input (Input, runInputConst)
 import Polysemy.Internal.Kind
+import Polysemy.Resource
 import Polysemy.TinyLog (TinyLog)
 import Wire.API.Error (ErrorS, errorToWai)
 import Wire.API.Error.Galley
@@ -275,6 +276,7 @@ type BrigLowerLevelEffects =
      Embed IO,
      Race,
      Async,
+     Resource,
      Concurrency 'Unsafe,
      Final IO
    ]
@@ -408,6 +410,7 @@ runBrigToIO e (AppT ma) = do
   ( either throwM pure
       <=< ( runFinal
               . unsafelyPerformConcurrency
+              . resourceToIOFinal
               . asyncToIOFinal
               . interpretRace
               . embedToFinal

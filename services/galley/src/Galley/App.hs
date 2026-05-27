@@ -408,7 +408,8 @@ evalGalley e =
           PGConstraints r,
           Member Async r,
           Member (Error MigrationError) r,
-          Member Race r
+          Member Race r,
+          Member Resource r
         ) =>
         Sem (ConversationStore ': r) a ->
         Sem r a
