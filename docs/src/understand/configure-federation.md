@@ -14,7 +14,11 @@ detailed in the sections below:
 
 - Choose a backend domain name
 - DNS setup for federation (including an `SRV` record)
-- Generate and configure TLS certificates (see [Coturn Client Certificate with EKU](../how-to/administrate/coturn-client-certificate.md))
+- Generate and configure TLS certificates:
+  - server certificates
+  - client certificates
+  - a selection of CA certificates you trust when interacting with
+    other backends
 - Configure helm charts : federator and ingress and webapp subcharts
 - Test that your configurations work as expected.
 
@@ -139,11 +143,139 @@ alongside your other DNS records that point to the ingress component,
 also needs to point to the IP of your ingress, i.e. the IP you want to
 provide services on.
 
-<a id=”federation-certificate-setup”></a>
+<a id="federation-certificate-setup"></a>
 
 ## Generate and configure TLS server and client certificates
 
-Federation certificates must include both `serverAuth` and `clientAuth` Extended Key Usage (EKU) extensions. For step-by-step instructions on generating and deploying certificates for coturn federation DTLS, see [Coturn Client Certificate with EKU](../how-to/administrate/coturn-client-certificate.md).
+Are your servers on the public internet? Then you have the option of
+using TLS certificates from [Let’s encrypt](https://letsencrypt.org/).
+In such a case go to subsection (A). If your servers are not on the
+public internet or you would like to use your own CA, go to subsection
+(B).
+
+### (A) Let’s encrypt TLS server and client certificate generation and renewal
+
+The following will make use of [Let’s
+encrypt](https://letsencrypt.org/) for both server certificates (used
+when someone sends a request to your `federator.<domain-name>`) and
+client certificates (used for making outgoing requests to other
+backends).
+
+For that, you need to have
+[jetstack/cert-manager](https://github.com/jetstack/cert-manager)
+installed. You can follow the helm chart installation
+[here](https://cert-manager.io/docs/installation/helm/).
+
+Once you have cert-manager, adjust the email address below, then set the
+following in the nginx-ingress-services overrides:
+
+```yaml
+# override values for nginx-ingress-services
+# (e.g. under ./helm_vars/nginx-ingress-services/values.yaml)
+tls:
+  useCertManager: true
+
+certManager:
+  inTestMode: false
+  certmasterEmail: "certificates@example.com"
+```
+
+```yaml
+# override values for wire-server
+# (e.g. under ./helm_vars/wire-server/values.yaml)
+federator:
+  tls:
+    useSharedFederatorSecret: true
+```
+
+You can now skip section (B) and go to Configure CA certificates you
+trust when interacting with other backends.
+
+### (B) Manual server and client certificates
+
+Use your usual method of obtaining X.509 certificates for your [federation infrastructure domain](federation/architecture.md#glossary-infra-domain) (alongside the other domains needed for a
+wire-server installation).
+
+You can use one single certificate and key for both server and client
+certificate use.
+
+#### NOTE
+Due to a limitation of the TLS library in use
+for federation ([hs-tls](https://github.com/vincenthz/hs-tls)), only
+some ciphers are supported. Moving to an openssl-based library is
+planned, which will provide support for a wider range of ciphers.
+
+Your certificates need to have the “Server” and “Client” key usage
+listed among the X509 extensions:
+
+```bash
+# inspect your certificate:
+openssl x509 -inform pem -noout -text < your-certificate.pem
+```
+
+```bash
+X509v3 extensions:
+    X509v3 Key Usage: critical
+        Digital Signature, Key Encipherment
+    X509v3 Extended Key Usage:
+        TLS Web Server Authentication, TLS Web Client Authentication
+```
+
+And your [federation infrastructure domain](federation/architecture.md#glossary-infra-domain) (e.g.
+`federator.wire.example.com` from the running example) needs to either figure
+explictly in the list of your SAN (Subject Alternative Name):
+
+```bash
+X509v3 Subject Alternative Name:
+    DNS:federator.wire.example.com, DNS:nginz-https.wire.example.com, ...
+```
+
+Or you need to have a wildcard certificate that includes it:
+
+```bash
+X509v3 Subject Alternative Name: critical
+    DNS:*.wire.example.com
+```
+
+Configure the *client certificate* and *private key* inside
+wire-server/federator:
+
+```yaml
+# override values for wire-server
+# (e.g. under ./helm_vars/wire-server/values.yaml or helm_vars/wire-server/secrets.yaml)
+federator:
+  clientCertificateContents: |
+    -----BEGIN CERTIFICATE-----
+    .....
+    -----END CERTIFICATE-----
+  clientPrivateKeyContents: |
+    -----BEGIN RSA PRIVATE KEY-----
+    .....
+    -----END RSA PRIVATE KEY-----
+```
+
+The *server certificate* and *private key* need to be configured in
+`nginx-ingress-services`. Those are used for all of the services, not
+just the federator component. If you have installed wire-server before
+without federation, server certificates may already be configured
+ *(though you probably need to create new certificates to include the
+federation infrastructure domain if you’re not making use of wildcard
+certificates)*. Server certificates go here:
+
+```yaml
+# override values for nginx-ingress-services
+# (e.g. under ./helm_vars/nginx-ingress-services/secrets.yaml)
+secrets:
+  tlsWildcardCert: |
+    -----BEGIN CERTIFICATE-----
+    ... <cert goes here>
+    -----END CERTIFICATE-----
+
+  tlsWildcardKey: |
+    -----BEGIN RSA PRIVATE KEY -----
+    ... <private key goes here>
+    -----END RSA PRIVATE KEY-----
+```
 
 ### Configure CA certificates you trust when interacting with other backends
 
@@ -180,6 +312,12 @@ federator:
     -----END CERTIFICATE-----
 ```
 
+### Tell parties you intend to federate with about your certificates
+
+The backends you want to federate with should add your (or Let’s
+Encrypt’s) CA to their store, so you should give them your CA
+certificate, or tell them to use the appropriate Let’s Encrypt root
+certificate.
 
 ## Configure helm charts: federator and ingress and webapp subcharts
 
@@ -589,7 +727,7 @@ federator:
 
 Depending on your installation method and time you initially installed
 your first version of wire-server, commands to run to apply all of the
-above configurations may vary. You want to ensure that you upgrade the
+above configrations may vary. You want to ensure that you upgrade the
 `nginx-ingress-services` and `wire-server` helm charts at a minimum.
 
 ## Manually test that your configurations work as expected
@@ -642,20 +780,26 @@ Create user accounts on both backends.
 With one user, search for the other user using the
 `@username-1@example.com` syntax in the UI search field of the webapp.
 
-## Federated Calling
+### Federated Calling
 
-This section assumes calling is working correctly — your users can use both Wire calling services and can find direct calling routes. If this is not the case, contact Wire support to schedule a checkup before proceeding.
+To begin with, you need to make a few decisions:
+ * How paranoid am I (separation of sensitive content) -- Do I want separation between "local" calling traffic between my backend and it's users, from the calling traffic to and from a remote (trusted) backend?
+ * How paranoid am I (traffic across the internet) -- Do you want the extra security / simplified routing / greater maintainence of using DTLS for your federated calling traffic? This gives you the benefit of being simpler to route across a network and enhanced security with certificate checking between backend calling components.
 
-Decide whether to use DTLS for federated calling traffic. DTLS provides enhanced security via certificate checking between backend calling components and simplifies routing across networks.
+To begin with, we are going to assume you have calling working "properly". that means your users can use both wire calling services, and can find direct calling routes to the calling services. If this is not you, or if you are unsure, contact wire support to schedule a checkup of your calling services.
 
-### Federated Calling Traffic
+For this document, we are going to assume "not that paranoid" and "simplify networking, please."
+
+We will also assume you have a working non-federated calling infrastructure (because you should).
+
+#### Federated Calling Traffic
 
 In order for users on both federated backends to communicate, calling traffic needs to travel between your wire calling environment and the calling environment of your federation partner.
 
-There are two options for how calling traffic is transferred between federating backends: with, or without DTLS.
+There are two options for how calling traffic is transfered between federating backends: with, or without DTLS.
 If you have chosen DTLS, you need to have incoming port 9191 between your calling clusters. Federated calling traffic will be transmitted between federated environments on this port.
 
-### Configure Coturn
+#### Configure Coturn
 
 To set up federated 1on1 calling, coturn will need to be reconfigured and the following should be added to your coturn `values.yaml` file:
 
@@ -696,30 +840,17 @@ federate:
     tls:
       key: |
         -----BEGIN PRIVATE KEY-----
-        ...
-        -----END PRIVATE KEY-----
       crt: |
-        -----BEGIN CERTIFICATE-----
-        ...
-        -----END CERTIFICATE-----
+       ...
 ```
 
-For detailed steps on generating a certificate with the correct Extended Key Usage (EKU) extensions required for federation DTLS, see [Coturn Client Certificate with EKU](../how-to/administrate/coturn-client-certificate.md).
-
-Coturn has rate-limiting to mitigate DDoS reflection amplification attacks. Trusted IPs must be added to the allowlist to bypass this. Add all of the following:
-
-- **Node internal IPs** — the Kubernetes node IPs where coturn pods run
-- **Gateway/NAT IP** — if your nodes route outbound traffic through a NAT or gateway, add that IP too
-- **Public coturn IPs** — the external IP of each coturn replica (one per node)
-- **Federation partner coturn IPs** — the public IPs or CIDRs of your federation partner's coturn servers
+Our coturn solution has an updated rate-limiting feature we added to mitigate the abuse of coturn servers for DDoS Reflection Amplifications Attacks. You will need to add the federating servers public IP addresses of coturn servers, as well as your local SFTD public IPs to the allowlist list.
 
 ```yaml
 ratelimit:
   allowlist:
-    - "10.0.0.1"       # node internal IP (repeat for each node)
-    - "203.0.113.1"    # public IP of coturn replica 0
-    - "203.0.113.2"    # public IP of coturn replica 1
-    - "198.51.100.0/24" # federation partner coturn IP range
+    - "federating.servers.coturn.publicIPs"
+    - "local.sftd.public.ip"
 ```
 
 To re-deploy `coturn`
@@ -734,7 +865,7 @@ If running into error with YAML and spacing (it happens), you can supply the cer
 d helm upgrade --install coturn charts/coturn -f values/coturn/values.yaml -f values/coturn/secrets.yaml --set-file federate.dtls.tls.key=key.pem --set-file federate.dtls.tls.crt=crt.pem
 ```
 
-### Configure SFTD (Federated Conference Calling)
+#### Configure SFTD (Federated Conference Calling)
 
 To understand more on the architecture, read [Federated Conference Calling](https://docs.wire.com/latest/understand/sft.html#federated-conference-calling)
 
