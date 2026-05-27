@@ -1,1 +1,3 @@
 Refactor access control rules for collaborators.
+
+TODO: if the behavior changes in this PR, we need to move this and explain how!  (but with some luck, it'll remain a behavior-preserving refactoring job.)

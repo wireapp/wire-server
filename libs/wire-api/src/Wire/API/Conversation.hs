@@ -1016,6 +1016,7 @@ data NewOne2OneConv = NewOne2OneConv
   { users :: [UserId],
     -- | A list of qualified users, which can include some local qualified users
     -- too.
+    -- TODO: why is this a list and not a pair, given the name `NewOne2OneConv`?
     qualifiedUsers :: [Qualified UserId],
     name :: Maybe (Range 1 256 Text),
     team :: Maybe ConvTeamInfo

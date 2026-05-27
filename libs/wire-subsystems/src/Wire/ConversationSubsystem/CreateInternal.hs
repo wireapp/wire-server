@@ -637,6 +637,14 @@ checkBindingTeamPermissions ::
   TeamId ->
   Sem r (Maybe TeamId)
 checkBindingTeamPermissions lusr lother tid = do
+  -- TODO(fisx): i think this can be futher refactored to use
+  -- `getImplicitReachableLocals`.  i'm also still not sure this logic
+  -- is sound, need to think about this more!
+
+  -- TODO(fisx): also check the access control logic around
+  -- adding/removing conv members to/from group convs.  can that also
+  -- be simplified?
+
   guardTeamBinding
   mTeamCollaborator <- internalGetTeamCollaborator tid (tUnqualified lusr)
   mTeamMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
