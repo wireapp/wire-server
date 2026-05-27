@@ -810,25 +810,9 @@ federate:
   port: 9191
 ```
 
-If you are using DTLS (with `cert-manager`)
+**Note**: As of February 2026, Let's Encrypt no longer includes `clientAuth` in their certificates. Since coturn DTLS federation requires mutual TLS, you must use a self-signed CA or a CA that issues certificates with both `serverAuth` and `clientAuth` EKU.
 
-```yaml
-coturnFederationListeningIP: '__COTURN_HOST_IP__'
-federate:
-  enabled: true
-  port: 9191
-  dtls:
-    enabled: true
-    tls:
-      issuerRef:
-        name: letsencrypt-http01
-        kind: ClusterIssuer
-      certificate:
-        dnsNames:
-          - coturn.example.com
-```
-
-or with your own certificates:
+If you are using DTLS with your own certificates, see [Coturn Client Certificate with EKU](../how-to/administrate/coturn-client-certificate.md) for step-by-step instructions. Example configuration:
 
 ```yaml
 coturnFederationListeningIP: '__COTURN_HOST_IP__'
