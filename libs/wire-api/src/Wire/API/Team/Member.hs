@@ -492,6 +492,7 @@ data HiddenPerm
   | ChangeTeamMemberProfiles
   | SearchContacts
   | NewTeamCollaborator
+  | GetTeamCollaborators
   | JoinRegularConversations
   | CreateApp
   | ManageApps
@@ -597,6 +598,7 @@ roleHiddenPermissions role = HiddenPermissions p p
       (roleHiddenPerms RoleExternalPartner <>) $
         Set.fromList
           [ ViewSameTeamEmails,
+            GetTeamCollaborators,
             SearchContacts
           ]
     roleHiddenPerms RoleExternalPartner =
