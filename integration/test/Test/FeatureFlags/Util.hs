@@ -243,6 +243,7 @@ defAllFeatures =
           ],
       "meetings" .= enabled,
       "meetingsPremium" .= disabledLocked,
+      "backgroundEffects" .= enabled,
       "preventAdminlessGroups"
         .= object
           [ "lockStatus" .= "locked",
@@ -268,6 +269,7 @@ hasExplicitLockStatus "enforceFileDownloadLocation" = True
 hasExplicitLockStatus "domainRegistration" = True
 hasExplicitLockStatus "meetings" = True
 hasExplicitLockStatus "meetingsPremium" = True
+hasExplicitLockStatus "backgroundEffects" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
@@ -442,7 +444,8 @@ defAllConfiguredFeatures =
               ]
           ),
       "meetings" .= defaults enabled,
-      "meetingsPremium" .= defaults disabledLocked
+      "meetingsPremium" .= defaults disabledLocked,
+      "backgroundEffects" .= defaults enabled
     ]
   where
     defaults x = object ["defaults" .= x]

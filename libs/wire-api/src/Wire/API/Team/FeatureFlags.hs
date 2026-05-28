@@ -428,6 +428,13 @@ newtype instance FeatureDefaults MeetingsPremiumConfig
   deriving (FromJSON, ToJSON) via Defaults (LockableFeature MeetingsPremiumConfig)
   deriving (ParseFeatureDefaults) via OptionalField MeetingsPremiumConfig
 
+newtype instance FeatureDefaults BackgroundEffectsConfig
+  = BackgroundEffectsDefaults (LockableFeature BackgroundEffectsConfig)
+  deriving stock (Eq, Show)
+  deriving newtype (Default, GetFeatureDefaults)
+  deriving (FromJSON, ToJSON) via Defaults (LockableFeature BackgroundEffectsConfig)
+  deriving (ParseFeatureDefaults) via OptionalField BackgroundEffectsConfig
+
 featureKey :: forall cfg. (IsFeatureConfig cfg) => Key.Key
 featureKey = Key.fromText $ featureName @cfg
 

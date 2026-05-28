@@ -119,6 +119,7 @@ module Wire.API.Team.Feature
     StealthUsersConfig (..),
     MeetingsConfig (..),
     MeetingsPremiumConfig (..),
+    BackgroundEffectsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -289,6 +290,7 @@ data FeatureSingleton cfg where
   FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
   FeatureSingletonMeetingsConfig :: FeatureSingleton MeetingsConfig
   FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
+  FeatureSingletonBackgroundEffectsConfig :: FeatureSingleton BackgroundEffectsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -2205,6 +2207,30 @@ instance IsFeatureConfig MeetingsPremiumConfig where
 instance ToObjectSchema MeetingsPremiumConfig where
   objectSchema = pure MeetingsPremiumConfig
 
+--------------------------------------------------------------------------------
+-- BackgroundEffects Feature
+--
+-- Controls whether background effects are available in meetings.
+
+data BackgroundEffectsConfig = BackgroundEffectsConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform BackgroundEffectsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName BackgroundEffectsConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature BackgroundEffectsConfig
+
+instance ToSchema BackgroundEffectsConfig where
+  schema = object objectSchema
+
+instance Default (LockableFeature BackgroundEffectsConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig BackgroundEffectsConfig where
+  type FeatureSymbol BackgroundEffectsConfig = "backgroundEffects"
+  featureSingleton = FeatureSingletonBackgroundEffectsConfig
+
+instance ToObjectSchema BackgroundEffectsConfig where
+  objectSchema = pure BackgroundEffectsConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -2310,7 +2336,8 @@ type Features =
     StealthUsersConfig,
     CellsInternalConfig,
     MeetingsConfig,
-    MeetingsPremiumConfig
+    MeetingsPremiumConfig,
+    BackgroundEffectsConfig
   ]
 
 -- | list of available features as a record
