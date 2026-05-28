@@ -553,31 +553,31 @@ nginx_conf:
       disable_zauth: true
     - path: /i/domain-registration/([^/]*)/lock$
       envs:
-        - all
+        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false
     - path: /i/domain-registration/([^/]*)/unlock$
       envs:
-        - all
+        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false
     - path: /i/domain-registration/([^/]*)/preauthorize$
       envs:
-        - all
+        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false
     - path: /i/domain-registration/([^/]*)/unauthorize$
       envs:
-        - all
+        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false
     - path: /i/domain-registration/([^/]*)$
       envs:
-        - all
+        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false
