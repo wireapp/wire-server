@@ -989,12 +989,6 @@ background-worker:
       # Cron schedule for the cleanup job (0 * * * * = every hour)
       schedule: "0 * * * *"
 
-    # Controls where conversation data is stored/accessed
-    postgresMigration:
-      conversation: cassandra
-      conversationCodes: cassandra
-      teamFeatures: cassandra
-
   secrets: {}
 
   podSecurityContext:
