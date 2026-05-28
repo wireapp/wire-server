@@ -2131,7 +2131,8 @@ migration, but still low enough to catch a genuinely stuck migration in a
 reasonable time. A good starting point for most deployments is `60` seconds
 (1 minute), then adjust based on observed migration durations.
 
-If the setting is omitted, no timeout will be enforced. In case of a stalling conversation migration, this can lead to exclusive advisory locks leak.
+If the setting is omitted, no timeout will be enforced. If a conversation
+migration stalls, this can lead to leaked exclusive advisory locks.
 
 Secrets
 
