@@ -40,6 +40,9 @@ import Wire.Util (embedClient)
 data MigrationOptions = MigrationOptions
   { pageSize :: Int32,
     parallelism :: Int,
+    -- optional timeout that applies to a single conversation and
+    -- limits how long a single conversation migration attempt may run
+    -- after it has acquired the migration lock
     timeout :: Maybe Timeout
   }
   deriving (Show, Eq, Generic)

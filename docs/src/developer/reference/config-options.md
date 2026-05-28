@@ -1922,6 +1922,13 @@ time. For conversations, this is necessary for channel search and management of
 channels from the team-management UI. It is highly recommended to take a backup
 of the affected Cassandra data before triggering a migration.
 
+When migrating conversations, `background-worker.config.migrateConversationsOptions.timeout`
+should be configured as well. It sets a per-conversation upper bound for the
+migration attempt, so a stuck conversation does not keep the migration run
+blocked indefinitely. Start with a value that is comfortably above the normal
+time for one conversation migration, then adjust it based on observed runtime
+and the size of your dataset.
+
 Migrations are independent and can be run separately, in batches, or all at
 once. This is expected, because migrations will be released over time. The
 pattern below applies per `postgresMigration` setting. A single setting may
@@ -2096,6 +2103,13 @@ migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
 
+# conversation migration settings
+migrateConversationsOptions:
+  pageSize: 10000
+  parallelism: 2
+  # (optional) migration timeout in seconds, applies to a single conversation
+  timeout: 60
+
 # Background jobs consumer
 backgroundJobs:
   concurrency: 8     # in-flight jobs per process
@@ -2105,6 +2119,19 @@ backgroundJobs:
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
+
+The optional `migrateConversationsOptions.timeout` setting limits how long a single
+conversation migration attempt may run after it has acquired the migration
+lock. The value is a plain number of seconds, so `60` means 1 minute.
+If the timeout is exceeded, that conversation migration is aborted and the
+whole migration run is treated as failed.
+
+Choose a value that is comfortably above the normal time for one conversation
+migration, but still low enough to catch a genuinely stuck migration in a
+reasonable time. A good starting point for most deployments is `60` seconds
+(1 minute), then adjust based on observed migration durations.
+
+If the setting is omitted, no timeout will be enforced. In case of a stalling conversation migration, this can lead to exclusive advisory locks leak.
 
 Secrets
 
