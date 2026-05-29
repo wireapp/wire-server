@@ -35,6 +35,7 @@ module Wire.API.User
     -- User (should not be here)
     User (..),
     UserType (..),
+    CollaboratorSettings (..),
     isSamlUser,
     userId,
     userDeleted,
@@ -626,6 +627,8 @@ data User = User
     -- | Set if the user represents an external service,
     -- i.e. it is a "bot".
     userService :: Maybe ServiceRef,
+    -- | How user behaves in other teams as collaborator.
+    userCollaboratorSettings :: Maybe CollaboratorSettings,
     -- | not required; must be unique if present
     userHandle :: Maybe Handle,
     -- | Set if the user is ephemeral
@@ -641,6 +644,40 @@ data User = User
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema User)
+
+-- | How user behaves in other teams as collaborator.
+-- TODO(fisx): maybe move to a better place?
+-- TODO(fisx): golden tests.
+data CollaboratorSettings = CollaboratorSettings
+  { distributionState :: CollaboratorDistributionState
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CollaboratorSettings)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema CollaboratorSettings)
+
+instance ToSchema CollaboratorSettings where
+  schema =
+    object $
+      CollaboratorSettings
+        <$> distributionState .= field "distribution_state" schema
+
+-- TODO(fisx): maybe move to a better place?
+data CollaboratorDistributionState
+  = CollaboratorDraft
+  | CollaboratorNoDistribution
+  | CollaboratorFullDistribution
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CollaboratorDistributionState)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema CollaboratorDistributionState)
+
+instance ToSchema CollaboratorDistributionState where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "draft" CollaboratorDraft,
+          element "none" CollaboratorNoDistribution,
+          element "full" CollaboratorFullDistribution
+        ]
 
 isSamlUser :: User -> Bool
 isSamlUser usr = do
@@ -682,6 +719,7 @@ userObjectSchema =
     <*> userStatus .= field "status" schema
     <*> userLocale .= field "locale" schema
     <*> userService .= maybe_ (optField "service" schema)
+    <*> userCollaboratorSettings .= maybe_ (optField "collaborator_settings" schema)
     <*> userHandle .= maybe_ (optField "handle" schema)
     <*> userExpire .= maybe_ (optField "expires_at" schema)
     <*> userTeam .= maybe_ (optField "team" schema)

@@ -189,6 +189,17 @@ type UserAPI =
                :> Put '[JSON] ()
            )
     :<|> Named
+           "update-collaborator-settings"
+           ( Summary "Set user's distribution status as collaborator in other teams.  Default: none"
+               :> From 'V5
+               :> ZLocalUser
+               :> "users"
+               :> QualifiedCaptureUserId "uid"
+               :> "collaborator-settings"
+               :> ReqBody '[JSON] CollaboratorSettings
+               :> Put '[JSON] ()
+           )
+    :<|> Named
            "get-handle-info-unqualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
