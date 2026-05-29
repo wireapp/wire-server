@@ -81,6 +81,7 @@ type FeatureAPI =
     :<|> FeatureAPIGet CellsInternalConfig
     :<|> FeatureAPIGetPut MeetingsConfig
     :<|> FeatureAPIGetPut MeetingsPremiumConfig
+    :<|> FeatureAPIGetPut BackgroundEffectsConfig
 
 type VersionedFeatureAPIPut named reqBodyVersion cfg =
   Named

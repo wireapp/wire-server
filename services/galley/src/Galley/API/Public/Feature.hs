@@ -82,6 +82,7 @@ featureAPI =
     <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
     <@> featureAPIGetPut @MeetingsConfig
     <@> featureAPIGetPut @MeetingsPremiumConfig
+    <@> featureAPIGetPut @BackgroundEffectsConfig
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

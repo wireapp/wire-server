@@ -139,6 +139,7 @@ library
     Test.FeatureFlags.AppLock
     Test.FeatureFlags.Apps
     Test.FeatureFlags.AssetAuditLog
+    Test.FeatureFlags.BackgroundEffects
     Test.FeatureFlags.Cells
     Test.FeatureFlags.CellsInternal
     Test.FeatureFlags.Channels

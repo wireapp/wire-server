@@ -264,6 +264,20 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Background Effects
+
+The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax: 
+```yaml
+backgroundEffects:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+```
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/backgroundEffects/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+
 ### File Sharing
 
 File sharing is enabled and unlocked by default. If you want a different configuration, use the following syntax:

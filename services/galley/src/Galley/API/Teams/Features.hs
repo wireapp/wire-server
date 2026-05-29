@@ -515,3 +515,5 @@ instance SetFeatureConfig StealthUsersConfig
 instance SetFeatureConfig MeetingsConfig
 
 instance SetFeatureConfig MeetingsPremiumConfig
+
+instance SetFeatureConfig BackgroundEffectsConfig
