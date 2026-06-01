@@ -131,7 +131,6 @@ imAssocs = IntMap.assocs . unIndexMap
 -- this mapping.
 newtype ClientMap a = ClientMap
   { unClientMap :: Map (Qualified UserId) (Map ClientId a)
-  -- TODO: add historyClients
   }
   deriving (Show, Eq, Functor)
 
