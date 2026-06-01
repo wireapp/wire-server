@@ -111,6 +111,9 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     when (is _SubConv convOrSub && any ((senderIdentity.client /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
+    when (is _SubConv convOrSub && (not (Set.null action.paHistoryClientAdd) || not (Set.null action.paHistoryClientRemove))) $
+      throw (mlsProtocolError "History client proposals in subconversations are not supported")
+
     events <-
       if convOrSub.migrationState == MLSMigrationMLS
         then do

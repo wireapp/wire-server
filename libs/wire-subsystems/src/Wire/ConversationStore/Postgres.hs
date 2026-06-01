@@ -1124,6 +1124,11 @@ lookupMLSClientLeafIndicesImpl gid = do
   historyClients <- lookupHistoryClientsImpl gid
   pure (mkClientMap regularClients, mkIndexMapFromParts regularClients historyClients)
 
+lookupRegularMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
+lookupRegularMLSClientLeafIndicesImpl gid = do
+  regularClients <- runStatement gid selectMLSClients
+  pure (mkClientMap regularClients, mkIndexMapFromParts regularClients [])
+
 -- SUB CONVERSATION OPERATIONS
 createSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> GroupId -> Sem r SubConversation
 createSubConversationImpl cid subConvId gid = do
@@ -1154,7 +1159,7 @@ getSubConversationImpl cid subConvId = runMaybeT $ do
           <*> mEpochTimestamp
           <*> mSuite
   groupId <- hoistMaybe mGroupId
-  (cm, im) <- lift $ lookupMLSClientLeafIndicesImpl groupId
+  (cm, im) <- lift $ lookupRegularMLSClientLeafIndicesImpl groupId
   pure $
     SubConversation
       { scParentConvId = cid,

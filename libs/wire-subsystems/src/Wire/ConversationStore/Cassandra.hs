@@ -729,24 +729,6 @@ addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   for_ cs $ \(c, idx) ->
     addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, fromIntegral idx)
 
-addHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> Client ()
-addHistoryClient groupId hid idx =
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery Cql.addHistoryClient (groupId, hid, fromIntegral idx)
-
-removeHistoryClient :: GroupId -> HistoryClientId -> Client ()
-removeHistoryClient gid hid =
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery Cql.removeHistoryClient (gid, hid)
-
-removeAllHistoryClients :: GroupId -> Client ()
-removeAllHistoryClients groupId = do
-  retry x5 $ write Cql.removeAllHistoryClients (params LocalQuorum (Identity groupId))
-
 planMLSClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> Client ()
 planMLSClientRemoval groupId cids =
   retry x5 . batch $ do
@@ -782,21 +764,24 @@ addBotMember s bot cnv = do
     sid = s ^. serviceRefId
     mem = (newMember (botUserId bot)) {service = Just s}
 
-lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
-lookupMLSClientLeafIndices groupId = do
-  mlsClients <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
-  hClients <- lookupHistoryClients groupId
+lookupMLSClientRows :: GroupId -> Client [(Domain, UserId, ClientId, Int32, Bool)]
+lookupMLSClientRows groupId =
+  retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
+
+lookupMLSClientLeafIndices :: GroupId -> [(HistoryClientId, Int32, Bool)] -> Client (ClientMap LeafIndex, IndexMap)
+lookupMLSClientLeafIndices groupId hClients = do
+  mlsClients <- lookupMLSClientRows groupId
   pure $ (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
 
-lookupHistoryClients :: GroupId -> Client [(HistoryClientId, Int32, Bool)]
-lookupHistoryClients groupId =
-  retry x5 (query Cql.lookupHistoryClients (params LocalQuorum (Identity groupId)))
-
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
-lookupMLSClients = fmap fst . lookupMLSClientLeafIndices
+lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 
 -----------------------------------------------------------------------------------------
 -- SUB CONVERSATION STORE
+
+lookupRegularMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
+lookupRegularMLSClientLeafIndices groupId =
+  lookupMLSClientLeafIndices groupId []
 
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = runMaybeT $ do
@@ -809,7 +794,7 @@ selectSubConversation convId subConvId = runMaybeT $ do
           <*> fmap writetimeToUTC mEpochWritetime
           <*> mSuite
   groupId <- hoistMaybe mGroupId
-  (cm, im) <- lift $ lookupMLSClientLeafIndices groupId
+  (cm, im) <- lift $ lookupRegularMLSClientLeafIndices groupId
   pure $
     SubConversation
       { scParentConvId = convId,
@@ -907,7 +892,7 @@ interpretMLSCommitLockStoreToCassandra client = interpret $ \case
 
 interpretConversationStoreToCassandra ::
   forall r a.
-  ( Member (Embed IO) r,
+  ( PGConstraints r,
     Member TinyLog r
   ) =>
   ClientState ->
@@ -1050,13 +1035,13 @@ interpretConversationStoreToCassandra client = interpret $ \case
     embedClient client $ addMLSClients lcnv quid cs
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
-    embedClient client $ addHistoryClient groupId hid idx
+    interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
   RemoveHistoryClient groupId hid -> do
     logEffect "ConversationStore.RemoveHistoryClient"
-    embedClient client $ removeHistoryClient groupId hid
+    interpretConversationStoreToPostgres $ ConvStore.removeHistoryClient groupId hid
   RemoveAllHistoryClients groupId -> do
     logEffect "ConversationStore.RemoveAllHistoryClients"
-    embedClient client $ removeAllHistoryClients groupId
+    interpretConversationStoreToPostgres $ ConvStore.removeAllHistoryClients groupId
   PlanClientRemoval lcnv cids -> do
     logEffect "ConversationStore.PlanClientRemoval"
     embedClient client $ planMLSClientRemoval lcnv cids
@@ -1071,10 +1056,11 @@ interpretConversationStoreToCassandra client = interpret $ \case
     embedClient client $ lookupMLSClients lcnv
   LookupHistoryClients gid -> do
     logEffect "ConversationStore.LookupHistoryClients"
-    embedClient client $ lookupHistoryClients gid
+    interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
-    embedClient client $ lookupMLSClientLeafIndices lcnv
+    hClients <- interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients lcnv
+    embedClient client $ lookupMLSClientLeafIndices lcnv hClients
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
     embedClient client $ insertSubConversation convId subConvId groupId
@@ -1440,24 +1426,13 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.addMLSClients groupId quid cs)
   AddHistoryClient groupId hid idx -> do
     logEffect "ConversationStore.AddHistoryClient"
-    cid <- groupIdToConvId groupId
-    withMigrationLockAndCleanup client LockShared (Left cid) $
-      isConvInPostgres cid >>= \case
-        False -> embedClient client $ addHistoryClient groupId hid idx
-        True -> interpretConversationStoreToPostgres (ConvStore.addHistoryClient groupId hid idx)
+    interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
   RemoveHistoryClient groupId hid -> do
     logEffect "ConversationStore.RemoveHistoryClient"
-    cid <- groupIdToConvId groupId
-    withMigrationLockAndCleanup client LockShared (Left cid) $
-      isConvInPostgres cid >>= \case
-        False -> embedClient client $ removeHistoryClient groupId hid
-        True -> interpretConversationStoreToPostgres (ConvStore.removeHistoryClient groupId hid)
+    interpretConversationStoreToPostgres $ ConvStore.removeHistoryClient groupId hid
   RemoveAllHistoryClients gid -> do
     logEffect "ConversationStore.RemoveAllHistoryClients"
-    cid <- groupIdToConvId gid
-    withMigrationLockAndCleanup client LockShared (Left cid) $ do
-      embedClient client $ removeAllHistoryClients gid
-      interpretConversationStoreToPostgres (ConvStore.removeAllHistoryClients gid)
+    interpretConversationStoreToPostgres $ ConvStore.removeAllHistoryClients gid
   PlanClientRemoval gid clients -> do
     logEffect "ConversationStore.PlanClientRemoval"
     cid <- groupIdToConvId gid
@@ -1486,17 +1461,15 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClients gid)
   LookupHistoryClients gid -> do
     logEffect "ConversationStore.LookupHistoryClients"
-    cid <- groupIdToConvId gid
-    withMigrationLockAndCleanup client LockShared (Left cid) $
-      isConvInPostgres cid >>= \case
-        False -> embedClient client $ lookupHistoryClients gid
-        True -> interpretConversationStoreToPostgres (ConvStore.lookupHistoryClients gid)
+    interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
   LookupMLSClientLeafIndices gid -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     cid <- groupIdToConvId gid
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
-        False -> embedClient client $ lookupMLSClientLeafIndices gid
+        False -> do
+          hClients <- interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
+          embedClient client $ lookupMLSClientLeafIndices gid hClients
         True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClientLeafIndices gid)
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"

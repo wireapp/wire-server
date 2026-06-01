@@ -343,15 +343,6 @@ deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subco
 addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, Int32) ()
 addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, leaf_node_index, removal_pending) values (?, ?, ?, ?, ?, false)"
 
-addHistoryClient :: PrepQuery W (GroupId, HistoryClientId, Int32) ()
-addHistoryClient = "insert into mls_history_client (group_id, id, leaf_node_index, removal_pending) values (?, ?, ?, false)"
-
-removeHistoryClient :: PrepQuery W (GroupId, HistoryClientId) ()
-removeHistoryClient = "delete from mls_history_client where group_id = ? and id = ?"
-
-removeAllHistoryClients :: PrepQuery W (Identity GroupId) ()
-removeAllHistoryClients = "DELETE FROM mls_history_client WHERE group_id = ?"
-
 planMLSClientRemoval :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
 planMLSClientRemoval = "update mls_group_member_client set removal_pending = true where group_id = ? and user_domain = ? and user = ? and client = ?"
 
@@ -363,9 +354,6 @@ removeAllMLSClients = "DELETE FROM mls_group_member_client WHERE group_id = ?"
 
 lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, Int32, Bool)
 lookupMLSClients = "select user_domain, user, client, leaf_node_index, removal_pending from mls_group_member_client where group_id = ?"
-
-lookupHistoryClients :: PrepQuery R (Identity GroupId) (HistoryClientId, Int32, Bool)
-lookupHistoryClients = "select id, leaf_node_index, removal_pending from mls_history_client where group_id = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"

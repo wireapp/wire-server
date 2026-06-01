@@ -224,7 +224,7 @@ migrateConversation migCounter cid = do
     markDeletionComplete DeleteConv cid
     liftIO $ Prometheus.incCounter migCounter
 
-deleteConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => AllConvData -> Sem r ()
+deleteConvFromCassandra :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => AllConvData -> Sem r ()
 deleteConvFromCassandra allConvData = withCassandra $ do
   for_ allConvData.subConvs $ \subConvData -> do
     removeAllMLSClients subConvData.subConv.scMLSData.cnvmlsGroupId
@@ -270,7 +270,6 @@ saveConvToPostgres allConvData = do
     Transaction.statement remoteMemberColumns insertRemoteMembers
     Transaction.statement subConvColumns insertSubConvs
     Transaction.statement mlsClientColumns insertMLSClients
-    Transaction.statement historyClientColumns insertHistoryClients
     Transaction.statement (DeleteConv, storedConv.id_) markDeletionPendingStmt
   where
     storedConv = allConvData.conv
@@ -398,7 +397,7 @@ saveConvToPostgres allConvData = do
 
     mlsClientColumns :: ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool])
     mlsClientColumns =
-      let allRows = concatMap (\(gid, clientMap, indexMap, _) -> mlsClientRows gid clientMap indexMap) mlsInputs
+      let allRows = concatMap (\(gid, clientMap, indexMap) -> mlsClientRows gid clientMap indexMap) mlsInputs
        in unzip6 allRows
 
     insertMLSClients :: Hasql.Statement ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool]) ()
@@ -411,33 +410,18 @@ saveConvToPostgres allConvData = do
                                           $4 :: text[], $5 :: integer[], $6 :: bool[])
                             |]
 
-    historyClientColumns :: ([GroupId], [HistoryClientId], [Int32], [Bool])
-    historyClientColumns =
-      let allRows = concatMap (\(gid, _, _, hclients) -> fmap (\(hid, idx, removal) -> (gid, hid, idx, removal)) hclients) mlsInputs
-       in unzip4 allRows
-
-    insertHistoryClients :: Hasql.Statement ([GroupId], [HistoryClientId], [Int32], [Bool]) ()
-    insertHistoryClients =
-      lmapPG @(Vector _, Vector _, Vector _, Vector _) @_
-        [resultlessStatement|INSERT INTO mls_history_client
-                             (group_id, id, leaf_node_index, removal_pending)
-                             SELECT *
-                             FROM UNNEST ($1 :: bytea[], $2 :: uuid[], $3 :: integer[], $4 :: bool[])
-                            |]
-
-    mlsInputs :: [(GroupId, ClientMap LeafIndex, IndexMap, [(HistoryClientId, Int32, Bool)])]
+    mlsInputs :: [(GroupId, ClientMap LeafIndex, IndexMap)]
     mlsInputs =
       let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
           mainConvInputs =
             maybeToList $
-              (,,,)
+              (,,)
                 <$> mainConvGroupId
                 <*> (fmap (.clientMap) allConvData.mlsDetails)
                 <*> (fmap (.indexMap) allConvData.mlsDetails)
-                <*> (fmap (.historyClients) allConvData.mlsDetails)
           subConvsInputs =
             fmap
-              (\scData -> (scData.subConv.scMLSData.cnvmlsGroupId, scData.subConv.scMembers, scData.subConv.scIndexMap, scData.historyClients))
+              (\scData -> (scData.subConv.scMLSData.cnvmlsGroupId, scData.subConv.scMembers, scData.subConv.scIndexMap))
               allConvData.subConvs
        in mainConvInputs <> subConvsInputs
 
@@ -482,7 +466,7 @@ migrateUser migCounter uid = do
   markDeletionComplete DeleteUser uid
   liftIO $ Prometheus.incCounter migCounter
 
-getRemoteMemberStatusFromCassandra :: forall r. (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
+getRemoteMemberStatusFromCassandra :: forall r. (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
 getRemoteMemberStatusFromCassandra uid = withCassandra $ do
   convIds <- getAllRemoteConvIds [] Nothing
   getRemoteConversationStatus uid convIds
@@ -527,7 +511,7 @@ saveRemoteMemberStatusToPostgres uid statusses =
 
 -- * Other helpers
 
-withCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => InterpreterFor ConversationStore r
+withCassandra :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => InterpreterFor ConversationStore r
 withCassandra action = do
   cstate <- input
   interpretConversationStoreToCassandra cstate action

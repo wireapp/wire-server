@@ -109,7 +109,6 @@ library
     Galley.Schema.V100_OutOfSync
     Galley.Schema.V101_ConversationLowerGCGracePeriod
     Galley.Schema.V102_ConversationHistory
-    Galley.Schema.V103_HistoryClient
     Galley.Schema.V20
     Galley.Schema.V21
     Galley.Schema.V22

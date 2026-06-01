@@ -312,13 +312,16 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
         lift $ do
-          let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
-          let historyClients = filter isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
-          case historyClients of
-            (_ : _ : _) -> throwS @'MLSHistoryClientDuplication
-            _ -> pure ()
-          let historyClientExists = not (null historyClients)
-          when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+          case convOrSub of
+            Conv _ -> do
+              let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+              let historyClients = filter isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
+              case historyClients of
+                (_ : _ : _) -> throwS @'MLSHistoryClientDuplication
+                _ -> pure ()
+              let historyClientExists = not (null historyClients)
+              when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+            SubConv _ _ -> pure ()
 
           -- reject message if the conversation is out of sync
           let newUsers = Map.keysSet (unClientMap action.paAdd)
@@ -595,11 +598,14 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
             )
             $ throwS @'MLSStaleMessage
 
-      -- once an admin toggles history sharing, every subsequent application message will be rejected
-      -- until a commit that adds or removes the history client is processed.
-      let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
-      let historyClientExists = any isHistoryClient (IntMap.elems convOrSub.indexMap.unIndexMap)
-      when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+      case convOrSub of
+        Conv _ -> do
+          -- once an admin toggles history sharing, every subsequent application message will be rejected
+          -- until a commit that adds or removes the history client is processed.
+          let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+          let historyClientExists = any isHistoryClient (IntMap.elems convOrSub.indexMap.unIndexMap)
+          when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+        SubConv _ _ -> pure ()
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
