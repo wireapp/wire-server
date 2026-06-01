@@ -768,11 +768,6 @@ lookupMLSClientRows :: GroupId -> Client [(Domain, UserId, ClientId, Int32, Bool
 lookupMLSClientRows groupId =
   retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
 
-lookupMLSClientLeafIndices :: GroupId -> [(HistoryClientId, Int32, Bool)] -> Client (ClientMap LeafIndex, IndexMap)
-lookupMLSClientLeafIndices groupId hClients = do
-  mlsClients <- lookupMLSClientRows groupId
-  pure $ (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
-
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
 lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 
@@ -780,8 +775,9 @@ lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 -- SUB CONVERSATION STORE
 
 lookupRegularMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
-lookupRegularMLSClientLeafIndices groupId =
-  lookupMLSClientLeafIndices groupId []
+lookupRegularMLSClientLeafIndices groupId = do
+  mlsClients <- lookupMLSClientRows groupId
+  pure (mkClientMap mlsClients, mkIndexMapFromParts mlsClients [])
 
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = runMaybeT $ do
@@ -1059,8 +1055,9 @@ interpretConversationStoreToCassandra client = interpret $ \case
     interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
+    mlsClients <- embedClient client $ lookupMLSClientRows lcnv
     hClients <- interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients lcnv
-    embedClient client $ lookupMLSClientLeafIndices lcnv hClients
+    pure (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
     embedClient client $ insertSubConversation convId subConvId groupId
@@ -1468,8 +1465,9 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
         False -> do
+          mlsClients <- embedClient client $ lookupMLSClientRows gid
           hClients <- interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
-          embedClient client $ lookupMLSClientLeafIndices gid hClients
+          pure (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
         True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClientLeafIndices gid)
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
