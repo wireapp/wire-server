@@ -1114,6 +1114,14 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.getConversationEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
+    -- Here we must take all these locks because its not sufficient to just
+    -- lookup in both DBs and then de-dupe to deal with this edge case:
+    --
+    -- 1. During migration, the delete in Cassandra gets lost
+    -- 2. Before the next lookup, the conversation gets deleted from PG and the
+    --    delete in Cassandra still gets lost
+    -- 3. If we don't lock and cleanup, we are at a risk of resurrecting this
+    --    conv.
     withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
       cassConvs <- indexByConvId <$> localConversations client cids
@@ -1183,6 +1191,14 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.isConversationAlive cid)
   SelectConversations uid cids -> do
     logEffect "ConversationStore.SelectConversations"
+    -- Here we must take all these locks because its not sufficient to just
+    -- lookup in both DBs and then de-dupe to deal with this edge case:
+    --
+    -- 1. During migration, the delete in Cassandra gets lost
+    -- 2. Before the next lookup, the conversation gets deleted from PG and the
+    --    delete in Cassandra still gets lost
+    -- 3. If we don't lock and cleanup, we are at a risk of resurrecting this
+    --    conv.
     withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       cassConvs <- embedClient client $ localConversationIdsOf uid cids
       pgConvs <- interpretConversationStoreToPostgres $ ConvStore.selectConversations uid cids
