@@ -2107,8 +2107,8 @@ migrateDomainRegistration: false
 migrateConversationsOptions:
   pageSize: 10000
   parallelism: 2
-  # (optional) migration timeout in seconds, applies to a single conversation
-  timeout: 60
+  # (optional) migration timeout, applies to a single conversation
+  timeout: 5s
 
 # Background jobs consumer
 backgroundJobs:
