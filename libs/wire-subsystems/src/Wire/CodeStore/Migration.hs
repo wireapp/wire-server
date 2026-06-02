@@ -130,15 +130,15 @@ migrateCodeRow ::
   Prometheus.Vector Text Prometheus.Histogram ->
   (Key, Value, Int32, ConvId, Maybe Password) ->
   Sem r ()
-migrateCodeRow migOpts migCounter migDuration (k, v, ttl, cnv, mPw) = do
-  outcomeRef <- liftIO $ IORef.newIORef @Text "error"
-  bracket
-    (liftIO getCurrentTime)
-    (observeDuration migDuration outcomeRef)
-    ( const $
-        when (ttl > 0) $ do
-          let (code, _) = toCode k (v, ttl, cnv, mPw)
-              keyText = T.pack (show k)
+migrateCodeRow migOpts migCounter migDuration (k, v, ttl, cnv, mPw) =
+  when (ttl > 0) $ do
+    let (code, _) = toCode k (v, ttl, cnv, mPw)
+        keyText = T.pack (show k)
+    outcomeRef <- liftIO $ IORef.newIORef @Text "error"
+    bracket
+      (liftIO getCurrentTime)
+      (observeDuration migDuration outcomeRef)
+      ( const $ do
           timeoutResult <- Conc.timeout (migOpts.timeout <$ handleTimeout) migOpts.timeout $ Postgres.interpretCodeStoreToPostgres $ createCode code mPw
           case timeoutResult of
             Left timedOutAfter -> do
@@ -147,7 +147,7 @@ migrateCodeRow migOpts migCounter migDuration (k, v, ttl, cnv, mPw) = do
             Right () -> do
               markOutcome outcomeRef "success"
               liftIO $ Prometheus.incCounter migCounter
-    )
+      )
   where
     handleTimeout =
       err $

@@ -35,7 +35,6 @@ import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.MeetingsCleanupWorker qualified as MeetingsCleanupWorker
-import Wire.Migration
 import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrations qualified as Migrations
 
