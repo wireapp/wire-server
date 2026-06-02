@@ -4,7 +4,6 @@
 module Wire.UserStore.Postgres (interpretUserStorePostgres) where
 
 import Cassandra (GeneralPaginationState (PaginationStatePostgres), PageWithState (..), paginationStatePostgres)
-import Control.Error (lastMay)
 import Data.Handle
 import Data.Id
 import Data.Json.Util
@@ -14,6 +13,7 @@ import Data.Time
 import Data.Tuple.Extra (fst3)
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import Data.Vector qualified as Vector
 import Hasql.Pipeline qualified as Pipeline
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -119,6 +119,27 @@ indexUserFromRow ( uid, teamId, name, accountStatus, handle,
                    userType
                  ) = IndexUser{userId = uid, ..}
 {- ORMOLU_ENABLE -}
+
+indexUserFromDeletedRow :: (UserId, Maybe TeamId, UTCTime, UTCTime) -> IndexUser
+indexUserFromDeletedRow (uid, teamId, createdAt, deletedAt) =
+  IndexUser
+    { userId = uid,
+      teamId = teamId,
+      createdAt = createdAt,
+      updatedAt = deletedAt,
+      name = Name "default",
+      accountStatus = Just Deleted,
+      handle = Nothing,
+      email = Nothing,
+      colourId = defaultAccentId,
+      activated = False,
+      serviceId = Nothing,
+      managedBy = Nothing,
+      ssoId = Nothing,
+      unverifiedEmail = Nothing,
+      searchable = Nothing,
+      userType = UserTypeRegular
+    }
 
 createUserImpl :: (PGConstraints r) => NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Sem r ()
 createUserImpl new mbConv =
@@ -376,19 +397,41 @@ getIndexUserImpl uid = do
           WHERE id = $1 :: uuid
         |]
 
-getIndexUsersPaginatedImpl :: (PGConstraints r) => Int32 -> Maybe UserId -> Sem r (PageWithState UserId IndexUser)
+getIndexUsersPaginatedImpl :: forall r. (PGConstraints r) => Int32 -> Maybe UserPageMarker -> Sem r (PageWithState UserPageMarker IndexUser)
 getIndexUsersPaginatedImpl lim mState = do
-  rows <- case mState of
-    Nothing -> runStatement lim selectStart
-    Just startId -> runStatement (startId, lim) selectFrom
-  let results = indexUserFromRow <$> rows
-  pure
-    PageWithState
-      { pwsResults = results,
-        pwsState = PaginationStatePostgres . (.userId) <$> lastMay results
-      }
+  case mState of
+    Nothing -> getExistingUserPage Nothing
+    Just (PagingExitingUsers startId) -> getExistingUserPage (Just startId)
+    Just (PagingDeletedUsers startId) -> getDeletedUserPage mempty lim (Just startId)
   where
-    selectStart :: Hasql.Statement Int32 [SelectIndexUserRow]
+    getExistingUserPage :: Maybe UserId -> Sem r (PageWithState UserPageMarker IndexUser)
+    getExistingUserPage mLastUserId = do
+      rows <- case mLastUserId of
+        Nothing -> runStatement lim selectStart
+        Just startId -> runStatement (startId, lim) selectFrom
+      let results = indexUserFromRow <$> rows
+      if fromIntegral (Vector.length results) >= lim
+        then do
+          pure
+            PageWithState
+              { pwsResults = Vector.toList results,
+                pwsState = PaginationStatePostgres . PagingExitingUsers . (.userId) <$> results Vector.!? (Vector.length results - 1)
+              }
+        else getDeletedUserPage results (lim - fromIntegral (Vector.length results)) Nothing
+
+    getDeletedUserPage :: Vector IndexUser -> Int32 -> Maybe UserId -> Sem r (PageWithState UserPageMarker IndexUser)
+    getDeletedUserPage prevResults remainingLim mLastStartId = do
+      rows <- case mLastStartId of
+        Nothing -> runStatement remainingLim selectDeletedStart
+        Just startId -> runStatement (startId, remainingLim) selectDeletedFrom
+      let results = indexUserFromDeletedRow <$> rows
+      pure
+        PageWithState
+          { pwsResults = Vector.toList $ prevResults <> results,
+            pwsState = PaginationStatePostgres . PagingDeletedUsers . (.userId) <$> results Vector.!? (Vector.length results - 1)
+          }
+
+    selectStart :: Hasql.Statement Int32 (Vector SelectIndexUserRow)
     selectStart =
       dimapPG
         [vectorStatement|
@@ -402,7 +445,7 @@ getIndexUsersPaginatedImpl lim mState = do
           LIMIT ($1 :: integer)
         |]
 
-    selectFrom :: Hasql.Statement (UserId, Int32) [SelectIndexUserRow]
+    selectFrom :: Hasql.Statement (UserId, Int32) (Vector SelectIndexUserRow)
     selectFrom =
       dimapPG
         [vectorStatement|
@@ -412,6 +455,27 @@ getIndexUsersPaginatedImpl lim mState = do
           managed_by :: integer?, sso_id :: jsonb?, searchable :: boolean?, created_at :: timestamptz, updated_at :: timestamptz,
           user_type :: integer
           FROM wire_user
+          WHERE id > ($1 :: uuid)
+          ORDER BY id ASC
+          LIMIT ($2 :: integer)
+        |]
+
+    selectDeletedStart :: Hasql.Statement Int32 (Vector (UserId, Maybe TeamId, UTCTime, UTCTime))
+    selectDeletedStart =
+      dimapPG
+        [vectorStatement|
+          SELECT id :: uuid, team :: uuid?, created_at :: timestamptz, deleted_at :: timestamptz
+          FROM deleted_user
+          ORDER BY id ASC
+          LIMIT ($1 :: integer)
+        |]
+
+    selectDeletedFrom :: Hasql.Statement (UserId, Int32) (Vector (UserId, Maybe TeamId, UTCTime, UTCTime))
+    selectDeletedFrom =
+      dimapPG
+        [vectorStatement|
+          SELECT id :: uuid, team :: uuid?, created_at :: timestamptz, deleted_at :: timestamptz
+          FROM deleted_user
           WHERE id > ($1 :: uuid)
           ORDER BY id ASC
           LIMIT ($2 :: integer)
@@ -520,26 +584,31 @@ updateUserHandleEitherImpl uid upd = do
 
 deleteUserImpl :: (PGConstraints r) => User -> Sem r ()
 deleteUserImpl user =
-  runTransaction ReadCommitted Write $ do
+  runTransaction Serializable Write $ do
     let uid = user.userQualifiedId.qUnqualified
-    Transaction.statement uid delete
-    Transaction.statement (uid, user.userTeam) noteDeleted
+    mCreatedAt <- Transaction.statement uid delete
+    -- When no 'mCreatedAt' is returned, it means there was no user to be
+    -- deleted in the first place. So it is fine to not make a note of this user
+    -- being deleted.
+    for_ mCreatedAt $ \createdAt ->
+      Transaction.statement (uid, user.userTeam, createdAt) noteDeleted
   where
-    delete :: Hasql.Statement UserId ()
+    delete :: Hasql.Statement UserId (Maybe UTCTime)
     delete =
       lmapPG
-        [resultlessStatement|
+        [maybeStatement|
           DELETE FROM wire_user
           WHERE id = $1 :: uuid
+          RETURNING created_at :: timestamptz
         |]
 
-    noteDeleted :: Hasql.Statement (UserId, Maybe TeamId) ()
+    noteDeleted :: Hasql.Statement (UserId, Maybe TeamId, UTCTime) ()
     noteDeleted =
       lmapPG
         [resultlessStatement|
           INSERT INTO deleted_user
-          (id, team)
-          VALUES ($1 :: uuid, $2 :: uuid?)
+          (id, team, created_at)
+          VALUES ($1 :: uuid, $2 :: uuid?, $3 :: timestamptz)
           ON CONFLICT (id) DO NOTHING
         |]
 

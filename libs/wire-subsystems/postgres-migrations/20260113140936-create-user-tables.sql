@@ -60,5 +60,7 @@ CREATE INDEX bot_conv_team_idx ON bot_conv (conv_team);
 
 CREATE TABLE deleted_user (
   id uuid PRIMARY KEY,
-  team uuid
+  team uuid,
+  created_at timestamptz NOT NULL,
+  deleted_at timestamptz NOT NULL DEFAULT current_timestamp
 );

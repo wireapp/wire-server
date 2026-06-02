@@ -65,13 +65,15 @@ data StoredUserHandleUpdate = MkStoredUserHandleUpdate
 
 data StoredUserUpdateError = StoredUserUpdateHandleExists
 
+data UserPageMarker = PagingExitingUsers UserId | PagingDeletedUsers UserId
+
 -- | Effect containing database logic around 'StoredUser'.  (Example: claim handle lock is
 -- database logic; validate handle is application logic.)
 data UserStore m a where
   CreateUser :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> UserStore m ()
   GetIndexUser :: UserId -> UserStore m (Maybe IndexUser)
   DoesUserExist :: UserId -> UserStore m Bool
-  GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState UserId) -> UserStore m (PageWithState UserId IndexUser)
+  GetIndexUsersPaginated :: Int32 -> Maybe (GeneralPaginationState UserPageMarker) -> UserStore m (PageWithState UserPageMarker IndexUser)
   GetUsers :: [UserId] -> UserStore m [StoredUser]
   UpdateUser :: UserId -> StoredUserUpdate -> UserStore m ()
   UpdateEmail :: UserId -> EmailAddress -> UserStore m ()
