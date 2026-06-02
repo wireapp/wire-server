@@ -4,7 +4,8 @@
 {{- if and .Values.federator.enabled .Values.config.isAdditionalIngress -}}
   {{ fail "Federation and multi-backend-domain (multi-ingress) cannot be configured together." }}
 {{- end -}}
-{{- if and .Values.federator.enabled (and .Values.tls.enabled .Values.tls.useCertManager) }}
+{{- $federatorUsesCertManager := or .Values.tls.useCertManager .Values.federator.tls.issuer.name -}}
+{{- if and .Values.federator.enabled .Values.tls.enabled $federatorUsesCertManager }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
