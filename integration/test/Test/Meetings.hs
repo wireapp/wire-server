@@ -415,9 +415,10 @@ waitForCleanupJob domain = do
         pure $ Text.unpack $ Text.decodeUtf8 resp.body
 
     getRunCount metrics =
-      let (_, _, _, matches) :: (String, String, String, [String]) = (metrics =~ "wire_meetings_cleanup_runs_total ([0-9]+)")
+      let (_, _, _, matches) :: (String, String, String, [String]) =
+            metrics =~ "wire_meetings_cleanup_runs_total ([0-9]+(?:\\.[0-9]+)?)"
        in case matches of
-            [val] -> read val :: Int
+            [val] -> floor (read val :: Double)
             _ -> 0
 
     waitForIncrease d oldVal = do
