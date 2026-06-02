@@ -20,7 +20,6 @@
 module Wire.BackgroundWorker where
 
 import Data.Metrics.Servant qualified as Metrics
-import Data.Misc
 import Data.Text qualified as T
 import Imports
 import Network.AMQP.Extended (demoteOpts)
@@ -57,28 +56,28 @@ run opts galleyOpts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversations" $
-            Migrations.conversations opts.migrateConversationsOptions
+            Migrations.conversations opts.migrationOptions
       else pure $ pure ()
   cleanUpConvCodesMigration <-
     if opts.migrateConversationCodes
       then
         runAppT env $
           withNamedLogger "migrate-conversation-codes" $
-            Migrations.conversationCodes (MigrationOptions 1000 1 (Duration 5))
+            Migrations.conversationCodes opts.migrationOptions
       else pure $ pure ()
   cleanupTeamFeaturesMigration <-
     if opts.migrateTeamFeatures
       then
         runAppT env $
           withNamedLogger "migrate-team-features" $
-            Migrations.teamFeatures (MigrationOptions 1000 1 (Duration 5))
+            Migrations.teamFeatures opts.migrationOptions
       else pure $ pure ()
   cleanupDomainRegistrationMigration <-
     if opts.migrateDomainRegistration
       then
         runAppT env $
           withNamedLogger "migrate-domain-registration" $
-            Migrations.domainRegistration (MigrationOptions 1000 1 (Duration 5))
+            Migrations.domainRegistration opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $

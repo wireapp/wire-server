@@ -952,7 +952,7 @@ background-worker:
     # `settings.postgresMigration.conversation` with `migration-to-postgresql`
     # before setting this to `true`.
     migrateConversations: false
-    migrateConversationsOptions:
+    migrationOptions:
       pageSize: 10000
       parallelism: 2
       timeout: 5s

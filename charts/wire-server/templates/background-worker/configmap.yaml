@@ -84,8 +84,8 @@ data:
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
-    migrateConversationsOptions:
-{{toYaml .migrateConversationsOptions | indent 6 }}
+    migrationOptions:
+{{toYaml .migrationOptions | indent 6 }}
 
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}
