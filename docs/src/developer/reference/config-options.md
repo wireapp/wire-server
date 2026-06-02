@@ -2122,9 +2122,8 @@ federationDomain: example.org
 
 The optional `migrateConversationsOptions.timeout` setting limits how long a single
 conversation migration attempt may run after it has acquired the migration
-lock. The value is a plain number of seconds, so `60` means 1 minute.
-If the timeout is exceeded, that conversation migration is aborted and the
-whole migration run is treated as failed.
+lock. If the timeout is exceeded, that conversation migration is aborted and the
+migration of this conversation is treated as failed.
 
 Choose a value that is comfortably above the normal time for one conversation
 migration, but still low enough to catch a genuinely stuck migration in a
