@@ -2127,8 +2127,8 @@ migration of this conversation is treated as failed.
 
 Choose a value that is comfortably above the normal time for one conversation
 migration, but still low enough to catch a genuinely stuck migration in a
-reasonable time. A good starting point for most deployments is `60` seconds
-(1 minute), then adjust based on observed migration durations.
+reasonable time. A good starting point for most deployments is `5s`, 
+then adjust based on observed migration durations.
 
 If the setting is omitted, no timeout will be enforced. If a conversation
 migration stalls, this can lead to leaked exclusive advisory locks.
