@@ -1922,12 +1922,9 @@ time. For conversations, this is necessary for channel search and management of
 channels from the team-management UI. It is highly recommended to take a backup
 of the affected Cassandra data before triggering a migration.
 
-When migrating conversations, `background-worker.config.migrateConversationsOptions.timeout`
-should be configured as well. It sets a per-conversation upper bound for the
-migration attempt, so a stuck conversation does not keep the migration run
-blocked indefinitely. Start with a value that is comfortably above the normal
-time for one conversation migration, then adjust it based on observed runtime
-and the size of your dataset.
+The `background-worker.config.migrateConversationsOptions.timeout`
+defaults to 5s. It sets a per-conversation upper bound for the migration attempt, 
+so a stuck conversation does not keep the migration run blocked indefinitely. 
 
 Migrations are independent and can be run separately, in batches, or all at
 once. This is expected, because migrations will be released over time. The
