@@ -21,6 +21,7 @@ module Wire.MeetingsCleanupWorker
   )
 where
 
+import Control.Monad.Catch
 import Data.Id (RequestId (RequestId))
 import Data.Text qualified as T
 import Data.Time.Clock
@@ -80,30 +81,30 @@ runCleanupOldMeetings :: CleanupConfig -> AppT IO ()
 runCleanupOldMeetings config = do
   env <- ask
   now <- liftIO getCurrentTime
-  let cutoffTime = addUTCTime (negate $ realToFrac config.retentionHours * 3600) now
+  let validityPeriod = realToFrac config.retentionHours * 3600
+      cutoffTime = addUTCTime (negate validityPeriod) now
 
   Log.info env.logger $
     Log.msg (Log.val "Starting cleanup of old meetings")
       . Log.field "cutoff_time" (show cutoffTime)
       . Log.field "retention_hours" config.retentionHours
-      . Log.field "batch_size" config.batchSize
 
   -- Loop until no more meetings are deleted
-  totalDeleted <- cleanupLoop env cutoffTime config.batchSize 0
+  totalDeleted <- cleanupLoop env cutoffTime validityPeriod config.batchSize 0
 
   Log.info env.logger $
     Log.msg (Log.val "Completed cleanup of old meetings")
       . Log.field "total_deleted" totalDeleted
 
-cleanupLoop :: Env -> UTCTime -> Int -> Int64 -> AppT IO Int64
-cleanupLoop env cutoffTime batchSize totalSoFar = do
+cleanupLoop :: Env -> UTCTime -> NominalDiffTime -> Int -> Int64 -> AppT IO Int64
+cleanupLoop env cutoffTime validityPeriod batchSize totalSoFar = do
   when (batchSize <= 0) $ do
     Log.err env.logger $
       Log.msg (Log.val "Invalid batch size: must be greater than 0")
         . Log.field "batch_size" batchSize
-    error "Invalid batch size: must be greater than 0"
+    liftIO $ throwM $ WorkerException "Invalid batch size: must be greater than 0"
   -- Run the subsystem to handle cleanup logic
-  result <- liftIO $ runMeetingsCleanup env cutoffTime batchSize
+  result <- liftIO $ runMeetingsCleanup env cutoffTime validityPeriod batchSize
 
   case result of
     Left err -> do
@@ -120,15 +121,14 @@ cleanupLoop env cutoffTime batchSize totalSoFar = do
           . Log.field "total_deleted" newTotal
       -- Continue if we deleted a full batch (meaning there might be more)
       if deletedCount >= fromIntegral batchSize
-        then cleanupLoop env cutoffTime batchSize newTotal
+        then cleanupLoop env cutoffTime validityPeriod batchSize newTotal
         else pure newTotal
 
 -- Run the meetings cleanup using the subsystem
-runMeetingsCleanup :: Env -> UTCTime -> Int -> IO (Either Text Int64)
-runMeetingsCleanup env cutoffTime batchSize = do
+runMeetingsCleanup :: Env -> UTCTime -> NominalDiffTime -> Int -> IO (Either Text Int64)
+runMeetingsCleanup env cutoffTime validityPeriod batchSize = do
   let disableTlsV1 = True
   extEnv <- initExtEnv disableTlsV1
-  let validityPeriod = realToFrac batchSize * 3600
   let mergeErrors = either (Left . T.pack . show) Right
   fmap (either Left mergeErrors)
     . runBackgroundWorkerEffects env extEnv (RequestId "meetings-cleanup") Nothing
@@ -136,3 +136,8 @@ runMeetingsCleanup env cutoffTime batchSize = do
     . runError @MeetingError
     . interpretMeetingsSubsystem validityPeriod
     $ Wire.MeetingsSubsystem.cleanupOldMeetings cutoffTime batchSize
+
+data WorkerException = WorkerException Text
+  deriving stock (Show)
+
+instance Exception WorkerException
