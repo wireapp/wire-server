@@ -54,6 +54,8 @@ class MigrationLockable a where
   -- | key used for advisory locks; should be collision-resistant (unique with high probability)
   lockKey :: a -> Int64
 
+  toText :: a -> Text
+
 data LockType
   = -- | Used for migrating a set of data, will block any other locks
     LockExclusive
@@ -164,14 +166,17 @@ instance MigrationLockable (TeamId, Text) where
         featureHash = fromIntegral (hash featureName)
      in teamHash `xor` rotateL featureHash 1
   lockScope = "team_feature"
+  toText (tid, feat) = idToText tid <> ":" <> feat
 
 instance MigrationLockable ConvId where
   lockKey = hashUUID
   lockScope = "conv"
+  toText = idToText
 
 instance MigrationLockable UserId where
   lockKey = hashUUID
   lockScope = "user"
+  toText = idToText
 
 hashUUID :: Id a -> Int64
 hashUUID (toUUID -> uuid) =
