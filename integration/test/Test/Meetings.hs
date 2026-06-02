@@ -418,7 +418,7 @@ waitForCleanupJob domain = do
       let (_, _, _, matches) :: (String, String, String, [String]) =
             metrics =~ "wire_meetings_cleanup_runs_total ([0-9]+(?:\\.[0-9]+)?)"
        in case matches of
-            [val] -> floor (read val :: Double)
+            [val] -> floor @_ @Integer (read @Double val)
             _ -> 0
 
     waitForIncrease d oldVal = do
