@@ -169,7 +169,7 @@ handleErrors key action = do
           . Log.field "error" (show e)
       modify (+ 1)
 
-withMigrationLocksAndTimeout ::
+withExclusiveMigrationLockAndTimeout ::
   forall x r.
   ( PGConstraints r,
     Member TinyLog r,
@@ -184,7 +184,7 @@ withMigrationLocksAndTimeout ::
   [x] ->
   Sem (Error MigrationLockError : r) () ->
   Sem r ()
-withMigrationLocksAndTimeout timeout_ migDuration xs action = do
+withExclusiveMigrationLockAndTimeout timeout_ migDuration xs action = do
   outcomeRef <- liftIO $ IORef.newIORef @Text "error"
   bracket
     (liftIO getCurrentTime)

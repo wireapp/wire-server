@@ -48,7 +48,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.State
-import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -120,15 +119,16 @@ migrateUsersLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "users"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "users")
-    (migrateAllUsers migOpts migCounter)
+    (migrateAllUsers migOpts migCounter migDuration)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
@@ -170,7 +170,7 @@ migrateAllConversations migOpts migCounter migDuration = do
     select = "select conv from conversation"
 
     migrateConversationWithLock timeout_ cid =
-      withMigrationLocksAndTimeout timeout_ migDuration [cid] $ migrateConversation cid migCounter
+      withExclusiveMigrationLockAndTimeout timeout_ migDuration [cid] $ migrateConversation cid migCounter
 
 migrateAllUsers ::
   ( Member (Input Hasql.Pool) r,
@@ -185,12 +185,13 @@ migrateAllUsers ::
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllUsers migOpts migCounter = do
+migrateAllUsers migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllUsers")
   withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize runIdentity
-    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateUser migCounter) "user"))
+    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateUser migOpts migCounter migDuration) "user"))
   where
     select :: PrepQuery R () (Identity UserId)
     select = "select distinct user from user_remote_conv"
@@ -442,9 +443,22 @@ saveConvToPostgres allConvData = do
 
 -- * Users
 
-migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r, Member Resource r) => Prometheus.Counter -> UserId -> Sem r ()
-migrateUser migCounter uid = do
-  withMigrationLocks LockExclusive (Seconds 10) [uid] $ do
+migrateUser ::
+  ( PGConstraints r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  MigrationOptions ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  UserId ->
+  Sem r ()
+migrateUser migOpts migCounter migDuration uid = do
+  withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [uid] $ do
     statusses <- getRemoteMemberStatusFromCassandra uid
     saveRemoteMemberStatusToPostgres uid statusses
     deleteRemoteMemberStatusesFromCassandra uid

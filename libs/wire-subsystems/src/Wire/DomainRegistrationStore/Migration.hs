@@ -37,7 +37,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.State
-import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -74,15 +73,16 @@ migrateDomainRegistrationsLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateDomainRegistrationsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+migrateDomainRegistrationsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "domain registrations"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "domain registrations")
-    (migrateAllDomainRegistrations migOpts migCounter)
+    (migrateAllDomainRegistrations migOpts migCounter migDuration)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
@@ -110,8 +110,9 @@ migrateAllDomainRegistrations ::
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllDomainRegistrations migOpts migCounter = do
+migrateAllDomainRegistrations migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrationChallenges")
   withCount (paginateSem selectAllChallenges (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
@@ -120,7 +121,7 @@ migrateAllDomainRegistrations migOpts migCounter = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrations")
   withCount (paginateSem selectAllRegistrations (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize asRecord
-    .| C.mapM_ (traverse_ (\row -> handleRegistrationErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migCounter row)))
+    .| C.mapM_ (traverse_ (\row -> handleRegistrationErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migOpts migCounter migDuration row)))
 
 migrateDomainRegistrationRow ::
   ( PGConstraints r,
@@ -131,11 +132,13 @@ migrateDomainRegistrationRow ::
     Member Race r,
     Member Resource r
   ) =>
+  MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   StoredDomainRegistration ->
   Sem r ()
-migrateDomainRegistrationRow migCounter row = do
-  void . withMigrationLocks LockExclusive (Seconds 10) [row.domain] $ do
+migrateDomainRegistrationRow migOpts migCounter migDuration row = do
+  void . withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [row.domain] $ do
     isMigrated <- DomainRegistrationPostgres.exists row.domain
     unless isMigrated $ do
       cassClient <- input @ClientState
