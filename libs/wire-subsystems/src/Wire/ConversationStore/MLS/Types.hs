@@ -54,17 +54,6 @@ import Wire.API.MLS.LeafNode
 import Wire.API.MLS.SubConversation
 import Wire.StoredConversation
 
-mkGroupMember ::
-  Maybe Domain ->
-  Maybe UserId ->
-  Maybe ClientId ->
-  Maybe HistoryClientId ->
-  Maybe GroupMember
-mkGroupMember (Just dom) (Just uid) (Just cid) Nothing =
-  Just (RegularClient (ClientIdentity dom uid cid))
-mkGroupMember Nothing Nothing Nothing (Just hid) = Just (HistoryClient hid)
-mkGroupMember _ _ _ _ = Nothing
-
 -- | A map of leaf index to members.
 --
 -- This is used to reconstruct client
