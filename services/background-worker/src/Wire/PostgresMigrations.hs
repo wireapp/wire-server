@@ -63,8 +63,9 @@ conversationCodes migOpts = do
   count <- register $ counter $ Prometheus.Info "wire_conv_codes_migrated_to_pg" "Number of conversation codes migrated to Postgresql"
   finished <- register $ counter $ Prometheus.Info "wire_conv_codes_migration_finished" "Whether the conversation codes migration to Postgresql is finished successfully"
   failed <- register $ counter $ Prometheus.Info "wire_conv_codes_migration_failed" "Whether the conversation codes migration to Postgresql has failed"
+  duration <- register $ vector "outcome" $ histogram (Prometheus.Info "wire_conv_codes_migration_duration_seconds_bucket" "Duration of conversation code migration attempts") defaultBuckets
 
-  migrationLoop <- async . lift $ migrateCodesLoop migOpts cassClient pgPool logger count finished failed
+  migrationLoop <- async . lift $ migrateCodesLoop migOpts cassClient pgPool logger count finished failed duration
 
   Log.info logger $ Log.msg (Log.val "started conversation codes migration")
   pure $ do
