@@ -276,7 +276,7 @@ getUsersImpl uids = do
           mempty
           userRows
       inconsistentUsers = Map.intersection foundUsersMap deletedUsersMap
-  when (not (Map.null inconsistentUsers)) $
+  unless (Map.null inconsistentUsers) $
     warn $
       (Log.msg (Log.val "Found data about users which have been marked as deleted. This is likely a database inconsistence and must be addressed."))
         . Log.field "userIds" (show (Map.keys inconsistentUsers))
