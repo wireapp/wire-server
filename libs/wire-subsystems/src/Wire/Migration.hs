@@ -23,6 +23,7 @@ import Data.Aeson
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
+import Data.Misc
 import GHC.Generics (Generically (..))
 import Hasql.Pool qualified as Hasql
 import Imports
@@ -34,21 +35,19 @@ import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import UnliftIO qualified
-import Util.Timeout (Timeout)
 import Wire.Util (embedClient)
 
 data MigrationOptions = MigrationOptions
   { pageSize :: Int32,
     parallelism :: Int,
-    -- optional timeout that applies to a single conversation and
-    -- limits how long a single conversation migration attempt may run
-    -- after it has acquired the migration lock
-    timeout :: Maybe Timeout
+    -- Required timeout for a single migration attempt after it has acquired
+    -- the migration lock.
+    timeout :: Duration
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via Generically MigrationOptions
 
-data MigrationTimedOut = MigrationTimedOut Text Timeout
+data MigrationTimedOut = MigrationTimedOut Text Duration
   deriving stock (Show)
 
 instance Exception MigrationTimedOut

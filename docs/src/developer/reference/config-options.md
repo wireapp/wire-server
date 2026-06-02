@@ -2107,7 +2107,7 @@ migrateDomainRegistration: false
 migrateConversationsOptions:
   pageSize: 10000
   parallelism: 2
-  # (optional) migration timeout, applies to a single conversation
+  # Required migration timeout for a single conversation migration attempt.
   timeout: 5s
 
 # Background jobs consumer
@@ -2120,18 +2120,15 @@ backgroundJobs:
 federationDomain: example.org
 ```
 
-The optional `migrateConversationsOptions.timeout` setting limits how long a single
+The `migrateConversationsOptions.timeout` setting limits how long a single
 conversation migration attempt may run after it has acquired the migration
 lock. If the timeout is exceeded, that conversation migration is aborted and the
 migration of this conversation is treated as failed.
 
 Choose a value that is comfortably above the normal time for one conversation
 migration, but still low enough to catch a genuinely stuck migration in a
-reasonable time. A good starting point for most deployments is `5s`, 
+reasonable time. A good starting point for most deployments is `5s`,
 then adjust based on observed migration durations.
-
-If the setting is omitted, no timeout will be enforced. If a conversation
-migration stalls, this can lead to leaked exclusive advisory locks.
 
 Secrets
 

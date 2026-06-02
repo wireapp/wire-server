@@ -55,6 +55,7 @@ migrateConversations: false
 migrateConversationsOptions:
   pageSize: 10000
   parallelism: 2
+  timeout: 5s
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
