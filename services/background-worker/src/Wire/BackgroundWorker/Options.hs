@@ -113,6 +113,9 @@ instance FromJSON MeetingsCleanupConfig where
   parseJSON =
     withObject "MeetingsCleanupConfig" $ \o -> do
       cleanOlderThanHours <- o .: "cleanOlderThanHours"
+      when (cleanOlderThanHours < 0) $
+        parserThrowError [Key "cleanOlderThanHours"] $
+          "cleanOlderThanHours must be non-negative, got: " <> show cleanOlderThanHours
       batchSize <- o .: "batchSize"
       when (batchSize <= 0) $
         parserThrowError [Key "batchSize"] $
