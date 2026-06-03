@@ -761,7 +761,7 @@ getMetrics domain service = do
 
 createNewIndex :: (HasCallStack) => App String
 createNewIndex = do
-  testName <- fromMaybe "NoTest" <$> asks (.currentTestName)
+  testName <- asks (fromMaybe "NoTest" . (.currentTestName))
   indexName <- ("temp-" <>) . take 10 . randomRs ('a', 'z') <$> newStdGen
   let prefix = "[create-new-index:" <> indexName <> ":" <> testName <> "] "
   brigConfig <- readServiceConfig Brig
@@ -800,7 +800,7 @@ createNewIndex = do
 
 reindexUsers :: (HasCallStack) => BackendResource -> Int -> App ()
 reindexUsers ber pageSize = do
-  testName <- fromMaybe "NoTest" <$> asks (.currentTestName)
+  testName <- asks (fromMaybe "NoTest" . (.currentTestName))
   let indexName = ber.berElasticsearchIndex
   let prefix = "[reindex-users:" <> indexName <> ":" <> testName <> "] "
   getBrigConfig <- readAndUpdateConfig (defaultOverrides ber) ber Brig
