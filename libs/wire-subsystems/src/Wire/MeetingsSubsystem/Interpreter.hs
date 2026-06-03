@@ -26,13 +26,14 @@ import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Qualified (Local, Qualified (..), qualifyAs, tDomain, tUnqualified)
+import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
 import Data.Set qualified as Set
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime)
 import Imports
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input (Input)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
@@ -73,7 +74,8 @@ interpretMeetingsSubsystem ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member Now r,
-    Member (Error MeetingError) r
+    Member (Error MeetingError) r,
+    Member (Input (Local ())) r
   ) =>
   NominalDiffTime ->
   InterpreterFor MeetingsSubsystem r
@@ -92,6 +94,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     addInvitedEmailsImpl zUser meetingId emails validityPeriod
   RemoveInvitedEmails zUser meetingId emails ->
     removeInvitedEmailsImpl zUser meetingId emails validityPeriod
+  CleanupOldMeetings cutoffTime batchSize ->
+    cleanupOldMeetingsImpl cutoffTime batchSize
 
 createMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -405,3 +409,36 @@ removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       lift $ Store.removeInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result
+
+cleanupOldMeetingsImpl ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  UTCTime ->
+  Int ->
+  Sem r Int64
+cleanupOldMeetingsImpl cutoffTime batchSize = do
+  oldMeetings <- Store.getOldMeetings cutoffTime batchSize
+  if null oldMeetings
+    then pure 0
+    else do
+      for_ oldMeetings forceDeleteMeeting
+      pure $ fromIntegral $ length oldMeetings
+
+forceDeleteMeeting ::
+  ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  Store.StoredMeeting ->
+  Sem r ()
+forceDeleteMeeting meeting = do
+  maybeConv <- ConversationSubsystem.internalGetConversation meeting.conversationId
+  case maybeConv of
+    Just conv
+      | conv.metadata.cnvmGroupConvType == Just MeetingConversation,
+        conv.id_ == meeting.conversationId ->
+          ConversationSubsystem.internalDeleteLocalConversation =<< inputQualifyLocal meeting.conversationId
+    _ -> pure ()
+  Store.deleteMeeting meeting.id

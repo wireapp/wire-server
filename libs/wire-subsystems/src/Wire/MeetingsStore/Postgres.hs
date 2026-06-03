@@ -31,11 +31,12 @@ import Data.Time.Clock
 import Data.UUID (UUID, nil)
 import Data.Vector qualified as V
 import Hasql.Pool
+import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error)
+import Polysemy.Error (Error, throw)
 import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
@@ -64,6 +65,8 @@ interpretMeetingsStoreToPostgres =
       addInvitedEmailsImpl meetingId email
     RemoveInvitedEmails meetingId emails ->
       removeInvitedEmailsImpl meetingId emails
+    GetOldMeetings cutoffTime batchSize ->
+      getOldMeetingsImpl cutoffTime batchSize
 
 -- * Create
 
@@ -363,3 +366,35 @@ removeInvitedEmailsImpl meetingId emails = do
             updated_at = NOW()
         WHERE id = ($2 :: uuid)
       |]
+
+getOldMeetingsImpl ::
+  ( Member (Input Pool) r,
+    Member (Embed IO) r,
+    Member (Error UsageError) r
+  ) =>
+  UTCTime ->
+  Int ->
+  Sem r [StoredMeeting]
+getOldMeetingsImpl cutoffTime batchSize = do
+  pool <- input
+  result <- liftIO $ use pool session
+  either throw pure result
+  where
+    session :: Session [StoredMeeting]
+    session = statement (cutoffTime, fromIntegral batchSize) $ V.toList <$> listStatement
+    listStatement :: Statement (UTCTime, Int32) (V.Vector StoredMeeting)
+    listStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+           WHERE end_time < ($1 :: timestamptz)
+           ORDER BY end_time ASC
+           LIMIT ($2 :: int4)
+         |]

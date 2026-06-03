@@ -167,5 +167,10 @@ data MeetingsStore m a where
     MeetingId ->
     [EmailAddress] ->
     MeetingsStore m ()
+  -- Cleanup operations
+  GetOldMeetings ::
+    UTCTime ->
+    Int ->
+    MeetingsStore m [StoredMeeting]
 
 makeSem ''MeetingsStore

@@ -44,6 +44,7 @@ import Wire.CodeStore (CodeStore)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem (ConversationSubsystem (..))
+import Wire.ConversationSubsystem.Action qualified as Action
 import Wire.ConversationSubsystem.Action.Notify qualified as ActionNotify
 import Wire.ConversationSubsystem.Clients as Clients
 import Wire.ConversationSubsystem.Create qualified as Create
@@ -210,6 +211,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.postProteusBroadcast lusr con msg
   DeleteLocalConversation lusr con lcnv ->
     mapErrors $ Update.deleteLocalConversation lusr con lcnv
+  InternalDeleteLocalConversation lcnv ->
+    mapErrors $ Action.updateLocalConversationDeleteUnchecked lcnv
   GetMLSPublicKeys fmt ->
     mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->

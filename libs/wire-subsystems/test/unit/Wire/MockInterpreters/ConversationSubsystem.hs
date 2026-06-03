@@ -84,6 +84,10 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
     modify @(Map ConvId StoredConversation) (Map.delete (tUnqualified lcnv))
     modify @ConversationMembers (Map.delete (tUnqualified lcnv))
     pureT Unchanged
+  InternalDeleteLocalConversation lcnv -> do
+    modify @(Map ConvId StoredConversation) (Map.delete (tUnqualified lcnv))
+    modify @ConversationMembers (Map.delete (tUnqualified lcnv))
+    pureT ()
   GetConversationIds _lusr _range _pagingState -> do
     pureT $ MultiTablePaging.MultiTablePage [] False (Public.ConversationPagingState MultiTablePaging.PagingLocals Nothing)
   GetConversations cids -> do

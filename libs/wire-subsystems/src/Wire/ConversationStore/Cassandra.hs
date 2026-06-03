@@ -19,6 +19,7 @@ module Wire.ConversationStore.Cassandra
   ( interpretMLSCommitLockStoreToCassandra,
     interpretConversationStoreToCassandra,
     interpretConversationStoreToCassandraAndPostgres,
+    interpretConversationStoreByMigration,
     MigrationError (..),
   )
 where
@@ -81,6 +82,7 @@ import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.MigrationLock
 import Wire.Postgres
+import Wire.PostgresMigrationOpts (StorageLocation (..))
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as StoreConv
@@ -1622,3 +1624,22 @@ withMigrationLocksAndUserCleanup cassClient lockType maxWait userIds action =
       . runInputConst cassClient
       $ cleanupIfNecessary (Right <$> userIds)
     action
+
+interpretConversationStoreByMigration ::
+  forall r a.
+  ( Member TinyLog r,
+    PGConstraints r,
+    Member Async r,
+    Member (Error MigrationError) r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  StorageLocation ->
+  ClientState ->
+  Sem (ConversationStore ': r) a ->
+  Sem r a
+interpretConversationStoreByMigration storageLocation client =
+  case storageLocation of
+    CassandraStorage -> interpretConversationStoreToCassandra client
+    MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres client
+    PostgresqlStorage -> interpretConversationStoreToPostgres

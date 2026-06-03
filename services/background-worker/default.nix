@@ -11,6 +11,7 @@
 , bytestring-conversion
 , cassandra-util
 , containers
+, cron
 , data-default
 , data-timeout
 , exceptions
@@ -44,6 +45,7 @@
 , ssl-util
 , tagged
 , text
+, time
 , tinylog
 , transformers
 , transformers-base
@@ -71,6 +73,7 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    cron
     data-timeout
     exceptions
     extended
@@ -93,6 +96,7 @@ mkDerivation {
     ssl-util
     tagged
     text
+    time
     tinylog
     transformers
     transformers-base

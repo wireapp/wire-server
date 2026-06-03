@@ -339,6 +339,9 @@ data ConversationSubsystem m a where
     ConnId ->
     Local ConvId ->
     ConversationSubsystem m (UpdateResult Event)
+  InternalDeleteLocalConversation ::
+    Local ConvId ->
+    ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))
