@@ -798,8 +798,8 @@ createNewIndex = do
     ExitFailure _ -> assertFailure $ prefix <> "failed to create index"
     ExitSuccess -> pure indexName
 
-reindexUsers :: (HasCallStack) => BackendResource -> App ()
-reindexUsers ber = do
+reindexUsers :: (HasCallStack) => BackendResource -> Int -> App ()
+reindexUsers ber pageSize = do
   testName <- fromMaybe "NoTest" <$> asks (.currentTestName)
   let indexName = ber.berElasticsearchIndex
   let prefix = "[reindex-users:" <> indexName <> ":" <> testName <> "] "
@@ -843,7 +843,9 @@ reindexUsers ber = do
           "--galley-port",
           galleyPort,
           "--cassandra-keyspace",
-          casKeySpace
+          casKeySpace,
+          "--page-size",
+          show pageSize
         ]
           <> pgPasswordOpts
   (_, Just stdoutHdl, Just stderrHdl, ph) <-

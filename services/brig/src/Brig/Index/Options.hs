@@ -77,11 +77,11 @@ import Wire.PostgresMigrationOpts
 data Command
   = Create ElasticSettings Endpoint
   | Reset ElasticSettings Endpoint
-  | Reindex ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint
-  | ReindexSameOrNewer ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint
+  | Reindex ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint Int32
+  | ReindexSameOrNewer ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint Int32
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
     UpdateMapping ESConnectionSettings Endpoint
-  | Migrate ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint
+  | Migrate ElasticSettings CassandraSettings PostgresSettings UserStorageLocation Endpoint Int32
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
@@ -479,6 +479,17 @@ galleyEndpointParser =
           <> showDefault
       )
 
+pageSizeParser :: Parser Int32
+pageSizeParser =
+  option
+    auto
+    ( long "page-size"
+        <> help "Page size for reading users"
+        <> metavar "PAGE_SIZE"
+        <> value 10000
+        <> showDefault
+    )
+
 commandParser :: Parser Command
 commandParser =
   hsubparser
@@ -503,19 +514,19 @@ commandParser =
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser)
+              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser <*> pageSizeParser)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser)
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser <*> pageSizeParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser)
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> postgresSettingsParser <*> userStorageLocationParser <*> galleyEndpointParser <*> pageSizeParser)
               (progDesc "Migrate data in elastic search")
           )
         <> command

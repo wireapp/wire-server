@@ -34,6 +34,7 @@ import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
 import Testlib.ResourcePool (acquireResources)
+import UnliftIO (pooledForConcurrentlyN, pooledForConcurrentlyN_)
 
 -- * Local Search
 
@@ -607,61 +608,78 @@ testReindexAllUsers = do
   resourcePool <- asks (.resourcePool)
   runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
     let domain = testBackend.berDomain
+        usersOfEachType = 5
+        parallelism = 8
 
-    (alice, bob, charlie) <- runCodensity (startDynamicBackend testBackend def) $ \_ -> do
+    -- The name changers change their name when the backend is writing to a new
+    -- ES index. The deleters delete their own account during the same time.
+    (alice, nameChangers, deleters) <- runCodensity (startDynamicBackend testBackend def) $ \_ -> do
       alice <- randomUser domain def
-      bob <- randomUser domain def
-      charlie <- randomUser domain def
+      nameChangers <- replicateM usersOfEachType $ randomUser domain def
+      deleters <- replicateM usersOfEachType $ randomUser domain def
 
       BrigI.refreshIndex domain
-      assertCanFind alice bob (bob %. "name") domain
-      assertCanFind alice charlie (charlie %. "name") domain
-      pure (alice, bob, charlie)
+      pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
+        assertCanFind alice user (user %. "name") domain
+      pure (alice, nameChangers, deleters)
 
     -- Temporarily use a new index, so new users, updates and deletes get
     -- written there.
     tempIndex <- createNewIndex
-    (dan, bobNewName) <- runCodensity (startDynamicBackend (testBackend {berElasticsearchIndex = tempIndex}) def) $ \_ -> do
-      dan <- randomUser domain def
+    (newUsers, changedNames) <- runCodensity (startDynamicBackend (testBackend {berElasticsearchIndex = tempIndex}) def) $ \_ -> do
+      newUsers <- replicateM usersOfEachType $ randomUser domain def
 
       BrigI.refreshIndex domain
-      assertCannotFind alice bob (bob %. "name") domain
-      assertCannotFind alice charlie (charlie %. "name") domain
-      assertCanFind alice dan (dan %. "name") domain
+      pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user ->
+        assertCannotFind alice user (user %. "name") domain
 
-      bobNewName <- API.randomName
-      BrigP.putSelf bob (def {BrigP.name = Just bobNewName}) >>= assertSuccess
-      BrigI.refreshIndex domain
-      assertCanFind alice bob bobNewName domain
+      pooledForConcurrentlyN_ parallelism (newUsers) $ \user ->
+        assertCanFind alice user (user %. "name") domain
 
-      deleteUser charlie
-      BrigI.refreshIndex domain
-      assertCannotFind alice charlie (charlie %. "name") domain
+      changedNames <- pooledForConcurrentlyN parallelism nameChangers $ \user -> do
+        newName <- API.randomName
+        BrigP.putSelf user (def {BrigP.name = Just newName}) >>= assertSuccess
+        BrigI.refreshIndex domain
+        assertCanFind alice user newName domain
+        pure newName
 
-      pure (dan, bobNewName)
+      pooledForConcurrentlyN_ parallelism deleters $ \user -> do
+        deleteUser user
+        BrigI.refreshIndex domain
+        assertCannotFind alice user (user %. "name") domain
 
-    -- Now if we use the old index, things shouldn't work as expected until a
-    -- re-index is done.
-    addUsersToFailureContext [("alice", alice), ("bob", bob), ("charlie", charlie), ("dan", dan)] $ do
+      pure (newUsers, changedNames)
+
+    let context =
+          ("alice", alice)
+            : map (\(n, user) -> ("nameChanger" <> show n, user)) (zip [1 :: Int ..] nameChangers)
+              <> map (\(n, user) -> ("deleter" <> show n, user)) (zip [1 :: Int ..] deleters)
+              <> map (\(n, user) -> ("newUser" <> show n, user)) (zip [1 :: Int ..] newUsers)
+    addUsersToFailureContext context $ do
+      -- Now if we use the old index, things shouldn't work as expected until a
+      -- re-index is done.
       runCodensity (startDynamicBackend testBackend def) $ \_ -> do
         -- Can find people with stale info
-        assertCanFind alice bob (bob %. "name") domain
-        assertCanFind alice charlie (charlie %. "name") domain
+        pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
+          assertCanFind alice user (user %. "name") domain
 
         -- New things don't work
-        assertCannotFind alice bob bobNewName domain
-        assertCannotFind alice dan (dan %. "name") domain
+        pooledForConcurrentlyN_ parallelism (zip changedNames nameChangers) $ \(newName, user) ->
+          assertCannotFind alice user newName domain
+        pooledForConcurrentlyN_ parallelism newUsers $ \user ->
+          assertCannotFind alice user (user %. "name") domain
 
-        -- Reindex users
-        reindexUsers testBackend
+        -- Reindex users using a small page size so pagination gets excersiced
+        reindexUsers testBackend 5
         BrigI.refreshIndex domain
 
         -- Now things should work as expected
-        assertCannotFind alice bob (bob %. "name") domain
-        assertCannotFind alice charlie (charlie %. "name") domain
-
-        assertCanFind alice bob bobNewName domain
-        assertCanFind alice dan (dan %. "name") domain
+        pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
+          assertCannotFind alice user (user %. "name") domain
+        pooledForConcurrentlyN_ parallelism (zip changedNames nameChangers) $ \(newName, user) ->
+          assertCanFind alice user newName domain
+        pooledForConcurrentlyN_ parallelism newUsers $ \user ->
+          assertCanFind alice user (user %. "name") domain
 
 -- * Assertion Helpers
 

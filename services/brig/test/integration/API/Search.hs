@@ -112,7 +112,7 @@ tests opts additionalElasticSearch mgr galley brig = do
         testGroup "index migration" $
           [ testGroup "same ElasticSearch instance" $
               let esServer = (opts ^. Opt.elasticsearchLens . Opt.urlLens)
-               in [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig esServer runReindexFromAnotherIndex,
+               in [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig esServer (runReindexFromAnotherIndex),
                     test mgr "migration to new index from database" $ testMigrationToNewIndex opts brig esServer (runReindexFromDatabase Reindex),
                     test mgr "migration to new index from database (force sync)" $ testMigrationToNewIndex opts brig esServer (runReindexFromDatabase ReindexSameOrNewer)
                   ],
@@ -696,7 +696,7 @@ testMigrationToNewIndex ::
   Opt.Opts ->
   Brig ->
   ES.Server ->
-  (Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()) ->
+  (Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> Int32 -> IO ()) ->
   m ()
 testMigrationToNewIndex opts brig additionalIndexServer migrateIndexCommand = do
   logger <- Log.create Log.StdOut
@@ -760,7 +760,7 @@ testMigrationToNewIndex opts brig additionalIndexServer migrateIndexCommand = do
           assertEventuallyCanFindByName brig phase1TeamUser1 phase2TeamUser
 
         -- Run Migrations
-        liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") newESIndex migrationIndexName
+        liftIO $ migrateIndexCommand logger (optsWithIndex "oldAccessToBoth") newESIndex migrationIndexName 5
 
         -- Phase 3: Using old index for search, writing to both indices, migrations have run
         (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides (optsWithIndex "both") $ do
@@ -795,21 +795,22 @@ testMigrationToNewIndex opts brig additionalIndexServer migrateIndexCommand = do
           assertEventuallyCanFindByName brig phase1TeamUser1 phase3NonTeamUser
           assertEventuallyCanFindByName brig phase1TeamUser1 phase3TeamUser
 
-runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> IO ()
-runReindexFromAnotherIndex logger opts newIndexName migrationIndexName =
+runReindexFromAnotherIndex :: Log.Logger -> Opt.Opts -> ES.IndexName -> ES.IndexName -> Int32 -> IO ()
+runReindexFromAnotherIndex logger opts newIndexName migrationIndexName _pageSize =
   let esOldOpts :: Opt.ElasticSearchOpts = opts ^. Opt.elasticsearchLens
       esOldConnectionSettings :: ESConnectionSettings = toESConnectionSettings esOldOpts migrationIndexName
       reindexSettings = ReindexFromAnotherIndexSettings esOldConnectionSettings newIndexName 5
    in runCommand logger $ ReindexFromAnotherIndex reindexSettings
 
 runReindexFromDatabase ::
-  (ElasticSettings -> CassandraSettings -> PostgresSettings -> UserStorageLocation -> Endpoint -> Command) ->
+  (ElasticSettings -> CassandraSettings -> PostgresSettings -> UserStorageLocation -> Endpoint -> Int32 -> Command) ->
   Log.Logger ->
   Opt.Opts ->
   ES.IndexName ->
   ES.IndexName ->
+  Int32 ->
   IO ()
-runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName =
+runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName pageSize =
   let esNewOpts :: Opt.ElasticSearchOpts = (opts ^. Opt.elasticsearchLens) & (Opt.indexLens .~ newIndexName)
       esNewConnectionSettings :: ESConnectionSettings = toESConnectionSettings esNewOpts migrationIndexName
       replicas = 2
@@ -829,7 +830,7 @@ runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName =
       postgresSettings :: PostgresSettings =
         brigOptsToPostgresSettings opts
       endpoint :: Endpoint = opts.galley
-   in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings (UserStorageLocation opts.postgresMigration.user) endpoint
+   in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings (UserStorageLocation opts.postgresMigration.user) endpoint pageSize
 
 toESConnectionSettings :: ElasticSearchOpts -> ES.IndexName -> ESConnectionSettings
 toESConnectionSettings opts migrationIndexName = ESConnectionSettings {..}

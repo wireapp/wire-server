@@ -156,18 +156,18 @@ runCommand l = \case
   Reset es galley -> do
     e <- initIndex l (es ^. esConnection) galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas pg userStorageLocation galley -> do
+  Reindex es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l)
-  ReindexSameOrNewer es cas pg userStorageLocation galley -> do
+    IndexedUserStoreBulk.syncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
+  ReindexSameOrNewer es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l)
+    IndexedUserStoreBulk.forceSyncAllUsers (runSem semDeps userStorageLocation galley l) pageSize
   UpdateMapping esConn galley -> do
     e <- initIndex l esConn galley
     runIndexIO e updateMapping
-  Migrate es cas pg userStorageLocation galley -> do
+  Migrate es cas pg userStorageLocation galley pageSize -> do
     semDeps <- mkSemDeps (es ^. esConnection) cas pg l
-    IndexedUserStoreBulk.migrateData (runSem semDeps userStorageLocation galley l)
+    IndexedUserStoreBulk.migrateData (runSem semDeps userStorageLocation galley l) pageSize
   ReindexFromAnotherIndex reindexSettings -> do
     mgr <-
       initHttpManagerWithTLSConfig
