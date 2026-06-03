@@ -180,7 +180,7 @@ testHistoryConflicts domain = do
     void $ sendAndConsumeCommitBundle mp
     pure hid
 
-  -- it is not possible to add more than 1 history client or to remove it
+  -- while shared history is enabled, it is not possible to add more than 1 history client or to remove it
   assertAddHistoryClientDuplication convId alice1
   assertRemoveHistoryClientFailure convId alice1 hid
 
