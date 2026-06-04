@@ -6,7 +6,6 @@
 , base
 , base64-bytestring
 , bytestring
-, gitignoreSource
 , imports
 , lib
 , libsodium
@@ -14,7 +13,7 @@
 mkDerivation {
   pname = "sodium-crypto-sign";
   version = "0.1.2";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     base64-bytestring

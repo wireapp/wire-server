@@ -42,7 +42,6 @@
 , filepath
 , generics-sop
 , ghc-prim
-, gitignoreSource
 , hashable
 , hasql
 , hex
@@ -129,7 +128,7 @@
 mkDerivation {
   pname = "wire-api";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     amqp

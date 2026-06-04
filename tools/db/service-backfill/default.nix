@@ -6,7 +6,6 @@
 , base
 , cassandra-util
 , conduit
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -18,7 +17,7 @@
 mkDerivation {
   pname = "service-backfill";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

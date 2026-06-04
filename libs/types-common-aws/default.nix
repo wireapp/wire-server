@@ -7,7 +7,6 @@
 , amazonka-sqs
 , base
 , base64-bytestring
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -20,7 +19,7 @@
 mkDerivation {
   pname = "types-common-aws";
   version = "0.16.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     amazonka
     amazonka-sqs

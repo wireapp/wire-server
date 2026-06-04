@@ -9,7 +9,6 @@
 , deepseq
 , either
 , extra
-, gitignoreSource
 , lib
 , mtl
 , text
@@ -21,7 +20,7 @@
 mkDerivation {
   pname = "imports";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     bytestring

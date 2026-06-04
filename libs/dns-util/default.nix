@@ -5,7 +5,6 @@
 { mkDerivation
 , base
 , dns
-, gitignoreSource
 , hspec
 , hspec-discover
 , imports
@@ -17,7 +16,7 @@
 mkDerivation {
   pname = "dns-util";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     dns

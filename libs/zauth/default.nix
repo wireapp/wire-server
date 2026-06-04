@@ -9,7 +9,6 @@
 , bytestring
 , bytestring-conversion
 , errors
-, gitignoreSource
 , imports
 , lib
 , optparse-applicative
@@ -28,7 +27,7 @@
 mkDerivation {
   pname = "zauth";
   version = "0.10.3";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

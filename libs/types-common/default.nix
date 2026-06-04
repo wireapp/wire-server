@@ -21,7 +21,6 @@
 , currency-codes
 , email-validate
 , generic-random
-, gitignoreSource
 , hashable
 , http-api-data
 , imports
@@ -63,7 +62,7 @@
 mkDerivation {
   pname = "types-common";
   version = "0.16.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     attoparsec

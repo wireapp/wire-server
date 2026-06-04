@@ -12,7 +12,6 @@
 , containers
 , cql
 , extra
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -25,7 +24,7 @@
 mkDerivation {
   pname = "mls-users";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

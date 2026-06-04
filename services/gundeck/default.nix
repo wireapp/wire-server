@@ -29,7 +29,6 @@
 , extended
 , extra
 , foldl
-, gitignoreSource
 , hedis
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -92,7 +91,7 @@
 mkDerivation {
   pname = "gundeck";
   version = "1.45.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

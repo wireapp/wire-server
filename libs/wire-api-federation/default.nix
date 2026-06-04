@@ -12,7 +12,6 @@
 , containers
 , dns-util
 , exceptions
-, gitignoreSource
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -49,7 +48,7 @@
 mkDerivation {
   pname = "wire-api-federation";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     amqp

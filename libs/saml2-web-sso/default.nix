@@ -27,7 +27,6 @@
 , filepath
 , foundation
 , ghc-prim
-, gitignoreSource
 , hedgehog
 , hedgehog-quickcheck
 , hourglass
@@ -85,7 +84,7 @@
 mkDerivation {
   pname = "saml2-web-sso";
   version = "0.20";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     asn1-encoding

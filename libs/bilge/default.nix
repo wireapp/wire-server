@@ -11,7 +11,6 @@
 , cookie
 , errors
 , exceptions
-, gitignoreSource
 , http-client
 , http-types
 , imports
@@ -32,7 +31,7 @@
 mkDerivation {
   pname = "bilge";
   version = "0.22.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     ansi-terminal

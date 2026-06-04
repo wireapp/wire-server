@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , base
-, gitignoreSource
 , immortal
 , imports
 , lib
@@ -14,7 +13,7 @@
 mkDerivation {
   pname = "metrics-core";
   version = "0.3.2";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     immortal

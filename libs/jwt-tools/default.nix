@@ -5,7 +5,6 @@
 { mkDerivation
 , base
 , bytestring-conversion
-, gitignoreSource
 , hspec
 , http-types
 , imports
@@ -18,7 +17,7 @@
 mkDerivation {
   pname = "jwt-tools";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     bytestring-conversion
