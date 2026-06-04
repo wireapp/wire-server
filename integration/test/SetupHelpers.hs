@@ -817,6 +817,8 @@ reindexUsers ber pageSize = do
   userStorageLocation <- brigConfig %. "postgresMigration.user" & asString
   galleyHost <- brigConfig %. "galley.host" & asString
   galleyPort <- brigConfig %. "galley.port" & asInt <&> show
+  casHost <- brigConfig %. "cassandra.endpoint.host" & asString
+  casPort <- brigConfig %. "cassandra.endpoint.port" & asInt <&> show
   casKeySpace <- brigConfig %. "cassandra.keyspace" & asString
   let indexOpts =
         [ "reindex",
@@ -842,6 +844,10 @@ reindexUsers ber pageSize = do
           galleyHost,
           "--galley-port",
           galleyPort,
+          "--cassandra-host",
+          casHost,
+          "--cassandra-port",
+          casPort,
           "--cassandra-keyspace",
           casKeySpace,
           "--page-size",
