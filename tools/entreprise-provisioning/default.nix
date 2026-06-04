@@ -9,7 +9,6 @@
 , bytestring
 , containers
 , envparse
-, gitignoreSource
 , http-client
 , http-client-tls
 , http-types
@@ -29,7 +28,7 @@
 mkDerivation {
   pname = "entreprise-provisioning";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

@@ -11,7 +11,6 @@
 , bytestring
 , comonad
 , containers
-, gitignoreSource
 , hashable
 , imports
 , insert-ordered-containers
@@ -28,7 +27,7 @@
 mkDerivation {
   pname = "schema-profunctor";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     base

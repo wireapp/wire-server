@@ -6,7 +6,6 @@
 , base
 , bytestring
 , containers
-, gitignoreSource
 , hs-opentelemetry-api
 , hs-opentelemetry-instrumentation-http-client
 , hs-opentelemetry-sdk
@@ -24,7 +23,7 @@
 mkDerivation {
   pname = "wire-otel";
   version = "0.1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     bytestring

@@ -25,7 +25,6 @@
 , exceptions
 , extended
 , federator
-, gitignoreSource
 , HsOpenSSL
 , http-api-data
 , http-client
@@ -78,7 +77,7 @@
 mkDerivation {
   pname = "cargohold";
   version = "1.5.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

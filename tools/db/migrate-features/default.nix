@@ -9,7 +9,6 @@
 , conduit
 , data-default
 , exceptions
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -23,7 +22,7 @@
 mkDerivation {
   pname = "migrate-features";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

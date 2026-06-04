@@ -9,7 +9,6 @@
 , cassandra-util
 , containers
 , crypton
-, gitignoreSource
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -31,7 +30,7 @@
 mkDerivation {
   pname = "polysemy-wire-zoo";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     base

@@ -6,7 +6,6 @@
 , base
 , cassandra-util
 , conduit
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -20,7 +19,7 @@
 mkDerivation {
   pname = "migrate-sso-feature-flag";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

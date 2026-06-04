@@ -6,7 +6,6 @@
 , base
 , bytestring
 , Cabal
-, gitignoreSource
 , imports
 , lib
 , proto-lens-protoc
@@ -19,7 +18,7 @@
 mkDerivation {
   pname = "types-common-journal";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   setupHaskellDepends = [ base Cabal proto-lens-setup ];
   libraryHaskellDepends = [
     base

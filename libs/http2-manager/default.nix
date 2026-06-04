@@ -7,7 +7,6 @@
 , base
 , bytestring
 , containers
-, gitignoreSource
 , HsOpenSSL
 , hspec
 , hspec-discover
@@ -25,7 +24,7 @@
 mkDerivation {
   pname = "http2-manager";
   version = "0.0.1";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     async
     base

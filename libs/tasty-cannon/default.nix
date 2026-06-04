@@ -11,7 +11,6 @@
 , bytestring-conversion
 , data-timeout
 , exceptions
-, gitignoreSource
 , http-client
 , http-types
 , imports
@@ -25,7 +24,7 @@
 mkDerivation {
   pname = "tasty-cannon";
   version = "0.4.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     async

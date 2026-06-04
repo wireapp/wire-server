@@ -18,7 +18,6 @@
 , data-default
 , errors
 , exceptions
-, gitignoreSource
 , hasql
 , hasql-pool
 , hourglass
@@ -54,7 +53,7 @@
 mkDerivation {
   pname = "extended";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     amqp

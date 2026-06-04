@@ -9,7 +9,6 @@
 , cassandra-util
 , conduit
 , containers
-, gitignoreSource
 , http-client
 , imports
 , lens
@@ -23,7 +22,7 @@
 mkDerivation {
   pname = "find-undead";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

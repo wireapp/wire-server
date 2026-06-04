@@ -11,7 +11,6 @@
 , cassandra-util
 , conduit
 , filepath
-, gitignoreSource
 , http-types
 , imports
 , lens
@@ -27,7 +26,7 @@
 mkDerivation {
   pname = "mlsstats";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

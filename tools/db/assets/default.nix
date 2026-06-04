@@ -8,7 +8,6 @@
 , bytestring-conversion
 , cassandra-util
 , conduit
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -21,7 +20,7 @@
 mkDerivation {
   pname = "assets";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
