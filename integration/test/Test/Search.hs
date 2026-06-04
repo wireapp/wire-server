@@ -652,9 +652,9 @@ testReindexAllUsers = do
 
     let context =
           ("alice", alice)
-            : map (\(n, user) -> ("nameChanger" <> show n, user)) (zip [1 :: Int ..] nameChangers)
-              <> map (\(n, user) -> ("deleter" <> show n, user)) (zip [1 :: Int ..] deleters)
-              <> map (\(n, user) -> ("newUser" <> show n, user)) (zip [1 :: Int ..] newUsers)
+            : zipWith (\n user -> ("nameChanger" <> show n, user)) [1 :: Int ..] nameChangers
+              <> zipWith (\n user -> ("deleter" <> show n, user)) [1 :: Int ..] deleters
+              <> zipWith (\n user -> ("newUser" <> show n, user)) [1 :: Int ..] newUsers
     addUsersToFailureContext context $ do
       -- Now if we use the old index, things shouldn't work as expected until a
       -- re-index is done.
