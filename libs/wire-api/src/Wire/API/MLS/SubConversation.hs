@@ -108,6 +108,10 @@ data ConvOrSubChoice c s
   = Conv c
   | SubConv c s
 
+isSubConv :: ConvOrSubChoice c s -> Bool
+isSubConv (Conv _) = False
+isSubConv (SubConv _ _) = True
+
 deriving instance (Eq c, Eq s) => Eq (ConvOrSubChoice c s)
 
 deriving instance (Show c, Show s) => Show (ConvOrSubChoice c s)

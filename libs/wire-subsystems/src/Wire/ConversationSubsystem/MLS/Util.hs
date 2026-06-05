@@ -19,6 +19,7 @@ module Wire.ConversationSubsystem.MLS.Util where
 
 import Control.Comonad
 import Control.Monad.Codensity
+import Data.ByteString.Conversion (toByteString')
 import Data.Hex
 import Data.Id
 import Data.Qualified
@@ -102,7 +103,8 @@ withCommitLock ::
   ( Member Resource r,
     Member ConversationStore r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member MLSCommitLockStore r
+    Member MLSCommitLockStore r,
+    Member TinyLog r
   ) =>
   Local ConvOrSubConvId ->
   GroupId ->
@@ -112,7 +114,13 @@ withCommitLock lConvOrSubId gid epoch =
   Codensity $ \k ->
     bracket
       ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
-          when (lockAcquired == NotAcquired) $
+          when (lockAcquired == NotAcquired) $ do
+            logStaleCommitLock
+              "commit-lock-not-acquired"
+              lConvOrSubId
+              gid
+              epoch
+              Nothing
             throwS @'MLSStaleMessage
       )
       (const $ releaseCommitLock gid epoch)
@@ -121,11 +129,40 @@ withCommitLock lConvOrSubId gid epoch =
             fromMaybe (Epoch 0) <$> case tUnqualified lConvOrSubId of
               Conv cnv -> getConversationEpoch cnv
               SubConv cnv sub -> getSubConversationEpoch cnv sub
-          unless (actualEpoch == epoch) $ throwS @'MLSStaleMessage
+          unless (actualEpoch == epoch) $ do
+            logStaleCommitLock
+              "commit-lock-epoch-mismatch"
+              lConvOrSubId
+              gid
+              epoch
+              (Just actualEpoch)
+            throwS @'MLSStaleMessage
           k ()
       )
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
+
+logStaleCommitLock ::
+  (Member TinyLog r) =>
+  ByteString ->
+  Local ConvOrSubConvId ->
+  GroupId ->
+  Epoch ->
+  Maybe Epoch ->
+  Sem r ()
+logStaleCommitLock reason lConvOrSubId gid messageEpoch mStoredEpoch =
+  let convOrSubId = tUnqualified lConvOrSubId
+   in TinyLog.warn $
+        Log.msg ("rejecting stale MLS commit due to commit lock" :: ByteString)
+          . Log.field "reason" reason
+          . Log.field "groupId" ("0x" <> hex (unGroupId gid))
+          . Log.field "messageEpoch" (epochNumber messageEpoch)
+          . Log.field "storedEpoch" (maybe ("unknown" :: ByteString) (toByteString' . epochNumber) mStoredEpoch)
+          . Log.field "domain" (toByteString' (show (tDomain lConvOrSubId)))
+          . Log.field "parentConvId" (toByteString' (show convOrSubId.conv))
+          . Log.field "subConvId" (maybe ("none" :: ByteString) (toByteString' . show) convOrSubId.subconv)
+          . Log.field "convOrSubConvId" (toByteString' (show convOrSubId))
+          . Log.field "isSubConversation" (isSubConv convOrSubId)
 
 getConvFromGroupId ::
   (Member (Error MLSProtocolError) r) =>

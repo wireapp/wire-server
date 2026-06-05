@@ -727,7 +727,8 @@ deleteSubConversationForRemoteUser ::
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TinyLog r
   ) =>
   Domain ->
   DeleteSubConversationFedRequest ->
