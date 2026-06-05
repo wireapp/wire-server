@@ -12,9 +12,20 @@ set -e
 TEMP=${TEMP:-"$(mktemp -d)"}
 REGENERATE=${REGENERATE:-0}
 CSR="$TEMP/csr.json"
+CONFIG="$TEMP/cfssl-config.json"
 OUTPUTNAME_CA="$DIR/unit-ca"
 OUTPUTNAME_LOCALHOST_CERT="$DIR/localhost"
 OUTPUTNAME_EXAMPLE_COM_CERT="$DIR/localhost.example.com"
+
+# 100-year validity for leaf certs. These are local unit-test fixtures only.
+echo '{
+    "signing": {
+        "default": {
+            "expiry": "876000h",
+            "usages": ["signing", "key encipherment", "server auth", "client auth"]
+        }
+    }
+}' >"$CONFIG"
 
 command -v cfssl >/dev/null 2>&1 || { echo >&2 "cfssl is not installed, aborting. See https://github.com/cloudflare/cfssl"; exit 1; }
 command -v cfssljson >/dev/null 2>&1 || { echo >&2 "cfssljson is not installed, aborting. See https://github.com/cloudflare/cfssl"; exit 1; }
@@ -24,6 +35,9 @@ echo '{
     "key": {
         "algo": "rsa",
         "size": 2048
+    },
+    "ca": {
+        "expiry": "876000h"
     }
 }' >"$CSR"
 
@@ -44,7 +58,7 @@ generate() {
     local file=$2
 
     if [[ ! -f "$file.pem" ]] || [[ "$REGENERATE" -eq "1" ]]; then
-        cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname="$hostname" "$CSR" | cfssljson -bare "$file"
+        cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -config="$CONFIG" -profile=default -hostname="$hostname" "$CSR" | cfssljson -bare "$file"
     fi
 }
 
