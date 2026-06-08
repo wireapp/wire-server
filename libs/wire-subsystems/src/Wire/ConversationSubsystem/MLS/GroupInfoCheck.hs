@@ -45,7 +45,7 @@ import Wire.ConversationStore.MLS.Types
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 
 data GroupInfoMismatch = GroupInfoMismatch
-  {clients :: [(Int, ClientIdentity)]}
+  {clients :: [(Int, GroupMember)]}
   deriving (Show)
 
 newtype GroupInfoCheckEnabled
@@ -85,7 +85,7 @@ groupStateMismatch leaves groupInfo = do
   giLeaves <- imFromList <$> traverse (traverse getIdentity) (ratchetTreeLeaves tree)
   pure $ guard (leaves /= giLeaves) $> GroupInfoMismatch (imAssocs leaves)
   where
-    getIdentity :: LeafNode -> Either Text ClientIdentity
+    getIdentity :: LeafNode -> Either Text GroupMember
     getIdentity leaf = fst <$> credentialIdentityAndKey leaf.credential
 
 existingGroupStateMismatch ::

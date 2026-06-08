@@ -39,7 +39,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Validation.Error
 
 validateKeyPackage ::
-  Maybe ClientIdentity ->
+  Maybe GroupMember ->
   KeyPackage ->
   Either ValidationError (CipherSuiteTag, Lifetime)
 validateKeyPackage mIdentity kp = do
@@ -79,7 +79,7 @@ validateKeyPackage mIdentity kp = do
 
 validateLeafNode ::
   CipherSuiteTag ->
-  Maybe ClientIdentity ->
+  Maybe GroupMember ->
   LeafNodeTBSExtra ->
   LeafNode ->
   Either ValidationError ()
@@ -99,7 +99,12 @@ validateLeafNode cs mIdentity extra leafNode = do
   validateSource extra.tag leafNode.source
   validateCapabilities (credentialTag leafNode.credential) leafNode.capabilities
 
-validateCredential :: CipherSuiteTag -> ByteString -> Maybe ClientIdentity -> Credential -> Either ValidationError ()
+validateCredential ::
+  CipherSuiteTag ->
+  ByteString ->
+  Maybe GroupMember ->
+  Credential ->
+  Either ValidationError ()
 validateCredential cs pkey mIdentity cred = do
   -- FUTUREWORK: check signature in the case of an x509 credential
   (identity, mkey) <-

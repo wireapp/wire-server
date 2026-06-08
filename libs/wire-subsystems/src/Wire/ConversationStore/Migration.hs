@@ -32,7 +32,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Time
 import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
-import Data.Tuple.Extra
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Hasql.Pool qualified as Hasql
@@ -56,6 +55,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -230,7 +230,7 @@ migrateConversation migCounter cid = do
     markDeletionComplete DeleteConv cid
     liftIO $ Prometheus.incCounter migCounter
 
-deleteConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => AllConvData -> Sem r ()
+deleteConvFromCassandra :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => AllConvData -> Sem r ()
 deleteConvFromCassandra allConvData = withCassandra $ do
   for_ allConvData.subConvs $ \subConvData -> do
     removeAllMLSClients subConvData.subConv.scMLSData.cnvmlsGroupId
@@ -267,7 +267,8 @@ saveConvToPostgres allConvData = do
           meta.cnvmGroupConvType,
           meta.cnvmChannelAddPermission,
           meta.cnvmCellsState,
-          meta.cnvmParent
+          meta.cnvmParent,
+          fmap (.depth) (historyConfig meta.cnvmHistory)
         )
   runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement convRow insertConv
@@ -300,21 +301,22 @@ saveConvToPostgres allConvData = do
           Maybe GroupConvType,
           Maybe AddPermission,
           CellsState,
-          Maybe ConvId
+          Maybe ConvId,
+          Maybe HistoryDuration
         )
         ()
     insertConv =
-      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
                               group_id, epoch, epoch_timestamp, cipher_suite, public_group_state,
-                              group_conv_type, channel_add_permission, cells_state, parent_conv)
+                              group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 :: bigint?, $13 :: timestamptz?, $14 :: integer?,  $15 :: bytea?,
-                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?)
+                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?, $20 :: bigint?)
                              ON CONFLICT (id) DO NOTHING
                             |]
 
@@ -390,21 +392,18 @@ saveConvToPostgres allConvData = do
 
     mlsClientRows :: GroupId -> ClientMap LeafIndex -> IndexMap -> [(GroupId, Domain, UserId, ClientId, Int32, Bool)]
     mlsClientRows gid clientMap indexMap =
-      let clients :: [(LeafIndex, ClientIdentity, Bool)] =
-            IntMap.elems $
-              IntMap.mapWithKey
-                (\idx ci -> (fromIntegral idx, ci, isNothing (cmLookupIndex ci clientMap)))
-                indexMap.unIndexMap
+      let clients :: [(LeafIndex, ClientIdentity, Bool)] = do
+            (idx, element) <- IntMap.assocs indexMap.unIndexMap
+            case element of
+              RegularClient ci ->
+                pure (fromIntegral idx, ci, isNothing (cmLookupIndex ci clientMap))
+              HistoryClient _ -> []
        in flip map clients $ \(idx, ci, removalPending) ->
             (gid, ci.ciDomain, ci.ciUser, ci.ciClient, fromIntegral idx, removalPending)
 
     mlsClientColumns :: ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool])
     mlsClientColumns =
-      let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
-          mainConvInputs = maybeToList $ (,,) <$> mainConvGroupId <*> (fmap (.clientMap) allConvData.mlsDetails) <*> (fmap (.indexMap) allConvData.mlsDetails)
-          subConvsInputs = flip map allConvData.subConvs $ \(AllSubConvData sc _) -> (sc.scMLSData.cnvmlsGroupId, sc.scMembers, sc.scIndexMap)
-          allInputs = mainConvInputs <> subConvsInputs
-          allRows = concatMap (uncurry3 mlsClientRows) allInputs
+      let allRows = concatMap (\(gid, clientMap, indexMap) -> mlsClientRows gid clientMap indexMap) mlsInputs
        in unzip6 allRows
 
     insertMLSClients :: Hasql.Statement ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool]) ()
@@ -416,6 +415,21 @@ saveConvToPostgres allConvData = do
                              FROM UNNEST ($1 :: bytea[], $2 :: text[], $3 :: uuid[],
                                           $4 :: text[], $5 :: integer[], $6 :: bool[])
                             |]
+
+    mlsInputs :: [(GroupId, ClientMap LeafIndex, IndexMap)]
+    mlsInputs =
+      let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
+          mainConvInputs =
+            maybeToList $
+              (,,)
+                <$> mainConvGroupId
+                <*> (fmap (.clientMap) allConvData.mlsDetails)
+                <*> (fmap (.indexMap) allConvData.mlsDetails)
+          subConvsInputs =
+            fmap
+              (\scData -> (scData.subConv.scMLSData.cnvmlsGroupId, scData.subConv.scMembers, scData.subConv.scIndexMap))
+              allConvData.subConvs
+       in mainConvInputs <> subConvsInputs
 
     zeroTime :: UTCTime
     zeroTime = UTCTime (fromOrdinalDate 1970 1) 0
@@ -458,7 +472,7 @@ migrateUser migCounter uid = do
   markDeletionComplete DeleteUser uid
   liftIO $ Prometheus.incCounter migCounter
 
-getRemoteMemberStatusFromCassandra :: forall r. (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
+getRemoteMemberStatusFromCassandra :: forall r. (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
 getRemoteMemberStatusFromCassandra uid = withCassandra $ do
   convIds <- getAllRemoteConvIds [] Nothing
   getRemoteConversationStatus uid convIds
@@ -503,7 +517,7 @@ saveRemoteMemberStatusToPostgres uid statusses =
 
 -- * Other helpers
 
-withCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => InterpreterFor ConversationStore r
+withCassandra :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => InterpreterFor ConversationStore r
 withCassandra action = do
   cstate <- input
   interpretConversationStoreToCassandra cstate action

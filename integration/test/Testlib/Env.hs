@@ -216,7 +216,8 @@ mkMLSState = Codensity $ \k ->
       MLSState
         { baseDir = tmp,
           convs = mempty,
-          clientGroupState = mempty
+          clientGroupState = mempty,
+          historyClientState = mempty
         }
 
 getMLSConv :: (HasCallStack) => ConvId -> App MLSConv

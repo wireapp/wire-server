@@ -73,12 +73,11 @@ getAllConvData cid = do
     Just conv -> do
       subConvMlsData <- listSubConversations cid
       mGroupInfo <- getGroupInfo cid
-      mlsLeafIndices <- case mlsMetadata conv of
+      mlsDetails <- case mlsMetadata conv of
         Nothing -> pure Nothing
         Just (mlsData, _) -> do
           (cm, im) <- lookupMLSClientLeafIndices mlsData.cnvmlsGroupId
-          pure $ Just (cm, im)
-      let mlsDetails = ConvMLSDetails <$> mGroupInfo <*> fmap fst mlsLeafIndices <*> fmap snd mlsLeafIndices
+          pure $ ConvMLSDetails <$> mGroupInfo <*> pure cm <*> pure im
       subConvs <- fmap Map.elems $ flip Map.traverseWithKey subConvMlsData $ \subConvId mlsData -> do
         (cm, im) <- lookupMLSClientLeafIndices mlsData.cnvmlsGroupId
         let subconv =

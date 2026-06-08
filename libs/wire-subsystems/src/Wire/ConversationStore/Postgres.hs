@@ -112,10 +112,14 @@ interpretConversationStoreToPostgres = interpret $ \case
   DeleteMembers cnv ul -> deleteMembersImpl cnv ul
   DeleteMembersInRemoteConversation rcnv uids -> deleteMembersInRemoteConversationImpl rcnv uids
   AddMLSClients lcnv quid cs -> addMLSClientsImpl lcnv quid cs
+  AddHistoryClient groupId hid idx -> addHistoryClientImpl groupId hid idx
+  RemoveHistoryClient groupId hid -> removeHistoryClientImpl groupId hid
+  RemoveAllHistoryClients groupId -> removeAllHistoryClientsImpl groupId
   PlanClientRemoval lcnv cids -> planClientRemovalImpl lcnv cids
   RemoveMLSClients lcnv quid cs -> removeMLSClientsImpl lcnv quid cs
   RemoveAllMLSClients gid -> removeAllMLSClientsImpl gid
   LookupMLSClients lcnv -> lookupMLSClientsImpl lcnv
+  LookupHistoryClients gid -> lookupHistoryClientsImpl gid
   LookupMLSClientLeafIndices lcnv -> lookupMLSClientLeafIndicesImpl lcnv
   UpsertSubConversation convId subConvId groupId -> createSubConversationImpl convId subConvId groupId
   GetSubConversation convId subConvId -> getSubConversationImpl convId subConvId
@@ -1012,6 +1016,44 @@ addMLSClientsImpl gid (Qualified uid domain) clients =
                              ($1 :: bytea, $2 :: text, $3 :: uuid, $4 :: text, $5 :: integer, false)
                             |]
 
+addHistoryClientImpl :: (PGConstraints r) => GroupId -> HistoryClientId -> LeafIndex -> Sem r ()
+addHistoryClientImpl gid hid idx =
+  runPipeline $
+    Pipeline.statement (gid, hid, fromIntegral idx) insert
+  where
+    insert :: Hasql.Statement (GroupId, HistoryClientId, Int32) ()
+    insert =
+      lmapPG
+        [resultlessStatement|INSERT INTO mls_history_client
+                             (group_id, id, leaf_node_index, removal_pending)
+                             VALUES
+                             ($1 :: bytea, $2 :: uuid, $3 :: integer, false)
+                            |]
+
+removeHistoryClientImpl :: (PGConstraints r) => GroupId -> HistoryClientId -> Sem r ()
+removeHistoryClientImpl gid hid =
+  runPipeline $
+    Pipeline.statement (gid, hid) delete
+  where
+    delete :: Hasql.Statement (GroupId, HistoryClientId) ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM mls_history_client
+                             WHERE group_id = ($1 :: bytea)
+                             AND id = ($2 :: uuid)
+                            |]
+
+removeAllHistoryClientsImpl :: (PGConstraints r) => GroupId -> Sem r ()
+removeAllHistoryClientsImpl gid =
+  runStatement gid delete
+  where
+    delete :: Hasql.Statement GroupId ()
+    delete =
+      lmapPG
+        [resultlessStatement|DELETE FROM mls_history_client
+                             WHERE group_id = ($1 :: bytea)
+                            |]
+
 planClientRemovalImpl :: (PGConstraints r, Foldable f) => GroupId -> f ClientIdentity -> Sem r ()
 planClientRemovalImpl gid clients =
   runPipeline $
@@ -1068,10 +1110,27 @@ selectMLSClients =
                      WHERE group_id = ($1 :: bytea)
                     |]
 
+selectHistoryClients :: Hasql.Statement GroupId [(HistoryClientId, Int32, Bool)]
+selectHistoryClients =
+  dimapPG
+    [vectorStatement|SELECT (id :: uuid), (leaf_node_index :: integer), (removal_pending :: bool)
+                     FROM mls_history_client
+                     WHERE group_id = ($1 :: bytea)
+                    |]
+
+lookupHistoryClientsImpl :: (PGConstraints r) => GroupId -> Sem r [(HistoryClientId, Int32, Bool)]
+lookupHistoryClientsImpl gid = runStatement gid selectHistoryClients
+
 lookupMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
 lookupMLSClientLeafIndicesImpl gid = do
-  rows <- runStatement gid selectMLSClients
-  pure (mkClientMap rows, mkIndexMap rows)
+  regularClients <- runStatement gid selectMLSClients
+  historyClients <- lookupHistoryClientsImpl gid
+  pure (mkClientMap regularClients, mkIndexMapFromParts regularClients historyClients)
+
+lookupRegularMLSClientLeafIndicesImpl :: (PGConstraints r) => GroupId -> Sem r (ClientMap LeafIndex, IndexMap)
+lookupRegularMLSClientLeafIndicesImpl gid = do
+  regularClients <- runStatement gid selectMLSClients
+  pure (mkClientMap regularClients, mkIndexMapFromParts regularClients [])
 
 -- SUB CONVERSATION OPERATIONS
 createSubConversationImpl :: (PGConstraints r) => ConvId -> SubConvId -> GroupId -> Sem r SubConversation
@@ -1103,7 +1162,7 @@ getSubConversationImpl cid subConvId = runMaybeT $ do
           <*> mEpochTimestamp
           <*> mSuite
   groupId <- hoistMaybe mGroupId
-  (cm, im) <- lift $ lookupMLSClientLeafIndicesImpl groupId
+  (cm, im) <- lift $ lookupRegularMLSClientLeafIndicesImpl groupId
   pure $
     SubConversation
       { scParentConvId = cid,

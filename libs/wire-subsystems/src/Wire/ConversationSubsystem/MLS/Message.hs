@@ -27,6 +27,7 @@ where
 import Control.Monad.Codensity
 import Data.Domain
 import Data.Id
+import Data.IntMap qualified as IntMap
 import Data.Json.Util
 import Data.LegalHold
 import Data.Map qualified as Map
@@ -52,6 +53,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit hiding (output)
 import Wire.API.MLS.CommitBundle
@@ -111,7 +113,9 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSSubConvClientNotInParent
+     ErrorS 'MLSSubConvClientNotInParent,
+     ErrorS 'MLSHistoryClientConflict,
+     ErrorS 'MLSHistoryClientDuplication
    ]
 
 enableOutOfSyncCheckFromVersion :: Version -> EnableOutOfSyncCheck
@@ -136,7 +140,9 @@ postMLSMessageFromLocalUser ::
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r
+    Member (Error GroupInfoDiagnostics) r,
+    Member (ErrorS MLSHistoryClientConflict) r,
+    Member (ErrorS MLSHistoryClientDuplication) r
   ) =>
   Version ->
   Local UserId ->
@@ -305,12 +311,22 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
           lift $
             getCommitData senderIdentity lConvOrSub bundle.epoch ciphersuite bundle
 
-        -- reject message if the conversation is out of sync
         lift $ do
+          case convOrSub of
+            Conv _ -> do
+              let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+              let historyClients = filter isHistoryClient (IntMap.elems newIndexMap.unIndexMap)
+              case historyClients of
+                (_ : _ : _) -> throwS @'MLSHistoryClientDuplication
+                _ -> pure ()
+              let historyClientExists = not (null historyClients)
+              when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+            SubConv _ _ -> pure ()
+
+          -- reject message if the conversation is out of sync
           let newUsers = Map.keysSet (unClientMap action.paAdd)
           checkConversationOutOfSync newUsers lConvOrSub ciphersuite
 
-        lift $
           checkGroupState convOrSub newIndexMap bundle.groupInfo.value
 
         -- process additions and removals
@@ -456,7 +472,9 @@ postMLSMessage ::
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
     Member (Error MLSOutOfSyncError) r,
-    Member (Error GroupInfoDiagnostics) r
+    Member (Error GroupInfoDiagnostics) r,
+    Member (ErrorS MLSHistoryClientConflict) r,
+    Member (ErrorS MLSHistoryClientDuplication) r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -491,7 +509,7 @@ getSenderIdentity qusr c mSender lConvOrSubConv = do
     SenderMember idx -> do
       when (epoch > 0) $ do
         cid' <- note (mlsProtocolError "unknown sender leaf index") $ imLookup (tUnqualified lConvOrSubConv).indexMap idx
-        unless (cid' == cid) $ throwS @'MLSClientSenderUserMismatch
+        unless (cid' == RegularClient cid) $ throwS @'MLSClientSenderUserMismatch
       pure (Just idx)
     _ -> pure Nothing
   pure SenderIdentity {client = cid, index}
@@ -504,7 +522,8 @@ postMLSMessageToLocalConv ::
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member (Input EnableOutOfSyncCheck) r
+    Member (Input EnableOutOfSyncCheck) r,
+    Member (ErrorS MLSHistoryClientConflict) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -528,7 +547,8 @@ validateMessage ::
     Member (ErrorS MLSUnsupportedMessage) r,
     Member (Error MLSOutOfSyncError) r,
     Member (ErrorS MLSInvalidLeafNodeSignature) r,
-    Member (Input EnableOutOfSyncCheck) r
+    Member (Input EnableOutOfSyncCheck) r,
+    Member (ErrorS MLSHistoryClientConflict) r
   ) =>
   Qualified UserId ->
   ClientId ->
@@ -577,6 +597,15 @@ validateMessage qusr c lConvOrSub mEpoch msg = do
                 || epochInt msg.epoch > epochInt epoch
             )
             $ throwS @'MLSStaleMessage
+
+      case convOrSub of
+        Conv _ -> do
+          -- once an admin toggles history sharing, every subsequent application message will be rejected
+          -- until a commit that adds or removes the history client is processed.
+          let sharedHistoryEnabled = isJust $ historyConfig convOrSub.meta.cnvmHistory
+          let historyClientExists = any isHistoryClient (IntMap.elems convOrSub.indexMap.unIndexMap)
+          when (sharedHistoryEnabled /= historyClientExists) $ throwS @'MLSHistoryClientConflict
+        SubConv _ _ -> pure ()
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,

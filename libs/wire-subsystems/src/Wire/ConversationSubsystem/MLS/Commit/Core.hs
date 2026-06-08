@@ -122,7 +122,7 @@ getCommitData senderIdentity lConvOrSub epoch ciphersuite bundle = do
   runState convOrSub.indexMap $ do
     creatorAction <-
       if epoch == Epoch 0
-        then addProposedClient (Left senderIdentity.client)
+        then addProposedClient (Left . RegularClient $ senderIdentity.client)
         else mempty
     proposals <-
       traverse
@@ -260,7 +260,7 @@ checkUpdatePath ::
 checkUpdatePath lConvOrSub senderIdentity ciphersuite path = for_ senderIdentity.index $ \index -> do
   let groupId = cnvmlsGroupId (tUnqualified lConvOrSub).mlsMeta
   let extra = LeafNodeTBSExtraCommit groupId index
-  case validateLeafNode ciphersuite (Just senderIdentity.client) extra path.leaf.value of
+  case validateLeafNode ciphersuite (Just . RegularClient $ senderIdentity.client) extra path.leaf.value of
     Left InvalidLeafNodeSignature -> throwS @'MLSInvalidLeafNodeSignature
     Left errMsg ->
       throw $
