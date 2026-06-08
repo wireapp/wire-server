@@ -277,8 +277,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.rmCodeUnqualified lusr con cnv
   MemberTyping lusr con qcnv status ->
     mapErrors $ Update.memberTyping lusr con qcnv status
-  RemoveMemberQualified lusr con qcnv quid ->
-    mapErrors $ Update.removeMemberQualified lusr con qcnv quid
+  RemoveMemberQualified responseMode lusr con qcnv quid ->
+    mapErrors $ Update.removeMemberQualified responseMode lusr con qcnv quid
   UpdateOtherMember lusr con qcnv quid update ->
     mapErrors $ Update.updateOtherMember lusr con qcnv quid update
   UpdateConversationName lusr zcon qcnv rename ->

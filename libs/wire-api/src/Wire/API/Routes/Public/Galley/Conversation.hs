@@ -1062,13 +1062,32 @@ type ConversationAPI =
     -- This endpoint can lead to the following events being sent:
     -- - MemberLeave event to members
     :<|> Named
-           "remove-member"
+           "remove-member@v15"
            ( Summary "Remove a member from a conversation"
+               :> Until 'V16
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "members"
+               :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
+               :> RemoveFromConversationVerb
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members
+    :<|> Named
+           "remove-member"
+           ( Summary "Remove a member from a conversation"
+               :> From 'V16
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow AdminlessConversation
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "members"

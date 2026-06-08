@@ -78,6 +78,10 @@ import Wire.ConversationSubsystem.Util qualified as Util
 import Wire.NotificationSubsystem (LocalConversationUpdate)
 import Wire.StoredConversation
 
+data RemoveMemberResponseMode
+  = RemoveMemberLegacyResponse
+  | RemoveMemberEligibleMembersResponse
+
 data ConversationSubsystem m a where
   NotifyConversationAction ::
     Sing tag ->
@@ -507,6 +511,7 @@ data ConversationSubsystem m a where
     TypingStatus ->
     ConversationSubsystem m ()
   RemoveMemberQualified ::
+    RemoveMemberResponseMode ->
     Local UserId ->
     ConnId ->
     Qualified ConvId ->

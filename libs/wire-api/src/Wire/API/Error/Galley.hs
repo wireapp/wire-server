@@ -49,6 +49,7 @@ module Wire.API.Error.Galley
     UnreachableBackendsLegacy (..),
     GroupInfoDiagnostics (..),
     MLSOutOfSyncError (..),
+    AdminlessConversation (..),
   )
 where
 
@@ -732,4 +733,50 @@ instance IsSwaggerError MLSOutOfSyncError where
 type instance ErrorEffect MLSOutOfSyncError = Error MLSOutOfSyncError
 
 instance (Member (Error JSONResponse) r) => ServerEffect (Error MLSOutOfSyncError) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- AdminlessConversation
+
+data AdminlessConversation = AdminlessConversation
+  {eligibleMembers :: [Qualified UserId]}
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AdminlessConversation
+
+instance APIError AdminlessConversation where
+  toResponse e =
+    JSONResponse
+      { status = HTTP.status403,
+        value =
+          A.object
+            ( fold (schemaOut adminlessConversationObjectSchema e)
+                <> [ "label" A..= ("adminless-conversation" :: Text),
+                     "message" A..= ("The conversation would be left without an admin" :: Text),
+                     "code" A..= HTTP.statusCode HTTP.status403
+                   ]
+            ),
+        headers = []
+      }
+
+adminlessConversationObjectSchema :: ObjectSchema SwaggerDoc AdminlessConversation
+adminlessConversationObjectSchema =
+  AdminlessConversation
+    <$> (.eligibleMembers) .= field "eligible_members" (array schema)
+
+instance ToSchema AdminlessConversation where
+  schema = object adminlessConversationObjectSchema
+
+instance IsSwaggerError AdminlessConversation where
+  addToOpenApi =
+    addErrorResponseToSwagger (HTTP.statusCode HTTP.status403) $
+      mempty
+        & S.description .~ "The conversation would be left without an admin"
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @AdminlessConversation))
+
+type instance ErrorEffect AdminlessConversation = Error AdminlessConversation
+
+instance (Member (Error JSONResponse) r) => ServerEffect (Error AdminlessConversation) r where
   interpretServerEffect = mapError toResponse

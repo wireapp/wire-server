@@ -111,15 +111,18 @@ import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
 import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.API.Team.Member
+import Wire.API.User qualified as User
 import Wire.API.User.Client
 import Wire.API.UserGroup
 import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess (BrigAPIAccess)
+import Wire.BrigAPIAccess qualified as Brig
 import Wire.CodeStore (CodeStore)
 import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
+import Wire.ConversationSubsystem (RemoveMemberResponseMode (..))
 import Wire.ConversationSubsystem.Action
 import Wire.ConversationSubsystem.Action.Kick (kickMember)
 import Wire.ConversationSubsystem.Message
@@ -941,6 +944,7 @@ replaceMembers ::
     Member (ErrorS 'TooManyMembers) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'GroupIdVersionNotSupported) r,
+    Member (Error AdminlessConversation) r,
     Member (Error FederationError) r,
     Member (Error UnreachableBackends) r,
     Member E.ExternalAccess r,
@@ -955,6 +959,7 @@ replaceMembers ::
     Member TeamCollaboratorsSubsystem r,
     Member UserGroupStore r,
     Member FederationSubsystem r,
+    Member FeaturesConfigSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
@@ -1002,7 +1007,7 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
           -- For channels, always perform removals via the channel-specific path
           -- to ensure MLS proposals are created and protocol constraints are respected.
           -- FUTUREWORK: implement bulk removal in the generic updateLocalConversation path for both regular conversations and channels
-          for_ removeList $ removeMemberQualified lusr zcon qcnv
+          for_ removeList $ removeMemberQualified RemoveMemberLegacyResponse lusr zcon qcnv
         else
           void . getUpdateResult . fmap lcuEvent $
             updateLocalConversationRemoveMembers
@@ -1120,6 +1125,8 @@ updateOtherMemberRemoteConv _ _ _ _ _ = throw FederationNotImplemented
 removeMemberQualified ::
   ( Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
+    Member BrigAPIAccess r,
+    Member (Error AdminlessConversation) r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
@@ -1131,22 +1138,84 @@ removeMemberQualified ::
     Member ProposalStore r,
     Member Random r,
     Member TinyLog r,
+    Member FeaturesConfigSubsystem r,
     Member TeamSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
+  RemoveMemberResponseMode ->
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
   Sem r (Maybe Event)
-removeMemberQualified lusr con qcnv victim =
+removeMemberQualified responseMode lusr con qcnv victim =
   mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember) $
     foldQualified
       lusr
-      (\lcnv -> removeMemberFromLocalConv lcnv lusr (Just con))
+      ( \lcnv qvictim -> do
+          guardPreventAdminlessGroups responseMode lcnv lusr qvictim
+          removeMemberFromLocalConv lcnv lusr (Just con) qvictim
+      )
       (\rcnv -> removeMemberFromRemoteConv rcnv lusr)
       qcnv
       victim
+
+guardPreventAdminlessGroups ::
+  ( Member ConversationStore r,
+    Member (Error AdminlessConversation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member BrigAPIAccess r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  RemoveMemberResponseMode ->
+  Local ConvId ->
+  Local UserId ->
+  Qualified UserId ->
+  Sem r ()
+guardPreventAdminlessGroups responseMode lcnv lusr victim = do
+  when (tUntagged lusr == victim) $ do
+    conv <- getConversationWithError lcnv
+    for_ conv.metadata.cnvmTeam $ \tid -> do
+      (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+      when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
+        case responseMode of
+          RemoveMemberLegacyResponse -> throwS @'InvalidOperation
+          RemoveMemberEligibleMembersResponse -> do
+            eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
+            throw $ AdminlessConversation eligibleMembers
+
+isLeavingLastConversationAdmin :: UserId -> StoredConversation -> Bool
+isLeavingLastConversationAdmin leavingUser conv =
+  leavingMemberIsAdmin && not remainingAdminExists
+  where
+    leavingMemberIsAdmin =
+      any (\member -> member.id_ == leavingUser && member.convRoleName == roleNameWireAdmin) conv.localMembers
+    remainingAdminExists =
+      any (\member -> member.id_ /= leavingUser && member.convRoleName == roleNameWireAdmin) conv.localMembers
+        || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
+
+eligibleAdminFallbackMembers ::
+  (Member BrigAPIAccess r) =>
+  Local ConvId ->
+  UserId ->
+  StoredConversation ->
+  Sem r [Qualified UserId]
+eligibleAdminFallbackMembers lcnv leavingUser conv = do
+  users <- Brig.getUsers (map (.id_) (filter ((/= leavingUser) . (.id_)) conv.localMembers))
+  let usersById = Map.fromList [(User.userId u, u) | u <- users]
+  pure
+    [ tUntagged (qualifyAs lcnv member.id_)
+    | member <- conv.localMembers,
+      member.id_ /= leavingUser,
+      Just u <- [Map.lookup member.id_ usersById],
+      isEligibleUser u
+    ]
+  where
+    isEligibleUser u =
+      u.userType == User.UserTypeRegular
+        && u.userStatus /= User.Ephemeral
+        && isNothing u.userService
 
 -- | if the public member leave api was called, we can assume that
 --   it was called by a user
