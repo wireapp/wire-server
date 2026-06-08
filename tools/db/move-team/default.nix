@@ -10,7 +10,6 @@
 , conduit
 , containers
 , filepath
-, gitignoreSource
 , imports
 , iproute
 , lens
@@ -32,7 +31,7 @@
 mkDerivation {
   pname = "move-team";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

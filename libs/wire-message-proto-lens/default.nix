@@ -5,7 +5,6 @@
 { mkDerivation
 , base
 , Cabal
-, gitignoreSource
 , lib
 , proto-lens-protoc
 , proto-lens-runtime
@@ -14,7 +13,7 @@
 mkDerivation {
   pname = "wire-message-proto-lens";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   setupHaskellDepends = [ base Cabal proto-lens-setup ];
   libraryHaskellDepends = [ base proto-lens-runtime ];
   libraryToolDepends = [ proto-lens-protoc ];

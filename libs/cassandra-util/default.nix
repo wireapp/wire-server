@@ -11,7 +11,6 @@
 , cql-io
 , cql-io-tinylog
 , exceptions
-, gitignoreSource
 , HsOpenSSL
 , imports
 , lens
@@ -30,7 +29,7 @@
 mkDerivation {
   pname = "cassandra-util";
   version = "0.16.5";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     base

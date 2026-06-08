@@ -10,7 +10,6 @@
 , containers
 , crypton
 , errors
-, gitignoreSource
 , http-types
 , imports
 , lib
@@ -24,7 +23,7 @@
 mkDerivation {
   pname = "galley-types";
   version = "0.81.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     base

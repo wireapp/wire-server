@@ -31,7 +31,6 @@
 , federator
 , filepath
 , galley-types
-, gitignoreSource
 , hasql-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -115,7 +114,7 @@
 mkDerivation {
   pname = "galley";
   version = "0.83.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

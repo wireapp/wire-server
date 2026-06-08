@@ -45,7 +45,6 @@
 , filepath
 , fsnotify
 , galley-types
-, gitignoreSource
 , hashable
 , hasql-pool
 , hs-opentelemetry-instrumentation-wai
@@ -152,7 +151,7 @@
 mkDerivation {
   pname = "brig";
   version = "2.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

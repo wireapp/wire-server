@@ -5,7 +5,6 @@
 { mkDerivation
 , base
 , bytestring
-, gitignoreSource
 , imports
 , lib
 , monoidal-containers
@@ -19,7 +18,7 @@
 mkDerivation {
   pname = "test-stats";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

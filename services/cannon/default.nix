@@ -21,7 +21,6 @@
 , exceptions
 , extended
 , extra
-, gitignoreSource
 , hashable
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -62,7 +61,7 @@
 mkDerivation {
   pname = "cannon";
   version = "0.31.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

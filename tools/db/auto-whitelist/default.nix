@@ -6,7 +6,6 @@
 , base
 , cassandra-util
 , extra
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -18,7 +17,7 @@
 mkDerivation {
   pname = "auto-whitelist";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

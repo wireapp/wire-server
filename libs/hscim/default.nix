@@ -12,7 +12,6 @@
 , case-insensitive
 , containers
 , email-validate
-, gitignoreSource
 , hashable
 , hedgehog
 , hspec
@@ -55,7 +54,7 @@
 mkDerivation {
   pname = "hscim";
   version = "0.4.0.6";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

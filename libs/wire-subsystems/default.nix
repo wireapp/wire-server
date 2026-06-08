@@ -48,7 +48,6 @@
 , filepath
 , galley-types
 , generics-sop
-, gitignoreSource
 , hashable
 , HaskellNet
 , HaskellNet-SSL
@@ -143,7 +142,7 @@
 mkDerivation {
   pname = "wire-subsystems";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     aeson-pretty

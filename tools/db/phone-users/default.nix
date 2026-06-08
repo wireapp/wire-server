@@ -10,7 +10,6 @@
 , cassandra-util
 , conduit
 , cql
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -23,7 +22,7 @@
 mkDerivation {
   pname = "phone-users";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

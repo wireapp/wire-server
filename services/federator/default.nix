@@ -23,7 +23,6 @@
 , extended
 , filepath
 , fsnotify
-, gitignoreSource
 , HsOpenSSL
 , hspec
 , hspec-junit-formatter
@@ -77,7 +76,7 @@
 mkDerivation {
   pname = "federator";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

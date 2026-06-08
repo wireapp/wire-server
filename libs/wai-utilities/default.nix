@@ -10,7 +10,6 @@
 , bytestring-conversion
 , errors
 , exceptions
-, gitignoreSource
 , hspec
 , hspec-discover
 , http-types
@@ -39,7 +38,7 @@
 mkDerivation {
   pname = "wai-utilities";
   version = "0.16.1";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     async

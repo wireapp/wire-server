@@ -7,7 +7,6 @@
 , cassandra-util
 , conduit
 , containers
-, gitignoreSource
 , imports
 , lens
 , lib
@@ -21,7 +20,7 @@
 mkDerivation {
   pname = "repair-handles";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

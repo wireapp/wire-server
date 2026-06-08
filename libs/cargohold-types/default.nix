@@ -5,7 +5,6 @@
 { mkDerivation
 , base
 , bytestring-conversion
-, gitignoreSource
 , imports
 , lib
 , QuickCheck
@@ -15,7 +14,7 @@
 mkDerivation {
   pname = "cargohold-types";
   version = "1.5.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     bytestring-conversion
