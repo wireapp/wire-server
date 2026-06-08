@@ -108,6 +108,7 @@ library
     RunAllTests
     SetupHelpers
     Test.AccessUpdate
+    Test.AdminlessGroups
     Test.Apps
     Test.Auth
     Test.B2B
