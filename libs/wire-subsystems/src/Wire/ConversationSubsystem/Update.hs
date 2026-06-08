@@ -1164,7 +1164,6 @@ guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
     Member (Error AdminlessConversation) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member BrigAPIAccess r,
     Member FeaturesConfigSubsystem r
   ) =>
@@ -1180,7 +1179,9 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
       (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
       when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
         case responseMode of
-          RemoveMemberLegacyResponse -> throwS @'InvalidOperation
+          RemoveMemberLegacyResponse ->
+            -- FUTUREWORK: trigger autopromotion
+            pure ()
           RemoveMemberEligibleMembersResponse -> do
             eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
             throw $ AdminlessConversation eligibleMembers

@@ -17,6 +17,7 @@
 
 module Test.AdminlessGroups where
 
+import API.Brig (NewApp (..), createApp)
 import API.Galley
 import API.GalleyInternal
 import MLS.Util
@@ -25,26 +26,61 @@ import Testlib.Prelude
 
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
 testOnLastAdminLeaveReturnEligibleMembers = do
+  -- bob is eligible
   (alice, tid, [bob]) <- createTeam OwnDomain 2
-
-  clients@[alice1, _] <- traverse (createMLSClient def) [alice, bob]
-  for_ clients (uploadNewKeyPackage def)
 
   setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
 
-  -- Create an MLS team conversation for the owner, then add a second team
-  -- member to it. The second member is the eligible fallback if the owner
-  -- tries to leave as the last admin.
+  -- local user is eligible
+  localUser <- randomUser OwnDomain def
+  connectTwoUsers alice localUser
+
+  -- a remote user is not eligible
+  remoteUser <- randomUser OtherDomain def
+  connectTwoUsers alice remoteUser
+
+  -- app is not eligible
+  let newApp1 :: NewApp
+      newApp1 = def {name = "fallback-app-1", description = "non-eligible app member"}
+  app <- bindResponse (createApp alice tid newApp1) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
+
+  clients@(alice1 : _) <- traverse (createMLSClient def) [alice, bob, localUser, remoteUser, app]
+  for_ clients (uploadNewKeyPackage def)
+
   conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
   createGroup def alice1 convId
-  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 convId [bob, app, localUser, remoteUser] >>= sendAndConsumeCommitBundle
 
-  -- Attempt to leave the conversation as the last admin.
+  assertAttemptToLeaveFails conv alice [bob, localUser]
+
+  -- promote bob to admin
+  void $ updateRole alice bob "wire_admin" (conv %. "qualified_id") >>= assertSuccess
+
+  -- attempt to leave should succeed now
   bindResponse (removeMember alice conv alice) $ \resp -> do
-    resp.status `shouldMatchInt` 403
-    resp.json %. "label" `shouldMatch` "adminless-conversation"
-    eligibleMembers <- resp.json %. "eligible_members" & asList
-    expected <- bob %. "qualified_id"
-    eligibleMembers `shouldMatchSet` [expected]
+    resp.status `shouldMatchInt` 200
+
+  assertAttemptToLeaveFails conv bob [localUser]
+
+  -- in V15 it should be possible to leave (autopromotion should be triggered)
+  bindResponse (removeMemberV15 bob conv bob) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+  where
+    assertAttemptToLeaveFails conv user eligible =
+      bindResponse (removeMember user conv user) $ \resp -> do
+        resp.status `shouldMatchInt` 403
+        resp.json %. "label" `shouldMatch` "adminless-conversation"
+        eligibleMembers <- resp.json %. "eligible_members" & asList
+        expected <- for eligible $ \u -> u %. "qualified_id"
+        eligibleMembers `shouldMatchSet` expected
+
+    removeMemberV15 :: (HasCallStack, MakesValue remover, MakesValue conv, MakesValue removed) => remover -> conv -> removed -> App Response
+    removeMemberV15 remover qcnv removed = do
+      (convDomain, convId) <- objQid qcnv
+      (removedDomain, removedId) <- objQid removed
+      req <- baseRequest remover Galley (ExplicitVersion 15) (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
+      submit "DELETE" req
