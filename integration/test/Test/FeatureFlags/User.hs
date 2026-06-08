@@ -37,7 +37,7 @@ testFeatureConferenceCallingForUser = do
             "config" .= object ["useSFTForOneToOneCalls" .= True]
           ]
 
-  assertSuccess =<< I.patchTeamFeatureConfig OwnDomain tid featureName patch
+  assertSuccess =<< I.patchTeamFeature OwnDomain tid featureName patch
 
   -- set user value for both users
   for_ [alice, bob] $ \u -> do

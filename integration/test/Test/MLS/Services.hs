@@ -20,7 +20,7 @@
 module Test.MLS.Services where
 
 import API.Brig
-import API.GalleyInternal (patchTeamFeatureConfig)
+import API.GalleyInternal (patchTeamFeature)
 import SetupHelpers
 import Testlib.JSON
 import Testlib.Prelude
@@ -80,7 +80,7 @@ testWhitelistUpdatePermissions = do
           "status" .= "enabled",
           "ttl" .= "unlimited"
         ]
-  patchTeamFeatureConfig OwnDomain tid "mls" mlsConfig >>= assertStatus 200
+  patchTeamFeature OwnDomain tid "mls" mlsConfig >>= assertStatus 200
 
   do
     -- Check that a random user can't add the service to the whitelist
@@ -149,7 +149,7 @@ testRemoveServiceFromMLSTeam = do
           "status" .= "enabled",
           "ttl" .= "unlimited"
         ]
-  patchTeamFeatureConfig OwnDomain tid "mls" mlsConfig >>= assertStatus 200
+  patchTeamFeature OwnDomain tid "mls" mlsConfig >>= assertStatus 200
 
   -- Adding a NEW service on an MLS team should be blocked
   do

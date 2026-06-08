@@ -130,7 +130,7 @@ testCellsCreationEventIsSentOnlyOnce = do
 testCellsFeatureCheck :: (HasCallStack) => App ()
 testCellsFeatureCheck = do
   (alice, tid, _) <- createTeam OwnDomain 1
-  I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
+  I.patchTeamFeature OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
   conv <- postConversation alice defProteus {team = Just tid} >>= getJSON 201
   bindResponse (I.setCellsState alice conv "ready") $ \resp -> do
     resp.status `shouldMatchInt` 403
@@ -140,13 +140,13 @@ testCellsEventOnFeatureToggle :: (HasCallStack) => App ()
 testCellsEventOnFeatureToggle = do
   (_, tid, _) <- createTeam OwnDomain 1
   q <- watchCellsEventsForTeam tid def
-  I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
+  I.patchTeamFeature OwnDomain tid "cells" (object ["status" .= "disabled"]) >>= assertSuccess
   getMessage q >>= \event -> do
     event %. "payload.0.type" `shouldMatch` "feature-config.update"
     event %. "payload.0.name" `shouldMatch` "cells"
     event %. "payload.0.team" `shouldMatch` (asString tid)
     event %. "payload.0.data.status" `shouldMatch` "disabled"
-  I.patchTeamFeatureConfig OwnDomain tid "cells" (object ["status" .= "enabled"]) >>= assertSuccess
+  I.patchTeamFeature OwnDomain tid "cells" (object ["status" .= "enabled"]) >>= assertSuccess
   getMessage q >>= \event -> do
     event %. "payload.0.type" `shouldMatch` "feature-config.update"
     event %. "payload.0.name" `shouldMatch` "cells"
