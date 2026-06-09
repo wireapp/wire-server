@@ -104,8 +104,8 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
   bindResponse (removeMember alice conv alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-testOnLastAdminLeaveFeautreDisabled :: (HasCallStack) => App ()
-testOnLastAdminLeaveFeautreDisabled = do
+testOnLastAdminLeaveFeatureDisabled :: (HasCallStack) => App ()
+testOnLastAdminLeaveFeatureDisabled = do
   -- bob is eligible
   (alice, tid, [bob]) <- createTeam OwnDomain 2
 
