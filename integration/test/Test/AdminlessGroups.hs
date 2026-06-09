@@ -84,3 +84,42 @@ testOnLastAdminLeaveReturnEligibleMembers = do
       (removedDomain, removedId) <- objQid removed
       req <- baseRequest remover Galley (ExplicitVersion 15) (joinHttpPath ["conversations", convDomain, convId, "members", removedDomain, removedId])
       submit "DELETE" req
+
+testOnLastAdminLeaveNoEligibleMembersExist :: (HasCallStack) => App ()
+testOnLastAdminLeaveNoEligibleMembersExist = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
+
+  alice1 <- createMLSClient def alice
+  void $ uploadNewKeyPackage def alice1
+
+  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+
+  -- alice leaves the conversation, no error, group will be marked for deletion
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+testOnLastAdminLeaveFeautreDisabled :: (HasCallStack) => App ()
+testOnLastAdminLeaveFeautreDisabled = do
+  -- bob is eligible
+  (alice, tid, [bob]) <- createTeam OwnDomain 2
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "disabled"]) >>= assertSuccess
+
+  clients@(alice1 : _) <- traverse (createMLSClient def) [alice, bob]
+  for_ clients (uploadNewKeyPackage def)
+
+  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  -- alice leaves the conversation, no error, no autopromotion
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200

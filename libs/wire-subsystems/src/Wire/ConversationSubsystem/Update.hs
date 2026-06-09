@@ -49,6 +49,8 @@ module Wire.ConversationSubsystem.Update
     replaceMembers,
     updateSelfMember,
     updateOtherMember,
+    eligibleAdminFallbackMembers,
+    isLeavingLastConversationAdmin,
     removeMemberQualified,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
@@ -1184,7 +1186,8 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
             pure ()
           RemoveMemberEligibleMembersResponse -> do
             eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
-            throw $ AdminlessConversation eligibleMembers
+            -- when null -> mark for deletion
+            unless (null eligibleMembers) $ throw $ AdminlessConversation eligibleMembers
 
 isLeavingLastConversationAdmin :: UserId -> StoredConversation -> Bool
 isLeavingLastConversationAdmin leavingUser conv =
