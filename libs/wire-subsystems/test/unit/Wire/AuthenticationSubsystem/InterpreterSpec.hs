@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-ambiguous-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -67,8 +67,10 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.SessionStore
 import Wire.StoredUser
+import Wire.UserActivityStore (UserActivityStore)
 import Wire.UserKeyStore
 import Wire.UserStore
+import Wire.UserStore qualified as UserStore
 import Wire.VerificationCode
 import Wire.VerificationCodeGen
 import Wire.VerificationCodeStore
@@ -99,6 +101,8 @@ type AllEffects =
     TinyLog,
     EmailSubsystem,
     UserStore,
+    UserActivityStore,
+    State (Map UserId UTCTime),
     UserKeyStore,
     State [MiniEvent],
     State (Map EmailAddress [SentMail]),
@@ -106,11 +110,11 @@ type AllEffects =
   ]
 
 runAllEffects :: Domain -> [StoredUser] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> Either AuthenticationSubsystemError a
-runAllEffects domain users passwords emailDomains action = snd $ runAllEffectsWithEventStateAndFeatures domain users passwords emailDomains def action
+runAllEffects domain users passwords emailDomains action = snd $ runAllEffectsWithEventStateAndFeatures domain users passwords emailDomains def Nothing action
 
 runAllEffectsWithEventState :: Domain -> [StoredUser] -> Map UserId Password -> Maybe [Text] -> Sem AllEffects a -> ([MiniEvent], Either AuthenticationSubsystemError a)
 runAllEffectsWithEventState localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains =
-  runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains def
+  runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains def Nothing
 
 runAllEffectsWithEventStateAndFeatures ::
   Domain ->
@@ -118,19 +122,23 @@ runAllEffectsWithEventStateAndFeatures ::
   Map UserId Password ->
   Maybe [Text] ->
   AllTeamFeatures ->
+  Maybe NominalDiffTime ->
   Sem AllEffects a ->
   ([MiniEvent], Either AuthenticationSubsystemError a)
-runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains galleyFeatures =
+runAllEffectsWithEventStateAndFeatures localDomain preexistingUsers preexistingPasswords mAllowedEmailDomains galleyFeatures mSuspendTimeout =
   let cfg =
         defaultAuthenticationSubsystemConfig
           { allowlistEmailDomains = AllowlistEmailDomains <$> mAllowedEmailDomains,
-            local = toLocalUnsafe localDomain ()
+            local = toLocalUnsafe localDomain (),
+            suspendInactiveUsersTimeout = mSuspendTimeout
           }
    in run
         . evalState mempty
         . evalState mempty
         . runState mempty
         . runInMemoryUserKeyStoreIntepreterWithStoredUsers preexistingUsers
+        . evalState (mempty :: Map UserId UTCTime)
+        . inMemoryUserActivityStoreInterpreter
         . runInMemoryUserStoreInterpreter preexistingUsers preexistingPasswords
         . inMemoryEmailSubsystemInterpreter
         . discardTinyLogs
@@ -566,7 +574,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               luid = toLocalUnsafe testDomain user.id
               features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
               (_, Right result) =
-                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features Nothing $ do
                   code <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
                   enforceVerificationCodeEither luid (Just code.codeValue) action
            in result === Right ()
@@ -577,7 +585,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               luid = toLocalUnsafe testDomain user.id
               features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
               (_, Right result) =
-                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features Nothing $ do
                   _ <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
                   enforceVerificationCodeEither luid (Just wrongCode) action
            in if status == FeatureStatusEnabled
@@ -590,7 +598,7 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               luid = toLocalUnsafe testDomain user.id
               features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
               (_, Right result) =
-                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features Nothing $ do
                   _ <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
                   enforceVerificationCodeEither luid Nothing action
            in if status == FeatureStatusEnabled
@@ -603,12 +611,68 @@ spec = describe "AuthenticationSubsystem.Interpreter" do
               luid = toLocalUnsafe testDomain user.id
               features = npUpdate @SndFactorPasswordChallengeConfig (LockableFeature status LockStatusUnlocked def) def
               (_, Right result) =
-                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features $ do
+                runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing features Nothing $ do
                   code <- createCodeOverwritePrevious (mk6DigitVerificationCodeGen email) (scopeFromAction action) 2 300 Nothing
                   enforceVerificationCodeEither luid (Just code.codeValue) action
            in if status == FeatureStatusEnabled
                 then result === Left VerificationCodeNoEmail
                 else result === Right ()
+
+  describe "checkAndSuspendInactiveUser" do
+    let timeout = 3600 :: NominalDiffTime
+
+    prop "suspends user after timeout expires" $ \userNoEmail ->
+      let user = (userNoEmail :: StoredUser) {status = Just Active}
+          uid = user.id
+          Right finalStatus =
+            snd $ runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing def (Just timeout) $ do
+              recordUserActivity uid
+              passTime (timeout + 1)
+              _ <- checkAndSuspendInactiveUser uid False
+              UserStore.lookupStatus uid
+       in finalStatus === Just Suspended
+
+    prop "returns Left when inactive" $ \userNoEmail ->
+      let user = (userNoEmail :: StoredUser) {status = Just Active}
+          uid = user.id
+          Right result =
+            snd $ runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing def (Just timeout) $ do
+              recordUserActivity uid
+              passTime (timeout + 1)
+              checkAndSuspendInactiveUser uid False
+       in result === Left False
+
+    prop "does not suspend user within timeout" $ \userNoEmail ->
+      let user = (userNoEmail :: StoredUser) {status = Just Active}
+          uid = user.id
+          Right finalStatus =
+            snd $ runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing def (Just timeout) $ do
+              recordUserActivity uid
+              passTime (timeout - 1)
+              _ <- checkAndSuspendInactiveUser uid False
+              UserStore.lookupStatus uid
+       in finalStatus === Just Active
+
+    prop "does not suspend if feature is disabled" $ \userNoEmail ->
+      let user = (userNoEmail :: StoredUser) {status = Just Active}
+          uid = user.id
+          Right finalStatus =
+            snd $ runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing def Nothing $ do
+              recordUserActivity uid
+              passTime (timeout + 1)
+              _ <- checkAndSuspendInactiveUser uid False
+              UserStore.lookupStatus uid
+       in finalStatus === Just Active
+
+    prop "does not suspend if no activity record exists" $ \userNoEmail ->
+      let user = (userNoEmail :: StoredUser) {status = Just Active}
+          uid = user.id
+          Right finalStatus =
+            snd $ runAllEffectsWithEventStateAndFeatures testDomain [user] mempty Nothing def (Just timeout) $ do
+              passTime (timeout + 1)
+              _ <- checkAndSuspendInactiveUser uid False
+              UserStore.lookupStatus uid
+       in finalStatus === Just Active
 
   describe "randomConnId" $ do
     it "generates different connection ids" $ do

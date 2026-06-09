@@ -34,7 +34,6 @@ module Brig.User.Auth
 where
 
 import Brig.API.Types
-import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
 import Brig.Options qualified as Opt
@@ -57,7 +56,7 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import Polysemy.TinyLog qualified as Log
-import System.Logger (field, msg, val, (~~))
+import System.Logger
 import Util.Timeout
 import Wire.API.Team.Feature
 import Wire.API.User
@@ -69,14 +68,12 @@ import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem qualified as Authentication
 import Wire.AuthenticationSubsystem.Config
-import Wire.AuthenticationSubsystem.Error (VerificationCodeError (..))
+import Wire.AuthenticationSubsystem.Error
 import Wire.AuthenticationSubsystem.ZAuth qualified as ZAuth
 import Wire.ClientStore (ClientStore)
 import Wire.ClientStore qualified as ClientStore
-import Wire.Events (Events)
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
 import Wire.GalleyAPIAccess qualified as GalleyAPIAccess
-import Wire.Sem.Concurrency
 import Wire.Sem.Metrics (Metrics)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -90,14 +87,12 @@ login ::
   forall r.
   ( Member (Input (Local ())) r,
     Member ActivationCodeStore r,
-    Member Events r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
     Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r
@@ -179,8 +174,6 @@ logout uts at = do
 renewAccess ::
   forall r u a.
   ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
     ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
@@ -188,7 +181,6 @@ renewAccess ::
     Member (Embed IO) r,
     Member Metrics r,
     Member SessionStore r,
-    Member (Concurrency Unsafe) r,
     Member CryptoSign r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -204,7 +196,9 @@ renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
   traverse_ (checkClientId uid) mcid
   lift . liftSem . Log.debug $ field "user" (toByteString uid) . field "action" (val "User.renewAccess")
-  catchSuspendInactiveUser uid ZAuth.Expired
+  either throwE pure =<< (lift . liftSem $ Authentication.checkAndSuspendInactiveUser uid ZAuth.Expired)
+  catchSuspendedUsers uid ZAuth.Expired
+  lift . liftSem $ Authentication.recordUserActivity uid
   mapExceptT liftSem $ do
     ck' <- nextCookie ck mcid
     at' <- lift $ newAccessToken (fromMaybe ck ck') at
@@ -233,42 +227,31 @@ revokeAccess luid@(tUnqualified -> u) pw cc ll = do
 --------------------------------------------------------------------------------
 -- Internal
 
-catchSuspendInactiveUser ::
-  ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
-    Member (Concurrency 'Unsafe) r,
-    Member AuthenticationSubsystem r,
-    Member UserStore r
-  ) =>
+-- | Suspended users are not allowed to pick up new session tokens,
+-- even if they have a valid cookie.
+--
+-- This does not throw if the user is not found; that case must be
+-- handled by the caller.
+catchSuspendedUsers ::
+  (Member UserStore r) =>
   UserId ->
   e ->
   ExceptT e (AppT r) ()
-catchSuspendInactiveUser uid errval = do
-  mustsuspend <- lift $ wrapHttpClient $ mustSuspendInactiveUser uid
-  when mustsuspend $ do
-    lift . liftSem . Log.warn $
-      msg (val "Suspending user due to inactivity")
-        ~~ field "user" (toByteString uid)
-        ~~ field "action" ("user.suspend" :: String)
-    lift $ runExceptT (changeSingleAccountStatus uid Suspended) >>= explicitlyIgnoreErrors
-    throwE errval
-  where
-    explicitlyIgnoreErrors :: (Monad m) => Either AccountStatusError () -> m ()
-    explicitlyIgnoreErrors = \case
-      Left InvalidAccountStatus -> pure ()
-      Left AccountNotFound -> pure ()
-      Right () -> pure ()
+catchSuspendedUsers uid e = do
+  mb <- lift $ liftSem $ lookupStatus uid
+  case mb of
+    Nothing -> pure ()
+    Just Active -> pure ()
+    Just Suspended -> throwE e
+    Just Deleted -> throwE e -- (does not happen, but if it did, this is what we'd want to do)
+    Just Ephemeral -> pure ()
+    Just PendingInvitation -> pure ()
 
 newAccess ::
   forall u a r.
-  ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
-    ZAuth.UserTokenLike u,
+  ( ZAuth.UserTokenLike u,
     ZAuth.AccessTokenLike a,
     ZAuth.AccessTokenType u ~ a,
-    Member (Concurrency Unsafe) r,
     Member (Input AuthenticationSubsystemConfig) r,
     Member Now r,
     Member AuthenticationSubsystem r,
@@ -282,7 +265,9 @@ newAccess ::
   Maybe CookieLabel ->
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid cid ct cl = do
-  catchSuspendInactiveUser uid LoginSuspended
+  either throwE pure =<< (lift . liftSem $ Authentication.checkAndSuspendInactiveUser uid LoginSuspended)
+  catchSuspendedUsers uid LoginSuspended
+  lift . liftSem $ Authentication.recordUserActivity uid
   r <- lift $ liftSem $ newCookieLimited uid cid ct cl RevokeSameLabel
   case r of
     Left delay -> throwE $ LoginThrottled delay
@@ -393,12 +378,8 @@ validateToken ut at = do
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
-  ( Member TinyLog r,
-    Member UserSubsystem r,
-    Member Events r,
-    Member AuthenticationSubsystem r,
+  ( Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,
@@ -432,12 +413,8 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member UserSubsystem r,
     Member AuthenticationSubsystem r,
-    Member Events r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,

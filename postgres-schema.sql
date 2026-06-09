@@ -214,6 +214,18 @@ CREATE TABLE public.domain_registration_challenge (
 ALTER TABLE public.domain_registration_challenge OWNER TO "wire-server";
 
 --
+-- Name: last_user_activity; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.last_user_activity (
+    user_id uuid NOT NULL,
+    active_at timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.last_user_activity OWNER TO "wire-server";
+
+--
 -- Name: local_conversation_remote_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -456,6 +468,14 @@ ALTER TABLE ONLY public.domain_registration_challenge
 
 ALTER TABLE ONLY public.domain_registration
     ADD CONSTRAINT domain_registration_pkey PRIMARY KEY (domain);
+
+
+--
+-- Name: last_user_activity last_user_activity_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.last_user_activity
+    ADD CONSTRAINT last_user_activity_pkey PRIMARY KEY (user_id);
 
 
 --

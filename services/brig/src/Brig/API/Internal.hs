@@ -130,6 +130,7 @@ import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
+import Wire.UserActivityStore
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore as UserStore
@@ -156,6 +157,7 @@ servantSitemap ::
     Member TeamSubsystem r,
     Member TeamInvitationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member InvitationStore r,
     Member UserKeyStore r,
     Member Rpc r,
@@ -239,6 +241,7 @@ accountAPI ::
     Member UserKeyStore r,
     Member (Input (Local ())) r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member TinyLog r,
     Member EmailSubsystem r,
     Member PropertySubsystem r,
@@ -254,7 +257,6 @@ accountAPI ::
     Member RateLimit r,
     Member SparAPIAccess r,
     Member EnterpriseLoginSubsystem r,
-    Member (Concurrency Unsafe) r,
     Member ClientStore r,
     Member ClientSubsystem r
   ) =>
@@ -342,12 +344,8 @@ clientAPI = Named @"update-client-last-active" updateClientLastActive
 
 authAPI ::
   ( Member GalleyAPIAccess r,
-    Member TinyLog r,
-    Member Events r,
-    Member UserSubsystem r,
     Member AuthenticationSubsystem r,
     Member (Input AuthenticationSubsystemConfig) r,
-    Member (Concurrency Unsafe) r,
     Member Now r,
     Member CryptoSign r,
     Member Random r,
@@ -626,6 +624,7 @@ deleteUserNoAuthH ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member Events r,
@@ -785,9 +784,8 @@ getPasswordResetCode email =
 changeAccountStatusH ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatusUpdate ->

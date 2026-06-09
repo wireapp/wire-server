@@ -42,6 +42,7 @@ import Wire.API.Allowlists qualified as AllowLists
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Password
+import Wire.API.UserEvent (UserEvent (UserSuspended))
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Config
 import Wire.AuthenticationSubsystem.Cookie
@@ -59,6 +60,8 @@ import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
 import Wire.SessionStore
+import Wire.UserActivityStore (UserActivityStore)
+import Wire.UserActivityStore qualified as UserActivityStore
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
 import Wire.UserStore qualified as UserStore
@@ -81,6 +84,7 @@ interpretAuthenticationSubsystem ::
     Member PasswordStore r,
     Member EmailSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member RateLimit r,
     Member CryptoSign r,
     Member Random r,
@@ -107,6 +111,9 @@ interpretAuthenticationSubsystem userSubsystemInterpreter =
         NewCookie uid mcid typ mLabel policy -> newCookieImpl uid mcid typ mLabel policy
         NewCookieLimited uid mcid typ mLabel policy -> runError $ newCookieLimitedImpl uid mcid typ mLabel policy
         RevokeCookies uid ids labels -> revokeCookiesImpl uid ids labels
+        -- Inactivity tracking
+        RecordUserActivity uid -> recordUserActivityImpl uid
+        CheckAndSuspendInactiveUser uid er -> checkAndSuspendInactiveUserImpl uid er
         -- Verification Codes
         EnforceVerificationCodeEither luid mCode action -> runError $ enforceVerificationCodeImpl luid mCode action
         -- Testing
@@ -414,6 +421,48 @@ verifyUserPasswordErrorImpl ::
 verifyUserPasswordErrorImpl (tUnqualified -> uid) password = do
   unlessM (fst <$> verifyUserPasswordImpl uid password) do
     throw AuthenticationSubsystemBadCredentials
+
+recordUserActivityImpl ::
+  ( Member Now r,
+    Member UserActivityStore r
+  ) =>
+  UserId ->
+  Sem r ()
+recordUserActivityImpl uid = do
+  now <- Now.get
+  UserActivityStore.updateLastActivity uid now
+
+checkAndSuspendInactiveUserImpl ::
+  ( Member (Input AuthenticationSubsystemConfig) r,
+    Member UserActivityStore r,
+    Member Now r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member Events r,
+    Member TinyLog r
+  ) =>
+  UserId ->
+  e ->
+  Sem r (Either e ())
+checkAndSuspendInactiveUserImpl uid er =
+  inputs (.suspendInactiveUsersTimeout) >>= \case
+    Nothing -> pure (Right ())
+    Just timeout -> do
+      UserActivityStore.getLastActivity uid >>= \case
+        Nothing -> pure (Right ())
+        Just lastActivity -> do
+          now <- Now.get
+          if diffUTCTime now lastActivity > timeout
+            then do
+              Log.warn $
+                msg (val "Suspending user due to inactivity")
+                  . field "user" (toByteString uid)
+                  . field "action" ("user.suspend" :: String)
+              UserStore.updateAccountStatus uid Suspended
+              User.internalUpdateSearchIndex uid
+              generateUserEvent uid Nothing (UserSuspended uid)
+              pure (Left er)
+            else pure (Right ())
 
 enforceVerificationCodeImpl ::
   forall r.

@@ -599,3 +599,30 @@ testTeamSizeWithApps (TaggedBool testInternalApi) = do
   BrigI.refreshIndex domain
   eventually $ do
     checkSize (numRegulars - 1) (numApps - 1)
+
+testZauthAndApps :: (HasCallStack) => App ()
+testZauthAndApps = do
+  (owner, tid, []) <- createTeam OwnDomain 1
+  (app, cookie) <- do
+    let new :: NewApp =
+          def
+            { name = "chappie",
+              description = "some description of this app",
+              category = "ai"
+            }
+
+    createApp owner tid new `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      app <- resp.json %. "user"
+      cookie <- resp.json %. "cookie" & asString
+      pure (app, cookie)
+
+  renewToken app cookie >>= assertSuccess
+
+  BrigI.setAccountStatus app "suspended" >>= assertSuccess
+  renewToken app cookie `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    (resp.json %. "label") `shouldMatch` "invalid-credentials"
+
+  BrigI.setAccountStatus app "active" >>= assertSuccess
+  renewToken app cookie >>= assertSuccess

@@ -90,7 +90,6 @@ import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Misc
 import Data.Qualified
 import Data.Range
@@ -120,7 +119,7 @@ import Wire.API.User.RichInfo
 import Wire.API.UserEvent
 import Wire.ActivationCodeStore
 import Wire.ActivationCodeStore qualified as ActivationCode
-import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode)
+import Wire.AuthenticationSubsystem (AuthenticationSubsystem, internalLookupPasswordResetCode, recordUserActivity)
 import Wire.BackendNotificationQueueAccess
 import Wire.BlockListStore as BlockListStore
 import Wire.ClientStore (ClientStore)
@@ -146,6 +145,7 @@ import Wire.Sem.Paging.Cassandra
 import Wire.StoredUser
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserActivityStore as UserActivityStore
 import Wire.UserGroupSubsystem
 import Wire.UserKeyStore
 import Wire.UserStore (UserStore)
@@ -634,50 +634,55 @@ changeAccountStatus ::
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
-  ev <- mkUserEvent usrs status
-  lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (update ev) usrs
-  where
-    update ::
-      (UserId -> UserEvent) ->
-      UserId ->
-      Sem r ()
-    update ev u = do
-      UserStore.updateAccountStatus u status
-      User.internalUpdateSearchIndex u
-      Events.generateUserEvent u Nothing (ev u)
+  ev <- mkUserEvent status
+  lift $ liftSem $ unsafePooledMapConcurrentlyN_ 16 (changeSingleAccountStatusInternal status ev) usrs
 
 changeSingleAccountStatus ::
   ( Member UserSubsystem r,
     Member Events r,
-    Member (Concurrency Unsafe) r,
-    Member AuthenticationSubsystem r,
-    Member UserStore r
+    Member UserStore r,
+    Member AuthenticationSubsystem r
   ) =>
   UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
   unlessM (lift . liftSem $ UserStore.doesUserExist uid) $ throwE AccountNotFound
-  ev <- mkUserEvent (NonEmpty.singleton uid) status
-  lift . liftSem $ do
-    UserStore.updateAccountStatus uid status
-    User.internalUpdateSearchIndex uid
-    Events.generateUserEvent uid Nothing (ev uid)
+  ev <- mkUserEvent status
+  lift . liftSem $ changeSingleAccountStatusInternal status ev uid
 
-mkUserEvent ::
-  ( Traversable t,
-    Member (Concurrency Unsafe) r,
+changeSingleAccountStatusInternal ::
+  ( Member UserSubsystem r,
+    Member Events r,
+    Member UserStore r,
     Member AuthenticationSubsystem r
   ) =>
-  t UserId ->
   AccountStatus ->
-  ExceptT AccountStatusError (AppT r) (UserId -> UserEvent)
-mkUserEvent usrs status =
+  (UserId -> UserEvent) ->
+  UserId ->
+  Sem r ()
+changeSingleAccountStatusInternal status ev u = do
+  -- It is safe to *not* revoke any cookies here; if no valid access
+  -- token is available, cookies are only validated when calling `POST
+  -- /access`, and access token refresh only works on unsuspended
+  -- users.
+  --
+  -- Evidence: `git grep -Hn --color=never 'UserToken\b' | grep libs/wire-api/src/Wire/API/Routes/Public/`.
+  UserStore.updateAccountStatus u status
+  User.internalUpdateSearchIndex u
+  Events.generateUserEvent u Nothing (ev u)
+  -- Reactivation resets the inactivity clock so that the user has the
+  -- full window before being considered inactive again.
+  when (status == Active) $ recordUserActivity u
+
+mkUserEvent ::
+  (Monad m) =>
+  AccountStatus ->
+  ExceptT AccountStatusError m (UserId -> UserEvent)
+mkUserEvent status =
   case status of
     Active -> pure UserResumed
-    Suspended -> do
-      lift $ liftSem (unsafePooledMapConcurrentlyN_ 16 Auth.revokeAllCookies usrs)
-      pure UserSuspended
+    Suspended -> pure UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
@@ -939,6 +944,7 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member EmailSubsystem r,
     Member VerificationCodeSubsystem r,
     Member Events r,
@@ -1016,6 +1022,7 @@ verifyDeleteUser ::
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member VerificationCodeSubsystem r,
     Member Events r,
     Member UserSubsystem r,
@@ -1047,6 +1054,7 @@ ensureAccountDeleted ::
     Member TinyLog r,
     Member UserKeyStore r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member Events r,
     Member UserSubsystem r,
     Member PropertySubsystem r,
@@ -1098,6 +1106,7 @@ deleteAccount ::
     Member UserKeyStore r,
     Member TinyLog r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member PropertySubsystem r,
     Member UserSubsystem r,
     Member Events r,
@@ -1116,6 +1125,7 @@ deleteAccount user = do
 
     PropertySubsystem.onUserDeleted uid
     UserStore.deleteUser user
+    UserActivityStore.deleteLastActivity uid
 
   traverse_ (removeUserFromAllGroups uid) user.userTeam
 

@@ -21,6 +21,7 @@ import Data.Aeson
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified
+import Data.Time.Clock (NominalDiffTime)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Data.ZAuth.Creation qualified as ZC
@@ -35,7 +36,8 @@ data AuthenticationSubsystemConfig = AuthenticationSubsystemConfig
     zauthEnv :: ZAuthEnv,
     userCookieRenewAge :: Integer,
     userCookieLimit :: Int,
-    userCookieThrottle :: CookieThrottle
+    userCookieThrottle :: CookieThrottle,
+    suspendInactiveUsersTimeout :: Maybe NominalDiffTime
   }
 
 data ZAuthSettings = ZAuthSettings

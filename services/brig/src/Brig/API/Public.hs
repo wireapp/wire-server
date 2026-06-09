@@ -196,6 +196,7 @@ import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
+import Wire.UserActivityStore
 import Wire.UserGroupSubsystem (UserGroupSubsystem)
 import Wire.UserGroupSubsystem qualified as UserGroup
 import Wire.UserKeyStore
@@ -395,6 +396,7 @@ servantSitemap ::
     Member UserKeyStore r,
     Member ActivationCodeStore r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member (Input InvitationUrlTemplates) r,
     Member UserSubsystem r,
     Member TeamInvitationSubsystem r,
@@ -1424,6 +1426,7 @@ deleteSelfUser ::
     Member UserKeyStore r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member EmailSubsystem r,
     Member UserSubsystem r,
     Member VerificationCodeSubsystem r,
@@ -1445,6 +1448,7 @@ verifyDeleteUser ::
   ( Member (Embed HttpClientIO) r,
     Member NotificationSubsystem r,
     Member UserStore r,
+    Member UserActivityStore r,
     Member TinyLog r,
     Member UserKeyStore r,
     Member VerificationCodeSubsystem r,

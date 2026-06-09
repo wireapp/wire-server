@@ -86,7 +86,7 @@ inMemoryUserSubsystemInterpreter =
     BlockListInsert _ -> error "BlockListInsert: implement on demand (userSubsystemInterpreter)"
     UpdateTeamSearchVisibilityInbound _ -> error "UpdateTeamSearchVisibilityInbound: implement on demand (userSubsystemInterpreter)"
     AcceptTeamInvitation {} -> error "AcceptTeamInvitation: implement on demand (userSubsystemInterpreter)"
-    InternalUpdateSearchIndex _ -> error "InternalUpdateSearchIndex: implement on demand (userSubsystemInterpreter)"
+    InternalUpdateSearchIndex _ -> pure ()
     InternalFindTeamInvitation {} -> error "InternalFindTeamInvitation: implement on demand (userSubsystemInterpreter)"
     GetUserExportData _ -> error "GetUserExportData: implement on demand (userSubsystemInterpreter)"
     RemoveEmailEither _ -> error "RemoveEmailEither: implement on demand (userSubsystemInterpreter)"
