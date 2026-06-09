@@ -24,6 +24,7 @@
 
 module Brig.Options where
 
+import Amazonka.Types (S3AddressingStyle)
 import Brig.Queue.Types (QueueOpts (..))
 import Control.Applicative
 import Control.Lens hiding (Level, element, enum)
@@ -355,6 +356,157 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
+data WireConfig = WireConfig
+  { internalServices :: InternalServices,
+    externalServices :: ExternalServices,
+    settings :: WireSettings
+  }
+
+data InternalServices = InternalServices
+  { brig :: !Endpoint,
+    cargohold :: !Endpoint,
+    galley :: !Endpoint,
+    spar :: !Endpoint,
+    gundeck :: !Endpoint,
+    federatorInternal :: !(Maybe Endpoint),
+    wireServerEnterprise :: !(Maybe Endpoint)
+  }
+
+data ExternalServices = ExternalServices
+  { cassandraBrig :: !CassandraOpts,
+    cassandraGalley :: !CassandraOpts,
+    cassandraGundeck :: !CassandraOpts,
+    cassandraSpar :: !CassandraOpts,
+    elasticsearch :: !ElasticSearchOpts,
+    redis :: !RedisEndpoint,
+    redisAdditionalWrite :: !(Maybe RedisEndpoint),
+    -- | Postgresql settings, the key values must be in libpq format.
+    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    postgresql :: !(Map Text Text),
+    postgresqlPassword :: !(Maybe FilePathSecrets),
+    postgresqlPool :: !PoolConfig,
+    rabbitmq :: !AmqpEndpoint,
+    email :: !EmailOpts,
+    prekeySelection :: !PrekeySelectionOpts,
+    -- TODO: See if user and team journal can even be configured differently. If
+    -- everything is supposed to be used by ibis, we cannot actually configure
+    -- them seperately anyway.
+    userJournal :: !(Maybe SqsOpts),
+    teamJournal :: !(Maybe SqsOpts),
+    internalEvents :: !SqsOpts,
+    assets :: !AssetOpts
+  }
+
+data RedisConnectionMode
+  = Master
+  | Cluster
+
+data RedisEndpoint = RedisEndpoint
+  { _host :: !Text,
+    _port :: !Word16,
+    _connectionMode :: !RedisConnectionMode,
+    _enableTls :: !Bool,
+    -- | When not specified, use system CA bundle
+    _tlsCa :: !(Maybe FilePath),
+    -- | When 'True', uses TLS but does not verify hostname or CA or validity of
+    -- the cert. Not recommended to set to 'True'.
+    _insecureSkipVerifyTls :: !Bool
+  }
+
+data PrekeySelectionOpts
+  = RandomPrekeySelection
+  | DynamoDBPrekeySelection !DynamoDBPrekeySelectionOpts
+
+data DynamoDBPrekeySelectionOpts = DynamoDBPrekeySelectionOpts
+  { dynamoDBEndpoint :: !AWSEndpoint,
+    tableName :: !Text
+  }
+
+data SqsOpts = SqsOpts
+  { sqsEndpoint :: !AWSEndpoint,
+    queueName :: !Text
+  }
+
+data AssetOpts = AssetOpts
+  { s3Endpoint :: !AWSEndpoint,
+    -- | S3 can either by addressed in path style, i.e.
+    -- https://<s3-endpoint>/<bucket-name>/<object>, or vhost style, i.e.
+    -- https://<bucket-name>.<s3-endpoint>/<object>. AWS's S3 offering has
+    -- deprecated path style addressing for S3 and completely disabled it for
+    -- buckets created after 30 Sep 2020:
+    -- https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/
+    --
+    -- However other object storage providers (specially self-deployed ones like
+    -- MinIO) may not support vhost style addressing yet (or ever?). Users of
+    -- such buckets should configure this option to "path".
+    --
+    -- Installations using S3 service provided by AWS, should use "auto", this
+    -- option will ensure that vhost style is only used when it is possible to
+    -- construct a valid hostname from the bucket name and the bucket name
+    -- doesn't contain a '.'. Having a '.' in the bucket name causes TLS
+    -- validation to fail, hence it is not used by default.
+    --
+    -- Using "virtual" as an option is only useful in situations where vhost
+    -- style addressing must be used even if it is not possible to construct a
+    -- valid hostname from the bucket name or the S3 service provider can ensure
+    -- correct certificate is issued for bucket which contain one or more '.'s
+    -- in the name.
+    --
+    -- When this option is unspecified, we default to path style addressing to
+    -- ensure smooth transition for older deployments.
+    s3AddressingStyle :: !(Maybe OptS3AddressingStyle),
+    -- | S3 endpoint for generating download links. Useful if Cargohold is configured to use
+    -- an S3 replacement running inside the internal network (in which case internally we
+    -- would use one hostname for S3, and when generating an asset link for a client app, we
+    -- would use another hostname).
+    s3DownloadEndpoint :: !(Maybe AWSEndpoint),
+    s3Bucket :: !Text,
+    -- | Enable this option for compatibility with specific S3 backends.
+    s3Compatibility :: !(Maybe S3Compatibility),
+    cloudFront :: !(Maybe CloudFrontOpts),
+    -- | @Z-Host@ header to s3 download endpoint `Map`
+    --
+    -- This logic is: If the @Z-Host@ header is provided and found in this map,
+    -- the map's values is taken as s3 download endpoint to redirect to;
+    -- otherwise a 404 is retuned. This option is only useful
+    -- in the context of multi-ingress setups where one backend / deployment is
+    -- reachable under several domains.
+    multiIngress :: !(Maybe (Map String AWSEndpoint))
+  }
+
+newtype OptS3AddressingStyle = OptS3AddressingStyle
+  { unwrapS3AddressingStyle :: S3AddressingStyle
+  }
+
+data WireSettings = WireSettings
+  { turn :: !TurnOpts,
+    sft :: !(Maybe SFTOptions)
+  }
+
+data S3Compatibility
+  = -- | Scality RING, might also work for Zenko CloudServer
+    -- <https://www.scality.com/products/ring/>
+    S3CompatibilityScalityRing
+
+-- | AWS CloudFront settings.
+data CloudFrontOpts = CloudFrontOpts
+  { -- | Domain
+    domain :: CFDomain,
+    -- | Keypair ID
+    keyPairId :: CFKeyPairId,
+    -- | Path to private key
+    privateKey :: FilePath
+  }
+  deriving (Show, Generic)
+
+-- TODO: This is copied from cargohold, dedupe
+newtype CFKeyPairId = CFKeyPairId Text
+  deriving (Eq, Show, Generic)
+
+-- TODO: This is copied from cargohold, dedupe
+newtype CFDomain = CFDomain Text
+  deriving (Eq, Show, Generic)
+
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -404,7 +556,7 @@ data Opts = Opts
     zauth :: !ZAuthOpts,
     -- Misc.
 
-    -- | Disco URL
+    -- | Disco URL, TODO: Remove.
     discoUrl :: !(Maybe Text),
     -- | Event queue for
     --   Brig-generated events (e.g.
@@ -415,7 +567,7 @@ data Opts = Opts
     -- | Log level (Debug, Info, etc)
     logLevel :: !Level,
     -- | Use netstrings encoding (see
-    --   <http://cr.yp.to/proto/netstrings.txt>)
+    --   <http://cr.yp.to/proto/netstrings.txt>). TODO: Remove.
     logNetStrings :: !(Maybe (Last Bool)),
     -- | Logformat to use
     -- TURN
@@ -440,7 +592,7 @@ data Settings = Settings
     teamInvitationTimeout :: !Timeout,
     -- | Check for expired users every so often, in seconds
     expiredUserCleanupTimeout :: !(Maybe Timeout),
-    -- | STOMP broker credentials
+    -- | STOMP broker credentials. TODO: Remove.
     stomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
     allowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
