@@ -57,7 +57,7 @@ import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem (..))
 
 spec :: Spec
-spec = focus $ describe "ConversationSubsystem.Interpreter" do
+spec = describe "ConversationSubsystem.Interpreter" do
   prop "removeMemberQualified returns adminless-conversation error" $
     \convDomain
      teamId
