@@ -19,7 +19,7 @@ module Test.AdminlessGroups where
 
 import API.Brig (NewApp (..), createApp)
 import API.Galley
-import API.GalleyInternal
+import API.GalleyInternal hiding (getConversation)
 import MLS.Util
 import SetupHelpers
 import Testlib.Prelude
@@ -66,9 +66,19 @@ testOnLastAdminLeaveReturnEligibleMembers = do
 
   assertAttemptToLeaveFails conv bob [localUser]
 
+  -- before bob leaves, we make sure the local user is not an admin
+  bindResponse (getConversation localUser conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+
   -- in V15 it should be possible to leave (autopromotion should be triggered)
   bindResponse (removeMemberV15 bob conv bob) $ \resp -> do
     resp.status `shouldMatchInt` 200
+
+  -- assert autopromotion worked and the local user is an admin now
+  bindResponse (getConversation localUser conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
   where
     assertAttemptToLeaveFails conv user eligible =
       bindResponse (removeMember user conv user) $ \resp -> do
@@ -123,3 +133,42 @@ testOnLastAdminLeaveFeatureDisabled = do
   -- alice leaves the conversation, no error, no autopromotion
   bindResponse (removeMember alice conv alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
+
+testOnLastAdminTeamMemberDeletionAutopromotes :: (HasCallStack) => App ()
+testOnLastAdminTeamMemberDeletionAutopromotes = do
+  -- charlie is the only eligible local member that remains after the admin is removed.
+  (alice, tid, [_bob, charlie]) <- createTeam OwnDomain 3
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
+
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, charlie1]
+  aliceId <- alice %. "qualified_id"
+
+  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
+
+  -- Promote charlie and demote alice so charlie is the last admin in the conversation.
+  void $ updateRole alice charlie "wire_admin" (conv %. "qualified_id") >>= assertSuccess
+  void $ updateRole charlie alice "wire_member" (conv %. "qualified_id") >>= assertSuccess
+
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+    others <- resp.json %. "members.others" & asList
+    [other] <- pure others
+    other %. "qualified_id" `shouldMatch` objQidObject charlie
+    other %. "conversation_role" `shouldMatch` "wire_admin"
+
+  void $ deleteTeamMember tid alice charlie >>= getBody 202
+
+  eventually $ do
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+      members <- resp.json %. "members.others" & asList
+      memberIds <- for members (%. "qualified_id")
+      memberIds `shouldMatchSet` [aliceId]
