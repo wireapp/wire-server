@@ -245,8 +245,8 @@ interpretProposalStore ::
   Sem r a
 interpretProposalStore =
   interpret $ \case
-    StoreProposal _ _ _ -> pure ()
-    GetProposal _ _ _ -> pure Nothing
+    StoreProposal {} -> pure ()
+    GetProposal {} -> pure Nothing
     GetAllPendingProposalRefs _ _ -> pure []
     GetAllPendingProposals _ _ -> pure []
     DeleteAllProposals _ -> pure ()
