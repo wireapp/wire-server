@@ -58,7 +58,7 @@ data Opts = Opts
     -- | The maximum size of rich info.
     richInfoLimit :: !Int,
     -- | Wire/AWS specific; optional; used to discover Cassandra instance
-    -- IPs using describe-instances.
+    -- IPs using describe-instances. TODO Delete.
     discoUrl :: !(Maybe Text),
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),

@@ -24,6 +24,7 @@
 
 module Brig.Options where
 
+import Amazonka (Region)
 import Amazonka.Types (S3AddressingStyle)
 import Brig.Queue.Types (QueueOpts (..))
 import Control.Applicative
@@ -55,6 +56,7 @@ import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Version
 import Wire.API.Team.Feature
+import Wire.API.Team.FeatureFlags
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit
@@ -235,16 +237,15 @@ instance FromJSON EmailOpts where
     EmailAWS <$> parseJSON o
       <|> EmailSMTP <$> parseJSON o
 
-data EmailSMSOpts = EmailSMSOpts
-  { email :: !EmailOpts,
-    general :: !EmailSMSGeneralOpts,
+data EmailSettings = EmailSettings
+  { general :: !EmailSMSGeneralOpts,
     user :: !EmailUserOpts,
     provider :: !ProviderOpts,
     team :: !TeamOpts
   }
   deriving (Show, Generic)
 
-instance FromJSON EmailSMSOpts
+instance FromJSON EmailSettings
 
 -- | Login retry limit.  In contrast to 'setUserCookieThrottle', this is not about mitigating
 -- DOS attacks, but about preventing dictionary attacks.  This introduces the orthogonal risk
@@ -369,6 +370,7 @@ data InternalServices = InternalServices
     spar :: !Endpoint,
     gundeck :: !Endpoint,
     federatorInternal :: !(Maybe Endpoint),
+    backgroundWorker :: !Endpoint,
     wireServerEnterprise :: !(Maybe Endpoint)
   }
 
@@ -394,7 +396,8 @@ data ExternalServices = ExternalServices
     userJournal :: !(Maybe SqsOpts),
     teamJournal :: !(Maybe SqsOpts),
     internalEvents :: !SqsOpts,
-    assets :: !AssetOpts
+    assets :: !AssetOpts,
+    pushNotifications :: !PushNotifiactionOpts
   }
 
 data RedisConnectionMode
@@ -479,8 +482,148 @@ newtype OptS3AddressingStyle = OptS3AddressingStyle
   }
 
 data WireSettings = WireSettings
+  { users :: UserSettings,
+    search :: SearchSettings,
+    teams :: TeamSettings,
+    conversations :: ConversationSettings,
+    auth :: AuthSettings,
+    calling :: CallingSettings,
+    notifications :: NotificationSettings,
+    federation :: FederationSettings,
+    email :: EmailSettings,
+    featureFlags :: FeatureFlags,
+    assets :: AssetSettings,
+    bots :: BotSettings,
+    postgresMigration :: PostgresMigrationOpts,
+    logSettings :: LogSettings
+  }
+
+data SearchSettings = SearchSettings
+  { emailVisibility :: !EmailVisibilityConfig,
+    -- | When true, search only
+    -- returns users from the same team
+    searchSameTeamOnly :: !(Maybe Bool)
+  }
+
+data LogSettings = LogSettings
+  { logLevel :: !Level,
+    logFormat :: !(Maybe LogFormat)
+  }
+
+data UserSettings = UserSettings
+  { -- \| Activation timeout, in seconds
+    activationTimeout :: !Timeout,
+    -- | Default verification code timeout, in seconds
+    -- use `verificationTimeout` as the getter function which always provides a default value
+    verificationCodeTimeoutInternal :: !(Maybe Code.Timeout),
+    -- | Check for expired users every so often, in seconds
+    expiredUserCleanupTimeout :: !(Maybe Timeout),
+    -- | Whitelist of allowed emails/phones
+    allowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
+    -- | Max. number of sent/accepted
+    --   connections per user
+    userMaxConnections :: !Int64,
+    -- | Max. number of permanent clients per user
+    userMaxPermClients :: !(Maybe Int),
+    suspendInactiveUsers :: !(Maybe SuspendInactiveUsers),
+    -- | Max size of rich info (number of chars in
+    --   field names and values), should be in sync
+    --   with Spar
+    richInfoLimit :: !Int,
+    -- | Default locale to use when selecting templates use
+    -- `defaultTemplateLocale` as the getter function which always provides a
+    -- default value. TODO: Merge this and next.
+    defaultTemplateLocaleInternal :: !(Maybe Locale),
+    -- | Default locale to use for users
+    -- use `defaultUserLocale` as the getter function which always provides a default value
+    defaultUserLocaleInternal :: !(Maybe Locale),
+    propertyMaxKeyLen :: !(Maybe Int64),
+    propertyMaxValueLen :: !(Maybe Int64),
+    -- | How long, in milliseconds, to wait in between processing delete events
+    -- from the internal delete queue
+    deleteThrottleMillis :: !(Maybe Int),
+    -- | The amount of time in milliseconds to wait after reading from an SQS queue
+    -- returns no message, before asking for messages from SQS again.
+    -- defaults to 'defSqsThrottleMillis'.
+    -- When using real SQS from AWS, throttling isn't needed as much, since using
+    -- >>> SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
+    -- ensures that there is only one request every 20 seconds.
+    -- However, that parameter is not honoured when using fake-sqs
+    -- (where throttling can thus make sense)
+    sqsThrottleMillis :: !(Maybe Int),
+    -- | Do not allow certain user creation flows.
+    -- docs/reference/user/registration.md {#RefRestrictRegistration}.
+    restrictUserCreation :: !(Maybe Bool)
+  }
+
+data TeamSettings = TeamSettings
+  { -- \| Team invitation timeout, in seconds
+    teamInvitationTimeout :: !Timeout,
+    -- | Max. # of members in a team.
+    maxTeamSize :: !Word32
+  }
+
+data ConversationSettings = ConversationSettings
+  { -- | Max. # of members in a conversation.
+    maxConvSize :: !Word16
+  }
+
+data AuthSettings = AuthSettings
+  { zauth :: !ZAuthOpts,
+    -- | Whether to allow plain HTTP transmission of cookies (for testing
+    --   purposes only)
+    cookieInsecure :: !Bool,
+    -- | Minimum age of a user cookie before it is renewed during token refresh
+    userCookieRenewAge :: !Integer,
+    -- | Max. # of cookies per user and cookie type
+    userCookieLimit :: !Int,
+    -- | Throttling tings (not to be confused with 'LoginRetryOpts')
+    userCookieThrottle :: !CookieThrottle,
+    -- | Block user from logging in for m minutes after n failed logins
+    limitFailedLogins :: !(Maybe LimitFailedLogins)
+  }
+
+data NotificationSettings = NotificationSettings {}
+
+data FederationSettings = FederationSettings
+  { -- \| FederationDomain is required, even when not wanting to federate with other backends
+    -- (in that case the 'federationStrategy' can be set to `allowNone` below, or to
+    -- `allowDynamic` while keeping the list of allowed domains empty, see
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
+    -- Federation domain is used to qualify local IDs and handles,
+    -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+    -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
+    -- >>>   _wire-server-federator._tcp.<federationDomain>
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
+    -- Remember to keep it the same in all services.
+    federationDomain :: !Domain,
+    -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- default: AllowNone
+    federationStrategy :: !(Maybe FederationStrategy),
+    -- | 'federationDomainConfigs' is introduced in
+    -- https://github.com/wireapp/wire-server/pull/3260 for the sole purpose of transitioning
+    -- to dynamic federation remote configuration.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    -- for details.
+    -- default: []
+    federationDomainConfigs :: !(Maybe [ImplicitNoFederationRestriction]),
+    -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
+    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
+    federationDomainConfigsUpdateFreq :: !(Maybe Int)
+  }
+
+data AssetSettings = AssetSettings {}
+
+data CallingSettings = CallingSettings
   { turn :: !TurnOpts,
-    sft :: !(Maybe SFTOptions)
+    sft :: !(Maybe SFTOptions),
+    multiSFT :: !(Maybe Bool)
+  }
+
+data BotSettings = BotSettings
+  { -- \| Filter ONLY services with
+    --   the given provider id
+    providerSearchFilter :: !(Maybe ProviderId)
   }
 
 data S3Compatibility
@@ -507,185 +650,29 @@ newtype CFKeyPairId = CFKeyPairId Text
 newtype CFDomain = CFDomain Text
   deriving (Eq, Show, Generic)
 
+data PushNotifiactionOpts = PushNotifiactionOpts
+  { -- \| AWS account
+    _account :: !Text,
+    -- | AWS region name
+    _region :: !Region,
+    -- | Environment name to scope ARNs to. TODO: Add explanation for on-prem operators.
+    _arnEnv :: !Text,
+    -- | SQS queue name
+    _queueName :: !Text,
+    _sqsEndpoint :: !AWSEndpoint,
+    _snsEndpoint :: !AWSEndpoint
+  }
+
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
-  { -- | Host and port to bind to
-    brig :: !Endpoint,
-    -- | Cargohold address
-    cargohold :: !Endpoint,
-    -- | Galley address
-    galley :: !Endpoint,
-    -- | Spar address
-    spar :: !Endpoint,
-    -- | Gundeck address
-    gundeck :: !Endpoint,
-    -- | Federator address
-    federatorInternal :: !(Maybe Endpoint),
-    -- | Wire Server Enterprise address
-    wireServerEnterprise :: !(Maybe Endpoint),
-    -- external
-
-    -- | Cassandra settings
-    cassandra :: !CassandraOpts,
-    -- | ElasticSearch settings
-    elasticsearch :: !ElasticSearchOpts,
-    -- | Postgresql settings, the key values must be in libpq format.
-    -- https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-    postgresql :: !(Map Text Text),
-    postgresqlPassword :: !(Maybe FilePathSecrets),
-    postgresqlPool :: !PoolConfig,
-    postgresMigration :: !PostgresMigrationOpts,
-    -- | SFT Federation
-    multiSFT :: !(Maybe Bool),
-    -- | RabbitMQ settings, required when federation is enabled.
-    rabbitmq :: !AmqpEndpoint,
-    -- | AWS settings
-    aws :: !AWSOpts,
-    -- | Enable Random Prekey Strategy
-    randomPrekeys :: !(Maybe Bool),
-    -- | STOMP broker settings
-    stompOptions :: !(Maybe StompOpts),
-    -- Email & SMS
-
-    -- | Email and SMS settings
-    emailSMS :: !EmailSMSOpts,
-    -- ZAuth
-
-    -- | ZAuth settings
-    zauth :: !ZAuthOpts,
-    -- Misc.
-
-    -- | Disco URL, TODO: Remove.
-    discoUrl :: !(Maybe Text),
-    -- | Event queue for
-    --   Brig-generated events (e.g.
-    --   user deletion)
-    internalEvents :: !InternalEventsOpts,
-    -- Logging
-
-    -- | Log level (Debug, Info, etc)
-    logLevel :: !Level,
-    -- | Use netstrings encoding (see
-    --   <http://cr.yp.to/proto/netstrings.txt>). TODO: Remove.
-    logNetStrings :: !(Maybe (Last Bool)),
-    -- | Logformat to use
-    -- TURN
-    logFormat :: !(Maybe (Last LogFormat)),
-    -- | TURN server settings
-    turn :: !TurnOpts,
-    -- | SFT Settings
-    sft :: !(Maybe SFTOptions),
-    -- | Runtime settings
-    settings :: !Settings
+  { settings :: !Settings
   }
   deriving (Show, Generic)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
-  { -- | Activation timeout, in seconds
-    activationTimeout :: !Timeout,
-    -- | Default verification code timeout, in seconds
-    -- use `verificationTimeout` as the getter function which always provides a default value
-    verificationCodeTimeoutInternal :: !(Maybe Code.Timeout),
-    -- | Team invitation timeout, in seconds
-    teamInvitationTimeout :: !Timeout,
-    -- | Check for expired users every so often, in seconds
-    expiredUserCleanupTimeout :: !(Maybe Timeout),
-    -- | STOMP broker credentials. TODO: Remove.
-    stomp :: !(Maybe FilePathSecrets),
-    -- | Whitelist of allowed emails/phones
-    allowlistEmailDomains :: !(Maybe AllowlistEmailDomains),
-    -- | Max. number of sent/accepted
-    --   connections per user
-    userMaxConnections :: !Int64,
-    -- | Max. number of permanent clients per user
-    userMaxPermClients :: !(Maybe Int),
-    -- | Whether to allow plain HTTP transmission
-    --   of cookies (for testing purposes only)
-    cookieInsecure :: !Bool,
-    -- | Minimum age of a user cookie before
-    --   it is renewed during token refresh
-    userCookieRenewAge :: !Integer,
-    -- | Max. # of cookies per user and cookie type
-    userCookieLimit :: !Int,
-    -- | Throttling tings (not to be confused
-    -- with 'LoginRetryOpts')
-    userCookieThrottle :: !CookieThrottle,
-    -- | Block user from logging in
-    -- for m minutes after n failed
-    -- logins
-    limitFailedLogins :: !(Maybe LimitFailedLogins),
-    -- | If last cookie renewal is too long ago,
-    -- suspend the user.
-    suspendInactiveUsers :: !(Maybe SuspendInactiveUsers),
-    -- | Max size of rich info (number of chars in
-    --   field names and values), should be in sync
-    --   with Spar
-    richInfoLimit :: !Int,
-    -- | Default locale to use when selecting templates
-    -- use `defaultTemplateLocale` as the getter function which always provides a default value
-    defaultTemplateLocaleInternal :: !(Maybe Locale),
-    -- | Default locale to use for users
-    -- use `defaultUserLocale` as the getter function which always provides a default value
-    defaultUserLocaleInternal :: !(Maybe Locale),
-    -- | Max. # of members in a team.
-    --   NOTE: This must be in sync with galley
-    maxTeamSize :: !Word32,
-    -- | Max. # of members in a conversation.
-    --   NOTE: This must be in sync with galley
-    maxConvSize :: !Word16,
-    -- | Filter ONLY services with
-    --   the given provider id
-    providerSearchFilter :: !(Maybe ProviderId),
-    -- | Whether to expose user emails and to whom
-    emailVisibility :: !EmailVisibilityConfig,
-    propertyMaxKeyLen :: !(Maybe Int64),
-    propertyMaxValueLen :: !(Maybe Int64),
-    -- | How long, in milliseconds, to wait
-    -- in between processing delete events
-    -- from the internal delete queue
-    deleteThrottleMillis :: !(Maybe Int),
-    -- | When true, search only
-    -- returns users from the same team
-    searchSameTeamOnly :: !(Maybe Bool),
-    -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the 'federationStrategy' can be set to `allowNone` below, or to
-    -- `allowDynamic` while keeping the list of allowed domains empty, see
-    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections)
-    -- Federation domain is used to qualify local IDs and handles,
-    -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
-    -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
-    -- >>>   _wire-server-federator._tcp.<federationDomain>
-    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working.
-    -- Remember to keep it the same in all services.
-    federationDomain :: !Domain,
-    -- | See https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-    -- default: AllowNone
-    federationStrategy :: !(Maybe FederationStrategy),
-    -- | 'federationDomainConfigs' is introduced in
-    -- https://github.com/wireapp/wire-server/pull/3260 for the sole purpose of transitioning
-    -- to dynamic federation remote configuration.  See
-    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-    -- for details.
-    -- default: []
-    federationDomainConfigs :: !(Maybe [ImplicitNoFederationRestriction]),
-    -- | In seconds.  Default: 10 seconds.  Values <1 are silently replaced by 1.  See
-    -- https://docs.wire.com/understand/federation/backend-communication.html#configuring-remote-connections
-    federationDomainConfigsUpdateFreq :: !(Maybe Int),
-    -- | The amount of time in milliseconds to wait after reading from an SQS queue
-    -- returns no message, before asking for messages from SQS again.
-    -- defaults to 'defSqsThrottleMillis'.
-    -- When using real SQS from AWS, throttling isn't needed as much, since using
-    -- >>> SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
-    -- ensures that there is only one request every 20 seconds.
-    -- However, that parameter is not honoured when using fake-sqs
-    -- (where throttling can thus make sense)
-    sqsThrottleMillis :: !(Maybe Int),
-    -- | Do not allow certain user creation flows.
-    -- docs/reference/user/registration.md {#RefRestrictRegistration}.
-    restrictUserCreation :: !(Maybe Bool),
-    -- | The analog to `Galley.Options.featureFlags`.  See 'AccountFeatureConfigs'.
+  { -- | The analog to `Galley.Options.featureFlags`.  See 'AccountFeatureConfigs'.
     featureFlags :: !(Maybe UserFeatureFlags),
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
     customerExtensions :: !(Maybe CustomerExtensions),
@@ -769,17 +756,17 @@ instance FromJSON ImplicitNoFederationRestriction where
 defaultLocale :: Locale
 defaultLocale = Locale (Language EN) Nothing
 
-defaultUserLocale :: Settings -> Locale
-defaultUserLocale = fromMaybe defaultLocale . defaultUserLocaleInternal
+-- defaultUserLocale :: Settings -> Locale
+-- defaultUserLocale = fromMaybe defaultLocale . defaultUserLocaleInternal
 
-defaultTemplateLocale :: Settings -> Locale
-defaultTemplateLocale = fromMaybe defaultLocale . defaultTemplateLocaleInternal
+-- defaultTemplateLocale :: Settings -> Locale
+-- defaultTemplateLocale = fromMaybe defaultLocale . defaultTemplateLocaleInternal
 
-verificationTimeout :: Settings -> Code.Timeout
-verificationTimeout = fromMaybe defVerificationTimeout . verificationCodeTimeoutInternal
-  where
-    defVerificationTimeout :: Code.Timeout
-    defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
+-- verificationTimeout :: Settings -> Code.Timeout
+-- verificationTimeout = fromMaybe defVerificationTimeout . verificationCodeTimeoutInternal
+--   where
+--     defVerificationTimeout :: Code.Timeout
+--     defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
 
 twoFACodeGenerationDelaySecs :: Settings -> Int
 twoFACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . twoFACodeGenerationDelaySecsInternal
