@@ -1218,7 +1218,7 @@ eligibleAdminFallbackMembers lcnv leavingUser conv = do
   where
     isEligibleUser u =
       u.userType == User.UserTypeRegular
-        && u.userStatus /= User.Ephemeral
+        && u.userStatus == User.Active
         && isNothing u.userService
 
 -- | if the public member leave api was called, we can assume that
