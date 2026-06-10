@@ -1275,37 +1275,31 @@ deleteUserFromTeamConversationsImpl ::
   Sem r ()
 deleteUserFromTeamConversationsImpl lusr conn tid remove = do
   cc <- E.getTeamConversations tid
-  for_ cc $ \c ->
-    E.getConversation c >>= \case
-      Nothing -> pure ()
-      Just dc
-        | remove `isMember` dc.localMembers -> do
-            case dc.metadata.cnvmType of
-              One2OneConv ->
-                E.deleteConversation dc.id_
-              _ -> do
-                guardPreventAdminlessGroups RemoveMemberLegacyResponse (qualifyAs lusr dc.id_) lusr (tUntagged (qualifyAs lusr remove))
-                E.deleteMembers dc.id_ (UserList [remove] [])
-                let (bots, allLocUsers) = localBotsAndUsers dc.localMembers
-                    targets =
-                      BotsAndMembers
-                        (Set.fromList $ (.id_) <$> allLocUsers)
-                        (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                        (Set.fromList bots)
-                void $
-                  sendConversationActionNotifications
-                    SConversationRemoveMembersTag
-                    (tUntagged lusr)
-                    True
-                    conn
-                    (qualifyAs lusr dc)
-                    targets
-                    ( ConversationRemoveMembers
-                        (pure . tUntagged . qualifyAs lusr $ remove)
-                        EdReasonDeleted
-                    )
-                    def
-        | otherwise -> pure ()
+  for_ cc $ (E.getConversation
+     Control.Monad.>=>
+       (\case
+          Nothing -> pure ()
+          Just dc
+            | remove `isMember` dc.localMembers
+            -> do case dc.metadata.cnvmType of
+                    One2OneConv -> E.deleteConversation dc.id_
+                    _ -> do guardPreventAdminlessGroups
+                              RemoveMemberLegacyResponse (qualifyAs lusr dc.id_) lusr
+                              (tUntagged (qualifyAs lusr remove))
+                            E.deleteMembers dc.id_ (UserList [remove] [])
+                            let (bots, allLocUsers) = localBotsAndUsers dc.localMembers
+                                targets
+                                  = BotsAndMembers
+                                      (Set.fromList $ (.id_) <$> allLocUsers)
+                                      (Set.fromList $ (.id_) <$> dc.remoteMembers) (Set.fromList bots)
+                            void
+                              $ sendConversationActionNotifications
+                                  SConversationRemoveMembersTag (tUntagged lusr) True conn
+                                  (qualifyAs lusr dc) targets
+                                  (ConversationRemoveMembers
+                                     (pure . tUntagged . qualifyAs lusr $ remove) EdReasonDeleted)
+                                  def
+            | otherwise -> pure ()))
 
 -- | if the public member leave api was called, we can assume that
 --   it was called by a user
