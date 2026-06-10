@@ -112,7 +112,7 @@ tests opts additionalElasticSearch mgr galley brig = do
         testGroup "index migration" $
           [ testGroup "same ElasticSearch instance" $
               let esServer = (opts ^. Opt.elasticsearchLens . Opt.urlLens)
-               in [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig esServer (runReindexFromAnotherIndex),
+               in [ test mgr "migration to new index from existing index" $ testMigrationToNewIndex opts brig esServer runReindexFromAnotherIndex,
                     test mgr "migration to new index from database" $ testMigrationToNewIndex opts brig esServer (runReindexFromDatabase Reindex),
                     test mgr "migration to new index from database (force sync)" $ testMigrationToNewIndex opts brig esServer (runReindexFromDatabase ReindexSameOrNewer)
                   ],
