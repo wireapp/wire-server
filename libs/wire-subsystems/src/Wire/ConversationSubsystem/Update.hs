@@ -1163,6 +1163,7 @@ removeMemberQualified responseMode lusr con qcnv victim =
     foldQualified
       lusr
       ( \lcnv qvictim -> do
+          -- TODO: maybe move this into removeMemberFromLocalConv 
           guardPreventAdminlessGroups responseMode lcnv lusr qvictim
           removeMemberFromLocalConv lcnv lusr (Just con) qvictim
       )
