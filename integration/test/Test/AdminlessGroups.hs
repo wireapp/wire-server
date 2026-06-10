@@ -17,11 +17,11 @@
 
 module Test.AdminlessGroups where
 
-import API.Brig (NewApp (..), createApp)
+import API.Brig
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
 import MLS.Util
-import SetupHelpers
+import SetupHelpers hiding (deleteUser)
 import Testlib.Prelude
 
 testOnLastAdminLeaveReturnEligibleMembers :: (HasCallStack) => App ()
@@ -41,9 +41,9 @@ testOnLastAdminLeaveReturnEligibleMembers = do
   connectTwoUsers alice remoteUser
 
   -- app is not eligible
-  let newApp1 :: NewApp
-      newApp1 = def {name = "fallback-app-1", description = "non-eligible app member"}
-  app <- bindResponse (createApp alice tid newApp1) $ \resp -> do
+  let newApp :: NewApp
+      newApp = def {name = "some-app", description = "non-eligible app member"}
+  app <- bindResponse (createApp alice tid newApp) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
@@ -143,7 +143,6 @@ testOnLastAdminTeamMemberDeletionAutopromotes = do
 
   [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
   traverse_ (uploadNewKeyPackage def) [alice1, charlie1]
-  aliceId <- alice %. "qualified_id"
 
   conv <- postConversation charlie defMLS {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
@@ -161,6 +160,38 @@ testOnLastAdminTeamMemberDeletionAutopromotes = do
   void $ deleteTeamMember tid alice charlie >>= getBody 202
 
   -- alice is the only eligible member that remains after charlie (the conversastion admin) is removed from the team
+  eventually $ do
+    bindResponse (getConversation alice conv) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
+      members <- resp.json %. "members.others" & asList
+      shouldBeEmpty members
+
+testOnLastAdminSelfDeletionAutopromotes :: (HasCallStack) => App ()
+testOnLastAdminSelfDeletionAutopromotes = do
+  (alice, tid, [charlie]) <- createTeam OwnDomain 2
+
+  setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
+
+  [alice1, charlie1] <- traverse (createMLSClient def) [alice, charlie]
+  traverse_ (uploadNewKeyPackage def) [alice1, charlie1]
+
+  conv <- postConversation charlie defMLS {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  createGroup def charlie1 convId
+  void $ createAddCommit charlie1 convId [alice] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "members.self.conversation_role" `shouldMatch` "wire_member"
+    others <- resp.json %. "members.others" & asList
+    [other] <- pure others
+    other %. "qualified_id" `shouldMatch` objQidObject charlie
+    other %. "conversation_role" `shouldMatch` "wire_admin"
+
+  void $ deleteUser charlie >>= getBody 200
+
   eventually $ do
     bindResponse (getConversation alice conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
