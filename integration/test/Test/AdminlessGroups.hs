@@ -160,11 +160,10 @@ testOnLastAdminTeamMemberDeletionAutopromotes = do
 
   void $ deleteTeamMember tid alice charlie >>= getBody 202
 
-  -- alice is the only eligible local member that remains after charlie (the admin) is removed
+  -- alice is the only eligible member that remains after charlie (the conversastion admin) is removed from the team
   eventually $ do
     bindResponse (getConversation alice conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
       resp.json %. "members.self.conversation_role" `shouldMatch` "wire_admin"
       members <- resp.json %. "members.others" & asList
-      memberIds <- for members (%. "qualified_id")
-      memberIds `shouldMatchSet` [aliceId]
+      shouldBeEmpty members

@@ -517,6 +517,12 @@ data ConversationSubsystem m a where
     Qualified ConvId ->
     Qualified UserId ->
     ConversationSubsystem m (Maybe Event)
+  DeleteUserFromTeamConversations ::
+    Local UserId ->
+    Maybe ConnId ->
+    TeamId ->
+    UserId ->
+    ConversationSubsystem m ()
   UpdateOtherMember ::
     Local UserId ->
     ConnId ->

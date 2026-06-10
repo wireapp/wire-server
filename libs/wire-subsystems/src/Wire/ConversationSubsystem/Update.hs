@@ -52,6 +52,7 @@ module Wire.ConversationSubsystem.Update
     eligibleAdminFallbackMembers,
     isLeavingLastConversationAdmin,
     removeMemberQualified,
+    deleteUserFromTeamConversationsImpl,
     removeMemberFromLocalConv,
     removeMemberFromRemoteConv,
 
@@ -1163,7 +1164,7 @@ removeMemberQualified responseMode lusr con qcnv victim =
     foldQualified
       lusr
       ( \lcnv qvictim -> do
-          -- TODO: maybe move this into removeMemberFromLocalConv 
+          -- TODO: maybe move this into removeMemberFromLocalConv
           guardPreventAdminlessGroups responseMode lcnv lusr qvictim
           removeMemberFromLocalConv lcnv lusr (Just con) qvictim
       )
@@ -1194,27 +1195,26 @@ guardPreventAdminlessGroups ::
   Qualified UserId ->
   Sem r ()
 guardPreventAdminlessGroups responseMode lcnv lusr victim = do
-  when (tUntagged lusr == victim) $ do
-    conv <- getConversationWithError lcnv
-    for_ conv.metadata.cnvmTeam $ \tid -> do
-      (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-      when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
-        eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
-        case (responseMode, eligibleMembers) of
-          (RemoveMemberLegacyResponse, x : xs) -> do
-            seed <- randomWord64
-            let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
-            for_ autopromotionCandidates $ \candidate ->
-              updateLocalConversationMemberUpdate lcnv (tUntagged lusr) Nothing $
-                ConversationMemberUpdate candidate (OtherMemberUpdate (Just roleNameWireAdmin))
-          (RemoveMemberEligibleMembersResponse, _ : _) ->
-            throw $ AdminlessConversation (fmap fst eligibleMembers)
-          (RemoveMemberLegacyResponse, []) ->
-            -- FUTUREWORK: mark for deletion
-            pure ()
-          (RemoveMemberEligibleMembersResponse, []) -> do
-            -- FUTUREWORK: mark for deletion
-            pure ()
+  conv <- getConversationWithError lcnv
+  for_ conv.metadata.cnvmTeam $ \tid -> do
+    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
+      case (responseMode, eligibleMembers) of
+        (RemoveMemberLegacyResponse, x : xs) -> do
+          seed <- randomWord64
+          let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
+          for_ autopromotionCandidates $ \candidate ->
+            updateLocalConversationMemberUpdate lcnv (tUntagged lusr) Nothing $
+              ConversationMemberUpdate candidate (OtherMemberUpdate (Just roleNameWireAdmin))
+        (RemoveMemberEligibleMembersResponse, _ : _) ->
+          throw $ AdminlessConversation (fmap fst eligibleMembers)
+        (RemoveMemberLegacyResponse, []) ->
+          -- FUTUREWORK: mark for deletion
+          pure ()
+        (RemoveMemberEligibleMembersResponse, []) -> do
+          -- FUTUREWORK: mark for deletion
+          pure ()
   where
     -- Use eight random bytes and fold them into a big-endian Word64. This keeps
     -- the helper small, deterministic under tests, and free of extra Random API.
@@ -1254,6 +1254,62 @@ eligibleAdminFallbackMembers lcnv leavingUser conv = do
       u.userType == User.UserTypeRegular
         && u.userStatus == User.Active
         && isNothing u.userService
+
+deleteUserFromTeamConversationsImpl ::
+  ( Member BackendNotificationQueueAccess r,
+    Member BrigAPIAccess r,
+    Member (Error AdminlessConversation) r,
+    Member (ErrorS ('ActionDenied 'ModifyOtherConversationMember)) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvMemberNotFound) r,
+    Member (Error FederationError) r,
+    Member E.ConversationStore r,
+    Member FeaturesConfigSubsystem r,
+    Member NotificationSubsystem r,
+    Member E.ExternalAccess r,
+    Member Now r,
+    Member Random r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  TeamId ->
+  UserId ->
+  Sem r ()
+deleteUserFromTeamConversationsImpl lusr conn tid remove = do
+  cc <- E.getTeamConversations tid
+  for_ cc $ \c ->
+    E.getConversation c >>= \case
+      Nothing -> pure ()
+      Just dc
+        | remove `isMember` dc.localMembers -> do
+            case dc.metadata.cnvmType of
+              One2OneConv ->
+                E.deleteConversation dc.id_
+              _ -> do
+                guardPreventAdminlessGroups RemoveMemberLegacyResponse (qualifyAs lusr dc.id_) lusr (tUntagged (qualifyAs lusr remove))
+                E.deleteMembers dc.id_ (UserList [remove] [])
+                let (bots, allLocUsers) = localBotsAndUsers dc.localMembers
+                    targets =
+                      BotsAndMembers
+                        (Set.fromList $ (.id_) <$> allLocUsers)
+                        (Set.fromList $ (.id_) <$> dc.remoteMembers)
+                        (Set.fromList bots)
+                void $
+                  sendConversationActionNotifications
+                    SConversationRemoveMembersTag
+                    (tUntagged lusr)
+                    True
+                    conn
+                    (qualifyAs lusr dc)
+                    targets
+                    ( ConversationRemoveMembers
+                        (pure . tUntagged . qualifyAs lusr $ remove)
+                        EdReasonDeleted
+                    )
+                    def
+        | otherwise -> pure ()
 
 -- | if the public member leave api was called, we can assume that
 --   it was called by a user

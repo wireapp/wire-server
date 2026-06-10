@@ -85,14 +85,10 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog qualified as P
 import System.Logger qualified as Log
-import Wire.API.Conversation (ConvType (..), ConversationRemoveMembers (..))
-import Wire.API.Conversation qualified
-import Wire.API.Conversation.Action (SConversationActionTag (SConversationRemoveMembersTag))
 import Wire.API.Conversation.Role (wireConvRoles)
 import Wire.API.Conversation.Role qualified as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.LeaveReason
 import Wire.API.Event.Team
 import Wire.API.Push.V2 (RecipientClients (RecipientClientsAll))
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -131,7 +127,6 @@ import Wire.Options.Galley (Opts, maxTeamSize, settings)
 import Wire.Sem.Now
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging.Cassandra
-import Wire.StoredConversation
 import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal qualified as Journal
@@ -141,7 +136,6 @@ import Wire.TeamStore (TeamStore)
 import Wire.TeamStore qualified as E
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
-import Wire.UserList
 import Wire.Util
 
 getTeamH ::
@@ -698,7 +692,6 @@ updateTeamMember lzusr zcon tid newMem = do
 
 deleteTeamMember ::
   ( Member E.BrigAPIAccess r,
-    Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
@@ -725,7 +718,6 @@ deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid rem
 
 deleteNonBindingTeamMember ::
   ( Member E.BrigAPIAccess r,
-    Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
@@ -752,7 +744,6 @@ deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon ti
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember' ::
   ( Member E.BrigAPIAccess r,
-    Member ConversationStore r,
     Member (Error InvalidInput) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'TeamMemberNotFound) r,
@@ -819,8 +810,7 @@ deleteTeamMember' lusr zcon tid remove mBody = do
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedDeleteTeamMember ::
   forall r.
-  ( Member ConversationStore r,
-    Member NotificationSubsystem r,
+  ( Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
     Member TeamStore r
@@ -836,7 +826,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Left admins) = do
   pushMemberLeaveEvent now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove
+  deleteUserFromTeamConversations lusr zcon tid remove
   where
     -- notify team admins
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
@@ -859,7 +849,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
   pushMemberLeaveEventToAll now
   E.deleteTeamMember tid remove
   -- notify all conversation members not in this team.
-  removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove
+  deleteUserFromTeamConversations lusr zcon tid remove
   where
     -- notify all team members. This is to maintain compatibility with clients
     -- relying on these events, but eventually they will catch up and this
@@ -877,47 +867,6 @@ uncheckedDeleteTeamMember lusr zcon tid remove (Right mems) = do
                 transient = True
               }
           ]
-
-removeFromConvsAndPushConvLeaveEvent ::
-  forall r.
-  ( Member ConversationStore r,
-    Member ConversationSubsystem r
-  ) =>
-  Local UserId ->
-  Maybe ConnId ->
-  TeamId ->
-  UserId ->
-  Sem r ()
-removeFromConvsAndPushConvLeaveEvent lusr zcon tid remove = do
-  cc <- E.getTeamConversations tid
-  for_ cc $ \c ->
-    E.getConversation c >>= \conv ->
-      for_ conv $ \dc ->
-        when (remove `isMember` dc.localMembers) $
-          case dc.metadata.cnvmType of
-            One2OneConv ->
-              E.deleteConversation dc.id_
-            _ -> do
-              E.deleteMembers c (UserList [remove] [])
-              let (bots, allLocUsers) = localBotsAndUsers (dc.localMembers)
-                  targets =
-                    BotsAndMembers
-                      (Set.fromList $ (.id_) <$> allLocUsers)
-                      (Set.fromList $ (.id_) <$> dc.remoteMembers)
-                      (Set.fromList bots)
-              void $
-                sendConversationActionNotifications
-                  SConversationRemoveMembersTag
-                  (tUntagged lusr)
-                  True
-                  zcon
-                  (qualifyAs lusr dc)
-                  targets
-                  ( ConversationRemoveMembers
-                      (pure . tUntagged . qualifyAs lusr $ remove)
-                      EdReasonDeleted
-                  )
-                  def
 
 getTeamConversations ::
   ( Member (ErrorS 'NotATeamMember) r,
@@ -1274,8 +1223,7 @@ checkAdminLimit adminCount =
 -- | Updating a team collaborator permissions eventually cleaning their conversations
 updateTeamCollaborator ::
   forall r.
-  ( Member ConversationStore r,
-    Member P.TinyLog r,
+  ( Member P.TinyLog r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamCollaboratorsSubsystem r,
@@ -1294,14 +1242,13 @@ updateTeamCollaborator lusr tid rusr perms = do
   zusrMember <- TeamSubsystem.internalGetTeamMember (tUnqualified lusr) tid
   void $ TeamSubsystem.permissionCheck UpdateTeamCollaborator zusrMember
   when (Set.null $ Set.intersection (Set.fromList [Collaborator.CreateTeamConversation, Collaborator.ImplicitConnection]) perms) $
-    removeFromConvsAndPushConvLeaveEvent lusr Nothing tid rusr
+    deleteUserFromTeamConversations lusr Nothing tid rusr
   internalUpdateTeamCollaborator rusr tid perms
 
 -- | Removing a team collaborator and clean their conversations
 removeTeamCollaborator ::
   forall r.
-  ( Member ConversationStore r,
-    Member NotificationSubsystem r,
+  ( Member NotificationSubsystem r,
     Member ConversationSubsystem r,
     Member Now r,
     Member P.TinyLog r,
