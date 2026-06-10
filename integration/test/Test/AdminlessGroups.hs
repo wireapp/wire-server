@@ -136,8 +136,7 @@ testOnLastAdminLeaveFeatureDisabled = do
 
 testOnLastAdminTeamMemberDeletionAutopromotes :: (HasCallStack) => App ()
 testOnLastAdminTeamMemberDeletionAutopromotes = do
-  -- charlie is the only eligible local member that remains after the admin is removed.
-  (alice, tid, [_bob, charlie]) <- createTeam OwnDomain 3
+  (alice, tid, [charlie]) <- createTeam OwnDomain 2
 
   setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
@@ -146,14 +145,10 @@ testOnLastAdminTeamMemberDeletionAutopromotes = do
   traverse_ (uploadNewKeyPackage def) [alice1, charlie1]
   aliceId <- alice %. "qualified_id"
 
-  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  conv <- postConversation charlie defMLS {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
-  createGroup def alice1 convId
-  void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
-
-  -- Promote charlie and demote alice so charlie is the last admin in the conversation.
-  void $ updateRole alice charlie "wire_admin" (conv %. "qualified_id") >>= assertSuccess
-  void $ updateRole charlie alice "wire_member" (conv %. "qualified_id") >>= assertSuccess
+  createGroup def charlie1 convId
+  void $ createAddCommit charlie1 convId [alice] >>= sendAndConsumeCommitBundle
 
   bindResponse (getConversation alice conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
@@ -165,6 +160,7 @@ testOnLastAdminTeamMemberDeletionAutopromotes = do
 
   void $ deleteTeamMember tid alice charlie >>= getBody 202
 
+  -- alice is the only eligible local member that remains after charlie (the admin) is removed
   eventually $ do
     bindResponse (getConversation alice conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
