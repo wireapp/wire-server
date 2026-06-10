@@ -1016,7 +1016,7 @@ replaceMembers lusr zcon qcnv (InviteQualified invitedUsers role) = do
           -- For channels, always perform removals via the channel-specific path
           -- to ensure MLS proposals are created and protocol constraints are respected.
           -- FUTUREWORK: implement bulk removal in the generic updateLocalConversation path for both regular conversations and channels
-          for_ removeList $ removeMemberQualified RemoveMemberLegacyResponse lusr zcon qcnv
+          for_ removeList $ removeMemberQualified RemoveMemberLegacyResponse lusr (Just zcon) qcnv
         else
           void . getUpdateResult . fmap lcuEvent $
             updateLocalConversationRemoveMembers
@@ -1155,7 +1155,7 @@ removeMemberQualified ::
   ) =>
   RemoveMemberResponseMode ->
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Qualified ConvId ->
   Qualified UserId ->
   Sem r (Maybe Event)
@@ -1163,11 +1163,7 @@ removeMemberQualified responseMode lusr con qcnv victim =
   mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember) $
     foldQualified
       lusr
-      ( \lcnv qvictim -> do
-          -- TODO: maybe move this into removeMemberFromLocalConv
-          guardPreventAdminlessGroups responseMode lcnv lusr qvictim
-          removeMemberFromLocalConv lcnv lusr (Just con) qvictim
-      )
+      (\lcnv -> removeMemberFromLocalConv responseMode lcnv lusr con)
       (\rcnv -> removeMemberFromRemoteConv rcnv lusr)
       qcnv
       victim
@@ -1369,15 +1365,22 @@ removeMemberFromLocalConv ::
     Member Random r,
     Member TinyLog r,
     Member TeamSubsystem r,
-    Member (Input ConversationSubsystemConfig) r
+    Member (Input ConversationSubsystemConfig) r,
+    Member (ErrorS (ActionDenied ModifyOtherConversationMember)) r,
+    Member (ErrorS ConvMemberNotFound) r,
+    Member (Error AdminlessConversation) r,
+    Member FeaturesConfigSubsystem r,
+    Member BrigAPIAccess r
   ) =>
+  RemoveMemberResponseMode ->
   Local ConvId ->
   Local UserId ->
   Maybe ConnId ->
   Qualified UserId ->
   Sem r (Maybe Event)
-removeMemberFromLocalConv lcnv lusr con victim
-  | tUntagged lusr == victim =
+removeMemberFromLocalConv responseMode lcnv lusr con victim
+  | tUntagged lusr == victim = do
+      guardPreventAdminlessGroups responseMode lcnv lusr victim
       fmap (fmap lcuEvent . hush) $
         runError @NoChanges $
           updateLocalConversationLeave lcnv (tUntagged lusr) con

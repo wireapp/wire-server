@@ -157,8 +157,6 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ MLSEnabled.isMLSEnabled
   GetConversationsInternal luser mids mstart msize ->
     mapErrors $ Query.getConversationsInternal luser mids mstart msize
-  RemoveMemberFromLocalConv lcnv lusr con victim ->
-    mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
   FederationOnConversationCreated domain rc ->
     mapErrors $ Federation.onConversationCreated domain rc
   FederationGetConversations domain req ->

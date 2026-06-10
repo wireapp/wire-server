@@ -177,6 +177,7 @@ data ConversationSubsystem m a where
     CellsState ->
     ConversationSubsystem m ()
   RemoveUser ::
+    -- MLS removal proposals for a single conversation; does not touch the conversation store.
     Local StoredConversation ->
     MLSRemoval.RemoveUserIncludeMain ->
     Qualified UserId ->
@@ -222,12 +223,6 @@ data ConversationSubsystem m a where
     Maybe ConvId ->
     Maybe (Range 1 500 Int32) ->
     ConversationSubsystem m (Public.ConversationList StoredConversation)
-  RemoveMemberFromLocalConv ::
-    Local ConvId ->
-    Local UserId ->
-    Maybe ConnId ->
-    Qualified UserId ->
-    ConversationSubsystem m (Maybe Event)
   FederationOnConversationCreated ::
     Domain ->
     ConversationCreated ConvId ->
@@ -513,7 +508,7 @@ data ConversationSubsystem m a where
   RemoveMemberQualified ::
     RemoveMemberResponseMode ->
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
     Qualified ConvId ->
     Qualified UserId ->
     ConversationSubsystem m (Maybe Event)

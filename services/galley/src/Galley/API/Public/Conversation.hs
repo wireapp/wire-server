@@ -79,9 +79,9 @@ conversationAPI =
     <@> mkNamedAPI @"get-code" getCode
     <@> mkNamedAPI @"member-typing-unqualified" (\lusr con cnv status -> memberTyping lusr con (tUntagged (qualifyAs lusr cnv)) status)
     <@> mkNamedAPI @"member-typing-qualified" memberTyping
-    <@> mkNamedAPI @"remove-member-unqualified" (\lusr con cnv victim -> removeMemberQualified RemoveMemberLegacyResponse lusr con (tUntagged (qualifyAs lusr cnv)) (tUntagged (qualifyAs lusr victim)))
-    <@> mkNamedAPI @"remove-member@v15" (removeMemberQualified RemoveMemberLegacyResponse)
-    <@> mkNamedAPI @"remove-member" (removeMemberQualified RemoveMemberEligibleMembersResponse)
+    <@> mkNamedAPI @"remove-member-unqualified" (\lusr con cnv victim -> removeMemberQualified RemoveMemberLegacyResponse lusr (Just con) (tUntagged (qualifyAs lusr cnv)) (tUntagged (qualifyAs lusr victim)))
+    <@> mkNamedAPI @"remove-member@v15" (\lusr con -> removeMemberQualified RemoveMemberLegacyResponse lusr (Just con))
+    <@> mkNamedAPI @"remove-member" (\lusr con -> removeMemberQualified RemoveMemberEligibleMembersResponse lusr (Just con))
     <@> mkNamedAPI @"update-other-member-unqualified" (\lusr con cnv victim update -> updateOtherMember lusr con (tUntagged (qualifyAs lusr cnv)) (tUntagged (qualifyAs lusr victim)) update)
     <@> mkNamedAPI @"update-other-member" updateOtherMember
     <@> mkNamedAPI @"update-conversation-name-deprecated" (\lusr con cnv rename -> updateConversationName lusr con (tUntagged (qualifyAs lusr cnv)) rename)
