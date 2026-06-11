@@ -194,9 +194,9 @@ mkSignCredsWithCertWithLifespan validSinceRaw validUntilRaw size = do
       validUntil = cropToSecs validUntilRaw
   when (validSince > validUntil) . liftIO . throwIO . ErrorCall $
     "mkSignCredsWithCertWithLifespan: validSince > validUntil: "
-      <> show validSince
+      <> Hourglass.timePrint Hourglass.ISO8601_DateAndTime validSince
       <> " > "
-      <> show validUntil
+      <> Hourglass.timePrint Hourglass.ISO8601_DateAndTime validUntil
   let rsaexp = 17
   (pubkey, privkey) <- RSA.generate size rsaexp
   let signcert :: SBS -> m (SBS, X509.SignatureALG)
