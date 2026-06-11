@@ -76,7 +76,7 @@ spec = describe "xml:dsig" $ do
       stored `shouldBe` (validSinceCropped, validUntilCropped)
     it "throws ErrorCall when validSince > validUntil" $ do
       mkSignCredsWithCertWithLifespan validUntilCropped validSinceCropped 192
-        `shouldThrow` (\(ErrorCall msg) -> "validSince > validUntil" `isInfixOf` msg)
+        `shouldThrow` (\(ErrorCall msg) -> msg == "mkSignCredsWithCertWithLifespan: validSince > validUntil: 2026-01-01T11:00:00Z > 2026-01-01T10:00:00Z")
 
   describe "parseKeyInfo / renderKeyInfo roundtrip" $ do
     let check :: (HasCallStack) => Int -> Expectation
