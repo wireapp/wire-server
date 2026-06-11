@@ -99,6 +99,8 @@ spec = describe "ConversationSubsystem.Interpreter" do
                 run
                   . runError @AdminlessConversation
                   . runError @(Tagged ('ActionDenied 'RemoveConversationMember) ())
+                  . runError @(Tagged ('ActionDenied 'ModifyOtherConversationMember) ())
+                  . runError @(Tagged 'ConvMemberNotFound ())
                   . runError @(Tagged 'ConvNotFound ())
                   . runError @(Tagged 'InvalidOperation ())
                   . runError @FederationError
