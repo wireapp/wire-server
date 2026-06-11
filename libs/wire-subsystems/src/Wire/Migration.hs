@@ -193,12 +193,12 @@ withExclusiveMigrationLockAndTimeout timeout_ migDuration xs action = do
         result <-
           runError $
             withMigrationLocks LockExclusive (Seconds 10) xs $ do
-              timeoutResult <- Conc.timeout (timeout_ <$ handleTimeout) timeout_ action
+              timeoutResult <- Conc.timeout handleTimeout timeout_ action
               case timeoutResult of
-                Left timedOutAfter -> do
+                Left () -> do
                   markOutcome outcomeRef "timeout"
                   -- this aborts the whole migration process
-                  liftIO . UnliftIO.throwIO $ MigrationTimedOut lockables timedOutAfter
+                  liftIO . UnliftIO.throwIO $ MigrationTimedOut lockables timeout_
                 Right () -> do
                   markOutcome outcomeRef "success"
 
