@@ -172,8 +172,8 @@ spec:
         {{- end }}
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "2"
+        memory: "3Gi"
+        cpu: "4"
 
   containers:
   - name: integration
