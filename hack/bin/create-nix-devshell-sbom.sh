@@ -106,7 +106,7 @@ echo ""
 
 # Get list of devShell names from the devShells attrset
 echo "Discovering devShells..."
-mapfile -t devshell_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#devShells.${SYSTEM}" --apply 'shells: builtins.concatStringsSep "\n" (builtins.attrNames shells)' --raw 2>&1 | grep -v warning)
+mapfile -t devshell_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#devShells.${SYSTEM}" --apply 'shells: builtins.concatStringsSep "\n" (builtins.attrNames shells)' --raw)
 
 echo "Found ${#devshell_names[@]} devShells to process"
 echo ""
