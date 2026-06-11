@@ -101,6 +101,7 @@ data ConversationSubsystemError
   | ConversationSubsystemErrorMLSProtocolError MLSProtocolError
   | ConversationSubsystemErrorGroupInfoDiagnostics GroupInfoDiagnostics
   | ConversationSubsystemErrorMLSOutOfSyncError MLSOutOfSyncError
+  | ConversationSubsystemErrorAdminlessConversation AdminlessConversation
   | ConversationSubsystemErrorNonFederatingBackends NonFederatingBackends
   | ConversationSubsystemErrorUnreachableBackendsLegacy UnreachableBackendsLegacy
   | ConversationSubsystemErrorMLSHistoryClientConflict
@@ -174,6 +175,7 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorMLSProtocolError x -> toResponse $ (dynError @(MapError 'MLSProtocolErrorTag)) {eMessage = unTagged x}
       ConversationSubsystemErrorGroupInfoDiagnostics x -> toResponse x
       ConversationSubsystemErrorMLSOutOfSyncError x -> toResponse x
+      ConversationSubsystemErrorAdminlessConversation x -> toResponse x
       ConversationSubsystemErrorNonFederatingBackends x -> toResponse x
       ConversationSubsystemErrorUnreachableBackendsLegacy x -> toResponse x
       ConversationSubsystemErrorMLSHistoryClientConflict -> toResponse $ Tagged @'MLSHistoryClientConflict ()
@@ -246,6 +248,7 @@ type ConversationSubsystemErrorEffects =
      Error MLSProtocolError,
      Error GroupInfoDiagnostics,
      Error MLSOutOfSyncError,
+     Error AdminlessConversation,
      Error MLSProposalFailure,
      Error NonFederatingBackends,
      Error UnreachableBackendsLegacy,
@@ -265,6 +268,7 @@ mapErrors =
     . mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
     . mapError (ConversationSubsystemErrorNonFederatingBackends)
     . interpretServerEffect
+    . mapError (ConversationSubsystemErrorAdminlessConversation)
     . mapError (ConversationSubsystemErrorMLSOutOfSyncError)
     . mapError (ConversationSubsystemErrorGroupInfoDiagnostics)
     . mapError (ConversationSubsystemErrorMLSProtocolError)

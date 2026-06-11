@@ -1,0 +1,1 @@
+In API version V16 `DELETE /conversations/:domain/:cid/members/:domain/:uid` may return a new error 403 `adminless-conversation`
