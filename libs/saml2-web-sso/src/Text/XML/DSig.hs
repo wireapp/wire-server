@@ -22,6 +22,7 @@ module Text.XML.DSig
     certToCreds,
     mkSignCreds,
     mkSignCredsWithCert,
+    mkSignCredsWithCertWithLifespan,
 
     -- * signature verification
     verify,
@@ -164,7 +165,7 @@ certToCreds cert = do
 mkSignCreds :: (Crypto.MonadRandom m, MonadIO m) => Int -> m (SignPrivCreds, SignCreds)
 mkSignCreds size = mkSignCredsWithCert Nothing size <&> \(priv, pub, _) -> (priv, pub)
 
--- | If first argument @validSince@ is @Nothing@, use cucrent system time.
+-- | If first argument @validSince@ is @Nothing@, use current system time.
 mkSignCredsWithCert ::
   forall m.
   (Crypto.MonadRandom m, MonadIO m) =>
@@ -172,14 +173,31 @@ mkSignCredsWithCert ::
   Int ->
   m (SignPrivCreds, SignCreds, X509.SignedCertificate)
 mkSignCredsWithCert mValidSince size = do
-  let rsaexp = 17
-  (pubkey, privkey) <- RSA.generate size rsaexp
   let -- https://github.com/vincenthz/hs-certificate/issues/119
       cropToSecs :: Hourglass.DateTime -> Hourglass.DateTime
       cropToSecs dt = dt {Hourglass.dtTime = (Hourglass.dtTime dt) {Hourglass.todNSec = 0}}
   validSince :: Hourglass.DateTime <- cropToSecs <$> maybe (liftIO Hourglass.dateCurrent) pure mValidSince
   let validUntil = validSince `Hourglass.timeAdd` mempty {Hourglass.durationHours = 24 * 365 * 20}
-      signcert :: SBS -> m (SBS, X509.SignatureALG)
+  mkSignCredsWithCertWithLifespan validSince validUntil size
+
+-- | Generate signing credentials and a self-signed X509 certificate with the
+-- given validity window.
+mkSignCredsWithCertWithLifespan ::
+  forall m.
+  (Crypto.MonadRandom m, MonadIO m) =>
+  Hourglass.DateTime ->
+  Hourglass.DateTime ->
+  Int ->
+  m (SignPrivCreds, SignCreds, X509.SignedCertificate)
+mkSignCredsWithCertWithLifespan validSince validUntil size = do
+  when (validSince > validUntil) . liftIO . throwIO . ErrorCall $
+    "mkSignCredsWithCertWithLifespan: validSince > validUntil: "
+      <> show validSince
+      <> " > "
+      <> show validUntil
+  let rsaexp = 17
+  (pubkey, privkey) <- RSA.generate size rsaexp
+  let signcert :: SBS -> m (SBS, X509.SignatureALG)
       signcert sbs = (,sigalg) <$> sigval
         where
           sigalg = X509.SignatureALG X509.HashSHA256 X509.PubKeyALG_RSA

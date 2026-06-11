@@ -31,8 +31,12 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as A
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Hourglass as Hourglass
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import qualified Data.Text as ST
+import qualified Data.UUID as UUID
+import Data.UUID.V4 (nextRandom)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
@@ -41,6 +45,8 @@ import SetupHelpers
 import Testlib.JSON
 import Testlib.PTest
 import Testlib.Prelude
+import qualified Text.XML.DSig as SAML
+import qualified Time.System as Hourglass
 
 ----------------------------------------------------------------------
 -- scim stuff
@@ -811,6 +817,50 @@ testSparEmulateSPInitiatedLogin = do
     -- /sso/initiate-login here.
     resp.status `shouldMatchInt` 200
     (cs resp.body) `shouldContain` "SAMLRequest"
+
+-- | The backend accepts an IdP descriptor whose signing cert is already
+-- expired, both at config-import time (POST /identity-providers) and at
+-- AuthnResponse verification time (POST /sso/finalize-login).
+--
+-- This was probably built this way to not force team admins to reconfigure
+-- IdPs over and over again (and if they forget, having angry users who cannot
+-- login).
+testSparExpiredIdpCertStillWorks :: (HasCallStack) => App ()
+testSparExpiredIdpCertStillWorks = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+  (idpMeta, privcreds) <- makeSampleIdPMetadataExpired
+
+  createResp <- createIdp owner idpMeta
+  assertSuccess createResp
+  idpId <- asString =<< (createResp.json %. "id")
+
+  subject <- nextSubject
+  (mUid, _authnResponse) <- loginWithSaml True tid subject (idpId, (idpMeta, privcreds))
+  void $ assertJust "expected zuid cookie to carry any user id" mUid
+  where
+    makeSampleIdPMetadataExpired :: App (SAML.IdPMetadata, SAML.SignPrivCreds)
+    makeSampleIdPMetadataExpired = do
+      now <- liftIO Hourglass.dateCurrent
+      let validSince = now `addHours` (-48)
+          validUntil = now `addHours` (-24)
+      issuer <- SAML.makeIssuer
+      uuid <- liftIO nextRandom
+      requri <-
+        either (error . show) pure
+          $ SAML.parseURI' @(Either String) (ST.pack ("https://requri.net/" <> UUID.toString uuid))
+      (privcreds, _signcreds, expiredCert) <-
+        liftIO $ SAML.mkSignCredsWithCertWithLifespan validSince validUntil 96
+      let meta = SAML.IdPMetadata issuer requri (NonEmpty.singleton expiredCert)
+      pure (meta, privcreds)
+
+    addHours :: Hourglass.DateTime -> Hourglass.Hours -> Hourglass.DateTime
+    addHours t h =
+      t
+        `Hourglass.timeAdd` mempty
+          { Hourglass.durationHours = h
+          }
 
 -- | UTF-8 chars (non-Latin-1) caused issues in XML parsing.
 testSparSPInitiatedLoginWithUtf8 :: (HasCallStack) => App ()
