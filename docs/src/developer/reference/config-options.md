@@ -1923,6 +1923,16 @@ time. For conversations, this is necessary for channel search and management of
 channels from the team-management UI. It is highly recommended to take a backup
 of the affected Cassandra data before triggering a migration.
 
+The `background-worker.config.migrationOptions.timeout` defaults to 5s. It
+sets an upper bound for a single migration attempt after it has acquired the
+migration lock, so a stuck item does not keep the migration run blocked
+indefinitely.
+
+Although `migrationOptions` is a shared background-worker setting, the
+migrations run sequentially. That means the same configured timeout can be
+used as a practical per-migration limit, because only one migration type is
+executing at a time in the worker.
+
 Migrations are independent and can be run separately, in batches, or all at
 once. This is expected, because migrations will be released over time. The
 pattern below applies per `postgresMigration` setting. A single setting may
@@ -2097,6 +2107,13 @@ migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
 
+# migration settings
+migrationOptions:
+  pageSize: 10000
+  parallelism: 2
+  # Required migration timeout for a single migration attempt.
+  timeout: 5s
+
 # Background jobs consumer
 backgroundJobs:
   concurrency: 8     # in-flight jobs per process
@@ -2106,6 +2123,15 @@ backgroundJobs:
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
+
+The `migrationOptions.timeout` setting limits how long a single migration
+attempt may run after it has acquired the migration lock. If the timeout is
+exceeded, that migration attempt is aborted and treated as failed.
+
+Choose a value that is comfortably above the normal time for one conversation
+migration, but still low enough to catch a genuinely stuck migration in a
+reasonable time. A good starting point for most deployments is `5s`,
+then adjust based on observed migration durations.
 
 Secrets
 

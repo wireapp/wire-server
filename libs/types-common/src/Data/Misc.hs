@@ -104,6 +104,8 @@ import Data.Time
 import GHC.TypeLits (Nat)
 import GHC.TypeNats (KnownNat)
 import Imports
+import Polysemy.Time
+import Polysemy.Time.Data.TimeUnit
 import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
 import Test.QuickCheck qualified as QC
@@ -268,6 +270,16 @@ instance Cql Milliseconds where
 
 newtype Duration = Duration {duration :: DiffTime}
   deriving (Eq, Show)
+
+instance TimeUnit Duration where
+  nanos = NanoSeconds 1_000_000_000
+
+  toNanos (Duration dt) =
+    NanoSeconds . fromInteger $
+      diffTimeToPicoseconds dt `div` 1_000
+
+  fromNanos (NanoSeconds ns) =
+    Duration $ picosecondsToDiffTime (fromIntegral ns * 1_000)
 
 diffTimeParser :: Parser DiffTime
 diffTimeParser = do

@@ -52,9 +52,10 @@ backendNotificationPusher:
   remotesRefreshInterval: 10000 # 10ms
 
 migrateConversations: false
-migrateConversationsOptions:
+migrationOptions:
   pageSize: 10000
   parallelism: 2
+  timeout: 5s
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false

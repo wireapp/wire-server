@@ -80,6 +80,7 @@ instance PostgresUnmarshall Text DomainKey where
 instance MigrationLockable DomainKey where
   lockKey = fromIntegral . hash . CI.foldedCase . unDomainKey
   lockScope = "domain_registration"
+  toText = original . unDomainKey
 
 type DomainRegistrationRow =
   ( Text,

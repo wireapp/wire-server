@@ -51,7 +51,7 @@ data Opts = Opts
     postgresqlPool :: !PoolConfig,
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: !Bool,
-    migrateConversationsOptions :: !MigrationOptions,
+    migrationOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateDomainRegistration :: !Bool,

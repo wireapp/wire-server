@@ -953,9 +953,10 @@ background-worker:
     # `settings.postgresMigration.conversation` with `migration-to-postgresql`
     # before setting this to `true`.
     migrateConversations: false
-    migrateConversationsOptions:
+    migrationOptions:
       pageSize: 10000
       parallelism: 2
+      timeout: 5s
     # This will start the migration of conversation codes.
     # It's important to set `settings.postgresMigration.conversationCodes` to `migration-to-postgresql`
     # before starting the migration.

@@ -23,25 +23,44 @@ import Data.Aeson
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import Data.Conduit.List qualified as C
+import Data.IORef qualified as IORef
+import Data.Misc
+import Data.Text qualified as T
+import Data.Time
 import GHC.Generics (Generically (..))
 import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc hiding (timeout_)
+import Polysemy.Conc qualified as Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource
 import Polysemy.State
+import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
 import UnliftIO qualified
+import Wire.MigrationLock
+import Wire.Postgres (PGConstraints)
 import Wire.Util (embedClient)
 
 data MigrationOptions = MigrationOptions
   { pageSize :: Int32,
-    parallelism :: Int
+    parallelism :: Int,
+    -- Required timeout for a single migration attempt after it has acquired
+    -- the migration lock.
+    timeout :: Duration
   }
   deriving (Show, Eq, Generic)
   deriving (FromJSON) via Generically MigrationOptions
+
+data MigrationTimedOut = MigrationTimedOut Text Duration
+  deriving stock (Show)
+
+instance Exception MigrationTimedOut
 
 migrationLoop ::
   Log.Logger ->
@@ -149,3 +168,58 @@ handleErrors key action = do
           . Log.field "key" (show key)
           . Log.field "error" (show e)
       modify (+ 1)
+
+withExclusiveMigrationLockAndTimeout ::
+  forall x r.
+  ( PGConstraints r,
+    Member TinyLog r,
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r,
+    Member Resource r,
+    MigrationLockable x
+  ) =>
+  Duration ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  [x] ->
+  Sem (Error MigrationLockError : r) () ->
+  Sem r ()
+withExclusiveMigrationLockAndTimeout timeout_ migDuration xs action = do
+  outcomeRef <- liftIO $ IORef.newIORef @Text "error"
+  bracket
+    (liftIO getCurrentTime)
+    (observeDuration migDuration outcomeRef)
+    ( const do
+        result <-
+          runError $
+            withMigrationLocks LockExclusive (Seconds 10) xs $ do
+              timeoutResult <- Conc.timeout handleTimeout timeout_ action
+              case timeoutResult of
+                Left () -> do
+                  markOutcome outcomeRef "timeout"
+                  -- this aborts the whole migration process
+                  liftIO . UnliftIO.throwIO $ MigrationTimedOut lockables timeout_
+                Right () -> do
+                  markOutcome outcomeRef "success"
+
+        case result of
+          Left TimedOutAcquiringLock -> do
+            markOutcome outcomeRef "lock_timeout"
+            throw TimedOutAcquiringLock
+          Right () -> pure ()
+    )
+  where
+    handleTimeout = do
+      err $
+        Log.msg (Log.val (lockScope @x <> " migrations timed out"))
+          . Log.field "ids" lockables
+          . Log.field "timeout" (show timeout_)
+
+    lockables = T.intercalate ", " (toText <$> xs)
+
+    markOutcome ref outcome = liftIO $ IORef.writeIORef ref outcome
+
+    observeDuration metric outcomeRef start = do
+      outcome <- liftIO $ IORef.readIORef outcomeRef
+      end <- liftIO getCurrentTime
+      liftIO $ Prometheus.withLabel metric outcome (`Prometheus.observe` realToFrac (diffUTCTime end start))

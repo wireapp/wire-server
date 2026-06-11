@@ -35,6 +35,7 @@
 , optparse-applicative
 , pem
 , polysemy
+, polysemy-time
 , protobuf
 , QuickCheck
 , quickcheck-instances
@@ -94,6 +95,7 @@ mkDerivation {
     optparse-applicative
     pem
     polysemy
+    polysemy-time
     protobuf
     QuickCheck
     quickcheck-instances
