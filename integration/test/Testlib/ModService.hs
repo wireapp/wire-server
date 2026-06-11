@@ -23,6 +23,7 @@ module Testlib.ModService
     startDynamicBackends,
     startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
+    defaultOverrides,
     readAndUpdateConfig,
     logToConsole,
   )
@@ -170,19 +171,20 @@ startDynamicBackendsReturnResources beOverrides k = do
 
 startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String
 startDynamicBackend resource beOverrides = do
-  let overrides =
-        mconcat
-          [ setKeyspace,
-            setEsIndex,
-            setPgDb,
-            setFederationSettings,
-            setAwsConfigs,
-            setMlsPrivateKeyPaths,
-            setLogLevel,
-            beOverrides
-          ]
-  startBackend resource overrides
+  startBackend resource $ defaultOverrides resource <> beOverrides
   pure resource.berDomain
+
+defaultOverrides :: BackendResource -> ServiceOverrides
+defaultOverrides resource =
+  mconcat
+    [ setKeyspace,
+      setEsIndex,
+      setPgDb,
+      setFederationSettings,
+      setAwsConfigs,
+      setMlsPrivateKeyPaths,
+      setLogLevel
+    ]
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =

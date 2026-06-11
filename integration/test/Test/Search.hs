@@ -19,7 +19,6 @@
 
 module Test.Search where
 
-import API.Brig
 import qualified API.Brig as BrigP
 import qualified API.BrigInternal as BrigI
 import API.Common (defPassword)
@@ -27,11 +26,15 @@ import qualified API.Common as API
 import API.Galley
 import qualified API.Galley as Galley
 import qualified API.GalleyInternal as GalleyI
+import Control.Monad.Codensity (Codensity (runCodensity))
+import Control.Monad.Reader
 import qualified Data.Set as Set
 import GHC.Stack
 import SetupHelpers
 import Testlib.Assertions
 import Testlib.Prelude
+import Testlib.ResourcePool (acquireResources)
+import UnliftIO (pooledForConcurrentlyN, pooledForConcurrentlyN_)
 
 -- * Local Search
 
@@ -359,7 +362,7 @@ testSearchWithDifferentEndpoints = do
   domStr <- asString dom
 
   (owner, tid, m1 : m2 : m3 : m4 : _) <- createTeam dom 5
-  createApp owner tid (def {name = "flexo"} :: NewApp) >>= assertSuccess
+  BrigP.createApp owner tid (def {BrigP.name = "flexo"} :: BrigP.NewApp) >>= assertSuccess
   updateTeamMember tid owner m1 Owner >>= assertSuccess
   updateTeamMember tid owner m2 Member >>= assertSuccess
   updateTeamMember tid owner m3 Partner >>= assertSuccess
@@ -600,12 +603,91 @@ testSuspendedUserSearch = do
   BrigI.refreshIndex OwnDomain
   assertCanFind searcher searcheeQid (searchee %. "name") OwnDomain
 
+testReindexAllUsers :: (HasCallStack) => App ()
+testReindexAllUsers = do
+  resourcePool <- asks (.resourcePool)
+  runCodensity (acquireResources 1 resourcePool) $ \[testBackend] -> do
+    let domain = testBackend.berDomain
+        usersOfEachType = 5
+        parallelism = 8
+
+    -- The name changers change their name when the backend is writing to a new
+    -- ES index. The deleters delete their own account during the same time.
+    (alice, nameChangers, deleters) <- runCodensity (startDynamicBackend testBackend def) $ \_ -> do
+      alice <- randomUser domain def
+      nameChangers <- replicateM usersOfEachType $ randomUser domain def
+      deleters <- replicateM usersOfEachType $ randomUser domain def
+
+      BrigI.refreshIndex domain
+      pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
+        assertCanFind alice user (user %. "name") domain
+      pure (alice, nameChangers, deleters)
+
+    -- Temporarily use a new index, so new users, updates and deletes get
+    -- written there.
+    tempIndex <- createNewIndex
+    (newUsers, changedNames) <- runCodensity (startDynamicBackend (testBackend {berElasticsearchIndex = tempIndex}) def) $ \_ -> do
+      newUsers <- replicateM usersOfEachType $ randomUser domain def
+
+      BrigI.refreshIndex domain
+      pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user ->
+        assertCannotFind alice user (user %. "name") domain
+
+      pooledForConcurrentlyN_ parallelism (newUsers) $ \user ->
+        assertCanFind alice user (user %. "name") domain
+
+      changedNames <- pooledForConcurrentlyN parallelism nameChangers $ \user -> do
+        newName <- API.randomName
+        BrigP.putSelf user (def {BrigP.name = Just newName}) >>= assertSuccess
+        BrigI.refreshIndex domain
+        assertCanFind alice user newName domain
+        pure newName
+
+      pooledForConcurrentlyN_ parallelism deleters $ \user -> do
+        deleteUser user
+        BrigI.refreshIndex domain
+        assertCannotFind alice user (user %. "name") domain
+
+      pure (newUsers, changedNames)
+
+    let context =
+          ("alice", alice)
+            : zipWith (\n user -> ("nameChanger" <> show n, user)) [1 :: Int ..] nameChangers
+              <> zipWith (\n user -> ("deleter" <> show n, user)) [1 :: Int ..] deleters
+              <> zipWith (\n user -> ("newUser" <> show n, user)) [1 :: Int ..] newUsers
+    addUsersToFailureContext context $ do
+      -- Now if we use the old index, things shouldn't work as expected until a
+      -- re-index is done.
+      runCodensity (startDynamicBackend testBackend def) $ \_ -> do
+        -- Can find people with stale info
+        pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
+          assertCanFind alice user (user %. "name") domain
+
+        -- New things don't work
+        pooledForConcurrentlyN_ parallelism (zip changedNames nameChangers) $ \(newName, user) ->
+          assertCannotFind alice user newName domain
+        pooledForConcurrentlyN_ parallelism newUsers $ \user ->
+          assertCannotFind alice user (user %. "name") domain
+
+        -- Reindex users using a small page size so pagination gets excersiced
+        reindexUsers testBackend 5
+        BrigI.refreshIndex domain
+
+        -- Now things should work as expected
+        pooledForConcurrentlyN_ parallelism (nameChangers <> deleters) $ \user -> do
+          assertCannotFind alice user (user %. "name") domain
+        pooledForConcurrentlyN_ parallelism (zip changedNames nameChangers) $ \(newName, user) ->
+          assertCanFind alice user newName domain
+        pooledForConcurrentlyN_ parallelism newUsers $ \user ->
+          assertCanFind alice user (user %. "name") domain
+
 -- * Assertion Helpers
 
 assertCanFind ::
-  (HasCallStack, MakesValue searcher, MakesValue domain, MakesValue searcheeQid, MakesValue searchTerm) =>
-  searcher -> searcheeQid -> searchTerm -> domain -> App ()
-assertCanFind searcher searcheeQid q domain =
+  (HasCallStack, MakesValue searcher, MakesValue domain, MakesValue searchee, MakesValue searchTerm) =>
+  searcher -> searchee -> searchTerm -> domain -> App ()
+assertCanFind searcher searchee q domain = do
+  searcheeQid <- objQidObject searchee
   BrigP.searchContacts searcher q domain `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     foundDocs :: [Value] <- resp.json %. "documents" >>= asList
@@ -613,11 +695,12 @@ assertCanFind searcher searcheeQid q domain =
     searcheeQid `shouldMatchOneOf` foundIds
 
 assertCannotFind ::
-  (HasCallStack, MakesValue searcher, MakesValue domain, MakesValue searcheeQid, MakesValue searchTerm) =>
-  searcher -> searcheeQid -> searchTerm -> domain -> App ()
-assertCannotFind searcher searcheeQid q domain =
+  (HasCallStack, MakesValue searcher, MakesValue domain, MakesValue searchee, MakesValue searchTerm) =>
+  searcher -> searchee -> searchTerm -> domain -> App ()
+assertCannotFind searcher searchee q domain = do
+  searcheeQid <- objQidObject searchee
   BrigP.searchContacts searcher q domain `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
     foundDocs :: [Value] <- resp.json %. "documents" >>= asList
-    foundIds <- objQid `mapM` foundDocs
+    foundIds <- objQidObject `mapM` foundDocs
     searcheeQid `shouldNotMatchOneOf` foundIds

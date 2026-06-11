@@ -76,3 +76,4 @@ postgresMigration:
   conversationCodes: postgresql
   teamFeatures: postgresql
   domainRegistration: postgresql
+  user: postgresql

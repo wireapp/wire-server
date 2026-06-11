@@ -1,23 +1,5 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
-
--- This file is part of the Wire Server implementation.
---
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
@@ -53,6 +35,7 @@ import Data.Handle (parseHandle)
 import Data.Id
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Qualified (Qualified (..))
+import Data.Set qualified as Set
 import Data.UUID qualified as UUID
 import Imports
 import Network.Wai.Utilities.Error qualified as Error
@@ -169,8 +152,11 @@ testHandleRace brig = do
   void . replicateM 10 $ do
     hdl <- randomHandle
     let update = RequestBodyLBS . encode $ HandleUpdate hdl
-    void . flip mapConcurrently us $ \u ->
+    responses <- flip mapConcurrently us $ \u ->
       put (brig . path "/self/handle" . contentJson . zUser u . zConn "c" . body update)
+    let statusCodes = map statusCode responses
+    liftIO $ assertBool "At most one update should succeed" (length (filter (== 200) statusCodes) <= 1)
+    liftIO $ assertBool "Failed updates should return 409" (Set.fromList (filter (/= 200) statusCodes) == Set.singleton 409)
     ps <- forM us $ \u -> responseJsonMaybe <$> get (brig . path "/self" . zUser u)
     let owners = catMaybes $ filter (maybe False ((== Just (fromJust (parseHandle hdl))) . userHandle)) ps
     liftIO $ assertBool "More than one owner of a handle" (length owners <= 1)

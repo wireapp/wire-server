@@ -367,7 +367,8 @@ spec = do
               { conversation = CassandraStorage,
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
-                domainRegistration = CassandraStorage
+                domainRegistration = CassandraStorage,
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -420,7 +421,8 @@ spec = do
               { conversation = CassandraStorage,
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
-                domainRegistration = CassandraStorage
+                domainRegistration = CassandraStorage,
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined

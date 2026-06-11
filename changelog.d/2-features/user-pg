@@ -1,0 +1,14 @@
+Allow storing user data in PostgreSQL.
+
+This is currently not the default and is experimental. The migration path from Cassandra is yet to be implemented.
+
+However, new installations can use this by configuring the wire-server Helm chart like this:
+
+```yaml
+galley:
+  config:
+    postgresqlMigration:
+      user: postgresql
+```
+
+(##)

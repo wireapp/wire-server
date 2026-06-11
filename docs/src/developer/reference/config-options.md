@@ -1907,6 +1907,7 @@ galley:
       conversationCodes: postgresql
       teamFeatures: postgresql
       domainRegistration: postgresql
+      user: postgresql
 background-worker:
   config:
     migrateConversations: false
