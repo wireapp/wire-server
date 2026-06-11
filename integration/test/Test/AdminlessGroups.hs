@@ -159,7 +159,7 @@ testOnLastAdminTeamMemberDeletionAutopromotes = do
 
   void $ deleteTeamMember tid alice charlie >>= getBody 202
 
-  -- alice is the only eligible member that remains after charlie (the conversastion admin) is removed from the team
+  -- alice is the only eligible member that remains after charlie (the conversation admin) is removed from the team
   eventually $ do
     bindResponse (getConversation alice conv) $ \resp -> do
       resp.status `shouldMatchInt` 200
