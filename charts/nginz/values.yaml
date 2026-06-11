@@ -776,6 +776,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /meetings(.*)
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:
