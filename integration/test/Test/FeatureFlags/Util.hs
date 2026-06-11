@@ -246,7 +246,7 @@ defAllFeatures =
       "backgroundEffects" .= enabled,
       "preventAdminlessGroups"
         .= object
-          [ "lockStatus" .= "locked",
+          [ "lockStatus" .= "unlocked",
             "status" .= "disabled",
             "ttl" .= "unlimited",
             "config"
@@ -346,7 +346,7 @@ defAllConfiguredFeatures =
                       "promotionStrategy" .= "alphabetical",
                       "reminderTimeouts" .= ([2, 4, 6] :: [Int])
                     ],
-                "lockStatus" .= "locked",
+                "lockStatus" .= "unlocked",
                 "status" .= "disabled",
                 "ttl" .= "unlimited"
               ]
