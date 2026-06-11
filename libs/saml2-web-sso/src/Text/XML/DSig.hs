@@ -173,10 +173,7 @@ mkSignCredsWithCert ::
   Int ->
   m (SignPrivCreds, SignCreds, X509.SignedCertificate)
 mkSignCredsWithCert mValidSince size = do
-  let -- https://github.com/vincenthz/hs-certificate/issues/119
-      cropToSecs :: Hourglass.DateTime -> Hourglass.DateTime
-      cropToSecs dt = dt {Hourglass.dtTime = (Hourglass.dtTime dt) {Hourglass.todNSec = 0}}
-  validSince :: Hourglass.DateTime <- cropToSecs <$> maybe (liftIO Hourglass.dateCurrent) pure mValidSince
+  validSince :: Hourglass.DateTime <- maybe (liftIO Hourglass.dateCurrent) pure mValidSince
   let validUntil = validSince `Hourglass.timeAdd` mempty {Hourglass.durationHours = 24 * 365 * 20}
   mkSignCredsWithCertWithLifespan validSince validUntil size
 
@@ -189,7 +186,12 @@ mkSignCredsWithCertWithLifespan ::
   Hourglass.DateTime ->
   Int ->
   m (SignPrivCreds, SignCreds, X509.SignedCertificate)
-mkSignCredsWithCertWithLifespan validSince validUntil size = do
+mkSignCredsWithCertWithLifespan validSinceRaw validUntilRaw size = do
+  -- https://github.com/vincenthz/hs-certificate/issues/119
+  let cropToSecs :: Hourglass.DateTime -> Hourglass.DateTime
+      cropToSecs dt = dt {Hourglass.dtTime = (Hourglass.dtTime dt) {Hourglass.todNSec = 0}}
+      validSince = cropToSecs validSinceRaw
+      validUntil = cropToSecs validUntilRaw
   when (validSince > validUntil) . liftIO . throwIO . ErrorCall $
     "mkSignCredsWithCertWithLifespan: validSince > validUntil: "
       <> show validSince
