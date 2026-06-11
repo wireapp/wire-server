@@ -3,9 +3,8 @@
 
   inputs = {
     self.submodules = true;
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
     nixpkgs_24_11.url = "github:nixos/nixpkgs?ref=nixos-24.11";
-    nixpkgs-unstable.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     tom-bombadil = {
       url = "github:wireapp/tom-bombadil";
@@ -82,7 +81,7 @@
     };
 
     amazonka = {
-      url = "github:brendanhay/amazonka?rev=a7d699be1076e2aad05a1930ca3937ffea954ad8";
+      url = "github:brendanhay/amazonka";
       flake = false;
     };
 
@@ -95,9 +94,20 @@
       url = "github:wireapp/postgresql-connection-string?ref=expose-from-key-value-params";
       flake = false;
     };
+
+    cryptostore = {
+      # Use master because the released version doesn't work with the latest version of cyrpton.
+      url = "git+https://codeberg.org/ocheron/cryptostore.git";
+      flake = false;
+    };
+
+    hsaml2 = {
+      url = "github:wireapp/hsaml2/use-crypton-asn1";
+      flake = false;
+    };
   };
 
-  outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, sbomnix, ... }:
+  outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, tom-bombadil, sbomnix, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -108,9 +118,6 @@
           ];
         };
         pkgs_24_11 = import nixpkgs_24_11 {
-          inherit system;
-        };
-        pkgs_unstable = import nixpkgs-unstable {
           inherit system;
         };
         bomDependenciesDrv = tom-bombadil.lib.${system}.bomDependenciesDrv;
@@ -145,7 +152,7 @@
 
             # Container and SBOM tools
             pkgs.cyclonedx-cli
-            pkgs_unstable.syft
+            pkgs.syft
             pkgs.kubernetes-helm
             pkgs.helmfile
             sbomnix.packages.${system}.default

@@ -526,7 +526,6 @@ let
     ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     # linux-only, not strictly required tools
     pkgs.docker-compose
-    (pkgs.telepresence.override { pythonPackages = pkgs.python310Packages; })
   ];
 in
 {

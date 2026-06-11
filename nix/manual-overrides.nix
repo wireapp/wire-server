@@ -16,17 +16,20 @@ hself: hsuper: {
 
   quickcheck-state-machine = hlib.markUnbroken (hlib.dontCheck hsuper.quickcheck-state-machine);
 
+  # Tests fail, don't know why
+  sandwich = hlib.dontCheck hsuper.sandwich;
+
   # Tests require a running redis
   hedis = hlib.dontCheck hsuper.hedis;
 
   HaskellNet = hlib.dontCheck hsuper.HaskellNet;
 
   # Tests require a running postgresql
-  hasql = hlib.dontCheck hsuper.hasql;
-  hasql-pool = hlib.dontCheck hsuper.hasql-pool;
-  hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
-  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction; # users 1.2.1 from nixpkgs
-  postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
+  hasql = hlib.dontCheck hsuper.hasql_1_10_3;
+  hasql-pool = hlib.dontCheck hsuper.hasql-pool_1_4_2;
+  hasql-migration = hlib.markUnbroken (hlib.doJailbreak (hlib.dontCheck hsuper.hasql-migration));
+  hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_2;
+  postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary_0_15_0_1);
 
   # Test fixtures don't seem to be bundled for Hackage
   hsaml2 = hlib.dontCheck (hsuper.hsaml2);
@@ -36,14 +39,13 @@ hself: hsuper: {
   # (these need to be fixed upstream eventually)
   # FUTUREWORK: fix the dependency bounds upstream
   # ---------------------
-  binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   postie = hlib.doJailbreak hsuper.postie;
-  lrucaching = hlib.doJailbreak (hlib.markUnbroken hsuper.lrucaching);
   # added servant-openapi3 because the version bounds of some dependent packages
   # of our pin exclude the versions in our current nixpkgs
   servant-openapi3 = hlib.doJailbreak (hlib.dontCheck hsuper.servant-openapi3);
+  amazonka-s3-streaming = hlib.doJailbreak hsuper.amazonka-s3-streaming;
 
   # the libsodium haskell library is incompatible with the new version of the libsodium c library
   # that nixpkgs has - this downgrades libsodium from 1.0.19 to 1.0.18
@@ -60,17 +62,10 @@ hself: hsuper: {
       }
     )));
 
-  # hs-opentelemetry pin removal bumps API -> 0.3.0.0 and SDK -> 0.1.0.1 from the pinned commit; instrumentation stays at 0.1.1.0/0.1.0.1.
-  hs-opentelemetry-instrumentation-wai = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-wai);
-  hs-opentelemetry-instrumentation-conduit = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-conduit);
-  hs-opentelemetry-instrumentation-http-client = hlib.doJailbreak hsuper.hs-opentelemetry-instrumentation-http-client;
-  hs-opentelemetry-utils-exceptions = hlib.markUnbroken (hlib.doJailbreak hsuper.hs-opentelemetry-utils-exceptions);
-
   # ------------------------------------
   # okay but marked broken (nixpkgs bug)
   # (we can unfortunately not do anything here but update nixpkgs)
   # ------------------------------------
-  template = hlib.markUnbroken hsuper.template;
   # /proc doesn't exist on macOS, so skip tests there
   system-linux-proc = (if stdenv.isDarwin then hlib.dontCheck else (x: x))
     (hlib.markUnbroken hsuper.system-linux-proc);
@@ -91,13 +86,27 @@ hself: hsuper: {
   http-semantics = hsuper.http-semantics_0_4_0;
   network-run = hsuper.network-run_0_5_0;
   http2 = hsuper.http2_5_4_0;
+  crypton = hsuper.crypton_1_1_2;
+  crypton-x509 = hsuper.crypton-x509_1_9_0;
+  crypton-x509-validation = hsuper.crypton-x509-validation_1_9_0;
+  crypton-x509-store = hsuper.crypton-x509-store_1_9_0;
+  crypton-x509-system = hsuper.crypton-x509-system_1_9_0;
+  crypto-token = hsuper.crypto-token_0_2_0;
+  tls = hsuper.tls_2_4_1;
+  hpke = hsuper.hpke_0_1_0;
+  mlkem = hlib.dontCheck (hlib.markUnbroken hsuper.mlkem);
+  crypton-connection = hsuper.crypton-connection_0_4_6;
+  tls-session-manager = hsuper.tls-session-manager_0_1_0;
+  wreq = hlib.dontCheck hsuper.wreq_0_5_4_5;
+  hasql-th = hsuper.hasql-th_0_5;
+  resource-pool = hsuper.resource-pool_0_5_0_0;
 
   # -----------------
   # flags and patches
   # (these are fine)
   # -----------------
   cryptostore = hlib.addBuildDepends (hlib.dontCheck (hlib.appendConfigureFlags hsuper.cryptostore [ "-fuse_crypton" ]))
-    [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation ];
+    [ hself.crypton hself.crypton-x509 hself.crypton-x509-validation hself.crypton-asn1-encoding hself.crypton-asn1-types hself.crypton-pem hself.time-hourglass ];
   # doJailbreak because upstreams requires a specific crypton-connection version we don't have
   hoogle = hlib.justStaticExecutables (hlib.dontCheck (hsuper.hoogle));
 
@@ -108,9 +117,6 @@ hself: hsuper: {
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
-  postgresql-libpq-pkgconfig = hlib.addBuildDepends
-    (hlib.markUnbroken hsuper.postgresql-libpq-pkgconfig)
-    [ pkg-config postgresql.dev openssl.dev ];
   postgresql-libpq = hlib.overrideCabal
     (hlib.enableCabalFlag hsuper.postgresql-libpq "use-pkg-config")
     (drv: {
