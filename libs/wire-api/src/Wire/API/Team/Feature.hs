@@ -1290,7 +1290,7 @@ instance (Typeable f, FieldF f) => ToSchema (PreventAdminlessGroupsConfigB Cover
         <*> reminderTimeouts .= fieldF "reminderTimeouts" (array schema)
 
 instance Default (LockableFeature PreventAdminlessGroupsConfig) where
-  def = defLockedFeature
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
 
 instance ToObjectSchema PreventAdminlessGroupsConfig where
   objectSchema = field "config" schema

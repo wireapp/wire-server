@@ -302,6 +302,34 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Prevent Adminless Groups
+
+The `preventAdminlessGroups` feature flag controls what happens when a team conversation would otherwise end up without an admin. It is disabled by default and unlocked by default, so team admins can toggle it on or off unless a site administrator locks it.
+
+If you want a different backend-wide default, use the following syntax:
+
+```yaml
+# galley.yaml
+preventAdminlessGroups:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+    config:
+      promotionStrategy: alphabetical|random|all
+      deletionTimeout: 7
+      reminderTimeouts: [2, 4, 6]
+```
+
+The settings mean:
+
+- `promotionStrategy`: how the backend chooses which eligible members to promote when the last admin leaves and autopromotion is possible.
+- `deletionTimeout`: how many days to keep an adminless conversation before it is deleted.
+- `reminderTimeouts`: on which days before deletion reminder notifications should be sent.
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/preventAdminlessGroups/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API if the feature is unlocked.
+
 ### Require External Email Verification
 
 The external feature name `validateSAMLemails` is kept for backward compatibility, but it is misleading: the feature applies to email addresses originating from both SCIM and SAML, and it controls ownership verification rather than generic email validation.
