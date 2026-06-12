@@ -1,1 +1,0 @@
-nginx-ingress-services: allow a federator-only cert-manager issuer (e.g. AWS Private CA via AWSPCAClusterIssuer) by setting federator.tls.issuer.{name,kind,group} without having to enable the global tls.useCertManager flag. The wildcard-backed federator-certificate-secret is suppressed in that case so cert-manager can own the secret.

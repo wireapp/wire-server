@@ -1,1 +1,0 @@
-Support for the kyber based hybrid post quantum ciphersuite was removed, because it is not supported by wire branch of openmls.
