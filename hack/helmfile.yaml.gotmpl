@@ -163,40 +163,9 @@ releases:
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/cassandra-ephemeral'
 
-  - name: "cnpg-operator-1"
-    namespace: "{{ .Values.namespace1 }}"
-    chart: "cnpg/cloudnative-pg"
-    values:
-      - fullnameOverride: "cnpg-operator-1"
-        config:
-          clusterWide: false
-          data:
-            WATCH_NAMESPACE: "{{ .Values.namespace1 }}"
-
-  - name: "cnpg-operator-2"
-    namespace: "{{ .Values.namespace2 }}"
-    chart: "cnpg/cloudnative-pg"
-    needs:
-      - "{{ .Values.namespace1 }}/cnpg-operator-1"
-    values:
-      - fullnameOverride: "cnpg-operator-2"
-        config:
-          clusterWide: false
-          data:
-            WATCH_NAMESPACE: "{{ .Values.namespace2 }}"
-        crds:
-          create: false
-        webhook:
-          mutating:
-            create: false
-          validating:
-            create: false
-
   - name: "postgresql"
     namespace: "{{ .Values.namespace1 }}"
     chart: "cnpg/cluster"
-    needs:
-      - "{{ .Values.namespace1 }}/cnpg-operator-1"
     values:
       - './helm_vars/postgresql/values.yaml.gotmpl'
       - cluster:
@@ -214,8 +183,6 @@ releases:
   - name: "postgresql"
     namespace: "{{ .Values.namespace2 }}"
     chart: "cnpg/cluster"
-    needs:
-      - "{{ .Values.namespace2 }}/cnpg-operator-2"
     values:
       - './helm_vars/postgresql/values.yaml.gotmpl'
       - cluster:
