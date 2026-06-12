@@ -179,6 +179,8 @@ releases:
               - GRANT ALL PRIVILEGES ON DATABASE "dyn-1" TO "wire-server"
               - GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server"
               - GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server"
+            postInitApplicationSQL:
+              - GRANT ALL ON SCHEMA public TO "wire-server"
 
   - name: "postgresql"
     namespace: "{{ .Values.namespace2 }}"
@@ -190,6 +192,8 @@ releases:
             postInitSQL:
               - CREATE ROLE "wire-server" WITH LOGIN PASSWORD 'posty-the-gres'
               - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
+            postInitApplicationSQL:
+              - GRANT ALL ON SCHEMA public TO "wire-server"
 
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'
