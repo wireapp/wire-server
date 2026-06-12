@@ -1,0 +1,1 @@
+Fix SBOM generation scripts: stop merging stderr into stdout, which polluted the devShell and image name lists with nix warnings
