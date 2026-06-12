@@ -172,7 +172,6 @@ releases:
           initdb:
             postInitSQL:
               - CREATE ROLE "wire-server" WITH LOGIN PASSWORD 'posty-the-gres'
-              - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
               - CREATE DATABASE "dyn-1"
               - CREATE DATABASE "dyn-2"
               - CREATE DATABASE "dyn-3"
@@ -180,6 +179,7 @@ releases:
               - GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server"
               - GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server"
             postInitApplicationSQL:
+              - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
               - GRANT ALL ON SCHEMA public TO "wire-server"
 
   - name: "postgresql"
@@ -191,8 +191,8 @@ releases:
           initdb:
             postInitSQL:
               - CREATE ROLE "wire-server" WITH LOGIN PASSWORD 'posty-the-gres'
-              - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
             postInitApplicationSQL:
+              - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
               - GRANT ALL ON SCHEMA public TO "wire-server"
 
   - name: 'opensearch-ephemeral'
