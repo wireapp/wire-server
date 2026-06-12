@@ -25,7 +25,11 @@ module Wire.ConversationSubsystem.MLS.Message
 where
 
 import Control.Monad.Codensity
+import Crypto.Hash (Digest, SHA256, hash)
+import Data.ByteArray.Encoding (Base (Base16), convertToBase)
+import Data.ByteString.Conversion (toByteString')
 import Data.Domain
+import Data.Hex
 import Data.Id
 import Data.IntMap qualified as IntMap
 import Data.Json.Util
@@ -44,6 +48,7 @@ import Polysemy.Input
 import Polysemy.Output
 import Polysemy.Resource (Resource)
 import Polysemy.TinyLog
+import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Protocol
@@ -298,7 +303,16 @@ postMLSCommitBundleToLocalConv qusr c conn bundle ctype lConvOrSubId = do
       unless (ciphersuite == activeData.ciphersuite) $
         throw $
           mlsProtocolError "GroupInfo ciphersuite does not match conversation"
-      unless (bundle.epoch == activeData.epoch) $ throwS @'MLSStaleMessage
+      unless (bundle.epoch == activeData.epoch) $ do
+        logStaleCommitBundle
+          "commit-bundle-epoch-mismatch"
+          lConvOrSub
+          bundle.groupId
+          bundle.epoch
+          activeData.epoch
+          bundle.groupInfo
+          activeData.ciphersuite
+        throwS @'MLSStaleMessage
       pure False
 
   senderIdentity <- getSenderIdentity qusr c bundle.sender lConvOrSub
@@ -397,6 +411,45 @@ handleGroupInfoMismatch lConvId bundle m =
             convId = tUnqualified lConvId,
             domain = tDomain lConvId
           }
+
+logStaleCommitBundle ::
+  (Member TinyLog r) =>
+  ByteString ->
+  Local ConvOrSubConv ->
+  GroupId ->
+  Epoch ->
+  Epoch ->
+  RawMLS GroupInfo ->
+  CipherSuiteTag ->
+  Sem r ()
+logStaleCommitBundle reason lConvOrSub gid messageEpoch storedEpoch groupInfo storedCipherSuite = do
+  let convOrSub = tUnqualified lConvOrSub
+      convOrSubId = tUnqualified (fmap (.id) lConvOrSub)
+      groupContext = groupInfo.value.groupContext
+  warn $
+    Log.msg ("rejecting stale MLS commit bundle" :: ByteString)
+      . Log.field "reason" reason
+      . Log.field "groupId" ("0x" <> hex (unGroupId gid))
+      . Log.field "messageEpoch" (epochNumber messageEpoch)
+      . Log.field "storedEpoch" (epochNumber storedEpoch)
+      . Log.field "storedCipherSuite" (cipherSuiteNumber (tagCipherSuite storedCipherSuite))
+      . Log.field "activeDataPresent" True
+      . Log.field "groupInfoPresent" True
+      . Log.field "groupInfoSha256" (sha256Hex groupInfo.raw)
+      . Log.field "groupInfoGroupId" ("0x" <> hex (unGroupId groupContext.groupId))
+      . Log.field "groupInfoEpoch" (epochNumber groupContext.epoch)
+      . Log.field "groupInfoCipherSuite" (cipherSuiteNumber groupContext.cipherSuite)
+      . Log.field "domain" (toByteString' (show (tDomain lConvOrSub)))
+      . Log.field "parentConvId" (toByteString' (show convOrSubId.conv))
+      . Log.field "subConvId" (maybe ("none" :: ByteString) (toByteString' . show) convOrSubId.subconv)
+      . Log.field
+        "convOrSubConvId"
+        (toByteString' (show convOrSubId))
+      . Log.field "isSubConversation" (isSubConv convOrSub)
+      . Log.field "memberCount" (length (cmAssocs convOrSub.members))
+
+sha256Hex :: ByteString -> ByteString
+sha256Hex bs = convertToBase Base16 (hash bs :: Digest SHA256)
 
 postMLSCommitBundleToRemoteConv ::
   ( Member BrigAPIAccess r,
