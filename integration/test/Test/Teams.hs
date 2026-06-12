@@ -500,3 +500,17 @@ testListUsersEmailVisibility = do
       returnedUsers <- resp.json %. "found" >>= asList
       returnedEmails <- for returnedUsers ((%. "email") >=> asString)
       returnedEmails `shouldMatchSet` memEmails
+
+testGetTeamsInvitationInfo :: (HasCallStack) => App ()
+testGetTeamsInvitationInfo = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  email <- randomEmail
+  inv <- postInvitation owner (PostInvitation (Just email) Nothing) >>= getJSON 201
+  code <- I.getInvitationCode owner inv >>= getJSON 200 >>= (%. "code") & asString
+  bindResponse (getInvitationByCode owner code) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "email" `shouldMatch` email
+    resp.json %. "team" `shouldMatch` tid
+    resp.json %. "role" `shouldMatch` "member"
+    resp.json %. "id" `shouldMatch` (inv %. "id")
+    resp.json %. "managed_by" `shouldMatch` "wire"

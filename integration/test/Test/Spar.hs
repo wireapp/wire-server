@@ -1474,3 +1474,54 @@ testNoPasswordResetForSAMLUser = do
   getPasswordResetCode OwnDomain email `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-key"
+
+testScimUserIsNotAllowedToChangeName :: (HasCallStack) => App ()
+testScimUserIsNotAllowedToChangeName = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  void $ createScimUser OwnDomain tok scimUser >>= assertSuccess
+  registerInvitedUser OwnDomain tid email
+  user <- getUsersByEmail OwnDomain [email] >>= getJSON 200 >>= asList >>= assertOne
+  putHandle user "foo" `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+  putSelf user def {name = Just "foo"} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+
+testScimUserIsNotAllowedToChangeNameOnRegistering :: (HasCallStack) => App ()
+testScimUserIsNotAllowedToChangeNameOnRegistering = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  let profilename = "Takemiya Masaki"
+  code <-
+    getInvitationByEmail OwnDomain email
+      >>= getJSON 200
+      >>= getInvitationCodeForTeam OwnDomain tid
+      >>= getJSON 200
+      >>= (%. "code")
+      >>= asString
+  getInvitationByCode OwnDomain code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` scimUserId
+    resp.json %. "managed_by" `shouldMatch` "scim"
+  registerUserWithHandle OwnDomain email profilename code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+  where
+    registerUserWithHandle :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
+    registerUserWithHandle domain email profilename inviteeCode = do
+      req <- baseRequest domain Brig Versioned "register"
+      submit "POST"
+        $ req
+        & addClientIP
+        & addJSONObject
+          [ "name" .= profilename,
+            "email" .= email,
+            "password" .= defPassword,
+            "team_code" .= inviteeCode
+          ]

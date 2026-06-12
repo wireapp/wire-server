@@ -24,7 +24,7 @@ import Imports
 import Wire.API.Team.Invitation
 import Wire.API.Team.Role
 import Wire.API.User.Identity
-import Wire.API.User.Profile (Name (Name, fromName))
+import Wire.API.User.Profile
 
 testObject_InvitationUserView_team_1 :: InvitationUserView
 testObject_InvitationUserView_team_1 =
@@ -40,7 +40,8 @@ testObject_InvitationUserView_team_1 =
             inviteeName = Nothing,
             inviteeUrl = Nothing
           },
-      inviterEmail = Just $ unsafeEmailAddress "some" "example"
+      inviterEmail = Just $ unsafeEmailAddress "some" "example",
+      managedBy = ManagedByWire
     }
 
 testObject_InvitationUserView_team_2 :: InvitationUserView
@@ -57,5 +58,6 @@ testObject_InvitationUserView_team_2 =
             inviteeName = Just (Name {fromName = "\1067847} 2pGEW+\rT\171609p\174643\157218&\146145v0\b"}),
             inviteeUrl = Nothing
           },
-      inviterEmail = Nothing
+      inviterEmail = Nothing,
+      managedBy = ManagedByScim
     }

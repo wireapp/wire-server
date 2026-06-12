@@ -31,6 +31,7 @@ import Brig.API.User (createUserInviteViaScim)
 import Brig.API.User qualified as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App as App
+import Brig.Data.User (invitationIdToUserId)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Template
 import Control.Lens (view, (^.))
@@ -310,11 +311,11 @@ getInvitation uid tid iid = do
 
 isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => EmailKey -> Sem r Bool
 isPersonalUser uke = do
-  mAccount <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
-  pure $ case mAccount of
-    -- this can e.g. happen if the key is claimed but the account is not yet created
-    Nothing -> False
-    Just account -> account.userStatus == Active && isNothing account.userTeam
+  mUser <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
+  pure $ any isActiveNonTeamUser mUser
+
+isActiveNonTeamUser :: User -> Bool
+isActiveNonTeamUser user = user.userStatus == Active && isNothing user.userTeam
 
 getInvitationByCode ::
   forall r.
@@ -330,11 +331,18 @@ getInvitationByCode c = do
     Store.lookupInvitationByCode c
       >>= note UserSubsystemInvalidInvitationCode
   let inv = Store.invitationFromStored Nothing storedInv
+  uid <- qualifyLocal' $ invitationIdToUserId inv.invitationId
+  mUser <- getAccountNoFilter uid
   mInviterEmail <-
-    isPersonalUser (mkEmailKey inv.inviteeEmail) >>= \case
+    case any isActiveNonTeamUser mUser of
       False -> pure Nothing
       True -> maybe (pure Nothing) (qualifyLocal' >=> getUserEmail) inv.createdBy
-  pure $ InvitationUserView {invitation = inv, inviterEmail = mInviterEmail}
+  pure $
+    InvitationUserView
+      { invitation = inv,
+        inviterEmail = mInviterEmail,
+        managedBy = maybe ManagedByWire (.userManagedBy) mUser
+      }
 
 headInvitationByEmail ::
   (Member InvitationStore r, Member TinyLog r) =>

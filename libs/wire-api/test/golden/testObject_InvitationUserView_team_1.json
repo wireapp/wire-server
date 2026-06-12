@@ -4,6 +4,7 @@
     "created_by_email": "some@example",
     "email": "some@example",
     "id": "00000002-0000-0001-0000-000200000000",
+    "managed_by": "wire",
     "name": null,
     "role": "admin",
     "team": "00000002-0000-0001-0000-000200000002",
