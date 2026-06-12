@@ -23,8 +23,10 @@ module Test.Text.XML.DSigSpec
   )
 where
 
+import Control.Exception (ErrorCall (..))
 import Data.ByteString.Base64.Lazy qualified as EL
 import Data.Either
+import Data.Hourglass qualified as Hourglass
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map qualified as Map
@@ -57,6 +59,24 @@ spec = describe "xml:dsig" $ do
       (_privcreds, creds, cert) <- mkSignCredsWithCert Nothing 192
       verifySelfSignature cert `shouldBe` Right ()
       certToCreds cert `shouldBe` Right creds
+
+  describe "mkSignCredsWithCertWithLifespan" $ do
+    let date = Hourglass.Date 2026 Hourglass.January 1
+        validSinceWithNanos =
+          Hourglass.DateTime date (Hourglass.TimeOfDay 10 0 0 12345)
+        validUntilWithNanos =
+          Hourglass.DateTime date (Hourglass.TimeOfDay 11 0 0 67890)
+        validSinceCropped =
+          Hourglass.DateTime date (Hourglass.TimeOfDay 10 0 0 0)
+        validUntilCropped =
+          Hourglass.DateTime date (Hourglass.TimeOfDay 11 0 0 0)
+    it "stores the provided validity window in the certificate (nanoseconds cropped, see hs-certificate#119)" $ do
+      (_priv, _pub, cert) <- mkSignCredsWithCertWithLifespan validSinceWithNanos validUntilWithNanos 192
+      let stored = X509.certValidity . X509.signedObject $ X509.getSigned cert
+      stored `shouldBe` (validSinceCropped, validUntilCropped)
+    it "throws ErrorCall when validSince > validUntil" $ do
+      mkSignCredsWithCertWithLifespan validUntilCropped validSinceCropped 192
+        `shouldThrow` (\(ErrorCall msg) -> msg == "mkSignCredsWithCertWithLifespan: validSince > validUntil: 2026-01-01T11:00:00Z > 2026-01-01T10:00:00Z")
 
   describe "parseKeyInfo / renderKeyInfo roundtrip" $ do
     let check :: (HasCallStack) => Int -> Expectation

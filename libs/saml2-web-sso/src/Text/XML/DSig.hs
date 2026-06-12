@@ -22,6 +22,7 @@ module Text.XML.DSig
     certToCreds,
     mkSignCreds,
     mkSignCredsWithCert,
+    mkSignCredsWithCertWithLifespan,
 
     -- * signature verification
     verify,
@@ -164,7 +165,7 @@ certToCreds cert = do
 mkSignCreds :: (Crypto.MonadRandom m, MonadIO m) => Int -> m (SignPrivCreds, SignCreds)
 mkSignCreds size = mkSignCredsWithCert Nothing size <&> \(priv, pub, _) -> (priv, pub)
 
--- | If first argument @validSince@ is @Nothing@, use cucrent system time.
+-- | If first argument @validSince@ is @Nothing@, use current system time.
 mkSignCredsWithCert ::
   forall m.
   (Crypto.MonadRandom m, MonadIO m) =>
@@ -172,14 +173,33 @@ mkSignCredsWithCert ::
   Int ->
   m (SignPrivCreds, SignCreds, X509.SignedCertificate)
 mkSignCredsWithCert mValidSince size = do
+  validSince :: Hourglass.DateTime <- maybe (liftIO Hourglass.dateCurrent) pure mValidSince
+  let validUntil = validSince `Hourglass.timeAdd` mempty {Hourglass.durationHours = 24 * 365 * 20}
+  mkSignCredsWithCertWithLifespan validSince validUntil size
+
+-- | Generate signing credentials and a self-signed X509 certificate with the
+-- given validity window.
+mkSignCredsWithCertWithLifespan ::
+  forall m.
+  (Crypto.MonadRandom m, MonadIO m) =>
+  Hourglass.DateTime ->
+  Hourglass.DateTime ->
+  Int ->
+  m (SignPrivCreds, SignCreds, X509.SignedCertificate)
+mkSignCredsWithCertWithLifespan validSinceRaw validUntilRaw size = do
+  -- https://github.com/vincenthz/hs-certificate/issues/119
+  let cropToSecs :: Hourglass.DateTime -> Hourglass.DateTime
+      cropToSecs dt = dt {Hourglass.dtTime = (Hourglass.dtTime dt) {Hourglass.todNSec = 0}}
+      validSince = cropToSecs validSinceRaw
+      validUntil = cropToSecs validUntilRaw
+  when (validSince > validUntil) . liftIO . throwIO . ErrorCall $
+    "mkSignCredsWithCertWithLifespan: validSince > validUntil: "
+      <> Hourglass.timePrint Hourglass.ISO8601_DateAndTime validSince
+      <> " > "
+      <> Hourglass.timePrint Hourglass.ISO8601_DateAndTime validUntil
   let rsaexp = 17
   (pubkey, privkey) <- RSA.generate size rsaexp
-  let -- https://github.com/vincenthz/hs-certificate/issues/119
-      cropToSecs :: Hourglass.DateTime -> Hourglass.DateTime
-      cropToSecs dt = dt {Hourglass.dtTime = (Hourglass.dtTime dt) {Hourglass.todNSec = 0}}
-  validSince :: Hourglass.DateTime <- cropToSecs <$> maybe (liftIO Hourglass.dateCurrent) pure mValidSince
-  let validUntil = validSince `Hourglass.timeAdd` mempty {Hourglass.durationHours = 24 * 365 * 20}
-      signcert :: SBS -> m (SBS, X509.SignatureALG)
+  let signcert :: SBS -> m (SBS, X509.SignatureALG)
       signcert sbs = (,sigalg) <$> sigval
         where
           sigalg = X509.SignatureALG X509.HashSHA256 X509.PubKeyALG_RSA
