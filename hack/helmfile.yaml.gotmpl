@@ -95,6 +95,9 @@ repositories:
   - name: groundhog2k
     url: https://groundhog2k.github.io/helm-charts
 
+  - name: cnpg
+    url: https://cloudnative-pg.github.io/charts
+
 releases:
   - name: 'fake-aws'
     namespace: '{{ .Values.namespace1 }}'
@@ -160,39 +163,66 @@ releases:
     namespace: '{{ .Values.namespace2 }}'
     chart: '../.local/charts/cassandra-ephemeral'
 
+  - name: "cnpg-operator-1"
+    namespace: "{{ .Values.namespace1 }}"
+    chart: "cnpg/cloudnative-pg"
+    values:
+      - fullnameOverride: "cnpg-operator-1"
+        config:
+          clusterWide: false
+          data:
+            WATCH_NAMESPACE: "{{ .Values.namespace1 }}"
+
+  - name: "cnpg-operator-2"
+    namespace: "{{ .Values.namespace2 }}"
+    chart: "cnpg/cloudnative-pg"
+    needs:
+      - "{{ .Values.namespace1 }}/cnpg-operator-1"
+    values:
+      - fullnameOverride: "cnpg-operator-2"
+        config:
+          clusterWide: false
+          data:
+            WATCH_NAMESPACE: "{{ .Values.namespace2 }}"
+        crds:
+          create: false
+        webhook:
+          mutating:
+            create: false
+          validating:
+            create: false
+
   - name: "postgresql"
     namespace: "{{ .Values.namespace1 }}"
-    chart: "bitnami/postgresql"
+    chart: "cnpg/cluster"
+    needs:
+      - "{{ .Values.namespace1 }}/cnpg-operator-1"
     values:
-      - './helm_vars/bitnami.yaml'
       - './helm_vars/postgresql/values.yaml.gotmpl'
-      - primary:
+      - cluster:
           initdb:
-            scripts:
-              init.sql: |
-                CREATE DATABASE "wire-server";
-                CREATE DATABASE "dyn-1";
-                CREATE DATABASE "dyn-2";
-                CREATE DATABASE "dyn-3";
-
-                GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
-                GRANT ALL PRIVILEGES ON DATABASE "dyn-1" TO "wire-server";
-                GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server";
-                GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server";
+            postInitSQL:
+              - CREATE ROLE "wire-server" WITH LOGIN PASSWORD 'posty-the-gres'
+              - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
+              - CREATE DATABASE "dyn-1"
+              - CREATE DATABASE "dyn-2"
+              - CREATE DATABASE "dyn-3"
+              - GRANT ALL PRIVILEGES ON DATABASE "dyn-1" TO "wire-server"
+              - GRANT ALL PRIVILEGES ON DATABASE "dyn-2" TO "wire-server"
+              - GRANT ALL PRIVILEGES ON DATABASE "dyn-3" TO "wire-server"
 
   - name: "postgresql"
     namespace: "{{ .Values.namespace2 }}"
-    chart: "bitnami/postgresql"
+    chart: "cnpg/cluster"
+    needs:
+      - "{{ .Values.namespace2 }}/cnpg-operator-2"
     values:
-      - './helm_vars/bitnami.yaml'
       - './helm_vars/postgresql/values.yaml.gotmpl'
-      - primary:
+      - cluster:
           initdb:
-            scripts:
-              init.sql: |
-                CREATE DATABASE "wire-server";
-
-                GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server";
+            postInitSQL:
+              - CREATE ROLE "wire-server" WITH LOGIN PASSWORD 'posty-the-gres'
+              - GRANT ALL PRIVILEGES ON DATABASE "wire-server" TO "wire-server"
 
   - name: 'opensearch-ephemeral'
     namespace: '{{ .Values.namespace1 }}'

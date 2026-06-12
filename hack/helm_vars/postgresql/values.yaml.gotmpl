@@ -1,12 +1,21 @@
-auth:
-  postgresPassword: "posty-the-gres"
-  username: wire-server
-  password: "posty-the-gres"
-primary:
+version:
+  postgresql: "17"
+cluster:
+  instances: 1
+  storage:
+    size: 8Gi
+    storageClass: {{ .Values.storageClass }}
   resources:
     requests:
       cpu: 1
       memory: 2Gi
-    limits: {}
-  extendedConfiguration: |
-    max_connections = 1500
+  monitoring:
+    enabled: false
+  postgresql:
+    parameters:
+      max_connections: "1500"
+  initdb:
+    database: wire-server
+    owner: postgres
+backups:
+  enabled: false
