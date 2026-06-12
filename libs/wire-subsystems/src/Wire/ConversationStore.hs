@@ -94,7 +94,7 @@ data ConversationStore m a where
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
   ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
-  SetGroupInfo :: ConvId -> GroupInfoData -> ConversationStore m ()
+  SetGroupInfo :: ConvId -> Maybe GroupInfoData -> ConversationStore m ()
   UpdateChannelAddPermissions :: ConvId -> AddPermission -> ConversationStore m ()
   UpdateToMixedProtocol :: ConvId -> GroupId -> Epoch -> ConversationStore m ()
   UpdateToMLSProtocol :: ConvId -> ConversationStore m ()
@@ -120,10 +120,14 @@ data ConversationStore m a where
   DeleteMembers :: ConvId -> UserList UserId -> ConversationStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> ConversationStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, LeafIndex) -> ConversationStore m ()
+  AddHistoryClient :: GroupId -> HistoryClientId -> LeafIndex -> ConversationStore m ()
+  RemoveHistoryClient :: GroupId -> HistoryClientId -> ConversationStore m ()
+  RemoveAllHistoryClients :: GroupId -> ConversationStore m ()
   PlanClientRemoval :: (Foldable f) => GroupId -> f ClientIdentity -> ConversationStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> ConversationStore m ()
   RemoveAllMLSClients :: GroupId -> ConversationStore m ()
   LookupMLSClients :: GroupId -> ConversationStore m (ClientMap LeafIndex)
+  LookupHistoryClients :: GroupId -> ConversationStore m [(HistoryClientId, Int32, Bool)]
   LookupMLSClientLeafIndices :: GroupId -> ConversationStore m (ClientMap LeafIndex, IndexMap)
   -- SUB CONVERSATION OPERATIONS
   UpsertSubConversation :: ConvId -> SubConvId -> GroupId -> ConversationStore m SubConversation

@@ -49,6 +49,7 @@ module Wire.API.Error.Galley
     UnreachableBackendsLegacy (..),
     GroupInfoDiagnostics (..),
     MLSOutOfSyncError (..),
+    AdminlessConversation (..),
   )
 where
 
@@ -179,6 +180,8 @@ data GalleyError
   | MLSReadReceiptsNotAllowed
   | MLSInvalidLeafNodeSignature
   | MeetingNotFound
+  | MLSHistoryClientConflict
+  | MLSHistoryClientDuplication
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -378,6 +381,10 @@ type instance MapError 'NotAnMlsConversation = 'StaticError 403 "not-mls-convers
 type instance MapError 'MLSReadReceiptsNotAllowed = 'StaticError 403 "mls-receipts-not-allowed" "Read receipts on MLS conversations are not allowed"
 
 type instance MapError 'MLSInvalidLeafNodeSignature = 'StaticError 400 "mls-invalid-leaf-node-signature" "Invalid leaf node signature"
+
+type instance MapError 'MLSHistoryClientConflict = 'StaticError 400 "mls-history-client-conflict" "History sharing settings of the conversation are conflicting with this request"
+
+type instance MapError 'MLSHistoryClientDuplication = 'StaticError 400 "mls-history-client-duplication" "An MLS group can have at most one history client"
 
 --------------------------------------------------------------------------------
 -- Meeting errors
@@ -631,7 +638,7 @@ data GroupInfoDiagnostics = GroupInfoDiagnostics
   { commit :: ByteString,
     groupInfo :: ByteString,
     groupId :: GroupId,
-    clients :: [(Int, ClientIdentity)],
+    clients :: [(Int, GroupMember)],
     convId :: ConvOrSubConvId,
     domain :: Domain
   }
@@ -649,7 +656,7 @@ instance APIError GroupInfoDiagnostics where
         headers = []
       }
 
-indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, ClientIdentity)
+indexedClientSchema :: ValueSchema NamedSwaggerDoc (Int, GroupMember)
 indexedClientSchema =
   object $
     (,)
@@ -732,4 +739,50 @@ instance IsSwaggerError MLSOutOfSyncError where
 type instance ErrorEffect MLSOutOfSyncError = Error MLSOutOfSyncError
 
 instance (Member (Error JSONResponse) r) => ServerEffect (Error MLSOutOfSyncError) r where
+  interpretServerEffect = mapError toResponse
+
+--------------------------------------------------------------------------------
+-- AdminlessConversation
+
+data AdminlessConversation = AdminlessConversation
+  {eligibleMembers :: [Qualified UserId]}
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AdminlessConversation
+
+instance APIError AdminlessConversation where
+  toResponse e =
+    JSONResponse
+      { status = HTTP.status403,
+        value =
+          A.object
+            ( fold (schemaOut adminlessConversationObjectSchema e)
+                <> [ "label" A..= ("adminless-conversation" :: Text),
+                     "message" A..= ("The conversation would be left without an admin" :: Text),
+                     "code" A..= HTTP.statusCode HTTP.status403
+                   ]
+            ),
+        headers = []
+      }
+
+adminlessConversationObjectSchema :: ObjectSchema SwaggerDoc AdminlessConversation
+adminlessConversationObjectSchema =
+  AdminlessConversation
+    <$> (.eligibleMembers) .= field "eligible_members" (array schema)
+
+instance ToSchema AdminlessConversation where
+  schema = object adminlessConversationObjectSchema
+
+instance IsSwaggerError AdminlessConversation where
+  addToOpenApi =
+    addErrorResponseToSwagger (HTTP.statusCode HTTP.status403) $
+      mempty
+        & S.description .~ "The conversation would be left without an admin"
+        & S.content .~ singleton mediaType mediaTypeObject
+    where
+      mediaType = contentType $ Proxy @JSON
+      mediaTypeObject = mempty & S.schema ?~ S.Inline (S.toSchema (Proxy @AdminlessConversation))
+
+type instance ErrorEffect AdminlessConversation = Error AdminlessConversation
+
+instance (Member (Error JSONResponse) r) => ServerEffect (Error AdminlessConversation) r where
   interpretServerEffect = mapError toResponse

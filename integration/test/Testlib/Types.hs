@@ -299,6 +299,9 @@ data ClientIdentity = ClientIdentity
 instance HasField "qualifiedUserId" ClientIdentity Aeson.Value where
   getField cid = object [fromString "id" .= cid.user, fromString "domain" .= cid.domain]
 
+data GroupMember = HistoryClient String | RegularClient ClientIdentity
+  deriving (Show, Eq, Ord, Generic)
+
 newtype Ciphersuite = Ciphersuite {code :: String}
   deriving (Eq, Ord, Show, Generic)
 
@@ -358,7 +361,8 @@ instance ToJSON ConvId where
 data MLSState = MLSState
   { baseDir :: FilePath,
     convs :: Map ConvId MLSConv,
-    clientGroupState :: Map ClientIdentity ClientGroupState
+    clientGroupState :: Map ClientIdentity ClientGroupState,
+    historyClientState :: Map (ConvId, String) (Map String ByteString)
   }
   deriving (Show)
 

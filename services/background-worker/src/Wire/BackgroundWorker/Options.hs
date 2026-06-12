@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2025 Wire Swiss GmbH <opensource@wire.com>
@@ -18,12 +20,14 @@
 module Wire.BackgroundWorker.Options where
 
 import Data.Aeson
+import Data.Aeson.Types (JSONPathElement (Key), parserThrowError)
 import Data.Misc
 import Data.Range (Range)
 import GHC.Generics
 import Hasql.Pool.Extended
 import Imports
 import Network.AMQP.Extended
+import System.Cron (CronSchedule, parseCronSchedule)
 import System.Logger.Extended
 import Util.Options
 import Wire.Migration
@@ -47,10 +51,11 @@ data Opts = Opts
     postgresqlPool :: !PoolConfig,
     postgresMigration :: !PostgresMigrationOpts,
     migrateConversations :: !Bool,
-    migrateConversationsOptions :: !MigrationOptions,
+    migrationOptions :: !MigrationOptions,
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateDomainRegistration :: !Bool,
+    meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig
   }
   deriving (Show, Generic)
@@ -93,3 +98,31 @@ data BackgroundJobsConfig = BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically BackgroundJobsConfig
+
+data MeetingsCleanupConfig = MeetingsCleanupConfig
+  { -- | Delete meetings older than this many hours
+    cleanOlderThanHours :: Double,
+    -- | Maximum number of meetings to delete per batch
+    batchSize :: Int,
+    -- | Cron schedule for the cleanup job
+    schedule :: CronSchedule
+  }
+  deriving (Show, Generic)
+
+instance FromJSON MeetingsCleanupConfig where
+  parseJSON =
+    withObject "MeetingsCleanupConfig" $ \o -> do
+      cleanOlderThanHours <- o .: "cleanOlderThanHours"
+      when (cleanOlderThanHours < 0) $
+        parserThrowError [Key "cleanOlderThanHours"] $
+          "cleanOlderThanHours must be non-negative, got: " <> show cleanOlderThanHours
+      batchSize <- o .: "batchSize"
+      when (batchSize <= 0) $
+        parserThrowError [Key "batchSize"] $
+          "batchSize must be greater than 0, got: " <> show batchSize
+      scheduleRaw <- o .: "schedule"
+      schedule <-
+        case parseCronSchedule scheduleRaw of
+          Left e -> parserThrowError [Key "schedule"] $ "Cannot parse cronjob syntax: " <> e
+          Right x -> pure x
+      pure $ MeetingsCleanupConfig {..}

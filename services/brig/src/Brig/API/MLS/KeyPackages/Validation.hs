@@ -53,7 +53,7 @@ validateUploadedKeyPackage ::
   RawMLS KeyPackage ->
   Handler r (KeyPackageRef, CipherSuiteTag, KeyPackageData)
 validateUploadedKeyPackage identity kp = do
-  (cs, lt) <- either mlsProtocolErrorFromValidationError pure $ validateKeyPackage (Just identity) kp.value
+  (cs, lt) <- either mlsProtocolErrorFromValidationError pure $ validateKeyPackage (Just $ RegularClient identity) kp.value
 
   validateLifetime lt
 

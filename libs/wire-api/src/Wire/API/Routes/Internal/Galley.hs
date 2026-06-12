@@ -91,6 +91,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut EnforceFileDownloadLocationConfig
     :<|> IFeatureStatusLockStatusPut DomainRegistrationConfig
     :<|> IFeatureStatusLockStatusPut ChannelsConfig
+    :<|> IFeatureStatusLockStatusPut PreventAdminlessGroupsConfig
     :<|> IFeatureStatusLockStatusPut CellsConfig
     :<|> IFeatureStatusLockStatusPut ConsumableNotificationsConfig
     :<|> IFeatureStatusLockStatusPut ChatBubblesConfig
@@ -99,6 +100,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusLockStatusPut StealthUsersConfig
     :<|> IFeatureStatusLockStatusPut MeetingsConfig
     :<|> IFeatureStatusLockStatusPut MeetingsPremiumConfig
+    :<|> IFeatureStatusLockStatusPut BackgroundEffectsConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

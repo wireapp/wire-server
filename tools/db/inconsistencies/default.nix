@@ -11,7 +11,6 @@
 , email-validate
 , extended
 , extra
-, gitignoreSource
 , imports
 , lib
 , optparse-applicative
@@ -25,7 +24,7 @@
 mkDerivation {
   pname = "inconsistencies";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

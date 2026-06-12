@@ -39,12 +39,14 @@ import Wire.API.Team.Member qualified as T
 import Wire.API.Team.Role qualified as R
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.UserEvent hiding (UserLegalHoldDisabled)
 import Wire.AppStore (AppStore, StoredApp (..))
 import Wire.AppStore qualified as Store
 import Wire.AppSubsystem
 import Wire.AuthenticationSubsystem
 import Wire.AuthenticationSubsystem.Cookie (revokeAllCookies)
 import Wire.AuthenticationSubsystem.ZAuth
+import Wire.Events
 import Wire.GalleyAPIAccess
 import Wire.NotificationSubsystem
 import Wire.Sem.Now
@@ -66,7 +68,8 @@ runAppSubsystem ::
     Member Now r,
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
-    Member Random r
+    Member Random r,
+    Member Events r
   ) =>
   InterpreterFor UserSubsystem (AuthenticationSubsystem ': r) ->
   InterpreterFor AuthenticationSubsystem r ->
@@ -194,7 +197,9 @@ getAppsImpl lusr tid = do
 updateAppImpl ::
   ( Member AppStore r,
     Member (Error AppSubsystemError) r,
+    Member Events r,
     Member GalleyAPIAccess r,
+    Member UserSubsystem r,
     Member UserStore r
   ) =>
   Local UserId ->
@@ -209,9 +214,14 @@ updateAppImpl lusr tid appid upd = do
     Right () -> pure ()
     Left Store.NotFound -> throw AppSubsystemErrorNoApp
   Store.updateUser appid (def {Store.name = upd.name, Store.assets = upd.assets, Store.accentId = upd.accentId})
-  -- FUTUREWORK(WPB-21287): internalUpdateSearchIndex appid
-  -- FUTUREWORK(WPB-21287): create event `app.updated`
-  pure ()
+  internalUpdateSearchIndex appid
+  generateUserEvent appid Nothing $
+    UserUpdated $
+      (emptyUserUpdatedData appid)
+        { eupName = upd.name,
+          eupAccentId = upd.accentId,
+          eupAssets = upd.assets
+        }
 
 refreshAppCookieImpl ::
   ( Member AuthenticationSubsystem r,
@@ -227,7 +237,7 @@ refreshAppCookieImpl ::
   Sem r SomeUserToken
 refreshAppCookieImpl (tUnqualified -> uid) tid appId mbPassword = do
   reauthenticateEither uid mbPassword
-    >>= either (const $ throw AppSubsystemErrorNoPerm) (const $ pure ())
+    >>= either (const $ throw AppSubsystemErrorMissingAuth) (const $ pure ())
 
   mem <- getTeamMember uid tid >>= note AppSubsystemErrorNoPerm
   note AppSubsystemErrorNoPerm $ guard (T.hasPermission mem T.ManageApps)

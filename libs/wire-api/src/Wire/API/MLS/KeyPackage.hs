@@ -233,7 +233,7 @@ instance HasField "extensions" KeyPackage [Extension] where
 instance HasField "leafNode" KeyPackage LeafNode where
   getField = (.tbs.value.leafNode)
 
-credentialIdentityAndKey :: Credential -> Either Text (ClientIdentity, Maybe X509.PubKey)
+credentialIdentityAndKey :: Credential -> Either Text (GroupMember, Maybe X509.PubKey)
 credentialIdentityAndKey (BasicCredential i) = (,) <$> decodeMLS' i <*> pure Nothing
 credentialIdentityAndKey (X509Credential certs) = do
   bs <- case certs of
@@ -244,9 +244,9 @@ credentialIdentityAndKey (X509Credential certs) = do
       X509.decodeSignedCertificate bs
   -- FUTUREWORK: verify signature
   let cert = X509.getCertificate signed
-  certificateIdentityAndKey cert
+  first RegularClient <$> certificateIdentityAndKey cert
 
-keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
+keyPackageIdentity :: KeyPackage -> Either Text GroupMember
 keyPackageIdentity kp = fst <$> credentialIdentityAndKey kp.leafNode.credential
 
 certificateIdentityAndKey :: X509.Certificate -> Either Text (ClientIdentity, Maybe X509.PubKey)

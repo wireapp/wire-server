@@ -311,7 +311,7 @@ testMixedProtocolAddPartialClients secondDomain = do
     bundle <- claimKeyPackages def alice1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp1 <- assertOne (filter ((== bob1) . fst) kps)
-    mp <- createAddCommitWithKeyPackages alice1 convId [kp1]
+    mp <- createAddCommitWithKeyPackages alice1 convId [kp1] Nothing
     void $ sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed mp
 
   -- this tests that bob's backend has a mapping of group id to the remote conv
@@ -320,7 +320,7 @@ testMixedProtocolAddPartialClients secondDomain = do
     bundle <- claimKeyPackages def bob1 bob >>= getJSON 200
     kps <- unbundleKeyPackages bundle
     kp2 <- assertOne (filter ((== bob2) . fst) kps)
-    mp <- createAddCommitWithKeyPackages bob1 convId [kp2]
+    mp <- createAddCommitWithKeyPackages bob1 convId [kp2] Nothing
     void $ postMLSCommitBundle mp.sender (mkBundle mp) >>= getJSON 201
 
 testMixedProtocolRemovePartialClients :: (HasCallStack) => Domain -> App ()
@@ -590,7 +590,7 @@ testFirstCommitAllowsPartialAdds = do
   kps <- unbundleKeyPackages bundle
 
   -- first commit only adds kp for alice2 (not alice2 and alice3)
-  mp <- createAddCommitWithKeyPackages alice1 convId (filter ((== alice2) . fst) kps)
+  mp <- createAddCommitWithKeyPackages alice1 convId (filter ((== alice2) . fst) kps) Nothing
   bindResponse (postMLSCommitBundle mp.sender (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 409
     resp.json %. "label" `shouldMatch` "mls-client-mismatch"
@@ -618,7 +618,7 @@ testAddUserPartial = do
   kps <- fmap concat . for [bob, charlie] $ \user -> do
     bundle <- claimKeyPackages def alice1 user >>= getJSON 200
     unbundleKeyPackages bundle
-  mp <- createAddCommitWithKeyPackages alice1 convId kps
+  mp <- createAddCommitWithKeyPackages alice1 convId kps Nothing
 
   -- before alice can commit, bob3 uploads a key package
   void $ uploadNewKeyPackage def bob3
@@ -970,7 +970,7 @@ testInternalCommitDuplicateClient = do
   -- We cannot upload the new key package at this point, because the
   -- signature key won't match. However, alice1 can still use it to craft an
   -- add proposal.
-  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)]
+  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)] Nothing
   bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "mls-protocol-error"
@@ -1005,7 +1005,7 @@ testInternalCommitWrongSignatureKey = do
   setClientGroupState alice2 def
   (kp, _) <- generateKeyPackage alice2 def
 
-  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)]
+  mp <- createAddCommitWithKeyPackages alice1 convId [(alice2, kp)] Nothing
   bindResponse (postMLSCommitBundle alice1 (mkBundle mp)) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "mls-identity-mismatch"

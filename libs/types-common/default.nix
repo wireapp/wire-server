@@ -21,7 +21,6 @@
 , currency-codes
 , email-validate
 , generic-random
-, gitignoreSource
 , hashable
 , http-api-data
 , imports
@@ -36,6 +35,7 @@
 , optparse-applicative
 , pem
 , polysemy
+, polysemy-time
 , protobuf
 , QuickCheck
 , quickcheck-instances
@@ -63,7 +63,7 @@
 mkDerivation {
   pname = "types-common";
   version = "0.16.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     attoparsec
@@ -95,6 +95,7 @@ mkDerivation {
     optparse-applicative
     pem
     polysemy
+    polysemy-time
     protobuf
     QuickCheck
     quickcheck-instances

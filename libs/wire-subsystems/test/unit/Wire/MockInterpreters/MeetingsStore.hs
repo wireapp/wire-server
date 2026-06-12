@@ -103,3 +103,9 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                 }
         modify (Map.insert mid updatedMeeting)
   DeleteMeeting mid -> modify (Map.delete mid)
+  GetOldMeetings cutoffTime batchSize ->
+    gets $
+      take batchSize
+        . List.sortOn (.endTime)
+        . filter (\sm -> sm.endTime < cutoffTime)
+        . Map.elems

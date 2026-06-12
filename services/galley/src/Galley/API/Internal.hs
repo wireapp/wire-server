@@ -289,12 +289,14 @@ allFeaturesAPI =
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
-    <@> featureAPI1Get
-    <@> featureAPI1Full
-    <@> featureAPI1Full
-    <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Get
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Full
+    <@> featureAPI1Get
+    <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
     <@> featureAPI1Full
@@ -316,6 +318,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", EnforceFileDownloadLocationConfig) (updateLockStatus @EnforceFileDownloadLocationConfig)
     <@> mkNamedAPI @'("ilock", DomainRegistrationConfig) (updateLockStatus @DomainRegistrationConfig)
     <@> mkNamedAPI @'("ilock", ChannelsConfig) (updateLockStatus @ChannelsConfig)
+    <@> mkNamedAPI @'("ilock", PreventAdminlessGroupsConfig) (updateLockStatus @PreventAdminlessGroupsConfig)
     <@> mkNamedAPI @'("ilock", CellsConfig) (updateLockStatus @CellsConfig)
     <@> mkNamedAPI @'("ilock", ConsumableNotificationsConfig) (updateLockStatus @ConsumableNotificationsConfig)
     <@> mkNamedAPI @'("ilock", ChatBubblesConfig) (updateLockStatus @ChatBubblesConfig)
@@ -324,6 +327,7 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", StealthUsersConfig) (updateLockStatus @StealthUsersConfig)
     <@> mkNamedAPI @'("ilock", MeetingsConfig) (updateLockStatus @MeetingsConfig)
     <@> mkNamedAPI @'("ilock", MeetingsPremiumConfig) (updateLockStatus @MeetingsPremiumConfig)
+    <@> mkNamedAPI @'("ilock", BackgroundEffectsConfig) (updateLockStatus @BackgroundEffectsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
     <@> mkNamedAPI @"get-configured-feature-flags" getConfiguredFeatureFlags

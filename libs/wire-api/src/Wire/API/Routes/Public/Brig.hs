@@ -46,7 +46,7 @@ import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Deprecated
 import Wire.API.Error
-import Wire.API.Error.Brig
+import Wire.API.Error.Brig as ErrorBrig
 import Wire.API.Error.Empty
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
@@ -1545,7 +1545,7 @@ type CipherSuiteParam =
   QueryParam'
     [ Required,
       Strict,
-      Description "Ciphersuite in hex format (e.g. 0xf031)"
+      Description "Ciphersuite in hex format (e.g. 0x0002)"
     ]
     "ciphersuite"
     CipherSuite
@@ -1554,7 +1554,7 @@ type CipherSuiteParamV7 =
   QueryParam'
     [ Optional,
       Strict,
-      Description "Ciphersuite in hex format (e.g. 0xf031) - default is 0x0001"
+      Description "Ciphersuite in hex format (e.g. 0x0002) - default is 0x0001"
     ]
     "ciphersuite"
     CipherSuite
@@ -1563,7 +1563,7 @@ type MultipleCipherSuitesParam =
   QueryParam'
     [ Required,
       Strict,
-      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031)"
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0x0002)"
     ]
     "ciphersuites"
     (CommaSeparatedList CipherSuite)
@@ -1572,7 +1572,7 @@ type MultipleCipherSuitesParamV7 =
   QueryParam'
     [ Optional,
       Strict,
-      Description "Comma-separated list of ciphersuites in hex format (e.g. 0xf031) - default is 0x0001"
+      Description "Comma-separated list of ciphersuites in hex format (e.g. 0x0002) - default is 0x0001"
     ]
     "ciphersuites"
     (CommaSeparatedList CipherSuite)
@@ -2141,6 +2141,7 @@ type AppsAPI =
            "get-app"
            ( Summary "Get app"
                :> From 'V14
+               :> Until 'V16
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -2174,6 +2175,7 @@ type AppsAPI =
            "refresh-app-cookie"
            ( Summary "Get a new app authentication token"
                :> From 'V12
+               :> CanThrow 'ErrorBrig.MissingAuth
                :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId

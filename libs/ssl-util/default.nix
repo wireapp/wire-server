@@ -6,7 +6,6 @@
 , base
 , byteable
 , bytestring
-, gitignoreSource
 , HsOpenSSL
 , http-client
 , imports
@@ -16,7 +15,7 @@
 mkDerivation {
   pname = "ssl-util";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     byteable

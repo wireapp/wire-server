@@ -111,6 +111,9 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
     when (is _SubConv convOrSub && any ((senderIdentity.client /=) . fst) (cmAssocs (paAdd action))) $
       throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
+    when (is _SubConv convOrSub && (not (Set.null action.paHistoryClientAdd) || not (Set.null action.paHistoryClientRemove))) $
+      throw (mlsProtocolError "History client proposals in subconversations are not supported")
+
     events <-
       if convOrSub.migrationState == MLSMigrationMLS
         then do
@@ -234,15 +237,20 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
               pure (addEvents <> removeEvents)
         else pure []
 
+    let gid = cnvmlsGroupId convOrSub.mlsMeta
     -- Remove clients from the conversation state. This includes client removals
     -- of all types (see Note [client removal]).
     for_ (Map.assocs (unClientMap (paRemove action))) $ \(qtarget, clients) -> do
-      removeMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget (Map.keysSet clients)
+      removeMLSClients gid qtarget (Map.keysSet clients)
 
     -- add clients to the conversation state
     for_ newUserClients $ \(qtarget, newClients) -> do
-      addMLSClients (cnvmlsGroupId convOrSub.mlsMeta) qtarget $
+      addMLSClients gid qtarget $
         Set.fromList [(cid, idx) | (cid, (idx, _)) <- Map.assocs newClients]
+
+    for_ action.paHistoryClientAdd $ uncurry (addHistoryClient gid)
+
+    for_ action.paHistoryClientRemove $ \(hid, _) -> removeHistoryClient gid hid
 
     -- set cipher suite
     when ciphersuiteUpdate $ case convOrSub.id of

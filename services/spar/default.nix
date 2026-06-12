@@ -23,7 +23,6 @@
 , exceptions
 , extended
 , filepath
-, gitignoreSource
 , hscim
 , HsOpenSSL
 , hspec
@@ -84,7 +83,7 @@
 mkDerivation {
   pname = "spar";
   version = "0.1";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

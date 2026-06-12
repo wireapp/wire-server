@@ -13,7 +13,6 @@
 , errors
 , exceptions
 , extended
-, gitignoreSource
 , http-client
 , http-client-tls
 , http-reverse-proxy
@@ -37,7 +36,7 @@
 mkDerivation {
   pname = "proxy";
   version = "0.9.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

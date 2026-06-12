@@ -136,25 +136,19 @@ setTeamFeatureConfig domain team featureName payload = do
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", fn]
   submit "PUT" $ req & addJSON p
 
-patchTeamFeatureConfig ::
+patchTeamFeature ::
   (HasCallStack, MakesValue domain, MakesValue team, MakesValue featureName, MakesValue payload) =>
   domain ->
   team ->
   featureName ->
   payload ->
   App Response
-patchTeamFeatureConfig domain team featureName payload = do
+patchTeamFeature domain team featureName payload = do
   tid <- asString team
   fn <- asString featureName
   p <- make payload
   req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", fn]
   submit "PATCH" $ req & addJSON p
-
-patchTeamFeature :: (HasCallStack, MakesValue domain, MakesValue team) => domain -> team -> String -> Value -> App Response
-patchTeamFeature domain team featureName payload = do
-  tid <- asString team
-  req <- baseRequest domain Galley Unversioned $ joinHttpPath ["i", "teams", tid, "features", featureName]
-  submit "PATCH" $ req & addJSON payload
 
 getTeam :: (HasCallStack, MakesValue domain) => domain -> String -> App Response
 getTeam domain tid = do

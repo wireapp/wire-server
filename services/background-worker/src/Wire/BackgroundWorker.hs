@@ -34,7 +34,7 @@ import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
-import Wire.Migration
+import Wire.MeetingsCleanupWorker qualified as MeetingsCleanupWorker
 import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrations qualified as Migrations
 
@@ -55,37 +55,41 @@ run opts galleyOpts = do
       then
         runAppT env $
           withNamedLogger "migrate-conversations" $
-            Migrations.conversations opts.migrateConversationsOptions
+            Migrations.conversations opts.migrationOptions
       else pure $ pure ()
   cleanUpConvCodesMigration <-
     if opts.migrateConversationCodes
       then
         runAppT env $
           withNamedLogger "migrate-conversation-codes" $
-            Migrations.conversationCodes (MigrationOptions 1000 1)
+            Migrations.conversationCodes opts.migrationOptions
       else pure $ pure ()
   cleanupTeamFeaturesMigration <-
     if opts.migrateTeamFeatures
       then
         runAppT env $
           withNamedLogger "migrate-team-features" $
-            Migrations.teamFeatures (MigrationOptions 1000 1)
+            Migrations.teamFeatures opts.migrationOptions
       else pure $ pure ()
   cleanupDomainRegistrationMigration <-
     if opts.migrateDomainRegistration
       then
         runAppT env $
           withNamedLogger "migrate-domain-registration" $
-            Migrations.domainRegistration (MigrationOptions 1000 1)
+            Migrations.domainRegistration opts.migrationOptions
       else pure $ pure ()
   cleanupJobs <-
     runAppT env $
       withNamedLogger "background-job-consumer" $
         Jobs.startWorker amqpEP
+  cleanupMeetings <-
+    runAppT env $
+      withNamedLogger "meetings-cleanup" $
+        MeetingsCleanupWorker.startWorker opts.meetingsCleanup
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,)
+            (,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -93,6 +97,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupTeamFeaturesMigration
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupJobs
+              <*> Concurrently cleanupMeetings
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server

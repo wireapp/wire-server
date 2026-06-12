@@ -685,6 +685,14 @@ getTeamMember user tid mid = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["teams", tidStr, "members", midStr])
   submit "GET" req
 
+-- https://staging-nginz-https.zinfra.io/v16/api/swagger-ui/#/default/get-team-members-by-ids
+getTeamMembersByIdsUsingPost :: (HasCallStack, MakesValue searcher, MakesValue target, MakesValue tid) => searcher -> tid -> [target] -> App Response
+getTeamMembersByIdsUsingPost searcher tid targets = do
+  tidStr <- asString tid
+  targetStrs <- asString `mapM` targets
+  req <- baseRequest searcher Galley Versioned (joinHttpPath ["teams", tidStr, "get-members-by-ids-using-post"])
+  submit "POST" (addJSONObject ["user_ids" .= targetStrs] req)
+
 data AppLockSettings = AppLockSettings
   { status :: String,
     enforce :: Bool,

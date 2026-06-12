@@ -108,6 +108,7 @@ library
     RunAllTests
     SetupHelpers
     Test.AccessUpdate
+    Test.AdminlessGroups
     Test.Apps
     Test.Auth
     Test.B2B
@@ -139,6 +140,7 @@ library
     Test.FeatureFlags.AppLock
     Test.FeatureFlags.Apps
     Test.FeatureFlags.AssetAuditLog
+    Test.FeatureFlags.BackgroundEffects
     Test.FeatureFlags.Cells
     Test.FeatureFlags.CellsInternal
     Test.FeatureFlags.Channels
@@ -158,6 +160,7 @@ library
     Test.FeatureFlags.MlsE2EId
     Test.FeatureFlags.MlsMigration
     Test.FeatureFlags.OutlookCalIntegration
+    Test.FeatureFlags.PreventAdminlessGroups
     Test.FeatureFlags.RequireExternalEmailVerification
     Test.FeatureFlags.SearchVisibilityAvailable
     Test.FeatureFlags.SearchVisibilityInbound

@@ -37,7 +37,6 @@
 , extended
 , extra
 , filepath
-, gitignoreSource
 , haskell-src-exts
 , hex
 , hourglass
@@ -99,7 +98,7 @@
 mkDerivation {
   pname = "integration";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   setupHaskellDepends = [

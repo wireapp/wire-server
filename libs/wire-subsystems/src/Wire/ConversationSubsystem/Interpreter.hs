@@ -44,6 +44,7 @@ import Wire.CodeStore (CodeStore)
 import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as ConvStore
 import Wire.ConversationSubsystem (ConversationSubsystem (..))
+import Wire.ConversationSubsystem.Action qualified as Action
 import Wire.ConversationSubsystem.Action.Notify qualified as ActionNotify
 import Wire.ConversationSubsystem.Clients as Clients
 import Wire.ConversationSubsystem.Create qualified as Create
@@ -156,8 +157,6 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ MLSEnabled.isMLSEnabled
   GetConversationsInternal luser mids mstart msize ->
     mapErrors $ Query.getConversationsInternal luser mids mstart msize
-  RemoveMemberFromLocalConv lcnv lusr con victim ->
-    mapErrors $ Update.removeMemberFromLocalConv lcnv lusr con victim
   FederationOnConversationCreated domain rc ->
     mapErrors $ Federation.onConversationCreated domain rc
   FederationGetConversations domain req ->
@@ -210,6 +209,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.postProteusBroadcast lusr con msg
   DeleteLocalConversation lusr con lcnv ->
     mapErrors $ Update.deleteLocalConversation lusr con lcnv
+  InternalDeleteLocalConversation lcnv ->
+    mapErrors $ Action.updateLocalConversationDeleteUnchecked lcnv
   GetMLSPublicKeys fmt ->
     mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->
@@ -274,8 +275,10 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.rmCodeUnqualified lusr con cnv
   MemberTyping lusr con qcnv status ->
     mapErrors $ Update.memberTyping lusr con qcnv status
-  RemoveMemberQualified lusr con qcnv quid ->
-    mapErrors $ Update.removeMemberQualified lusr con qcnv quid
+  RemoveMemberQualified responseMode lusr con qcnv quid ->
+    mapErrors $ Update.removeMemberQualified responseMode lusr con qcnv quid
+  DeleteUserFromTeamConversations lusr conn tid remove ->
+    mapErrors $ Update.deleteUserFromTeamConversationsImpl lusr conn tid remove
   UpdateOtherMember lusr con qcnv quid update ->
     mapErrors $ Update.updateOtherMember lusr con qcnv quid update
   UpdateConversationName lusr zcon qcnv rename ->

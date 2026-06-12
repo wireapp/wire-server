@@ -84,7 +84,8 @@ testTeamFeaturesMigration = do
         "simplifiedUserConnectionRequestQRCode",
         "stealthUsers",
         "meetings",
-        "meetingsPremium"
+        "meetingsPremium",
+        "backgroundEffects"
       ]
 
     assertModifiedFeatures :: String -> [(Value, String, [Value])] -> App ()

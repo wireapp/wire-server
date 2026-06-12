@@ -18,7 +18,6 @@
 , data-default
 , errors
 , exceptions
-, gitignoreSource
 , hasql
 , hasql-pool
 , hourglass
@@ -32,6 +31,7 @@
 , memory
 , metrics-wai
 , monad-control
+, postgresql-connection-string
 , prometheus-client
 , retry
 , servant
@@ -54,7 +54,7 @@
 mkDerivation {
   pname = "extended";
   version = "0.1.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     aeson
     amqp
@@ -80,6 +80,7 @@ mkDerivation {
     memory
     metrics-wai
     monad-control
+    postgresql-connection-string
     prometheus-client
     retry
     servant

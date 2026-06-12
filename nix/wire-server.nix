@@ -103,10 +103,7 @@ let
     # The default packages are expected to have optimizations and docs turned
     # on.
     let
-      defaultPkgs = import ./local-haskell-packages.nix
-        { inherit gitignoreSource; }
-        hsuper
-        hself;
+      defaultPkgs = import ./local-haskell-packages.nix hsuper hself;
 
       # append `-Werror` to ghc options for all packages.
       # failOnAllWarnings implies `-Wall`, which overrides any `-Wno-*` from the package cabal file.

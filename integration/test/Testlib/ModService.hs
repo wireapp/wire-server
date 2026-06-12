@@ -23,6 +23,7 @@ module Testlib.ModService
     startDynamicBackends,
     startDynamicBackendsReturnResources,
     traverseConcurrentlyCodensity,
+    defaultOverrides,
     readAndUpdateConfig,
     logToConsole,
   )
@@ -170,19 +171,20 @@ startDynamicBackendsReturnResources beOverrides k = do
 
 startDynamicBackend :: (HasCallStack) => BackendResource -> ServiceOverrides -> Codensity App String
 startDynamicBackend resource beOverrides = do
-  let overrides =
-        mconcat
-          [ setKeyspace,
-            setEsIndex,
-            setPgDb,
-            setFederationSettings,
-            setAwsConfigs,
-            setMlsPrivateKeyPaths,
-            setLogLevel,
-            beOverrides
-          ]
-  startBackend resource overrides
+  startBackend resource $ defaultOverrides resource <> beOverrides
   pure resource.berDomain
+
+defaultOverrides :: BackendResource -> ServiceOverrides
+defaultOverrides resource =
+  mconcat
+    [ setKeyspace,
+      setEsIndex,
+      setPgDb,
+      setFederationSettings,
+      setAwsConfigs,
+      setMlsPrivateKeyPaths,
+      setLogLevel
+    ]
   where
     setAwsConfigs :: ServiceOverrides
     setAwsConfigs =
@@ -411,19 +413,18 @@ ensureBackendReachable domain = do
             <&> (addHeader "Wire-Origin-Domain" env.domain1)
               . (addJSONObject [])
         checkStatus <- appToIO $ do
-          res <- submit "POST" req
+          submit "POST" req `bindResponse` \res -> do
+            -- If we get 533 here it means federation is not available between domains
+            -- but ingress is working, since we're processing the request.
+            let is200 = res.status == 200
+            mInner <- lookupField res.json "inner"
+            isFedDenied <- case mInner of
+              Nothing -> pure False
+              Just inner -> do
+                label <- inner %. "label" & asString
+                pure $ res.status == 533 && label == "federation-denied"
 
-          -- If we get 533 here it means federation is not available between domains
-          -- but ingress is working, since we're processing the request.
-          let is200 = res.status == 200
-          mInner <- lookupField res.json "inner"
-          isFedDenied <- case mInner of
-            Nothing -> pure False
-            Just inner -> do
-              label <- inner %. "label" & asString
-              pure $ res.status == 533 && label == "federation-denied"
-
-          pure (is200 || isFedDenied)
+            pure (is200 || isFedDenied)
         eith <- liftIO (E.try checkStatus)
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 

@@ -26,12 +26,13 @@ import Data.Aeson.Types
 import Data.Scientific
 import Data.Time.Clock
 import Imports
+import Polysemy.Time
 import Test.QuickCheck (Arbitrary (arbitrary), choose)
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
   }
-  deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
+  deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show, TimeUnit)
 
 instance Arbitrary Timeout where
   arbitrary = Timeout . fromIntegral <$> choose (60 :: Int, 10 * 24 * 3600)

@@ -242,7 +242,20 @@ defAllFeatures =
                 ]
           ],
       "meetings" .= enabled,
-      "meetingsPremium" .= disabledLocked
+      "meetingsPremium" .= disabledLocked,
+      "backgroundEffects" .= enabled,
+      "preventAdminlessGroups"
+        .= object
+          [ "lockStatus" .= "locked",
+            "status" .= "disabled",
+            "ttl" .= "unlimited",
+            "config"
+              .= object
+                [ "promotionStrategy" .= "alphabetical",
+                  "deletionTimeout" .= (7 :: Int),
+                  "reminderTimeouts" .= ([2, 4, 6] :: [Int])
+                ]
+          ]
     ]
 
 hasExplicitLockStatus :: String -> Bool
@@ -256,6 +269,7 @@ hasExplicitLockStatus "enforceFileDownloadLocation" = True
 hasExplicitLockStatus "domainRegistration" = True
 hasExplicitLockStatus "meetings" = True
 hasExplicitLockStatus "meetingsPremium" = True
+hasExplicitLockStatus "backgroundEffects" = True
 hasExplicitLockStatus _ = False
 
 checkFeature :: (HasCallStack, MakesValue user, MakesValue tid) => String -> user -> tid -> Value -> App ()
@@ -323,6 +337,20 @@ defAllConfiguredFeatures =
       "searchVisibilityInbound" .= defaults disabled',
       "exposeInvitationURLsToTeamAdmin" .= "expose-invitation-urls-to-team-admin-defaults",
       "outlookCalIntegration" .= defaults disabledLocked,
+      "preventAdminlessGroups"
+        .= defaults
+          ( object
+              [ "config"
+                  .= object
+                    [ "deletionTimeout" .= (7 :: Int),
+                      "promotionStrategy" .= "alphabetical",
+                      "reminderTimeouts" .= ([2, 4, 6] :: [Int])
+                    ],
+                "lockStatus" .= "locked",
+                "status" .= "disabled",
+                "ttl" .= "unlimited"
+              ]
+          ),
       "mlsE2EId"
         .= defaults
           ( object
@@ -416,7 +444,8 @@ defAllConfiguredFeatures =
               ]
           ),
       "meetings" .= defaults enabled,
-      "meetingsPremium" .= defaults disabledLocked
+      "meetingsPremium" .= defaults disabledLocked,
+      "backgroundEffects" .= defaults enabled
     ]
   where
     defaults x = object ["defaults" .= x]

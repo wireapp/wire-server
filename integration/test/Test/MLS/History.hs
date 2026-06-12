@@ -19,6 +19,7 @@ module Test.MLS.History where
 
 import API.Galley
 import qualified API.GalleyInternal as I
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text.Encoding as T
 import MLS.Util
@@ -136,6 +137,122 @@ testSetHistory = do
 
   conv <- getConversation alice convId >>= getJSON 200
   conv %. "history" `shouldMatch` history
+
+testHistoryConflicts :: (HasCallStack) => Domain -> App ()
+testHistoryConflicts domain = do
+  (alice, tid, _) <- createTeam OwnDomain 1
+  mems@[bob, charlie, dorothy, emily] <- replicateM 4 $ randomUser domain def
+  for_ mems $ connectTwoUsers alice
+
+  I.setTeamFeatureLockStatus alice tid "channels" "unlocked"
+  setTeamFeatureConfig alice tid "channels" channelsConfig >>= assertSuccess
+
+  clients@(alice1 : bob1 : _) <- traverse (createMLSClient def) $ alice : mems
+  for_ clients $ uploadNewKeyPackage def
+  convId <- createNewGroupWith def alice1 defMLS {team = Just tid, groupConvType = Just "channel"}
+
+  -- adding an empty commit to be able to test application message rejection
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundle
+
+  -- bob is added to the conversation as a wire-member (not a conversation admin)
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  getConversation alice convId `bindResponse` \res -> do
+    res.status `shouldMatchInt` 200
+    other <- res.json %. "members.others" >>= asList >>= assertOne
+    other %. "id" `shouldMatch` (bob %. "id")
+    other %. "conversation_role" `shouldMatch` "wire_member"
+
+  -- a history client cannot be added if shared history is disabled
+  assertAddHistoryClientConflict convId alice1
+
+  -- SHARED HISTORY ENABLED
+  enableHistorySharing convId alice
+
+  -- application message and add commit are rejected
+  assertApplicationMessageFailure convId alice1
+  assertAddCommitIsRejected convId alice1 [charlie]
+
+  -- HISTORY CLIENT ADDED
+  hid <- do
+    -- this verifies that history clients can be added by non-conversation admins including federated users
+    (mp, hid) <- createAddCommitWithHistoryClient bob1 convId []
+    void $ sendAndConsumeCommitBundle mp
+    pure hid
+
+  -- while shared history is enabled, it is not possible to add more than 1 history client or to remove it
+  assertAddHistoryClientDuplication convId alice1
+  assertRemoveHistoryClientFailure convId alice1 hid
+
+  -- application message and add commits are accepted
+  void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
+  void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundle
+
+  -- SHARED HISTORY DISABLED
+  disableHistorySharing convId alice
+
+  -- application message and add commit, as well as history client requests are rejected
+  assertApplicationMessageFailure convId alice1
+  assertAddCommitIsRejected convId alice1 [dorothy]
+  assertAddHistoryClientDuplication convId alice1
+
+  -- HISTORY CLIENT REMOVED
+  void $ createRemoveCommitGroupMember bob1 convId [HistoryClient hid] >>= sendAndConsumeCommitBundle
+
+  -- application message and add commits are accepted
+  void $ createApplicationMessage convId alice1 "hello" >>= sendAndConsumeMessage
+  void $ createAddCommit alice1 convId [emily] >>= sendAndConsumeCommitBundle
+
+  -- a history client cannot be added if shared history is disabled
+  assertAddHistoryClientConflict convId alice1
+  where
+    assertAddHistoryClientConflict :: (HasCallStack) => ConvId -> ClientIdentity -> App ()
+    assertAddHistoryClientConflict = assertAddHistoryClientFailure 400 "mls-history-client-conflict"
+
+    assertAddHistoryClientDuplication :: (HasCallStack) => ConvId -> ClientIdentity -> App ()
+    assertAddHistoryClientDuplication = assertAddHistoryClientFailure 400 "mls-history-client-duplication"
+
+    assertAddHistoryClientFailure :: (HasCallStack) => Int -> String -> ConvId -> ClientIdentity -> App ()
+    assertAddHistoryClientFailure status label convId user =
+      withMLSStateReset $ do
+        mp <- fst <$> createAddCommitWithHistoryClient user convId []
+        postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` status
+          resp.json %. "label" `shouldMatch` label
+
+    assertRemoveHistoryClientFailure :: (HasCallStack) => ConvId -> ClientIdentity -> String -> App ()
+    assertRemoveHistoryClientFailure convId user hid =
+      withMLSStateReset $ do
+        mp <- createRemoveCommitGroupMember user convId [HistoryClient hid]
+        postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+    assertAddCommitIsRejected :: (HasCallStack) => ConvId -> ClientIdentity -> [Value] -> App ()
+    assertAddCommitIsRejected convId user users =
+      withMLSStateReset $ do
+        mp <- createAddCommit user convId users
+        postMLSCommitBundle mp.sender (mkBundle mp) `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 400
+          resp.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+    assertApplicationMessageFailure :: (HasCallStack) => ConvId -> ClientIdentity -> App ()
+    assertApplicationMessageFailure convId user = do
+      mp <- createApplicationMessage convId user "hello"
+      postMLSMessage mp.sender mp.message `bindResponse` \res -> do
+        res.status `shouldMatchInt` 400
+        res.json %. "label" `shouldMatch` "mls-history-client-conflict"
+
+    enableHistorySharing :: (HasCallStack) => ConvId -> Value -> App ()
+    enableHistorySharing convId user = do
+      let history = object ["depth" .= "infinite"]
+      bindResponse (updateHistory user convId history) $ \resp -> do
+        resp.status `shouldMatchInt` 200
+
+    disableHistorySharing :: (HasCallStack) => ConvId -> Value -> App ()
+    disableHistorySharing convId user = do
+      bindResponse (updateHistory user convId A.Null) $ \resp -> do
+        resp.status `shouldMatchInt` 200
 
 channelsConfig :: Value
 channelsConfig =

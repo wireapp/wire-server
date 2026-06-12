@@ -305,6 +305,7 @@ galley:
       conversationCodes: {{ .Values.conversationCodesStore }}
       teamFeatures: {{ .Values.teamFeaturesStore }}
       domainRegistration: {{ .Values.domainRegistration }}
+      user: {{ .Values.userStore }}
     settings:
       maxConvAndTeamSize: 16
       maxTeamSize: 32
@@ -314,6 +315,8 @@ galley:
       # See helmfile for the real value
       federationDomain: integration.example.com
       disabledAPIVersions: []
+      meetings:
+        validityPeriod: "5s"
 
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
@@ -646,6 +649,10 @@ background-worker:
       concurrency: 8
       jobTimeout: 60s
       maxAttempts: 3
+    meetingsCleanup:
+      cleanOlderThanHours: 0.0014
+      batchSize: 100
+      schedule: "* * * * *"
     # Cassandra clusters used by background-worker
     cassandra:
       host: {{ .Values.cassandraHost }}

@@ -197,6 +197,8 @@ sitemap' =
     :<|> Named @"put-route-meetings-config" (mkFeatureStatusPutRoute @MeetingsConfig)
     :<|> Named @"get-route-meetings-premium-config" (mkFeatureGetRoute @MeetingsPremiumConfig)
     :<|> Named @"put-route-meetings-premium-config" (mkFeatureStatusPutRoute @MeetingsPremiumConfig)
+    :<|> Named @"get-route-background-effects-config" (mkFeatureGetRoute @BackgroundEffectsConfig)
+    :<|> Named @"put-route-background-effects-config" (mkFeatureStatusPutRoute @BackgroundEffectsConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -215,10 +217,13 @@ sitemap' =
     :<|> Named @"domain-registration-put" (mkFeatureStatusPutRoute @DomainRegistrationConfig)
     :<|> Named @"channels-get" (mkFeatureGetRoute @ChannelsConfig)
     :<|> Named @"channels-put" (mkFeaturePutRoute @ChannelsConfig)
+    :<|> Named @"prevent-adminless-groups-get" (mkFeatureGetRoute @PreventAdminlessGroupsConfig)
+    :<|> Named @"prevent-adminless-groups-put" (mkFeaturePutRoute @PreventAdminlessGroupsConfig)
     :<|> Named @"lock-unlock-route-outlook-cal-config" (mkFeatureLockUnlockRoute @OutlookCalIntegrationConfig)
     :<|> Named @"lock-unlock-route-enforce-file-download-location" (mkFeatureLockUnlockRoute @EnforceFileDownloadLocationConfig)
     :<|> Named @"domain-registration-lock" (mkFeatureLockUnlockRoute @DomainRegistrationConfig)
     :<|> Named @"channels-lock" (mkFeatureLockUnlockRoute @ChannelsConfig)
+    :<|> Named @"prevent-adminless-groups-lock" (mkFeatureLockUnlockRoute @PreventAdminlessGroupsConfig)
     :<|> Named @"lock-unlock-route-digital-signatures-config" (mkFeatureLockUnlockRoute @DigitalSignaturesConfig)
     :<|> Named @"lock-unlock-route-file-sharing-config" (mkFeatureLockUnlockRoute @FileSharingConfig)
     :<|> Named @"lock-unlock-route-conference-calling-config" (mkFeatureLockUnlockRoute @ConferenceCallingConfig)
@@ -233,6 +238,7 @@ sitemap' =
     :<|> Named @"lock-unlock-route-apps-config" (mkFeatureLockUnlockRoute @AppsConfig)
     :<|> Named @"lock-unlock-route-meetings-config" (mkFeatureLockUnlockRoute @MeetingsConfig)
     :<|> Named @"lock-unlock-route-meetings-premium-config" (mkFeatureLockUnlockRoute @MeetingsPremiumConfig)
+    :<|> Named @"lock-unlock-route-background-effects-config" (mkFeatureLockUnlockRoute @BackgroundEffectsConfig)
 
 sitemapInternal :: Servant.Server SternAPIInternal
 sitemapInternal =

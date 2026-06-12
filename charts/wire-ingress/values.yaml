@@ -81,6 +81,15 @@ gateway:
       # Optional hostname restriction for the HTTP listener. Set alongside
       # listeners.https.hostname when using mergeGateways.
       hostname: ""
+  # ALPN configuration for HTTP/2 support with multiple listeners.
+  # When using multiple listeners with overlapping certificate SANs,
+  # Envoy Gateway may downgrade to HTTP/1.1. This ClientTrafficPolicy
+  # explicitly configures ALPN to allow HTTP/2.
+  alpn:
+    enabled: true
+    protocols:
+      - h2        # HTTP/2
+      - http/1.1  # HTTP/1.1 fallback
   # Set to false to skip creating EnvoyPatchPolicy resources.
   # EnvoyPatchPolicy requires extensionApis.enableEnvoyPatchPolicy: true
   # in the EnvoyGateway ConfigMap (see README).

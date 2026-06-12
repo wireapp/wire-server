@@ -1,10 +1,94 @@
+# [2026-06-12] (Chart Release 5.33.0)
+
+## Release notes
+
+
+* The background-worker migration timeout configuration was renamed from `migrateConversationsOptions` to `migrationOptions`. The old key is no longer read, so update any custom Helm overrides to the new name to avoid unexpected defaults. (#5244)
+
+* Add public `/meetings` endpoints to galley nginz routing (WPB-26338). (#5258)
+
+* Support for the kyber based hybrid post quantum ciphersuite was removed, because it is not supported by wire branch of openmls. (#5224)
+
+
+## API changes
+
+
+* In API version V16 `DELETE /conversations/:domain/:cid/members/:domain/:uid` may return a new error 403 `adminless-conversation` (#5254)
+
+* Remove redundant "get-app" end-point (use `POST /list-users` instead). (#PR_NOT_FOUND)
+
+* Finalize API version v16 and create new dev version v17. (#5257)
+
+
+## Features
+
+
+* Enforced history client invariants for conversation history sharing: enabled requires exactly one history client, disabled requires none. (#5217)
+
+* Prevent adminless groups (#5254, #5256)
+
+* Added a team feature to configure adminless group prevention. (#5233)
+
+* Added a team feature flag for background effects. (#5246)
+
+* nginx-ingress-services: allow a federator-only cert-manager issuer (e.g. AWS Private CA via AWSPCAClusterIssuer) by setting federator.tls.issuer.{name,kind,group} without having to enable the global tls.useCertManager flag. The wildcard-backed federator-certificate-secret is suppressed in that case so cert-manager can own the secret. (#5249)
+
+* Allow storing user data in PostgreSQL.
+
+  This is currently not the default and is experimental. The migration path from Cassandra is yet to be implemented.
+
+  However, new installations can use this by configuring the wire-server Helm chart like this:
+
+  ```yaml
+  galley:
+    config:
+      postgresqlMigration:
+        user: postgresql
+  ```
+
+  (#4951)
+
+
+## Bug fixes and other updates
+
+
+* Reset the MLS group info on conversation reset (#5229)
+
+* Refresh ES index after app update, emit event. (#5231)
+
+* Allow team members with role `Member` to browse collaborators. (#PR_NOT_FOUND)
+
+* Make migration locks release safely on failure (#5238)
+
+* Reduce connection usage and number of SQL queries for checking for pending PostgreSQL migration cleanup. (#5234)
+
+* Reconnect and retry queries when the PostgreSQL server restarts (#5216)
+
+
+## Internal changes
+
+
+* Add meeting cleaner job in `background-worker`. (#5207)
+
+* Integration test comparing different team-search end-points. (#5230)
+
+* Add timeout and duration metrics to Cassandra-to-PostgreSQL migration options (#5244)
+
+* Internal `/i/domain-registration` API made available for testing (#5245)
+
+* Bump wire-server-enterprise submodule (introduces gitignoreSource Nix fix) (#5253)
+
+* Fix SBOM generation scripts: stop merging stderr into stdout, which polluted the devShell and image name lists with nix warnings (#5264)
+
+* wire-ingress chart: Add a ALPN ClienTrafficPolicy (#5228)
+
+
 # [2026-05-12] (Chart Release 5.32.0)
 
 ## Release notes
 
 
 * - `postgresMigration` now has a single source of truth in the Galley chart values. Galley, Brig, and background-worker all read their PostgreSQL migration settings from there.
-  - If your deployment overrides the full `postgresMigration` object, add the new `domainRegistration` field to that override. Otherwise services may fail to start because the config is incomplete.
   - To migrate domain registration data to PostgreSQL, set `postgresMigration.domainRegistration` to `migration-to-postgresql`, run the background-worker migration with `migrateDomainRegistration: true`, and switch the setting to `postgresql` after completion.
   - The domain registration migration covers these Cassandra tables:
     `domain_registration`, `domain_registration_by_team`, and `domain_registration_challenge`. (#5195)

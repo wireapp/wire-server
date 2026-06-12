@@ -19,6 +19,7 @@
 
 module Wire.API.Team.Collaborator where
 
+import Control.Lens qualified as L
 import Data.Aeson qualified as A
 import Data.Id
 import Data.OpenApi qualified as S
@@ -33,11 +34,23 @@ data CollaboratorPermission = CreateTeamConversation | ImplicitConnection
 
 instance ToSchema CollaboratorPermission where
   schema =
-    enum @Text $
-      mconcat
-        [ element "create_team_conversation" CreateTeamConversation,
-          element "implicit_connection" ImplicitConnection
-        ]
+    (doc . description L.?~ descr) $
+      enum @Text $
+        mconcat
+          [ element "create_team_conversation" CreateTeamConversation,
+            element "implicit_connection" ImplicitConnection
+          ]
+    where
+      descr =
+        "<p>Permission granted to a team collaborator.</p>\
+        \<ul><li>`create_team_conversation`: equivalent to the `CreateConversation` and \
+        \`AddRemoveConvMember` permissions for team members (both implied in the `member` \
+        \role); allows creating team group conversations and adding members to them.</li>\n\
+        \<li>`implicit_connection`: team members are implicitly connected to each \
+        \other, allowing conversations (1:1 or group) without an explicit connection \
+        \request. This permission grants the same to a collaborator.</li></ul>\n\
+        \<p>NB: a member of team A can always open conversations with a collaborator of \
+        \team A; the permission only controls the collaborator's abilities.</p>"
 
 data TeamCollaboratorsError
   = InsufficientRights

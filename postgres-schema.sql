@@ -270,6 +270,20 @@ CREATE TABLE public.mls_group_member_client (
 ALTER TABLE public.mls_group_member_client OWNER TO "wire-server";
 
 --
+-- Name: mls_history_client; Type: TABLE; Schema: public; Owner: wire-server
+--
+
+CREATE TABLE public.mls_history_client (
+    group_id bytea NOT NULL,
+    id uuid NOT NULL,
+    leaf_node_index integer NOT NULL,
+    removal_pending boolean NOT NULL
+);
+
+
+ALTER TABLE public.mls_history_client OWNER TO "wire-server";
+
+--
 -- Name: remote_conversation_local_member; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -469,6 +483,14 @@ ALTER TABLE ONLY public.mls_group_member_client
 
 
 --
+-- Name: mls_history_client mls_history_client_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
+--
+
+ALTER TABLE ONLY public.mls_history_client
+    ADD CONSTRAINT mls_history_client_pkey PRIMARY KEY (group_id, id);
+
+
+--
 -- Name: remote_conversation_local_member remote_conversation_local_member_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -557,6 +579,13 @@ CREATE INDEX conversation_codes_key_expires_at_idx ON public.conversation_codes 
 --
 
 CREATE INDEX conversation_member_user_idx ON public.conversation_member USING btree ("user");
+
+
+--
+-- Name: conversation_parent_conv_idx; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX conversation_parent_conv_idx ON public.conversation USING btree (parent_conv);
 
 
 --

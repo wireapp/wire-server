@@ -57,7 +57,7 @@ import Test.Hspec
 import Test.QuickCheck
 import Test.Wire.Util
 import UnliftIO.Async
-import Util.Options (Endpoint (..), PasswordHashingOptions (..))
+import Util.Options
 import Wire.API.Conversation.Action
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -367,7 +367,8 @@ spec = do
               { conversation = CassandraStorage,
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
-                domainRegistration = CassandraStorage
+                domainRegistration = CassandraStorage,
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -385,6 +386,7 @@ spec = do
 
       passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
+      meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domains <- runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
       domains `shouldBe` map Domain ["foo.example", "bar.example", "baz.example"]
@@ -419,7 +421,8 @@ spec = do
               { conversation = CassandraStorage,
                 conversationCodes = CassandraStorage,
                 teamFeatures = CassandraStorage,
-                domainRegistration = CassandraStorage
+                domainRegistration = CassandraStorage,
+                user = CassandraStorage
               }
           gundeckEndpoint = undefined
           brigEndpoint = undefined
@@ -437,6 +440,7 @@ spec = do
 
       passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
       backendNotificationMetrics <- mkBackendNotificationMetrics
+      meetingsCleanupMetrics <- mkMeetingsCleanupMetrics
       workerRunningGauge <- mkWorkerRunningGauge
       domainsThread <- async $ runAppT Env {..} $ getRemoteDomains (fromJust rabbitmqAdminClient)
 

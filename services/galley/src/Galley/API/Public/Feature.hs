@@ -68,6 +68,7 @@ featureAPI =
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
     <@> featureAPIGetPut
+    <@> featureAPIGetPut
     <@> mkNamedAPI @'("get", CellsConfig) getFeature
     <@> mkNamedAPI @"put-CellsConfig@v13" setFeature
     <@> mkNamedAPI @'("put", CellsConfig) setFeature
@@ -81,6 +82,7 @@ featureAPI =
     <@> mkNamedAPI @'("get", CellsInternalConfig) getFeature
     <@> featureAPIGetPut @MeetingsConfig
     <@> featureAPIGetPut @MeetingsPremiumConfig
+    <@> featureAPIGetPut @BackgroundEffectsConfig
 
 deprecatedFeatureConfigAPI :: API DeprecatedFeatureAPI GalleyEffects
 deprecatedFeatureConfigAPI =

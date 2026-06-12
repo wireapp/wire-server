@@ -56,22 +56,20 @@ type IOInterpreter r = forall a. Sem r a -> IO a
 expectedMigrationVersion :: MigrationVersion
 expectedMigrationVersion = MigrationVersion 6
 
-syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> IO ()
-syncAllUsers interpreter = syncAllUsersWithVersion interpreter ES.ExternalGT
+syncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
+syncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGT
 
-forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> IO ()
-forceSyncAllUsers interpreter = syncAllUsersWithVersion interpreter ES.ExternalGTE
+forceSyncAllUsers :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> IO ()
+forceSyncAllUsers interpreter pageSize = syncAllUsersWithVersion interpreter pageSize ES.ExternalGTE
 
-syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
-syncAllUsersWithVersion interpreter mkVersion =
+syncAllUsersWithVersion :: (Member UserStore r, Member IndexedUserStore r, Member TinyLog r, Member GalleyAPIAccess r) => IOInterpreter r -> Int32 -> (ES.ExternalDocVersion -> ES.VersionControl) -> IO ()
+syncAllUsersWithVersion interpreter pageSize mkVersion =
   runConduit $
     zipSources (CL.sourceList [1 ..]) (paginateWithStateC (interpreter . getIndexUsersPaginated pageSize))
       .| logPage
       .| mkUserDocs
       .| Conduit.mapM_ (interpreter . IndexedUserStore.bulkUpsert)
   where
-    pageSize = 10000
-
     logPage :: ConduitT (Int32, [IndexUser]) [IndexUser] IO ()
     logPage = Conduit.mapM $ \(pageNumber, page) -> do
       interpreter $
@@ -163,8 +161,9 @@ syncAllUsersWithVersion interpreter mkVersion =
 migrateData ::
   (Member (Embed IO) r, Member IndexedUserStore r, Member (Error MigrationException) r, Member IndexedUserMigrationStore r, Member TinyLog r, Member UserStore r, Member GalleyAPIAccess r) =>
   IOInterpreter r ->
+  Int32 ->
   IO ()
-migrateData interpreter = interpreter $ do
+migrateData interpreter pageSize = interpreter $ do
   unlessM IndexedUserStore.doesIndexExist $
     throw TargetIndexAbsent
   MigrationStore.ensureMigrationIndex
@@ -175,7 +174,7 @@ migrateData interpreter = interpreter $ do
         Log.msg (Log.val "Migration necessary.")
           . Log.field "expectedVersion" expectedMigrationVersion
           . Log.field "foundVersion" foundVersion
-      embed $ forceSyncAllUsers interpreter
+      embed $ forceSyncAllUsers interpreter pageSize
       MigrationStore.persistMigrationVersion expectedMigrationVersion
     else do
       Log.info $

@@ -7,7 +7,7 @@
 
 tags:
   legalhold: false
-  federation: false 
+  federation: false
   backoffice: false
   mlsstats: false
   integration: false
@@ -90,6 +90,7 @@ galley:
       conversationCodes: cassandra
       teamFeatures: cassandra
       domainRegistration: cassandra
+      user: cassandra
     settings:
       httpPoolSize: 128
       maxTeamSize: 10000
@@ -952,9 +953,10 @@ background-worker:
     # `settings.postgresMigration.conversation` with `migration-to-postgresql`
     # before setting this to `true`.
     migrateConversations: false
-    migrateConversationsOptions:
+    migrationOptions:
       pageSize: 10000
       parallelism: 2
+      timeout: 5s
     # This will start the migration of conversation codes.
     # It's important to set `settings.postgresMigration.conversationCodes` to `migration-to-postgresql`
     # before starting the migration.
@@ -982,8 +984,16 @@ background-worker:
       # Total attempts, including the first try
       maxAttempts: 3
 
-  secrets:
-    {}
+    # Meetings cleanup configuration
+    meetingsCleanup:
+      # Delete meetings older than this many hours (48 hours = 2 days)
+      cleanOlderThanHours: 48.0
+      # Maximum number of meetings to delete per batch
+      batchSize: 1000
+      # Cron schedule for the cleanup job (0 * * * * = every hour)
+      schedule: "0 * * * *"
+
+  secrets: {}
 
   podSecurityContext:
     allowPrivilegeEscalation: false
@@ -1031,7 +1041,7 @@ brig:
     #   tlsCaSecretRef:
     #     name: <secret-name>
     #     key: <ca-attribute>
-  
+
     elasticsearch:
       scheme: http
       host: elasticsearch-client
@@ -1077,7 +1087,7 @@ brig:
       # tlsCaSecretRef:
       #   name: <secret-name>
       #   key: <ca-attribute>
-  
+
     # Postgres connection settings
     #
     # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
@@ -1100,7 +1110,7 @@ brig:
       acquisitionTimeout: 10s
       agingTimeout: 1d
       idlenessTimeout: 10m
-  
+
     emailSMS:
       general:
         templateBranding:
@@ -1195,25 +1205,25 @@ brig:
         maxRateLimitedKeys: 100000 # Estimated memory usage: 4 MB
       # setAuditLogEmailRecipient: security@wire.com
       setEphemeralUserCreationEnabled: true
-  
+
     smtp:
       passwordFile: /etc/wire/brig/secrets/smtp-password.txt
     proxy: {}
     wireServerEnterprise:
       enabled: false
-  
+
   turnStatic:
     v1:
       - turn:localhost:3478
     v2:
       - turn:localhost:3478
       - turn:localhost:3478?transport=tcp
-  
+
   turn:
     serversSource: files # files | dns
     # baseDomain: turn.wire.example # Must be configured if serversSource is dns
     discoveryIntervalSeconds: 10 # Used only if serversSource is dns
-  
+
   serviceAccount:
     # When setting this to 'false', either make sure that a service account named
     # 'brig' exists or change the 'name' field to 'default'
@@ -1221,9 +1231,9 @@ brig:
     name: brig
     annotations: {}
     automountServiceAccountToken: true
-  
+
   secrets: {}
-  
+
   podSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -1237,11 +1247,11 @@ brig:
       {}
       # uploadXml:
       #   baseUrl: s3://bucket/path/
-  
+
     secrets:
       # uploadXmlAwsAccessKeyId: <key-id>
       # uploadXmlAwsSecretAccessKey: <secret>
-  
+
       # These "secrets" are only used in tests and are therefore safe to be stored unencrypted
       providerPrivateKey: |
         -----BEGIN RSA PRIVATE KEY-----
@@ -1303,7 +1313,7 @@ brig:
         hZMuK3BWD3fzkQVfW0yMwz6fWRXB483ZmekGkgndOTDoJQMdJXZxHpI3t2FcxQYj
         T45GXxRd18neXtuYa/OoAw9UQFDN5XfXN0g=
         -----END CERTIFICATE-----
-  
+
       # pgPassword: <postgres-password>
   test:
     elasticsearch:

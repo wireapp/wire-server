@@ -29,8 +29,8 @@ import Polysemy.Async
 import Polysemy.Conc
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.State
-import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -50,21 +50,24 @@ migrateAllTeamFeatures ::
     Member TinyLog r,
     Member (State Int) r,
     Member Async r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllTeamFeatures migOpts migCounter = do
+migrateAllTeamFeatures migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllTeamFeatures  ")
   withCount (paginateSem Cql.selectAll (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize id
-    .| C.mapM_ (traverse_ (\row@(tid, feat, _, _, _) -> handleErrors (toByteString' (idToText tid <> " - " <> feat)) (migrateTeamFeature migCounter row)))
+    .| C.mapM_ (traverse_ (\row@(tid, feat, _, _, _) -> handleErrors (toByteString' (idToText tid <> " - " <> feat)) (migrateTeamFeature migOpts migCounter migDuration row)))
 
 type EffectStack =
   [ State Int,
     Input ClientState,
     Input Hasql.Pool,
+    Resource,
     Async,
     Race,
     TinyLog,
@@ -80,15 +83,16 @@ migrateTeamFeaturesLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateTeamFeaturesLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+migrateTeamFeaturesLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "team features"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "team features")
-    (migrateAllTeamFeatures migOpts migCounter)
+    (migrateAllTeamFeatures migOpts migCounter migDuration)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
@@ -99,6 +103,7 @@ interpreter cassClient pgPool logger name =
     . raiseUnder
     . interpretRace
     . asyncToIOFinal
+    . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
     . runState 0
@@ -108,17 +113,20 @@ migrateTeamFeature ::
     Member TinyLog r,
     Member Async r,
     Member (Error MigrationLockError) r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
+  MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   (TeamId, Text, Maybe FeatureStatus, Maybe LockStatus, Maybe DbConfig) ->
   Sem r ()
-migrateTeamFeature migCounter (tid, name, status, lockStatus, dbConfig) = do
+migrateTeamFeature migOpts migCounter migDuration (tid, name, status, lockStatus, dbConfig) = do
   -- We do not delete Cassandra rows during migration. Writes and migration use
   -- the same per-row lock, so we avoid races without deleting early. Deletion is
   -- deferred to keep rollback options and to remove the Cassandra table only after
   -- a full cutover to Postgres-only.
-  void . withMigrationLocks LockExclusive (Seconds 10) [(tid, name)] $ do
+  void . withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [(tid, name)] $ do
     isMigrated <- runStatement (tid, name) Psql.exists
     unless isMigrated $ do
       runStatement (tid, name, status, lockStatus, dbConfig) Psql.upsertPatch

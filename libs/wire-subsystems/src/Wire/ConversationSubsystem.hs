@@ -78,6 +78,10 @@ import Wire.ConversationSubsystem.Util qualified as Util
 import Wire.NotificationSubsystem (LocalConversationUpdate)
 import Wire.StoredConversation
 
+data RemoveMemberResponseMode
+  = RemoveMemberLegacyResponse
+  | RemoveMemberEligibleMembersResponse
+
 data ConversationSubsystem m a where
   NotifyConversationAction ::
     Sing tag ->
@@ -173,6 +177,7 @@ data ConversationSubsystem m a where
     CellsState ->
     ConversationSubsystem m ()
   RemoveUser ::
+    -- MLS removal proposals for a single conversation; does not touch the conversation store.
     Local StoredConversation ->
     MLSRemoval.RemoveUserIncludeMain ->
     Qualified UserId ->
@@ -218,12 +223,6 @@ data ConversationSubsystem m a where
     Maybe ConvId ->
     Maybe (Range 1 500 Int32) ->
     ConversationSubsystem m (Public.ConversationList StoredConversation)
-  RemoveMemberFromLocalConv ::
-    Local ConvId ->
-    Local UserId ->
-    Maybe ConnId ->
-    Qualified UserId ->
-    ConversationSubsystem m (Maybe Event)
   FederationOnConversationCreated ::
     Domain ->
     ConversationCreated ConvId ->
@@ -339,6 +338,9 @@ data ConversationSubsystem m a where
     ConnId ->
     Local ConvId ->
     ConversationSubsystem m (UpdateResult Event)
+  InternalDeleteLocalConversation ::
+    Local ConvId ->
+    ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))
@@ -504,11 +506,18 @@ data ConversationSubsystem m a where
     TypingStatus ->
     ConversationSubsystem m ()
   RemoveMemberQualified ::
+    RemoveMemberResponseMode ->
     Local UserId ->
-    ConnId ->
+    Maybe ConnId ->
     Qualified ConvId ->
     Qualified UserId ->
     ConversationSubsystem m (Maybe Event)
+  DeleteUserFromTeamConversations ::
+    Local UserId ->
+    Maybe ConnId ->
+    TeamId ->
+    UserId ->
+    ConversationSubsystem m ()
   UpdateOtherMember ::
     Local UserId ->
     ConnId ->

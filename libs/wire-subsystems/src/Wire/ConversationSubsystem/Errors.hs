@@ -101,8 +101,11 @@ data ConversationSubsystemError
   | ConversationSubsystemErrorMLSProtocolError MLSProtocolError
   | ConversationSubsystemErrorGroupInfoDiagnostics GroupInfoDiagnostics
   | ConversationSubsystemErrorMLSOutOfSyncError MLSOutOfSyncError
+  | ConversationSubsystemErrorAdminlessConversation AdminlessConversation
   | ConversationSubsystemErrorNonFederatingBackends NonFederatingBackends
   | ConversationSubsystemErrorUnreachableBackendsLegacy UnreachableBackendsLegacy
+  | ConversationSubsystemErrorMLSHistoryClientConflict
+  | ConversationSubsystemErrorMLSHistoryClientDuplication
 
 instance APIError ConversationSubsystemError where
   toResponse =
@@ -172,8 +175,11 @@ instance APIError ConversationSubsystemError where
       ConversationSubsystemErrorMLSProtocolError x -> toResponse $ (dynError @(MapError 'MLSProtocolErrorTag)) {eMessage = unTagged x}
       ConversationSubsystemErrorGroupInfoDiagnostics x -> toResponse x
       ConversationSubsystemErrorMLSOutOfSyncError x -> toResponse x
+      ConversationSubsystemErrorAdminlessConversation x -> toResponse x
       ConversationSubsystemErrorNonFederatingBackends x -> toResponse x
       ConversationSubsystemErrorUnreachableBackendsLegacy x -> toResponse x
+      ConversationSubsystemErrorMLSHistoryClientConflict -> toResponse $ Tagged @'MLSHistoryClientConflict ()
+      ConversationSubsystemErrorMLSHistoryClientDuplication -> toResponse $ Tagged @'MLSHistoryClientDuplication ()
 
 type ConversationSubsystemErrorEffects =
   '[ ErrorS 'ConvAccessDenied,
@@ -242,9 +248,12 @@ type ConversationSubsystemErrorEffects =
      Error MLSProtocolError,
      Error GroupInfoDiagnostics,
      Error MLSOutOfSyncError,
+     Error AdminlessConversation,
      Error MLSProposalFailure,
      Error NonFederatingBackends,
-     Error UnreachableBackendsLegacy
+     Error UnreachableBackendsLegacy,
+     ErrorS 'MLSHistoryClientConflict,
+     ErrorS 'MLSHistoryClientDuplication
    ]
 
 mapErrors ::
@@ -254,9 +263,12 @@ mapErrors ::
   ) =>
   InterpretersFor ConversationSubsystemErrorEffects r
 mapErrors =
-  mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
+  mapError (const ConversationSubsystemErrorMLSHistoryClientDuplication)
+    . mapError (const ConversationSubsystemErrorMLSHistoryClientConflict)
+    . mapError (ConversationSubsystemErrorUnreachableBackendsLegacy)
     . mapError (ConversationSubsystemErrorNonFederatingBackends)
     . interpretServerEffect
+    . mapError (ConversationSubsystemErrorAdminlessConversation)
     . mapError (ConversationSubsystemErrorMLSOutOfSyncError)
     . mapError (ConversationSubsystemErrorGroupInfoDiagnostics)
     . mapError (ConversationSubsystemErrorMLSProtocolError)

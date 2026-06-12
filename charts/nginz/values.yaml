@@ -551,6 +551,36 @@ nginx_conf:
       envs:
         - all
       disable_zauth: true
+    - path: /i/domain-registration/([^/]*)/lock$
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
+    - path: /i/domain-registration/([^/]*)/unlock$
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
+    - path: /i/domain-registration/([^/]*)/preauthorize$
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
+    - path: /i/domain-registration/([^/]*)/unauthorize$
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
+    - path: /i/domain-registration/([^/]*)$
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /domain-verification/([^/]*)/team/challenges/([^/]*)
       envs:
         - all
@@ -746,6 +776,9 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /meetings(.*)
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:

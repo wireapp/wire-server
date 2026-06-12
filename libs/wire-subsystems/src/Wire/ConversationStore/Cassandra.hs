@@ -19,6 +19,7 @@ module Wire.ConversationStore.Cassandra
   ( interpretMLSCommitLockStoreToCassandra,
     interpretConversationStoreToCassandra,
     interpretConversationStoreToCassandraAndPostgres,
+    interpretConversationStoreByMigration,
     MigrationError (..),
   )
 where
@@ -27,7 +28,6 @@ import Cassandra
 import Cassandra qualified as Cql
 import Cassandra.Settings
 import Cassandra.Util
-import Control.Arrow
 import Control.Error.Util hiding (hoistMaybe)
 import Control.Lens
 import Control.Monad.Trans.Maybe
@@ -53,6 +53,7 @@ import Polysemy.Conc
 import Polysemy.Embed
 import Polysemy.Error (Error, mapError, throw)
 import Polysemy.Input
+import Polysemy.Resource (Resource)
 import Polysemy.Time
 import Polysemy.TinyLog
 import System.Logger qualified as Log
@@ -80,6 +81,7 @@ import Wire.ConversationStore.Migration.Cleanup
 import Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres)
 import Wire.MigrationLock
 import Wire.Postgres
+import Wire.PostgresMigrationOpts (StorageLocation (..))
 import Wire.Sem.Paging.Cassandra
 import Wire.StoredConversation
 import Wire.StoredConversation qualified as StoreConv
@@ -246,9 +248,9 @@ resetConversation cid groupId =
       Cql.resetConversation
       (params LocalQuorum (groupId, cid))
 
-setGroupInfo :: ConvId -> GroupInfoData -> Client ()
-setGroupInfo conv gid =
-  write Cql.updateGroupInfo (params LocalQuorum (gid, conv))
+setGroupInfo :: ConvId -> Maybe GroupInfoData -> Client ()
+setGroupInfo conv mGid =
+  write Cql.updateGroupInfo (params LocalQuorum (mGid, conv))
 
 getConversation :: ConvId -> Client (Maybe StoredConversation)
 getConversation conv = do
@@ -765,16 +767,20 @@ addBotMember s bot cnv = do
     sid = s ^. serviceRefId
     mem = (newMember (botUserId bot)) {service = Just s}
 
-lookupMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
-lookupMLSClientLeafIndices groupId = do
-  entries <- retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
-  pure $ (mkClientMap &&& mkIndexMap) entries
+lookupMLSClientRows :: GroupId -> Client [(Domain, UserId, ClientId, Int32, Bool)]
+lookupMLSClientRows groupId =
+  retry x5 (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
 
 lookupMLSClients :: GroupId -> Client (ClientMap LeafIndex)
-lookupMLSClients = fmap fst . lookupMLSClientLeafIndices
+lookupMLSClients = fmap mkClientMap . lookupMLSClientRows
 
 -----------------------------------------------------------------------------------------
 -- SUB CONVERSATION STORE
+
+lookupRegularMLSClientLeafIndices :: GroupId -> Client (ClientMap LeafIndex, IndexMap)
+lookupRegularMLSClientLeafIndices groupId = do
+  mlsClients <- lookupMLSClientRows groupId
+  pure (mkClientMap mlsClients, mkIndexMapFromParts mlsClients [])
 
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = runMaybeT $ do
@@ -787,7 +793,7 @@ selectSubConversation convId subConvId = runMaybeT $ do
           <*> fmap writetimeToUTC mEpochWritetime
           <*> mSuite
   groupId <- hoistMaybe mGroupId
-  (cm, im) <- lift $ lookupMLSClientLeafIndices groupId
+  (cm, im) <- lift $ lookupRegularMLSClientLeafIndices groupId
   pure $
     SubConversation
       { scParentConvId = convId,
@@ -885,7 +891,7 @@ interpretMLSCommitLockStoreToCassandra client = interpret $ \case
 
 interpretConversationStoreToCassandra ::
   forall r a.
-  ( Member (Embed IO) r,
+  ( PGConstraints r,
     Member TinyLog r
   ) =>
   ClientState ->
@@ -1026,6 +1032,15 @@ interpretConversationStoreToCassandra client = interpret $ \case
   AddMLSClients lcnv quid cs -> do
     logEffect "ConversationStore.AddMLSClients"
     embedClient client $ addMLSClients lcnv quid cs
+  AddHistoryClient groupId hid idx -> do
+    logEffect "ConversationStore.AddHistoryClient"
+    interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
+  RemoveHistoryClient groupId hid -> do
+    logEffect "ConversationStore.RemoveHistoryClient"
+    interpretConversationStoreToPostgres $ ConvStore.removeHistoryClient groupId hid
+  RemoveAllHistoryClients groupId -> do
+    logEffect "ConversationStore.RemoveAllHistoryClients"
+    interpretConversationStoreToPostgres $ ConvStore.removeAllHistoryClients groupId
   PlanClientRemoval lcnv cids -> do
     logEffect "ConversationStore.PlanClientRemoval"
     embedClient client $ planMLSClientRemoval lcnv cids
@@ -1038,9 +1053,14 @@ interpretConversationStoreToCassandra client = interpret $ \case
   LookupMLSClients lcnv -> do
     logEffect "ConversationStore.LookupMLSClients"
     embedClient client $ lookupMLSClients lcnv
+  LookupHistoryClients gid -> do
+    logEffect "ConversationStore.LookupHistoryClients"
+    interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
   LookupMLSClientLeafIndices lcnv -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
-    embedClient client $ lookupMLSClientLeafIndices lcnv
+    mlsClients <- embedClient client $ lookupMLSClientRows lcnv
+    hClients <- interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients lcnv
+    pure (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
     embedClient client $ insertSubConversation convId subConvId groupId
@@ -1086,7 +1106,8 @@ interpretConversationStoreToCassandraAndPostgres ::
     PGConstraints r,
     Member Async r,
     Member (Error MigrationError) r,
-    Member Race r
+    Member Race r,
+    Member Resource r
   ) =>
   ClientState ->
   Sem (ConversationStore ': r) a ->
@@ -1112,6 +1133,14 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres $ ConvStore.getConversationEpoch cid
   GetConversations cids -> do
     logEffect "ConversationStore.GetConversations"
+    -- Here we must take all these locks because its not sufficient to just
+    -- lookup in both DBs and then de-dupe to deal with this edge case:
+    --
+    -- 1. During migration, the delete in Cassandra gets lost
+    -- 2. Before the next lookup, the conversation gets deleted from PG and the
+    --    delete in Cassandra still gets lost
+    -- 3. If we don't lock and cleanup, we are at a risk of resurrecting this
+    --    conv.
     withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       let indexByConvId = foldr (\storedConv -> Map.insert storedConv.id_ storedConv) Map.empty
       cassConvs <- indexByConvId <$> localConversations client cids
@@ -1181,6 +1210,14 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.isConversationAlive cid)
   SelectConversations uid cids -> do
     logEffect "ConversationStore.SelectConversations"
+    -- Here we must take all these locks because its not sufficient to just
+    -- lookup in both DBs and then de-dupe to deal with this edge case:
+    --
+    -- 1. During migration, the delete in Cassandra gets lost
+    -- 2. Before the next lookup, the conversation gets deleted from PG and the
+    --    delete in Cassandra still gets lost
+    -- 3. If we don't lock and cleanup, we are at a risk of resurrecting this
+    --    conv.
     withMigrationLocksAndConvCleanup client LockShared (Seconds 2) cids $ do
       cassConvs <- embedClient client $ localConversationIdsOf uid cids
       pgConvs <- interpretConversationStoreToPostgres $ ConvStore.selectConversations uid cids
@@ -1404,6 +1441,15 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ addMLSClients groupId quid cs
         True -> interpretConversationStoreToPostgres (ConvStore.addMLSClients groupId quid cs)
+  AddHistoryClient groupId hid idx -> do
+    logEffect "ConversationStore.AddHistoryClient"
+    interpretConversationStoreToPostgres $ ConvStore.addHistoryClient groupId hid idx
+  RemoveHistoryClient groupId hid -> do
+    logEffect "ConversationStore.RemoveHistoryClient"
+    interpretConversationStoreToPostgres $ ConvStore.removeHistoryClient groupId hid
+  RemoveAllHistoryClients gid -> do
+    logEffect "ConversationStore.RemoveAllHistoryClients"
+    interpretConversationStoreToPostgres $ ConvStore.removeAllHistoryClients gid
   PlanClientRemoval gid clients -> do
     logEffect "ConversationStore.PlanClientRemoval"
     cid <- groupIdToConvId gid
@@ -1430,12 +1476,18 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
       isConvInPostgres cid >>= \case
         False -> embedClient client $ lookupMLSClients gid
         True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClients gid)
+  LookupHistoryClients gid -> do
+    logEffect "ConversationStore.LookupHistoryClients"
+    interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
   LookupMLSClientLeafIndices gid -> do
     logEffect "ConversationStore.LookupMLSClientLeafIndices"
     cid <- groupIdToConvId gid
     withMigrationLockAndCleanup client LockShared (Left cid) $
       isConvInPostgres cid >>= \case
-        False -> embedClient client $ lookupMLSClientLeafIndices gid
+        False -> do
+          mlsClients <- embedClient client $ lookupMLSClientRows gid
+          hClients <- interpretConversationStoreToPostgres $ ConvStore.lookupHistoryClients gid
+          pure (mkClientMap mlsClients, mkIndexMapFromParts mlsClients hClients)
         True -> interpretConversationStoreToPostgres (ConvStore.lookupMLSClientLeafIndices gid)
   UpsertSubConversation convId subConvId groupId -> do
     logEffect "ConversationStore.CreateSubConversation"
@@ -1550,7 +1602,7 @@ instance APIError MigrationError where
   toResponse _ = waiErrorToJSONResponse $ WaiError.mkError status500 "internal-server-error" "Internal Server Error"
 
 withMigrationLockAndCleanup ::
-  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member (Error MigrationError) r) =>
+  (PGConstraints r, Member Async r, Member TinyLog r, Member Race r, Member Resource r, Member (Error MigrationError) r) =>
   ClientState ->
   LockType ->
   Either ConvId UserId ->
@@ -1566,6 +1618,7 @@ withMigrationLocksAndConvCleanup ::
     Member Async r,
     Member TinyLog r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationError) r,
     TimeUnit u
   ) =>
@@ -1587,6 +1640,7 @@ withMigrationLocksAndUserCleanup ::
     Member Async r,
     Member TinyLog r,
     Member Race r,
+    Member Resource r,
     Member (Error MigrationError) r,
     TimeUnit u
   ) =>
@@ -1602,3 +1656,22 @@ withMigrationLocksAndUserCleanup cassClient lockType maxWait userIds action =
       . runInputConst cassClient
       $ cleanupIfNecessary (Right <$> userIds)
     action
+
+interpretConversationStoreByMigration ::
+  forall r a.
+  ( Member TinyLog r,
+    PGConstraints r,
+    Member Async r,
+    Member (Error MigrationError) r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  StorageLocation ->
+  ClientState ->
+  Sem (ConversationStore ': r) a ->
+  Sem r a
+interpretConversationStoreByMigration storageLocation client =
+  case storageLocation of
+    CassandraStorage -> interpretConversationStoreToCassandra client
+    MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres client
+    PostgresqlStorage -> interpretConversationStoreToPostgres

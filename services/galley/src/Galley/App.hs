@@ -103,8 +103,7 @@ import Wire.CodeStore.Cassandra
 import Wire.CodeStore.DualWrite
 import Wire.CodeStore.Postgres
 import Wire.ConversationStore (ConversationStore, MLSCommitLockStore)
-import Wire.ConversationStore.Cassandra
-import Wire.ConversationStore.Postgres
+import Wire.ConversationStore.Cassandra (MigrationError (..), interpretConversationStoreByMigration, interpretMLSCommitLockStoreToCassandra)
 import Wire.ConversationSubsystem
 import Wire.ConversationSubsystem.Interpreter (ConversationSubsystemError, GroupInfoCheckEnabled (..), IntraListing (IntraListing), interpretConversationSubsystem)
 import Wire.CustomBackendStore
@@ -142,7 +141,6 @@ import Wire.Options.Galley hiding (brig, endpoint, federator)
 import Wire.Options.Galley qualified as O
 import Wire.Options.Keys
 import Wire.ParseException
-import Wire.Postgres (PGConstraints)
 import Wire.ProposalStore (ProposalStore)
 import Wire.ProposalStore.Cassandra
 import Wire.RateLimit
@@ -402,21 +400,8 @@ logAndMapError fErr fLog logMsg action =
 
 evalGalley :: Env -> Sem GalleyEffects a -> ExceptT JSONResponse IO a
 evalGalley e =
-  let convStoreInterpreter ::
-        forall r a.
-        ( Member TinyLog r,
-          PGConstraints r,
-          Member Async r,
-          Member (Error MigrationError) r,
-          Member Race r
-        ) =>
-        Sem (ConversationStore ': r) a ->
-        Sem r a
-      convStoreInterpreter =
-        case (e ^. options . postgresMigration).conversation of
-          CassandraStorage -> interpretConversationStoreToCassandra (e ^. cstate)
-          MigrationToPostgresql -> interpretConversationStoreToCassandraAndPostgres (e ^. cstate)
-          PostgresqlStorage -> interpretConversationStoreToPostgres
+  let convStoreInterpreter =
+        interpretConversationStoreByMigration (e ^. options . postgresMigration).conversation (e ^. cstate)
       convCodesStoreInterpreter =
         case (e ^. options . postgresMigration).conversationCodes of
           CassandraStorage -> interpretCodeStoreToCassandra

@@ -332,6 +332,8 @@ type SternAPI =
     :<|> Named "put-route-meetings-config" (MkFeatureStatusPutRoute MeetingsConfig)
     :<|> Named "get-route-meetings-premium-config" (MkFeatureGetRoute MeetingsPremiumConfig)
     :<|> Named "put-route-meetings-premium-config" (MkFeatureStatusPutRoute MeetingsPremiumConfig)
+    :<|> Named "get-route-background-effects-config" (MkFeatureGetRoute BackgroundEffectsConfig)
+    :<|> Named "put-route-background-effects-config" (MkFeatureStatusPutRoute BackgroundEffectsConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"
@@ -462,6 +464,8 @@ type SternAPI =
     :<|> Named "domain-registration-put" (MkFeatureStatusPutRoute DomainRegistrationConfig)
     :<|> Named "channels-get" (MkFeatureGetRoute ChannelsConfig)
     :<|> Named "channels-put" (MkFeaturePutRoute ChannelsConfig)
+    :<|> Named "prevent-adminless-groups-get" (MkFeatureGetRoute PreventAdminlessGroupsConfig)
+    :<|> Named "prevent-adminless-groups-put" (MkFeaturePutRoute PreventAdminlessGroupsConfig)
     :<|> Named "lock-unlock-route-outlook-cal-config" (MkFeatureLockUnlockRoute OutlookCalIntegrationConfig)
     :<|> Named
            "lock-unlock-route-enforce-file-download-location"
@@ -471,6 +475,7 @@ type SternAPI =
            )
     :<|> Named "domain-registration-lock" (MkFeatureLockUnlockRoute DomainRegistrationConfig)
     :<|> Named "channels-lock" (MkFeatureLockUnlockRoute ChannelsConfig)
+    :<|> Named "prevent-adminless-groups-lock" (MkFeatureLockUnlockRoute PreventAdminlessGroupsConfig)
     :<|> Named "lock-unlock-route-digital-signatures-config" (MkFeatureLockUnlockRoute DigitalSignaturesConfig)
     :<|> Named "lock-unlock-route-file-sharing-config" (MkFeatureLockUnlockRoute FileSharingConfig)
     :<|> Named "lock-unlock-route-conference-calling-config" (MkFeatureLockUnlockRoute ConferenceCallingConfig)
@@ -485,6 +490,7 @@ type SternAPI =
     :<|> Named "lock-unlock-route-apps-config" (MkFeatureLockUnlockRoute AppsConfig)
     :<|> Named "lock-unlock-route-meetings-config" (MkFeatureLockUnlockRoute MeetingsConfig)
     :<|> Named "lock-unlock-route-meetings-premium-config" (MkFeatureLockUnlockRoute MeetingsPremiumConfig)
+    :<|> Named "lock-unlock-route-background-effects-config" (MkFeatureLockUnlockRoute BackgroundEffectsConfig)
 
 -------------------------------------------------------------------------------
 -- Swagger

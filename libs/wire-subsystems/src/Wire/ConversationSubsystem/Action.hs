@@ -29,6 +29,7 @@ module Wire.ConversationSubsystem.Action
     updateLocalConversationLeave,
     updateLocalConversationMemberUpdate,
     updateLocalConversationDelete,
+    updateLocalConversationDeleteUnchecked,
     updateLocalConversationRename,
     updateLocalConversationMessageTimerUpdate,
     updateLocalConversationReceiptModeUpdate,
@@ -377,6 +378,7 @@ instance IsConversationAction 'ConversationDeleteTag where
         storedConv = tUnqualified lconv
     let deleteGroup groupId = do
           E.removeAllMLSClients groupId
+          E.removeAllHistoryClients groupId
           E.deleteAllProposals groupId
 
     let cid = storedConv.id_
@@ -1087,6 +1089,26 @@ updateLocalConversationDelete ::
   Sem r LocalConversationUpdate
 updateLocalConversationDelete lcnvId uid connId =
   updateLocalConversation @'ConversationDeleteTag lcnvId uid connId ()
+
+updateLocalConversationDeleteUnchecked ::
+  ( Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member CodeStore r,
+    Member E.ConversationStore r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member ProposalStore r
+  ) =>
+  Local ConvId ->
+  Sem r ()
+updateLocalConversationDeleteUnchecked lcnv = do
+  let tag = sing @'ConversationDeleteTag
+  conv <- getConversationWithError lcnv
+  -- check that the action does not bypass the underlying protocol
+  unless (protocolValidAction conv.protocol tag ()) $
+    throwS @'InvalidOperation
+  -- perform all authorisation checks and, if successful, then update itself
+  let lconv = qualifyAs lcnv conv
+  void $ performAction @'ConversationDeleteTag lconv (error "not used") Nothing ()
 
 updateLocalConversationRename ::
   ( Member (Error FederationError) r,

@@ -52,9 +52,10 @@ backendNotificationPusher:
   remotesRefreshInterval: 10000 # 10ms
 
 migrateConversations: false
-migrateConversationsOptions:
+migrationOptions:
   pageSize: 10000
   parallelism: 2
+  timeout: 5s
 migrateConversationCodes: false
 migrateTeamFeatures: false
 migrateDomainRegistration: false
@@ -65,8 +66,15 @@ backgroundJobs:
   jobTimeout: 5s
   maxAttempts: 3
 
+# Meetings cleanup configuration for integration
+meetingsCleanup:
+  cleanOlderThanHours: 0.0014  # Clean meetings older than ~5 seconds
+  batchSize: 100
+  schedule: "* * * * *"  # Run every minute
+
 postgresMigration:
   conversation: postgresql
   conversationCodes: postgresql
   teamFeatures: postgresql
   domainRegistration: postgresql
+  user: postgresql

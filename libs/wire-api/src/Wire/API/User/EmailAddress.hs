@@ -50,6 +50,7 @@ import Servant.API qualified as S
 import Test.QuickCheck
 import Text.Email.Parser
 import Text.Email.Validate
+import Wire.API.PostgresMarshall
 
 --------------------------------------------------------------------------------
 -- Email
@@ -102,6 +103,14 @@ instance C.Cql EmailAddress where
   fromCql _ = Left "fromCql: email: CqlText expected"
 
   toCql = C.toCql . fromEmail
+
+instance PostgresMarshall Text EmailAddress where
+  postgresMarshall = fromEmail
+
+instance PostgresUnmarshall Text EmailAddress where
+  postgresUnmarshall t = case emailAddressText t of
+    Just e -> Right e
+    Nothing -> Left "postgresUnmarshall: Invalid email"
 
 fromEmail :: EmailAddress -> Text
 fromEmail = decodeUtf8 . toByteString

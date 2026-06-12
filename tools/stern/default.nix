@@ -15,7 +15,6 @@
 , exceptions
 , extended
 , extra
-, gitignoreSource
 , HsOpenSSL
 , http-client
 , http-client-tls
@@ -56,7 +55,7 @@
 mkDerivation {
   pname = "stern";
   version = "1.7.2";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

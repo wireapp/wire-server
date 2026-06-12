@@ -71,6 +71,8 @@ spec:
             {{- end }}
             - --pg-settings
             - {{ toJson .Values.postgresql | quote }}
+            - --user-storage-location
+            - {{ .Values.postgresMigration.user }}
           volumeMounts:
           {{- if hasKey .Values.secrets "elasticsearch" }}
             - name: "elasticsearch-index-secrets"

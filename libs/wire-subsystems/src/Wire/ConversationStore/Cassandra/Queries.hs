@@ -185,7 +185,7 @@ updateConvCellsState :: PrepQuery W (CellsState, ConvId) ()
 updateConvCellsState = "update conversation set cells_state = ? where conv = ?"
 
 resetConversation :: PrepQuery W (GroupId, ConvId) ()
-resetConversation = "update conversation set group_id = ?, epoch = 0 where conv = ?"
+resetConversation = "update conversation set group_id = ?, epoch = 0, public_group_state = null where conv = ?"
 
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
@@ -196,7 +196,7 @@ markConvDeleted = {- `IF EXISTS`, but that requires benchmarking -} "update conv
 selectGroupInfo :: PrepQuery R (Identity ConvId) (Identity (Maybe GroupInfoData))
 selectGroupInfo = "select public_group_state from conversation where conv = ?"
 
-updateGroupInfo :: PrepQuery W (GroupInfoData, ConvId) ()
+updateGroupInfo :: PrepQuery W (Maybe GroupInfoData, ConvId) ()
 updateGroupInfo = "update conversation set public_group_state = ? where conv = ?"
 
 updateChannelAddPermission :: PrepQuery W (AddPermission, ConvId) ()

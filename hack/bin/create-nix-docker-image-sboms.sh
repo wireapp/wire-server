@@ -110,7 +110,7 @@ echo ""
 
 # Get list of image names from the imagesNoDocs attrset (excluding 'all')
 echo "Discovering images from $IMAGES_ATTR..."
-mapfile -t image_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#wireServer.${IMAGES_ATTR}" --apply 'images: builtins.concatStringsSep "\n" (builtins.filter (name: name != "all") (builtins.attrNames images))' --raw 2>&1 | grep -v warning)
+mapfile -t image_names < <(nix --extra-experimental-features 'nix-command flakes' eval "$GIT_ROOT#wireServer.${IMAGES_ATTR}" --apply 'images: builtins.concatStringsSep "\n" (builtins.filter (name: name != "all") (builtins.attrNames images))' --raw)
 
 echo "Found ${#image_names[@]} images to process"
 echo ""

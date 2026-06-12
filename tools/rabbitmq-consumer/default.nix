@@ -8,7 +8,6 @@
 , amqp
 , base
 , bytestring
-, gitignoreSource
 , imports
 , lib
 , network
@@ -21,7 +20,7 @@
 mkDerivation {
   pname = "rabbitmq-consumer";
   version = "1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

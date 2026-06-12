@@ -84,13 +84,17 @@ data:
     migrateConversationCodes: {{ .migrateConversationCodes }}
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
-    migrateConversationsOptions:
-{{toYaml .migrateConversationsOptions | indent 6 }}
+    migrationOptions:
+{{toYaml .migrationOptions | indent 6 }}
 
     backendNotificationPusher:
 {{toYaml .backendNotificationPusher | indent 6 }}
     {{- with .backgroundJobs }}
     backgroundJobs:
+{{ toYaml . | indent 6 }}
+    {{- end }}
+    {{- with .meetingsCleanup }}
+    meetingsCleanup:
 {{ toYaml . | indent 6 }}
     {{- end }}
     {{- if $.Values.galley.config.postgresMigration }}

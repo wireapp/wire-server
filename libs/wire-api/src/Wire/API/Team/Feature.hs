@@ -78,6 +78,9 @@ module Wire.API.Team.Feature
     ChannelsConfig,
     ChannelsConfigB (..),
     ChannelPermissions (..),
+    PreventAdminlessGroupsConfig,
+    PreventAdminlessGroupsConfigB (..),
+    PreventAdminlessGroupsPromotionStrategy (..),
     OutlookCalIntegrationConfig (..),
     UseProxyOnMobile (..),
     MlsE2EIdConfigB (..),
@@ -116,6 +119,7 @@ module Wire.API.Team.Feature
     StealthUsersConfig (..),
     MeetingsConfig (..),
     MeetingsPremiumConfig (..),
+    BackgroundEffectsConfig (..),
     Features,
     AllFeatures,
     NpProject (..),
@@ -274,6 +278,7 @@ data FeatureSingleton cfg where
   FeatureSingletonLimitedEventFanoutConfig :: FeatureSingleton LimitedEventFanoutConfig
   FeatureSingletonDomainRegistrationConfig :: FeatureSingleton DomainRegistrationConfig
   FeatureSingletonChannelsConfig :: FeatureSingleton ChannelsConfig
+  FeatureSingletonPreventAdminlessGroupsConfig :: FeatureSingleton PreventAdminlessGroupsConfig
   FeatureSingletonCellsConfig :: FeatureSingleton CellsConfig
   FeatureSingletonAllowedGlobalOperationsConfig :: FeatureSingleton AllowedGlobalOperationsConfig
   FeatureSingletonConsumableNotificationsConfig :: FeatureSingleton ConsumableNotificationsConfig
@@ -285,6 +290,7 @@ data FeatureSingleton cfg where
   FeatureSingletonCellsInternalConfig :: FeatureSingleton CellsInternalConfig
   FeatureSingletonMeetingsConfig :: FeatureSingleton MeetingsConfig
   FeatureSingletonMeetingsPremiumConfig :: FeatureSingleton MeetingsPremiumConfig
+  FeatureSingletonBackgroundEffectsConfig :: FeatureSingleton BackgroundEffectsConfig
 
 type family DeprecatedFeatureName (v :: Version) (cfg :: Type) :: Symbol
 
@@ -1221,6 +1227,79 @@ instance IsFeatureConfig ChannelsConfig where
   featureSingleton = FeatureSingletonChannelsConfig
 
 ----------------------------------------------------------------------
+-- PreventAdminlessGroupsConfig
+
+data PreventAdminlessGroupsPromotionStrategy
+  = PromotionStrategyAlphabetical
+  | PromotionStrategyRandom
+  | PromotionStrategyAll
+  deriving (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PreventAdminlessGroupsPromotionStrategy
+  deriving (Arbitrary) via (GenericUniform PreventAdminlessGroupsPromotionStrategy)
+
+instance ToSchema PreventAdminlessGroupsPromotionStrategy where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "alphabetical" PromotionStrategyAlphabetical,
+          element "random" PromotionStrategyRandom,
+          element "all" PromotionStrategyAll
+        ]
+
+data PreventAdminlessGroupsConfigB t f = PreventAdminlessGroupsConfig
+  { promotionStrategy :: Wear t f PreventAdminlessGroupsPromotionStrategy,
+    deletionTimeout :: Wear t f Word,
+    reminderTimeouts :: Wear t f [Word]
+  }
+  deriving (Generic, BareB)
+
+deriving instance FunctorB (PreventAdminlessGroupsConfigB Covered)
+
+deriving instance ApplicativeB (PreventAdminlessGroupsConfigB Covered)
+
+deriving instance TraversableB (PreventAdminlessGroupsConfigB Covered)
+
+type PreventAdminlessGroupsConfig = PreventAdminlessGroupsConfigB Bare Identity
+
+deriving instance Eq PreventAdminlessGroupsConfig
+
+deriving instance Show PreventAdminlessGroupsConfig
+
+deriving via (RenderableTypeName PreventAdminlessGroupsConfig) instance (RenderableSymbol PreventAdminlessGroupsConfig)
+
+deriving via (GenericUniform PreventAdminlessGroupsConfig) instance (Arbitrary PreventAdminlessGroupsConfig)
+
+deriving via (BarbieFeature PreventAdminlessGroupsConfigB) instance (ParseDbFeature PreventAdminlessGroupsConfig)
+
+deriving via (BarbieFeature PreventAdminlessGroupsConfigB) instance (ToSchema PreventAdminlessGroupsConfig)
+
+instance Default PreventAdminlessGroupsConfig where
+  def =
+    PreventAdminlessGroupsConfig
+      { promotionStrategy = PromotionStrategyAlphabetical,
+        deletionTimeout = 7,
+        reminderTimeouts = [2, 4, 6]
+      }
+
+instance (Typeable f, FieldF f) => ToSchema (PreventAdminlessGroupsConfigB Covered f) where
+  schema =
+    object $
+      PreventAdminlessGroupsConfig
+        <$> promotionStrategy .= fieldF "promotionStrategy" schema
+        <*> deletionTimeout .= fieldF "deletionTimeout" schema
+        <*> reminderTimeouts .= fieldF "reminderTimeouts" (array schema)
+
+instance Default (LockableFeature PreventAdminlessGroupsConfig) where
+  def = defLockedFeature
+
+instance ToObjectSchema PreventAdminlessGroupsConfig where
+  objectSchema = field "config" schema
+
+instance IsFeatureConfig PreventAdminlessGroupsConfig where
+  type FeatureSymbol PreventAdminlessGroupsConfig = "preventAdminlessGroups"
+  featureSingleton = FeatureSingletonPreventAdminlessGroupsConfig
+
+----------------------------------------------------------------------
 -- ExposeInvitationURLsToTeamAdminConfig
 
 data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConfig
@@ -2128,6 +2207,30 @@ instance IsFeatureConfig MeetingsPremiumConfig where
 instance ToObjectSchema MeetingsPremiumConfig where
   objectSchema = pure MeetingsPremiumConfig
 
+--------------------------------------------------------------------------------
+-- BackgroundEffects Feature
+--
+-- Controls whether background effects are available in meetings.
+
+data BackgroundEffectsConfig = BackgroundEffectsConfig
+  deriving (Eq, Show, Generic, GSOP.Generic)
+  deriving (Arbitrary) via (GenericUniform BackgroundEffectsConfig)
+  deriving (RenderableSymbol) via (RenderableTypeName BackgroundEffectsConfig)
+  deriving (ParseDbFeature, Default) via TrivialFeature BackgroundEffectsConfig
+
+instance ToSchema BackgroundEffectsConfig where
+  schema = object objectSchema
+
+instance Default (LockableFeature BackgroundEffectsConfig) where
+  def = defUnlockedFeature
+
+instance IsFeatureConfig BackgroundEffectsConfig where
+  type FeatureSymbol BackgroundEffectsConfig = "backgroundEffects"
+  featureSingleton = FeatureSingletonBackgroundEffectsConfig
+
+instance ToObjectSchema BackgroundEffectsConfig where
+  objectSchema = pure BackgroundEffectsConfig
+
 ---------------------------------------------------------------------------------
 -- FeatureStatus
 
@@ -2179,23 +2282,21 @@ instance FromByteString FeatureStatus where
 instance Cass.Cql FeatureStatus where
   ctype = Cass.Tagged Cass.IntColumn
 
-  fromCql (Cass.CqlInt n) = case n of
-    0 -> pure FeatureStatusDisabled
-    1 -> pure FeatureStatusEnabled
-    _ -> Left "fromCql: Invalid FeatureStatus"
+  fromCql (Cass.CqlInt n) = mapLeft T.unpack $ postgresUnmarshall n
   fromCql _ = Left "fromCql: FeatureStatus: CqlInt expected"
 
-  toCql FeatureStatusDisabled = Cass.CqlInt 0
-  toCql FeatureStatusEnabled = Cass.CqlInt 1
+  toCql = Cass.CqlInt . postgresMarshall
 
 instance PostgresMarshall Int32 FeatureStatus where
-  postgresMarshall FeatureStatusEnabled = 1
-  postgresMarshall FeatureStatusDisabled = 0
+  postgresMarshall = \case
+    FeatureStatusDisabled -> 0
+    FeatureStatusEnabled -> 1
 
 instance PostgresUnmarshall Int32 FeatureStatus where
-  postgresUnmarshall 1 = Right FeatureStatusEnabled
-  postgresUnmarshall 0 = Right FeatureStatusDisabled
-  postgresUnmarshall _ = Left "invalid feature status"
+  postgresUnmarshall = \case
+    0 -> Right FeatureStatusDisabled
+    1 -> Right FeatureStatusEnabled
+    n -> Left $ "Invalid FeatureStatus: " <> T.pack (show n)
 
 -- | list of available features config types
 type Features :: [Type]
@@ -2222,6 +2323,7 @@ type Features =
     LimitedEventFanoutConfig,
     DomainRegistrationConfig,
     ChannelsConfig,
+    PreventAdminlessGroupsConfig,
     CellsConfig,
     AllowedGlobalOperationsConfig,
     ConsumableNotificationsConfig,
@@ -2232,7 +2334,8 @@ type Features =
     StealthUsersConfig,
     CellsInternalConfig,
     MeetingsConfig,
-    MeetingsPremiumConfig
+    MeetingsPremiumConfig,
+    BackgroundEffectsConfig
   ]
 
 -- | list of available features as a record

@@ -108,6 +108,8 @@ tests s =
       test s "/teams/:tid/features/cells" testCellsConfigRoutes,
       test s "/teams/:tid/features/channels" $ testLockedFeatureConfig @ChannelsConfig,
       test s "PUT /teams/:tid/features/channels{,'?lockOrUnlock'}" $ testLockStatus @ChannelsConfig,
+      test s "/teams/:tid/features/preventAdminlessGroups" $ testLockedFeatureConfig @PreventAdminlessGroupsConfig,
+      test s "PUT /teams/:tid/features/preventAdminlessGroups{,'?lockOrUnlock'}" $ testLockStatus @PreventAdminlessGroupsConfig,
       test s "PUT /teams/:tid/features/digitalSignatures{,'?lockOrUnlock'}" $ testLockStatus @DigitalSignaturesConfig,
       test s "PUT /teams/:tid/features/fileSharing{,'?lockOrUnlock'}" $ testLockStatus @FileSharingConfig,
       test s "PUT /teams/:tid/features/conference-calling{,'?lockOrUnlock'}" $ testLockStatus @ConferenceCallingConfig,
@@ -127,7 +129,9 @@ tests s =
       test s "PUT /teams/:tid/features/meetings{,'?lockOrUnlock'}" $ testLockStatus @MeetingsConfig,
       test s "/teams/:tid/features/meetings" $ testFeatureStatus @MeetingsConfig,
       test s "PUT /teams/:tid/features/meetingsPremium{,'?lockOrUnlock'}" $ testLockStatus @MeetingsPremiumConfig,
-      test s "/teams/:tid/features/meetingsPremium" $ testFeatureStatus @MeetingsPremiumConfig
+      test s "/teams/:tid/features/meetingsPremium" $ testFeatureStatus @MeetingsPremiumConfig,
+      test s "PUT /teams/:tid/features/backgroundEffects{,'?lockOrUnlock'}" $ testLockStatus @BackgroundEffectsConfig,
+      test s "/teams/:tid/features/backgroundEffects" $ testFeatureStatus @BackgroundEffectsConfig
       -- The following endpoints can not be tested here because they require ibis:
       -- - `GET /teams/:tid/billing`
       -- - `GET /teams/:tid/invoice/:inr`

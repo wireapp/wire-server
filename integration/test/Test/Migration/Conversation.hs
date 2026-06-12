@@ -13,6 +13,7 @@
 module Test.Migration.Conversation where
 
 import API.Galley
+import qualified API.GalleyInternal as I
 import Control.Applicative
 import Control.Monad.Codensity
 import Control.Monad.Reader
@@ -23,6 +24,7 @@ import GHC.Stack
 import MLS.Util
 import Notifications
 import SetupHelpers hiding (deleteUser)
+import Test.MLS.History (channelsConfig)
 import Test.Migration.Util
 import Testlib.Prelude
 import Testlib.ResourcePool
@@ -39,7 +41,7 @@ testMigrationToPostgresMLS = do
 
   runCodensity (acquireResources 1 resourcePool) $ \[migratingBackend] -> do
     let domainM = migratingBackend.berDomain
-    (mel, melC, mark, markC, mia, miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, otherMelConvs) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
+    (mel, melC, mark, markC, mia, miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, sharedHistoryConv, otherMelConvs) <- runCodensity (startDynamicBackend migratingBackend phase1Overrides) $ \_ -> do
       [mel, mark] <- createUsers [domainM, domainM]
       (mia, miaTid, _) <- createTeam domainM 1
       [melC, markC, miaC] <- traverse (createMLSClient def) [mel, mark, mia]
@@ -48,8 +50,11 @@ testMigrationToPostgresMLS = do
 
       domainAConvs <- createTestConvs aliceC aliceTid melC markC []
       domainBConvs <- createTestConvs bobC bobTid melC markC []
-      domainMConvs <- createTestConvs miaC miaTid melC markC []
-      pure (mel, melC, mark, markC, mia, miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, otherMelConvs)
+      sharedHistoryConv <- createSharedHistoryChannel mia miaTid miaC melC
+      domainMConvs <- do
+        domainMConvs <- createTestConvs miaC miaTid melC markC []
+        pure $ domainMConvs {unmodifiedConvs = sharedHistoryConv : domainMConvs.unmodifiedConvs}
+      pure (mel, melC, mark, markC, mia, miaC, miaTid, domainAConvs, domainBConvs, domainMConvs, sharedHistoryConv, otherMelConvs)
 
     newConvsRef <- newIORef []
     addUsersToFailureContext [("alice", alice), ("bob", bob), ("mel", mel), ("mark", mark), ("mia", mia)]
@@ -83,6 +88,9 @@ testMigrationToPostgresMLS = do
                 when (phase == 3) $ do
                   waitForMigration domainM convMigrationFinishedCounterName
                   waitForMigration domainM userMigrationFinishedCounterName
+
+                when (phase == 5)
+                  $ assertSharedHistorySuccess sharedHistoryConv melC
         runPhase 1
         runPhase 2
         runPhase 3
@@ -107,6 +115,29 @@ testMigrationToPostgresMLS = do
       traverse_ (uploadNewKeyPackage def) membersC
       void $ createAddCommit creatorC conv ((.qualifiedUserId) <$> membersC) >>= sendAndConsumeCommitBundle
       pure conv
+
+    createSharedHistoryChannel :: (HasCallStack) => Value -> String -> ClientIdentity -> ClientIdentity -> App ConvId
+    createSharedHistoryChannel owner tid ownerC memberC = do
+      I.setTeamFeatureLockStatus owner tid "channels" "unlocked"
+      setTeamFeatureConfig owner tid "channels" channelsConfig >>= assertSuccess
+      conv <- createNewGroupWith def ownerC defMLS {team = Just tid, groupConvType = Just "channel"}
+      void $ createPendingProposalCommit conv ownerC >>= sendAndConsumeCommitBundle
+      bindResponse (updateHistory owner conv history) $ \resp ->
+        resp.status `shouldMatchInt` 200
+      void $ uploadNewKeyPackage def memberC
+      (mp, _) <- createAddCommitWithHistoryClient ownerC conv [memberC.qualifiedUserId]
+      void $ sendAndConsumeCommitBundle mp
+      pure conv
+      where
+        history = object ["depth" .= "infinite"]
+
+    assertSharedHistorySuccess :: (HasCallStack) => ConvId -> ClientIdentity -> App ()
+    assertSharedHistorySuccess conv memberC = do
+      convJson <- getConversation memberC conv >>= getJSON 200
+      convJson %. "history" `shouldMatch` history
+      void $ createApplicationMessage conv memberC "hello in chat with shared history" >>= sendAndConsumeMessage
+      where
+        history = object ["depth" .= "infinite"]
 
     forPhase :: App a -> App (IntMap [a])
     forPhase action =

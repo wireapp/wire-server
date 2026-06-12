@@ -54,7 +54,7 @@ data:
       port: 8080
 
     backgroundWorker:
-      host: backgroundWorker.{{ .Release.Namespace }}.svc.cluster.local
+      host: background-worker.{{ .Release.Namespace }}.svc.cluster.local
       port: 8080
       # Background jobs defaults for integration tests
       backgroundJobs:
@@ -145,7 +145,7 @@ data:
         port: 8080
 
       backgroundWorker:
-        host: backgroundWorker.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        host: background-worker.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
       stern:
@@ -212,7 +212,7 @@ data:
         host: proxy.wire-federation-v0.svc.cluster.local
         port: 8080
       backgroundWorker:
-        host: backgroundWorker.wire-federation-v0.svc.cluster.local
+        host: background-worker.wire-federation-v0.svc.cluster.local
         port: 8080
       stern:
         host: stern.wire-federation-v0.svc.cluster.local
@@ -255,7 +255,7 @@ data:
         host: proxy.wire-federation-v1.svc.cluster.local
         port: 8080
       backgroundWorker:
-        host: backgroundWorker.wire-federation-v1.svc.cluster.local
+        host: background-worker.wire-federation-v1.svc.cluster.local
         port: 8080
       stern:
         host: stern.wire-federation-v1.svc.cluster.local
@@ -298,7 +298,7 @@ data:
         host: proxy.wire-federation-v2.svc.cluster.local
         port: 8080
       backgroundWorker:
-        host: backgroundWorker.wire-federation-v2.svc.cluster.local
+        host: background-worker.wire-federation-v2.svc.cluster.local
         port: 8080
       stern:
         host: stern.wire-federation-v2.svc.cluster.local

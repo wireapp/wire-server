@@ -32,7 +32,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Time
 import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
-import Data.Tuple.Extra
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Hasql.Pool qualified as Hasql
@@ -43,11 +42,11 @@ import Hasql.Transaction.Sessions
 import Imports
 import Polysemy
 import Polysemy.Async
-import Polysemy.Conc
+import Polysemy.Conc hiding (timeout_)
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource (Resource, resourceToIOFinal)
 import Polysemy.State
-import Polysemy.Time
 import Polysemy.TinyLog
 import Prometheus qualified
 import System.Logger qualified as Log
@@ -55,6 +54,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.CellsState
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.History
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.GroupInfo
@@ -83,6 +83,7 @@ type EffectStack =
   [ State Int,
     Input ClientState,
     Input Hasql.Pool,
+    Resource,
     Async,
     Race,
     TinyLog,
@@ -99,15 +100,16 @@ migrateConvsLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateConvsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+migrateConvsLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "conversations"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "conversations")
-    (migrateAllConversations migOpts migCounter)
+    (migrateAllConversations migOpts migCounter migDuration)
 
 migrateUsersLoop ::
   MigrationOptions ->
@@ -117,15 +119,16 @@ migrateUsersLoop ::
   Prometheus.Counter ->
   Prometheus.Counter ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   IO ()
-migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed =
+migrateUsersLoop migOpts cassClient pgPool logger migCounter migFinished migFailed migDuration =
   migrationLoop
     logger
     "users"
     migFinished
     migFailed
     (interpreter cassClient pgPool logger "users")
-    (migrateAllUsers migOpts migCounter)
+    (migrateAllUsers migOpts migCounter migDuration)
 
 interpreter :: ClientState -> Hasql.Pool -> Log.Logger -> ByteString -> Sem EffectStack a -> IO (Int, a)
 interpreter cassClient pgPool logger name =
@@ -137,6 +140,7 @@ interpreter cassClient pgPool logger name =
     . raiseUnder
     . interpretRace
     . asyncToIOFinal
+    . resourceToIOFinal
     . runInputConst pgPool
     . runInputConst cassClient
     . runState 0
@@ -148,20 +152,25 @@ migrateAllConversations ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (State Int) r,
     Member (Concurrency Unsafe) r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllConversations migOpts migCounter = do
+migrateAllConversations migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllConversations")
   withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize runIdentity
-    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateConversation migCounter) "conv"))
+    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateConversationWithLock migOpts.timeout) "conv"))
   where
     select :: PrepQuery R () (Identity ConvId)
     select = "select conv from conversation"
+
+    migrateConversationWithLock timeout_ cid =
+      withExclusiveMigrationLockAndTimeout timeout_ migDuration [cid] $ migrateConversation cid migCounter
 
 migrateAllUsers ::
   ( Member (Input Hasql.Pool) r,
@@ -170,17 +179,19 @@ migrateAllUsers ::
     Member TinyLog r,
     Member Async r,
     Member Race r,
+    Member Resource r,
     Member (State Int) r,
     Member (Concurrency 'Unsafe) r
   ) =>
   MigrationOptions ->
   Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
   ConduitM () Void (Sem r) ()
-migrateAllUsers migOpts migCounter = do
+migrateAllUsers migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllUsers")
   withCount (paginateSem select (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize runIdentity
-    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateUser migCounter) "user"))
+    .| C.mapM_ (unsafePooledMapConcurrentlyN_ migOpts.parallelism (handleErrors (migrateUser migOpts migCounter migDuration) "user"))
   where
     select :: PrepQuery R () (Identity UserId)
     select = "select distinct user from user_remote_conv"
@@ -204,27 +215,16 @@ handleError action lockType id_ = do
 
 -- * Conversations
 
-migrateConversation ::
-  ( PGConstraints r,
-    Member (Input ClientState) r,
-    Member TinyLog r,
-    Member Async r,
-    Member (Error MigrationLockError) r,
-    Member Race r
-  ) =>
-  Prometheus.Counter ->
-  ConvId ->
-  Sem r ()
-migrateConversation migCounter cid = do
-  void . withMigrationLocks LockExclusive (Seconds 10) [cid] $ do
-    mConvData <- withCassandra $ getAllConvData cid
-    for_ mConvData $ \convData -> do
-      saveConvToPostgres convData
-      withCassandra $ deleteConv convData
-    markDeletionComplete DeleteConv cid
-    liftIO $ Prometheus.incCounter migCounter
+migrateConversation :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => ConvId -> Prometheus.Counter -> Sem r ()
+migrateConversation cid migCounter = do
+  mConvData <- withCassandra $ getAllConvData cid
+  for_ mConvData $ \convData -> do
+    saveConvToPostgres convData
+    withCassandra $ deleteConv convData
+  markDeletionComplete DeleteConv cid
+  liftIO $ Prometheus.incCounter migCounter
 
-deleteConvFromCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => AllConvData -> Sem r ()
+deleteConvFromCassandra :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => AllConvData -> Sem r ()
 deleteConvFromCassandra allConvData = withCassandra $ do
   for_ allConvData.subConvs $ \subConvData -> do
     removeAllMLSClients subConvData.subConv.scMLSData.cnvmlsGroupId
@@ -261,9 +261,10 @@ saveConvToPostgres allConvData = do
           meta.cnvmGroupConvType,
           meta.cnvmChannelAddPermission,
           meta.cnvmCellsState,
-          meta.cnvmParent
+          meta.cnvmParent,
+          fmap (.depth) (historyConfig meta.cnvmHistory)
         )
-  runTransaction ReadCommitted Write $ do
+  runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement convRow insertConv
     Transaction.statement localMemberColumns insertLocalMembers
     Transaction.statement remoteMemberColumns insertRemoteMembers
@@ -294,21 +295,22 @@ saveConvToPostgres allConvData = do
           Maybe GroupConvType,
           Maybe AddPermission,
           CellsState,
-          Maybe ConvId
+          Maybe ConvId,
+          Maybe HistoryDuration
         )
         ()
     insertConv =
-      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
+      lmapPG @(_, _, _, Vector Int32, Vector Int32, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) @_
         [resultlessStatement|INSERT INTO conversation
                              (id, type, creator, access, access_roles_v2,
                               name, team, message_timer, receipt_mode, protocol,
                               group_id, epoch, epoch_timestamp, cipher_suite, public_group_state,
-                              group_conv_type, channel_add_permission, cells_state, parent_conv)
+                              group_conv_type, channel_add_permission, cells_state, parent_conv, history_depth)
                              VALUES
                              ($1 :: uuid, $2 :: integer, $3 :: uuid?, $4 :: integer[], $5 :: integer[],
                               $6 :: text?, $7 :: uuid?, $8 :: bigint?, $9 :: integer?, $10 :: integer,
                               $11 :: bytea?, $12 :: bigint?, $13 :: timestamptz?, $14 :: integer?,  $15 :: bytea?,
-                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?)
+                              $16 ::integer?, $17 :: integer?, $18 :: integer, $19 :: uuid?, $20 :: bigint?)
                              ON CONFLICT (id) DO NOTHING
                             |]
 
@@ -384,21 +386,18 @@ saveConvToPostgres allConvData = do
 
     mlsClientRows :: GroupId -> ClientMap LeafIndex -> IndexMap -> [(GroupId, Domain, UserId, ClientId, Int32, Bool)]
     mlsClientRows gid clientMap indexMap =
-      let clients :: [(LeafIndex, ClientIdentity, Bool)] =
-            IntMap.elems $
-              IntMap.mapWithKey
-                (\idx ci -> (fromIntegral idx, ci, isNothing (cmLookupIndex ci clientMap)))
-                indexMap.unIndexMap
+      let clients :: [(LeafIndex, ClientIdentity, Bool)] = do
+            (idx, element) <- IntMap.assocs indexMap.unIndexMap
+            case element of
+              RegularClient ci ->
+                pure (fromIntegral idx, ci, isNothing (cmLookupIndex ci clientMap))
+              HistoryClient _ -> []
        in flip map clients $ \(idx, ci, removalPending) ->
             (gid, ci.ciDomain, ci.ciUser, ci.ciClient, fromIntegral idx, removalPending)
 
     mlsClientColumns :: ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool])
     mlsClientColumns =
-      let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
-          mainConvInputs = maybeToList $ (,,) <$> mainConvGroupId <*> (fmap (.clientMap) allConvData.mlsDetails) <*> (fmap (.indexMap) allConvData.mlsDetails)
-          subConvsInputs = flip map allConvData.subConvs $ \(AllSubConvData sc _) -> (sc.scMLSData.cnvmlsGroupId, sc.scMembers, sc.scIndexMap)
-          allInputs = mainConvInputs <> subConvsInputs
-          allRows = concatMap (uncurry3 mlsClientRows) allInputs
+      let allRows = concatMap (\(gid, clientMap, indexMap) -> mlsClientRows gid clientMap indexMap) mlsInputs
        in unzip6 allRows
 
     insertMLSClients :: Hasql.Statement ([GroupId], [Domain], [UserId], [ClientId], [Int32], [Bool]) ()
@@ -410,6 +409,21 @@ saveConvToPostgres allConvData = do
                              FROM UNNEST ($1 :: bytea[], $2 :: text[], $3 :: uuid[],
                                           $4 :: text[], $5 :: integer[], $6 :: bool[])
                             |]
+
+    mlsInputs :: [(GroupId, ClientMap LeafIndex, IndexMap)]
+    mlsInputs =
+      let mainConvGroupId = cnvmlsGroupId <$> getMLSData storedConv.protocol
+          mainConvInputs =
+            maybeToList $
+              (,,)
+                <$> mainConvGroupId
+                <*> (fmap (.clientMap) allConvData.mlsDetails)
+                <*> (fmap (.indexMap) allConvData.mlsDetails)
+          subConvsInputs =
+            fmap
+              (\scData -> (scData.subConv.scMLSData.cnvmlsGroupId, scData.subConv.scMembers, scData.subConv.scIndexMap))
+              allConvData.subConvs
+       in mainConvInputs <> subConvsInputs
 
     zeroTime :: UTCTime
     zeroTime = UTCTime (fromOrdinalDate 1970 1) 0
@@ -443,16 +457,29 @@ saveConvToPostgres allConvData = do
 
 -- * Users
 
-migrateUser :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r, Member Async r, Member (Error MigrationLockError) r, Member Race r) => Prometheus.Counter -> UserId -> Sem r ()
-migrateUser migCounter uid = do
-  withMigrationLocks LockExclusive (Seconds 10) [uid] $ do
+migrateUser ::
+  ( PGConstraints r,
+    Member (Input ClientState) r,
+    Member TinyLog r,
+    Member Async r,
+    Member (Error MigrationLockError) r,
+    Member Race r,
+    Member Resource r
+  ) =>
+  MigrationOptions ->
+  Prometheus.Counter ->
+  Prometheus.Vector Text Prometheus.Histogram ->
+  UserId ->
+  Sem r ()
+migrateUser migOpts migCounter migDuration uid = do
+  withExclusiveMigrationLockAndTimeout migOpts.timeout migDuration [uid] $ do
     statusses <- getRemoteMemberStatusFromCassandra uid
     saveRemoteMemberStatusToPostgres uid statusses
     deleteRemoteMemberStatusesFromCassandra uid
   markDeletionComplete DeleteUser uid
   liftIO $ Prometheus.incCounter migCounter
 
-getRemoteMemberStatusFromCassandra :: forall r. (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
+getRemoteMemberStatusFromCassandra :: forall r. (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => UserId -> Sem r (Map (Remote ConvId) MemberStatus)
 getRemoteMemberStatusFromCassandra uid = withCassandra $ do
   convIds <- getAllRemoteConvIds [] Nothing
   getRemoteConversationStatus uid convIds
@@ -468,7 +495,7 @@ getRemoteMemberStatusFromCassandra uid = withCassandra $ do
 
 saveRemoteMemberStatusToPostgres :: (PGConstraints r) => UserId -> Map (Remote ConvId) MemberStatus -> Sem r ()
 saveRemoteMemberStatusToPostgres uid statusses =
-  runTransaction ReadCommitted Write $ do
+  runTransactionWithRetry ReadCommitted Write $ do
     Transaction.statement statusColumns insertStatuses
     Transaction.statement (DeleteUser, uid) markDeletionPendingStmt
   where
@@ -497,7 +524,7 @@ saveRemoteMemberStatusToPostgres uid statusses =
 
 -- * Other helpers
 
-withCassandra :: (Member (Input ClientState) r, Member TinyLog r, Member (Embed IO) r) => InterpreterFor ConversationStore r
+withCassandra :: (PGConstraints r, Member (Input ClientState) r, Member TinyLog r) => InterpreterFor ConversationStore r
 withCassandra action = do
   cstate <- input
   interpretConversationStoreToCassandra cstate action

@@ -11,6 +11,7 @@
 , bytestring-conversion
 , cassandra-util
 , containers
+, cron
 , data-default
 , data-timeout
 , exceptions
@@ -18,7 +19,6 @@
 , extra
 , federator
 , galley-types
-, gitignoreSource
 , hasql-pool
 , HsOpenSSL
 , hspec
@@ -44,6 +44,7 @@
 , ssl-util
 , tagged
 , text
+, time
 , tinylog
 , transformers
 , transformers-base
@@ -59,7 +60,7 @@
 mkDerivation {
   pname = "background-worker";
   version = "0.1.0.0";
-  src = gitignoreSource ./.;
+  src = ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
@@ -71,6 +72,7 @@ mkDerivation {
     bytestring-conversion
     cassandra-util
     containers
+    cron
     data-timeout
     exceptions
     extended
@@ -93,6 +95,7 @@ mkDerivation {
     ssl-util
     tagged
     text
+    time
     tinylog
     transformers
     transformers-base

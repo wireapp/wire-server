@@ -6,7 +6,6 @@
 , base
 , bytestring
 , containers
-, gitignoreSource
 , hspec
 , hspec-discover
 , imports
@@ -22,7 +21,7 @@
 mkDerivation {
   pname = "metrics-wai";
   version = "0.5.7";
-  src = gitignoreSource ./.;
+  src = ./.;
   libraryHaskellDepends = [
     base
     bytestring
