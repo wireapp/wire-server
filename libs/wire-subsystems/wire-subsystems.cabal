@@ -116,6 +116,7 @@ common common-all
     , currency-codes
     , data-default
     , data-timeout
+    , dns
     , email-validate
     , errors
     , exceptions
@@ -234,6 +235,7 @@ library
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
+    Wire.ConfigOptions
     Wire.BrigAPIAccess.Rpc
     Wire.ClientStore
     Wire.ClientStore.Cassandra
