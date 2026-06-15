@@ -1496,9 +1496,9 @@ testScimUserIsNotAllowedToChangeNameOnRegistering = do
   (owner, tid, _) <- createTeam OwnDomain 1
   tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
   scimUser <- randomScimUser
+  scimUserDisplayName <- scimUser %. "displayName"
   email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
   scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
-  let profilename = "Takemiya Masaki"
   code <-
     getInvitationByEmail OwnDomain email
       >>= getJSON 200
@@ -1510,18 +1510,9 @@ testScimUserIsNotAllowedToChangeNameOnRegistering = do
     resp.status `shouldMatchInt` 200
     resp.json %. "id" `shouldMatch` scimUserId
     resp.json %. "managed_by" `shouldMatch` "scim"
-  registerUserWithHandle OwnDomain email profilename code `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 201
-  where
-    registerUserWithHandle :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
-    registerUserWithHandle domain email profilename inviteeCode = do
-      req <- baseRequest domain Brig Versioned "register"
-      submit "POST"
-        $ req
-        & addClientIP
-        & addJSONObject
-          [ "name" .= profilename,
-            "email" .= email,
-            "password" .= defPassword,
-            "team_code" .= inviteeCode
-          ]
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
+  
+  let newProfilename = "Takemiya Masaki"
+  registerUserWith OwnDomain email code newProfilename  `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
