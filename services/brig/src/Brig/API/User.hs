@@ -22,6 +22,7 @@ module Brig.API.User
   ( -- * User Accounts / Profiles
     upgradePersonalToTeam,
     createUser,
+    createUserV16,
     createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
@@ -174,6 +175,21 @@ identityErrorToBrigError :: IdentityError -> HttpError
 identityErrorToBrigError = \case
   IdentityErrorBlacklistedEmail -> StdError $ errorToWai @'E.BlacklistedEmail
   IdentityErrorUserKeyExists -> StdError $ errorToWai @'E.UserKeyExists
+
+-- SCIM invites carry a canonical display name end-to-end. The invitation info
+-- endpoint exposes it to the client, and when it is present the client locks the
+-- field and reuses that same value in the register request. Brig stores the same
+-- value in the pending SCIM user account, so in the SCIM case it is correct to
+-- validate the incoming request against `userDisplayName` rather than treating
+-- the request as user-chosen input.
+guardUserDisplayname ::
+  NewUser a ->
+  User ->
+  ExceptT RegisterError (AppT r) ()
+guardUserDisplayname new user =
+  when (user.userManagedBy == ManagedByScim) $
+    unless (new.newUserDisplayName == user.userDisplayName) $
+      throwE RegisterErrorScimDisplayNameMismatch
 
 verifyUniquenessAndCheckBlacklist ::
   ( Member BlockListStore r,
@@ -356,7 +372,52 @@ createUser ::
   RateLimitKey ->
   NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUser rateLimitKey new = do
+createUser = createUserWith (flip guardUserDisplayname)
+
+createUserV16 ::
+  forall r p.
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member (UserPendingActivationStore p) r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member TinyLog r,
+    Member Events r,
+    Member (Input (Local ())) r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
+    Member InvitationStore r,
+    Member ActivationCodeStore r,
+    Member RateLimit r
+  ) =>
+  RateLimitKey ->
+  NewUser PlainTextPassword8 ->
+  ExceptT RegisterError (AppT r) CreateUserResult
+createUserV16 = createUserWith (\_ _ -> pure ())
+
+createUserWith ::
+  forall r p.
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member (UserPendingActivationStore p) r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member UserSubsystem r,
+    Member TinyLog r,
+    Member Events r,
+    Member (Input (Local ())) r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
+    Member InvitationStore r,
+    Member ActivationCodeStore r,
+    Member RateLimit r
+  ) =>
+  (User -> NewUser PlainTextPassword8 -> ExceptT RegisterError (AppT r) ()) ->
+  RateLimitKey ->
+  NewUser PlainTextPassword8 ->
+  ExceptT RegisterError (AppT r) CreateUserResult
+createUserWith checkScimDisplayName rateLimitKey new = do
   email <- fetchAndValidateEmail new
 
   -- get invitation and existing account
@@ -383,6 +444,9 @@ createUser rateLimitKey new = do
           \invid -> liftSem $ do
             luid :: Local UserId <- qualifyLocal' (coerce invid)
             User.getLocalAccountBy WithPendingInvitations luid
+
+  for_ mbExistingAccount $ \existingAccount ->
+    checkScimDisplayName existingAccount new
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->

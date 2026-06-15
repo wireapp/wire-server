@@ -904,6 +904,7 @@ data RegisterError
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
   | RegisterErrorEphemeralUserCreationDisabled
+  | RegisterErrorScimDisplayNameMismatch
   deriving (Show, Generic)
   deriving (AsUnion RegisterErrorResponses) via GenericAsUnion RegisterErrorResponses RegisterError
 
@@ -921,7 +922,8 @@ type RegisterErrorResponses =
      ErrorResponse 'BlacklistedEmail,
      ErrorResponse 'TooManyTeamMembers,
      ErrorResponse 'UserCreationRestricted,
-     ErrorResponse 'EphemeralUserCreationDisabled
+     ErrorResponse 'EphemeralUserCreationDisabled,
+     ErrorResponse 'NameManagedByScim
    ]
 
 type RegisterResponses =
