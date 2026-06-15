@@ -513,4 +513,4 @@ testGetTeamsInvitationInfo = do
     resp.json %. "team" `shouldMatch` tid
     resp.json %. "role" `shouldMatch` "member"
     resp.json %. "id" `shouldMatch` (inv %. "id")
-    resp.json %. "managed_by" `shouldMatch` "wire"
+    lookupField resp.json "managed_by" `shouldMatch` (Nothing :: Maybe Value)

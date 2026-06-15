@@ -41,7 +41,7 @@ testObject_InvitationUserView_team_1 =
             inviteeUrl = Nothing
           },
       inviterEmail = Just $ unsafeEmailAddress "some" "example",
-      managedBy = ManagedByWire
+      managedBy = Just ManagedByWire
     }
 
 testObject_InvitationUserView_team_2 :: InvitationUserView
@@ -59,5 +59,5 @@ testObject_InvitationUserView_team_2 =
             inviteeUrl = Nothing
           },
       inviterEmail = Nothing,
-      managedBy = ManagedByScim
+      managedBy = Just ManagedByScim
     }

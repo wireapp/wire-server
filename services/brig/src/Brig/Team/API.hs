@@ -341,7 +341,9 @@ getInvitationByCode c = do
     InvitationUserView
       { invitation = inv,
         inviterEmail = mInviterEmail,
-        managedBy = maybe ManagedByWire (.userManagedBy) mUser
+        -- very likely managed by wire if `mUser` is nothing,
+        -- still we do not want to set a default and the caller handle this
+        managedBy = (.userManagedBy) <$> mUser
       }
 
 headInvitationByEmail ::

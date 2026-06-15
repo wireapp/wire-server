@@ -215,7 +215,7 @@ instance ToSchema AcceptTeamInvitation where
 data InvitationUserView = InvitationUserView
   { invitation :: Invitation,
     inviterEmail :: Maybe EmailAddress,
-    managedBy :: ManagedBy
+    managedBy :: Maybe ManagedBy
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationUserView)
@@ -227,4 +227,4 @@ instance ToSchema InvitationUserView where
       InvitationUserView
         <$> invitation .= invitationObjectSchema
         <*> inviterEmail .= maybe_ (optField "created_by_email" schema)
-        <*> managedBy .= field "managed_by" schema
+        <*> managedBy .= maybe_ (optField "managed_by" schema)
