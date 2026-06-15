@@ -313,9 +313,8 @@ isPersonalUser :: (Member UserSubsystem r, Member (Input (Local ())) r) => Email
 isPersonalUser uke = do
   mUser <- getLocalUserAccountByUserKey =<< qualifyLocal' uke
   pure $ any isActiveNonTeamUser mUser
-
-isActiveNonTeamUser :: User -> Bool
-isActiveNonTeamUser user = user.userStatus == Active && isNothing user.userTeam
+  where
+    isActiveNonTeamUser user = user.userStatus == Active && isNothing user.userTeam
 
 getInvitationByCode ::
   forall r.
@@ -331,10 +330,11 @@ getInvitationByCode c = do
     Store.lookupInvitationByCode c
       >>= note UserSubsystemInvalidInvitationCode
   let inv = Store.invitationFromStored Nothing storedInv
+  -- in the SCIM case the invitation ID is equal to the user ID
   uid <- qualifyLocal' $ invitationIdToUserId inv.invitationId
   mUser <- getAccountNoFilter uid
   mInviterEmail <-
-    case any isActiveNonTeamUser mUser of
+    isPersonalUser (mkEmailKey inv.inviteeEmail) >>= \case
       False -> pure Nothing
       True -> maybe (pure Nothing) (qualifyLocal' >=> getUserEmail) inv.createdBy
   pure $
