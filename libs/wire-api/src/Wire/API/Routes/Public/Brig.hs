@@ -680,18 +680,18 @@ type AccountAPI =
           :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
       )
     :<|> Named
-      "register"
-      ( Summary "Register a new user."
-          :> From 'V17
-          :> Description
-               "If the environment where the registration takes \
-               \place is private and a registered email address \
-               \is not whitelisted, a 403 error is returned."
-          :> "register"
-          :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
-          :> ReqBody '[JSON] NewUserPublic
-          :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
-      )
+           "register"
+           ( Summary "Register a new user."
+               :> From 'V17
+               :> Description
+                    "If the environment where the registration takes \
+                    \place is private and a registered email address \
+                    \is not whitelisted, a 403 error is returned."
+               :> "register"
+               :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
+               :> ReqBody '[JSON] NewUserPublic
+               :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
+           )
     -- This endpoint can lead to the following events being sent:
     -- UserDeleted event to contacts of deleted user
     -- MemberLeave event to members for all conversations the user was in (via galley)
