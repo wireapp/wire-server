@@ -330,9 +330,12 @@ getInvitationByCode c = do
     Store.lookupInvitationByCode c
       >>= note UserSubsystemInvalidInvitationCode
   let inv = Store.invitationFromStored Nothing storedInv
-  -- in the SCIM case the invitation ID is equal to the user ID
-  uid <- qualifyLocal' $ invitationIdToUserId inv.invitationId
-  mUser <- getAccountNoFilter uid
+  mUser <- case inv.inviteeName of
+    Nothing -> pure Nothing
+    Just _ -> do
+      -- For SCIM invitations the invitation UUID is also the pending user's UUID.
+      uid <- qualifyLocal' $ invitationIdToUserId inv.invitationId
+      getAccountNoFilter uid
   mInviterEmail <-
     isPersonalUser (mkEmailKey inv.inviteeEmail) >>= \case
       False -> pure Nothing
