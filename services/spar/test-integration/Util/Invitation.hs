@@ -34,7 +34,7 @@ import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Util
-import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.Team.Invitation (Invitation (..), InvitationUserView (..))
 import Wire.API.User
 
 headInvitation404 :: (HasCallStack) => BrigReq -> EmailAddress -> Http ()
@@ -74,16 +74,19 @@ registerInvitation :: (HasCallStack) => EmailAddress -> Name -> InvitationCode -
 registerInvitation email name inviteeCode shouldSucceed = do
   env <- ask
   let brig = env ^. teBrig
-  inv :: Invitation <-
-    responseJsonError
-      =<< call
-        ( get
-            ( brig
-                . path "/teams/invitations/info"
-                . queryItem "code" (toByteString' inviteeCode)
-            )
+  infoResp <-
+    call $
+      get
+        ( brig
+            . path "/teams/invitations/info"
+            . queryItem "code" (toByteString' inviteeCode)
         )
-  let inviteeName = fromMaybe name inv.inviteeName
+  inviteeName <-
+    if statusCode infoResp == 200
+      then do
+        info :: InvitationUserView <- responseJsonError infoResp
+        pure $ fromMaybe name info.invitation.inviteeName
+      else pure name
   call $
     void $
       post
