@@ -238,7 +238,11 @@ defAllFeatures =
               .= object
                 [ "backend" .= object ["url" .= "https://cells-beta.wire.com"],
                   "collabora" .= object ["edition" .= "COOL"],
-                  "storage" .= object ["perUserQuotaBytes" .= "1000000000000"]
+                  "storage"
+                    .= object
+                      [ "totalLimitBytes" .= "1000000000000",
+                        "perUserQuotaBytes" .= "-1"
+                      ]
                 ]
           ],
       "meetings" .= enabled,
@@ -439,7 +443,11 @@ defAllConfiguredFeatures =
                   .= object
                     [ "backend" .= object ["url" .= "https://cells-beta.wire.com"],
                       "collabora" .= object ["edition" .= "COOL"],
-                      "storage" .= object ["perUserQuotaBytes" .= "1000000000000"]
+                      "storage"
+                        .= object
+                          [ "totalLimitBytes" .= "1000000000000",
+                            "perUserQuotaBytes" .= "-1"
+                          ]
                     ]
               ]
           ),

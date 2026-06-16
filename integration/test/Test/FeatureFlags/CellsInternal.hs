@@ -27,8 +27,9 @@ testCellsInternalEvent :: (HasCallStack) => App ()
 testCellsInternalEvent = do
   (alice, tid, _) <- createTeam OwnDomain 0
   q <- watchCellsEventsForTeam tid def
-  let quota = "234723984"
-      update = mkFt "enabled" "unlocked" defConf {quota}
+  let totalLimit = "234723984"
+      quota = "-1"
+      update = mkFt "enabled" "unlocked" defConf {totalLimit, quota}
   setFeature InternalAPI alice tid "cellsInternal" update >>= assertSuccess
   event <- getMessage q %. "payload.0"
   event %. "name" `shouldMatch` "cellsInternal"
@@ -38,6 +39,7 @@ testCellsInternalEvent = do
   event %. "data.status" `shouldMatch` "enabled"
   event %. "data.config.backend.url" `shouldMatch` "https://cells-beta.wire.com"
   event %. "data.config.collabora.edition" `shouldMatch` "COOL"
+  event %. "data.config.storage.totalLimitBytes" `shouldMatch` totalLimit
   event %. "data.config.storage.perUserQuotaBytes" `shouldMatch` quota
 
 testCellsInternal :: (HasCallStack) => App ()
@@ -59,6 +61,8 @@ validCellsInternalUpdates =
     mkFt "enabled" "unlocked" defConf {collabora = "NO"},
     mkFt "enabled" "unlocked" defConf {collabora = "COOL"},
     mkFt "enabled" "unlocked" defConf {url = "https://wire.com"},
+    mkFt "enabled" "unlocked" defConf {totalLimit = "-1"},
+    mkFt "enabled" "unlocked" defConf {totalLimit = "-2"},
     mkFt "enabled" "unlocked" defConf {quota = "92346832946243"}
   ]
 
@@ -81,7 +85,11 @@ mkFt s ls c =
         .= object
           [ "backend" .= object ["url" .= c.url],
             "collabora" .= object ["edition" .= c.collabora],
-            "storage" .= object ["perUserQuotaBytes" .= c.quota]
+            "storage"
+              .= object
+                [ "totalLimitBytes" .= c.totalLimit,
+                  "perUserQuotaBytes" .= c.quota
+                ]
           ]
     ]
 
@@ -90,7 +98,8 @@ defConf =
   CellsInternalConfig
     { url = "https://cells-beta.wire.com",
       collabora = "COOL",
-      quota = "1000000000000"
+      totalLimit = "1000000000000",
+      quota = "-1"
     }
 
 testPatchCellsInternal :: (HasCallStack) => App ()
@@ -104,5 +113,6 @@ testPatchCellsInternal = do
 data CellsInternalConfig = CellsInternalConfig
   { url :: String,
     collabora :: String,
+    totalLimit :: String,
     quota :: String
   }
