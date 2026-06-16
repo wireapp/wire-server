@@ -266,7 +266,7 @@ The feature status for individual teams can be changed via the public API (if th
 
 ### Background Effects
 
-The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax: 
+The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is disabled and unlocked by default. If you want a different configuration, use the following syntax: 
 ```yaml
 backgroundEffects:
   defaults:
