@@ -1914,13 +1914,13 @@ instance ToSchema NumBytes where
 
 data QuotaBytes
   = QuotaBytesFinite NumBytes
-  | QuotaBytesUnlimited BigIntString
+  | QuotaBytesUnlimited
   deriving stock (Show, Eq)
 
 instance Arbitrary QuotaBytes where
   arbitrary =
     frequency
-      [ (1, QuotaBytesUnlimited . BigIntString <$> choose (-99999999999999999999999999, -1)),
+      [ (1, pure QuotaBytesUnlimited),
         (9, QuotaBytesFinite <$> arbitrary)
       ]
 
@@ -1931,7 +1931,7 @@ instance ToSchema QuotaBytes where
       quotaBytesDoc = swaggerDoc @Text & S.schema . S.example ?~ "-1"
 
       quotaBytesToValue :: QuotaBytes -> Maybe A.Value
-      quotaBytesToValue (QuotaBytesUnlimited (BigIntString n)) = Just $ A.String (T.pack (show n))
+      quotaBytesToValue QuotaBytesUnlimited = Just $ A.String "-1"
       quotaBytesToValue (QuotaBytesFinite n) = Just $ A.toJSON n
 
       parseQuotaBytes :: A.Value -> A.Parser QuotaBytes
@@ -1942,7 +1942,7 @@ instance ToSchema QuotaBytes where
             unless (T.null rest) $
               fail "value must be an integer string without decimals"
             if n < 0
-              then pure $ QuotaBytesUnlimited (BigIntString n)
+              then pure QuotaBytesUnlimited
               else QuotaBytesFinite <$> schemaParseJSON (A.String txt)
 
 data CellsStorage = CellsStorage
@@ -1993,9 +1993,9 @@ instance Default CellsInternalConfig where
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Cool,
         storage =
-          CellsStorage
+            CellsStorage
             { totalLimitBytes = Just $ QuotaBytesFinite $ NumBytes $ BigIntString 1000000000000, -- 1 TB
-              perUserQuotaBytes = QuotaBytesUnlimited (BigIntString (-1))
+              perUserQuotaBytes = QuotaBytesUnlimited
             }
       }
 

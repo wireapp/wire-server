@@ -401,7 +401,7 @@ testCellsInternalConfig = do
   cfg <- getFeatureConfig @CellsInternalConfig tid
   liftIO $ do
     cfg.config.storage.totalLimitBytes @?= Just (QuotaBytesFinite (NumBytes (BigIntString 1000000000000)))
-    cfg.config.storage.perUserQuotaBytes @?= QuotaBytesUnlimited (BigIntString (-1))
+    cfg.config.storage.perUserQuotaBytes @?= QuotaBytesUnlimited
   let newBackend :: HttpsUrl
       newBackend = fromMaybe (error "invalid url") . fromByteString $ "https://cells-internal.example.com"
       newCfg =
@@ -413,7 +413,7 @@ testCellsInternalConfig = do
                   storage =
                     CellsStorage
                       { totalLimitBytes = Just (QuotaBytesFinite (NumBytes (BigIntString 2000000000000))),
-                        perUserQuotaBytes = QuotaBytesUnlimited (BigIntString (-1))
+                        perUserQuotaBytes = QuotaBytesUnlimited
                       }
                 }
           } ::

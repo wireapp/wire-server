@@ -62,8 +62,6 @@ validCellsInternalUpdates =
     mkFt "enabled" "unlocked" defConf {collabora = "COOL"},
     mkFt "enabled" "unlocked" defConf {url = "https://wire.com"},
     mkFt "enabled" "unlocked" defConf {totalLimit = "-1"},
-    mkFt "enabled" "unlocked" defConf {totalLimit = "-2"},
-    mkFt "enabled" "unlocked" defConf {quota = "-2"},
     mkFt "enabled" "unlocked" defConf {quota = "92346832946243"}
   ]
 
