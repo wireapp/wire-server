@@ -1993,7 +1993,7 @@ instance Default CellsInternalConfig where
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Cool,
         storage =
-            CellsStorage
+          CellsStorage
             { totalLimitBytes = Just $ QuotaBytesFinite $ NumBytes $ BigIntString 1000000000000, -- 1 TB
               perUserQuotaBytes = QuotaBytesUnlimited
             }
