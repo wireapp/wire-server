@@ -63,6 +63,7 @@ validCellsInternalUpdates =
     mkFt "enabled" "unlocked" defConf {url = "https://wire.com"},
     mkFt "enabled" "unlocked" defConf {totalLimit = "-1"},
     mkFt "enabled" "unlocked" defConf {totalLimit = "-2"},
+    mkFt "enabled" "unlocked" defConf {quota = "-2"},
     mkFt "enabled" "unlocked" defConf {quota = "92346832946243"}
   ]
 
@@ -70,7 +71,6 @@ invalidCellsInternalUpdates :: [Value]
 invalidCellsInternalUpdates =
   [ mkFt "enabled" "unlocked" defConf {collabora = "FOO"},
     mkFt "enabled" "unlocked" defConf {url = "http://wire.com"},
-    mkFt "enabled" "unlocked" defConf {quota = "-92346832946243"},
     mkFt "enabled" "unlocked" defConf {quota = "1 TB"},
     mkFt "disabled" "unlocked" defConf
   ]

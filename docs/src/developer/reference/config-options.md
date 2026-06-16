@@ -664,7 +664,7 @@ cells:
 Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and two storage quota settings:
 
 - `totalLimitBytes` is the total team data limit. It is optional for backward compatibility with existing records, and any negative value means unlimited.
-- `perUserQuotaBytes` is the per-user quota. `-1` means unlimited.
+- `perUserQuotaBytes` is the per-user quota. Any negative value means unlimited.
 
 ```yaml
 # galley.yaml
