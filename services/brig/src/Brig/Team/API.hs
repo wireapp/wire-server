@@ -64,7 +64,7 @@ import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
 import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
-import Wire.API.Team.Invitation qualified as Public
+import Wire.API.Team.Invitation qualified as Public (Invitation (..))
 import Wire.API.Team.Member (teamMembers)
 import Wire.API.Team.Member qualified as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
@@ -234,7 +234,7 @@ listInvitations ::
   TeamId ->
   Maybe InvitationId ->
   Maybe (Range 1 500 Int32) ->
-  Sem r Public.InvitationList
+  Sem r InvitationList
 listInvitations uid tid startingId mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- GalleyAPIAccess.getExposeInvitationURLsToTeamAdmin tid
@@ -298,7 +298,7 @@ getInvitation ::
   UserId ->
   TeamId ->
   InvitationId ->
-  Sem r (Maybe Public.Invitation)
+  Sem r (Maybe Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   invitationM <- Store.lookupInvitation tid iid
@@ -324,12 +324,13 @@ getInvitationByCode ::
     Member (Input (Local ())) r
   ) =>
   InvitationCode ->
-  Sem r Public.InvitationUserView
+  Sem r InvitationUserView
 getInvitationByCode c = do
   storedInv <-
     Store.lookupInvitationByCode c
       >>= note UserSubsystemInvalidInvitationCode
-  let inv = Store.invitationFromStored Nothing storedInv
+  let inv :: Invitation
+      inv = Store.invitationFromStored Nothing storedInv
   mUser <- case inv.inviteeName of
     Nothing -> pure Nothing
     Just _ -> do
@@ -342,33 +343,43 @@ getInvitationByCode c = do
       True -> maybe (pure Nothing) (qualifyLocal' >=> getUserEmail) inv.createdBy
   pure $
     InvitationUserView
-      { invitation = inv,
+      { invitation = setDisplayName inv mUser,
         inviterEmail = mInviterEmail,
         -- very likely managed by wire if `mUser` is nothing,
         -- still we do not want to set a default and the caller handle this
         managedBy = (.userManagedBy) <$> mUser
       }
+  where
+    -- if the user is managed by SCIM, we will override the displayname from the invitation
+    -- with the displayname stored in the user account because it is possible that the
+    -- name got updated via SCIM before the user could register
+    setDisplayName :: Invitation -> Maybe User -> Invitation
+    setDisplayName inv mUser =
+      let dn = case mUser of
+            Just user | user.userManagedBy == ManagedByScim -> Just user.userDisplayName
+            _ -> inv.inviteeName
+       in inv {Public.inviteeName = dn}
 
 headInvitationByEmail ::
   (Member InvitationStore r, Member TinyLog r) =>
   EmailAddress ->
-  Sem r Public.HeadInvitationByEmailResult
+  Sem r HeadInvitationByEmailResult
 headInvitationByEmail email =
   Store.lookupInvitationsByEmail email >>= \case
-    [] -> pure Public.InvitationByEmailNotFound
-    [_code] -> pure Public.InvitationByEmail
+    [] -> pure InvitationByEmailNotFound
+    [_code] -> pure InvitationByEmail
     (_ : _ : _) -> do
       Log.info $
         Log.msg (Log.val "team_invitation_email: multiple pending invites from different teams for the same email")
           . Log.field "email" (show email)
-      pure Public.InvitationByEmailMoreThanOne
+      pure InvitationByEmailMoreThanOne
 
 -- | FUTUREWORK: Refactor so that 'headInvitationByEmail' and
 -- 'getInvitationByEmail' are almost the same thing.
 getInvitationByEmail ::
   (Member Store.InvitationStore r) =>
   EmailAddress ->
-  (Handler r) Public.Invitation
+  (Handler r) Invitation
 getInvitationByEmail email = do
   inv <- do
     invs <- lift . liftSem $ Store.lookupInvitationsByEmail email

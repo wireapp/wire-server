@@ -74,6 +74,16 @@ registerInvitation :: (HasCallStack) => EmailAddress -> Name -> InvitationCode -
 registerInvitation email name inviteeCode shouldSucceed = do
   env <- ask
   let brig = env ^. teBrig
+  inv :: Invitation <-
+    responseJsonError
+      =<< call
+        ( get
+            ( brig
+                . path "/teams/invitations/info"
+                . queryItem "code" (toByteString' inviteeCode)
+            )
+        )
+  let inviteeName = fromMaybe name inv.inviteeName
   call $
     void $
       post
@@ -81,7 +91,7 @@ registerInvitation email name inviteeCode shouldSucceed = do
             . path "/register"
             . contentJson
             . header "X-Forwarded-For" "127.0.0.42"
-            . json (acceptWithName name email inviteeCode)
+            . json (acceptWithName inviteeName email inviteeCode)
         )
         <!! const (if shouldSucceed then 201 else 400) === statusCode
 
