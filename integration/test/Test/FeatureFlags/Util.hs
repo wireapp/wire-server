@@ -243,7 +243,7 @@ defAllFeatures =
           ],
       "meetings" .= enabled,
       "meetingsPremium" .= disabledLocked,
-      "backgroundEffects" .= enabled,
+      "backgroundEffects" .= disabled,
       "preventAdminlessGroups"
         .= object
           [ "lockStatus" .= "unlocked",
@@ -445,7 +445,7 @@ defAllConfiguredFeatures =
           ),
       "meetings" .= defaults enabled,
       "meetingsPremium" .= defaults disabledLocked,
-      "backgroundEffects" .= defaults enabled
+      "backgroundEffects" .= defaults disabled
     ]
   where
     defaults x = object ["defaults" .= x]

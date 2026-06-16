@@ -2222,7 +2222,7 @@ instance ToSchema BackgroundEffectsConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature BackgroundEffectsConfig) where
-  def = defUnlockedFeature
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
 
 instance IsFeatureConfig BackgroundEffectsConfig where
   type FeatureSymbol BackgroundEffectsConfig = "backgroundEffects"
