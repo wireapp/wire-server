@@ -37,6 +37,7 @@ library
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
+    Gundeck.Push.Web.Crypto
     Gundeck.Push.Websocket
     Gundeck.React
     Gundeck.Redis
@@ -145,6 +146,7 @@ library
     , imports
     , lens                                  >=4.4
     , lens-aeson                            >=1.0
+    , memory
     , metrics-core                          >=0.2.1
     , metrics-wai
     , mtl                                   >=2.2
@@ -486,6 +488,7 @@ test-suite gundeck-tests
     Push
     ThreadBudget
     Vapid
+    WebPushCrypto
 
   hs-source-dirs:     test/unit
   default-extensions:
@@ -543,13 +546,17 @@ test-suite gundeck-tests
     , amqp
     , async
     , base
+    , base64-bytestring
+    , bytestring
     , bytestring-conversion
     , containers
+    , crypton
     , exceptions
     , gundeck
     , HsOpenSSL
     , imports
     , lens
+    , memory
     , MonadRandom
     , mtl
     , multiset

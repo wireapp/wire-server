@@ -43,6 +43,7 @@
 , lens
 , lens-aeson
 , lib
+, memory
 , metrics-core
 , metrics-wai
 , MonadRandom
@@ -131,6 +132,7 @@ mkDerivation {
     imports
     lens
     lens-aeson
+    memory
     metrics-core
     metrics-wai
     mtl
@@ -210,12 +212,16 @@ mkDerivation {
     amqp
     async
     base
+    base64-bytestring
+    bytestring
     bytestring-conversion
     containers
+    crypton
     exceptions
     HsOpenSSL
     imports
     lens
+    memory
     MonadRandom
     mtl
     multiset
