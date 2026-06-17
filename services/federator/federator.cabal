@@ -150,11 +150,14 @@ library
     , types-common
     , unix
     , utf8-string
+    , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
     , wai
     , wai-utilities
     , warp
     , wire-api
     , wire-api-federation
+    , wire-otel
 
   default-language:   GHC2021
 

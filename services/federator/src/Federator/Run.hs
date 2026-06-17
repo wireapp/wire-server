@@ -52,16 +52,18 @@ import System.Logger qualified as Log
 import System.Logger.Extended qualified as LogExt
 import System.Posix (installHandler)
 import System.Posix.Signals qualified as Sig
+import OpenTelemetry.Trace as Otel
 import Util.Options
 import Wire.API.Federation.Component
 import Wire.Network.DNS.Helper qualified as DNS
+import Wire.OpenTelemetry (withTracer)
 
 ------------------------------------------------------------------------------
 -- run/app
 
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
-run opts = do
+run opts = withTracer \tracer -> do
   spawnGCMetricsCollector
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
@@ -70,12 +72,13 @@ run opts = do
     bracket (newEnv opts res logger) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal cleanupActionsRef
           internalServer = serveOutward env portInternal cleanupActionsRef
-      withMonitor logger (onNewSSLContext env) (optSettings opts) $ do
-        _ <- installHandler Sig.sigINT (Sig.CatchOnce $ cleanup cleanupActionsRef) Nothing
-        _ <- installHandler Sig.sigTERM (Sig.CatchOnce $ cleanup cleanupActionsRef) Nothing
-        internalServerThread <- async internalServer
-        externalServerThread <- async externalServer
-        void $ waitAnyCancel [internalServerThread, externalServerThread]
+      withMonitor logger (onNewSSLContext env) (optSettings opts) $
+        inSpan tracer "federator" defaultSpanArguments {kind = Otel.Server} $ do
+          _ <- installHandler Sig.sigINT (Sig.CatchOnce $ cleanup cleanupActionsRef) Nothing
+          _ <- installHandler Sig.sigTERM (Sig.CatchOnce $ cleanup cleanupActionsRef) Nothing
+          internalServerThread <- async internalServer
+          externalServerThread <- async externalServer
+          void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal.port
