@@ -24,6 +24,7 @@ import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
+import Hasql.Pool.Extended (PoolConfig)
 import Imports
 import Network.AMQP.Extended
 import System.Logger.Extended (Level, LogFormat)
@@ -182,6 +183,16 @@ data Opts = Opts
     _gundeck :: !Endpoint,
     _brig :: !Endpoint,
     _cassandra :: !CassandraOpts,
+    -- | Postgresql settings for web push subscription storage. The key-value
+    -- pairs are libpq connection keywords
+    -- (https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS);
+    -- gundeck consumes them exactly as galley and brig do (via
+    -- 'Hasql.Pool.Extended.initPostgresPool'). Web push is the first (and
+    -- currently only) gundeck subsystem backed by Postgres — Cassandra remains
+    -- the store for native push, unchanged.
+    _postgresql :: !(Map Text Text),
+    _postgresqlPassword :: !(Maybe FilePathSecrets),
+    _postgresqlPool :: !PoolConfig,
     _redis :: !RedisEndpoint,
     _redisAdditionalWrite :: !(Maybe RedisEndpoint),
     _aws :: !AWSOpts,

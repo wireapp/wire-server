@@ -32,6 +32,7 @@ import Test.Tasty
 import ThreadBudget qualified
 import Vapid qualified
 import WebPushCrypto qualified
+import WebPushRunner qualified
 
 main :: IO ()
 main =
@@ -46,5 +47,6 @@ main =
         ParseExistsError.tests,
         Aws.Arn.tests,
         Vapid.tests,
-        WebPushCrypto.tests
+        WebPushCrypto.tests,
+        WebPushRunner.tests
       ]

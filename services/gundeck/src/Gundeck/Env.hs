@@ -48,6 +48,8 @@ import Gundeck.Options qualified as O
 import Gundeck.Redis qualified as Redis
 import Gundeck.Redis.HedisExtensions qualified as Redis
 import Gundeck.ThreadBudget
+import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended (initPostgresPool)
 import Imports
 import Network.AMQP (Channel)
 import Network.AMQP.Extended qualified as Q
@@ -59,6 +61,7 @@ import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
 import URI.ByteString (schemeBSL, strictURIParserOptions, uriSchemeL)
 import URI.ByteString qualified as URI
+import Wire.PostgresMigrations qualified as PgMigrations
 
 -- | The server's static VAPID P-256 keypair (RFC 8292), parsed once at startup
 -- from 'WebPushOpts'. The public key is exposed to web clients via
@@ -90,6 +93,12 @@ data Env = Env
     -- | VAPID keypair used to authenticate web push requests (RFC 8292).
     -- 'Nothing' when web push is disabled (no @webpush:@ config section).
     _vapid :: !(Maybe VapidKeyPair),
+    -- | Hasql connection pool backing the Postgres stores. Currently only web
+    -- push subscription storage ('Wire.WebPushStore') uses it; native push
+    -- remains on Cassandra. Acquired unconditionally at startup and migrated
+    -- via 'Wire.PostgresMigrations.runAllMigrations' (runs every migration
+    -- embedded in @wire-subsystems@, idempotent on a shared schema).
+    _pgPool :: !Hasql.Pool,
     _rabbitMqChannel :: MVar Channel
   }
 
@@ -134,6 +143,16 @@ createEnv o = do
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
 
+  -- Postgres pool for the web push subscription store (and any future
+  -- Postgres-backed gundeck subsystem). Acquired unconditionally, mirroring
+  -- galley/brig: even though only web push uses it today, a required pool keeps
+  -- the startup contract uniform and lets us run
+  -- 'Wire.PostgresMigrations.runAllMigrations' (idempotent — re-running
+  -- already-applied migrations is a no-op, so a shared schema with galley/brig
+  -- is safe).
+  pool <- initPostgresPool (o ^. postgresqlPool) (o ^. postgresql) (o ^. postgresqlPassword)
+  PgMigrations.runAllMigrations pool l
+
   -- VAPID keypair, only when the @webpush:@ config section is present. The env
   -- var @GUNDECK_WEBPUSH_VAPID_PRIVATE_KEY@ overrides the YAML value, mirroring
   -- the @REDIS_PASSWORD@ pattern: the private key is a long-lived secret and
@@ -155,7 +174,7 @@ createEnv o = do
       Right kp -> pure kp
 
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs mVapid rabbitMqChannelMVar
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs mVapid pool rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId

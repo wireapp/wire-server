@@ -38,6 +38,7 @@ library
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
     Gundeck.Push.Web.Crypto
+    Gundeck.Push.Web.Runner
     Gundeck.Push.Websocket
     Gundeck.React
     Gundeck.Redis
@@ -137,6 +138,7 @@ library
     , extended
     , extra                                 >=1.1
     , foldl
+    , hasql-pool
     , hedis                                 >=0.14.0
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -151,6 +153,7 @@ library
     , metrics-wai
     , mtl                                   >=2.2
     , network-uri                           >=2.6
+    , polysemy
     , prometheus-client
     , psqueues                              >=0.2.2
     , raw-strings-qq
@@ -176,6 +179,7 @@ library
     , wai-utilities                         >=0.16
     , wire-api
     , wire-otel
+    , wire-subsystems
     , yaml                                  >=0.8
 
   default-language:   GHC2021
@@ -489,6 +493,7 @@ test-suite gundeck-tests
     ThreadBudget
     Vapid
     WebPushCrypto
+    WebPushRunner
 
   hs-source-dirs:     test/unit
   default-extensions:
@@ -552,7 +557,9 @@ test-suite gundeck-tests
     , containers
     , crypton
     , exceptions
+    , extended
     , gundeck
+    , hasql-pool
     , HsOpenSSL
     , imports
     , lens
@@ -571,6 +578,7 @@ test-suite gundeck-tests
     , tasty-quickcheck
     , text
     , these
+    , time
     , tinylog
     , types-common
     , wire-api
