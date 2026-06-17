@@ -469,6 +469,8 @@ library
     Wire.VerificationCodeStore.Cassandra
     Wire.VerificationCodeSubsystem
     Wire.VerificationCodeSubsystem.Interpreter
+    Wire.WebPushStore
+    Wire.WebPushStore.Postgres
 
   hs-source-dirs:  src
   build-depends:
@@ -630,6 +632,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.UserStore
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
+    Wire.MockInterpreters.WebPushStore
     Wire.NotificationSubsystem.InterpreterSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec

@@ -28,6 +28,7 @@ where
 import Data.Aeson
 import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion qualified as BSC
 import Data.Code qualified as Code
@@ -49,6 +50,7 @@ import Hasql.Statement
 import Imports
 import SAML2.WebSSO qualified as SAML
 import Wire.API.EnterpriseLogin
+import Wire.API.Push.V2.WebSubscription
 
 class PostgresMarshall db domain where
   postgresMarshall :: domain -> db
@@ -536,6 +538,9 @@ instance PostgresMarshall Value Object where
 instance PostgresMarshall Int64 Milliseconds where
   postgresMarshall = msToInt64
 
+instance PostgresMarshall Int64 Word64 where
+  postgresMarshall = fromIntegral
+
 instance PostgresMarshall Text Domain where
   postgresMarshall = domainText
 
@@ -589,6 +594,18 @@ instance PostgresMarshall Int32 TeamInviteTag where
 
 instance PostgresMarshall UUID SAML.IdPId where
   postgresMarshall = SAML.fromIdPId
+
+instance PostgresMarshall Text EndpointUrl where
+  postgresMarshall = endpointUrlText
+
+instance PostgresMarshall Text P256dhKey where
+  postgresMarshall = Text.decodeUtf8 . B64U.encodeUnpadded . p256dhKeyBytes
+
+instance PostgresMarshall Text AuthSecret where
+  postgresMarshall = Text.decodeUtf8 . B64U.encodeUnpadded . authSecretBytes
+
+instance PostgresMarshall ByteString ConnId where
+  postgresMarshall = fromConnId
 
 ---
 
@@ -1021,6 +1038,9 @@ instance (PostgresUnmarshall a b, Ord b) => PostgresUnmarshall (Vector a) (Set b
 instance PostgresUnmarshall Int64 Milliseconds where
   postgresUnmarshall = Right . int64ToMs
 
+instance PostgresUnmarshall Int64 Word64 where
+  postgresUnmarshall = Right . fromIntegral
+
 instance PostgresUnmarshall Text Code.Key where
   postgresUnmarshall = mapLeft Text.pack . BSC.runParser BSC.parser . Text.encodeUtf8
 
@@ -1058,6 +1078,24 @@ instance PostgresUnmarshall UUID SAML.IdPId where
 
 instance PostgresUnmarshall Text Handle where
   postgresUnmarshall = mapLeft Text.pack . parseHandleEither
+
+instance PostgresUnmarshall Text EndpointUrl where
+  postgresUnmarshall = mapLeft Text.pack . mkEndpointUrl
+
+instance PostgresUnmarshall Text P256dhKey where
+  postgresUnmarshall t =
+    case B64U.decodeUnpadded (Text.encodeUtf8 t) of
+      Left e -> Left $ "Invalid base64url p256dh key: " <> Text.pack e
+      Right bs -> mapLeft Text.pack (mkP256dhKey bs)
+
+instance PostgresUnmarshall Text AuthSecret where
+  postgresUnmarshall t =
+    case B64U.decodeUnpadded (Text.encodeUtf8 t) of
+      Left e -> Left $ "Invalid base64url auth secret: " <> Text.pack e
+      Right bs -> mapLeft Text.pack (mkAuthSecret bs)
+
+instance PostgresUnmarshall ByteString ConnId where
+  postgresUnmarshall = Right . ConnId
 
 instance PostgresUnmarshall UTCTime UTCTimeMillis where
   postgresUnmarshall = Right . toUTCTimeMillis
