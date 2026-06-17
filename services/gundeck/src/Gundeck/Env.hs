@@ -24,12 +24,20 @@ import Cassandra (ClientState)
 import Cassandra.Util (initCassandraForService)
 import Control.AutoUpdate
 import Control.Concurrent.Async (Async)
+import Control.Exception (ErrorCall (..), throwIO)
 import Control.Lens (makeLenses, (^.))
 import Control.Retry (capDelay, exponentialBackoff)
+import Crypto.ECC (Curve_P256R1)
+import Crypto.Error (CryptoFailable (..))
+import Crypto.PubKey.ECDSA qualified as ECDSA
+import Data.Bifunctor (first)
+import Data.ByteString.Base64.URL qualified as B64U
 import Data.ByteString.Char8 qualified as BSChar8
 import Data.Id
 import Data.Misc (Milliseconds (..))
+import Data.Proxy (Proxy (..))
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.X509.CertificateStore as CertStore
@@ -49,6 +57,24 @@ import Network.TLS as TLS
 import Network.TLS.Extra qualified as TLS
 import System.Logger qualified as Log
 import System.Logger.Extended qualified as Logger
+import URI.ByteString (schemeBSL, strictURIParserOptions, uriSchemeL)
+import URI.ByteString qualified as URI
+
+-- | The server's static VAPID P-256 keypair (RFC 8292), parsed once at startup
+-- from 'WebPushOpts'. The public key is exposed to web clients via
+-- @GET /push/web/vapid-public-key@ so they can pass it as
+-- @applicationServerKey@ to @pushManager.subscribe()@. The private key signs
+-- the per-request VAPID JWTs (see WP-CRYPTO).
+data VapidKeyPair = VapidKeyPair
+  { _vkpPrivate :: !(ECDSA.PrivateKey Curve_P256R1),
+    _vkpPublic :: !(ECDSA.PublicKey Curve_P256R1),
+    -- | Uncompressed P-256 public point (@0x04 || X || Y@, 65 bytes),
+    -- base64url-encoded without padding. This is the wire format expected by
+    -- browsers as @applicationServerKey@.
+    _vkpPublicB64 :: !Text
+  }
+
+makeLenses ''VapidKeyPair
 
 data Env = Env
   { _reqId :: !RequestId,
@@ -61,6 +87,9 @@ data Env = Env
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState),
+    -- | VAPID keypair used to authenticate web push requests (RFC 8292).
+    -- 'Nothing' when web push is disabled (no @webpush:@ config section).
+    _vapid :: !(Maybe VapidKeyPair),
     _rabbitMqChannel :: MVar Channel
   }
 
@@ -104,8 +133,29 @@ createEnv o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. settings . maxConcurrentNativePushes)
+
+  -- VAPID keypair, only when the @webpush:@ config section is present. The env
+  -- var @GUNDECK_WEBPUSH_VAPID_PRIVATE_KEY@ overrides the YAML value, mirroring
+  -- the @REDIS_PASSWORD@ pattern: the private key is a long-lived secret and
+  -- should be injected via the environment in production rather than committed
+  -- to the config file. Missing/malformed key fails fast here.
+  --
+  -- Note: an empty-but-set env var (@"\"\""@) overrides the YAML value with the
+  -- empty string, which then fails fast at decode — unlike @REDIS_PASSWORD@,
+  -- where empty means "no auth". This is intentional: an empty P-256 key is
+  -- never valid, so surfacing it as an error is safer than silently falling
+  -- back to the YAML value.
+  mVapid <- forM (o ^. webpush) $ \wp -> do
+    envVapidKey <- lookupEnv "GUNDECK_WEBPUSH_VAPID_PRIVATE_KEY"
+    let cfgVapidKey = wp ^. vapidPrivateKey
+        vapidKey = maybe cfgVapidKey Text.pack envVapidKey
+    case mkVapidKeyPair (wp ^. vapidSubject) vapidKey of
+      Left err ->
+        throwIO (ErrorCall ("gundeck.yaml/webpush: " <> err))
+      Right kp -> pure kp
+
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs rabbitMqChannelMVar
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs mVapid rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
@@ -158,3 +208,70 @@ createRedisPool l ep username password identifier = do
 
 safeShowConnInfo :: Redis.ConnectInfo -> String
 safeShowConnInfo connInfo = show $ connInfo {Redis.connectAuth = "[REDACTED]" <$ Redis.connectAuth connInfo}
+
+--------------------------------------------------------------------------------
+-- VAPID keypair parsing (pure, for unit testing)
+--------------------------------------------------------------------------------
+
+-- | Validate the VAPID subject and derive the public key from the private key.
+-- Both inputs are taken from 'WebPushOpts'; errors are human-readable so they
+-- surface cleanly as a startup crash from 'createEnv'.
+mkVapidKeyPair ::
+  -- | VAPID subject (RFC 8292 §3 @sub@ claim).
+  Text ->
+  -- | Private key, base64url-encoded raw 32-byte P-256 scalar.
+  Text ->
+  Either String VapidKeyPair
+mkVapidKeyPair subject keyText = do
+  validateVapidSubject subject
+  parseVapidKeyPair keyText
+
+-- | Decode a base64url raw 32-byte P-256 private scalar, validate it lies in
+-- the range @[1, n-1]@ (where @n@ is the P-256 group order), and derive the
+-- corresponding public point @Q = d*G@. Returns the keypair plus the
+-- base64url-encoded uncompressed public point for the client-facing endpoint.
+--
+-- crypton's 'ECDSA.decodePrivate' only checks the byte length, so an explicit
+-- 'ECDSA.scalarIsValid' check is required to reject the degenerate @d=0@
+-- (which would yield the point at infinity) and scalars @>= n@.
+parseVapidKeyPair :: Text -> Either String VapidKeyPair
+parseVapidKeyPair keyText = do
+  let keyBs = encodeUtf8 keyText
+  raw <-
+    first ("private key is not valid base64url: " <>) $
+      B64U.decodeUnpadded keyBs
+  case ECDSA.decodePrivate (Proxy @Curve_P256R1) raw of
+    CryptoFailed err ->
+      Left ("private key is not a valid P-256 scalar (expected 32 bytes): " <> show err)
+    CryptoPassed priv
+      | not (ECDSA.scalarIsValid (Proxy @Curve_P256R1) priv) ->
+          Left "private key scalar is out of range (must be in [1, n-1]; got 0 or >= n)"
+      | otherwise ->
+          let pub = ECDSA.toPublic (Proxy @Curve_P256R1) priv
+              pubBs :: ByteString
+              pubBs = ECDSA.encodePublic (Proxy @Curve_P256R1) pub
+              pubB64 = decodeUtf8 (B64U.encodeUnpadded pubBs)
+           in Right (VapidKeyPair priv pub pubB64)
+
+-- | Validate the VAPID @sub@ject is a @mailto:@ or @https:@ URL, per RFC 8292
+-- §3. Any other scheme is rejected: the subject identifies the application
+-- server operator to the push service, and the two allowed schemes are the
+-- only interoperable ones.
+--
+-- Note: plain @http:@ is rejected even though RFC 8292 §3 permits it (and only
+-- recommends @https:@). This is intentional: the VAPID JWT is a bearer token
+-- identifying the server, and a cleartext transport would let an attacker
+-- substitute their own @aud@ origin. Requiring @https:@ (or @mailto:@, which
+-- carries no request) is a strict, safer stance.
+validateVapidSubject :: Text -> Either String ()
+validateVapidSubject subj =
+  case URI.parseURI strictURIParserOptions (encodeUtf8 subj) of
+    Left e -> Left ("subject is not a valid URI: " <> show e)
+    Right uri ->
+      let scheme = uri ^. uriSchemeL . schemeBSL
+       in if scheme == "mailto" || scheme == "https"
+            then Right ()
+            else
+              Left $
+                "subject must use a mailto: or https: scheme, got: "
+                  <> show scheme

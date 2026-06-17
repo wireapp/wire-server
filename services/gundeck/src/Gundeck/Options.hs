@@ -130,6 +130,53 @@ makeLenses ''Settings
 
 deriveFromJSON toOptionFieldName ''Settings
 
+-- | Configuration for the Web Push application server (RFC 8030/8291/8292).
+-- Gundeck acts as the application server: it stores browser-supplied push
+-- subscriptions and POSTs encrypted notifications to them, authenticated with
+-- a static VAPID P-256 keypair (RFC 8292).
+data WebPushOpts = WebPushOpts
+  { -- | VAPID subject, used as the @sub@ JWT claim. MUST be a @mailto:@ or
+    -- @https:@ URL identifying the application server's operator (RFC 8292 §3).
+    _vapidSubject :: !Text,
+    -- | Server's P-256 private key, base64url-encoded raw 32-byte scalar.
+    -- This is a long-lived secret; load it via the @GUNDECK_WEBPUSH_VAPID_PRIVATE_KEY@
+    -- environment variable in production (see @Gundeck.Env.createEnv@) rather than
+    -- committing it to YAML.
+    _vapidPrivateKey :: !Text,
+    -- | Allowed push-service host suffixes. The @endpoint@ of an incoming
+    -- subscription must match one of these (SSRF mitigation).
+    -- Empty list means the allowlist is disabled (not recommended in prod).
+    --
+    -- Note: match on the endpoint's parsed hostname (after IDNA normalization),
+    -- NOT a raw 'Text.isSuffixOf' on the URL — naive suffix matching is a
+    -- classic SSRF bypass (e.g. @evil.com@ matching @notevil.com@).
+    _endpointAllowlist :: ![Text],
+    -- | Default @TTL@ header value (seconds) sent with each web push, when the
+    -- notice priority does not dictate one (RFC 8030 §5.2).
+    _defaultTTL :: !(Maybe Word32)
+  }
+  deriving (Generic)
+
+deriveFromJSON toOptionFieldName ''WebPushOpts
+
+makeLenses ''WebPushOpts
+
+-- | The private key is a long-lived secret, so the derived 'Show' instance is
+-- intentionally omitted and replaced with one that redacts it, mirroring the
+-- repo's @PlainTextPassword'@ / @OAuthClientPlainTextSecret@ convention (see
+-- @libs/types-common/src/Data/Misc.hs@, @libs/wire-api/src/Wire/API/OAuth.hs@).
+instance Show WebPushOpts where
+  show wp =
+    concat
+      [ "WebPushOpts { _vapidSubject = ",
+        show (wp ^. vapidSubject),
+        ", _vapidPrivateKey = <redacted>, _endpointAllowlist = ",
+        show (wp ^. endpointAllowlist),
+        ", _defaultTTL = ",
+        show (wp ^. defaultTTL),
+        " }"
+      ]
+
 data Opts = Opts
   { -- | Hostname and port to bind to
     _gundeck :: !Endpoint,
@@ -141,6 +188,12 @@ data Opts = Opts
     _rabbitmq :: !AmqpEndpoint,
     _discoUrl :: !(Maybe Text),
     _settings :: !Settings,
+    -- | Web Push (RFC 8030/8291/8292) application-server settings. When
+    -- 'Nothing' (the @webpush:@ section is absent from the config), web push
+    -- is fully disabled and gundeck behaves exactly as before — this allows
+    -- incremental rollout. When @Just@ but the VAPID key is missing or
+    -- malformed, startup fails fast (see @Gundeck.Env.createEnv@).
+    _webpush :: !(Maybe WebPushOpts),
     -- Logging
 
     -- | Log level (Debug, Info, etc)

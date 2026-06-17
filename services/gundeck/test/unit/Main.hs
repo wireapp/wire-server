@@ -30,6 +30,7 @@ import ParseExistsError qualified
 import Push qualified
 import Test.Tasty
 import ThreadBudget qualified
+import Vapid qualified
 
 main :: IO ()
 main =
@@ -42,5 +43,6 @@ main =
         Push.tests,
         ThreadBudget.tests,
         ParseExistsError.tests,
-        Aws.Arn.tests
+        Aws.Arn.tests,
+        Vapid.tests
       ]

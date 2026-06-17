@@ -15,6 +15,7 @@
 , auto-update
 , base
 , base16-bytestring
+, base64-bytestring
 , bilge
 , bytestring
 , bytestring-conversion
@@ -22,6 +23,7 @@
 , conduit
 , containers
 , criterion
+, crypton
 , crypton-x509-store
 , data-timeout
 , errors
@@ -78,6 +80,7 @@
 , types-common-aws
 , unliftio
 , unordered-containers
+, uri-bytestring
 , uuid
 , wai
 , wai-extra
@@ -105,11 +108,13 @@ mkDerivation {
     attoparsec
     auto-update
     base
+    base64-bytestring
     bilge
     bytestring
     bytestring-conversion
     cassandra-util
     containers
+    crypton
     crypton-x509-store
     data-timeout
     errors
@@ -147,6 +152,7 @@ mkDerivation {
     types-common-aws
     unliftio
     unordered-containers
+    uri-bytestring
     uuid
     wai
     wai-extra

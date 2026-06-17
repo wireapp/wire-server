@@ -50,5 +50,17 @@ settings:
   disabledAPIVersions: []
   cellsEventQueue: "cells_events"
 
+# Web Push (RFC 8030/8291/8292). Optional: omit this section to disable web
+# push entirely. When enabled, gundeck stores browser push subscriptions and
+# POSTs encrypted notifications to them. The VAPID private key is a secret —
+# prefer the GUNDECK_WEBPUSH_VAPID_PRIVATE_KEY env var over committing it here.
+# webpush:
+#   vapidSubject: "mailto:ops@wire.com"
+#   vapidPrivateKey: "BASE64URL_P256_PRIVATE_KEY"      # 32-byte scalar, base64url
+#   endpointAllowlist:                                  # SSRF allowlist (host suffixes)
+#     - "fcm.googleapis.com"
+#     - "updates.push.services.mozilla.com"
+#   defaultTTL: 2419200                                  # seconds (~4 weeks)
+
 logLevel: Warn
 logNetStrings: false
