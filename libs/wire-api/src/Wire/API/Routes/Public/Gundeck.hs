@@ -25,13 +25,51 @@ import Wire.API.Error
 import Wire.API.Error.Gundeck as E
 import Wire.API.Notification
 import Wire.API.Push.V2.Token
+import Wire.API.Push.V2.WebSubscription
 import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Version
 
-type GundeckAPI = PushAPI :<|> NotificationAPI :<|> TimeAPI
+type GundeckAPI = PushAPI :<|> WebPushAPI :<|> NotificationAPI :<|> TimeAPI
+
+type WebPushAPI =
+  Named
+    "register-web-push-subscription"
+    ( Summary "Register a web push subscription"
+        :> From 'V17
+        :> ZUser
+        :> "push"
+        :> "web"
+        :> "subscriptions"
+        :> ReqBody '[JSON] WebPushSubscription
+        :> MultiVerb 'POST '[JSON] AddWebPushResponses (Either AddWebPushError AddWebPushSuccess)
+    )
+    :<|> Named
+           "delete-web-push-subscription"
+           ( Summary "Unregister a web push subscription"
+               :> From 'V17
+               :> ZUser
+               :> "push"
+               :> "web"
+               :> "subscriptions"
+               :> "delete"
+               :> ReqBody '[JSON] DeleteWebPushRequest
+               :> MultiVerb 'POST '[JSON] DeleteWebPushResponses (Maybe ())
+           )
+    :<|> Named
+           "get-web-push-subscriptions"
+           ( Summary "List the user's registered web push subscriptions"
+               :> From 'V17
+               :> ZUser
+               :> "push"
+               :> "web"
+               :> "subscriptions"
+               :> Get
+                    '[JSON]
+                    WebPushSubscriptionList
+           )
 
 type PushAPI =
   Named

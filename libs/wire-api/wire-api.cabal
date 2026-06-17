@@ -163,6 +163,7 @@ library
     Wire.API.Push.Token
     Wire.API.Push.V2
     Wire.API.Push.V2.Token
+    Wire.API.Push.V2.WebSubscription
     Wire.API.RawJson
     Wire.API.Routes.API
     Wire.API.Routes.AssetBody
@@ -612,6 +613,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
     Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
     Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
+    Test.Wire.API.Golden.Generated.WebPushSubscription_user
     Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
     Test.Wire.API.Golden.Manual
     Test.Wire.API.Golden.Manual.Activate_user

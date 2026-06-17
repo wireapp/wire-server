@@ -231,6 +231,7 @@ import Test.Wire.API.Golden.Generated.VerificationAction_user qualified
 import Test.Wire.API.Golden.Generated.VerifyDeleteUser_user qualified
 import Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team qualified
 import Test.Wire.API.Golden.Generated.ViewLegalHoldService_team qualified
+import Test.Wire.API.Golden.Generated.WebPushSubscription_user qualified
 import Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user qualified
 import Test.Wire.API.Golden.Runner
 import Wire.API.Routes.Version
@@ -835,6 +836,15 @@ tests =
             ),
             ( Test.Wire.API.Golden.Generated.PushTokenList_user.testObject_PushTokenList_user_2,
               "testObject_PushTokenList_user_2.json"
+            )
+          ],
+      testGroup "Golden: WebPushSubscription_user" $
+        testObjects
+          [ ( Test.Wire.API.Golden.Generated.WebPushSubscription_user.testObject_WebPushSubscription_user_1,
+              "testObject_WebPushSubscription_user_1.json"
+            ),
+            ( Test.Wire.API.Golden.Generated.WebPushSubscription_user.testObject_WebPushSubscription_user_2,
+              "testObject_WebPushSubscription_user_2.json"
             )
           ],
       testGroup "Golden: NameUpdate_user" $

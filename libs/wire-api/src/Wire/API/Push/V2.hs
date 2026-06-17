@@ -68,6 +68,24 @@ module Wire.API.Push.V2
     Token (..),
     Transport (..),
     AppName (..),
+
+    -- * WebPushSubscription (re-export)
+    WebPushSubscriptionList (..),
+    WebPushSubscription,
+    webPushSubscription,
+    wpsEndpoint,
+    wpsKeys,
+    wpsExpirationTime,
+    wpsClient,
+    EndpointUrl (..),
+    P256dhKey (..),
+    AuthSecret (..),
+    WebPushKeys (..),
+    AddWebPushError (..),
+    AddWebPushSuccess (..),
+    AddWebPushResponses,
+    DeleteWebPushRequest (..),
+    DeleteWebPushResponses,
   )
 where
 
@@ -86,6 +104,7 @@ import Imports
 import Test.QuickCheck (oneof)
 import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
+import Wire.API.Push.V2.WebSubscription
 import Wire.Arbitrary
 
 -----------------------------------------------------------------------------

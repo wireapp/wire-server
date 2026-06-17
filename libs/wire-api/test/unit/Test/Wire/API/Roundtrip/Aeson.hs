@@ -52,6 +52,7 @@ import Wire.API.Provider.External qualified as Provider.External
 import Wire.API.Provider.Service qualified as Provider.Service
 import Wire.API.Provider.Service.Tag qualified as Provider.Service.Tag
 import Wire.API.Push.Token qualified as Push.Token
+import Wire.API.Push.V2 qualified as Push.V2
 import Wire.API.Routes.FederationDomainConfig qualified as FederationDomainConfig
 import Wire.API.Routes.Internal.Brig.EJPD qualified as EJPD
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as TeamsIntra
@@ -211,6 +212,13 @@ tests =
       testRoundTrip @Push.Token.AppName,
       testRoundTrip @Push.Token.PushToken,
       testRoundTrip @Push.Token.PushTokenList,
+      testRoundTrip @Push.V2.EndpointUrl,
+      testRoundTrip @Push.V2.P256dhKey,
+      testRoundTrip @Push.V2.AuthSecret,
+      testRoundTrip @Push.V2.WebPushKeys,
+      testRoundTrip @Push.V2.WebPushSubscription,
+      testRoundTrip @Push.V2.WebPushSubscriptionList,
+      testRoundTrip @Push.V2.DeleteWebPushRequest,
       testRoundTrip @Scim.CreateScimToken,
       testRoundTrip @Scim.CreateScimTokenResponse,
       testRoundTrip @SystemSettings.SystemSettings,
