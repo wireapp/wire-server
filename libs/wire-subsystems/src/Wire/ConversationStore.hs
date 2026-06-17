@@ -92,6 +92,8 @@ data ConversationStore m a where
   SetConversationHistory :: ConvId -> History -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetConversationCipherSuite :: ConvId -> CipherSuiteTag -> ConversationStore m ()
+  UpsertConversationDescription :: ConvId -> ConversationDescription -> ConversationStore m ()
+  GetConversationDescription :: ConvId -> ConversationStore m (Maybe ConversationDescription)
   SetConversationCellsState :: ConvId -> CellsState -> ConversationStore m ()
   ResetConversation :: ConvId -> GroupId -> ConversationStore m ()
   SetGroupInfo :: ConvId -> Maybe GroupInfoData -> ConversationStore m ()

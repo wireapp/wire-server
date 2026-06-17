@@ -90,6 +90,9 @@ module Wire.API.Conversation
     ExtraConversationData (..),
     ConversationHistoryUpdate (..),
 
+    -- * conversation description
+    ConversationDescription (..),
+
     -- * re-exports
     module Wire.API.Conversation.Member,
     fromOwnConversation,
@@ -1337,6 +1340,12 @@ instance ToSchema ConversationHistoryUpdate where
     object $
       ConversationHistoryUpdate
         <$> (.history) .= field "history" schema
+
+data ConversationDescription = ConversationDescription
+  { descriptionVersion :: Int64,
+    descriptionCiphertext :: ByteString
+  }
+  deriving (Show, Eq)
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances
