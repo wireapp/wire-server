@@ -49,6 +49,7 @@ servantSitemap = pushAPI :<|> webPushAPI :<|> notificationAPI :<|> timeAPI
       Named @"register-web-push-subscription" Push.addWebSubscription
         :<|> Named @"delete-web-push-subscription" Push.deleteWebSubscription
         :<|> Named @"get-web-push-subscriptions" Push.listWebSubscriptions
+        :<|> Named @"get-vapid-public-key" Push.getVapidPublicKey
 
     notificationAPI =
       Named @"get-notification-by-id" Data.fetchId

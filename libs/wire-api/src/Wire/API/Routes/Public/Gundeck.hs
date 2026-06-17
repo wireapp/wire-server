@@ -26,6 +26,15 @@ import Wire.API.Error.Gundeck as E
 import Wire.API.Notification
 import Wire.API.Push.V2.Token
 import Wire.API.Push.V2.WebSubscription
+  ( AddWebPushError,
+    AddWebPushResponses,
+    AddWebPushSuccess,
+    DeleteWebPushRequest,
+    DeleteWebPushResponses,
+    VapidPublicKeyResponse,
+    WebPushSubscription,
+    WebPushSubscriptionList,
+  )
 import Wire.API.Routes.API
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -70,6 +79,21 @@ type WebPushAPI =
                :> Get
                     '[JSON]
                     WebPushSubscriptionList
+           )
+    :<|> Named
+           "get-vapid-public-key"
+           ( Summary "Get the server's VAPID public key"
+               :> Description
+                    "Returns the base64url uncompressed P-256 public key that \
+                    \web clients must pass as `applicationServerKey` to \
+                    \`pushManager.subscribe()` (RFC 8292). No authentication: \
+                    \the key is browser-facing by definition and must be \
+                    \available before a session exists."
+               :> From 'V17
+               :> "push"
+               :> "web"
+               :> "vapid-public-key"
+               :> Get '[JSON] VapidPublicKeyResponse
            )
 
 type PushAPI =

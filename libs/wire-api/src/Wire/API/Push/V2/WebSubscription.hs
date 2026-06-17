@@ -49,6 +49,9 @@ module Wire.API.Push.V2.WebSubscription
     AddWebPushResponses,
     DeleteWebPushRequest (..),
     DeleteWebPushResponses,
+
+    -- * VAPID public key
+    VapidPublicKeyResponse (..),
   )
 where
 
@@ -305,3 +308,39 @@ type DeleteWebPushResponses =
   '[ ErrorResponse 'E.WebPushSubscriptionNotFound,
      RespondEmpty 204 "Web push subscription unregistered"
    ]
+
+--------------------------------------------------------------------------------
+-- VAPID public key response
+
+-- | Response body for @GET /push/web/vapid-public-key@.
+--
+-- Carries the server's static VAPID P-256 public key (RFC 8292), in the wire
+-- format expected by browsers as @applicationServerKey@: base64url-encoded
+-- without padding, representing the uncompressed point (@0x04 || X || Y@, 65
+-- bytes). Web clients pass this value to
+-- @pushManager.subscribe({ applicationServerKey })@ (W3C Push API §3.5).
+--
+-- The key is derived once at startup from the configured private key (see
+-- 'Gundeck.Env.VapidKeyPair' and its '_vkpPublicB64' field) and is stable for
+-- the lifetime of the configured keypair — clients may cache it aggressively.
+newtype VapidPublicKeyResponse = VapidPublicKeyResponse
+  { vapidPublicKeyResponseKey :: Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform VapidPublicKeyResponse)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema VapidPublicKeyResponse)
+
+instance ToSchema VapidPublicKeyResponse where
+  schema =
+    objectWithDocModifier vapidPublicKeyDoc $
+      VapidPublicKeyResponse
+        <$> vapidPublicKeyResponseKey
+          .= fieldWithDocModifier
+            "key"
+            (description ?~ "base64url-unpadded uncompressed P-256 public point")
+            schema
+    where
+      vapidPublicKeyDoc =
+        description
+          ?~ "The server's static VAPID public key (RFC 8292), to be passed as\
+             \ @applicationServerKey@ to @pushManager.subscribe()@."

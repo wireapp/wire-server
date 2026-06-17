@@ -18,10 +18,17 @@
 module Vapid where
 
 import Control.Lens ((^.))
+import Data.Aeson qualified as Aeson
+import Data.ByteString.Lazy.Char8 qualified as LBS8
+import Data.Text qualified as Text
 import Gundeck.Env
 import Imports
+import Test.QuickCheck ((===))
+import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck (testProperty)
+import Wire.API.Push.V2.WebSubscription (VapidPublicKeyResponse (..))
 
 tests :: TestTree
 tests =
@@ -29,7 +36,8 @@ tests =
     "Vapid"
     [ testGroup "parseVapidKeyPair" parseVapidKeyPairTests,
       testGroup "validateVapidSubject" validateVapidSubjectTests,
-      testGroup "mkVapidKeyPair" mkVapidKeyPairTests
+      testGroup "mkVapidKeyPair" mkVapidKeyPairTests,
+      testGroup "VapidPublicKeyResponse" vapidPublicKeyResponseTests
     ]
 
 --------------------------------------------------------------------------------
@@ -101,4 +109,38 @@ mkVapidKeyPairTests =
     testCase "fails when key is invalid even if subject is valid" $
       assertBool "expected Left" $
         isLeft (mkVapidKeyPair "mailto:ops@wire.com" "too-short")
+  ]
+
+--------------------------------------------------------------------------------
+-- VapidPublicKeyResponse: wire format for GET /push/web/vapid-public-key.
+
+vapidPublicKeyResponseTests :: [TestTree]
+vapidPublicKeyResponseTests =
+  [ testCase "encodes as {\"key\": ...} with the b64url value" $ do
+      let resp = VapidPublicKeyResponse rfc8291AsPublicKey
+          encoded = Aeson.encode resp
+          expected =
+            LBS8.pack $
+              "{\"key\":\"" <> Text.unpack rfc8291AsPublicKey <> "\"}"
+      encoded @?= expected,
+    testCase "decodes back from {\"key\": ...}" $ do
+      let blob = Aeson.encode (VapidPublicKeyResponse rfc8291AsPublicKey)
+      Aeson.decode blob @?= Just (VapidPublicKeyResponse rfc8291AsPublicKey),
+    testCase "end-to-end: derived public key round-trips through the response" $
+      case parseVapidKeyPair rfc8291AsPrivateKey of
+        Left e ->
+          assertFailure
+            ("parseVapidKeyPair failed on RFC 8291 fixture: " <> e)
+        Right kp ->
+          -- This is exactly what 'Gundeck.Push.getVapidPublicKey' does once it
+          -- has a 'Just' keypair from 'view vapid'.
+          vapidPublicKeyResponseKey (VapidPublicKeyResponse (kp ^. vkpPublicB64))
+            @?= rfc8291AsPublicKey,
+    -- Property test exercising both the 'GenericUniform Arbitrary' instance
+    -- and the deriving-via-'Schema' 'ToJSON'/'FromJSON' chain together: a
+    -- field rename, a missing key, or a broken Arbitrary generator would all
+    -- surface here.
+    testProperty "arbitrary value roundtrips through JSON" $
+      \(resp :: VapidPublicKeyResponse) ->
+        Aeson.decode (Aeson.encode resp) === Just resp
   ]

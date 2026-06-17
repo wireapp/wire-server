@@ -41,6 +41,7 @@ module Gundeck.Push
     addWebSubscription,
     deleteWebSubscription,
     listWebSubscriptions,
+    getVapidPublicKey,
     -- (for testing)
     pushAll,
     splitPush,
@@ -814,6 +815,29 @@ requireWebPushOpts =
 addressToSubscription :: WebPushAddress -> WebPushSubscription
 addressToSubscription a =
   webPushSubscription a.wpaEndpoint a.wpaKeys Nothing a.wpaClient
+
+-- | Return the server's static VAPID public key (RFC 8292) so that web clients
+-- can pass it as @applicationServerKey@ to @pushManager.subscribe()@.
+--
+-- Rejects with HTTP 503 (@web-push-disabled@) when web push is not configured
+-- (no @webpush:@ section), mirroring the contract enforced by
+-- 'requireWebPushOpts'. The keypair itself is parsed once at startup
+-- ('Gundeck.Env.mkVapidKeyPair'), so the '_vkpPublicB64' field here is just a
+-- read — no crypto, no allocation, no failure mode other than the disabled
+-- feature. The 500 branch below is purely defensive: if '_vapid' is 'Nothing'
+-- while the option is present, startup parsing is broken and the operator
+-- should know immediately.
+getVapidPublicKey :: Gundeck VapidPublicKeyResponse
+getVapidPublicKey = do
+  _ <- requireWebPushOpts
+  view vapid >>= \case
+    Nothing ->
+      throwM $
+        mkError
+          status500
+          "web-push-error"
+          "VAPID keypair missing despite enabled config"
+    Just kp -> pure (VapidPublicKeyResponse (kp ^. vkpPublicB64))
 
 --------------------------------------------------------------------------------
 -- SSRF validation (application-layer)

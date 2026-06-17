@@ -86,6 +86,7 @@ module Wire.API.Push.V2
     AddWebPushResponses,
     DeleteWebPushRequest (..),
     DeleteWebPushResponses,
+    VapidPublicKeyResponse (..),
   )
 where
 
