@@ -88,8 +88,9 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetConversationHistory cid value -> setConversationHistoryImpl cid value
   SetConversationEpoch cid epoch -> setConversationEpochImpl cid epoch
   SetConversationCipherSuite cid cs -> setConversationCipherSuiteImpl cid cs
-  UpsertConversationDescription cid description -> upsertConversationDescriptionImpl cid description
+  InsertConversationDescription cid description -> insertConversationDescriptionImpl cid description
   GetConversationDescription cid -> getConversationDescriptionImpl cid
+  UpdateConversationDescription cid description -> updateConversationDescriptionImpl cid description
   SetConversationCellsState cid ps -> setConversationCellsStateImpl cid ps
   ResetConversation cid groupId -> resetConversationImpl cid groupId
   DeleteConversation cid -> deleteConversationImpl cid
@@ -522,22 +523,26 @@ setConversationCipherSuiteImpl convId cs =
                              SET cipher_suite = ($2 :: integer)
                              WHERE id = ($1 :: uuid)|]
 
-upsertConversationDescriptionImpl :: (PGConstraints r) => ConvId -> ConversationDescription -> Sem r ()
-upsertConversationDescriptionImpl convId ConversationDescription {..} =
-  runStatement (convId, descriptionVersion, descriptionCiphertext) upsert
+insertConversationDescriptionImpl :: (PGConstraints r) => ConvId -> ConversationDescription -> Sem r (Maybe ConversationDescription)
+insertConversationDescriptionImpl convId ConversationDescription {..} =
+  fmap (fmap toDescription) $
+    runStatement (convId, descriptionVersion, descriptionCiphertext) insert
   where
-    upsert :: Hasql.Statement (ConvId, Int64, BS.ByteString) ()
-    upsert =
+    insert :: Hasql.Statement (ConvId, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
+    insert =
       lmapPG
-        [resultlessStatement|INSERT INTO conversation_description
-                             (conv_id, version, ciphertext)
-                             VALUES
-                             ($1 :: uuid, $2 :: bigint, $3 :: bytea)
-                             ON CONFLICT (conv_id)
-                             DO UPDATE
-                                SET version = ($2 :: bigint),
-                                    ciphertext = ($3 :: bytea)
+        [maybeStatement|INSERT INTO conversation_description
+                         (conv_id, version, ciphertext)
+                         VALUES
+                         ($1 :: uuid, $2 :: bigint, $3 :: bytea)
+                         ON CONFLICT (conv_id) DO NOTHING
+                         RETURNING (version :: bigint), (ciphertext :: bytea)
                             |]
+    toDescription (version', ciphertext') =
+      ConversationDescription
+        { descriptionVersion = version',
+          descriptionCiphertext = ciphertext'
+        }
 
 getConversationDescriptionImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationDescription)
 getConversationDescriptionImpl convId =
@@ -551,6 +556,36 @@ getConversationDescriptionImpl convId =
                         FROM conversation_description
                         WHERE conv_id = ($1 :: uuid)
                        |]
+
+updateConversationDescriptionImpl ::
+  (PGConstraints r) =>
+  ConvId ->
+  ConversationDescriptionUpdate ->
+  Sem r (Maybe ConversationDescription)
+updateConversationDescriptionImpl convId ConversationDescriptionUpdate {..} =
+  fmap (fmap toDescription) $
+    runTransactionWithRetry ReadCommitted Write $
+      Transaction.statement (convId, descriptionUpdateBaseVersion, descriptionUpdateVersion, descriptionUpdateCiphertext) stmt
+  where
+    stmt :: Hasql.Statement (ConvId, Int64, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
+    stmt =
+      lmapPG
+        [maybeStatement|
+          WITH updated AS (
+            UPDATE conversation_description
+               SET version = ($3 :: bigint),
+                   ciphertext = ($4 :: bytea)
+             WHERE conv_id = ($1 :: uuid)
+               AND version = ($2 :: bigint)
+           RETURNING version, ciphertext
+          )
+          SELECT (version :: bigint), (ciphertext :: bytea) FROM updated
+        |]
+    toDescription (version', ciphertext') =
+      ConversationDescription
+        { descriptionVersion = version',
+          descriptionCiphertext = ciphertext'
+        }
 
 setConversationCellsStateImpl :: (PGConstraints r) => ConvId -> CellsState -> Sem r ()
 setConversationCellsStateImpl convId cells =

@@ -23,6 +23,7 @@ module Wire.ConversationSubsystem.Query
     getUnqualifiedOwnConversation,
     getOwnConversation,
     getConversation,
+    getConversationDescription,
     getRemoteConversation,
     getLocalConversationInternal,
     getConversationRoles,
@@ -195,6 +196,38 @@ getConversation lusr cnv =
     (getUnqualifiedConversation lusr . tUnqualified)
     (fmap fromOwnConversation . getRemoteConversation lusr)
     cnv
+
+getConversationDescription ::
+  forall r.
+  ( Member ConversationStore.ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  Qualified ConvId ->
+  Sem r ConversationDescription
+getConversationDescription lusr cnv =
+  foldQualified
+    lusr
+    (getLocalConversationDescription lusr . tUnqualified)
+    (\_ -> throw FederationNotImplemented)
+    cnv
+
+getLocalConversationDescription ::
+  ( Member ConversationStore.ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConvId ->
+  Sem r ConversationDescription
+getLocalConversationDescription lusr cnv = do
+  void $ getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
+  fromMaybe (ConversationDescription 0 mempty)
+    <$> ConversationStore.getConversationDescription cnv
 
 getOwnConversation ::
   forall r.

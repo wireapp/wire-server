@@ -32,6 +32,7 @@ module Wire.ConversationSubsystem.Update
     rmCodeUnqualified,
     getCode,
     updateConversationName,
+    updateConversationDescription,
     updateConversationReceiptMode,
     updateConversationMessageTimer,
     updateConversationAccess,
@@ -1633,6 +1634,61 @@ updateConversationName lusr zcon qcnv convRename = do
     (\_ _ -> throw FederationNotImplemented)
     qcnv
     convRename
+
+updateConversationDescription ::
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  ConversationDescriptionUpdate ->
+  Sem r ConversationDescription
+updateConversationDescription lusr _zcon qcnv descriptionUpdate =
+  foldQualified
+    lusr
+    (updateLocalConversationDescription lusr)
+    (\_ _ -> throw FederationNotImplemented)
+    qcnv
+    descriptionUpdate
+
+updateLocalConversationDescription ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  Local ConvId ->
+  ConversationDescriptionUpdate ->
+  Sem r ConversationDescription
+updateLocalConversationDescription lusr lcnv descriptionUpdate = do
+  conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  mTeamMember <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified lusr)) conv.metadata.cnvmTeam
+  Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
+  current <- E.getConversationDescription (tUnqualified lcnv)
+  let convDescription =
+        ConversationDescription
+          { descriptionVersion = descriptionUpdate.descriptionUpdateVersion,
+            descriptionCiphertext = descriptionUpdate.descriptionUpdateCiphertext
+          }
+  case current of
+    Nothing -> do
+      when (descriptionUpdate.descriptionUpdateBaseVersion /= 0) $
+        throwS @'InvalidOperation
+      E.insertConversationDescription (tUnqualified lcnv) convDescription >>= \case
+        Just created -> pure created
+        Nothing ->
+          E.updateConversationDescription (tUnqualified lcnv) descriptionUpdate >>= noteS @'InvalidOperation
+    Just ConversationDescription {descriptionVersion} -> do
+      unless (descriptionUpdate.descriptionUpdateBaseVersion == descriptionVersion) $
+        throwS @'InvalidOperation
+      E.updateConversationDescription (tUnqualified lcnv) descriptionUpdate >>= noteS @'InvalidOperation
 
 updateLocalConversationName ::
   ( Member ConversationStore r,

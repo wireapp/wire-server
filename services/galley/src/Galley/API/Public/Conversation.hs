@@ -103,9 +103,3 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
     <@> mkNamedAPI @"update-channel-add-permission" updateChannelAddPermission
-
-getConversationDescription :: a
-getConversationDescription = undefined
-
-updateConversationDescription :: a
-updateConversationDescription = undefined
