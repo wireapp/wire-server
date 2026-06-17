@@ -87,6 +87,8 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-name-deprecated" (\lusr con cnv rename -> updateConversationName lusr con (tUntagged (qualifyAs lusr cnv)) rename)
     <@> mkNamedAPI @"update-conversation-name-unqualified" (\lusr con cnv rename -> updateConversationName lusr con (tUntagged (qualifyAs lusr cnv)) rename)
     <@> mkNamedAPI @"update-conversation-name" updateConversationName
+    <@> mkNamedAPI @"get-conversation-description" getConversationDescription
+    <@> mkNamedAPI @"update-conversation-description" updateConversationDescription
     <@> mkNamedAPI @"update-conversation-message-timer-unqualified" (\lusr con cnv update -> updateConversationMessageTimer lusr con (tUntagged (qualifyAs lusr cnv)) update)
     <@> mkNamedAPI @"update-conversation-message-timer" updateConversationMessageTimer
     <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" (\lusr con cnv update -> updateConversationReceiptMode lusr con (tUntagged (qualifyAs lusr cnv)) update)
@@ -101,3 +103,9 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
     <@> mkNamedAPI @"update-channel-add-permission" updateChannelAddPermission
+
+getConversationDescription :: a
+getConversationDescription = undefined
+
+updateConversationDescription :: a
+updateConversationDescription = undefined
