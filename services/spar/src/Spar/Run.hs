@@ -45,6 +45,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
+import qualified OpenTelemetry.Instrumentation.Wai as Otel
 import qualified SAML2.WebSSO as SAML
 import Spar.API (SparAPI, app)
 import Spar.App
@@ -122,9 +123,11 @@ mkApp sparCtxOpts = do
         if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]
           then Just out
           else Nothing
+  otelMiddleware <- Otel.newOpenTelemetryWaiMiddleware
   let middleware =
         versionMiddleware (foldMap expandVersionExp (disabledAPIVersions sparCtxOpts))
           . requestIdMiddleware (ctx0.sparCtxLogger) defaultRequestIdHeaderName
+          . otelMiddleware
           . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger defaultRequestIdHeaderName
           . servantPrometheusMiddleware (Proxy @SparAPI)
           . GZip.gunzip

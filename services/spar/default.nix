@@ -23,6 +23,7 @@
 , exceptions
 , extended
 , filepath
+, hs-opentelemetry-instrumentation-wai
 , hscim
 , HsOpenSSL
 , hspec
@@ -101,6 +102,7 @@ mkDerivation {
     crypton-x509
     exceptions
     extended
+    hs-opentelemetry-instrumentation-wai
     hscim
     hspec
     http-types
