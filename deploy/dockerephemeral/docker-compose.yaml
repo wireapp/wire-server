@@ -277,6 +277,16 @@ services:
     networks:
       - demo_wire
 
+  grafana-lgtm:
+    container_name: demo_wire_grafana_lgtm
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - demo_wire
+
   postgres:
     container_name: postgres
     image: 'postgres:17-alpine'
