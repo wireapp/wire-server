@@ -32,6 +32,8 @@ import Imports hiding (head)
 import Network.Wai (Middleware, Request, requestHeaders)
 import Network.Wai.Middleware.Gunzip qualified as GZip
 import Network.Wai.Utilities.Server
+import OpenTelemetry.Instrumentation.Wai qualified as OtelWai
+import OpenTelemetry.Trace as Otel
 import Proxy.API.Internal as I
 import Proxy.API.Public as P
 import Proxy.Env
@@ -41,6 +43,7 @@ import Servant qualified
 import Wire.API.Routes.Public.Proxy
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry (withTracer)
 
 type CombinedAPI = InternalAPI Servant.:<|> ProxyAPI
 
@@ -48,22 +51,24 @@ combinedSitemap :: Env -> Servant.ServerT CombinedAPI Proxy
 combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 
 run :: Opts -> IO ()
-run o = do
+run o = withTracer $ \tracer -> do
   e <- createEnv o
   let s = newSettings $ defaultServer (o ^. proxy . to (T.unpack . host)) (o ^. proxy . to port) (e ^. applog)
 
   let metricsMW :: Middleware
       metricsMW = waiPrometheusMiddlewarePaths (routesToPaths @ProxyAPI <> routesToPaths @InternalAPI)
 
-      middleware :: Middleware
+  otelMiddleware <- OtelWai.newOpenTelemetryWaiMiddleware
+  let middleware :: Middleware
       middleware =
         versionMiddleware (foldMap expandVersionExp (o ^. disabledAPIVersions))
           . requestIdMiddleware (e ^. applog) defaultRequestIdHeaderName
+          . otelMiddleware
           . metricsMW
           . GZip.gunzip
           . catchErrors (e ^. applog) defaultRequestIdHeaderName
 
-  runSettingsWithShutdown s (middleware (mkApp e)) Nothing `finally` destroyEnv e
+  inSpan tracer "proxy" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s (middleware (mkApp e)) Nothing) `finally` destroyEnv e
 
 mkApp :: Env -> Servant.Application
 mkApp env req = Servant.serve (Servant.Proxy @CombinedAPI) toServantSitemap req

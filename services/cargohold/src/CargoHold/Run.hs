@@ -59,6 +59,8 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
+import qualified OpenTelemetry.Instrumentation.Wai as OtelWai
+import OpenTelemetry.Trace as Otel
 import qualified Servant
 import Servant.API
 import Servant.Server hiding (Handler, runHandler)
@@ -69,11 +71,13 @@ import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry (withTracerC)
 
 type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
+  tracer <- withTracerC
   (app, e) <- mkApp o
   void $ Codensity $ Async.withAsync (collectAuthMetrics e.aws.amazonkaEnv)
   let s =
@@ -82,17 +86,19 @@ run o = lowerCodensity $ do
             (unpack . host $ o.cargohold)
             (port o.cargohold)
             e.appLogger
-  liftIO $ runSettingsWithShutdown s app Nothing
+  lift $ inSpan tracer "cargohold" defaultSpanArguments {kind = Otel.Server} (runSettingsWithShutdown s app Nothing)
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp o = Codensity $ \k ->
-  bracket (newEnv o) closeEnv $ \e ->
-    k (middleware e (servantApp e), e)
+  bracket (newEnv o) closeEnv $ \e -> do
+    otelMiddleware <- OtelWai.newOpenTelemetryWaiMiddleware
+    k (middleware otelMiddleware e (servantApp e), e)
   where
-    middleware :: Env -> Wai.Middleware
-    middleware e =
+    middleware :: Wai.Middleware -> Env -> Wai.Middleware
+    middleware otelMiddleware e =
       versionMiddleware (foldMap expandVersionExp o.settings.disabledAPIVersions)
         . requestIdMiddleware e.appLogger defaultRequestIdHeaderName
+        . otelMiddleware
         . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.defaultGzipSettings
         . catchErrors e.appLogger defaultRequestIdHeaderName

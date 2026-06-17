@@ -98,10 +98,13 @@ library
     , types-common           >=0.8
     , unliftio-core
     , uuid
+    , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
     , wai                    >=3.2
     , wai-middleware-gunzip
     , wai-utilities          >=0.14.3
     , wire-api
+    , wire-otel
 
   default-language:   GHC2021
 
