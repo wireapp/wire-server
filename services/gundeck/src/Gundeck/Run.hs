@@ -83,7 +83,7 @@ import Wire.API.Routes.Version.Wai
 import Wire.OpenTelemetry
 
 run :: Opts -> IO ()
-run opts = withTracer \tracer -> do
+run opts = withTracer "gundeck" \tracer -> do
   (rThreads, env) <- createEnv opts
   let logger = env ^. applog
 

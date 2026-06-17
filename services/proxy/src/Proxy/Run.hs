@@ -51,7 +51,7 @@ combinedSitemap :: Env -> Servant.ServerT CombinedAPI Proxy
 combinedSitemap env = I.servantSitemap Servant.:<|> P.servantSitemap env
 
 run :: Opts -> IO ()
-run o = withTracer $ \tracer -> do
+run o = withTracer "proxy" $ \tracer -> do
   e <- createEnv o
   let s = newSettings $ defaultServer (o ^. proxy . to (T.unpack . host)) (o ^. proxy . to port) (e ^. applog)
 

@@ -81,7 +81,7 @@ initCassandra opts lgr =
 -- servant / wai / warp
 
 runServer :: Opts -> IO ()
-runServer sparCtxOpts = withTracer \tracer -> do
+runServer sparCtxOpts = withTracer "spar" \tracer -> do
   let shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int = sparCtxOpts ^. to saml . SAML.cfgSPPort
   (wrappedApp, ctxOpts) <- mkApp sparCtxOpts

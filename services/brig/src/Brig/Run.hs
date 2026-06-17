@@ -80,7 +80,7 @@ import Wire.UserStore
 -- thread terminates for any reason.
 -- https://github.com/zinfra/backend-issues/issues/1647
 run :: Opts -> IO ()
-run opts = withTracer \tracer -> do
+run opts = withTracer "brig" \tracer -> do
   (app, e) <- mkApp opts
   runAllMigrations e.hasqlPool e.appLogger
   let s = Server.newSettings (server e)

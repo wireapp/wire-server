@@ -77,7 +77,7 @@ type CombinedAPI = FederationAPI :<|> CargoholdAPI :<|> InternalAPI
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
-  tracer <- withTracerC
+  tracer <- withTracerC "cargohold"
   (app, e) <- mkApp o
   void $ Codensity $ Async.withAsync (collectAuthMetrics e.aws.amazonkaEnv)
   let s =

@@ -72,7 +72,7 @@ import Wire.PostgresMigrations (runAllMigrations)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity do
-  tracer <- withTracerC
+  tracer <- withTracerC "galley"
   (app, env) <- mkApp opts
   lift $ runAllMigrations env._hasqlPool env._applog
   let settings' =

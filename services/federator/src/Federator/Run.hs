@@ -63,7 +63,7 @@ import Wire.OpenTelemetry (withTracer)
 
 -- FUTUREWORK(federation): Add metrics and status endpoints
 run :: Opts -> IO ()
-run opts = withTracer \tracer -> do
+run opts = withTracer "federator" \tracer -> do
   spawnGCMetricsCollector
   let resolvConf = mkResolvConf (optSettings opts) DNS.defaultResolvConf
   DNS.withCachingResolver resolvConf $ \res -> do
