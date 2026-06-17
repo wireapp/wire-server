@@ -248,6 +248,7 @@ mkDerivation {
     tinylog
     types-common
     wire-api
+    wire-subsystems
   ];
   benchmarkHaskellDepends = [
     amazonka

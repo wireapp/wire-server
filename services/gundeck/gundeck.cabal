@@ -493,6 +493,7 @@ test-suite gundeck-tests
     ThreadBudget
     Vapid
     WebPushCrypto
+    WebPushHandlers
     WebPushRunner
 
   hs-source-dirs:     test/unit
@@ -582,6 +583,7 @@ test-suite gundeck-tests
     , tinylog
     , types-common
     , wire-api
+    , wire-subsystems
 
   default-language:   GHC2021
 

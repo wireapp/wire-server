@@ -32,6 +32,7 @@ import Test.Tasty
 import ThreadBudget qualified
 import Vapid qualified
 import WebPushCrypto qualified
+import WebPushHandlers qualified
 import WebPushRunner qualified
 
 main :: IO ()
@@ -48,5 +49,6 @@ main =
         Aws.Arn.tests,
         Vapid.tests,
         WebPushCrypto.tests,
+        WebPushHandlers.tests,
         WebPushRunner.tests
       ]

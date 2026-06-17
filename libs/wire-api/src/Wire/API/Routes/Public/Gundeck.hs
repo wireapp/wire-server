@@ -40,6 +40,7 @@ type WebPushAPI =
     ( Summary "Register a web push subscription"
         :> From 'V17
         :> ZUser
+        :> ZConn
         :> "push"
         :> "web"
         :> "subscriptions"

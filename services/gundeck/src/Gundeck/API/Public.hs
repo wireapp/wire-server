@@ -31,7 +31,6 @@ import Gundeck.Push qualified as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
 import Wire.API.Notification qualified as Public
-import Wire.API.Push.V2.WebSubscription qualified as WebPush
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Gundeck
 
@@ -47,9 +46,9 @@ servantSitemap = pushAPI :<|> webPushAPI :<|> notificationAPI :<|> timeAPI
         :<|> Named @"get-push-tokens" Push.listTokens
 
     webPushAPI =
-      Named @"register-web-push-subscription" addWebPushStub
-        :<|> Named @"delete-web-push-subscription" deleteWebPushStub
-        :<|> Named @"get-web-push-subscriptions" listWebPushStub
+      Named @"register-web-push-subscription" Push.addWebSubscription
+        :<|> Named @"delete-web-push-subscription" Push.deleteWebSubscription
+        :<|> Named @"get-web-push-subscriptions" Push.listWebSubscriptions
 
     notificationAPI =
       Named @"get-notification-by-id" Data.fetchId
@@ -131,18 +130,3 @@ paginate uid mbSince mbClient mbSize = do
 
 getServerTime :: UserId -> Gundeck Public.ServerTime
 getServerTime _ = Public.ServerTime . msToUTCSecs <$> posixTime
-
-addWebPushStub ::
-  UserId ->
-  WebPush.WebPushSubscription ->
-  Gundeck (Either WebPush.AddWebPushError WebPush.AddWebPushSuccess)
-addWebPushStub _ _ = pure (Left WebPush.AddWebPushErrorTooMany)
-
-deleteWebPushStub ::
-  UserId ->
-  WebPush.DeleteWebPushRequest ->
-  Gundeck (Maybe ())
-deleteWebPushStub _ _ = pure Nothing
-
-listWebPushStub :: UserId -> Gundeck WebPush.WebPushSubscriptionList
-listWebPushStub _ = pure (WebPush.WebPushSubscriptionList [])

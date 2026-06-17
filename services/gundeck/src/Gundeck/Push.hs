@@ -38,12 +38,18 @@ module Gundeck.Push
     addToken,
     listTokens,
     deleteToken,
+    addWebSubscription,
+    deleteWebSubscription,
+    listWebSubscriptions,
     -- (for testing)
     pushAll,
     splitPush,
     MonadPushAll (..),
     MonadNativeTargets (..),
     MonadMapAsync (..),
+    validateEndpointHost,
+    endpointHost,
+    addressToSubscription,
   )
 where
 
@@ -62,6 +68,7 @@ import Data.Map qualified as Map
 import Data.Misc
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.These
 import Data.Timeout
 import Data.UUID qualified as UUID
@@ -76,6 +83,7 @@ import Gundeck.Presence.Data qualified as Presence
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
+import Gundeck.Push.Web.Runner (runWebPush)
 import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
 import Gundeck.Util
@@ -86,6 +94,8 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import System.Logger.Class qualified as Log
+import URI.ByteString (strictURIParserOptions)
+import URI.ByteString qualified as URI
 import UnliftIO (pooledMapConcurrentlyN)
 import Util.Options
 import Wire.API.Internal.Notification
@@ -95,6 +105,13 @@ import Wire.API.Push.Token qualified as Public
 import Wire.API.Push.V2
 import Wire.API.User (UserSet (..))
 import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.WebPushStore
+  ( WebPushAddress (..),
+    deleteSubscription,
+    insertSubscription,
+    lookupSubscriptions,
+    purgeExpired,
+  )
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -687,3 +704,165 @@ deleteToken uid tok = do
 
 listTokens :: UserId -> Gundeck PushTokenList
 listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.LocalQuorum
+
+--------------------------------------------------------------------------------
+-- Web push subscriptions
+
+-- | Register a web push subscription (RFC 8030 application-server side).
+--
+-- Validates the endpoint against the configured host allowlist (SSRF
+-- mitigation, see 'validateEndpointHost'), then — within a single store
+-- transaction — enforces the per-user subscription cap
+-- ('maxWebPushSubscriptionsPerUser'), purges any expired subscriptions for the
+-- user, and upserts. Re-registering the same @(client, endpoint)@ updates
+-- keys/expiry without duplicating rows: the store's primary key is
+-- @(user, client, endpoint)@.
+addWebSubscription ::
+  UserId ->
+  ConnId ->
+  WebPushSubscription ->
+  Gundeck (Either AddWebPushError AddWebPushSuccess)
+addWebSubscription uid conn sub = do
+  wp <- requireWebPushOpts
+  case validateEndpointHost (wp ^. endpointAllowlist) (sub ^. wpsEndpoint) of
+    Left validationErr -> pure (Left validationErr)
+    Right () -> do
+      pool <- view pgPool
+      runWebPush pool register >>= \case
+        Left storeErr -> do
+          Log.err $
+            msg (val "Web push subscription insert failed")
+              . Log.field "error" (show storeErr)
+          throwM (mkError status500 "web-push-error" "Web Push Error")
+        Right result -> pure result
+  where
+    register = do
+      -- Cap before insert: distinct endpoints are NOT deduped by the store's
+      -- upsert (only identical @(client, endpoint)@ pairs are), so without a
+      -- guard a client could register an unbounded number of rows and cause
+      -- unbounded fan-out at dispatch time (POSTs to every row).
+      -- The cap also bounds the cost of 'purgeExpired' below.
+      existing <- lookupSubscriptions uid
+      if length existing >= maxWebPushSubscriptionsPerUser
+        then pure (Left AddWebPushErrorTooMany)
+        else do
+          purgeExpired uid
+          insertSubscription uid sub conn
+          pure (Right (AddWebPushSuccess sub))
+
+-- | Conservative v1 cap on the number of web push subscriptions a single user
+-- may hold. Bounding this is what makes the per-register 'purgeExpired' and the
+-- fan-out (which POSTs to every row for a user) safe against a buggy or hostile
+-- client. The value is generous for legitimate use — a user typically holds one
+-- subscription per browser profile — and is not yet configurable.
+maxWebPushSubscriptionsPerUser :: Int
+maxWebPushSubscriptionsPerUser = 32
+
+-- | Unregister a web push subscription by endpoint. Idempotent: deleting an
+-- unknown endpoint returns @'Just' ()@ (which the route maps to HTTP 204),
+-- matching the REST convention for DELETE rather than 404-ing on a missing
+-- resource.
+deleteWebSubscription ::
+  UserId ->
+  DeleteWebPushRequest ->
+  Gundeck (Maybe ())
+deleteWebSubscription uid req = do
+  _ <- requireWebPushOpts
+  pool <- view pgPool
+  runWebPush pool (deleteSubscription uid req.deleteWebPushRequestEndpoint) >>= \case
+    Left storeErr -> do
+      Log.err $
+        msg (val "Web push subscription delete failed")
+          . Log.field "error" (show storeErr)
+      throwM (mkError status500 "web-push-error" "Web Push Error")
+    Right () -> pure (Just ())
+
+-- | List all web push subscriptions for a user.
+--
+-- The store's 'lookupSubscriptions' returns 'WebPushAddress'es (the dispatch
+-- shape), which carry everything except expiration time; the expiration is
+-- therefore reported as 'Nothing' here. This is a known v1 limitation: the
+-- per-user dispatch hot path does not need expiry, and the store exposes no
+-- separate full-subscription lookup.
+listWebSubscriptions ::
+  UserId ->
+  Gundeck WebPushSubscriptionList
+listWebSubscriptions uid = do
+  _ <- requireWebPushOpts
+  pool <- view pgPool
+  runWebPush pool (lookupSubscriptions uid) >>= \case
+    Left storeErr -> do
+      Log.err $
+        msg (val "Web push subscription lookup failed")
+          . Log.field "error" (show storeErr)
+      throwM (mkError status500 "web-push-error" "Web Push Error")
+    Right addrs -> pure (WebPushSubscriptionList (addressToSubscription <$> addrs))
+
+-- | Surface the 'WebPushOpts' or reject with HTTP 503 when web push is disabled
+-- (no @webpush:@ config section). Mirrors the contract: absent config
+-- disables the feature uniformly across all handlers, so deployments without
+-- the section behave exactly as before.
+requireWebPushOpts :: Gundeck WebPushOpts
+requireWebPushOpts =
+  view (options . webpush) >>= \case
+    Nothing -> throwM (mkError status503 "web-push-disabled" "Web push is not enabled")
+    Just wp -> pure wp
+
+-- | Convert a stored 'WebPushAddress' back into the API 'WebPushSubscription'
+-- shape. 'wpsExpirationTime' is not retained by the dispatch address, so it is
+-- reported as 'Nothing' (see 'listWebSubscriptions').
+addressToSubscription :: WebPushAddress -> WebPushSubscription
+addressToSubscription a =
+  webPushSubscription a.wpaEndpoint a.wpaKeys Nothing a.wpaClient
+
+--------------------------------------------------------------------------------
+-- SSRF validation (application-layer)
+
+-- | Validate that the endpoint's host is on the configured allowlist. This is
+-- the application-layer SSRF mitigation called out in the
+-- @endpoint@ is attacker-controllable and gundeck will later POST to it,
+-- so we reject endpoints whose host we did not pre-approve.
+--
+-- Matching is performed on the endpoint's /parsed/ hostname, never on a raw
+-- 'Text.isSuffixOf' over the whole URL: naive suffix matching is a classic
+-- SSRF bypass (an allowlist entry @example.com@ must not match
+-- @example.com.attacker.tld@, and @evil.com@ must not match @notevil.com@).
+-- An entry matches when the host equals it exactly or is a subdomain on a dot
+-- boundary.
+--
+-- An empty allowlist disables the check (accept all) — intended for
+-- development; see @_endpointAllowlist@ in 'WebPushOpts'.
+--
+-- Note: matching is on the ASCII host as parsed. Full IDNA normalization
+-- (punycode) is out of scope here; real browser push services (FCM, Mozilla
+-- autopush) use ASCII hosts, and the manager-layer filter catches the rest.
+validateEndpointHost ::
+  -- | Allowed push-service host suffixes (@_endpointAllowlist@).
+  [Text] ->
+  EndpointUrl ->
+  Either AddWebPushError ()
+validateEndpointHost allowlist url
+  | null allowlist = Right ()
+  | otherwise =
+      case endpointHost url of
+        Nothing -> Left AddWebPushErrorInvalid
+        Just parsedHost
+          | any (hostMatches (Text.toLower parsedHost)) allowlist -> Right ()
+          | otherwise -> Left AddWebPushErrorInvalid
+  where
+    -- Hostnames are case-insensitive (RFC 3986 §3.2.2); compare on the
+    -- normalized lowercase form of both sides so a mixed-case endpoint or
+    -- allowlist entry does not weaken (or accidentally bypass) the check.
+    hostMatches h entry =
+      let e = Text.toLower entry
+       in h == e || Text.isSuffixOf ("." <> e) h
+
+-- | Extract the hostname from an 'EndpointUrl'. 'EndpointUrl' is already
+-- guaranteed HTTPS by its smart constructor 'mkEndpointUrl', so a parse
+-- failure here is unexpected (the URL round-tripped validation on the way in)
+-- and is treated as an invalid endpoint.
+endpointHost :: EndpointUrl -> Maybe Text
+endpointHost (EndpointUrl raw) =
+  case URI.parseURI strictURIParserOptions (encodeUtf8 raw) of
+    Left _ -> Nothing
+    Right uri -> (decodeUtf8 . URI.hostBS . URI.authorityHost) <$> URI.uriAuthority uri
