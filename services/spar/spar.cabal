@@ -168,6 +168,7 @@ library
     , exceptions
     , extended
     , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
     , hscim
     , hspec
     , http-types
@@ -200,6 +201,7 @@ library
     , wai-middleware-gunzip
     , wai-utilities
     , wire-api
+    , wire-otel
     , wire-subsystems
     , yaml
 
