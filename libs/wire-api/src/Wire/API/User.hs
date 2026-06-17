@@ -32,6 +32,11 @@ module Wire.API.User
     -- Profiles
     UserProfile (..),
     SelfProfile (..),
+    PublicProfile (..),
+    VerifiedLink (..),
+    UnverifiedLink (..),
+    Bio,
+    LinkName,
     -- User (should not be here)
     User (..),
     UserType (..),
@@ -230,6 +235,62 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary as Arbitrary
+
+--------------------------------------------------------------------------------
+-- PublicProfile
+
+type Bio = Range 1 140 Text
+
+data PublicProfile = PublicProfile
+  { publicId :: Qualified UserId,
+    publicBio :: Maybe Bio,
+    publicHandle :: Maybe Handle,
+    publicLinks :: [VerifiedLink]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema PublicProfile)
+
+instance ToSchema PublicProfile where
+  schema =
+    object $
+      PublicProfile
+        <$> publicId .= field "qualified_id" schema
+        <*> publicBio .= maybe_ (optField "bio" schema)
+        <*> publicHandle .= maybe_ (optField "handle" schema)
+        <*> publicLinks .= field "links" (array schema)
+
+data VerifiedLink = VerifiedLink
+  { name :: LinkName,
+    url :: HttpsUrl,
+    verified :: Bool
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifiedLink)
+
+instance ToSchema VerifiedLink where
+  schema =
+    object $
+      VerifiedLink
+        <$> (.name) .= field "name" schema
+        <*> (.url) .= field "url" schema
+        <*> verified .= field "verified" schema
+
+data UnverifiedLink = UnverifiedLink
+  { name :: LinkName,
+    url :: HttpsUrl
+  }
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform UnverifiedLink
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UnverifiedLink)
+
+instance ToSchema UnverifiedLink where
+  schema =
+    object $
+      UnverifiedLink
+        <$> (.name) .= field "name" schema
+        <*> (.url) .= field "url" schema
+
+type LinkName = Range 1 20 Text
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -1449,7 +1510,9 @@ data UserUpdate = UserUpdate
     -- | DEPRECATED
     uupPict :: Maybe Pict,
     uupAssets :: Maybe [Asset],
-    uupAccentId :: Maybe ColourId
+    uupAccentId :: Maybe ColourId,
+    uupBio :: Maybe (Range 0 140 Text),
+    uupLinks :: Maybe [UnverifiedLink]
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserUpdate)
@@ -1469,6 +1532,10 @@ instance ToSchema UserUpdate where
           .= maybe_ (optField "assets" (array schema))
         <*> uupAccentId
           .= maybe_ (optField "accent_id" schema)
+        <*> uupBio
+          .= maybe_ (optField "bio" schema)
+        <*> uupLinks
+          .= maybe_ (optField "links" (array schema))
 
 data UpdateProfileError
   = DisplayNameManagedByScim

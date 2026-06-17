@@ -94,6 +94,7 @@ inMemoryUserSubsystemInterpreter =
     BrowseTeam {} -> error "BrowseTeam: implement on demand (userSubsystemInterpreter)"
     CheckUserIsAdmin {} -> error "CheckUserIsAdmin: implement on demand (userSubsystemInterpreter)"
     SetUserSearchable {} -> error "SetUserSearchable: implement on demand (userSubsystemInterpreter)"
+    GetPublicProfile {} -> error "GetPublicProfile: implement on deman (userSubsystemInterpreter)"
 
 toProfile :: User -> UserProfile
 toProfile u = mkUserProfileWithEmail (userEmail u) u Nothing UserLegalHoldDisabled

@@ -45,6 +45,7 @@ import Wire.MockInterpreters.NotificationSubsystem as MockInterpreters
 import Wire.MockInterpreters.Now as MockInterpreters
 import Wire.MockInterpreters.PasswordResetCodeStore as MockInterpreters
 import Wire.MockInterpreters.PasswordStore as MockInterpreters
+import Wire.MockInterpreters.ProfileLinkStore as MockInterpreters
 import Wire.MockInterpreters.PropertyStore as MockInterpreters
 import Wire.MockInterpreters.Random as MockInterpreters
 import Wire.MockInterpreters.RateLimit as MockInterpreters

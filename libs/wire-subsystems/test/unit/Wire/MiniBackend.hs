@@ -124,6 +124,7 @@ import Wire.MockInterpreters
 import Wire.NotificationSubsystem
 import Wire.PasswordResetCodeStore
 import Wire.PasswordStore
+import Wire.ProfileLinkStore (ProfileLinkStore)
 import Wire.RateLimit
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.Sequential
@@ -290,6 +291,7 @@ type MiniBackendLowerEffects =
      VerificationCodeStore,
      SessionStore,
      UserGroupStore,
+     ProfileLinkStore,
      RateLimit,
      HashPassword,
      DeleteQueue,
@@ -333,6 +335,7 @@ miniBackendLowerEffectsInterpreters mb@(MiniBackendParams {..}) =
     . inMemoryDeleteQueueInterpreter
     . staticHashPasswordInterpreter
     . noRateLimit
+    . runInMemoryProfileLinkStore
     . userGroupStoreTestInterpreter
     . runInMemorySessionStore
     . runInMemoryVerificationCodeStore

@@ -121,6 +121,7 @@ import Wire.PasswordResetCodeStore.Cassandra (interpretClientToIO, passwordReset
 import Wire.PasswordStore (PasswordStore)
 import Wire.PasswordStore.Cassandra (interpretPasswordStore)
 import Wire.PostgresMigrationOpts
+import Wire.ProfileLinkStore (ProfileLinkStore, interpretProfileLinkStorePostgres)
 import Wire.PropertyStore
 import Wire.PropertyStore.Cassandra
 import Wire.PropertySubsystem
@@ -210,6 +211,7 @@ type BrigLowerLevelEffects =
      UserKeyStore,
      UserStore,
      UserGroupStore,
+     ProfileLinkStore,
      DomainRegistrationStore,
      DomainVerificationChallengeStore,
      Error AppSubsystemError,
@@ -485,6 +487,7 @@ runBrigToIO e (AppT ma) = do
               . mapError appSubsystemErrorToHttpError
               . domainVerificationChallengeStore
               . domainRegistrationStore
+              . interpretProfileLinkStorePostgres
               . interpretUserGroupStoreToPostgres
               . userStoreInterpreter
               . interpretUserKeyStoreCassandra e.casClient

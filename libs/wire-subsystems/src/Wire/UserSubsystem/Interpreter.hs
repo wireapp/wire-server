@@ -90,6 +90,8 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationStore
+import Wire.ProfileLinkStore (ProfileLinkStore)
+import Wire.ProfileLinkStore qualified as ProfileLinkStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
 import Wire.Sem.Metrics qualified as Metrics
@@ -107,6 +109,7 @@ import Wire.UserSubsystem as UserSubsystem
 import Wire.UserSubsystem.Error
 import Wire.UserSubsystem.HandleBlacklist
 import Wire.UserSubsystem.UserSubsystemConfig
+import Wire.Util
 import Witherable (wither)
 
 runUserSubsystem ::
@@ -134,7 +137,8 @@ runUserSubsystem ::
     Member (Input UserSubsystemConfig) r,
     Member TeamSubsystem r,
     Member UserGroupStore r,
-    Member (Input (Local any)) r
+    Member (Input (Local any)) r,
+    Member ProfileLinkStore r
   ) =>
   InterpreterFor AuthenticationSubsystem (AppSubsystem ': ClientSubsystem ': r) ->
   InterpreterFor AppSubsystem (ClientSubsystem ': r) ->
@@ -146,6 +150,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
     clientInterpreter . appInterpreter . authInterpreter . \case
       GetUserProfiles self others ->
         getUserProfilesImpl self others
+      GetPublicProfile hdl ->
+        getPublicProfileImpl hdl
       GetLocalUserProfiles others ->
         getLocalUserProfilesImpl others
       GetLocalAppProfiles ltid ->
@@ -195,6 +201,22 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       UserSubsystem.GetUserTeam uid -> getUserTeamImpl uid
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
+
+getPublicProfileImpl :: (Member UserStore r, Member ProfileLinkStore r, Member (Input (Local x)) r) => Handle -> Sem r (Maybe PublicProfile)
+getPublicProfileImpl hdl = runMaybeT do
+  uid <- MaybeT $ UserStore.lookupHandle hdl
+  bio <- lift $ UserStore.getBio uid
+  links <- lift $ ProfileLinkStore.getProfileLinks uid
+  quid <- lift $ qualifyLocal uid
+  -- TODO: Actually verify the link
+  let verifiedLinks = map (\(l, mVerifiedAt) -> VerifiedLink l.name l.url (isJust mVerifiedAt)) links
+  pure
+    PublicProfile
+      { publicHandle = Just hdl,
+        publicBio = bio,
+        publicId = tUntagged quid,
+        publicLinks = verifiedLinks
+      }
 
 scimExtId :: StoredUser -> Maybe Text
 scimExtId su = do
@@ -646,7 +668,8 @@ updateUserProfileImpl ::
     Member Events r,
     Member GalleyAPIAccess r,
     Member IndexedUserStore r,
-    Member Metrics r
+    Member Metrics r,
+    Member ProfileLinkStore r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -659,6 +682,7 @@ updateUserProfileImpl (tUnqualified -> uid) mconn updateOrigin update = do
   guardLockedFields user updateOrigin update
   mapError (\StoredUserUpdateHandleExists -> UserSubsystemHandleExists) $
     updateUser uid (storedUserUpdate update)
+  for_ update.links $ ProfileLinkStore.upsertProfileLinks uid
   let interestingToUpdateIndex = isJust update.name || isJust update.accentId
   when interestingToUpdateIndex $ syncUserIndex uid
   generateUserEvent uid mconn (mkProfileUpdateEvent uid update)
@@ -678,7 +702,8 @@ storedUserUpdate update =
       assets = update.assets,
       accentId = update.accentId,
       locale = update.locale,
-      supportedProtocols = update.supportedProtocols
+      supportedProtocols = update.supportedProtocols,
+      bio = update.bio
     }
 
 mkProfileUpdateEvent :: UserId -> UserProfileUpdate -> UserEvent

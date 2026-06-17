@@ -7,6 +7,13 @@
             "type": "image"
         }
     ],
+    "bio": "Its me, the test user",
+    "links": [
+        {
+            "name": "github",
+            "url": "https://website.example/test"
+        }
+    ],
     "name": "~\u001eK󼛵w\u0019d𦏨g",
     "picture": [],
     "text_status": "text status"
