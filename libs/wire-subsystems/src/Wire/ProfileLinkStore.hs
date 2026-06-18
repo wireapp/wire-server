@@ -92,7 +92,7 @@ getProfileLinksImpl uid =
     select =
       dimapPG
         [vectorStatement|
-         SELECT name :: text, url :: text, verified_at :: timestamptz?
+         SELECT link_name :: text, url :: text, verified_at :: timestamptz?
          FROM profile_links
          WHERE uesr_id = $1:: uuid
        |]
@@ -121,16 +121,16 @@ upsertProfileLinksImpl uid links =
         [resultlessStatement|
           DELETE FROM profile_links
           WHERE user_id = $1 :: uuid
-          AND name = ANY($2 :: text[])
+          AND link_name = ANY($2 :: text[])
         |]
 
     upsertLinks :: Statement ([UserId], [LinkName], [HttpsUrl]) ()
     upsertLinks =
       lmapPG @(Vector _, Vector _, Vector _)
         [resultlessStatement|
-          INSERT INTO profile_links (user_id, name, url)
+          INSERT INTO profile_links (user_id, link_name, url)
           SELECT * FROM UNNEST($1 :: uuid[], $2 :: text[], $3 :: text[])
-          ON CONFLICT (user_id, name) DO UPDATE
+          ON CONFLICT (user_id, link_name) DO UPDATE
             SET url = EXCLUDED.url,
                 verified_at = NULL
         |]
@@ -155,6 +155,6 @@ updateVerifiedImpl uid link isVerfied = do
           UPDATE profile_links
           SET verfied_at = $4 :: timestamptz?
           WHERE user_id = $1 :: uuid
-          AND name  = $2 :: text
+          AND link_name  = $2 :: text
           AND url = $3 :: text
         |]
