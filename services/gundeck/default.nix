@@ -227,6 +227,7 @@ mkDerivation {
     extended
     hasql-pool
     HsOpenSSL
+    http-types
     imports
     lens
     memory

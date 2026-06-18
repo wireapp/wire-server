@@ -35,6 +35,7 @@ module Gundeck.Push.Web.Crypto
     encryptPayload,
     encryptPayloadWith,
     EncryptedBody (..),
+    maxPlaintextLength,
 
     -- * RFC 8292: VAPID JWT signing
     signVapid,

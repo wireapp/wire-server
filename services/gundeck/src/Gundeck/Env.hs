@@ -45,6 +45,7 @@ import Database.Redis qualified as Redis
 import Gundeck.Aws qualified as Aws
 import Gundeck.Options as Opt hiding (host, port)
 import Gundeck.Options qualified as O
+import Gundeck.Push.Web.Ssrf (isPrivateLiteralHost)
 import Gundeck.Redis qualified as Redis
 import Gundeck.Redis.HedisExtensions qualified as Redis
 import Gundeck.ThreadBudget
@@ -53,7 +54,12 @@ import Hasql.Pool.Extended (initPostgresPool)
 import Imports
 import Network.AMQP (Channel)
 import Network.AMQP.Extended qualified as Q
-import Network.HTTP.Client (responseTimeoutMicro)
+import Network.HTTP.Client
+  ( host,
+    managerSetProxy,
+    noProxy,
+    responseTimeoutMicro,
+  )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.TLS as TLS
 import Network.TLS.Extra qualified as TLS
@@ -67,7 +73,7 @@ import Wire.PostgresMigrations qualified as PgMigrations
 -- from 'WebPushOpts'. The public key is exposed to web clients via
 -- @GET /push/web/vapid-public-key@ so they can pass it as
 -- @applicationServerKey@ to @pushManager.subscribe()@. The private key signs
--- the per-request VAPID JWTs (see WP-CRYPTO).
+-- the per-request VAPID JWTs.
 data VapidKeyPair = VapidKeyPair
   { _vkpPrivate :: !(ECDSA.PrivateKey Curve_P256R1),
     _vkpPublic :: !(ECDSA.PublicKey Curve_P256R1),
@@ -99,6 +105,15 @@ data Env = Env
     -- via 'Wire.PostgresMigrations.runAllMigrations' (runs every migration
     -- embedded in @wire-subsystems@, idempotent on a shared schema).
     _pgPool :: !Hasql.Pool,
+    -- | Hardened HTTP 'Manager' used exclusively by web push dispatch
+    -- ('Gundeck.Push.Web') to POST encrypted notifications to browser push
+    -- services (RFC 8030). Hardening: proxy disabled via
+    -- 'noProxy' and a 'managerModifyRequest' hook rejects literal private /
+    -- loopback IP hosts ('isPrivateLiteralHost') as an SSRF defense on top of
+    -- the registration-time @_endpointAllowlist@. 'Nothing' when web push is
+    -- disabled (no @webpush:@ config section), in which case dispatch is never
+    -- reached.
+    _webPushManager :: !(Maybe Manager),
     _rabbitMqChannel :: MVar Channel
   }
 
@@ -173,8 +188,13 @@ createEnv o = do
         throwIO (ErrorCall ("gundeck.yaml/webpush: " <> err))
       Right kp -> pure kp
 
+  -- Hardened HTTP manager for web push dispatch. Built only
+  -- when the @webpush:@ section is present, so non-web-push deployments pay no
+  -- extra connection pool. See '_webPushManager' for the hardening rationale.
+  mWebPushManager <- forM (o ^. webpush) $ \_ -> mkWebPushManager o
+
   rabbitMqChannelMVar <- Q.mkRabbitMqChannelMVar l (Just "gundeck") (o ^. rabbitmq)
-  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs mVapid pool rabbitMqChannelMVar
+  pure $! (rThread : rAdditionalThreads,) $! Env (RequestId defRequestId) o l n p r rAdditional a io mtbs mVapid pool mWebPushManager rabbitMqChannelMVar
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
@@ -227,6 +247,49 @@ createRedisPool l ep username password identifier = do
 
 safeShowConnInfo :: Redis.ConnectInfo -> String
 safeShowConnInfo connInfo = show $ connInfo {Redis.connectAuth = "[REDACTED]" <$ Redis.connectAuth connInfo}
+
+--------------------------------------------------------------------------------
+-- Hardened HTTP manager for web push dispatch
+--------------------------------------------------------------------------------
+
+-- | Build the 'Manager' used to POST encrypted web push notifications to
+-- browser push-service endpoints (RFC 8030). Hardening:
+--
+-- * @'managerSetProxy' 'noProxy'@ — never honour proxy environment variables
+--   ('HTTP_PROXY' \/ 'http_proxy'). A misconfigured proxy in the deployment
+--   environment could otherwise intercept the (already-encrypted) POSTs or,
+--   worse, route them to an attacker-controlled upstream. Push services are
+--   always directly reachable over the public internet.
+--
+-- * A 'managerModifyRequest' hook that rejects any host which is a literal
+--   private \/ loopback \/ link-local IP (or the hostname @"localhost"@) via
+--   'Gundeck.Push.Web.Ssrf.isPrivateLiteralHost'. This is the SSRF
+--   belt-and-suspenders behind the registration-time @_endpointAllowlist@.
+--
+-- * The connection count and idle count mirror the regular '_manager', so the
+--   two pools share the same sizing assumptions; web push traffic is low
+--   volume compared to native push \/ SNS.
+--
+-- * The 5-second response timeout mirrors '_manager'; push services are
+--   expected to acknowledge quickly (201 \/ 202 with an empty body).
+mkWebPushManager :: Opts -> IO Manager
+mkWebPushManager o =
+  newManager
+    (managerSetProxy noProxy tlsManagerSettings)
+      { managerConnCount = o ^. settings . httpPoolSize,
+        managerIdleConnectionCount = 3 * (o ^. settings . httpPoolSize),
+        managerResponseTimeout = responseTimeoutMicro 5000000,
+        managerModifyRequest = \req -> do
+          let h = host req
+          when (isPrivateLiteralHost h) $
+            throwIO
+              ( ErrorCall
+                  ( "gundeck web push: refusing to POST to private/loopback host: "
+                      <> show h
+                  )
+              )
+          pure req
+      }
 
 --------------------------------------------------------------------------------
 -- VAPID keypair parsing (pure, for unit testing)

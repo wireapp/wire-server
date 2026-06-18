@@ -37,8 +37,11 @@ library
     Gundeck.Push.Native
     Gundeck.Push.Native.Serialise
     Gundeck.Push.Native.Types
+    Gundeck.Push.Web
     Gundeck.Push.Web.Crypto
     Gundeck.Push.Web.Runner
+    Gundeck.Push.Web.Serialise
+    Gundeck.Push.Web.Ssrf
     Gundeck.Push.Websocket
     Gundeck.React
     Gundeck.Redis
@@ -493,8 +496,11 @@ test-suite gundeck-tests
     ThreadBudget
     Vapid
     WebPushCrypto
+    WebPushDispatch
     WebPushHandlers
     WebPushRunner
+    WebPushSerialise
+    WebPushSsrf
 
   hs-source-dirs:     test/unit
   default-extensions:
@@ -562,6 +568,7 @@ test-suite gundeck-tests
     , gundeck
     , hasql-pool
     , HsOpenSSL
+    , http-types
     , imports
     , lens
     , memory
