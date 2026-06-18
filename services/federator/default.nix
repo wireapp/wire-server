@@ -23,6 +23,8 @@
 , extended
 , filepath
 , fsnotify
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , HsOpenSSL
 , hspec
 , hspec-junit-formatter
@@ -71,6 +73,7 @@
 , warp-tls
 , wire-api
 , wire-api-federation
+, wire-otel
 , yaml
 }:
 mkDerivation {
@@ -97,6 +100,8 @@ mkDerivation {
     extended
     filepath
     fsnotify
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     HsOpenSSL
     http-client
     http-media
@@ -129,6 +134,7 @@ mkDerivation {
     warp
     wire-api
     wire-api-federation
+    wire-otel
   ];
   executableHaskellDepends = [
     aeson

@@ -123,6 +123,8 @@ library
     , extended
     , filepath
     , fsnotify
+    , hs-opentelemetry-instrumentation-wai
+    , hs-opentelemetry-sdk
     , HsOpenSSL
     , http-client
     , http-media
@@ -150,8 +152,6 @@ library
     , types-common
     , unix
     , utf8-string
-    , hs-opentelemetry-instrumentation-wai
-    , hs-opentelemetry-sdk
     , wai
     , wai-utilities
     , warp
