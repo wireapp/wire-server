@@ -78,6 +78,10 @@ import Network.Wai (Request, requestHeaders)
 import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Request
 import Network.Wai.Utilities.Server (defaultRequestIdHeaderName)
+import qualified OpenTelemetry.Context as Otel (lookupSpan)
+import qualified OpenTelemetry.Context.ThreadLocal as Otel
+import OpenTelemetry.Trace as Otel
+import OpenTelemetry.Trace.Core as Otel
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -142,7 +146,16 @@ import qualified Wire.Sem.Random as Random
 app :: Env -> Application
 app ctx0 req cont = do
   let rid = getRequestId defaultRequestIdHeaderName req
-  let ctx = ctx0 {sparCtxRequestId = rid}
+  mbSpan <- Otel.lookupSpan <$> Otel.getContext
+  immSpan <- case mbSpan of
+    Nothing -> pure Nothing
+    Just span' -> either (const Nothing) Just <$> Otel.toImmutableSpan span'
+
+  let ctx =
+        ctx0
+          { sparCtxRequestId = rid,
+            sparCtxOtelLocalRootSpanContext = Otel.spanContext <$> immSpan
+          }
   SAML.setHttpCachePolicy
     ( serveWithContext
         (Proxy @SparAPI)

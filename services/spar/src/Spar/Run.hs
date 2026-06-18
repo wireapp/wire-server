@@ -46,10 +46,9 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as WU
-import OpenTelemetry.Trace as Otel
 import qualified OpenTelemetry.Instrumentation.Wai as OtelWai
+import OpenTelemetry.Trace as Otel
 import qualified SAML2.WebSSO as SAML
-import Wire.OpenTelemetry (withTracer)
 import Spar.API (SparAPI, app)
 import Spar.App
 import qualified Spar.Data as Data
@@ -63,6 +62,7 @@ import Util.Options
 import qualified Web.Scim.Schema.Common as Scim
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.Routes.Version.Wai
+import Wire.OpenTelemetry (withTracer)
 import Wire.ScimSubsystem.Interpreter
 
 ----------------------------------------------------------------------
@@ -104,6 +104,7 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . to port)
           $ Bilge.empty
   let sparCtxRequestId = RequestId defRequestId
+      sparCtxOtelLocalRootSpanContext = Nothing
   sparCtxScimSubsystemConfig <- do
     let bsUri :: URI.URI
         bsUri = sparCtxOpts.scimBaseUri

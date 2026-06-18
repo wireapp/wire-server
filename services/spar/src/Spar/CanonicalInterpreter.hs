@@ -26,7 +26,9 @@ where
 
 import qualified Cassandra as Cas
 import Control.Monad.Except hiding (mapError)
+import Data.Id (RequestId, unRequestId)
 import Imports
+import qualified OpenTelemetry.Trace as Otel
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
@@ -62,6 +64,7 @@ import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
 import Spar.Sem.Utils
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
+import qualified System.Logger as Log
 import qualified System.Logger as TinyLog
 import Wire.API.Routes.Version (expandVersionExp)
 import Wire.API.User.Saml (TTLError)
@@ -79,6 +82,7 @@ import Wire.Rpc (Rpc, runRpcWithHttp)
 import Wire.RpcException
 import Wire.ScimSubsystem
 import Wire.ScimSubsystem.Interpreter
+import Wire.Sem.Logger
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIO)
@@ -134,7 +138,7 @@ runSparToIO ctx =
     . randomToIO
     . runInputConst (sparCtxLogger ctx)
     . runInputConst (sparCtxOpts ctx)
-    . loggerToTinyLog (sparCtxLogger ctx)
+    . loggerToTinyOtel ctx.sparCtxRequestId (sparCtxOtelLocalRootSpanContext ctx) (sparCtxLogger ctx)
     . stringLoggerToTinyLog
     . reporterToTinyLogWai
     . runError @SparError
@@ -167,6 +171,29 @@ runSparToIO ctx =
     . interpretScimSubsystem
     . interpretIdPSubsystem (enableIdPByEmailDiscovery . sparCtxOpts $ ctx)
 
+-- | Log the request ID along with the message
+loggerToTinyOtel ::
+  (Member (Embed IO) r) =>
+  RequestId ->
+  Maybe Otel.SpanContext ->
+  Log.Logger ->
+  Sem (TinyLog ': r) a ->
+  Sem r a
+loggerToTinyOtel r Nothing tinylog =
+  loggerToTinyLog tinylog
+    . mapLogger (Log.field "request" (unRequestId r) .)
+    . raiseUnder @TinyLog
+loggerToTinyOtel r (Just spanContext) tinylog =
+  loggerToTinyLog tinylog
+    . mapLogger
+      ( \m ->
+          Log.field "request" (unRequestId r)
+            . Log.field "trace_id" (show $ Otel.traceId spanContext)
+            . Log.field "span_id" (show $ Otel.spanId spanContext)
+            . m
+      )
+    . raiseUnder @TinyLog
+
 iParseException :: (Member (Error SparError) r) => InterpreterFor (Error ParseException) r
 iParseException = Polysemy.Error.mapError (httpErrorToSparError . parseExceptionToHttpError)
 
@@ -177,4 +204,4 @@ runSparToHandler :: Env -> Sem CanonicalEffs a -> Handler a
 runSparToHandler ctx spar = do
   liftIO (runSparToIO ctx spar) >>= \case
     Right val -> pure val
-    Left err -> sparToServerErrorWithLogging (sparCtxLogger ctx) err >>= throwError
+    Left sparErr -> sparToServerErrorWithLogging (sparCtxLogger ctx) sparErr >>= throwError
