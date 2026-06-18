@@ -144,16 +144,16 @@ upsertProfileLinksImpl uid links =
           )
 
 updateVerifiedImpl :: (Member Now r, PGConstraints r) => UserId -> ProfileLink x -> Bool -> Sem r ()
-updateVerifiedImpl uid link isVerfied = do
-  verifiedTime <- if isVerfied then Just <$> Now.get else pure Nothing
-  runStatement (uid, link.name, link.url, verifiedTime) markVerfied
+updateVerifiedImpl uid link isVerified = do
+  verifiedTime <- if isVerified then Just <$> Now.get else pure Nothing
+  runStatement (uid, link.name, link.url, verifiedTime) markVerified
   where
-    markVerfied :: Statement (UserId, LinkName, HttpsUrl, Maybe UTCTime) ()
-    markVerfied =
+    markVerified :: Statement (UserId, LinkName, HttpsUrl, Maybe UTCTime) ()
+    markVerified =
       lmapPG
         [resultlessStatement|
           UPDATE profile_links
-          SET verfied_at = $4 :: timestamptz?
+          SET verified_at = $4 :: timestamptz?
           WHERE user_id = $1 :: uuid
           AND link_name  = $2 :: text
           AND url = $3 :: text
