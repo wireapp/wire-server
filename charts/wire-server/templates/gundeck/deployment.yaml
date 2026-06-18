@@ -40,6 +40,11 @@ spec:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
+        {{- if not (empty .Values.gundeck.secrets) }}
+        - name: "gundeck-secrets"
+          secret:
+            secretName: "gundeck"
+        {{- end }}
         {{- if and .Values.gundeck.config.rabbitmq .Values.gundeck.config.rabbitmq.tlsCaSecretRef }}
         - name: "rabbitmq-ca"
           secret:
@@ -71,6 +76,10 @@ spec:
           volumeMounts:
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
+          {{- if not (empty .Values.gundeck.secrets) }}
+          - name: "gundeck-secrets"
+            mountPath: "/etc/wire/gundeck/secrets"
+          {{- end }}
           {{- if eq (include "useCassandraTLS" .Values.gundeck.config.cassandra) "true" }}
           - name: "gundeck-cassandra"
             mountPath: "/etc/wire/gundeck/cassandra"

@@ -505,10 +505,21 @@ gundeck:
       hard: 30
       soft: 10
     cellsEventQueue: cells_events
+    postgresql:
+      host: "postgresql"
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
     redisPassword: very-secure-redis-master-password
+    pgPassword: posty-the-gres
     rabbitmq:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}

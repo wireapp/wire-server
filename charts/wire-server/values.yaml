@@ -764,6 +764,24 @@ gundeck:
     # To enable cells notifications
     # cellsEventQueue: cells_events
 
+    # Postgres connection settings for web push subscription storage.
+    # Web push is the first gundeck subsystem backed by Postgres; Cassandra
+    # remains the store for native push. Migrations run unconditionally at
+    # startup, so these settings are required even when web push is disabled.
+    #
+    # Values are described in https://www.postgresql.org/docs/17/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    # To set the password via a gundeck secret see `secrets.pgPassword`.
+    postgresql:
+      host: postgresql # DNS name without protocol
+      port: "5432"
+      user: wire-server
+      dbname: wire-server
+    postgresqlPool:
+      size: 100
+      acquisitionTimeout: 10s
+      agingTimeout: 1d
+      idlenessTimeout: 10m
+
   serviceAccount:
     # When setting this to 'false', either make sure that a service account named
     # 'gundeck' exists or change the 'name' field to 'default'

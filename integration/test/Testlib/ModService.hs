@@ -254,6 +254,7 @@ defaultOverrides resource =
       def
         { brigCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
           galleyCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
+          gundeckCfg = setField "postgresql.dbname" resource.berPostgresqlDBName,
           backgroundWorkerCfg = setField "postgresql.dbname" resource.berPostgresqlDBName
         }
 

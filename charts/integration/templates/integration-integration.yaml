@@ -41,6 +41,10 @@ spec:
       configMap:
         name: "gundeck"
 
+    - name: "gundeck-secrets"
+      secret:
+        secretName: "gundeck"
+
     - name: "cargohold-config"
       configMap:
         name: "cargohold"
@@ -236,6 +240,9 @@ spec:
 
     - name: gundeck-config
       mountPath: /etc/wire/gundeck/conf
+
+    - name: gundeck-secrets
+      mountPath: /etc/wire/gundeck/secrets
 
     - name: cargohold-config
       mountPath: /etc/wire/cargohold/conf
