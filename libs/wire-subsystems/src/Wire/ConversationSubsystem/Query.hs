@@ -225,7 +225,8 @@ getLocalConversationDescription ::
   ConvId ->
   Sem r ConversationDescription
 getLocalConversationDescription lusr cnv = do
-  void $ getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
+  convView <- getConversationAsViewer (tUntagged lusr) (qualifyAs lusr cnv)
+  unless convView.viewingAsMember $ throwS @'ConvNotFound
   fromMaybe (ConversationDescription 0 mempty)
     <$> ConversationStore.getConversationDescription cnv
 

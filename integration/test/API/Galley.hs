@@ -649,6 +649,37 @@ updateMessageTimer user qcnv update = do
   req <- baseRequest user Galley Versioned path
   submit "PUT" (addJSONObject ["message_timer" .= updateReq] req)
 
+getConversationDescription ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  App Response
+getConversationDescription user qcnv = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", cnvDomain, cnvId, "description"])
+  submit "GET" req
+
+updateConversationDescription ::
+  (HasCallStack, MakesValue user, MakesValue conv) =>
+  user ->
+  conv ->
+  Int64 ->
+  Int64 ->
+  ByteString ->
+  App Response
+updateConversationDescription user qcnv baseVersion version ciphertext = do
+  (cnvDomain, cnvId) <- objQid qcnv
+  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", cnvDomain, cnvId, "description"])
+  submit
+    "PUT"
+    ( req
+        & addJSONObject
+          [ "base_version" .= baseVersion,
+            "version" .= version,
+            "ciphertext" .= BS.unpack (B64.encode ciphertext)
+          ]
+    )
+
 updateHistory ::
   ( HasCallStack,
     MakesValue user,
