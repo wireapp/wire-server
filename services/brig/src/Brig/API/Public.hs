@@ -456,6 +456,7 @@ servantSitemap =
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH
         :<|> Named @"get-user-qualified" getUserProfileH
+        :<|> Named @"get-public-profile" getPublicProfileH
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
@@ -644,6 +645,9 @@ servantSitemap =
         :<|> Named @"get-apps" getApps
         :<|> Named @"put-app" putApp
         :<|> Named @"refresh-app-cookie" refreshAppCookie
+
+getPublicProfileH :: (Member UserSubsystem r) => Handle -> Handler r (Maybe Public.PublicProfile)
+getPublicProfileH = lift . liftSem . User.getPublicProfile
 
 ---------------------------------------------------------------------------
 -- Handlers

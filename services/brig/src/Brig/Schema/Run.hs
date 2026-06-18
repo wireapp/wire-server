@@ -67,6 +67,7 @@ import Brig.Schema.V89_UpdateDomainRegistrationSchema qualified as V89_UpdateDom
 import Brig.Schema.V90_DomainRegistrationTeamIndex qualified as V90_DomainRegistrationTeamIndex
 import Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl qualified as V91_UpdateDomainRegistrationSchema_AddWebappUrl
 import Brig.Schema.V92_AddUserType qualified as V92_AddUserType
+import Brig.Schema.V93_AddBio qualified as V93_AddBio
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
@@ -140,7 +141,8 @@ migrations =
     V89_UpdateDomainRegistrationSchema.migration,
     V90_DomainRegistrationTeamIndex.migration,
     V91_UpdateDomainRegistrationSchema_AddWebappUrl.migration,
-    V92_AddUserType.migration
+    V92_AddUserType.migration,
+    V93_AddBio.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
   ]

@@ -169,6 +169,7 @@ common common-all
     , resourcet
     , retry
     , saml2-web-sso
+    , scalpel
     , schema-profunctor
     , servant
     , servant-client-core
@@ -389,6 +390,7 @@ library
     Wire.Postgres
     Wire.PostgresMigrationOpts
     Wire.PostgresMigrations
+    Wire.ProfileLinkStore
     Wire.PropertyStore
     Wire.PropertyStore.Cassandra
     Wire.PropertySubsystem
@@ -618,6 +620,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.Now
     Wire.MockInterpreters.PasswordResetCodeStore
     Wire.MockInterpreters.PasswordStore
+    Wire.MockInterpreters.ProfileLinkStore
     Wire.MockInterpreters.PropertyStore
     Wire.MockInterpreters.Random
     Wire.MockInterpreters.RateLimit

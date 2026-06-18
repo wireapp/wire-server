@@ -185,7 +185,7 @@ testUpdateEvents brig cannon = do
       newAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)]
       newName = Just $ Name "Alice in Wonderland"
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate newName Nothing newPic newAssets newColId
+      userUpdate = UserUpdate newName Nothing newPic newAssets newColId Nothing Nothing
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do

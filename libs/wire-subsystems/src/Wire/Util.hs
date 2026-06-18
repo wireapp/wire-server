@@ -38,7 +38,7 @@ embedClientInput a = do
   client <- input
   embedClient client a
 
-qualifyLocal :: (Member (Input (Local ())) r) => a -> Sem r (Local a)
+qualifyLocal :: (Member (Input (Local x)) r) => a -> Sem r (Local a)
 qualifyLocal a = do
   l <- input
   pure $ qualifyAs l a

@@ -93,7 +93,9 @@ data UserProfileUpdate = MkUserProfileUpdate
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
     locale :: Maybe Locale,
-    supportedProtocols :: Maybe (Set BaseProtocolTag)
+    supportedProtocols :: Maybe (Set BaseProtocolTag),
+    bio :: Maybe Bio,
+    links :: Maybe [UnverifiedLink]
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform UserProfileUpdate
@@ -107,7 +109,9 @@ instance Default UserProfileUpdate where
         assets = Nothing,
         accentId = Nothing,
         locale = Nothing,
-        supportedProtocols = Nothing
+        supportedProtocols = Nothing,
+        bio = Nothing,
+        links = Nothing
       }
 
 -- | Outcome of email change invariant checks.
@@ -121,6 +125,7 @@ data ChangeEmailResult
 data UserSubsystem m a where
   -- | First arg is for authorization only.
   GetUserProfiles :: Local UserId -> [Qualified UserId] -> UserSubsystem m [UserProfile]
+  GetPublicProfile :: Handle -> UserSubsystem m (Maybe PublicProfile)
   -- | These give us partial success and hide concurrency in the interpreter.
   -- (Nit-pick: a better return type for this might be `([Qualified ([UserId],
   -- FederationError)], [UserProfile])`, and then we'd probably need a function of type

@@ -922,7 +922,7 @@ testUserUpdate brig cannon userJournalWatcher = do
       mNewName = Just $ aliceNewName
       mNewTextStatus = rightToMaybe $ mkTextStatus "fun status"
       newPic = Nothing -- Legacy
-      userUpdate = UserUpdate mNewName mNewTextStatus newPic newAssets newColId
+      userUpdate = UserUpdate mNewName mNewTextStatus newPic newAssets newColId Nothing Nothing
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
@@ -1265,7 +1265,7 @@ testDeleteWithProfilePic brig cargohold = do
               (qUnqualified $ ast ^. Asset.assetKey)
               (Just AssetComplete)
           ]
-      userUpdate = UserUpdate Nothing Nothing Nothing newAssets Nothing
+      userUpdate = UserUpdate Nothing Nothing Nothing newAssets Nothing Nothing Nothing
       update = RequestBodyLBS . encode $ userUpdate
   -- Update profile with the uploaded asset
   put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update)

@@ -46,13 +46,14 @@ data StoredUserUpdate = MkStoredUserUpdate
     assets :: Maybe [Asset],
     accentId :: Maybe ColourId,
     locale :: Maybe Locale,
-    supportedProtocols :: Maybe (Set BaseProtocolTag)
+    supportedProtocols :: Maybe (Set BaseProtocolTag),
+    bio :: Maybe Bio
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform StoredUserUpdate
 
 instance Default StoredUserUpdate where
-  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+  def = MkStoredUserUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Update user handle (this involves several http requests for locking the required handle).
 -- The old/previous handle (for deciding idempotency).
@@ -116,6 +117,7 @@ data UserStore m a where
   DeleteServiceUser :: ProviderId -> ServiceId -> BotId -> UserStore m ()
   LookupServiceUsers :: ProviderId -> ServiceId -> Maybe (GeneralPaginationState BotId) -> UserStore m (PageWithState BotId (BotId, ConvId, Maybe TeamId))
   LookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> Maybe (GeneralPaginationState BotId) -> UserStore m (PageWithState BotId (BotId, ConvId))
+  GetBio :: UserId -> UserStore m (Maybe Bio)
 
 makeSem ''UserStore
 
