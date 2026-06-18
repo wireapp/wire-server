@@ -777,17 +777,32 @@ testConversationDescriptionUpdate = do
       firstCiphertext = BS.pack "group description v1"
       secondCiphertext = BS.pack "group description v2"
 
-  bindResponse (updateConversationDescription owner conv (0 :: Int64) (1 :: Int64) firstCiphertext) $ \resp ->
-    assertDescription resp 1 firstCiphertext
+  withWebSockets [owner, convMember] $ \[ownerWs, memberWs] -> do
+    bindResponse (updateConversationDescription owner conv (0 :: Int64) (1 :: Int64) firstCiphertext) $ \resp ->
+      assertDescription resp 1 firstCiphertext
 
-  bindResponse (getConversationDescription owner conv) $ \resp ->
-    assertDescription resp 1 firstCiphertext
+    for_ [ownerWs, memberWs] $ \ws -> do
+      notif <- awaitMatch isConvDescriptionUpdateNotif ws
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject owner
+      notif %. "payload.0.data.version" `shouldMatchInt` 1
+      notif %. "payload.0.data.ciphertext" `shouldMatchBase64` firstCiphertext
 
-  bindResponse (getConversationDescription convMember conv) $ \resp ->
-    assertDescription resp 1 firstCiphertext
+    bindResponse (getConversationDescription owner conv) $ \resp ->
+      assertDescription resp 1 firstCiphertext
 
-  bindResponse (updateConversationDescription owner conv (1 :: Int64) (2 :: Int64) secondCiphertext) $ \resp ->
-    assertDescription resp 2 secondCiphertext
+    bindResponse (getConversationDescription convMember conv) $ \resp ->
+      assertDescription resp 1 firstCiphertext
+
+    bindResponse (updateConversationDescription owner conv (1 :: Int64) (2 :: Int64) secondCiphertext) $ \resp ->
+      assertDescription resp 2 secondCiphertext
+
+    for_ [ownerWs, memberWs] $ \ws -> do
+      notif <- awaitMatch isConvDescriptionUpdateNotif ws
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject owner
+      notif %. "payload.0.data.version" `shouldMatchInt` 2
+      notif %. "payload.0.data.ciphertext" `shouldMatchBase64` secondCiphertext
 
   bindResponse (getConversationDescription owner conv) $ \resp ->
     assertDescription resp 2 secondCiphertext

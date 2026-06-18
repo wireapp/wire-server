@@ -185,6 +185,10 @@ isConvMsgTimerUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvMsgTimerUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.message-timer-update"
 
+isConvDescriptionUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
+isConvDescriptionUpdateNotif n =
+  fieldEquals n "payload.0.type" "conversation.description-update"
+
 isConvAccessUpdateNotif :: (HasCallStack, MakesValue n) => n -> App Bool
 isConvAccessUpdateNotif n =
   fieldEquals n "payload.0.type" "conversation.access-update"
