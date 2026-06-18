@@ -57,6 +57,7 @@
 , hasql-th
 , hasql-transaction
 , hex
+, hs-opentelemetry-sdk
 , hscim
 , HsOpenSSL
 , hspec
@@ -196,6 +197,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hs-opentelemetry-sdk
     hscim
     HsOpenSSL
     hspec
@@ -326,6 +328,7 @@ mkDerivation {
     hasql-th
     hasql-transaction
     hex
+    hs-opentelemetry-sdk
     hscim
     HsOpenSSL
     hspec

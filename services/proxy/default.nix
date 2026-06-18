@@ -13,6 +13,8 @@
 , errors
 , exceptions
 , extended
+, hs-opentelemetry-instrumentation-wai
+, hs-opentelemetry-sdk
 , http-client
 , http-client-tls
 , http-reverse-proxy
@@ -32,6 +34,7 @@
 , wai-middleware-gunzip
 , wai-utilities
 , wire-api
+, wire-otel
 }:
 mkDerivation {
   pname = "proxy";
@@ -50,6 +53,8 @@ mkDerivation {
     errors
     exceptions
     extended
+    hs-opentelemetry-instrumentation-wai
+    hs-opentelemetry-sdk
     http-client
     http-client-tls
     http-reverse-proxy
@@ -68,6 +73,7 @@ mkDerivation {
     wai-middleware-gunzip
     wai-utilities
     wire-api
+    wire-otel
   ];
   executableHaskellDepends = [ base imports types-common ];
   license = lib.licenses.agpl3Only;
