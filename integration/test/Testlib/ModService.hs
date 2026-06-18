@@ -59,8 +59,10 @@ import qualified Data.Text.IO as Text
 import Data.Traversable
 import Data.Word
 import qualified Data.Yaml as Yaml
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import GHC.Stack
 import qualified Network.HTTP.Client as HTTP
+import Network.HTTP.Client (RequestBody(..))
 import System.Directory (copyFile, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory, removeDirectoryRecursive, removeFile)
 import System.Exit
 import System.FilePath
@@ -509,8 +511,12 @@ withProcess artifacts resource service = do
           createServiceInstance params = do
             (_, Just stdoutHdl, Just stderrHdl, ph) <- createProcess (proc exe params) {cwd = cwd, std_out = CreatePipe, std_err = CreatePipe}
             let colorize = fromMaybe id (lookup execName processColors)
-            void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl
-            void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl
+            mgr <- HTTP.newManager HTTP.defaultManagerSettings
+            let lokiUrl = "http://localhost:3100"
+                lokiStdoutPusher = Just $ makeLokiPusher mgr lokiUrl execName domain "stdout"
+                lokiStderrPusher = Just $ makeLokiPusher mgr lokiUrl execName domain "stderr"
+            void $ forkIO $ logToConsoleDebug (Just stdOut) colorize prefix stdoutHdl lokiStdoutPusher
+            void $ forkIO $ logToConsoleDebug (Just stdErr) colorize prefix stderrHdl lokiStderrPusher
             writeIORef phRef (Just ph)
             mkProcessInstance service ph
 
@@ -584,11 +590,38 @@ lookupServiceConfig service artifacts =
   fromMaybe (error $ "missing backend artifact for service " <> show service) $
     Map.lookup service artifacts.serviceConfigs
 
-logToConsole :: (String -> String) -> String -> Handle -> IO ()
-logToConsole = logToConsoleDebug Nothing
+makeLokiPusher :: HTTP.Manager -> String -> String -> String -> String -> (String -> IO ())
+makeLokiPusher mgr lokiUrl service domain streamName line =
+  E.catch sendToLoki (\(_ :: E.SomeException) -> pure ())
+  where
+    sendToLoki = do
+      now <- getPOSIXTime
+      let ns = show (round (now * 1e9) :: Integer)
+          streamObj = object
+            [ "service" .= service
+            , "domain"  .= domain
+            , "source"  .= streamName
+            ]
+          bodyObj = object
+            [ "streams" .= [ object
+                [ "stream" .= streamObj
+                , "values" .= [[ns, line]]
+                ]
+            ]
+            ]
+      req <- HTTP.parseRequest (lokiUrl <> "/loki/api/v1/push")
+      let req' = req
+            { HTTP.method = "POST"
+            , HTTP.requestBody = RequestBodyLBS (encode bodyObj)
+            , HTTP.requestHeaders = [("Content-Type", "application/json")]
+            }
+      void (HTTP.httpLbs req' mgr)
 
-logToConsoleDebug :: Maybe (IORef [String]) -> (String -> String) -> String -> Handle -> IO ()
-logToConsoleDebug mOutput colorize prefix hdl = do
+logToConsole :: (String -> String) -> String -> Handle -> IO ()
+logToConsole colorize prefix hdl = logToConsoleDebug Nothing colorize prefix hdl Nothing
+
+logToConsoleDebug :: Maybe (IORef [String]) -> (String -> String) -> String -> Handle -> Maybe (String -> IO ()) -> IO ()
+logToConsoleDebug mOutput colorize prefix hdl mSink = do
   let go =
         do
           line <- hGetLine hdl
@@ -597,6 +630,9 @@ logToConsoleDebug mOutput colorize prefix hdl = do
             Nothing -> pure ()
             Just output -> do
               modifyIORef output (<> [line])
+          case mSink of
+            Nothing -> pure ()
+            Just sink -> sink line
           go
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
