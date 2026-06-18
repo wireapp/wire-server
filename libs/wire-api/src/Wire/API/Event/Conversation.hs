@@ -302,7 +302,6 @@ isCellsConversationEvent eventType =
     MemberLeave -> True
     MemberStateUpdate -> True
     ConvRename -> True
-    ConvDescriptionUpdate -> True
     ConvCreate -> True
     ConvDelete -> True
     ConvReset -> False
@@ -319,6 +318,7 @@ isCellsConversationEvent eventType =
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
     ConvHistoryUpdate -> False
+    ConvDescriptionUpdate -> False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
