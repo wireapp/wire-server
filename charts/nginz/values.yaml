@@ -200,6 +200,10 @@ nginx_conf:
       - all
       disable_zauth: true
       unlimited_requests_endpoint: true
+    - path: /users/public/([^/]*)
+      envs:
+      - all
+      disable_zauth: true
     - path: /users
       envs:
       - all
