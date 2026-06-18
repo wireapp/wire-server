@@ -78,6 +78,7 @@ import Wire.API.Notification
 import Wire.API.Presence
 import Wire.API.Push.V2 hiding (recipient)
 import Wire.API.User.Client (Client (..), UserClientsFull (..), supportsConsumableNotifications)
+import Wire.WebPushStore (WebPushAddress (..))
 
 ----------------------------------------------------------------------
 -- env
@@ -96,8 +97,15 @@ data ClientInfo = ClientInfo
   }
   deriving (Eq, Show)
 
-newtype MockEnv = MockEnv
-  { _meClientInfos :: Map UserId (Map ClientId ClientInfo)
+data MockEnv = MockEnv
+  { -- | Per-user, per-client native push reachability info.
+    _meClientInfos :: Map UserId (Map ClientId ClientInfo),
+    -- | Per-user web push subscriptions (the browser-supplied push-service
+    -- endpoints the dispatcher POSTs to). A user may have multiple
+    -- subscriptions per client (multiple browsers, multiple devices).
+    -- The mock 'mpaWebTargets' reads this fixture; the mock
+    -- 'handlePushWeb' computes the expected deliveries from it.
+    _meWebSubscriptions :: Map UserId [WebPushAddress]
   }
   deriving (Eq, Show)
 
@@ -106,6 +114,13 @@ data MockState = MockState
     _msWSQueue :: NotifQueue,
     -- | A record of notifications that have been pushed via native push.
     _msNativeQueue :: NotifQueue,
+    -- | A record of notifications that have been pushed via web push
+    -- (RFC 8030 application-server path). Mirrors '_msNativeQueue': the
+    -- key is @(user, client)@ and the value is a multiset of payload-IDs,
+    -- so a user with multiple web push subscriptions for the same client
+    -- accumulates one delivery per subscription (matching production
+    -- 'WebPush.push' which POSTs to each 'WebPushAddress' independently).
+    _msWebPushQueue :: NotifQueue,
     -- | Non-transient notifications that are stored in the database first thing before
     -- delivery (so clients can always come back and pick them up later until they expire).
     _msCassQueue :: NotifQueue,
@@ -126,19 +141,28 @@ makeLenses ''MockEnv
 makeLenses ''MockState
 
 instance Show MockState where
-  show (MockState w n c r) =
+  show (MockState w n wp c r) =
     intercalate
       "\n"
-      ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, "rabbitmq: " <> show r, ""]
+      [ "",
+        "websocket: " <> show w,
+        "native: " <> show n,
+        "webpush: " <> show wp,
+        "cassandra: " <> show c,
+        "rabbitmq: " <> show r,
+        ""
+      ]
 
 emptyMockState :: MockState
-emptyMockState = MockState mempty mempty mempty mempty
+emptyMockState = MockState mempty mempty mempty mempty mempty
 
 -- these custom instances make for better error reports if tests fail.
 instance ToJSON MockEnv where
-  toJSON (MockEnv mp) =
+  toJSON env =
     Aeson.object
-      ["clientInfos" Aeson..= mp]
+      [ "clientInfos" Aeson..= (env ^. meClientInfos),
+        "webSubscriptions" Aeson..= (env ^. meWebSubscriptions)
+      ]
 
 instance ToJSON ClientInfo where
   toJSON (ClientInfo client native wsreach) =
@@ -171,6 +195,7 @@ instance FromJSON MockEnv where
   parseJSON = withObject "MockEnv" $ \env ->
     MockEnv
       <$> env Aeson..: "clientInfos"
+      <*> env Aeson..:? "webSubscriptions" Aeson..!= mempty
 
 instance FromJSON ClientInfo where
   parseJSON = withObject "ClientInfo" $ \cinfo ->
@@ -196,6 +221,47 @@ mkFakeAddrEndpoint :: (Text, Transport, AppName) -> EndpointArn
 mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") eptopic
   where
     eptopic = mkEndpointTopic (ArnEnv "") transport app (EndpointId epid)
+
+-- | Test-only 'ToJSON' for 'WebPushAddress', mirroring the 'Address' instance
+-- above: the mock-env 'ToJSON' is used for test-failure diagnostics via
+-- 'Pretty', so we encode the full address (minus the redaction the production
+-- 'Show' applies — these are synthetic fixtures, not real keys).
+instance ToJSON WebPushAddress where
+  toJSON a =
+    Aeson.object
+      [ "user" Aeson..= a.wpaUser,
+        "conn" Aeson..= a.wpaConn,
+        "client" Aeson..= a.wpaClient,
+        "endpoint" Aeson..= a.wpaEndpoint,
+        "keys" Aeson..= a.wpaKeys
+      ]
+
+instance FromJSON WebPushAddress where
+  parseJSON = withObject "WebPushAddress" $ \a ->
+    WebPushAddress
+      <$> (a Aeson..: "user")
+      <*> (a Aeson..: "conn")
+      <*> (a Aeson..: "client")
+      <*> (a Aeson..: "endpoint")
+      <*> (a Aeson..: "keys")
+
+-- | Generate a 'WebPushAddress' for a specific @(user, client)@ pair, with the
+-- @conn@ derived from the client (matching 'fakeConnId' so production
+-- filtering by @pushConnections@ / @pushOriginConnection@ behaves correctly)
+-- and the @endpoint@\/@keys@ fully random. Multiple calls yield distinct
+-- addresses (different endpoints), modelling a user with multiple browsers.
+genWebPushAddress :: UserId -> ClientId -> Gen WebPushAddress
+genWebPushAddress wpaUser wpaClient = do
+  wpaEndpoint <- arbitrary
+  wpaKeys <- arbitrary
+  let wpaConn = fakeConnId wpaClient
+  pure WebPushAddress {..}
+
+instance Arbitrary WebPushAddress where
+  arbitrary = do
+    uid <- arbitrary
+    cid <- ClientId <$> arbitrary
+    genWebPushAddress uid cid
 
 ----------------------------------------------------------------------
 -- env generators
@@ -254,18 +320,42 @@ genMockEnv = do
      in nubrec <$> forM uids gencids
   -- Build an 'MockEnv' containing a map with all those 'ClientInfo's, and
   -- check that it validates
-  env <-
-    MockEnv . Map.fromList . fmap (_2 %~ Map.fromList) <$> do
+  clientInfos <-
+    Map.fromList . fmap (_2 %~ Map.fromList) <$> do
       forM (zip uids cidss) $ \(uid, cids) ->
         (uid,) <$> do
           forM cids $ \cid -> (cid,) <$> genClientInfo uid cid
+  -- For some (user, client) pairs, generate 0..N web push subscriptions
+  -- (modelling multiple browsers). The (user, client) pair is drawn from
+  -- the same set as 'clientInfos' so 'mpaWebTargets' lookups align with
+  -- the recipient fixtures.
+  webSubsList <-
+    forM (zip uids cidss) $ \(uid, cids) -> do
+      -- Each client independently gets 0..2 web subscriptions with a bias
+      -- toward none (so the env exercises the no-web-sub case often).
+      subsPerClient <-
+        forM cids $ \cid ->
+          QC.frequency
+            [ (5, pure []),
+              (3, pure <$> genWebPushAddress uid cid),
+              (1, (\a b -> [a, b]) <$> genWebPushAddress uid cid <*> genWebPushAddress uid cid)
+            ]
+      pure (uid, concat subsPerClient)
+  let webSubscriptions = Map.fromList webSubsList
+      env = MockEnv clientInfos webSubscriptions
   validateMockEnv env & either error (const $ pure env)
 
--- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
+-- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'
+-- (and the corresponding entries from '_meWebSubscriptions').
 shrinkMockEnv :: MockEnv -> [MockEnv]
-shrinkMockEnv (MockEnv cis) =
-  MockEnv . Map.fromList
-    <$> filter (not . null) (shrinkList (const []) (Map.toList cis))
+shrinkMockEnv env =
+  [ env'
+  | keysToRemove <- filter (not . null) (shrinkList (const []) (Map.toList (env ^. meClientInfos))),
+    let env' =
+          env
+            & meClientInfos .~ Map.fromList keysToRemove
+            & meWebSubscriptions %~ Map.filterWithKey (\k _ -> k `Set.member` Set.fromList (fst <$> keysToRemove))
+  ]
 
 validateMockEnv :: forall m. (MonadError String m) => MockEnv -> m ()
 validateMockEnv env = do
@@ -441,6 +531,8 @@ instance MonadPushAll MockGundeck where
   mpaBulkPush = mockBulkPush
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
+  mpaPushWeb = mockPushWeb
+  mpaWebTargets = mockWebTargets
 
   -- \| just don't fork. (this *may* cause deadlocks in principle, but as long as
   -- it doesn't, this is good enough for testing).
@@ -485,6 +577,7 @@ mockPushAll pushes = do
   forM_ pushes $ \psh -> do
     handlePushWS psh
     handlePushNative psh
+    handlePushWeb psh
     handlePushCass psh
     handlePushRabbit psh
 
@@ -545,6 +638,90 @@ handlePushNative Push {..} = do
         msNativeQueue %= deliver (uid, cid) _pushPayload
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
+
+-- | From a single 'Push', deliver eligible 'Notification's via web push
+-- (RFC 8030). Mirrors 'handlePushNative' but for the browser-subscription
+-- path instead of the native SNS path. A client receives a web push when:
+--
+-- 1. The push is not transient (matches native; web push is for durable
+--    notices, and a transient push signals the client is reachable over
+--    websocket right now).
+-- 2. The route is not 'RouteDirect' (matches native routing).
+-- 3. The user has at least one web push subscription for that client
+--    (the equivalent of @nativeReachable@).
+-- 4. The client is NOT served over websocket. The production
+--    'pushAllLegacy' computes @dontPush = alreadySentClients ∪
+--    rabbitmqClientIds@ where @alreadySentClients@ are the WS-delivered
+--    clients; 'webTargets' then filters out addresses whose
+--    @(user, client)@ is in @dontPush@. This is the equivalent of
+--    'handlePushNative's @not (wsReachable env (uid, cid))@ clause.
+-- 5. The client is NOT consumable (does not support consumable
+--    notifications). Production routes consumable clients to
+--    'pushAllViaRabbitMq', which does NOT call 'pushWebWithBudget'
+--    (consumable clients receive notifications via the rabbitmq message
+--    queue and do not need browser web push). The legacy recipient
+--    iteration in 'pushAllLegacy' never sees consumable clients, so
+--    production 'webTargets' never iterates them; the mock must therefore
+--    skip them explicitly to match. This is the one structural
+--    asymmetry vs. 'handlePushNative': native push is dispatched from
+--    BOTH 'pushAllLegacy' and 'pushAllViaRabbitMq', whereas web push is
+--    dispatched only from 'pushAllLegacy'.
+-- 6. Origin rules match native.
+-- 7. The connection allowlist permits delivery.
+handlePushWeb ::
+  (HasCallStack, m ~ MockGundeck) =>
+  Push ->
+  m ()
+handlePushWeb Push {..}
+  -- Condition 1: transient pushes are not sent via web push.
+  | _pushTransient = pure ()
+handlePushWeb Push {..} = do
+  env <- ask
+  forM_ _pushRecipients $ \(Recipient uid route cids) -> do
+    let cids' = case cids of
+          RecipientClientsAll -> clientIdsOfUser env uid
+          RecipientClientsSome cc -> toList cc
+    forM_ cids' $ \cid -> do
+      -- All web push subscriptions the user has for this client (a user may
+      -- have multiple browsers, each with its own subscription).
+      let subsForClient = filter ((== cid) . wpaClient) (webSubscriptionsOf env uid)
+      -- Condition 2: 'RouteDirect' pushes are not eligible (matches native).
+      let isWebEligible = route /= RouteDirect
+      -- Condition 3: subscription must exist (analog of nativeReachable).
+      let hasSub = not (null subsForClient)
+      -- Condition 4: not served over websocket (websocket takes priority).
+      let notWsServed = not (wsReachable env (uid, cid))
+      -- Condition 5: not a consumable (rabbitmq-routed) client.
+      let notConsumable = not (clientIsConsumable env uid cid)
+      -- Condition 6: origin rules (matches native).
+      let isOriginUser = Just uid == fst origin
+          isOriginDevice = origin == (Just uid, Just cid)
+          isAllowedPerOriginRules =
+            not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
+      -- Condition 7: connection allowlist (matches native). Each
+      -- subscription's wpaConn is derived from fakeConnId cid in the
+      -- generator, so all subs for the same cid share the same conn —
+      -- checking any one of them suffices, but we check per-sub to be
+      -- future-proof against a generator that diverges them.
+      when (isWebEligible && hasSub && notWsServed && notConsumable && isAllowedPerOriginRules) $
+        forM_ subsForClient $ \sub ->
+          when (null _pushConnections || sub.wpaConn `elem` _pushConnections) $
+            msWebPushQueue %= deliver (uid, cid) _pushPayload
+  where
+    origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
+
+-- | Is the given @(user, client)@ a "consumable notifications" client (i.e.
+-- routed to the rabbitmq pipeline by 'splitPush', and therefore never seen
+-- by 'pushAllLegacy' \/ 'pushWebWithBudget' in production)? Mirrors the
+-- @supportsConsumableNotifications@ check used by 'handlePushCass'.
+clientIsConsumable :: MockEnv -> UserId -> ClientId -> Bool
+clientIsConsumable env uid cid =
+  maybe False (supportsConsumableNotifications . (^. ciClient)) $
+    (Map.lookup uid >=> Map.lookup cid) (env ^. meClientInfos)
+
+-- | All web push subscriptions the mock env has registered for a user.
+webSubscriptionsOf :: MockEnv -> UserId -> [WebPushAddress]
+webSubscriptionsOf env uid = fromMaybe [] $ Map.lookup uid (env ^. meWebSubscriptions)
 
 -- | From a single 'Push', store only those notifications that real Gundeck would put into
 -- Cassandra.
@@ -646,12 +823,39 @@ mockPushNative (ntfPayload -> payload) _ addrs = do
       msNativeQueue
         %= deliver (addr ^. addrUser, addr ^. addrClient) payload
 
+-- | Mock 'mpaPushWeb' implementation. Records the delivered payload per
+-- @(user, client)@ slot in 'msWebPushQueue', mirroring 'mockPushNative'.
+-- Unlike 'mockPushNative' we do not re-check reachability here: the
+-- @WebPushAddress@ list passed in is already the filtered output of
+-- 'webTargets' (production) or the filtered list of subscriptions
+-- (handlePushWeb), so each address represents a real subscription that
+-- would receive a POST. Multiple addresses for the same @(user, client)@
+-- (multiple browsers) each accumulate one delivery, matching production
+-- 'WebPush.push' which fans out per address.
+mockPushWeb ::
+  Notification ->
+  Priority ->
+  [WebPushAddress] ->
+  MockGundeck ()
+mockPushWeb (ntfPayload -> payload) _ addrs =
+  forM_ addrs $ \a ->
+    msWebPushQueue %= deliver (a.wpaUser, a.wpaClient) payload
+
 mockPushRabbitMq :: Text -> Text -> AMQP.Message -> MockGundeck ()
 mockPushRabbitMq exchange routingKey message = do
   case Aeson.eitherDecode message.msgBody of
     Left e -> error $ "Invalid message body: " <> e
     Right (queuedNotif :: QueuedNotification) ->
       msRabbitQueue %= deliver (exchange, routingKey) (queuedNotif ^. queuedNotificationPayload)
+
+-- | Mock 'mpaWebTargets' implementation: return the fixture subscriptions
+-- for the user from 'MockEnv'. Mirrors 'mockLookupAddresses' for the
+-- native path. Returns @[]@ for unknown users (matching the production
+-- resilient behavior on lookup failure).
+mockWebTargets ::
+  UserId ->
+  MockGundeck [WebPushAddress]
+mockWebTargets uid = asks (^. meWebSubscriptions) <&> fromMaybe [] . Map.lookup uid
 
 mockLookupAddresses ::
   (HasCallStack, m ~ MockGundeck) =>
@@ -685,7 +889,7 @@ mockBulkSend uri notifs = do
 
 mockGetClients :: Set UserId -> MockGundeck UserClientsFull
 mockGetClients uids = do
-  MockEnv allClientInfos <- ask
+  allClientInfos <- asks (^. meClientInfos)
   let getClients uid =
         let clientInfos = foldMap Map.elems $ Map.lookup uid allClientInfos
          in Set.fromList $ map (^. ciClient) clientInfos
@@ -737,14 +941,14 @@ mkWSStatus = do
       else PushStatusGone
 
 wsReachable :: MockEnv -> (UserId, ClientId) -> Bool
-wsReachable (MockEnv mp) (uid, cid) =
+wsReachable env (uid, cid) =
   maybe False (^. ciWSReachable) $
-    (Map.lookup uid >=> Map.lookup cid) mp
+    (Map.lookup uid >=> Map.lookup cid) (env ^. meClientInfos)
 
 nativeReachable :: MockEnv -> (UserId, ClientId) -> Bool
-nativeReachable (MockEnv mp) (uid, cid) =
+nativeReachable env (uid, cid) =
   maybe False (^. _2) $
-    (Map.lookup uid >=> Map.lookup cid >=> (^. ciNativeAddress)) mp
+    (Map.lookup uid >=> Map.lookup cid >=> (^. ciNativeAddress)) (env ^. meClientInfos)
 
 nativeReachableAddr :: MockEnv -> Address -> Bool
 nativeReachableAddr env addr = nativeReachable env (addr ^. addrUser, addr ^. addrClient)
@@ -753,11 +957,11 @@ allUsers :: MockEnv -> [UserId]
 allUsers = fmap fst . allRecipients
 
 allRecipients :: MockEnv -> [(UserId, [ClientId])]
-allRecipients (MockEnv mp) = (_2 %~ Map.keys) <$> Map.toList mp
+allRecipients env = (_2 %~ Map.keys) <$> Map.toList (env ^. meClientInfos)
 
 clientIdsOfUser :: (HasCallStack) => MockEnv -> UserId -> [ClientId]
-clientIdsOfUser (MockEnv mp) uid =
-  maybe (error "unknown UserId") Map.keys $ Map.lookup uid mp
+clientIdsOfUser env uid =
+  maybe (error "unknown UserId") Map.keys $ Map.lookup uid (env ^. meClientInfos)
 
 -- | See also: 'fakePresence'.
 fakePresences :: (UserId, [ClientId]) -> [Presence]

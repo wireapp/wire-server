@@ -84,6 +84,7 @@ import Gundeck.Presence.Data qualified as Presence
 import Gundeck.Push.Data qualified as Data
 import Gundeck.Push.Native qualified as Native
 import Gundeck.Push.Native.Types
+import Gundeck.Push.Web qualified as WebPush
 import Gundeck.Push.Web.Runner (runWebPush)
 import Gundeck.Push.Websocket qualified as Web
 import Gundeck.ThreadBudget
@@ -130,6 +131,21 @@ class (MonadThrow m) => MonadPushAll m where
   mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd :: NotificationId -> NonEmpty NotificationTarget -> NonEmpty Aeson.Object -> NotificationTTL -> m ()
   mpaPushNative :: Notification -> Priority -> [Address] -> m ()
+
+  -- | Deliver a web push notification to a list of resolved web push
+  -- subscriptions. Analogous to 'mpaPushNative' but for the W3C Push API
+  -- (RFC 8030 application-server path) instead of AWS SNS. No-op when the
+  -- address list is empty; the underlying 'WebPush.push' handles fan-out
+  -- under the configured per-push concurrency budget.
+  mpaPushWeb :: Notification -> Priority -> [WebPushAddress] -> m ()
+
+  -- | Look up all web push subscriptions registered for a user. Returns
+  -- @[]@ on lookup failure (transient Postgres outage, etc.) after
+  -- logging; this matches the resilient semantics of the surrounding
+  -- dispatch code where a per-user lookup failure must not abort the
+  -- entire push batch.
+  mpaWebTargets :: UserId -> m [WebPushAddress]
+
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
   mpaGetClients :: Set UserId -> m UserClientsFull
@@ -144,6 +160,18 @@ instance MonadPushAll Gundeck where
   mpaBulkPush = Web.bulkPush
   mpaStreamAdd = Data.add
   mpaPushNative = pushNative
+  mpaPushWeb notif prio addrs =
+    WebPush.push (NativePush (ntfId notif) prio Nothing) addrs
+  mpaWebTargets uid = do
+    pool <- view pgPool
+    runWebPush pool (lookupSubscriptions uid) >>= \case
+      Left storeErr -> do
+        Log.err $
+          msg (val "Web push subscription lookup failed")
+            . Log.field "user" (UUID.toASCIIBytes (toUUID uid))
+            . Log.field "error" (show storeErr)
+        pure []
+      Right addrs -> pure addrs
   mpaForkIO = void . forkIO
   mpaRunWithBudget = runWithBudget''
   mpaGetClients = getClients
@@ -307,7 +335,13 @@ pushAllLegacy newNotifications userClientsFull = do
       let alreadySentClients = Set.fromList $ mapMaybe (\p -> (p.userId,) <$> p.clientId) alreadySent
           rabbitmqClients = Map.map (Set.filter supportsConsumableNotifications) userClientsFull.userClientsFull
           rabbitmqClientIds = Map.foldMapWithKey (\uid clients -> Set.map (\c -> (uid, c.clientId)) clients) rabbitmqClients
-      pushNativeWithBudget notif psh (Set.toList $ Set.union alreadySentClients rabbitmqClientIds)
+      let dontPush = Set.toList $ Set.union alreadySentClients rabbitmqClientIds
+      pushNativeWithBudget notif psh dontPush
+      -- Web push uses the same 'dontPush' set as native: a client already
+      -- served over websocket must not receive a duplicate web push. The
+      -- underlying 'WebPush.push' fans out under the configured per-push
+      -- concurrency budget (reused from native for v1).
+      pushWebWithBudget notif psh dontPush
 
 pushNativeWithBudget :: (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) => Notification -> Push -> [(UserId, ClientId)] -> m ()
 pushNativeWithBudget notif psh dontPush = do
@@ -322,6 +356,29 @@ pushNativeWithBudget notif psh dontPush = do
   unless (psh ^. pushTransient) $
     mpaRunWithBudget cost () $
       mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' dontPush
+
+-- | Web push counterpart to 'pushNativeWithBudget'. Fans a notification out to
+-- all eligible web push subscriptions under the same per-push concurrency
+-- budget as native push (intentional for v1; web push is unmediated by SNS
+-- but still bounded by 'perNativePushConcurrency' to avoid flooding browser
+-- push services).
+--
+-- Transient pushes are skipped, matching 'pushNativeWithBudget' semantics:
+-- web push is for durable notices, and a transient push signals the client is
+-- reachable over websocket right now.
+pushWebWithBudget ::
+  (MonadMapAsync m, MonadPushAll m, MonadNativeTargets m) =>
+  Notification ->
+  Push ->
+  [(UserId, ClientId)] ->
+  m ()
+pushWebWithBudget notif psh dontPush = do
+  perPushConcurrency <- mntgtPerPushConcurrency
+  let rcps' = nativeTargetsRecipients psh
+      cost = maybe (length rcps') (min (length rcps')) perPushConcurrency
+  unless (psh ^. pushTransient) $
+    mpaRunWithBudget cost () $
+      mpaPushWeb notif (psh ^. pushNativePriority) =<< webTargets psh rcps' dontPush
 
 pushAllViaRabbitMq :: (MonadPushAll m, MonadMapAsync m, MonadNativeTargets m) => [NewNotification] -> UserClientsFull -> m ()
 pushAllViaRabbitMq newNotifs userClientsFull = do
@@ -536,6 +593,49 @@ nativeTargets psh rcps' dontPush =
       null (psh ^. pushConnections)
         || a ^. addrConn `elem` psh ^. pushConnections
 
+    check :: Either SomeException [a] -> m [a]
+    check (Left e) = mntgtLogErr e >> pure []
+    check (Right r) = pure r
+
+-- | Web push counterpart to 'nativeTargets'. Looks up 'WebPushAddress'es per
+-- recipient via 'mpaWebTargets' and filters them with the same semantics as
+-- 'nativeTargets': exclude the origin connection, require the client to be
+-- in the recipient's client set, require the connection to be on the push
+-- allowlist (or no allowlist), and skip any client already served over
+-- websocket (the @dontPush@ set).
+--
+-- A single user may have multiple web push subscriptions per client (e.g.
+-- multiple browsers); each is dispatched independently, so the returned list
+-- can contain multiple 'WebPushAddress'es for the same @(user, client)@.
+webTargets ::
+  forall m.
+  (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) =>
+  Push ->
+  [Recipient] ->
+  [(UserId, ClientId)] ->
+  m [WebPushAddress]
+webTargets psh rcps' dontPush =
+  mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
+  where
+    addresses :: Recipient -> m [WebPushAddress]
+    addresses u = filter (eligible u) <$> mpaWebTargets (u ^. recipientId)
+    eligible :: Recipient -> WebPushAddress -> Bool
+    eligible u a
+      -- Never include the origin connection (matches nativeTargets).
+      | Just a.wpaUser == psh ^. pushOrigin && Just a.wpaConn == psh ^. pushOriginConnection = False
+      -- Is the specific client an intended recipient?
+      | not (eligibleWebClient a (u ^. recipientClients)) = False
+      -- Is the connection not on the push allowlist (or no allowlist)?
+      | not (whitelistedOrNoWebWhitelist a) = False
+      -- Skip clients already served over websocket.
+      | otherwise = (a.wpaUser, a.wpaClient) `notElem` dontPush
+    eligibleWebClient :: WebPushAddress -> RecipientClients -> Bool
+    eligibleWebClient _ RecipientClientsAll = True
+    eligibleWebClient a (RecipientClientsSome cs) = a.wpaClient `elem` cs
+    whitelistedOrNoWebWhitelist :: WebPushAddress -> Bool
+    whitelistedOrNoWebWhitelist a =
+      null (psh ^. pushConnections)
+        || a.wpaConn `elem` psh ^. pushConnections
     check :: Either SomeException [a] -> m [a]
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r

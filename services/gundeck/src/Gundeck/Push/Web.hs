@@ -207,8 +207,6 @@ onSuccess uid = do
 -- | The push service returned 404 \/ 410: the subscription no longer exists.
 -- Delete the row so future dispatches skip it. Mirrors
 -- 'Gundeck.Push.Native.deleteTokens' for the native transport. Per the
--- WP-DISPATCH design decision, we log and delete only; web clients learn of
--- the removal via the notification stream (a separate concern).
 onGone :: WebPushAddress -> Gundeck ()
 onGone a = handleAny logDeleteFailure $ do
   Prom.incCounter webPushGoneCounter
