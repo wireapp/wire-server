@@ -1122,12 +1122,16 @@ updateUser ::
   Handler r ()
 updateUser uid conn uu = do
   let update =
-        def
+        MkUserProfileUpdate
           { name = uu.uupName,
             pict = uu.uupPict,
             textStatus = uu.uupTextStatus,
             assets = uu.uupAssets,
-            accentId = uu.uupAccentId
+            accentId = uu.uupAccentId,
+            bio = uu.uupBio,
+            links = uu.uupLinks,
+            locale = Nothing,
+            supportedProtocols = Nothing
           }
   lift . liftSem $
     updateUserProfile uid (Just conn) UpdateOriginWireClient update
