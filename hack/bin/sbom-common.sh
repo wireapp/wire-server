@@ -66,8 +66,17 @@ scan_image_with_syft() {
   fi
 
   # Check manifest version with skopeo to determine if conversion is needed
-  local manifest_info
-  manifest_info=$(skopeo inspect --raw "docker://$canonical_img" 2>/dev/null || echo "")
+  local manifest_info skopeo_stderr
+  skopeo_stderr=$(mktemp)
+  manifest_info=$(skopeo inspect --raw "docker://$canonical_img" 2>"$skopeo_stderr" || true)
+  if [[ -z "$manifest_info" ]]; then
+    if grep -qiE "manifest unknown|not found|no such" "$skopeo_stderr" 2>/dev/null; then
+      echo "  WARNING: Image not found in registry, skipping: $canonical_img" >&2
+      rm -f "$skopeo_stderr"
+      return 2
+    fi
+  fi
+  rm -f "$skopeo_stderr"
 
   if echo "$manifest_info" | grep -q '"schemaVersion":\s*1'; then
     # Old schema 1 format - need to convert with skopeo

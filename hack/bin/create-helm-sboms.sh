@@ -124,10 +124,11 @@ for chart_dir in "$CHARTS_DIR"/*/; do
     echo "  Creating SBOM for $img -> $canonical_img: $filename"
 
     # Scan image with syft (handles schema 1 conversion and validation)
-    if ! scan_image_with_syft "$canonical_img" "$temp_filename" "$OUTPUT_DIR"; then
-      ((error_count++))
+    # Exit code 2 means image not found in registry — warn but don't fail
+    scan_image_with_syft "$canonical_img" "$temp_filename" "$OUTPUT_DIR" || {
+      [[ $? -eq 2 ]] || ((error_count++))
       continue
-    fi
+    }
 
     oci_purl=$(generate_oci_purl "$canonical_img")
 
