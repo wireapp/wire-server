@@ -77,7 +77,7 @@ verifyLinkImpl uid handle link = do
 
     scraper :: Scraper Text Bool
     scraper = do
-      let backlink = ("https://account.wire.com" <> "/@" <> Text.unpack (fromHandle handle))
+      let backlink = ("https://account.bella.wire.link" <> "/@" <> Text.unpack (fromHandle handle))
           linkSelector = "link" @: ["href" @= backlink]
           anchorSelector = "a" @: ["href" @= backlink]
       rels <- (<>) <$> attrs "rel" linkSelector <*> attrs "rel" anchorSelector
