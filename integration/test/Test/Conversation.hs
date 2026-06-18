@@ -783,6 +783,8 @@ testConversationDescriptionUpdate = do
 
     for_ [ownerWs, memberWs] $ \ws -> do
       notif <- awaitMatch isConvDescriptionUpdateNotif ws
+      assertBool "notification should target the updated conversation" =<< isNotifConv conv notif
+      assertBool "notification should be emitted by the updating user" =<< isNotifFromUser owner notif
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject owner
       notif %. "payload.0.data.version" `shouldMatchInt` 1
@@ -799,6 +801,8 @@ testConversationDescriptionUpdate = do
 
     for_ [ownerWs, memberWs] $ \ws -> do
       notif <- awaitMatch isConvDescriptionUpdateNotif ws
+      assertBool "notification should target the updated conversation" =<< isNotifConv conv notif
+      assertBool "notification should be emitted by the updating user" =<< isNotifFromUser owner notif
       notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
       notif %. "payload.0.qualified_from" `shouldMatch` objQidObject owner
       notif %. "payload.0.data.version" `shouldMatchInt` 2
