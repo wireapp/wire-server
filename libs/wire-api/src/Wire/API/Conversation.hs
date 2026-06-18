@@ -109,11 +109,11 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Json.Util (Base64ByteString (..))
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
 import Data.Misc
-import Data.Json.Util (Base64ByteString (..))
 import Data.OpenApi qualified as S
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
