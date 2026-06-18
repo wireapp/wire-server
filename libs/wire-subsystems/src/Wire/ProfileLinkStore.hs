@@ -94,7 +94,7 @@ getProfileLinksImpl uid =
         [vectorStatement|
          SELECT link_name :: text, url :: text, verified_at :: timestamptz?
          FROM profile_links
-         WHERE uesr_id = $1:: uuid
+         WHERE user_id = $1 :: uuid
        |]
 
 upsertProfileLinksImpl :: (PGConstraints r) => UserId -> [UnverifiedLink] -> Sem r ()
