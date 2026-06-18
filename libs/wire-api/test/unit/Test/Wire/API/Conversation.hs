@@ -79,3 +79,4 @@ testIsCellsConversationEvent =
         OtrMessageAdd -> isCellsConversationEvent e === False
         ProtocolUpdate -> isCellsConversationEvent e === False
         Typing -> isCellsConversationEvent e === False
+        ConvDescriptionUpdate -> isCellsConversationEvent e === False

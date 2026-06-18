@@ -1203,6 +1203,33 @@ type ConversationAPI =
                     (UpdateResponses "Name updated" "Name unchanged" Event)
                     (UpdateResult Event)
            )
+    :<|> Named
+           "get-conversation-description"
+           ( Summary "Get conversation description"
+               :> From 'V17
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "description"
+               :> Get '[JSON] ConversationDescription
+           )
+    :<|> Named
+           "update-conversation-description"
+           ( Summary "Update conversation description"
+               :> From 'V17
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "description"
+               :> ReqBody '[JSON] ConversationDescriptionUpdate
+               :> Put '[JSON] ConversationDescription
+           )
     -- This endpoint can lead to the following events being sent:
     -- - ConvMessageTimerUpdate event to members
     :<|> Named
