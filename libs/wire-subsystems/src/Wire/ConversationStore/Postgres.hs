@@ -525,8 +525,7 @@ setConversationCipherSuiteImpl convId cs =
 
 insertConversationDescriptionImpl :: (PGConstraints r) => ConvId -> ConversationDescription -> Sem r (Maybe ConversationDescription)
 insertConversationDescriptionImpl convId ConversationDescription {..} =
-  fmap (fmap toDescription) $
-    runStatement (convId, descriptionVersion, descriptionCiphertext) insert
+  fmap toDescription <$> runStatement (convId, descriptionVersion, descriptionCiphertext) insert
   where
     insert :: Hasql.Statement (ConvId, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
     insert =
@@ -546,8 +545,7 @@ insertConversationDescriptionImpl convId ConversationDescription {..} =
 
 getConversationDescriptionImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationDescription)
 getConversationDescriptionImpl convId =
-  fmap (fmap (\(descriptionVersion, descriptionCiphertext) -> ConversationDescription {..})) $
-    runStatement convId select
+  fmap (\(descriptionVersion, descriptionCiphertext) -> ConversationDescription {..}) <$> runStatement convId select
   where
     select :: Hasql.Statement ConvId (Maybe (Int64, BS.ByteString))
     select =
