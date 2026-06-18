@@ -60,6 +60,16 @@ EOF
     rm -f "$tmpval"
   elif [[ "$chart_name" == "wire-server-enterprise" ]]; then
     output=$(helm template test-release "$chart_path" --set 'secrets.placeholder=placeholder')
+  elif [[ "$chart_name" == "elasticsearch-index" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'elasticsearch.host=placeholder' --set 'cassandra.host=placeholder')
+  elif [[ "$chart_name" == "federator" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'tls.useSharedFederatorSecret=true')
+  elif [[ "$chart_name" == "legalhold" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'serviceToken=placeholder' --set 'tlsCrt=placeholder' --set 'tlsKey=placeholder' --set 'wireApiHost=placeholder' --set 'host=placeholder')
+  elif [[ "$chart_name" == "nginx-ingress-services" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'secrets.tlsWildcardCert=placeholder' --set 'secrets.tlsWildcardKey=placeholder' --set 'config.dns.fakeS3=placeholder')
+  elif [[ "$chart_name" == "nginz" ]]; then
+    output=$(helm template test-release "$chart_path" --set 'secrets.zAuth.publicKeys=placeholder' --set 'secrets.basicAuth=placeholder')
   else
     output=$(helm template test-release "$chart_path")
   fi
