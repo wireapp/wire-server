@@ -33,11 +33,13 @@ module Cassandra.Exec
     paginateWithStateC,
     paramsPagingState,
     pwsHasMore,
+    runClientTraced,
     module C,
   )
 where
 
 import Cassandra.CQL (Consistency, R)
+import OpenTelemetry.Trace (defaultSpanArguments, getGlobalTracerProvider, inSpan, makeTracer, tracerOptions)
 import Control.Monad.Catch
 import Data.Conduit
 -- We only use these locally.
@@ -162,3 +164,16 @@ paramsPagingState c p n state = QueryParams c False p (Just n) state Nothing Not
 
 pwsHasMore :: PageWithState a b -> Bool
 pwsHasMore = isJust . pwsState
+
+-- | Like 'runClient' but wraps the call in an OpenTelemetry span.
+-- This creates a 'cassandra.query' span for tracing and performance monitoring.
+-- The span includes timing information for the entire Client operation.
+--
+-- Example:
+--   result <- runClientTraced cassandraState $ do
+--     retry x1 $ query1 cql $ params LocalQuorum args
+runClientTraced :: ClientState -> Client a -> IO a
+runClientTraced st action = do
+  tp <- getGlobalTracerProvider
+  let tracer = makeTracer tp "cassandra" tracerOptions
+  inSpan tracer "cassandra.query" defaultSpanArguments $ runClient st action

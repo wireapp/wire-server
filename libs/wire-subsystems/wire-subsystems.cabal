@@ -133,6 +133,7 @@ common common-all
     , hasql-th
     , hasql-transaction
     , hex
+    , hs-opentelemetry-sdk
     , hscim
     , HsOpenSSL
     , hspec
@@ -507,6 +508,7 @@ library
     , HaskellNet
     , HaskellNet-SSL
     , hex
+    , hs-opentelemetry-sdk
     , HsOpenSSL
     , hspec
     , html-entities

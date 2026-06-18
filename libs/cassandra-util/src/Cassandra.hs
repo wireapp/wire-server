@@ -58,6 +58,7 @@ import Cassandra.Exec as C
   ( BatchM,
     Client,
     ClientState,
+    runClientTraced,
     GeneralPaginationState (..),
     MonadClient,
     Page (..),

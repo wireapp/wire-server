@@ -198,7 +198,7 @@ upsertConversationImpl lcnv nc = do
 
 deleteConversationImpl :: (PGConstraints r) => ConvId -> Sem r ()
 deleteConversationImpl cid =
-  runStatement cid delete
+  runStatementTraced "db.mutation.delete_conversation" cid delete
   where
     delete :: Hasql.Statement ConvId ()
     delete =
@@ -594,7 +594,8 @@ deleteTeamConversationImpl :: (PGConstraints r) => TeamId -> ConvId -> Sem r ()
 deleteTeamConversationImpl _ = deleteConversationImpl
 
 getTeamConversationImpl :: (PGConstraints r) => TeamId -> ConvId -> Sem r (Maybe ConvId)
-getTeamConversationImpl tid cid = runStatement (tid, cid) select
+getTeamConversationImpl tid cid = 
+  runStatementTraced "db.query.get_team_conversation" (tid, cid) select
   where
     select :: Hasql.Statement (TeamId, ConvId) (Maybe ConvId)
     select =
@@ -607,7 +608,7 @@ getTeamConversationImpl tid cid = runStatement (tid, cid) select
 
 getTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r [ConvId]
 getTeamConversationsImpl tid =
-  runStatement tid select
+  runStatementTraced "db.query.get_team_conversations" tid select
   where
     select :: Hasql.Statement TeamId [ConvId]
     select =
@@ -619,7 +620,7 @@ getTeamConversationsImpl tid =
 
 deleteTeamConversationsImpl :: (PGConstraints r) => TeamId -> Sem r ()
 deleteTeamConversationsImpl tid =
-  runStatement tid delete
+  runStatementTraced "db.mutation.delete_team_conversations" tid delete
   where
     delete :: Hasql.Statement TeamId ()
     delete =

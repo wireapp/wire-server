@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Wire.Postgres
   ( -- | This module provides a composable DSL for constructing postgres
     -- statements. Queries are assembled from smaller 'QueryFragment's that
@@ -38,6 +40,7 @@ module Wire.Postgres
 
     -- * Runners
     runStatement,
+    runStatementTraced,
     runSession,
     runSessionWithRetry,
     runTransaction,
@@ -85,6 +88,7 @@ import Hasql.Transaction (Transaction)
 import Hasql.Transaction.Sessions
 import Hasql.Transaction.Sessions qualified as Transaction
 import Imports
+import OpenTelemetry.Trace (defaultSpanArguments, getGlobalTracerProvider, inSpan, makeTracer, tracerOptions)
 import Polysemy
 import Polysemy.Error (Error, throw)
 import Polysemy.Input
@@ -153,6 +157,32 @@ runStatement ::
   Sem r b
 runStatement a stmt =
   runSessionWithRetry $ statement a stmt
+
+-- | Runs a 'Statement' using the 'Hasql.Pool' with OpenTelemetry tracing.
+-- Always retries on server errors due to admin intervention.
+--
+-- Span name: query operation name (e.g., "db.query.select_users")
+runStatementTraced ::
+  (PGConstraints r) =>
+  Text ->
+  a ->
+  Statement a b ->
+  Sem r b
+runStatementTraced queryName a stmt = do
+  pool <- input
+  let sess = statement a stmt
+  result <- liftIO $ useWithResetAndRetryTraced queryName pool sess
+  either throw pure result
+
+-- | Internal: Wraps useWithResetAndRetry with OpenTelemetry tracing
+useWithResetAndRetryTraced :: Text -> Pool -> Session a -> IO (Either UsageError a)
+useWithResetAndRetryTraced queryName pool sess = do
+  tp <- getGlobalTracerProvider
+  let tracer = makeTracer tp "postgres" tracerOptions
+  inSpan tracer queryName defaultSpanArguments $
+    useWithResetAndRetry pool sess
+
+
 
 -- | Runs a 'Transaction' using the 'Hasql.Pool'. Unlike
 -- 'runTransactionWithRetry' it doesn't retry on server errors due to admin

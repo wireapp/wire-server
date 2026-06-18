@@ -82,6 +82,7 @@ library
     , cql-io                >=0.14
     , cql-io-tinylog
     , exceptions            >=0.6
+    , hs-opentelemetry-sdk
     , HsOpenSSL
     , imports
     , lens                  >=4.4
