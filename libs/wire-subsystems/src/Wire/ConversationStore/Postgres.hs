@@ -563,16 +563,16 @@ updateConversationDescriptionImpl ::
 updateConversationDescriptionImpl convId ConversationDescriptionUpdate {..} =
   fmap (fmap toDescription) $
     runTransactionWithRetry ReadCommitted Write $
-      Transaction.statement (convId, descriptionUpdateBaseVersion, descriptionUpdateVersion, descriptionUpdateCiphertext) stmt
+      Transaction.statement (convId, descriptionUpdateBaseVersion, descriptionUpdateCiphertext) stmt
   where
-    stmt :: Hasql.Statement (ConvId, Int64, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
+    stmt :: Hasql.Statement (ConvId, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
     stmt =
       lmapPG
         [maybeStatement|
           WITH updated AS (
             UPDATE conversation_description
-               SET version = ($3 :: bigint),
-                   ciphertext = ($4 :: bytea)
+               SET version = (($2 :: bigint) + 1),
+                   ciphertext = ($3 :: bytea)
              WHERE conv_id = ($1 :: uuid)
                AND version = ($2 :: bigint)
            RETURNING version, ciphertext

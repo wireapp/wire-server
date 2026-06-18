@@ -1364,7 +1364,6 @@ instance ToSchema ConversationDescription where
 
 data ConversationDescriptionUpdate = ConversationDescriptionUpdate
   { descriptionUpdateBaseVersion :: Int64,
-    descriptionUpdateVersion :: Int64,
     descriptionUpdateCiphertext :: ByteString
   }
   deriving stock (Eq, Show, Generic)
@@ -1376,7 +1375,6 @@ instance ToSchema ConversationDescriptionUpdate where
     object $
       ConversationDescriptionUpdate
         <$> descriptionUpdateBaseVersion .= field "base_version" schema
-        <*> descriptionUpdateVersion .= field "version" schema
         <*> descriptionUpdateCiphertext
           .= fieldWithDocModifier
             "ciphertext"

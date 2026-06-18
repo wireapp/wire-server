@@ -1681,7 +1681,7 @@ updateLocalConversationDescription lusr zcon lcnv descriptionUpdate = do
   current <- E.getConversationDescription (tUnqualified lcnv)
   let convDescription =
         ConversationDescription
-          { descriptionVersion = descriptionUpdate.descriptionUpdateVersion,
+          { descriptionVersion = descriptionUpdate.descriptionUpdateBaseVersion + 1,
             descriptionCiphertext = descriptionUpdate.descriptionUpdateCiphertext
           }
   description <-

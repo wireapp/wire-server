@@ -664,10 +664,9 @@ updateConversationDescription ::
   user ->
   conv ->
   Int64 ->
-  Int64 ->
   ByteString ->
   App Response
-updateConversationDescription user qcnv baseVersion version ciphertext = do
+updateConversationDescription user qcnv baseVersion ciphertext = do
   (cnvDomain, cnvId) <- objQid qcnv
   req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", cnvDomain, cnvId, "description"])
   submit
@@ -675,7 +674,6 @@ updateConversationDescription user qcnv baseVersion version ciphertext = do
     ( req
         & addJSONObject
           [ "base_version" .= baseVersion,
-            "version" .= version,
             "ciphertext" .= BS.unpack (B64.encode ciphertext)
           ]
     )

@@ -778,7 +778,7 @@ testConversationDescriptionUpdate = do
       secondCiphertext = BS.pack "group description v2"
 
   withWebSockets [owner, convMember] $ \[ownerWs, memberWs] -> do
-    bindResponse (updateConversationDescription owner conv (0 :: Int64) (1 :: Int64) firstCiphertext) $ \resp ->
+    bindResponse (updateConversationDescription owner conv (0 :: Int64) firstCiphertext) $ \resp ->
       assertDescription resp 1 firstCiphertext
 
     for_ [ownerWs, memberWs] $ \ws -> do
@@ -796,7 +796,7 @@ testConversationDescriptionUpdate = do
     bindResponse (getConversationDescription convMember conv) $ \resp ->
       assertDescription resp 1 firstCiphertext
 
-    bindResponse (updateConversationDescription owner conv (1 :: Int64) (2 :: Int64) secondCiphertext) $ \resp ->
+    bindResponse (updateConversationDescription owner conv (1 :: Int64) secondCiphertext) $ \resp ->
       assertDescription resp 2 secondCiphertext
 
     for_ [ownerWs, memberWs] $ \ws -> do
@@ -811,11 +811,11 @@ testConversationDescriptionUpdate = do
   bindResponse (getConversationDescription owner conv) $ \resp ->
     assertDescription resp 2 secondCiphertext
 
-  bindResponse (updateConversationDescription owner conv (0 :: Int64) (3 :: Int64) (BS.pack "stale update")) $ \resp -> do
+  bindResponse (updateConversationDescription owner conv (0 :: Int64) (BS.pack "stale update")) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "invalid-op"
 
-  bindResponse (updateConversationDescription convMember conv (2 :: Int64) (3 :: Int64) (BS.pack "non-admin update")) $ \resp -> do
+  bindResponse (updateConversationDescription convMember conv (2 :: Int64) (BS.pack "non-admin update")) $ \resp -> do
     resp.status `shouldMatchInt` 403
     resp.json %. "label" `shouldMatch` "access-denied"
 
