@@ -240,7 +240,7 @@ import Wire.Arbitrary as Arbitrary
 --------------------------------------------------------------------------------
 -- PublicProfile
 
-type Bio = Range 1 140 Text
+type Bio = Range 0 140 Text
 
 data PublicProfile = PublicProfile
   { publicId :: Qualified UserId,
@@ -1515,7 +1515,7 @@ data UserUpdate = UserUpdate
     uupPict :: Maybe Pict,
     uupAssets :: Maybe [Asset],
     uupAccentId :: Maybe ColourId,
-    uupBio :: Maybe (Range 0 140 Text),
+    uupBio :: Maybe Bio,
     uupLinks :: Maybe [UnverifiedLink]
   }
   deriving stock (Eq, Show, Generic)
