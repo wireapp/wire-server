@@ -957,13 +957,19 @@ interpretConversationStoreToCassandra client = interpret $ \case
     embedClient client $ updateConvCipherSuite cid cs
   InsertConversationDescription cid description -> do
     logEffect "ConversationStore.InsertConversationDescription"
-    interpretConversationStoreToPostgres $ ConvStore.insertConversationDescription cid description
+    isConvInPostgres cid >>= \case
+      False -> pure Nothing
+      True -> interpretConversationStoreToPostgres $ ConvStore.insertConversationDescription cid description
   GetConversationDescription cid -> do
     logEffect "ConversationStore.GetConversationDescription"
-    interpretConversationStoreToPostgres $ ConvStore.getConversationDescription cid
+    isConvInPostgres cid >>= \case
+      False -> pure Nothing
+      True -> interpretConversationStoreToPostgres $ ConvStore.getConversationDescription cid
   UpdateConversationDescription cid description -> do
     logEffect "ConversationStore.UpdateConversationDescription"
-    interpretConversationStoreToPostgres $ ConvStore.updateConversationDescription cid description
+    isConvInPostgres cid >>= \case
+      False -> pure Nothing
+      True -> interpretConversationStoreToPostgres $ ConvStore.updateConversationDescription cid description
   SetConversationCellsState cid ps -> do
     logEffect "ConversationStore.SetConversationCellsState"
     embedClient client $ updateConvCellsState cid ps
@@ -1287,13 +1293,19 @@ interpretConversationStoreToCassandraAndPostgres client = interpret $ \case
         True -> interpretConversationStoreToPostgres (ConvStore.setConversationCipherSuite cid cs)
   InsertConversationDescription cid description -> do
     logEffect "ConversationStore.InsertConversationDescription"
-    interpretConversationStoreToPostgres $ ConvStore.insertConversationDescription cid description
+    isConvInPostgres cid >>= \case
+      False -> pure Nothing
+      True -> interpretConversationStoreToPostgres $ ConvStore.insertConversationDescription cid description
   GetConversationDescription cid -> do
     logEffect "ConversationStore.GetConversationDescription"
-    interpretConversationStoreToPostgres $ ConvStore.getConversationDescription cid
+    isConvInPostgres cid >>= \case
+      False -> pure Nothing
+      True -> interpretConversationStoreToPostgres $ ConvStore.getConversationDescription cid
   UpdateConversationDescription cid description -> do
     logEffect "ConversationStore.UpdateConversationDescription"
-    interpretConversationStoreToPostgres $ ConvStore.updateConversationDescription cid description
+    isConvInPostgres cid >>= \case
+      False -> pure Nothing
+      True -> interpretConversationStoreToPostgres $ ConvStore.updateConversationDescription cid description
   SetConversationCellsState cid ps -> do
     logEffect "ConversationStore.SetConversationCellsState"
     withMigrationLockAndCleanup client LockShared (Left cid) $
