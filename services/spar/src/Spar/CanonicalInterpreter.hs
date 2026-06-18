@@ -29,6 +29,7 @@ import Control.Monad.Except hiding (mapError)
 import Data.Id (RequestId, unRequestId)
 import Imports
 import qualified OpenTelemetry.Trace as Otel
+import qualified OpenTelemetry.Trace.Id as Otel
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, runInputConst)
@@ -188,8 +189,8 @@ loggerToTinyOtel r (Just spanContext) tinylog =
     . mapLogger
       ( \m ->
           Log.field "request" (unRequestId r)
-            . Log.field "trace_id" (show $ Otel.traceId spanContext)
-            . Log.field "span_id" (show $ Otel.spanId spanContext)
+            . Log.field "trace_id" (Otel.traceIdBaseEncodedByteString Otel.Base16 $ Otel.traceId spanContext)
+            . Log.field "span_id" (Otel.spanIdBaseEncodedByteString Otel.Base16 $ Otel.spanId spanContext)
             . m
       )
     . raiseUnder @TinyLog
