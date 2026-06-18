@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 
@@ -24,7 +25,7 @@ import Wire.Sem.Now qualified as Now
 data ProfileLinkStore m a where
   UpsertProfileLinks :: UserId -> [UnverifiedLink] -> ProfileLinkStore m ()
   UpdateVerified :: UserId -> UnverifiedLink -> Bool -> ProfileLinkStore m ()
-  GetProfileLinks :: UserId -> ProfileLinkStore m [(UnverifiedLink, Maybe UTCTime)]
+  GetProfileLinks :: UserId -> ProfileLinkStore m [ProfileLink (Maybe UTCTime)]
 
 makeSem ''ProfileLinkStore
 
@@ -34,9 +35,9 @@ interpretProfileLinkStorePostgres = interpret $ \case
   UpdateVerified uid link verified -> updateVerifiedImpl uid link verified
   GetProfileLinks uid -> getProfileLinksImpl uid
 
-getProfileLinksImpl :: (PGConstraints r) => UserId -> Sem r [(UnverifiedLink, Maybe UTCTime)]
+getProfileLinksImpl :: (PGConstraints r) => UserId -> Sem r [ProfileLink (Maybe UTCTime)]
 getProfileLinksImpl uid =
-  map (\(n, u, t) -> (UnverifiedLink n u, t)) <$> runStatement uid select
+  map (\(name, url, verified) -> ProfileLink {..}) <$> runStatement uid select
   where
     select :: Statement UserId [(LinkName, HttpsUrl, Maybe UTCTime)]
     select =

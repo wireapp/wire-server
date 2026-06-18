@@ -33,8 +33,9 @@ module Wire.API.User
     UserProfile (..),
     SelfProfile (..),
     PublicProfile (..),
-    VerifiedLink (..),
-    UnverifiedLink (..),
+    ProfileLink (..),
+    VerifiedLink,
+    UnverifiedLink,
     Bio,
     LinkName,
     -- User (should not be here)
@@ -259,36 +260,39 @@ instance ToSchema PublicProfile where
         <*> publicHandle .= maybe_ (optField "handle" schema)
         <*> publicLinks .= field "links" (array schema)
 
-data VerifiedLink = VerifiedLink
+data ProfileLink t = ProfileLink
   { name :: LinkName,
     url :: HttpsUrl,
-    verified :: Bool
+    verified :: t
   }
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifiedLink)
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via GenericUniform (ProfileLink t)
+
+type VerifiedLink = ProfileLink Bool
+
+deriving via (Schema VerifiedLink) instance ToJSON VerifiedLink
+
+deriving via (Schema VerifiedLink) instance FromJSON VerifiedLink
+
+deriving via (Schema VerifiedLink) instance S.ToSchema VerifiedLink
 
 instance ToSchema VerifiedLink where
   schema =
-    object $
-      VerifiedLink
+    namedObject "ProfileLink" $
+      ProfileLink
         <$> (.name) .= field "name" schema
         <*> (.url) .= field "url" schema
         <*> verified .= field "verified" schema
 
-data UnverifiedLink = UnverifiedLink
-  { name :: LinkName,
-    url :: HttpsUrl
-  }
-  deriving stock (Eq, Show, Ord, Generic)
-  deriving (Arbitrary) via GenericUniform UnverifiedLink
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UnverifiedLink)
+type UnverifiedLink = ProfileLink ()
 
 instance ToSchema UnverifiedLink where
   schema =
-    object $
-      UnverifiedLink
+    namedObject "UnverifiedLink" $
+      ProfileLink
         <$> (.name) .= field "name" schema
         <*> (.url) .= field "url" schema
+        <*> verified .= pure ()
 
 type LinkName = Range 1 20 Text
 

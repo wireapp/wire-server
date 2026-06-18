@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Wire.MockInterpreters.ProfileLinkStore where
 
 import Data.Id
@@ -45,4 +47,4 @@ inMemoryProfileLinkStoreInterpreter = interpret $ \case
     modify $ Map.insert (uid, link.name) (link.url, if verified then Just timestamp else Nothing)
   GetProfileLinks uid -> do
     relevant <- gets (Map.filterWithKey (\(u, _) _ -> u == uid))
-    pure $ Map.foldMapWithKey (\(_, n) (u, t) -> [(UnverifiedLink n u, t)]) relevant
+    pure $ Map.foldMapWithKey (\(_, name) (url, verified) -> [ProfileLink {..}]) relevant

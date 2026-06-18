@@ -50,5 +50,5 @@ testObject_UserUpdate_user_2 =
           uupAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
           uupAccentId = Just (ColourId {fromColourId = 3}),
           uupBio = Just (unsafeRange "Its me, the test user"),
-          uupLinks = Just [UnverifiedLink {name = unsafeRange "github", url = u}]
+          uupLinks = Just [ProfileLink {name = unsafeRange "github", url = u, verified = ()}]
         }

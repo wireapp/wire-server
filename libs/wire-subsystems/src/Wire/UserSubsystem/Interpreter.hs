@@ -209,7 +209,7 @@ getPublicProfileImpl hdl = runMaybeT do
   links <- lift $ ProfileLinkStore.getProfileLinks uid
   quid <- lift $ qualifyLocal uid
   -- TODO: Actually verify the link
-  let verifiedLinks = map (\(l, mVerifiedAt) -> VerifiedLink l.name l.url (isJust mVerifiedAt)) links
+  let verifiedLinks = map (\link -> link {verified = isJust link.verified}) links
   pure
     PublicProfile
       { publicHandle = Just hdl,
