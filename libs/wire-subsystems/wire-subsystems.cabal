@@ -169,6 +169,7 @@ common common-all
     , resourcet
     , retry
     , saml2-web-sso
+    , scalpel
     , schema-profunctor
     , servant
     , servant-client-core

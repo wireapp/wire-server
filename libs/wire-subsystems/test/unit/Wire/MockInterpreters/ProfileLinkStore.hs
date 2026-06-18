@@ -22,6 +22,10 @@ runInMemoryProfileLinkStore =
     . inMemoryProfileLinkStoreInterpreter
     . raiseUnder
 
+noopProfileLinkSubsystem :: InterpreterFor ProfileLinkSubsystem r
+noopProfileLinkSubsystem = interpret $ \case
+  VerifyLink _ _ link -> pure $ link {verified = False}
+
 inMemoryProfileLinkStoreInterpreter :: (Member Now r, Member (State ProfileLinks) r) => InterpreterFor ProfileLinkStore r
 inMemoryProfileLinkStoreInterpreter = interpret $ \case
   UpsertProfileLinks uid links ->

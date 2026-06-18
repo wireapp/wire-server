@@ -100,6 +100,7 @@
 , resourcet
 , retry
 , saml2-web-sso
+, scalpel
 , schema-profunctor
 , scientific
 , servant
@@ -235,6 +236,7 @@ mkDerivation {
     resourcet
     retry
     saml2-web-sso
+    scalpel
     schema-profunctor
     servant
     servant-client-core
@@ -364,6 +366,7 @@ mkDerivation {
     resourcet
     retry
     saml2-web-sso
+    scalpel
     schema-profunctor
     scientific
     servant

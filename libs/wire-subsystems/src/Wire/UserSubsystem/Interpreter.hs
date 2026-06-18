@@ -38,7 +38,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.List.Extra (nubOrd)
 import Data.Map.Strict qualified as Map
-import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl)
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Set qualified as Set
@@ -90,7 +90,7 @@ import Wire.IndexedUserStore (IndexedUserStore)
 import Wire.IndexedUserStore qualified as IndexedUserStore
 import Wire.IndexedUserStore.Bulk.ElasticSearch (teamSearchVisibilityInbound)
 import Wire.InvitationStore
-import Wire.ProfileLinkStore (ProfileLinkStore)
+import Wire.ProfileLinkStore (ProfileLinkStore, ProfileLinkSubsystem)
 import Wire.ProfileLinkStore qualified as ProfileLinkStore
 import Wire.Sem.Concurrency
 import Wire.Sem.Metrics
@@ -138,7 +138,8 @@ runUserSubsystem ::
     Member TeamSubsystem r,
     Member UserGroupStore r,
     Member (Input (Local any)) r,
-    Member ProfileLinkStore r
+    Member ProfileLinkStore r,
+    Member ProfileLinkSubsystem r
   ) =>
   InterpreterFor AuthenticationSubsystem (AppSubsystem ': ClientSubsystem ': r) ->
   InterpreterFor AppSubsystem (ClientSubsystem ': r) ->
@@ -202,14 +203,20 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
       CheckUserIsAdmin uid -> checkUserIsAdminImpl uid
       UserSubsystem.SetUserSearchable luid uid searchability -> setUserSearchableImpl luid uid searchability
 
-getPublicProfileImpl :: (Member UserStore r, Member ProfileLinkStore r, Member (Input (Local x)) r) => Handle -> Sem r (Maybe PublicProfile)
+getPublicProfileImpl ::
+  ( Member UserStore r,
+    Member ProfileLinkStore r,
+    Member (Input (Local x)) r,
+    Member ProfileLinkSubsystem r
+  ) =>
+  Handle -> Sem r (Maybe PublicProfile)
 getPublicProfileImpl hdl = runMaybeT do
   uid <- MaybeT $ UserStore.lookupHandle hdl
   bio <- lift $ UserStore.getBio uid
+  -- TODO: Don't use the store directly?
   links <- lift $ ProfileLinkStore.getProfileLinks uid
   quid <- lift $ qualifyLocal uid
-  -- TODO: Actually verify the link
-  let verifiedLinks = map (\link -> link {verified = isJust link.verified}) links
+  verifiedLinks <- lift $ mapM (ProfileLinkStore.verifyLink uid hdl) links
   pure
     PublicProfile
       { publicHandle = Just hdl,

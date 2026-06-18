@@ -4,17 +4,26 @@
 
 module Wire.ProfileLinkStore where
 
+import Control.Exception qualified as Exception
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as BS
+import Data.Handle
 import Data.Id
 import Data.Misc
 import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 import Data.Time
 import Data.Vector (Vector)
+import Debug.Trace
 import Hasql.Statement (Statement)
 import Hasql.TH
 import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions
 import Imports
 import Polysemy
+import Text.HTML.Scalpel
+import URI.ByteString (serializeURIRef)
 import Wire.API.PostgresMarshall
 import Wire.API.User
 import Wire.Postgres
@@ -24,16 +33,56 @@ import Wire.Sem.Now qualified as Now
 -- | FUTUREWORK: Merge this into UserStore when Cassadnra is out of picture
 data ProfileLinkStore m a where
   UpsertProfileLinks :: UserId -> [UnverifiedLink] -> ProfileLinkStore m ()
-  UpdateVerified :: UserId -> UnverifiedLink -> Bool -> ProfileLinkStore m ()
+  UpdateVerified :: UserId -> ProfileLink x -> Bool -> ProfileLinkStore m ()
   GetProfileLinks :: UserId -> ProfileLinkStore m [ProfileLink (Maybe UTCTime)]
 
 makeSem ''ProfileLinkStore
+
+-- TODO: Move this to its own module
+data ProfileLinkSubsystem m a where
+  VerifyLink :: UserId -> Handle -> ProfileLink (Maybe UTCTime) -> ProfileLinkSubsystem m VerifiedLink
+
+makeSem ''ProfileLinkSubsystem
 
 interpretProfileLinkStorePostgres :: (PGConstraints r, Member Now r) => InterpreterFor ProfileLinkStore r
 interpretProfileLinkStorePostgres = interpret $ \case
   UpsertProfileLinks uid links -> upsertProfileLinksImpl uid links
   UpdateVerified uid link verified -> updateVerifiedImpl uid link verified
   GetProfileLinks uid -> getProfileLinksImpl uid
+
+interpretProfileLinkSubsystem :: (Member (Embed IO) r, Member ProfileLinkStore r, Member Now r) => InterpreterFor ProfileLinkSubsystem r
+interpretProfileLinkSubsystem = interpret $ \case
+  VerifyLink uid handle link -> verifyLinkImpl uid handle link
+
+-- | FUTUREWORK: Use global manager
+verifyLinkImpl :: (Member (Embed IO) r, Member ProfileLinkStore r, Member Now r) => UserId -> Handle -> ProfileLink (Maybe UTCTime) -> Sem r (ProfileLink Bool)
+verifyLinkImpl uid handle link = do
+  now <- Now.get
+  -- A link is considered verified if it was verified less than 24h ago
+  let isAlreadyVerified = maybe False (< 3600 * 24) $ diffUTCTime now <$> link.verified
+  traceM $ "isAlreadyVerified: " <> show isAlreadyVerified
+  if isAlreadyVerified
+    then pure link {verified = True}
+    else do
+      verificationResult <- liftIO $ verify `Exception.catch` (\(_ :: SomeException) -> pure False)
+      traceM $ "verificationResult: " <> show verificationResult
+      updateVerified uid link verificationResult
+      pure link {verified = verificationResult}
+  where
+    verify :: IO Bool
+    verify = do
+      let linkStr = Text.unpack . Text.decodeUtf8 . BS.toStrict . BS.toLazyByteString $ serializeURIRef link.url.httpsUrl
+      traceM $ "link: " <> linkStr
+      fromMaybe False <$> scrapeURL linkStr scraper
+
+    scraper :: Scraper Text Bool
+    scraper = do
+      let backlink = ("https://account.wire.com" <> "/@" <> Text.unpack (fromHandle handle))
+          linkSelector = "link" @: ["href" @= backlink]
+          anchorSelector = "a" @: ["href" @= backlink]
+      rels <- (<>) <$> attrs "rel" linkSelector <*> attrs "rel" anchorSelector
+      traceM $ "rels: " <> show rels
+      pure $ any (\rel -> any (== "me") $ Text.words rel) rels
 
 getProfileLinksImpl :: (PGConstraints r) => UserId -> Sem r [ProfileLink (Maybe UTCTime)]
 getProfileLinksImpl uid =
@@ -94,7 +143,7 @@ upsertProfileLinksImpl uid links =
             (map snd flattenedLinksList)
           )
 
-updateVerifiedImpl :: (Member Now r, PGConstraints r) => UserId -> UnverifiedLink -> Bool -> Sem r ()
+updateVerifiedImpl :: (Member Now r, PGConstraints r) => UserId -> ProfileLink x -> Bool -> Sem r ()
 updateVerifiedImpl uid link isVerfied = do
   verifiedTime <- if isVerfied then Just <$> Now.get else pure Nothing
   runStatement (uid, link.name, link.url, verifiedTime) markVerfied
