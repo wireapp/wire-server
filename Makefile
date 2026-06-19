@@ -752,7 +752,7 @@ sboms-nix-docker-images:
 		echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<version>"; \
 		exit 1; \
 	fi
-	./hack/bin/create-nix-docker-image-sboms.sh tmp/sboms/nix-docker-images $(HELM_SEMVER) imagesUnoptimizedNoDocs
+	./hack/bin/create-nix-docker-image-sboms.sh tmp/sboms/nix-docker-images $(HELM_SEMVER) imagesNoDocsNoTests
 
 # Generate SBOMs for Nix devShells using sbomnix
 # This generates SBOMs from the Nix store paths of packages in the development environments

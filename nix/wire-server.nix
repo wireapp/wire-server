@@ -541,6 +541,11 @@ in
     enableTests = true;
     enableDocs = false;
   };
+  imagesNoDocsNoTests = images {
+    enableOptimization = false;
+    enableTests = false;
+    enableDocs = false;
+  };
 
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
