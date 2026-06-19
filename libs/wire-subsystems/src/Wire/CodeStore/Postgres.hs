@@ -21,6 +21,7 @@ module Wire.CodeStore.Postgres
 where
 
 import Data.Code
+import Data.Coerce (coerce)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
@@ -48,10 +49,10 @@ interpretCodeStoreToPostgres = interpret $ \case
     insertCode code mPw
   DeleteCode k -> do
     deleteCode k
-  MakeKey cid -> do
-    Code.mkKey cid
-  GenerateCode cid t -> do
-    Code.generate cid t
+  MakeKey ref -> do
+    Code.mkKey ref
+  GenerateCode ref t -> do
+    Code.generate ref t
   GetConversationCodeURI mbHost -> do
     convCodeURI <- input
     pure $ case convCodeURI of
@@ -60,28 +61,37 @@ interpretCodeStoreToPostgres = interpret $ \case
 
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password = do
-  runStatement (codeKey c, codeConversation c, password, codeValue c, round (codeTTL c)) insert
+  runStatement (codeKey c, cnv, password, codeValue c, round (codeTTL c), targetTxt) insert
   where
-    insert :: Hasql.Statement (Key, ConvId, Maybe Password, Value, Int32) ()
+    (cnv, targetTxt) = case codeReferent c of
+      CodeReferentConv cid -> (cid, "conv")
+      CodeReferentMeeting mid -> (coerce mid, "meeting")
+    insert :: Hasql.Statement (Key, ConvId, Maybe Password, Value, Int32, Text) ()
     insert =
       lmapPG
         [resultlessStatement|INSERT INTO conversation_codes
-                               (key, conversation, password, value, expires_at)
+                               (key, conversation, password, value, expires_at, target)
                              VALUES
-                               ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int))
+                               ($1 :: text, $2 :: uuid, $3 :: bytea?, $4 :: text, now() + make_interval(secs => $5 :: int), $6 :: text)
                              ON CONFLICT (key) DO UPDATE
                              SET conversation = ($2 :: uuid),
                                  password = ($3 :: bytea?),
                                  value = ($4 :: text),
-                                 expires_at = now() + make_interval(secs => $5 :: int)
+                                 expires_at = now() + make_interval(secs => $5 :: int),
+                                 target = ($6 :: text)
          |]
 
 lookupCode :: (PGConstraints r) => Key -> Sem r (Maybe (Code, Maybe Password))
 lookupCode k = do
   mRow <- runStatement k selectCode
-  pure $ fmap (toCode k) mRow
+  pure $ fmap (toCode k . mkReferent) mRow
   where
-    selectCode :: Hasql.Statement Key (Maybe (Value, Int32, ConvId, Maybe Password))
+    mkReferent (val, ttl, cnv, mPw, targetTxt) =
+      let ref = case targetTxt :: Text of
+            "meeting" -> CodeReferentMeeting (coerce cnv)
+            _ -> CodeReferentConv cnv
+       in (val, ttl, ref, mPw)
+    selectCode :: Hasql.Statement Key (Maybe (Value, Int32, ConvId, Maybe Password, Text))
     selectCode =
       dimapPG
         -- on the extraction of the remaining seconds of the TTL
@@ -94,7 +104,8 @@ lookupCode k = do
                           value :: text,
                           GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (expires_at - now()))))::int4 AS ttl_secs,
                           conversation :: uuid,
-                          password :: bytea?
+                          password :: bytea?,
+                          target :: text
                         FROM conversation_codes
                         WHERE key = ($1 :: text) AND expires_at > now ()
                         |]

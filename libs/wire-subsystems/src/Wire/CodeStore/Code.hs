@@ -19,6 +19,8 @@
 
 module Wire.CodeStore.Code
   ( Code (..),
+    CodeReferent (..),
+    codeConvId,
     toCode,
     generate,
     mkKey,
@@ -36,26 +38,41 @@ import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Wire.API.Password (Password)
 
+-- | The conversation or meeting a 'Code' refers to. Since both 'ConvId' and
+-- 'MeetingId' are 'Id' values over a 'UUID', they are stored in a single uuid
+-- column on the database, disambiguated by this constructor.
+data CodeReferent
+  = CodeReferentConv ConvId
+  | CodeReferentMeeting MeetingId
+  deriving (Eq, Show, Generic)
+
 data Code = Code
   { codeKey :: !Key,
     codeValue :: !Value,
     codeTTL :: !Timeout,
-    codeConversation :: !ConvId,
+    codeReferent :: !CodeReferent,
     codeHasPassword :: !Bool
   }
   deriving (Eq, Show, Generic)
 
-toCode :: Key -> (Value, Int32, ConvId, Maybe Password) -> (Code, Maybe Password)
-toCode k (val, ttl, cnv, mPw) =
+toCode :: Key -> (Value, Int32, CodeReferent, Maybe Password) -> (Code, Maybe Password)
+toCode k (val, ttl, ref, mPw) =
   ( Code
       { codeKey = k,
         codeValue = val,
         codeTTL = Timeout (fromIntegral ttl),
-        codeConversation = cnv,
+        codeReferent = ref,
         codeHasPassword = isJust mPw
       },
     mPw
   )
+
+-- | Extract the 'ConvId' from a 'Code' that refers to a conversation.
+-- Returns 'Nothing' for codes that refer to a meeting.
+codeConvId :: Code -> Maybe ConvId
+codeConvId c = case codeReferent c of
+  CodeReferentConv cid -> Just cid
+  CodeReferentMeeting _ -> Nothing
 
 -- Note on key/value used for a conversation Code
 --
@@ -64,20 +81,24 @@ toCode k (val, ttl, cnv, mPw) =
 -- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
 -- The 'value' is a base64 encoded, 120-bit random value (changing on each generation)
 
-generate :: (MonadIO m) => ConvId -> Timeout -> m Code
-generate cnv t = do
-  key <- mkKey cnv
+generate :: (MonadIO m) => CodeReferent -> Timeout -> m Code
+generate ref t = do
+  key <- mkKey ref
   val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
   pure
     Code
       { codeKey = key,
         codeValue = val,
-        codeConversation = cnv,
+        codeReferent = ref,
         codeTTL = t,
         codeHasPassword = False
       }
 
-mkKey :: (MonadIO m) => ConvId -> m Key
-mkKey cnv = do
+mkKey :: (MonadIO m) => CodeReferent -> m Key
+mkKey (CodeReferentConv cid) = mkKeyId cid
+mkKey (CodeReferentMeeting mid) = mkKeyId mid
+
+mkKeyId :: (MonadIO m) => Id a -> m Key
+mkKeyId ident = do
   sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
-  pure $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)
+  pure $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' ident)

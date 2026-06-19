@@ -47,10 +47,14 @@ interpretCodeStoreToCassandra = interpret $ \case
     embedClientInput $ insertCode code mPw
   DeleteCode k -> do
     embedClientInput $ deleteCode k
-  MakeKey cid -> do
-    Code.mkKey cid
-  GenerateCode cid t -> do
-    Code.generate cid t
+  MakeKey ref -> case ref of
+    CodeReferentConv _ -> Code.mkKey ref
+    CodeReferentMeeting _ ->
+      error "CodeStore.Cassandra.MakeKey: meetings are not supported on cassandra"
+  GenerateCode ref t -> case ref of
+    CodeReferentConv _ -> Code.generate ref t
+    CodeReferentMeeting _ ->
+      error "CodeStore.Cassandra.GenerateCode: meetings are not supported on cassandra"
   GetConversationCodeURI mbHost -> do
     convCodeURI <- input
     case convCodeURI of
@@ -65,14 +69,21 @@ insertCode :: Code -> Maybe Password -> Client ()
 insertCode c mPw = do
   let k = codeKey c
   let v = codeValue c
-  let cnv = codeConversation c
+  let cnv = convReferent (codeReferent c)
   let t = round (codeTTL c)
   retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, mPw, t)))
+  where
+    -- Cassandra only stores conversation codes; meeting codes never reach here
+    -- because 'GenerateCode' errors out for meetings above.
+    convReferent (CodeReferentConv cid) = cid
+    convReferent CodeReferentMeeting {} =
+      error "CodeStore.Cassandra.insertCode: meetings are not supported on cassandra"
 
 -- | Lookup a conversation by code.
 lookupCode :: Key -> Client (Maybe (Code, Maybe Password))
 lookupCode k =
-  fmap (toCode k) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (Identity k)))
+  fmap (toCode k . (\(val, ttl, cnv, mPw) -> (val, ttl, CodeReferentConv cnv, mPw)))
+    <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (Identity k)))
 
 -- | Delete a code associated with the given conversation key
 deleteCode :: Key -> Client ()

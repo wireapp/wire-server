@@ -28,6 +28,7 @@ import Polysemy.Input
 import Wire.CodeStore (CodeStore (..))
 import Wire.CodeStore qualified as CodeStore
 import Wire.CodeStore.Cassandra qualified as Cassandra
+import Wire.CodeStore.Code (CodeReferent (..))
 import Wire.CodeStore.Postgres qualified as Postgres
 import Wire.Postgres (PGConstraints)
 
@@ -48,9 +49,11 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   DeleteCode k -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.deleteCode k
     Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteCode k
-  MakeKey cid -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey cid
-  GenerateCode cid t -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.generateCode cid t
+  MakeKey ref -> case ref of
+    CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey ref
+    CodeReferentMeeting _ -> Postgres.interpretCodeStoreToPostgres $ CodeStore.makeKey ref
+  GenerateCode ref t -> case ref of
+    CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.generateCode ref t
+    CodeReferentMeeting _ -> Postgres.interpretCodeStoreToPostgres $ CodeStore.generateCode ref t
   GetConversationCodeURI mbHost -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.getConversationCodeURI mbHost

@@ -98,7 +98,7 @@ import Wire.API.Team.Member (HiddenPerm (..), TeamMember)
 import Wire.API.User
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
-import Wire.CodeStore.Code (Code (codeConversation))
+import Wire.CodeStore.Code (codeConvId)
 import Wire.CodeStore.Code qualified as Data
 import Wire.ConversationStore qualified as ConversationStore
 import Wire.ConversationStore.MLS.Types
@@ -656,7 +656,8 @@ getConversationByReusableCode ::
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) False Nothing (ConversationCode key value)
-  conv <- ConversationStore.getConversation (codeConversation c) >>= noteS @'ConvNotFound
+  codeCid <- noteS @'ConvNotFound (codeConvId c)
+  conv <- ConversationStore.getConversation codeCid >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView c conv
