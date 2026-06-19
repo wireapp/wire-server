@@ -236,5 +236,5 @@ mkDerivation {
   ];
   testToolDepends = [ hspec-discover ];
   description = "Library and example web app for the SAML Web-based SSO profile";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

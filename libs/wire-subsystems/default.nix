@@ -403,5 +403,5 @@ mkDerivation {
     zauth
   ];
   testToolDepends = [ hspec-discover ];
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }
