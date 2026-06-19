@@ -20,7 +20,7 @@ curl -s "$SWAGGER_URL" > "$OUTPUT_DIR/swagger.json"
 
 # Check if docker is available
 if ! command -v docker &> /dev/null; then
-    echo "Error: docker is not installed. Please install docker to use openapi-generator."
+    echo "Error: docker is not installed. Please install docker to use openapi-generator." >&2
     echo "Alternative: install openapi-generator-cli via npm: npm install -g @openapitools/openapi-generator-cli"
     exit 1
 fi

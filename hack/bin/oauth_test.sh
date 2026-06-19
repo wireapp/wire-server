@@ -18,7 +18,7 @@ while getopts ":u:" opt; do
   u)
     USER="$OPTARG"
     ;;
-  \?)
+  *)
     echo "$USAGE" 1>&2
     exit 1
     ;;
