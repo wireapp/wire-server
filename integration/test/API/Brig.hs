@@ -258,9 +258,12 @@ listUsersClients usr qualifiedUserIds = do
   submit "POST" (req & addJSONObject ["qualified_users" .= qUsers])
 
 listUsers :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => user -> [qualifiedUserIds] -> App Response
-listUsers usr qualifiedUserIds = do
+listUsers = listUsersVersioned Versioned
+
+listUsersVersioned :: (HasCallStack, MakesValue user, MakesValue qualifiedUserIds) => Versioned -> user -> [qualifiedUserIds] -> App Response
+listUsersVersioned version usr qualifiedUserIds = do
   qUsers <- mapM objQidObject qualifiedUserIds
-  req <- baseRequest usr Brig Versioned $ joinHttpPath ["list-users"]
+  req <- baseRequest usr Brig version $ joinHttpPath ["list-users"]
   submit "POST" (req & addJSONObject ["qualified_ids" .= qUsers])
 
 data SearchContactsCfg = SearchContactsCfg
@@ -789,8 +792,11 @@ getUsersPrekeyBundle caller targetUser = do
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_users_list_prekeys
 getMultiUserPrekeyBundle :: (HasCallStack, MakesValue caller, ToJSON userClients) => caller -> userClients -> App Response
-getMultiUserPrekeyBundle caller userClients = do
-  req <- baseRequest caller Brig Versioned $ joinHttpPath ["users", "list-prekeys"]
+getMultiUserPrekeyBundle = getMultiUserPrekeyBundleVersioned Versioned
+
+getMultiUserPrekeyBundleVersioned :: (HasCallStack, MakesValue caller, ToJSON userClients) => Versioned -> caller -> userClients -> App Response
+getMultiUserPrekeyBundleVersioned version caller userClients = do
+  req <- baseRequest caller Brig version $ joinHttpPath ["users", "list-prekeys"]
   submit "POST" (addJSON userClients req)
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_access
