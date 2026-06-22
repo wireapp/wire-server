@@ -47,14 +47,8 @@ interpretCodeStoreToCassandra = interpret $ \case
     embedClientInput $ insertCode code mPw
   DeleteCode k -> do
     embedClientInput $ deleteCode k
-  MakeKey ref -> case ref of
-    CodeReferentConv _ -> Code.mkKey ref
-    CodeReferentMeeting _ ->
-      error "CodeStore.Cassandra.MakeKey: meetings are not supported on cassandra"
-  GenerateCode ref t -> case ref of
-    CodeReferentConv _ -> Code.generate ref t
-    CodeReferentMeeting _ ->
-      error "CodeStore.Cassandra.GenerateCode: meetings are not supported on cassandra"
+  MakeKey ref -> Code.mkKey ref
+  GenerateCode ref t -> Code.generate ref t
   GetConversationCodeURI mbHost -> do
     convCodeURI <- input
     case convCodeURI of
@@ -73,8 +67,8 @@ insertCode c mPw = do
   let t = round (codeTTL c)
   retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, mPw, t)))
   where
-    -- Cassandra only stores conversation codes; meeting codes never reach here
-    -- because 'GenerateCode' errors out for meetings above.
+    -- Cassandra only stores conversation codes. Meeting codes never reach here:
+    -- the DualWrite interpreter routes 'CreateCode' for meetings to Postgres only.
     convReferent (CodeReferentConv cid) = cid
     convReferent CodeReferentMeeting {} =
       error "CodeStore.Cassandra.insertCode: meetings are not supported on cassandra"

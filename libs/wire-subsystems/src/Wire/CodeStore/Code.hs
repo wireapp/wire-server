@@ -20,7 +20,10 @@
 module Wire.CodeStore.Code
   ( Code (..),
     CodeReferent (..),
+    CodeTarget (..),
     codeConvId,
+    codeTarget,
+    codeReferentFromTarget,
     toCode,
     generate,
     mkKey,
@@ -33,10 +36,12 @@ import Data.Code
 import Data.Id
 import Data.Range
 import Data.Text.Ascii qualified as Ascii
+import Data.UUID (UUID)
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Wire.API.Password (Password)
+import Wire.API.PostgresMarshall
 
 -- | The conversation or meeting a 'Code' refers to. Since both 'ConvId' and
 -- 'MeetingId' are 'Id' values over a 'UUID', they are stored in a single uuid
@@ -45,6 +50,29 @@ data CodeReferent
   = CodeReferentConv ConvId
   | CodeReferentMeeting MeetingId
   deriving (Eq, Show, Generic)
+
+-- | Database discriminator for 'CodeReferent'. Stored in the @target@ column
+-- of @conversation_codes@ to distinguish conversation codes from meeting codes.
+data CodeTarget = CodeTargetConv | CodeTargetMeeting
+  deriving (Eq, Show, Generic)
+
+codeTarget :: CodeReferent -> CodeTarget
+codeTarget CodeReferentConv {} = CodeTargetConv
+codeTarget CodeReferentMeeting {} = CodeTargetMeeting
+
+codeReferentFromTarget :: CodeTarget -> UUID -> CodeReferent
+codeReferentFromTarget CodeTargetConv uid = CodeReferentConv (Id uid)
+codeReferentFromTarget CodeTargetMeeting uid = CodeReferentMeeting (Id uid)
+
+instance PostgresMarshall Text CodeTarget where
+  postgresMarshall CodeTargetConv = "conv"
+  postgresMarshall CodeTargetMeeting = "meeting"
+
+instance PostgresUnmarshall Text CodeTarget where
+  postgresUnmarshall = \case
+    "conv" -> Right CodeTargetConv
+    "meeting" -> Right CodeTargetMeeting
+    other -> Left $ "unexpected code target: " <> other
 
 data Code = Code
   { codeKey :: !Key,

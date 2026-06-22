@@ -21,10 +21,10 @@ module Wire.CodeStore.Postgres
 where
 
 import Data.Code
-import Data.Coerce (coerce)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
+import Data.UUID (UUID)
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
@@ -61,12 +61,12 @@ interpretCodeStoreToPostgres = interpret $ \case
 
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password = do
-  runStatement (codeKey c, cnv, password, codeValue c, round (codeTTL c), targetTxt) insert
+  runStatement (codeKey c, targetId, password, codeValue c, round (codeTTL c), codeTarget (codeReferent c)) insert
   where
-    (targetId, targetTxt) = case codeReferent c of
-      CodeReferentConv cid -> (toUUID cid, "conv")
-      CodeReferentMeeting mid -> (toUUID mid, "meeting")
-    insert :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, Text) ()
+    targetId = case codeReferent c of
+      CodeReferentConv cid -> toUUID cid
+      CodeReferentMeeting mid -> toUUID mid
+    insert :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, CodeTarget) ()
     insert =
       lmapPG
         [resultlessStatement|INSERT INTO conversation_codes
@@ -86,17 +86,9 @@ lookupCode k = do
   mRow <- runStatement k selectCode
   pure $ fmap (toCode k . mkReferent) mRow
   where
-    mkReferent (val, ttl, cnv, mPw, targetTxt) =
-      let ref = case targetTxt :: Text of
-            "meeting" -> CodeReferentMeeting (coerce cnv)
-            _ -> CodeReferentConv cnv
-       in (val, ttl, ref, mPw)
-    mkReferent (val, ttl, targetId, mPw, targetTxt) =
-      let ref = case targetTxt :: Text of
-            "meeting" -> CodeReferentMeeting (Id targetId)
-            _ -> CodeReferentConv cnv
-       in (val, ttl, ref, mPw)
-    selectCode :: Hasql.Statement Key (Maybe (Value, Int32, ConvId, Maybe Password, Text))
+    mkReferent (val, ttl, targetId, mPw, target) =
+      (val, ttl, codeReferentFromTarget target targetId, mPw)
+    selectCode :: Hasql.Statement Key (Maybe (Value, Int32, UUID, Maybe Password, CodeTarget))
     selectCode =
       dimapPG
         -- on the extraction of the remaining seconds of the TTL
