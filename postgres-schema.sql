@@ -126,7 +126,8 @@ CREATE TABLE public.conversation_codes (
     conversation uuid NOT NULL,
     password bytea,
     value text NOT NULL,
-    expires_at timestamp with time zone NOT NULL
+    expires_at timestamp with time zone NOT NULL,
+    target text DEFAULT 'conv'::text NOT NULL
 );
 
 
