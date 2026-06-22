@@ -91,6 +91,11 @@ lookupCode k = do
             "meeting" -> CodeReferentMeeting (coerce cnv)
             _ -> CodeReferentConv cnv
        in (val, ttl, ref, mPw)
+    mkReferent (val, ttl, targetId, mPw, targetTxt) =
+      let ref = case targetTxt :: Text of
+            "meeting" -> CodeReferentMeeting (Id targetId)
+            _ -> CodeReferentConv cnv
+       in (val, ttl, ref, mPw)
     selectCode :: Hasql.Statement Key (Maybe (Value, Int32, ConvId, Maybe Password, Text))
     selectCode =
       dimapPG
