@@ -1,1 +1,0 @@
-Enforced history client invariants for conversation history sharing: enabled requires exactly one history client, disabled requires none.

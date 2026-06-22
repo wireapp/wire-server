@@ -1,1 +1,0 @@
-The background-worker migration timeout configuration was renamed from `migrateConversationsOptions` to `migrationOptions`. The old key is no longer read, so update any custom Helm overrides to the new name to avoid unexpected defaults.
