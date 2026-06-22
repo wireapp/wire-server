@@ -235,7 +235,6 @@ library
     Wire.BlockListStore
     Wire.BlockListStore.Cassandra
     Wire.BrigAPIAccess
-    Wire.ConfigOptions
     Wire.BrigAPIAccess.Rpc
     Wire.ClientStore
     Wire.ClientStore.Cassandra
@@ -380,6 +379,7 @@ library
     Wire.MigrationLock
     Wire.NotificationSubsystem
     Wire.NotificationSubsystem.Interpreter
+    Wire.Options
     Wire.Options.Galley
     Wire.Options.Keys
     Wire.PaginationState

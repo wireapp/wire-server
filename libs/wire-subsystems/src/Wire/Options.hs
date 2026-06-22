@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-
-module Wire.ConfigOptions where
+module Wire.Options where
 
 import Amazonka (Region)
 import Amazonka.Types (S3AddressingStyle)
@@ -107,8 +106,8 @@ data RedisEndpoint = RedisEndpoint
   deriving (Show, Generic)
 
 data PrekeySelectionOpts
- = RandomPrekeySelection
- | DynamoDBPrekeySelection !DynamoDBPrekeySelectionOpts
+  = RandomPrekeySelection
+  | DynamoDBPrekeySelection !DynamoDBPrekeySelectionOpts
 
 data DynamoDBPrekeySelectionOpts = DynamoDBPrekeySelectionOpts
   { dynamoDBEndpoint :: !AWSEndpoint,
@@ -424,8 +423,10 @@ data EmailOpts
 
 instance FromJSON EmailOpts where
   parseJSON o =
-    EmailAWS <$> parseJSON o
-      <|> EmailSMTP <$> parseJSON o
+    EmailAWS
+      <$> parseJSON o
+        <|> EmailSMTP
+      <$> parseJSON o
 
 data BrandingOpts = BrandingOpts
   { brand :: !Text,
@@ -595,4 +596,3 @@ instance FromJSON SFTOptions where
 deriveJSON defaultOptions {constructorTagModifier = map toLower} ''RedisConnectionMode
 
 deriveFromJSON toOptionFieldName ''RedisEndpoint
-
