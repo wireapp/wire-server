@@ -37,7 +37,7 @@ import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Brig.User.Auth.Cookie
 import Cassandra
 import Control.Error hiding (bool)

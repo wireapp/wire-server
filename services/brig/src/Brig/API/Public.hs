@@ -47,7 +47,7 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.SFT
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options hiding (internalEvents)
+import Wire.Options hiding (internalEvents)
 import Brig.Provider.API
 import Brig.Team.API qualified as Team
 import Brig.Template (InvitationUrlTemplates)

@@ -25,7 +25,7 @@ module Brig.Template
   )
 where
 
-import Brig.Options
+import Wire.Options
 import Data.Map.Strict qualified as Map
 import Data.Text.Template (Template)
 import Imports

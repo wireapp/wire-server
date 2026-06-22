@@ -26,7 +26,7 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
-import Brig.Options
+import Wire.Options
 import Control.Applicative
 import Data.ByteString qualified as LBS
 import Data.Qualified

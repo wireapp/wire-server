@@ -107,8 +107,8 @@ import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
 import Brig.DeleteQueue.Interpreter
-import Brig.Options (ElasticSearchOpts, Opts, Settings (..))
-import Brig.Options qualified as Opt
+import Wire.Options (ElasticSearchOpts, Opts, Settings (..))
+import Wire.Options qualified as Opt
 import Brig.Provider.Template
 import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types

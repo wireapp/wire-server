@@ -21,7 +21,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
-import Brig.Options
+import Wire.Options
 import Brig.User.Auth qualified as Auth
 import Control.Monad.Trans.Except
 import Data.CommaSeparatedList

@@ -19,7 +19,7 @@ module Brig.API.MLS.Util where
 
 import Brig.API.Handler
 import Brig.App
-import Brig.Options
+import Wire.Options
 import Control.Error
 import Imports
 import Wire.ClientSubsystem.Error

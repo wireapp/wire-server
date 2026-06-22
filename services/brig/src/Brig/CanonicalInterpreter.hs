@@ -28,8 +28,8 @@ import Brig.Effects.SFT (SFT, interpretSFT)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.IO.Intra (runEvents)
-import Brig.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
-import Brig.Options qualified as Opt
+import Wire.Options (Settings (consumableNotifications), federationDomainConfigs, federationStrategy)
+import Wire.Options qualified as Opt
 import Brig.Template (InvitationUrlTemplates)
 import Brig.User.Search.Index (IndexEnv (..))
 import Cassandra qualified as Cas

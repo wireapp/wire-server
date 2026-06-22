@@ -12,7 +12,8 @@ import Data.Code qualified as Code
 import Data.Domain (Domain (..))
 import Data.Id (ProviderId)
 import Data.LanguageCodes (ISO639_1 (EN))
-import Data.Range (Range)
+import Data.Proxy (Proxy (..))
+import Data.Range (Range, toRange)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time (DiffTime, secondsToDiffTime)
@@ -80,9 +81,9 @@ data ExternalServices = ExternalServices
     -- TODO: See if user and team journal can even be configured differently. If
     -- everything is supposed to be used by ibis, we cannot actually configure
     -- them seperately anyway.
-    userJournal :: !(Maybe SqsOpts),
-    teamJournal :: !(Maybe SqsOpts),
-    internalEvents :: !SqsOpts,
+    -- userJournal :: !(Maybe SqsOpts),
+    -- teamJournal :: !(Maybe SqsOpts),
+    sqs :: !SqsOpts,
     assets :: !AssetOpts,
     pushNotifications :: !PushNotifiactionOpts
   }
@@ -116,7 +117,9 @@ data DynamoDBPrekeySelectionOpts = DynamoDBPrekeySelectionOpts
 
 data SqsOpts = SqsOpts
   { sqsEndpoint :: !AWSEndpoint,
-    queueName :: !Text
+    internalEventsQueue :: !Text,
+    userJournalQueue :: !(Maybe Text),
+    teamJournalQueue :: !(Maybe Text)
   }
 
 data AssetOpts = AssetOpts
@@ -245,6 +248,10 @@ data UserSettings = UserSettings
     restrictUserCreation :: !(Maybe Bool)
   }
 
+-- TODO: Make this the actual default when the YAML doesn't specify a value.
+defaultTemplateLocale :: UserSettings -> Locale
+defaultTemplateLocale = fromMaybe defaultLocale . defaultTemplateLocaleInternal
+
 data TeamSettings = TeamSettings
   { -- \| Team invitation timeout, in seconds
     teamInvitationTimeout :: !Timeout,
@@ -370,7 +377,7 @@ instance FromJSON ImplicitNoFederationRestriction where
       )
 
 -- ---------------------------------------------------------------------------
--- Types moved from Brig.Options
+-- Types moved from Wire.Options
 -- ---------------------------------------------------------------------------
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -596,3 +603,27 @@ instance FromJSON SFTOptions where
 deriveJSON defaultOptions {constructorTagModifier = map toLower} ''RedisConnectionMode
 
 deriveFromJSON toOptionFieldName ''RedisEndpoint
+
+defMaxKeyLen :: Int64
+defMaxKeyLen = 1024
+
+defMaxValueLen :: Int64
+defMaxValueLen = 524288
+
+defDeleteThrottleMillis :: Int
+defDeleteThrottleMillis = 100
+
+defSqsThrottleMillis :: Int
+defSqsThrottleMillis = 500
+
+defUserMaxPermClients :: Int
+defUserMaxPermClients = 7
+
+defSftServiceName :: ByteString
+defSftServiceName = "_sft"
+
+defSrvDiscoveryIntervalSeconds :: DiffTime
+defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
+
+defSftListLength :: Range 1 100 Int
+defSftListLength = toRange (Proxy @5)

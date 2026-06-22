@@ -22,8 +22,8 @@ import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Index.Eval qualified as IndexEval
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
-import Brig.Options (Opts (galley))
-import Brig.Options qualified as BrigOpts
+import Wire.Options (Opts (galley))
+import Wire.Options qualified as BrigOpts
 import Control.Lens ((.~))
 import Control.Lens.Combinators (none)
 import Data.Text qualified as Text

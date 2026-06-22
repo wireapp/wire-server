@@ -28,7 +28,7 @@ where
 import Brig.API.Types
 import Brig.App
 import Brig.Data.Connection qualified as Data
-import Brig.Options (Settings (userMaxConnections))
+import Wire.Options (Settings (userMaxConnections))
 import Control.Error (MaybeT, noteT)
 import Control.Monad.Trans.Except
 import Data.Id (UserId)

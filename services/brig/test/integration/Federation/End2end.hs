@@ -21,7 +21,7 @@ import API.MLS.Util
 import API.User.Util
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import Brig.Options qualified as BrigOpts
+import Wire.Options qualified as BrigOpts
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((#))
 import Data.Aeson qualified as Aeson

@@ -27,7 +27,7 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler (Handler)
 import Brig.API.User qualified as API
 import Brig.App
-import Brig.Options (searchSameTeamOnly)
+import Wire.Options (searchSameTeamOnly)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
 import Data.Qualified

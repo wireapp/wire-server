@@ -31,7 +31,7 @@ import Brig.CanonicalInterpreter
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore qualified as UsersPendingActivationStore
 import Brig.InternalEvent.Process qualified as Internal
-import Brig.Options hiding (internalEvents, sesQueue)
+import Wire.Options hiding (internalEvents, sesQueue)
 import Brig.Queue qualified as Queue
 import Brig.Version
 import Control.Concurrent.Async qualified as Async

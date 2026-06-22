@@ -20,8 +20,8 @@ module API.Settings (tests) where
 import API.Team.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Options (Opts)
-import Brig.Options qualified as Opt
+import Wire.Options (Opts)
+import Wire.Options qualified as Opt
 import Control.Arrow ((&&&))
 import Control.Lens
 import Data.Aeson

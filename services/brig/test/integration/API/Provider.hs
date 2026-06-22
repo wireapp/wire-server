@@ -27,7 +27,7 @@ where
 import API.Team.Util qualified as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Options qualified as Opts
+import Wire.Options qualified as Opts
 import Cassandra qualified as DB
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async qualified as Async

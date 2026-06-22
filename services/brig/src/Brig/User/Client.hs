@@ -27,7 +27,7 @@ import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.JwtTools qualified as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.PublicKeyBundle qualified as PublicKeyBundle
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Control.Error
 import Control.Monad.Trans.Except (except)
 import Data.ByteString (toStrict)

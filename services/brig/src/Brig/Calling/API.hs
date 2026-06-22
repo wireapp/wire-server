@@ -37,8 +37,8 @@ import Brig.Calling
 import Brig.Calling qualified as Calling
 import Brig.Calling.Internal
 import Brig.Effects.SFT
-import Brig.Options (ListAllSFTServers (..))
-import Brig.Options qualified as Opt
+import Wire.Options (ListAllSFTServers (..))
+import Wire.Options qualified as Opt
 import Control.Error (hush, throwE)
 import Control.Lens
 import Crypto.Hash qualified as Crypto

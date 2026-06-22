@@ -40,9 +40,6 @@ import Brig.App (initHttpManagerWithTLSConfig)
 import Brig.Index.Eval (initIndex, runCommand)
 import Brig.Index.Options
 import Brig.Index.Options qualified as IndexOpts
-import Brig.Options
-import Brig.Options qualified as Opt
-import Brig.Options qualified as Opts
 import Brig.User.Search.Index
 import Cassandra qualified as C
 import Cassandra.Options qualified as CassOpts
@@ -89,6 +86,9 @@ import Wire.API.User.Search
 import Wire.API.User.Search qualified as Search
 import Wire.IndexedUserStore.ElasticSearch (mappingName)
 import Wire.IndexedUserStore.MigrationStore.ElasticSearch (defaultMigrationIndexName)
+import Wire.Options
+import Wire.Options qualified as Opt
+import Wire.Options qualified as Opts
 import Wire.PostgresMigrationOpts
 
 tests :: Opt.Opts -> ES.Server -> Manager -> Galley -> Brig -> IO TestTree
@@ -828,7 +828,7 @@ runReindexFromDatabase syncCommand logger opts newIndexName migrationIndexName p
           & IndexOpts.cPort .~ (opts.cassandra.endpoint.port)
           & IndexOpts.cKeyspace .~ (C.Keyspace opts.cassandra.keyspace)
       postgresSettings :: PostgresSettings =
-        brigOptsToPostgresSettings opts
+        wireConfigToPostgresSettings opts
       endpoint :: Endpoint = opts.galley
    in runCommand logger $ syncCommand elasticSettings cassandraSettings postgresSettings (UserStorageLocation opts.postgresMigration.user) endpoint pageSize
 

@@ -39,7 +39,7 @@ module Brig.User.Auth.Cookie
 where
 
 import Brig.App
-import Brig.Options hiding (user)
+import Wire.Options hiding (user)
 import Cassandra
 import Control.Error
 import Control.Monad.Except

@@ -27,7 +27,7 @@ module Brig.Queue.Stomp
 where
 
 import BasePrelude hiding (Handler, throwIO)
-import Brig.Options qualified as Opts
+import Wire.Options qualified as Opts
 import Codec.MIME.Type qualified as MIME
 import Control.Monad.Catch (Handler (..), MonadMask)
 import Control.Retry hiding (retryPolicy)

@@ -30,7 +30,7 @@ import API.User.Util
 import API.User.Util qualified as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Options as Opt
+import Wire.Options as Opt
 import Cassandra qualified as DB
 import Control.Lens hiding (Wrapped, (#))
 import Crypto.JWT hiding (Ed25519, header, params)

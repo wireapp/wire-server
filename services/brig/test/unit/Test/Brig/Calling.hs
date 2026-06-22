@@ -24,7 +24,7 @@ import Brig.Calling
 import Brig.Calling.API
 import Brig.Calling.Internal
 import Brig.Effects.SFT
-import Brig.Options
+import Wire.Options
 import Control.Concurrent.Timeout qualified as System
 import Control.Lens ((^.))
 import Control.Monad.Catch

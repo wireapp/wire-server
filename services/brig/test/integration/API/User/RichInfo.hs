@@ -25,8 +25,8 @@ import API.Team.Util (createTeamMember, createUserWithTeam)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Options
-import Brig.Options qualified as Opt
+import Wire.Options
+import Wire.Options qualified as Opt
 import Data.CaseInsensitive qualified as CI
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text

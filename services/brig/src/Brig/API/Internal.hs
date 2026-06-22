@@ -36,7 +36,7 @@ import Brig.Data.Activation
 import Brig.Data.Connection qualified as Data
 import Brig.Data.MLS.KeyPackage qualified as Data
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Options hiding (internalEvents)
+import Wire.Options hiding (internalEvents)
 import Brig.Provider.API qualified as Provider
 import Brig.Team.API qualified as Team
 import Brig.User.EJPD qualified

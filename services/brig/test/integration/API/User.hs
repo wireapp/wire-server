@@ -31,7 +31,7 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Brig.AWS qualified as AWS
 import Brig.App (initZAuth)
-import Brig.Options qualified as Opt
+import Wire.Options qualified as Opt
 import Cassandra qualified as DB
 import Data.Qualified
 import Imports

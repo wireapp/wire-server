@@ -39,8 +39,8 @@ import API.Team.Util qualified as Team
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth hiding (verifyRefreshToken)
-import Brig.Options
-import Brig.Options qualified as Opt
+import Wire.Options
+import Wire.Options qualified as Opt
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
