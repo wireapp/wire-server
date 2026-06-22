@@ -25,6 +25,8 @@ import Data.Misc
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.CodeStore (CodeStore (..))
 import Wire.CodeStore qualified as CodeStore
 import Wire.CodeStore.Cassandra qualified as Cassandra
@@ -36,6 +38,7 @@ import Wire.Postgres (PGConstraints)
 interpretCodeStoreToCassandraAndPostgres ::
   ( Member (Input ClientState) r,
     Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (ErrorS 'CodeStoreNotFound) r,
     PGConstraints r
   ) =>
   Sem (CodeStore ': r) a ->

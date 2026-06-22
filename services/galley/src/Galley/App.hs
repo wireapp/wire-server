@@ -262,6 +262,7 @@ type GalleyEffects =
      ErrorS 'NotAnMlsConversation,
      ErrorS 'NotATeamMember,
      ErrorS 'MeetingNotFound,
+     ErrorS 'CodeStoreNotFound,
      ErrorS 'InvalidOperation,
      Error RpcException,
      Input ClientState,
@@ -473,6 +474,7 @@ evalGalley e =
         . mapError (toResponse . rpcExcepctionToWaiError) -- Error RpcException
         . mapError toResponse -- ErrorS 'InvalidOperation
         . mapError toResponse -- ErrorS 'MeetingNotFound
+        . mapError toResponse -- ErrorS 'CodeStoreNotFound
         . mapError toResponse -- ErrorS 'NotATeamMember
         . mapError toResponse -- ErrorS 'NotAnMlsConversation
         . mapError toResponse -- ErrorS 'ChannelsNotEnabled

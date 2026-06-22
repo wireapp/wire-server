@@ -22,11 +22,14 @@ where
 
 import Cassandra
 import Data.Code
+import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Password
 import Wire.CodeStore (CodeStore (..))
 import Wire.CodeStore.Cassandra.Queries qualified as Cql
@@ -36,15 +39,17 @@ import Wire.Util (embedClientInput)
 interpretCodeStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r
+    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (ErrorS 'CodeStoreNotFound) r
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
   GetCode k -> do
     embedClientInput $ lookupCode k
-  CreateCode code mPw -> do
-    embedClientInput $ insertCode code mPw
+  CreateCode code mPw -> case codeReferent code of
+    CodeReferentConv cid -> embedClientInput $ insertCode cid code mPw
+    CodeReferentMeeting _ -> throwS @'CodeStoreNotFound
   DeleteCode k -> do
     embedClientInput $ deleteCode k
   MakeKey ref -> Code.mkKey ref
@@ -59,19 +64,12 @@ interpretCodeStoreToCassandra = interpret $ \case
           Nothing -> pure Nothing
 
 -- | Insert a conversation code
-insertCode :: Code -> Maybe Password -> Client ()
-insertCode c mPw = do
+insertCode :: ConvId -> Code -> Maybe Password -> Client ()
+insertCode cnv c mPw = do
   let k = codeKey c
   let v = codeValue c
-  let cnv = convReferent (codeReferent c)
   let t = round (codeTTL c)
   retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, mPw, t)))
-  where
-    -- Cassandra only stores conversation codes. Meeting codes never reach here:
-    -- the DualWrite interpreter routes 'CreateCode' for meetings to Postgres only.
-    convReferent (CodeReferentConv cid) = cid
-    convReferent CodeReferentMeeting {} =
-      error "CodeStore.Cassandra.insertCode: meetings are not supported on cassandra"
 
 -- | Lookup a conversation by code.
 lookupCode :: Key -> Client (Maybe (Code, Maybe Password))
