@@ -633,6 +633,7 @@ test-suite wire-subsystems-tests
     Wire.MockInterpreters.UserSubsystem
     Wire.MockInterpreters.VerificationCodeStore
     Wire.NotificationSubsystem.InterpreterSpec
+    Wire.PostgresSpec
     Wire.PropertySubsystem.InterpreterSpec
     Wire.RateLimited.InterpreterSpec
     Wire.SAMLEmailSubsystem.InterpreterSpec

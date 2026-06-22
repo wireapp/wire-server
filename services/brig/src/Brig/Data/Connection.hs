@@ -75,10 +75,10 @@ insertConnection ::
 insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
-        write connectionInsert $
+        writeTraced connectionInsert $
           params LocalQuorum (tUnqualified self, ltarget, rel, now, cnv)
   let remote (tUntagged -> Qualified rtarget domain) =
-        write remoteConnectionInsert $
+        writeTraced remoteConnectionInsert $
           params LocalQuorum (tUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
   retry x5 $ foldQualified self local remote target
   pure $
@@ -104,10 +104,10 @@ updateConnectionStatus :: (MonadClient m) => Local UserId -> Qualified UserId ->
 updateConnectionStatus self target status = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
   let local (tUnqualified -> ltarget) =
-        write connectionUpdate $
+        writeTraced connectionUpdate $
           params LocalQuorum (status, now, tUnqualified self, ltarget)
   let remote (tUntagged -> Qualified rtarget domain) =
-        write remoteConnectionUpdate $
+        writeTraced remoteConnectionUpdate $
           params LocalQuorum (status, now, tUnqualified self, domain, rtarget)
   retry x5 $ foldQualified self local remote target
   pure now
@@ -117,12 +117,12 @@ lookupConnection :: (MonadClient m) => Local UserId -> Qualified UserId -> m (Ma
 lookupConnection self target = runMaybeT $ do
   let local (tUnqualified -> ltarget) = do
         (_, _, rel, time, mcnv) <-
-          MaybeT . query1 connectionSelect $
+          MaybeT . query1Traced connectionSelect $
             params LocalQuorum (tUnqualified self, ltarget)
         pure (rel, time, fmap (tUntagged . qualifyAs self) mcnv)
   let remote (tUntagged -> Qualified rtarget domain) = do
         (rel, time, cdomain, cnv) <-
-          MaybeT . query1 remoteConnectionSelectFrom $
+          MaybeT . query1Traced remoteConnectionSelectFrom $
             params LocalQuorum (tUnqualified self, domain, rtarget)
         pure (rel, time, Just (Qualified cnv cdomain))
   (rel, time, mqcnv) <- hoist (retry x1) $ foldQualified self local remote target
@@ -145,9 +145,9 @@ lookupRelationWithHistory ::
   m (Maybe RelationWithHistory)
 lookupRelationWithHistory self target = do
   let local (tUnqualified -> ltarget) =
-        query1 relationSelect (params LocalQuorum (tUnqualified self, ltarget))
+        query1Traced relationSelect (params LocalQuorum (tUnqualified self, ltarget))
   let remote (tUntagged -> Qualified rtarget domain) =
-        query1 remoteRelationSelect (params LocalQuorum (tUnqualified self, domain, rtarget))
+        query1Traced remoteRelationSelect (params LocalQuorum (tUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
 
 -- | For a given user 'A', lookup their outgoing connections (A -> X) to other users.
@@ -198,13 +198,13 @@ lookupRemoteConnectionsPage self pagingState size =
 lookupConnectionStatus :: (MonadClient m) => [UserId] -> [UserId] -> m [ConnectionStatus]
 lookupConnectionStatus from to =
   map toConnectionStatus
-    <$> retry x1 (query connectionStatusSelect (params LocalQuorum (from, to)))
+    <$> retry x1 (queryTraced connectionStatusSelect (params LocalQuorum (from, to)))
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus' :: (MonadClient m) => [UserId] -> m [ConnectionStatus]
 lookupConnectionStatus' from =
   map toConnectionStatus
-    <$> retry x1 (query connectionStatusSelect' (params LocalQuorum (Identity from)))
+    <$> retry x1 (queryTraced connectionStatusSelect' (params LocalQuorum (Identity from)))
 
 lookupLocalConnectionStatuses ::
   ( MonadClient m,
@@ -219,7 +219,7 @@ lookupLocalConnectionStatuses froms tos = do
     lookupStatuses :: (MonadClient m) => UserId -> m [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos)))
+        <$> retry x1 (queryTraced relationsSelect (params LocalQuorum (from, tUnqualified tos)))
 
 lookupRemoteConnectionStatuses ::
   ( MonadClient m,
@@ -234,7 +234,7 @@ lookupRemoteConnectionStatuses froms tos = do
     lookupStatuses :: (MonadClient m) => UserId -> m [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos)))
+        <$> retry x1 (queryTraced remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos)))
 
 lookupAllStatuses ::
   ( MonadClient m,
@@ -252,11 +252,11 @@ lookupAllStatuses lfroms = do
     lookupLocalStatuses :: (MonadClient m) => UserId -> m [ConnectionStatusV2]
     lookupLocalStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain lfroms))
-        <$> retry x1 (query relationsSelectAll (params LocalQuorum (Identity from)))
+        <$> retry x1 (queryTraced relationsSelectAll (params LocalQuorum (Identity from)))
     lookupRemoteStatuses :: (MonadClient m) => UserId -> m [ConnectionStatusV2]
     lookupRemoteStatuses from =
       map (\(d, u, r) -> toConnectionStatusV2 from d u r)
-        <$> retry x1 (query remoteRelationsSelectAll (params LocalQuorum (Identity from)))
+        <$> retry x1 (queryTraced remoteRelationsSelectAll (params LocalQuorum (Identity from)))
 
 lookupRemoteConnectedUsersPaginated :: (MonadClient m) => Local UserId -> Int32 -> m (Page (Remote UserConnection))
 lookupRemoteConnectedUsersPaginated u maxResults = do
@@ -271,7 +271,7 @@ lookupContactList u =
 -- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
 lookupContactListWithRelation :: (MonadClient m) => UserId -> m [(UserId, RelationWithHistory)]
 lookupContactListWithRelation u =
-  retry x1 (query contactsSelect (params LocalQuorum (Identity u)))
+  retry x1 (queryTraced contactsSelect (params LocalQuorum (Identity u)))
 
 -- | Count the number of connections a user has in a specific relation status.
 -- (If you want to distinguish 'RelationWithHistory', write a new function.)
@@ -299,10 +299,10 @@ deleteConnections u = do
       .| C.mapM_
         (pooledMapConcurrentlyN_ 16 delete)
   do
-    retry x1 . write connectionClear $ params LocalQuorum (Identity u)
-    retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
+    retry x1 . writeTraced connectionClear $ params LocalQuorum (Identity u)
+    retry x1 . writeTraced remoteConnectionClear $ params LocalQuorum (Identity u)
   where
-    delete (other, _status) = write connectionDelete $ params LocalQuorum (other, u)
+    delete (other, _status) = writeTraced connectionDelete $ params LocalQuorum (other, u)
 
 deleteRemoteConnections ::
   ( MonadClient m,
@@ -313,7 +313,7 @@ deleteRemoteConnections ::
   m ()
 deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
-    write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
+    writeTraced remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
 -- Queries
 

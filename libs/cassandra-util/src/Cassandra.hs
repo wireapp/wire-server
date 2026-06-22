@@ -84,6 +84,8 @@ import Cassandra.Exec as C
     pwsHasMore,
     query,
     query1,
+    query1Traced,
+    queryTraced,
     result,
     retry,
     runClient,
@@ -92,6 +94,7 @@ import Cassandra.Exec as C
     shutdown,
     trans,
     write,
+    writeTraced,
     x1,
     x5,
   )

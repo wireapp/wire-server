@@ -297,8 +297,8 @@ sendFullSyncMessageIfNeeded ::
   ClientId ->
   IO ()
 sendFullSyncMessageIfNeeded wsConn uid env cid = do
-  row <- C.runClientTraced env.cassandra do
-    retry x5 $ query1 q (params LocalQuorum (uid, cid))
+  row <- C.runClient env.cassandra do
+    retry x5 $ query1Traced q (params LocalQuorum (uid, cid))
   for_ row $ \_ -> sendFullSyncMessage uid cid wsConn env
   where
     q :: PrepQuery R (UserId, ClientId) (Identity (Maybe UserId))
@@ -319,8 +319,8 @@ sendFullSyncMessage uid cid wsConn env = do
   getClientMessage wsConn >>= \case
     AckMessage _ -> throwIO UnexpectedAck
     AckFullSync ->
-      C.runClientTraced env.cassandra do
-        retry x1 $ write delete (params LocalQuorum (uid, cid))
+      C.runClient env.cassandra do
+        retry x1 $ writeTraced delete (params LocalQuorum (uid, cid))
   where
     delete :: PrepQuery W (UserId, ClientId) ()
     delete =

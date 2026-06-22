@@ -34,12 +34,18 @@ module Cassandra.Exec
     paramsPagingState,
     pwsHasMore,
     runClientTraced,
+    queryTraced,
+    query1Traced,
+    writeTraced,
     module C,
   )
 where
 
-import Cassandra.CQL (Consistency, R)
-import OpenTelemetry.Trace (defaultSpanArguments, getGlobalTracerProvider, inSpan, makeTracer, tracerOptions)
+import Cassandra.CQL (Consistency, R, W)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text.Lazy as LT
+import OpenTelemetry.Trace (SpanArguments (..), defaultSpanArguments, getGlobalTracerProvider, inSpan, makeTracer, toAttribute, tracerOptions)
+import Database.CQL.Protocol (QueryString (..))
 import Control.Monad.Catch
 import Data.Conduit
 -- We only use these locally.
@@ -49,6 +55,7 @@ import Database.CQL.IO as C (BatchM, Client, ClientState, MonadClient, Page (..)
 import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple, pagingState)
 import Database.CQL.Protocol qualified as Protocol
 import Imports hiding (init)
+
 
 params :: Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing Nothing
@@ -177,3 +184,30 @@ runClientTraced st action = do
   tp <- getGlobalTracerProvider
   let tracer = makeTracer tp "cassandra" tracerOptions
   inSpan tracer "cassandra.query" defaultSpanArguments $ runClient st action
+
+cqlSpanArgs :: PrepQuery k a b -> SpanArguments
+cqlSpanArgs q =
+  let QueryString cql = queryString q
+   in defaultSpanArguments
+        { attributes = HashMap.fromList [("db.statement", toAttribute (LT.toStrict cql))] }
+
+-- | Like 'query' but adds a 'db.statement' OTel span attribute with the CQL template.
+queryTraced :: (MonadClient m, Tuple a, Tuple b) => PrepQuery R a b -> QueryParams a -> m [b]
+queryTraced q p = liftClient $ do
+  tp <- liftIO getGlobalTracerProvider
+  let tracer = makeTracer tp "cassandra" tracerOptions
+  inSpan tracer "cassandra.query" (cqlSpanArgs q) $ query q p
+
+-- | Like 'query1' but adds a 'db.statement' OTel span attribute with the CQL template.
+query1Traced :: (MonadClient m, Tuple a, Tuple b) => PrepQuery R a b -> QueryParams a -> m (Maybe b)
+query1Traced q p = liftClient $ do
+  tp <- liftIO getGlobalTracerProvider
+  let tracer = makeTracer tp "cassandra" tracerOptions
+  inSpan tracer "cassandra.query" (cqlSpanArgs q) $ query1 q p
+
+-- | Like 'write' but adds a 'db.statement' OTel span attribute with the CQL template.
+writeTraced :: (MonadClient m, Tuple a) => PrepQuery W a () -> QueryParams a -> m ()
+writeTraced q p = liftClient $ do
+  tp <- liftIO getGlobalTracerProvider
+  let tracer = makeTracer tp "cassandra" tracerOptions
+  inSpan tracer "cassandra.query" (cqlSpanArgs q) $ write q p

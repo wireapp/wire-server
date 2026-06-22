@@ -398,26 +398,26 @@ deleteOAuthRefreshTokenById (tUnqualified -> uid) cid tokenId req = do
 -- DB
 
 deleteOAuthClient' :: (MonadClient m) => OAuthClientId -> m ()
-deleteOAuthClient' cid = retry x5 . write q $ params LocalQuorum (Identity cid)
+deleteOAuthClient' cid = retry x5 . writeTraced q $ params LocalQuorum (Identity cid)
   where
     q :: PrepQuery W (Identity OAuthClientId) ()
     q = "DELETE FROM oauth_client WHERE id = ?"
 
 updateOAuthClient' :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> m ()
-updateOAuthClient' cid name uri = retry x5 . write q $ params LocalQuorum (name, uri, cid)
+updateOAuthClient' cid name uri = retry x5 . writeTraced q $ params LocalQuorum (name, uri, cid)
   where
     q :: PrepQuery W (OAuthApplicationName, RedirectUrl, OAuthClientId) ()
     q = {- `IF EXISTS`, but that requires benchmarking -} "UPDATE oauth_client SET name = ?, redirect_uri = ? WHERE id = ?"
 
 insertOAuthClient :: (MonadClient m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
-insertOAuthClient cid name uri pw = retry x5 . write q $ params LocalQuorum (cid, name, uri, pw)
+insertOAuthClient cid name uri pw = retry x5 . writeTraced q $ params LocalQuorum (cid, name, uri, pw)
   where
     q :: PrepQuery W (OAuthClientId, OAuthApplicationName, RedirectUrl, Password) ()
     q = "INSERT INTO oauth_client (id, name, redirect_uri, secret) VALUES (?, ?, ?, ?)"
 
 lookupOauthClient :: (MonadClient m) => OAuthClientId -> m (Maybe OAuthClient)
 lookupOauthClient cid = do
-  mNameUrl <- retry x5 . query1 q $ params LocalQuorum (Identity cid)
+  mNameUrl <- retry x5 . query1Traced q $ params LocalQuorum (Identity cid)
   pure $ mNameUrl <&> uncurry (OAuthClient cid)
   where
     q :: PrepQuery R (Identity OAuthClientId) (OAuthApplicationName, RedirectUrl)
@@ -426,7 +426,7 @@ lookupOauthClient cid = do
 insertOAuthAuthorizationCode :: (MonadClient m) => Word64 -> OAuthAuthorizationCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> OAuthCodeChallenge -> m ()
 insertOAuthAuthorizationCode ttl code cid uid scope uri chal = do
   let cqlScope = C.Set (Set.toList (unOAuthScopes scope))
-  retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri, chal, fromIntegral ttl)
+  retry x5 . writeTraced q $ params LocalQuorum (code, cid, uid, cqlScope, uri, chal, fromIntegral ttl)
   where
     q :: PrepQuery W (OAuthAuthorizationCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl, OAuthCodeChallenge, Int32) ()
     q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri, code_challenge) VALUES (?, ?, ?, ?, ?, ?) USING TTL ?"
@@ -436,14 +436,14 @@ lookupAndDeleteByOAuthAuthorizationCode code = lookupOAuthAuthorizationCode <* d
   where
     lookupOAuthAuthorizationCode :: (MonadClient m) => m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl, Maybe OAuthCodeChallenge))
     lookupOAuthAuthorizationCode = do
-      mTuple <- retry x5 . query1 q $ params LocalQuorum (Identity code)
+      mTuple <- retry x5 . query1Traced q $ params LocalQuorum (Identity code)
       pure $ mTuple <&> \(cid, uid, C.Set scope, uri, mChal) -> (cid, uid, OAuthScopes (Set.fromList scope), uri, mChal)
       where
         q :: PrepQuery R (Identity OAuthAuthorizationCode) (OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl, Maybe OAuthCodeChallenge)
         q = "SELECT client, user, scope, redirect_uri, code_challenge FROM oauth_auth_code WHERE code = ?"
 
     deleteOAuthAuthorizationCode :: (MonadClient m) => m ()
-    deleteOAuthAuthorizationCode = retry x5 . write q $ params LocalQuorum (Identity code)
+    deleteOAuthAuthorizationCode = retry x5 . writeTraced q $ params LocalQuorum (Identity code)
       where
         q :: PrepQuery W (Identity OAuthAuthorizationCode) ()
         q = "DELETE FROM oauth_auth_code WHERE code = ?"
@@ -453,8 +453,8 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
   let rid = info.refreshTokenId
   oldTokes <- determineOldestTokensToBeDeleted <$> lookupOAuthRefreshTokens info.userId
   for_ oldTokes (\t -> deleteOAuthRefreshToken t.userId t.refreshTokenId)
-  retry x5 . write qInsertId $ params LocalQuorum (info.userId, rid, fromIntegral ttl)
-  retry x5 . write qInsertInfo $ params LocalQuorum (rid, info.clientId, info.userId, C.Set (Set.toList (unOAuthScopes info.scopes)), info.createdAt, fromIntegral ttl)
+  retry x5 . writeTraced qInsertId $ params LocalQuorum (info.userId, rid, fromIntegral ttl)
+  retry x5 . writeTraced qInsertInfo $ params LocalQuorum (rid, info.clientId, info.userId, C.Set (Set.toList (unOAuthScopes info.scopes)), info.createdAt, fromIntegral ttl)
   where
     qInsertInfo :: PrepQuery W (OAuthRefreshTokenId, OAuthClientId, UserId, C.Set OAuthScope, UTCTime, Int32) ()
     qInsertInfo = fromString $ "INSERT INTO oauth_refresh_token (id, client, user, scope, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
@@ -470,7 +470,7 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
 
 lookupOAuthRefreshTokens :: (MonadClient m) => UserId -> m [OAuthRefreshTokenInfo]
 lookupOAuthRefreshTokens uid = do
-  ids <- runIdentity <$$> (retry x5 . query q $ params LocalQuorum (Identity uid))
+  ids <- runIdentity <$$> (retry x5 . queryTraced q $ params LocalQuorum (Identity uid))
   catMaybes <$> for ids lookupOAuthRefreshTokenInfo
   where
     q :: PrepQuery R (Identity UserId) (Identity OAuthRefreshTokenId)
@@ -478,7 +478,7 @@ lookupOAuthRefreshTokens uid = do
 
 lookupOAuthRefreshTokenInfo :: (MonadClient m) => OAuthRefreshTokenId -> m (Maybe OAuthRefreshTokenInfo)
 lookupOAuthRefreshTokenInfo rid = do
-  mTuple <- retry x5 . query1 q $ params LocalQuorum (Identity rid)
+  mTuple <- retry x5 . query1Traced q $ params LocalQuorum (Identity rid)
   pure $ mTuple <&> \(cid, uid, C.Set scope, createdAt) -> OAuthRefreshTokenInfo rid cid uid (OAuthScopes (Set.fromList scope)) createdAt
   where
     q :: PrepQuery R (Identity OAuthRefreshTokenId) (OAuthClientId, UserId, C.Set OAuthScope, UTCTime)
@@ -486,8 +486,8 @@ lookupOAuthRefreshTokenInfo rid = do
 
 deleteOAuthRefreshToken :: (MonadClient m) => UserId -> OAuthRefreshTokenId -> m ()
 deleteOAuthRefreshToken uid rid = do
-  retry x5 . write qDeleteId $ params LocalQuorum (uid, rid)
-  retry x5 . write qDeleteInfo $ params LocalQuorum (Identity rid)
+  retry x5 . writeTraced qDeleteId $ params LocalQuorum (uid, rid)
+  retry x5 . writeTraced qDeleteInfo $ params LocalQuorum (Identity rid)
   where
     qDeleteId :: PrepQuery W (UserId, OAuthRefreshTokenId) ()
     qDeleteId = "DELETE FROM oauth_user_refresh_token WHERE user = ? AND token_id = ?"

@@ -94,6 +94,7 @@ library
     , text                  >=0.11
     , time                  >=1.4
     , tinylog               >=0.7
+    , unordered-containers
     , uuid
     , wreq                  >=0.2
 
