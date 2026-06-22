@@ -578,6 +578,29 @@ testUserSearchable = do
         docs <- resp.json %. "documents" >>= asList
         f docs
 
+testStealthUsersWithFederation :: App ()
+testStealthUsersWithFederation = do
+  ownDomain <- asString OwnDomain
+  otherDomain <- asString OtherDomain
+  void $ BrigI.createFedConn OwnDomain (BrigI.FedConn otherDomain "full_search" Nothing)
+  void $ BrigI.createFedConn OtherDomain (BrigI.FedConn ownDomain "full_search" Nothing)
+
+  (searcher, _, _) <- createTeam OwnDomain 1
+  (owner, tid, searchee : _) <- createTeam OtherDomain 2
+  searcheeId <- objId searchee
+  let searchTerm = "stealth-federation-user"
+
+  assertSuccess =<< GalleyI.setTeamFeatureStatus OtherDomain tid "searchVisibilityInbound" "enabled"
+  BrigP.putSelf searchee (def {BrigP.name = Just searchTerm}) >>= assertSuccess
+  BrigI.refreshIndex OtherDomain
+
+  assertCanFind searcher searchee searchTerm OtherDomain
+
+  BrigP.setUserSearchable owner searcheeId False >>= assertSuccess
+  BrigI.refreshIndex OtherDomain
+
+  assertCannotFind searcher searchee searchTerm OtherDomain
+
 testSuspendedUserSearch :: (HasCallStack) => App ()
 testSuspendedUserSearch = do
   [searcher, searchee] <- replicateM 2 $ randomUser OwnDomain def
