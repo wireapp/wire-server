@@ -63,10 +63,10 @@ insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password = do
   runStatement (codeKey c, cnv, password, codeValue c, round (codeTTL c), targetTxt) insert
   where
-    (cnv, targetTxt) = case codeReferent c of
-      CodeReferentConv cid -> (cid, "conv")
-      CodeReferentMeeting mid -> (coerce mid, "meeting")
-    insert :: Hasql.Statement (Key, ConvId, Maybe Password, Value, Int32, Text) ()
+    (targetId, targetTxt) = case codeReferent c of
+      CodeReferentConv cid -> (toUUID cid, "conv")
+      CodeReferentMeeting mid -> (toUUID mid, "meeting")
+    insert :: Hasql.Statement (Key, UUID, Maybe Password, Value, Int32, Text) ()
     insert =
       lmapPG
         [resultlessStatement|INSERT INTO conversation_codes
