@@ -18,6 +18,7 @@
 module Wire.MeetingsCleanupWorker
   ( startWorker,
     CleanupConfig (..),
+    runCleanupOldMeetings,
   )
 where
 
@@ -64,7 +65,6 @@ startWorker config = do
         runAppT env $ do
           Log.info env.logger $ Log.msg (Log.val "Starting scheduled meetings cleanup")
           runCleanupOldMeetings (configFromOptions config)
-          liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
 
   pure $ pure ()
 
@@ -95,6 +95,7 @@ runCleanupOldMeetings config = do
   Log.info env.logger $
     Log.msg (Log.val "Completed cleanup of old meetings")
       . Log.field "total_deleted" totalDeleted
+  liftIO $ incCounter env.meetingsCleanupMetrics.runsCounter
 
 cleanupLoop :: Env -> UTCTime -> NominalDiffTime -> Int -> Int64 -> AppT IO Int64
 cleanupLoop env cutoffTime validityPeriod batchSize totalSoFar = do
