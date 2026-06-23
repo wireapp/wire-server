@@ -139,7 +139,7 @@ type MeetingsAPI =
     :<|> Named
            "replace-meeting-invitation"
            ( Summary "Replace the invited emails"
-               :> From 'V16
+               :> From 'V17
                :> ZLocalUser
                :> "meetings"
                :> Capture "domain" Domain

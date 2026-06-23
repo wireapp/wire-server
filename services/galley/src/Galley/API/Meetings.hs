@@ -25,7 +25,7 @@ module Galley.API.Meetings
     removeMeetingInvitation,
     replaceMeetingInvitation,
   )
-  where
+where
 
 import Data.Domain (Domain)
 import Data.Id

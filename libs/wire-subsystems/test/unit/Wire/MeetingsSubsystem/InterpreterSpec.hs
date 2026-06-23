@@ -817,6 +817,29 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           m.invitedEmails `shouldBe` []
         Right (_, Nothing) -> fail "Expected Just meeting"
 
+    it "deduplicates emails when replacing (mirrors Postgres semantics)" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Test Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = [email1, email2]
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        success <- replaceInvitedEmails zUser1 meeting.id [email3, email3, email1]
+        fetched <- getMeeting zUser1 meeting.id
+        pure (success, fetched)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (success, Just m) -> do
+          success `shouldBe` True
+          m.invitedEmails `shouldBe` [email3, email1]
+        Right (_, Nothing) -> fail "Expected Just meeting"
+
     it "returns False for expired meeting" $ do
       let newMeeting =
             API.NewMeeting

@@ -110,7 +110,7 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
         now <- Now.get
         let updatedMeeting =
               meeting
-                { invitedEmails = newEmails,
+                { invitedEmails = List.nub newEmails,
                   updatedAt = now
                 }
         modify (Map.insert mid updatedMeeting)
