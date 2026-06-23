@@ -30,6 +30,7 @@
 , cookie
 , crypton
 , crypton-asn1-encoding
+, crypton-pem
 , crypton-x509
 , currency-codes
 , data-default
@@ -68,7 +69,6 @@
 , mtl
 , network-uri
 , openapi3
-, pem
 , polysemy
 , polysemy-wire-zoo
 , process
@@ -152,6 +152,7 @@ mkDerivation {
     cookie
     crypton
     crypton-asn1-encoding
+    crypton-pem
     crypton-x509
     currency-codes
     data-default
@@ -186,7 +187,6 @@ mkDerivation {
     mtl
     network-uri
     openapi3
-    pem
     polysemy
     polysemy-wire-zoo
     profunctors
@@ -250,6 +250,7 @@ mkDerivation {
     cassava
     containers
     crypton
+    crypton-pem
     currency-codes
     filepath
     hex
@@ -263,7 +264,6 @@ mkDerivation {
     lens
     metrics-wai
     openapi3
-    pem
     process
     proto-lens
     QuickCheck

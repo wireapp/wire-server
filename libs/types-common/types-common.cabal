@@ -109,6 +109,7 @@ library
     , cryptohash-md5         >=0.11.7.2
     , cryptohash-sha1        >=0.11.7.2
     , crypton                >=0.26
+    , crypton-pem
     , currency-codes         >=3.0.0.1
     , email-validate
     , generic-random         >=1.4.0.0
@@ -123,7 +124,6 @@ library
     , mime                   >=0.4.0.2
     , openapi3
     , optparse-applicative   >=0.10
-    , pem
     , polysemy
     , polysemy-time
     , protobuf               >=0.2

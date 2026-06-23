@@ -18,6 +18,7 @@
 , cryptohash-md5
 , cryptohash-sha1
 , crypton
+, crypton-pem
 , currency-codes
 , email-validate
 , generic-random
@@ -33,7 +34,6 @@
 , mime
 , openapi3
 , optparse-applicative
-, pem
 , polysemy
 , polysemy-time
 , protobuf
@@ -79,6 +79,7 @@ mkDerivation {
     cryptohash-md5
     cryptohash-sha1
     crypton
+    crypton-pem
     currency-codes
     email-validate
     generic-random
@@ -93,7 +94,6 @@ mkDerivation {
     mime
     openapi3
     optparse-applicative
-    pem
     polysemy
     polysemy-time
     protobuf

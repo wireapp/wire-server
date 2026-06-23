@@ -21,6 +21,7 @@
 , conduit
 , containers
 , cookie
+, crypton-pem
 , currency-codes
 , data-default
 , data-timeout
@@ -53,7 +54,6 @@
 , network
 , network-uri
 , optparse-applicative
-, pem
 , polysemy
 , polysemy-conc
 , polysemy-plugin
@@ -198,6 +198,7 @@ mkDerivation {
     conduit
     containers
     cookie
+    crypton-pem
     currency-codes
     data-default
     data-timeout
@@ -222,7 +223,6 @@ mkDerivation {
     network
     network-uri
     optparse-applicative
-    pem
     process
     proto-lens
     protobuf

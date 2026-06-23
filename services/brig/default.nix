@@ -28,6 +28,7 @@
 , containers
 , cookie
 , crypton
+, crypton-pem
 , currency-codes
 , data-default
 , data-timeout
@@ -80,7 +81,6 @@
 , network-uri
 , openapi3
 , optparse-applicative
-, pem
 , pipes
 , polysemy
 , polysemy-conc
@@ -277,6 +277,7 @@ mkDerivation {
     cassandra-util
     containers
     cookie
+    crypton-pem
     data-default
     data-timeout
     email-validate
@@ -306,7 +307,6 @@ mkDerivation {
     network
     network-uri
     optparse-applicative
-    pem
     pipes
     polysemy
     polysemy-wire-zoo

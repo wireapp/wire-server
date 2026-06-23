@@ -13,6 +13,7 @@
 , containers
 , crypton
 , crypton-connection
+, crypton-pem
 , crypton-x509
 , crypton-x509-validation
 , data-default
@@ -42,7 +43,6 @@
 , mtl
 , network
 , optparse-applicative
-, pem
 , polysemy
 , polysemy-wire-zoo
 , prometheus-client
@@ -87,6 +87,7 @@ mkDerivation {
     bytestring
     bytestring-conversion
     containers
+    crypton-pem
     crypton-x509
     crypton-x509-validation
     data-default
@@ -110,7 +111,6 @@ mkDerivation {
     metrics-wai
     mtl
     network
-    pem
     polysemy
     polysemy-wire-zoo
     prometheus-client

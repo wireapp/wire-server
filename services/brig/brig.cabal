@@ -392,6 +392,7 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , crypton-pem
     , data-default
     , data-timeout
     , email-validate
@@ -421,7 +422,6 @@ executable brig-integration
     , network
     , network-uri
     , optparse-applicative
-    , pem
     , pipes
     , polysemy
     , polysemy-wire-zoo

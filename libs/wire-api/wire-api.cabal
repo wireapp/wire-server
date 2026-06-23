@@ -303,6 +303,7 @@ library
     , cookie
     , crypton
     , crypton-asn1-encoding
+    , crypton-pem                >=0.2
     , crypton-x509
     , currency-codes             >=2.0
     , data-default
@@ -337,7 +338,6 @@ library
     , mtl
     , network-uri
     , openapi3
-    , pem                        >=0.2
     , polysemy
     , polysemy-wire-zoo
     , profunctors
@@ -674,13 +674,13 @@ test-suite wire-api-golden-tests
     , bytestring
     , bytestring-conversion
     , containers               >=0.5
+    , crypton-pem
     , currency-codes
     , http-api-data
     , imports
     , iso3166-country-codes
     , iso639
     , lens
-    , pem
     , proto-lens
     , saml2-web-sso
     , string-conversions
