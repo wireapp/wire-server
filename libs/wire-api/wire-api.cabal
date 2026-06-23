@@ -283,7 +283,6 @@ library
   build-depends:
     , aeson                      >=2.0.1.0
     , amqp
-    , asn1-encoding
     , attoparsec                 >=0.10
     , barbies
     , base                       >=4        && <5
@@ -303,6 +302,7 @@ library
     , containers                 >=0.5
     , cookie
     , crypton
+    , crypton-asn1-encoding
     , crypton-x509
     , currency-codes             >=2.0
     , data-default

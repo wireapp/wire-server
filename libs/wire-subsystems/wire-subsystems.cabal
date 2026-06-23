@@ -91,7 +91,6 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
-    , asn1-encoding
     , async
     , attoparsec
     , base
@@ -111,6 +110,7 @@ common common-all
     , cookie
     , cql
     , crypton
+    , crypton-asn1-encoding
     , crypton-asn1-types
     , crypton-pem
     , currency-codes

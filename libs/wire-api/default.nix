@@ -8,7 +8,6 @@
 , aeson-pretty
 , aeson-qq
 , amqp
-, asn1-encoding
 , async
 , attoparsec
 , barbies
@@ -30,6 +29,7 @@
 , containers
 , cookie
 , crypton
+, crypton-asn1-encoding
 , crypton-x509
 , currency-codes
 , data-default
@@ -132,7 +132,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
-    asn1-encoding
     attoparsec
     barbies
     base
@@ -152,6 +151,7 @@ mkDerivation {
     containers
     cookie
     crypton
+    crypton-asn1-encoding
     crypton-x509
     currency-codes
     data-default

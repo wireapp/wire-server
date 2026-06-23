@@ -8,7 +8,6 @@
 , aeson-pretty
 , amqp
 , array
-, asn1-encoding
 , async
 , attoparsec
 , base
@@ -24,6 +23,7 @@
 , cql-io
 , criterion
 , crypton
+, crypton-asn1-encoding
 , crypton-asn1-types
 , crypton-pem
 , crypton-x509
@@ -115,7 +115,6 @@ mkDerivation {
     aeson-pretty
     amqp
     array
-    asn1-encoding
     async
     attoparsec
     base
@@ -130,6 +129,7 @@ mkDerivation {
     cql-io
     criterion
     crypton
+    crypton-asn1-encoding
     crypton-asn1-types
     crypton-pem
     crypton-x509

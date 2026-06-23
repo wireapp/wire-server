@@ -11,7 +11,6 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
-, asn1-encoding
 , async
 , attoparsec
 , base
@@ -32,6 +31,7 @@
 , cookie
 , cql
 , crypton
+, crypton-asn1-encoding
 , crypton-asn1-types
 , crypton-pem
 , crypton-x509
@@ -152,7 +152,6 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
-    asn1-encoding
     async
     attoparsec
     base
@@ -173,6 +172,7 @@ mkDerivation {
     cookie
     cql
     crypton
+    crypton-asn1-encoding
     crypton-asn1-types
     crypton-pem
     crypton-x509
@@ -281,7 +281,6 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
-    asn1-encoding
     async
     attoparsec
     base
@@ -301,6 +300,7 @@ mkDerivation {
     cookie
     cql
     crypton
+    crypton-asn1-encoding
     crypton-asn1-types
     crypton-pem
     crypton-x509
