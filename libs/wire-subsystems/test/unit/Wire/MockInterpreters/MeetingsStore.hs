@@ -102,6 +102,18 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
                   updatedAt = now
                 }
         modify (Map.insert mid updatedMeeting)
+  ReplaceInvitedEmails mid newEmails -> do
+    sm <- gets (Map.lookup mid)
+    case sm of
+      Nothing -> pure ()
+      Just meeting -> do
+        now <- Now.get
+        let updatedMeeting =
+              meeting
+                { invitedEmails = List.nub newEmails,
+                  updatedAt = now
+                }
+        modify (Map.insert mid updatedMeeting)
   DeleteMeeting mid -> modify (Map.delete mid)
   GetOldMeetings cutoffTime batchSize ->
     gets $

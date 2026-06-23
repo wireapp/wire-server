@@ -167,6 +167,10 @@ data MeetingsStore m a where
     MeetingId ->
     [EmailAddress] ->
     MeetingsStore m ()
+  ReplaceInvitedEmails ::
+    MeetingId ->
+    [EmailAddress] ->
+    MeetingsStore m ()
   -- Cleanup operations
   GetOldMeetings ::
     UTCTime ->

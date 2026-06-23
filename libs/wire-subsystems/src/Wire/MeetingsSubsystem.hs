@@ -60,6 +60,11 @@ data MeetingsSubsystem m a where
     Qualified MeetingId ->
     [EmailAddress] ->
     MeetingsSubsystem m Bool
+  ReplaceInvitedEmails ::
+    Local UserId ->
+    Qualified MeetingId ->
+    [EmailAddress] ->
+    MeetingsSubsystem m Bool
   CleanupOldMeetings ::
     UTCTime ->
     Int ->

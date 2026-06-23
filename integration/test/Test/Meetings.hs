@@ -318,6 +318,57 @@ testMeetingRemoveInvitationNotFound = do
 
   deleteMeetingInvitation owner "example.com" fakeMeetingId removeInvitation >>= assertStatus 404
 
+testMeetingReplaceInvitation :: (HasCallStack) => App ()
+testMeetingReplaceInvitation = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ["charlie@example.com"]]
+  putMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
+  updated <- getMeeting owner domain meetingId >>= getJSON 200
+  updated %. "invited_emails" `shouldMatch` ["charlie@example.com"]
+
+testMeetingReplaceInvitationEmpty :: (HasCallStack) => App ()
+testMeetingReplaceInvitationEmpty = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ([] :: [String])]
+  putMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
+  updated <- getMeeting owner domain meetingId >>= getJSON 200
+  updated %. "invited_emails" `shouldMatch` ([] :: [String])
+
+testMeetingReplaceInvitationNotFound :: (HasCallStack) => App ()
+testMeetingReplaceInvitationNotFound = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
+  let invitation = object ["emails" .= ["bob@example.com"]]
+  putMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404
+
+testMeetingReplaceInvitationUnauthorized :: (HasCallStack) => App ()
+testMeetingReplaceInvitationUnauthorized = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (otherUser, _, _) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ["eve@example.com"]]
+  putMeetingInvitation otherUser domain meetingId invitation >>= assertStatus 404
+
 testMeetingDelete :: (HasCallStack) => App ()
 testMeetingDelete = do
   (owner, _tid, _members) <- createTeam OwnDomain 1

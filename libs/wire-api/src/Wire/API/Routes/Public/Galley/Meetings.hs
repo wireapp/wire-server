@@ -136,3 +136,21 @@ type MeetingsAPI =
                     '[RespondEmpty 200 "Invitations removed"]
                     ()
            )
+    :<|> Named
+           "replace-meeting-invitation"
+           ( Summary "Replace the invited emails"
+               :> From 'V17
+               :> ZLocalUser
+               :> "meetings"
+               :> Capture "domain" Domain
+               :> Capture "id" MeetingId
+               :> "invitations"
+               :> CanThrow 'MeetingNotFound
+               :> CanThrow 'AccessDenied
+               :> ReqBody '[JSON] MeetingEmailsInvitation
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[RespondEmpty 200 "Invitations replaced"]
+                    ()
+           )

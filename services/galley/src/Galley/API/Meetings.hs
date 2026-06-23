@@ -23,6 +23,7 @@ module Galley.API.Meetings
     listMeetings,
     addMeetingInvitation,
     removeMeetingInvitation,
+    replaceMeetingInvitation,
   )
 where
 
@@ -122,4 +123,18 @@ removeMeetingInvitation ::
 removeMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
   let qMeetingId = Qualified meetingId domain
   success <- Meetings.removeInvitedEmails zUser qMeetingId emails
+  unless success $ throwS @'MeetingNotFound
+
+replaceMeetingInvitation ::
+  ( Member Meetings.MeetingsSubsystem r,
+    Member (ErrorS 'MeetingNotFound) r
+  ) =>
+  Local UserId ->
+  Domain ->
+  MeetingId ->
+  MeetingEmailsInvitation ->
+  Sem r ()
+replaceMeetingInvitation zUser domain meetingId (MeetingEmailsInvitation emails) = do
+  let qMeetingId = Qualified meetingId domain
+  success <- Meetings.replaceInvitedEmails zUser qMeetingId emails
   unless success $ throwS @'MeetingNotFound
