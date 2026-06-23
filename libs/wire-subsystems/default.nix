@@ -11,6 +11,9 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, arbiter-core
+, arbiter-servant
+, arbiter-servant-ui
 , asn1-encoding
 , asn1-types
 , async
@@ -152,6 +155,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-servant
+    arbiter-servant-ui
     asn1-encoding
     asn1-types
     async
@@ -281,6 +287,9 @@ mkDerivation {
     amazonka-ses
     amazonka-sqs
     amqp
+    arbiter-core
+    arbiter-servant
+    arbiter-servant-ui
     asn1-encoding
     asn1-types
     async

@@ -19,6 +19,7 @@
 
 module Test.Wire.Util where
 
+import Data.ByteString qualified as BS
 import Data.Domain (Domain (Domain))
 import Data.Misc
 import Data.Proxy
@@ -80,6 +81,7 @@ testEnv = do
       guestLinkTTLSeconds = Nothing
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
+      arbiterConnStr = BS.empty
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
   passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
   pure Env {..}

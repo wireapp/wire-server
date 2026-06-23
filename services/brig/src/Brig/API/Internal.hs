@@ -61,7 +61,6 @@ import Data.Time.Clock.System
 import Data.ZAuth.CryptoSign (CryptoSign)
 import Imports hiding (head)
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Response qualified as WaiResponse
 import Polysemy
 import Polysemy.Error qualified as Polysemy
 import Polysemy.Input (Input, input)
@@ -78,6 +77,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Internal.Jobs qualified as JobsIRoutes
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
@@ -144,6 +144,7 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
+  App.Env ->
   forall r p.
   ( Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
@@ -190,7 +191,7 @@ servantSitemap ::
     Member ClientSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap =
+servantSitemap env =
   istatusAPI
     :<|> ejpdAPI
     :<|> accountAPI
@@ -208,7 +209,7 @@ servantSitemap =
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
     :<|> Named @"i-get-app-ids" getAppIdsH
-    :<|> jobsUiApp
+    :<|> jobsApp env
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -1056,8 +1057,5 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoC
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
 
-jobsUiApp :: ServerT BrigIRoutes.JobsUIAPI (Handler r)
-jobsUiApp = Tagged $ \_req respond ->
-  respond $
-    WaiResponse.html
-      "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Jobs UI</title></head><body><h1>Jobs UI</h1><p>This route is reserved for the Arbiter admin UI.</p></body></html>"
+jobsApp :: App.Env -> ServerT JobsIRoutes.JobsAppAPI (Handler r)
+jobsApp env = Tagged env.jobsApiApp

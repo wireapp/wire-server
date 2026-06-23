@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -27,12 +25,12 @@ import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
-import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
 import Data.Proxy (Proxy (..))
 import Imports
 import System.Cron (Job (..), forkJob)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
+import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry, meetingsCleanupQueueName)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util (CleanupAction)
@@ -40,21 +38,6 @@ import Wire.MeetingsCleanupWorker
   ( CleanupConfig (..),
     runCleanupOldMeetings,
   )
-
-type ScheduledJobsRegistry =
-  '[ '("meetings_cleanup_jobs", MeetingsCleanupJob)
-   ]
-
--- | Empty payload because the schedule itself carries all execution context.
-data MeetingsCleanupJob = MeetingsCleanupJob
-  deriving stock (Eq, Generic, Show)
-
-instance ToJSON MeetingsCleanupJob where
-  toJSON MeetingsCleanupJob = Null
-
-instance FromJSON MeetingsCleanupJob where
-  parseJSON Null = pure MeetingsCleanupJob
-  parseJSON _ = fail "MeetingsCleanupJob expects null"
 
 startWorker :: MeetingsCleanupConfig -> AppT IO CleanupAction
 startWorker config = do
@@ -80,8 +63,8 @@ startWorker config = do
   -- scheduler from enqueuing duplicate runs for the same logical job.
   let jobWrite :: ArbiterCore.JobWrite MeetingsCleanupJob
       jobWrite =
-        (ArbiterCore.defaultGroupedJob "meetings-cleanup" MeetingsCleanupJob)
-          { ArbiterCore.dedupKey = Just (ArbiterCore.IgnoreDuplicate "meetings-cleanup")
+        (ArbiterCore.defaultGroupedJob meetingsCleanupQueueName MeetingsCleanupJob)
+          { ArbiterCore.dedupKey = Just (ArbiterCore.IgnoreDuplicate meetingsCleanupQueueName)
           }
 
       enqueueCleanupJob :: ArbiterHasql.HasqlDb ScheduledJobsRegistry IO ()
@@ -127,7 +110,7 @@ startWorker config = do
     -- and execution.
     Log.info env.logger $
       Log.msg (Log.val "Enqueuing scheduled meetings cleanup job")
-        . Log.field "queue_name" ("meetings_cleanup_jobs" :: String)
+        . Log.field "queue_name" meetingsCleanupQueueName
     void $ ArbiterHasql.runHasqlDb arbiterEnv enqueueCleanupJob
 
   workerAsync <-

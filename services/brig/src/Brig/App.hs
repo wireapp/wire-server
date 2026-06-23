@@ -140,10 +140,12 @@ import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended
 import Imports
+import Language.Haskell.TH (nameBase)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
+import Network.Wai (Application)
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
@@ -168,6 +170,7 @@ import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
+import Wire.Jobs.ArbiterAPI qualified as JobsArbiterAPI
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
@@ -220,10 +223,16 @@ data Env = Env
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
     amqpJobsPublisherChannel :: MVar Q.Channel,
+    jobsApiApp :: Application,
     postgresMigration :: PostgresMigrationOpts
   }
 
-makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
+makeLensesWith (lensRules & lensField .~ brigFieldNamer) ''Env
+
+brigFieldNamer :: FieldNamer
+brigFieldNamer s t n
+  | nameBase n == "jobsApiApp" = []
+  | otherwise = suffixNamer s t n
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
@@ -275,6 +284,10 @@ newEnv opts = do
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  Log.info lgr $ Log.msg (Log.val "Initializing internal jobs API")
+  jobsApiConnStr <- postgresqlConnectionString opts.postgresql opts.postgresqlPassword
+  jobsApiApp <- JobsArbiterAPI.adminApplication (encodeUtf8 jobsApiConnStr)
+  Log.info lgr $ Log.msg (Log.val "Internal jobs API initialized")
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pure $!
     Env
@@ -318,6 +331,7 @@ newEnv opts = do
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,
+        jobsApiApp,
         postgresMigration = opts.postgresMigration
       }
   where

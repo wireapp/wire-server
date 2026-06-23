@@ -25,6 +25,7 @@ import Control.Exception
 import Control.Monad.Trans.Except
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Default
@@ -382,6 +383,7 @@ spec = do
           guestLinkTTLSeconds = Nothing
           passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
+          arbiterConnStr = BS.empty
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 
       passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
@@ -436,6 +438,7 @@ spec = do
           guestLinkTTLSeconds = Nothing
           passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
+          arbiterConnStr = BS.empty
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
 
       passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig

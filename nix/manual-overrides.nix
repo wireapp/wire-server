@@ -31,6 +31,8 @@ hself: hsuper: {
   arbiter-core = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-core);
   arbiter-hasql = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-hasql);
   arbiter-migrations = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-migrations);
+  arbiter-servant = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-servant);
+  arbiter-servant-ui = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-servant-ui);
   arbiter-simple = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-simple);
   arbiter-worker = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-worker);
 

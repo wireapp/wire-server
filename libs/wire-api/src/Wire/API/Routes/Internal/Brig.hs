@@ -48,7 +48,6 @@ module Wire.API.Routes.Internal.Brig
     SAMLIdPAPI,
     DeleteApp,
     IdpChangedNotification (..),
-    JobsUIAPI,
   )
 where
 
@@ -89,6 +88,7 @@ import Wire.API.Routes.Internal.Brig.EnterpriseLogin (EnterpriseLoginApi)
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
+import Wire.API.Routes.Internal.Jobs (JobsAppAPI)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
@@ -726,13 +726,8 @@ type API =
            :<|> SAMLIdPAPI
            :<|> DeleteApp
            :<|> GetAppIds
-           :<|> JobsUIAPI
+           :<|> JobsAppAPI
        )
-
-type JobsUIAPI =
-  "jobs"
-    :> "ui"
-    :> Raw
 
 type SAMLIdPAPI =
   "idp"

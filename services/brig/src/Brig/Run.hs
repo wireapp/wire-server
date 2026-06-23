@@ -146,7 +146,7 @@ mkApp opts = do
         (customFormatters :. localDomain :. Servant.EmptyContext)
         ( docsAPI
             :<|> hoistServerWithDomain @BrigAPI (toServantHandler env) servantSitemap
-            :<|> hoistServerWithDomain @IAPI.API (toServantHandler env) IAPI.servantSitemap
+            :<|> hoistServerWithDomain @IAPI.API (toServantHandler env) (IAPI.servantSitemap env)
             :<|> hoistServerWithDomain @FederationAPI (toServantHandler env) federationSitemap
             :<|> hoistServerWithDomain @VersionAPI (toServantHandler env) versionAPI
         )
