@@ -55,10 +55,8 @@ instance FromJSON PoolConfig where
 -- ezpz.
 initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO HasqlPool.Pool
 initPostgresPool config pgConfig mFpSecrets = do
-  mPw <- for mFpSecrets initCredentials
-  let pgSettings =
-        HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl $ PostgresqlConnectionString.fromKeyValueParams pgConfig)
-          <> foldMap HasqlConnSettings.password mPw
+  connStr <- postgresqlConnectionString pgConfig mFpSecrets
+  let pgSettings = HasqlConnSettings.connectionString connStr
   metrics <- initHasqlPoolMetrics
   connsRef <- newIORef $ Connections mempty mempty mempty
   HasqlPool.acquire $
@@ -70,6 +68,18 @@ initPostgresPool config pgConfig mFpSecrets = do
         HasqlPool.idlenessTimeout config.idlenessTimeout.duration,
         HasqlPool.observationHandler (observationHandler connsRef metrics)
       ]
+
+-- | Render a PostgreSQL connection string in libpq key-value format.
+--
+-- Passwords from the optional secret file are inserted into the key-value map
+-- before rendering so the resulting connection string can be reused by code
+-- that expects a plain connection string.
+postgresqlConnectionString :: Map Text Text -> Maybe FilePathSecrets -> IO Text
+postgresqlConnectionString pgConfig mFpSecrets = do
+  mPw <- for mFpSecrets initCredentials
+  let pgConfig' = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
+  pure . PostgresqlConnectionString.toKeyValueString $
+    PostgresqlConnectionString.fromKeyValueParams pgConfig'
 
 data HasqlPoolMetrics = HasqlPoolMetrics
   { readyForUseGauge :: Gauge,

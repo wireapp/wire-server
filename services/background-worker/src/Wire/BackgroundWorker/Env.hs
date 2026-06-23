@@ -25,10 +25,12 @@ import Cassandra.Util (defInitCassandra)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
+import Data.ByteString qualified as ByteString
 import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
+import Data.Text.Encoding qualified as Text
 import HTTP2.Client.Manager
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
@@ -86,6 +88,7 @@ data Env = Env
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
     hasqlPool :: Hasql.Pool,
+    arbiterConnStr :: ByteString.ByteString,
     -- Dedicated AMQP channels per concern
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
@@ -175,6 +178,7 @@ mkEnv opts galleyOpts = do
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
+  arbiterConnStr <- Text.encodeUtf8 <$> postgresqlConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
