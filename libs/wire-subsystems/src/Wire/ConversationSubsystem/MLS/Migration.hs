@@ -59,10 +59,11 @@ checkMigrationCriteria ::
   Sem r Bool
 checkMigrationCriteria now conv ws
   | ws.status == FeatureStatusDisabled = pure False
-  | afterDeadline = pure True
+  | afterDeadline || manualMigrationEnabled = pure True
   | otherwise = unApAll $ mconcat [localUsersMigrated, remoteUsersMigrated]
   where
     afterDeadline = maybe False (now >=) ws.config.finaliseRegardlessAfter
+    manualMigrationEnabled = fromMaybe False ws.config.allowManualMigration
 
     containsMLS = Set.member BaseProtocolMLSTag
 

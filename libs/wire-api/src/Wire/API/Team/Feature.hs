@@ -1449,7 +1449,8 @@ instance IsFeatureConfig MlsE2EIdConfig where
 
 data MlsMigrationConfigB t f = MlsMigrationConfig
   { startTime :: Wear t f (Maybe UTCTime),
-    finaliseRegardlessAfter :: Wear t f (Maybe UTCTime)
+    finaliseRegardlessAfter :: Wear t f (Maybe UTCTime),
+    allowManualMigration :: Wear t f (Maybe Bool)
   }
   deriving (BareB, Generic)
 
@@ -1472,16 +1473,18 @@ deriving via (BarbieFeature MlsMigrationConfigB) instance (ToSchema MlsMigration
 deriving via (RenderableTypeName MlsMigrationConfig) instance (RenderableSymbol MlsMigrationConfig)
 
 instance Default MlsMigrationConfig where
-  def = MlsMigrationConfig Nothing Nothing
+  def = MlsMigrationConfig Nothing Nothing Nothing
 
 instance Arbitrary MlsMigrationConfig where
   arbitrary = do
     startTime <- fmap fromUTCTimeMillis <$> arbitrary
     finaliseRegardlessAfter <- fmap fromUTCTimeMillis <$> arbitrary
+    allowManualMigration <- arbitrary
     pure
       MlsMigrationConfig
         { startTime = startTime,
-          finaliseRegardlessAfter = finaliseRegardlessAfter
+          finaliseRegardlessAfter = finaliseRegardlessAfter,
+          allowManualMigration = allowManualMigration
         }
 
 instance (Typeable f, NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f) where
@@ -1490,6 +1493,7 @@ instance (Typeable f, NestedMaybe f) => ToSchema (MlsMigrationConfigB Covered f)
       MlsMigrationConfig
         <$> startTime .= nestedMaybeField "startTime" (unnamed utcTimeSchema)
         <*> finaliseRegardlessAfter .= nestedMaybeField "finaliseRegardlessAfter" (unnamed utcTimeSchema)
+        <*> allowManualMigration .= nestedMaybeField "allowManualMigration" (unnamed schema)
 
 instance Default (LockableFeature MlsMigrationConfig) where
   def = defLockedFeature

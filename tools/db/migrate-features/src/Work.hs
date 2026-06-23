@@ -337,6 +337,7 @@ writeFeatures
                         ( MlsMigrationConfig @Covered
                             (fmap unOptionalUTCTime mls_migration_start_time)
                             (fmap unOptionalUTCTime mls_migration_finalise_regardless_after)
+                            Nothing
                         )
                   }
 
