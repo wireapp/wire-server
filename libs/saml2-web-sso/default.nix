@@ -4,7 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, asn1-parse
 , base
 , base64-bytestring
 , binary
@@ -14,6 +13,7 @@
 , cookie
 , crypton
 , crypton-asn1-encoding
+, crypton-asn1-parse
 , crypton-asn1-types
 , crypton-x509
 , data-default
@@ -87,7 +87,6 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     aeson
-    asn1-parse
     base
     base64-bytestring
     binary
@@ -97,6 +96,7 @@ mkDerivation {
     cookie
     crypton
     crypton-asn1-encoding
+    crypton-asn1-parse
     crypton-asn1-types
     crypton-x509
     data-default
@@ -163,7 +163,6 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
-    asn1-parse
     base
     base64-bytestring
     binary
@@ -173,6 +172,7 @@ mkDerivation {
     cookie
     crypton
     crypton-asn1-encoding
+    crypton-asn1-parse
     crypton-asn1-types
     crypton-x509
     data-default

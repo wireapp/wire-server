@@ -81,7 +81,6 @@ library
 
   build-depends:
     , aeson                  >=1.4.5.0
-    , asn1-parse             >=0.9.5
     , base                   >=4.12.0.0
     , base64-bytestring      >=1.0.0.2
     , binary                 >=0.8.6.0
@@ -91,6 +90,7 @@ library
     , cookie                 >=0.4.4
     , crypton                >=0.30
     , crypton-asn1-encoding  >=0.9.6
+    , crypton-asn1-parse     >=0.9.5
     , crypton-asn1-types     >=0.3.3
     , crypton-x509           >=1.7.5
     , data-default           >=0.7.1.1
@@ -210,7 +210,6 @@ test-suite saml2-web-sso-tests
 
   build-depends:
     , aeson                  >=1.4.5.0
-    , asn1-parse             >=0.9.5
     , base                   >=4.12.0.0
     , base64-bytestring      >=1.0.0.2
     , binary                 >=0.8.6.0
@@ -220,6 +219,7 @@ test-suite saml2-web-sso-tests
     , cookie                 >=0.4.4
     , crypton                >=0.30
     , crypton-asn1-encoding  >=0.9.6
+    , crypton-asn1-parse     >=0.9.5
     , crypton-asn1-types     >=0.3.3
     , crypton-x509           >=1.7.5
     , data-default           >=0.7.1.1
