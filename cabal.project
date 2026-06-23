@@ -10,6 +10,9 @@ source-repository-package
     arbiter-core
     arbiter-hasql
     arbiter-migrations
+    arbiter-servant
+    arbiter-servant-ui
+    arbiter-simple
     arbiter-worker
     arbiter-test-common
 

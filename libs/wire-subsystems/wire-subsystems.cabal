@@ -91,6 +91,11 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
+    , arbiter-core
+    , arbiter-servant
+    , arbiter-servant-ui
+    , asn1-encoding
+    , asn1-types
     , async
     , attoparsec
     , base
@@ -363,6 +368,8 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.Jobs.AdminUI
+    Wire.Jobs.ArbiterAPI
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
