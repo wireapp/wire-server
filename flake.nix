@@ -20,10 +20,6 @@
       url = "github:wireapp/bloodhound?ref=wire-fork";
       flake = false;
     };
-    hedis = {
-      url = "github:wireapp/hedis?ref=wire-changes";
-      flake = false;
-    };
 
     http-client = {
       url = "github:wireapp/http-client?ref=master";

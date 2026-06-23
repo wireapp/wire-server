@@ -215,23 +215,6 @@
         "type": "github"
       }
     },
-    "hedis": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1748594228,
-        "narHash": "sha256-BwcqQZf2GaEn2i6o9bVl+jiu/CjShYlHCmO81bYfc8Y=",
-        "owner": "wireapp",
-        "repo": "hedis",
-        "rev": "00d7fbf5f19b812b9e64e12be8860c4741be8558",
-        "type": "github"
-      },
-      "original": {
-        "owner": "wireapp",
-        "ref": "wire-changes",
-        "repo": "hedis",
-        "type": "github"
-      }
-    },
     "hsaml2": {
       "flake": false,
       "locked": {
@@ -373,7 +356,6 @@
         "cryptostore": "cryptostore",
         "flake-utils": "flake-utils",
         "hasql-migration": "hasql-migration",
-        "hedis": "hedis",
         "hsaml2": "hsaml2",
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",
