@@ -63,7 +63,6 @@
 , kan-extensions
 , lens
 , lib
-, memory
 , metrics-wai
 , mime
 , mtl
@@ -78,6 +77,7 @@
 , protobuf
 , QuickCheck
 , quickcheck-instances
+, ram
 , random
 , regex-base
 , regex-tdfa
@@ -181,7 +181,6 @@ mkDerivation {
     jose
     kan-extensions
     lens
-    memory
     metrics-wai
     mime
     mtl
@@ -195,6 +194,7 @@ mkDerivation {
     protobuf
     QuickCheck
     quickcheck-instances
+    ram
     random
     regex-base
     regex-tdfa
@@ -261,13 +261,13 @@ mkDerivation {
     iso3166-country-codes
     iso639
     lens
-    memory
     metrics-wai
     openapi3
     pem
     process
     proto-lens
     QuickCheck
+    ram
     random
     saml2-web-sso
     schema-profunctor

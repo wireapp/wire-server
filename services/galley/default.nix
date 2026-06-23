@@ -47,7 +47,6 @@
 , lens
 , lens-aeson
 , lib
-, memory
 , metrics-core
 , metrics-wai
 , mtl
@@ -65,6 +64,7 @@
 , protobuf
 , QuickCheck
 , quickcheck-instances
+, ram
 , random
 , raw-strings-qq
 , retry
@@ -218,7 +218,6 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
-    memory
     mtl
     network
     network-uri
@@ -229,6 +228,7 @@ mkDerivation {
     protobuf
     QuickCheck
     quickcheck-instances
+    ram
     random
     retry
     servant-client

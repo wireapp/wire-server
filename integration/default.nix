@@ -9,7 +9,6 @@
 , amqp
 , array
 , asn1-encoding
-, asn1-types
 , async
 , attoparsec
 , base
@@ -25,6 +24,8 @@
 , cql-io
 , criterion
 , crypton
+, crypton-asn1-types
+, crypton-pem
 , crypton-x509
 , cryptostore
 , data-default
@@ -39,7 +40,6 @@
 , filepath
 , haskell-src-exts
 , hex
-, hourglass
 , HsOpenSSL
 , http-client
 , http-types
@@ -48,16 +48,15 @@
 , lens
 , lens-aeson
 , lib
-, memory
 , mime
 , monad-control
 , mtl
 , network
 , network-uri
 , optparse-applicative
-, pem
 , process
 , proto-lens
+, ram
 , random
 , raw-strings-qq
 , regex
@@ -78,6 +77,7 @@
 , temporary
 , text
 , time
+, time-hourglass
 , transformers
 , transformers-base
 , unix
@@ -116,7 +116,6 @@ mkDerivation {
     amqp
     array
     asn1-encoding
-    asn1-types
     async
     attoparsec
     base
@@ -131,6 +130,8 @@ mkDerivation {
     cql-io
     criterion
     crypton
+    crypton-asn1-types
+    crypton-pem
     crypton-x509
     cryptostore
     data-default
@@ -144,7 +145,6 @@ mkDerivation {
     extra
     filepath
     hex
-    hourglass
     HsOpenSSL
     http-client
     http-types
@@ -152,16 +152,15 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
-    memory
     mime
     monad-control
     mtl
     network
     network-uri
     optparse-applicative
-    pem
     process
     proto-lens
+    ram
     random
     raw-strings-qq
     regex
@@ -182,6 +181,7 @@ mkDerivation {
     temporary
     text
     time
+    time-hourglass
     transformers
     transformers-base
     unix

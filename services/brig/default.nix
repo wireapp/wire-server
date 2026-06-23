@@ -68,7 +68,6 @@
 , lens
 , lens-aeson
 , lib
-, memory
 , metrics-core
 , metrics-wai
 , mime
@@ -93,6 +92,7 @@
 , prometheus-client
 , proto-lens
 , QuickCheck
+, ram
 , random
 , random-shuffle
 , raw-strings-qq
@@ -208,7 +208,6 @@ mkDerivation {
     jose
     jwt-tools
     lens
-    memory
     metrics-core
     metrics-wai
     mime
@@ -227,6 +226,7 @@ mkDerivation {
     polysemy-wire-zoo
     prometheus-client
     proto-lens
+    ram
     random-shuffle
     raw-strings-qq
     resourcet

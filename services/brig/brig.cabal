@@ -261,7 +261,6 @@ library
     , jose
     , jwt-tools
     , lens                                  >=3.8
-    , memory
     , metrics-core                          >=0.3
     , metrics-wai                           >=0.3
     , mime
@@ -280,6 +279,7 @@ library
     , polysemy-wire-zoo
     , prometheus-client
     , proto-lens                            >=0.1
+    , ram
     , random-shuffle                        >=0.0.3
     , raw-strings-qq
     , resourcet                             >=1.1

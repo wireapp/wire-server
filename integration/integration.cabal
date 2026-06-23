@@ -253,7 +253,6 @@ library
     , amqp
     , array
     , asn1-encoding
-    , asn1-types
     , async
     , attoparsec
     , base
@@ -268,6 +267,8 @@ library
     , cql-io
     , criterion
     , crypton
+    , crypton-asn1-types
+    , crypton-pem
     , crypton-x509
     , cryptostore
     , data-default
@@ -281,7 +282,6 @@ library
     , extra
     , filepath
     , hex
-    , hourglass
     , HsOpenSSL
     , http-client
     , http-types
@@ -289,16 +289,15 @@ library
     , kan-extensions
     , lens
     , lens-aeson
-    , memory
     , mime
     , monad-control
     , mtl
     , network
     , network-uri
     , optparse-applicative
-    , pem
     , process
     , proto-lens
+    , ram
     , random
     , raw-strings-qq
     , regex
@@ -319,6 +318,7 @@ library
     , temporary
     , text
     , time
+    , time-hourglass
     , transformers
     , transformers-base
     , unix

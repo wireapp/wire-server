@@ -332,7 +332,6 @@ library
     , jose
     , kan-extensions
     , lens                       >=4.12
-    , memory
     , metrics-wai
     , mime                       >=0.4
     , mtl
@@ -346,6 +345,7 @@ library
     , protobuf                   >=0.2
     , QuickCheck                 >=2.14
     , quickcheck-instances       >=0.3.16
+    , ram
     , random                     >=1.2.0
     , regex-base
     , regex-tdfa
@@ -749,11 +749,11 @@ test-suite wire-api-tests
     , http-types
     , imports
     , lens
-    , memory
     , metrics-wai
     , openapi3
     , process
     , QuickCheck
+    , ram
     , random
     , schema-profunctor
     , servant

@@ -12,7 +12,6 @@
 , amazonka-sqs
 , amqp
 , asn1-encoding
-, asn1-types
 , async
 , attoparsec
 , base
@@ -33,6 +32,7 @@
 , cookie
 , cql
 , crypton
+, crypton-asn1-types
 , crypton-pem
 , crypton-x509
 , crypton-x509-store
@@ -75,7 +75,6 @@
 , lens-aeson
 , lib
 , lrucaching
-, memory
 , mime
 , mime-mail
 , MonadRandom
@@ -94,6 +93,7 @@
 , proto-lens
 , QuickCheck
 , quickcheck-instances
+, ram
 , random
 , raw-strings-qq
 , resource-pool
@@ -153,7 +153,6 @@ mkDerivation {
     amazonka-sqs
     amqp
     asn1-encoding
-    asn1-types
     async
     attoparsec
     base
@@ -174,6 +173,7 @@ mkDerivation {
     cookie
     cql
     crypton
+    crypton-asn1-types
     crypton-pem
     crypton-x509
     currency-codes
@@ -212,7 +212,6 @@ mkDerivation {
     lens
     lens-aeson
     lrucaching
-    memory
     mime
     mime-mail
     MonadRandom
@@ -230,6 +229,7 @@ mkDerivation {
     prometheus-client
     proto-lens
     QuickCheck
+    ram
     raw-strings-qq
     resource-pool
     resourcet
@@ -282,7 +282,6 @@ mkDerivation {
     amazonka-sqs
     amqp
     asn1-encoding
-    asn1-types
     async
     attoparsec
     base
@@ -302,6 +301,7 @@ mkDerivation {
     cookie
     cql
     crypton
+    crypton-asn1-types
     crypton-pem
     crypton-x509
     crypton-x509-store
@@ -341,7 +341,6 @@ mkDerivation {
     lens
     lens-aeson
     lrucaching
-    memory
     mime
     mime-mail
     MonadRandom
@@ -358,6 +357,7 @@ mkDerivation {
     proto-lens
     QuickCheck
     quickcheck-instances
+    ram
     random
     raw-strings-qq
     resource-pool
