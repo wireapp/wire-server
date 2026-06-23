@@ -33,6 +33,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
+import Wire.BackgroundWorker.ScheduledJobs qualified as ScheduledJobs
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.MeetingsCleanupWorker qualified as MeetingsCleanupWorker
 import Wire.Options.Galley qualified as Galley
@@ -82,6 +83,10 @@ run opts galleyOpts = do
     runAppT env $
       withNamedLogger "background-job-consumer" $
         Jobs.startWorker amqpEP
+  cleanupScheduledJobs <-
+    runAppT env $
+      withNamedLogger "scheduled-jobs" $
+        ScheduledJobs.startWorker
   cleanupMeetings <-
     runAppT env $
       withNamedLogger "meetings-cleanup" $
@@ -89,7 +94,7 @@ run opts galleyOpts = do
   let cleanup =
         void $
           runConcurrently $
-            (,,,,,,,)
+            (,,,,,,,,)
               <$> Concurrently cleanupDeadUserNotifWatcher
               <*> Concurrently cleanupBackendNotifPusher
               <*> Concurrently cleanupConvMigration
@@ -97,6 +102,7 @@ run opts galleyOpts = do
               <*> Concurrently cleanupTeamFeaturesMigration
               <*> Concurrently cleanupDomainRegistrationMigration
               <*> Concurrently cleanupJobs
+              <*> Concurrently cleanupScheduledJobs
               <*> Concurrently cleanupMeetings
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger

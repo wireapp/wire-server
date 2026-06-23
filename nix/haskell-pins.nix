@@ -58,6 +58,18 @@ let
     # END maintained by us
     # --------------------
 
+    arbiter = {
+      src = inputs.arbiter;
+      packages = {
+        arbiter-core = "arbiter-core";
+        arbiter-hasql = "arbiter-hasql";
+        arbiter-migrations = "arbiter-migrations";
+        arbiter-simple = "arbiter-simple";
+        arbiter-test-common = "arbiter-test-common";
+        arbiter-worker = "arbiter-worker";
+      };
+    };
+
     bloodhound = {
       src = inputs.bloodhound;
     };

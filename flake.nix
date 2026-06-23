@@ -95,6 +95,11 @@
       url = "github:wireapp/postgresql-connection-string?ref=expose-from-key-value-params";
       flake = false;
     };
+
+    arbiter = {
+      url = "github:velveteer/arbiter?rev=96097411a0480e182d0cbce819c45023fe8aeec7";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, nixpkgs-unstable, flake-utils, tom-bombadil, sbomnix, ... }:

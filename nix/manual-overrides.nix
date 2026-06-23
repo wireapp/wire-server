@@ -27,6 +27,12 @@ hself: hsuper: {
   hasql-migration = hlib.markUnbroken (hlib.dontCheck hsuper.hasql-migration);
   hasql-transaction = hlib.dontCheck hsuper.hasql-transaction; # users 1.2.1 from nixpkgs
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary);
+  monad-logger-aeson = hlib.markUnbroken (hlib.dontCheck hsuper.monad-logger-aeson);
+  arbiter-core = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-core);
+  arbiter-hasql = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-hasql);
+  arbiter-migrations = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-migrations);
+  arbiter-simple = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-simple);
+  arbiter-worker = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-worker);
 
   # Test fixtures don't seem to be bundled for Hackage
   hsaml2 = hlib.dontCheck (hsuper.hsaml2);
