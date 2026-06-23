@@ -48,6 +48,7 @@ module Wire.API.Routes.Internal.Brig
     SAMLIdPAPI,
     DeleteApp,
     IdpChangedNotification (..),
+    JobsUIAPI,
   )
 where
 
@@ -725,7 +726,13 @@ type API =
            :<|> SAMLIdPAPI
            :<|> DeleteApp
            :<|> GetAppIds
+           :<|> JobsUIAPI
        )
+
+type JobsUIAPI =
+  "jobs"
+    :> "ui"
+    :> Raw
 
 type SAMLIdPAPI =
   "idp"
