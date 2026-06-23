@@ -1,6 +1,18 @@
 repository hackage.haskell.org
   url: https://hackage.haskell.org/
 index-state: 2023-10-03T15:17:00Z
+
+source-repository-package
+  type: git
+  location: https://github.com/velveteer/arbiter.git
+  tag: 96097411a0480e182d0cbce819c45023fe8aeec7
+  subdir:
+    arbiter-core
+    arbiter-hasql
+    arbiter-migrations
+    arbiter-worker
+    arbiter-test-common
+
 packages:
     integration
   , libs/bilge/

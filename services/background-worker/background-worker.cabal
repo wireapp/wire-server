@@ -19,6 +19,7 @@ library
     Wire.BackgroundWorker.Jobs.Consumer
     Wire.BackgroundWorker.Jobs.Registry
     Wire.BackgroundWorker.Options
+    Wire.BackgroundWorker.ScheduledJobs
     Wire.BackgroundWorker.Util
     Wire.DeadUserNotificationWatcher
     Wire.Effects
@@ -35,6 +36,10 @@ library
   build-depends:
       aeson
     , amqp
+    , arbiter-core
+    , arbiter-hasql
+    , arbiter-migrations
+    , arbiter-worker
     , base
     , bilge
     , bytestring
