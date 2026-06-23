@@ -94,6 +94,8 @@ interpretMeetingsSubsystem validityPeriod = interpret $ \case
     addInvitedEmailsImpl zUser meetingId emails validityPeriod
   RemoveInvitedEmails zUser meetingId emails ->
     removeInvitedEmailsImpl zUser meetingId emails validityPeriod
+  ReplaceInvitedEmails zUser meetingId emails ->
+    replaceInvitedEmailsImpl zUser meetingId emails validityPeriod
   CleanupOldMeetings cutoffTime batchSize ->
     cleanupOldMeetingsImpl cutoffTime batchSize
 
@@ -407,6 +409,33 @@ removeInvitedEmailsImpl zUser meetingId emails validityPeriod = do
       guard $ storedMeeting.creator == tUnqualified zUser
       guard $ qDomain meetingId == tDomain zUser
       lift $ Store.removeInvitedEmails (qUnqualified meetingId) emails
+
+  pure $ isJust result
+
+replaceInvitedEmailsImpl ::
+  ( Member Store.MeetingsStore r,
+    Member TeamSubsystem r,
+    Member FeaturesConfigSubsystem r,
+    Member (Error MeetingError) r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Qualified MeetingId ->
+  [EmailAddress] ->
+  NominalDiffTime ->
+  Sem r Bool
+replaceInvitedEmailsImpl zUser meetingId emails validityPeriod = do
+  maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
+  checkMeetingsEnabled maybeTeamId
+  result <-
+    runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ storedMeeting.endTime >= cutoff
+      guard $ storedMeeting.creator == tUnqualified zUser
+      guard $ qDomain meetingId == tDomain zUser
+      lift $ Store.replaceInvitedEmails (qUnqualified meetingId) emails
 
   pure $ isJust result
 

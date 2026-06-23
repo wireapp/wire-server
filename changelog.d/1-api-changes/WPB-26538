@@ -1,0 +1,1 @@
+Added `PUT /meetings/:domain/:id/invitations` to replace the full list of invited emails of a meeting.

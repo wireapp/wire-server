@@ -65,6 +65,8 @@ interpretMeetingsStoreToPostgres =
       addInvitedEmailsImpl meetingId email
     RemoveInvitedEmails meetingId emails ->
       removeInvitedEmailsImpl meetingId emails
+    ReplaceInvitedEmails meetingId emails ->
+      replaceInvitedEmailsImpl meetingId emails
     GetOldMeetings cutoffTime batchSize ->
       getOldMeetingsImpl cutoffTime batchSize
 
@@ -363,6 +365,23 @@ removeInvitedEmailsImpl meetingId emails = do
       [resultlessStatement|
         UPDATE meetings M
         SET invited_emails = (SELECT array(SELECT unnest(M.invited_emails) EXCEPT SELECT unnest($1 :: text[]))),
+            updated_at = NOW()
+        WHERE id = ($2 :: uuid)
+      |]
+
+replaceInvitedEmailsImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  [EmailAddress] ->
+  Sem r ()
+replaceInvitedEmailsImpl meetingId emails = do
+  runStatement (V.fromList (fromEmail <$> emails), toUUID meetingId) replaceEmailStatement
+  where
+    replaceEmailStatement :: Statement (V.Vector Text, UUID) ()
+    replaceEmailStatement =
+      [resultlessStatement|
+        UPDATE meetings
+        SET invited_emails = array(SELECT DISTINCT unnest($1 :: text[])),
             updated_at = NOW()
         WHERE id = ($2 :: uuid)
       |]
