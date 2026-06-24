@@ -29,8 +29,8 @@ import Arbiter.Servant.UI qualified as ArbUI
 import Data.ByteString (ByteString)
 import Data.Proxy (Proxy (..))
 import Network.Wai (Application)
-import Prelude (IO, ($), pure)
 import Wire.API.Jobs (ScheduledJobsRegistry)
+import Prelude (IO, pure, ($))
 
 -- | Build the Arbiter admin API application for the shared scheduled jobs registry.
 adminApplication :: ByteString -> IO Application
