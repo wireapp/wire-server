@@ -9,6 +9,9 @@
 , amazonka-ses
 , amazonka-sqs
 , amqp
+, arbiter-core
+, arbiter-servant
+, arbiter-servant-ui
 , async
 , attoparsec
 , auto-update

@@ -102,6 +102,9 @@ module Brig.App
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Servant.Server qualified as ArbServer
+import Arbiter.Servant.UI qualified as ArbUI
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
@@ -130,6 +133,7 @@ import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
 import Data.Misc
+import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -161,6 +165,7 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Util.SuffixNamer
 import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Jobs (ScheduledJobsRegistry)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
@@ -170,7 +175,6 @@ import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
-import Wire.Jobs.ArbiterAPI qualified as JobsArbiterAPI
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore
@@ -281,7 +285,9 @@ newEnv opts = do
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   Log.info lgr $ Log.msg (Log.val "Initializing internal jobs API")
   jobsApiConnStr <- postgresqlConnectionString opts.postgresql opts.postgresqlPassword
-  jobsApiApp <- JobsArbiterAPI.adminApplication (encodeUtf8 jobsApiConnStr)
+  jobsApiApp <- do
+    config <- ArbServer.initArbiterServer (Proxy @ScheduledJobsRegistry) (encodeUtf8 jobsApiConnStr) ArbiterCore.defaultSchemaName
+    pure $ ArbUI.arbiterAppWithAdmin config
   Log.info lgr $ Log.msg (Log.val "Internal jobs API initialized")
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pure $!
