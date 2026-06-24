@@ -366,8 +366,6 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
-    Wire.Jobs.AdminUI
-    Wire.Jobs.ArbiterAPI
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
