@@ -14,6 +14,12 @@ metadata:
     the single-ingress implementation (because of their javascript form
     submitting logic), so we skip them here as well.
     */}}
+    # In the non-multi-ingress (default) case, frontend apps (webapp,
+    # account-pages, team-settings) set CSP headers on their own. Implementing
+    # this for multi-ingress would have been much work. Thus, we are setting an
+    # approximation here. The SAML flow would be broken by setting these
+    # headers, so we leave them out. This is fine, because in the default case
+    # they aren't set as well.
     nginx.ingress.kubernetes.io/configuration-snippet: |
       if ($uri !~ "^(/v[0-9]+)?/sso/(finalize-login|initiate-login)(/[a-zA-Z0-9-]*)?$|^/favicon.ico$") {
         set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
