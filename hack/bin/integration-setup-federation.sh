@@ -18,10 +18,10 @@ HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 changed_files=$(git --no-pager diff-tree --no-commit-id -r --name-only HEAD)
 
 if [[ "$WIRE_INGRESS_MODE" != "nginx" ]] && echo "$changed_files" | grep -q "^charts/nginx-ingress-services"; then
-  echo "ERROR: Changes detected in charts/nginx-ingress-services but WIRE_INGRESS_MODE is '${WIRE_INGRESS_MODE}'."
-  echo "This failure is intentional: changes to nginx-ingress-services are not exercised by the"
-  echo "integration test suite when running in envoy mode, and would be merged without any test coverage."
-  echo "To test these changes, change to WIRE_INGRESS_MODE=nginx. and merge the changes"
+  echo "ERROR: Changes detected in charts/nginx-ingress-services but WIRE_INGRESS_MODE is '${WIRE_INGRESS_MODE}'." >&2
+echo "This failure is intentional: changes to nginx-ingress-services are not exercised by the" >&2
+echo "integration test suite when running in envoy mode, and would be merged without any test coverage."  >&2
+echo "To test these changes, change to WIRE_INGRESS_MODE=nginx. and merge the changes"  >&2
   echo "Then in a follow-up PR change WIRE_INGRESS_MODE=envoy and re-implement the changes also in charts/wire-ingress"
   echo "FUTUREWORK: Remove WIRE_INGRESS_MODE once ingress-nginx is no longer supported by wire-server"
   exit 1

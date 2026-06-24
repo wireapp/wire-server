@@ -85,10 +85,10 @@ data:
     migrateTeamFeatures: {{ .migrateTeamFeatures }}
     migrateDomainRegistration: {{ .migrateDomainRegistration }}
     migrationOptions:
-{{toYaml .migrationOptions | indent 6 }}
+{{ toYaml .migrationOptions | indent 6 }}
 
     backendNotificationPusher:
-{{toYaml .backendNotificationPusher | indent 6 }}
+{{ toYaml .backendNotificationPusher | indent 6 }}
     {{- with .backgroundJobs }}
     backgroundJobs:
 {{ toYaml . | indent 6 }}

@@ -59,7 +59,7 @@ while getopts ":a:t:s:n:h:d:c" opt; do
     : ) echo "-$OPTARG" requires an argument 1>&2
         exit 1
       ;;
-    \? ) echo "$USAGE" 1>&2
+    * ) echo "$USAGE" 1>&2
          exit 1
       ;;
   esac

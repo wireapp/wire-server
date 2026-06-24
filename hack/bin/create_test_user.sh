@@ -33,7 +33,7 @@ while getopts ":n:h:c" opt; do
     : ) echo "-$OPTARG" requires an argument 1>&2
         exit 1
       ;;
-    \? ) echo "$USAGE" 1>&2
+    * ) echo "$USAGE" 1>&2
          exit 1
       ;;
   esac
