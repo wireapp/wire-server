@@ -16,7 +16,7 @@ metadata:
     aren't set for any backend API endpoint as well.
 
     How would the SAML flow be broken?
-    `sso/initiate-login` returns HTML of the form:
+    `/sso/initiate-login` returns HTML of the form:
 
     ```
     <body onload="document.forms[0].submit()">
