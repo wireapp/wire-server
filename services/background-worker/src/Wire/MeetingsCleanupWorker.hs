@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.MeetingsCleanupWorker
-  ( startWorker,
-    CleanupConfig (..),
+  ( CleanupConfig (..),
     runCleanupOldMeetings,
   )
 where
@@ -29,11 +28,8 @@ import Data.Time.Clock
 import Imports
 import Polysemy.Error (runError)
 import Prometheus (incCounter)
-import System.Cron (Job (..), forkJob)
 import System.Logger qualified as Log
-import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..), runAppT)
-import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
-import Wire.BackgroundWorker.Util (CleanupAction)
+import Wire.BackgroundWorker.Env (AppT, Env (..), MeetingsCleanupMetrics (..))
 import Wire.Effects
 import Wire.ExternalAccess.External
 import Wire.MeetingsStore.Postgres (interpretMeetingsStoreToPostgres)
@@ -45,36 +41,6 @@ data CleanupConfig = CleanupConfig
     batchSize :: Int
   }
   deriving (Show, Eq)
-
--- | Start the meetings cleanup worker thread
---
--- This worker runs periodically to clean up old meetings based on the configuration.
-startWorker ::
-  MeetingsCleanupConfig ->
-  AppT IO CleanupAction
-startWorker config = do
-  env <- ask
-  Log.info env.logger $
-    Log.msg (Log.val "Starting meetings cleanup worker")
-      . Log.field "schedule" (show config.schedule)
-      . Log.field "clean_older_than_hours" config.cleanOlderThanHours
-
-  void . liftIO $ do
-    forkJob $
-      Job config.schedule $
-        runAppT env $ do
-          Log.info env.logger $ Log.msg (Log.val "Starting scheduled meetings cleanup")
-          runCleanupOldMeetings (configFromOptions config)
-
-  pure $ pure ()
-
--- | Convert MeetingsCleanupConfig to CleanupConfig
-configFromOptions :: MeetingsCleanupConfig -> CleanupConfig
-configFromOptions cfg =
-  CleanupConfig
-    { retentionHours = cfg.cleanOlderThanHours,
-      batchSize = cfg.batchSize
-    }
 
 -- | Main cleanup function that orchestrates the cleanup process
 runCleanupOldMeetings :: CleanupConfig -> AppT IO ()
