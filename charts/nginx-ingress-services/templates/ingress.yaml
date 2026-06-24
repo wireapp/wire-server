@@ -7,19 +7,33 @@ metadata:
     {{- if not (hasPrefix "nginx" .Values.config.ingressClass) }}
         {{ fail "In ingress CSP header setting only works with a 'nginx' controller. (Rename it to 'nginx-*' if it is one.)" }}
     {{- end }}
-    {{/* We need to add CSP headers here for webapp, team-settings and
-    account-pages requests, because they cannot do it on their own in the
-    multi-ingress case.
-    SAML SSO endpoints are a special case: They do not provide CSP headers in
-    the single-ingress implementation (because of their javascript form
-    submitting logic), so we skip them here as well.
+    {{/* In the non-multi-ingress (default) case, frontend apps (webapp,
+    account-pages, team-settings) set CSP headers on their own. Implementing
+    this for multi-ingress would have been much work (due to some framework
+    specifics). Thus, we are setting an approximation of the webapp's CSP
+    headers here. The SAML flow would be broken by setting these headers, so we
+    leave them out for it. This is fine, because in the default case they
+    aren't set for any backend API endpoint as well.
+
+    How would the SAML flow be broken?
+    `sso/initiate-login` returns HTML of the form:
+
+    ```
+    <body onload="document.forms[0].submit()">
+      <form action="https://<IDP-ENDPOINT>">
+    ```
+
+    This conflicts at least with the `form-action 'self'` (i.e. no foreign form
+    target) and `script-src-attr 'none'` (no script attributes) rules.
+
+    `/sso/finalize-login` uses similar strategies.
+
+    Why support versioned and unversioned endpoints?
+    `/sso/initiate-login` is already in versioned use via Kalium.
+    `/sso/finalize-login` is at the time of writing also used in Kalium,
+    however not versioned. Though, because it is technically possible to use
+    the endpoint versioned as well, it cannot hurt to be prepared for this.
     */}}
-    # In the non-multi-ingress (default) case, frontend apps (webapp,
-    # account-pages, team-settings) set CSP headers on their own. Implementing
-    # this for multi-ingress would have been much work. Thus, we are setting an
-    # approximation here. The SAML flow would be broken by setting these
-    # headers, so we leave them out. This is fine, because in the default case
-    # they aren't set as well.
     nginx.ingress.kubernetes.io/configuration-snippet: |
       if ($uri !~ "^(/v[0-9]+)?/sso/(finalize-login|initiate-login)(/[a-zA-Z0-9-]*)?$|^/favicon.ico$") {
         set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
