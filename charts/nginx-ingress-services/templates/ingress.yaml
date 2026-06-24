@@ -15,7 +15,7 @@ metadata:
     submitting logic), so we skip them here as well.
     */}}
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      if ($uri !~ "(^/sso/finalize-login(/[a-zA-Z0-9-]*)?$)|(^/sso/initiate-login(/[a-zA-Z0-9-]*)?$)|(^/favicon.ico$)") {
+      if ($uri !~ "^(/v[0-9]+)?/sso/(finalize-login|initiate-login)(/[a-zA-Z0-9-]*)?$|^/favicon.ico$") {
         set $CSP "connect-src 'self' blob: data: https://*.giphy.com https://{{ .Values.config.dns.https }}";
         {{if .Values.websockets.enabled}}
         set $CSP "${CSP} wss://{{ .Values.config.dns.ssl }}";
