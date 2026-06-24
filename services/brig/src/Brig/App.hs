@@ -74,6 +74,7 @@ module Brig.App
     rateLimitEnvLens,
     amqpJobsPublisherChannelLens,
     postgresMigrationLens,
+    jobsApiAppLens,
     initZAuth,
     initLogger,
     initPostgresPool,
@@ -140,7 +141,6 @@ import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended
 import Imports
-import Language.Haskell.TH (nameBase)
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -227,12 +227,7 @@ data Env = Env
     postgresMigration :: PostgresMigrationOpts
   }
 
-makeLensesWith (lensRules & lensField .~ brigFieldNamer) ''Env
-
-brigFieldNamer :: FieldNamer
-brigFieldNamer s t n
-  | nameBase n == "jobsApiApp" = []
-  | otherwise = suffixNamer s t n
+makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
 
 newEnv :: Opts -> IO Env
 newEnv opts = do
