@@ -53,6 +53,8 @@ import Wire.MockInterpreters.TinyLog (noopLogger)
 import Wire.NotificationSubsystem (NotificationSubsystem (..))
 import Wire.ProposalStore (ProposalStore (..))
 import Wire.Sem.Random (Random (..))
+import Wire.JobSubsystem (JobSubsystem (..))
+import Wire.API.Jobs (ScheduledJob (..), ScheduledJobKind (AdminlessDeletion))
 import Wire.StoredConversation
 import Wire.TeamSubsystem (TeamSubsystem (..))
 
@@ -121,6 +123,7 @@ spec = describe "ConversationSubsystem.Interpreter" do
                   . interpretNotificationSubsystem
                   . interpretProposalStore
                   . interpretTeamSubsystem
+                  . interpretJobSubsystem
                   . interpretNowConst defaultTime
                   . interpretRandom
                   . noopLogger
@@ -259,6 +262,28 @@ interpretTeamSubsystem ::
 interpretTeamSubsystem =
   interpret $ \case
     _ -> error "unexpected TeamSubsystem call in test"
+
+interpretJobSubsystem ::
+  Sem (JobSubsystem ': r) a ->
+  Sem r a
+interpretJobSubsystem =
+  interpret $ \case
+    RegisterJob _ -> pure ()
+    CancelJob _ -> pure ()
+    CancelJobsByTeamAndKind _ _ -> pure ()
+    FindJobById _ -> pure Nothing
+    FindJobsByTeamAndKind _ _ -> pure []
+    FindJobsByConversationId _ -> pure []
+    ScheduleAdminlessDeletionJob _ _ _ ->
+      pure
+        ScheduledJob
+          { scheduledJobId = Id UUID.nil,
+            scheduledJobKind = AdminlessDeletion,
+            scheduledJobTeamId = Id UUID.nil,
+            scheduledJobConversationId = Just (Id UUID.nil),
+            scheduledJobScheduledFor = defaultTime
+          }
+    StartJobRunner _ -> pure (pure ())
 
 interpretRandom ::
   Sem (Random ': r) a ->

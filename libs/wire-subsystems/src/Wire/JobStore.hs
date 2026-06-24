@@ -28,17 +28,17 @@ module Wire.JobStore
   )
 where
 
-import Data.UUID (UUID)
 import Imports
 import Polysemy
+import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Wire.API.Jobs
 
 data JobStore m a where
   CreateJob :: ScheduledJob -> JobStore m ()
-  FindJobById :: UUID -> JobStore m (Maybe ScheduledJob)
-  FindJobsByTeamAndKind :: UUID -> ScheduledJobKind -> JobStore m [ScheduledJob]
-  FindJobsByConversationId :: UUID -> JobStore m [ScheduledJob]
-  DeleteJob :: UUID -> JobStore m ()
-  DeleteJobsByTeamAndKind :: UUID -> ScheduledJobKind -> JobStore m ()
+  FindJobById :: ScheduledJobId -> JobStore m (Maybe ScheduledJob)
+  FindJobsByTeamAndKind :: TeamId -> ScheduledJobKind -> JobStore m [ScheduledJob]
+  FindJobsByConversationId :: ConvId -> JobStore m [ScheduledJob]
+  DeleteJob :: ScheduledJobId -> JobStore m ()
+  DeleteJobsByTeamAndKind :: TeamId -> ScheduledJobKind -> JobStore m ()
 
 makeSem ''JobStore

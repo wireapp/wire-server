@@ -37,6 +37,7 @@ module Galley.Env
     rabbitmqChannel,
     convCodeURI,
     passwordHashingRateLimitEnv,
+    jobsApiConnStr,
     reqIdMsg,
     notificationSubsystemConfig,
     currentFanoutLimitOpts,
@@ -87,7 +88,8 @@ data Env = Env
     _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
-    _passwordHashingRateLimitEnv :: RateLimitEnv
+    _passwordHashingRateLimitEnv :: RateLimitEnv,
+    _jobsApiConnStr :: Text
   }
 
 makeLenses ''Env

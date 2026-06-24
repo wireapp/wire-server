@@ -85,6 +85,7 @@ import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
 import Data.Vector qualified as V
+import Data.Time.Clock (addUTCTime, nominalDay)
 import Galley.Types.Error
 import Imports hiding (forkIO)
 import Polysemy
@@ -145,6 +146,7 @@ import Wire.NotificationSubsystem
 import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit
+import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessDeletionJob)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)
@@ -972,6 +974,7 @@ replaceMembers ::
     Member FederationSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member TeamSubsystem r,
+    Member JobSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   Local UserId ->
@@ -1153,6 +1156,7 @@ removeMemberQualified ::
     Member TinyLog r,
     Member FeaturesConfigSubsystem r,
     Member TeamSubsystem r,
+    Member JobSubsystem r,
     Member (Input ConversationSubsystemConfig) r
   ) =>
   RemoveMemberResponseMode ->
@@ -1185,7 +1189,8 @@ guardPreventAdminlessGroups ::
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
     Member TeamSubsystem r,
-    Member FeaturesConfigSubsystem r
+    Member FeaturesConfigSubsystem r,
+    Member JobSubsystem r
   ) =>
   RemoveMemberResponseMode ->
   Local ConvId ->
@@ -1196,6 +1201,11 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
   conv <- getConversationWithError lcnv
   for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    let scheduleDeletion = do
+          now <- Now.get
+          let scheduledFor = addUTCTime (fromIntegral feature.config.deletionTimeout * nominalDay) now
+          void $
+            scheduleAdminlessDeletionJob tid (Just (qUnqualified (tUntagged lcnv))) scheduledFor
     when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
       eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
       case (responseMode, eligibleMembers) of
@@ -1208,11 +1218,9 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
         (RemoveMemberEligibleMembersResponse, _ : _) ->
           throw $ AdminlessConversation (fmap fst eligibleMembers)
         (RemoveMemberLegacyResponse, []) ->
-          -- FUTUREWORK: mark for deletion
-          pure ()
-        (RemoveMemberEligibleMembersResponse, []) -> do
-          -- FUTUREWORK: mark for deletion
-          pure ()
+          scheduleDeletion
+        (RemoveMemberEligibleMembersResponse, []) ->
+          scheduleDeletion
   where
     -- Use eight random bytes and fold them into a big-endian Word64. This keeps
     -- the helper small, deterministic under tests, and free of extra Random API.
@@ -1268,7 +1276,8 @@ deleteUserFromTeamConversationsImpl ::
     Member E.ExternalAccess r,
     Member Now r,
     Member Random r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member JobSubsystem r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -1379,7 +1388,8 @@ removeMemberFromLocalConv ::
     Member (ErrorS ConvMemberNotFound) r,
     Member (Error AdminlessConversation) r,
     Member FeaturesConfigSubsystem r,
-    Member BrigAPIAccess r
+    Member BrigAPIAccess r,
+    Member JobSubsystem r
   ) =>
   RemoveMemberResponseMode ->
   Local ConvId ->

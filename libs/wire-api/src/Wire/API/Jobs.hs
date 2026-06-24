@@ -20,18 +20,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Jobs
-  ( ScheduledJobsRegistry,
-    ScheduledJob (..),
-    ScheduledJobKind (..),
-    MeetingsCleanupJob (..),
-    meetingsCleanupQueueName,
-    scheduledJobKindFromInt,
-    scheduledJobKindToInt,
-  )
-where
+module Wire.API.Jobs where
 
 import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
+import Data.Id
 import Data.Int qualified as Int
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
@@ -41,6 +33,10 @@ import Wire.API.PostgresMarshall
 -- | Shared queue name for the scheduled meetings cleanup job.
 meetingsCleanupQueueName :: Text
 meetingsCleanupQueueName = "meetings_cleanup_jobs"
+
+-- | Shared queue name for the adminless deletion job.
+adminlessDeletionQueueName :: Text
+adminlessDeletionQueueName = "adminless_deletion_jobs"
 
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
@@ -52,6 +48,17 @@ instance ToJSON MeetingsCleanupJob where
 instance FromJSON MeetingsCleanupJob where
   parseJSON Null = pure MeetingsCleanupJob
   parseJSON _ = fail "MeetingsCleanupJob expects null"
+
+-- | Empty payload for adminless deletions.
+data AdminlessDeletionJob = AdminlessDeletionJob
+  deriving stock (Eq, Generic, Show)
+
+instance ToJSON AdminlessDeletionJob where
+  toJSON AdminlessDeletionJob = Null
+
+instance FromJSON AdminlessDeletionJob where
+  parseJSON Null = pure AdminlessDeletionJob
+  parseJSON _ = fail "AdminlessDeletionJob expects null"
 
 -- | The generic scheduled-job families we currently need to persist.
 data ScheduledJobKind
@@ -72,10 +79,10 @@ scheduledJobKindFromInt n
 
 -- | App-level metadata stored alongside Arbiter's runtime state.
 data ScheduledJob = ScheduledJob
-  { scheduledJobId :: UUID,
+  { scheduledJobId :: ScheduledJobId,
     scheduledJobKind :: ScheduledJobKind,
-    scheduledJobTeamId :: UUID,
-    scheduledJobConversationId :: Maybe UUID,
+    scheduledJobTeamId :: TeamId,
+    scheduledJobConversationId :: Maybe ConvId,
     scheduledJobScheduledFor :: UTCTime
   }
   deriving stock (Eq, Generic, Show)
@@ -88,12 +95,30 @@ instance PostgresUnmarshall Int.Int32 ScheduledJobKind where
     maybe (Left "invalid scheduled job kind") Right $
       scheduledJobKindFromInt (fromIntegral n)
 
-instance PostgresMarshall (UUID, Int.Int32, UUID, Maybe UUID, UTCTime) ScheduledJob where
-  postgresMarshall ScheduledJob{..} =
+instance PostgresMarshall (ScheduledJobId, Int.Int32, TeamId, Maybe ConvId, UTCTime) ScheduledJob where
+  postgresMarshall ScheduledJob {..} =
     ( scheduledJobId,
       postgresMarshall scheduledJobKind,
       scheduledJobTeamId,
       scheduledJobConversationId,
+      scheduledJobScheduledFor
+    )
+
+instance PostgresUnmarshall (ScheduledJobId, Int.Int32, TeamId, Maybe ConvId, UTCTime) ScheduledJob where
+  postgresUnmarshall (jobId, jobKind, teamId, conversationId, scheduledFor) =
+    ScheduledJob
+      <$> postgresUnmarshall jobId
+      <*> postgresUnmarshall jobKind
+      <*> postgresUnmarshall teamId
+      <*> postgresUnmarshall conversationId
+      <*> postgresUnmarshall scheduledFor
+
+instance PostgresMarshall (UUID, Int.Int32, UUID, Maybe UUID, UTCTime) ScheduledJob where
+  postgresMarshall ScheduledJob {..} =
+    ( toUUID scheduledJobId,
+      postgresMarshall scheduledJobKind,
+      toUUID scheduledJobTeamId,
+      toUUID <$> scheduledJobConversationId,
       scheduledJobScheduledFor
     )
 
@@ -104,9 +129,10 @@ instance PostgresUnmarshall (UUID, Int.Int32, UUID, Maybe UUID, UTCTime) Schedul
       <*> postgresUnmarshall jobKind
       <*> postgresUnmarshall teamId
       <*> postgresUnmarshall conversationId
-      <*> postgresUnmarshall scheduledFor
+      <*> pure scheduledFor
 
 -- | Registry for the scheduled jobs we expose via Arbiter.
 type ScheduledJobsRegistry =
-  '[ '("meetings_cleanup_jobs", MeetingsCleanupJob)
+  '[ '("meetings_cleanup_jobs", MeetingsCleanupJob),
+     '("adminless_deletion_jobs", AdminlessDeletionJob)
    ]

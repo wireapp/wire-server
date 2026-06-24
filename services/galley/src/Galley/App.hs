@@ -43,6 +43,7 @@ module Galley.App
 where
 
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
+import Arbiter.Core qualified as ArbiterCore
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
@@ -53,6 +54,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TextEncoding
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -127,6 +129,10 @@ import Wire.HashPassword.Interpreter
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.JobStore (JobStore)
+import Wire.JobStore.Postgres (interpretJobStoreToPostgres)
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,
@@ -191,6 +197,8 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     JobSubsystem,
+     JobStore,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -324,6 +332,7 @@ createEnv o l = do
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
   postgres <- initPostgresPool o._postgresqlPool o._postgresql o._postgresqlPassword
+  galleyJobsApiConnStr <- postgresqlConnectionString o._postgresql o._postgresqlPassword
   let disableTlsV1 = True
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
@@ -333,6 +342,7 @@ createEnv o l = do
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
     <*> pure codeURIcfg
     <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
+    <*> pure galleyJobsApiConnStr
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
@@ -549,6 +559,12 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . interpretJobStoreToPostgres
+        . interpretJobSubsystem
+          JobSubsystemConfig
+            { jobSubsystemArbiterConnStr = TextEncoding.encodeUtf8 (e ^. jobsApiConnStr),
+              jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+            }
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where

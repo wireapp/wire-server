@@ -28,6 +28,7 @@
 , errors
 , exceptions
 , extended
+, arbiter-core
 , extra
 , federator
 , filepath
@@ -133,6 +134,7 @@ mkDerivation {
     errors
     exceptions
     extended
+    arbiter-core
     galley-types
     hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
@@ -205,6 +207,7 @@ mkDerivation {
     errors
     exceptions
     extended
+    arbiter-core
     extra
     federator
     filepath

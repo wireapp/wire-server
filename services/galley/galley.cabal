@@ -197,6 +197,7 @@ library
     , aeson                                 >=2.0.1.0
     , amazonka                              >=1.4.5
     , amqp
+    , arbiter-core
     , async                                 >=2.0
     , base                                  >=4.6     && <5
     , bilge                                 >=0.21.1

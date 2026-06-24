@@ -22,18 +22,24 @@
 module Wire.BackgroundWorker.ScheduledJobs (startWorker) where
 
 import Arbiter.Core qualified as ArbiterCore
-import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
-import Arbiter.Migrations qualified as ArbiterMigrations
-import Arbiter.Worker qualified as ArbiterWorker
 import Data.Proxy (Proxy (..))
 import Imports
-import System.Cron (Job (..), forkJob)
-import System.Logger qualified as Log
-import UnliftIO.Async qualified as Async
-import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry, meetingsCleanupQueueName)
+import Wire.API.Jobs
+  ( AdminlessDeletionJob (..),
+    MeetingsCleanupJob (..),
+    ScheduledJobsRegistry,
+    adminlessDeletionQueueName,
+    meetingsCleanupQueueName,
+  )
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util (CleanupAction)
+import Wire.JobSubsystem.Recurring
+  ( OneOffJobRunnerConfig (..),
+    RecurringJobRunnerConfig (..),
+    runOneOffJobRunner,
+    runRecurringJobRunner,
+  )
 import Wire.MeetingsCleanupWorker
   ( CleanupConfig (..),
     runCleanupOldMeetings,
@@ -42,85 +48,47 @@ import Wire.MeetingsCleanupWorker
 startWorker :: MeetingsCleanupConfig -> AppT IO CleanupAction
 startWorker config = do
   env <- ask
-  Log.info env.logger $
-    Log.msg (Log.val "Starting scheduled meetings cleanup jobs")
-      . Log.field "schedule" (show config.schedule)
-      . Log.field "clean_older_than_hours" config.cleanOlderThanHours
-
   let cleanupConfig =
         CleanupConfig
           { retentionHours = config.cleanOlderThanHours,
             batchSize = config.batchSize
           }
-      schemaName = ArbiterCore.defaultSchemaName
-  -- Arbiter keeps its own schema and migrations separate from the existing
-  -- meetings tables, so the worker can claim jobs independently.
-  arbiterEnv <-
-    liftIO $
-      ArbiterHasql.createHasqlEnv (Proxy @ScheduledJobsRegistry) env.arbiterConnStr schemaName
-
-  -- Insert a single queued job for each tick. The dedup key prevents one
-  -- scheduler from enqueuing duplicate runs for the same logical job.
-  let jobWrite :: ArbiterCore.JobWrite MeetingsCleanupJob
-      jobWrite =
+      jobWrite scheduledFor =
         (ArbiterCore.defaultGroupedJob meetingsCleanupQueueName MeetingsCleanupJob)
-          { ArbiterCore.dedupKey = Just (ArbiterCore.IgnoreDuplicate meetingsCleanupQueueName)
+          { ArbiterCore.dedupKey = Just (ArbiterCore.IgnoreDuplicate meetingsCleanupQueueName),
+            ArbiterCore.notVisibleUntil = Just scheduledFor
           }
-
-      enqueueCleanupJob :: ArbiterHasql.HasqlDb ScheduledJobsRegistry IO ()
-      enqueueCleanupJob = void $ ArbiterCore.insertJob jobWrite
-
-      workerHandler _ _ = do
-        -- Arbiter claims the job; the handler just runs the existing cleanup
-        -- logic inside the background-worker application environment.
-        liftIO $
-          runAppT env $ do
-            Log.info env.logger $ Log.msg (Log.val "Running scheduled meetings cleanup job")
-            runCleanupOldMeetings cleanupConfig
-
-  -- Create the Arbiter queue tables for this registry on startup.
-  void $
+  cleanupRecurring <-
     liftIO $
-      ArbiterMigrations.runMigrationsForRegistry
+      runRecurringJobRunner @ScheduledJobsRegistry @MeetingsCleanupJob
         (Proxy @ScheduledJobsRegistry)
-        env.arbiterConnStr
-        schemaName
-        ArbiterMigrations.defaultMigrationConfig
-
-  workerConfig <-
+        RecurringJobRunnerConfig
+          { recurringJobRunnerLogger = env.logger,
+            recurringJobRunnerSchedule = config.schedule,
+            recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
+            recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+            recurringJobRunnerWorkerThreads = 1,
+            recurringJobRunnerEnqueueAt = \scheduledFor ->
+              void $ ArbiterCore.insertJob (jobWrite scheduledFor),
+            recurringJobRunnerRunJob =
+              runAppT env $
+                runCleanupOldMeetings cleanupConfig,
+            recurringJobRunnerJobName = "meetings-cleanup",
+            recurringJobRunnerQueueName = meetingsCleanupQueueName
+          }
+  cleanupDeletion <-
     liftIO $
-      -- One worker thread is enough for now because each background-worker
-      -- instance enqueues the same logical cleanup job, and Arbiter's dedup
-      -- key keeps duplicate runs from stacking up.
-      -- One worker thread is enough for this proof of concept.
-      ( ArbiterWorker.defaultWorkerConfig
-          env.arbiterConnStr
-          1
-          workerHandler ::
-          IO
-            ( ArbiterWorker.WorkerConfig
-                (ArbiterHasql.HasqlDb ScheduledJobsRegistry IO)
-                MeetingsCleanupJob
-                ()
-            )
-      )
-
-  schedulerThread <- liftIO . forkJob . Job config.schedule $ do
-    -- The scheduler only inserts the next job row; Arbiter does the claiming
-    -- and execution.
-    Log.info env.logger $
-      Log.msg (Log.val "Enqueuing scheduled meetings cleanup job")
-        . Log.field "queue_name" meetingsCleanupQueueName
-    void $ ArbiterHasql.runHasqlDb arbiterEnv enqueueCleanupJob
-
-  workerAsync <-
-    liftIO . Async.async $
-      -- Run the Arbiter worker loop in the same process.
-      ArbiterHasql.runHasqlDb arbiterEnv $
-        ArbiterWorker.runWorkerPool workerConfig
-
-  pure $ do
-    liftIO $ do
-      killThread schedulerThread
-      ArbiterWorker.shutdownWorker workerConfig
-    Async.cancel workerAsync
+      runOneOffJobRunner @ScheduledJobsRegistry @AdminlessDeletionJob
+        (Proxy @ScheduledJobsRegistry)
+        OneOffJobRunnerConfig
+          { oneOffJobRunnerLogger = env.logger,
+            oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
+            oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+            oneOffJobRunnerWorkerThreads = 1,
+            oneOffJobRunnerRunJob =
+              runAppT env $
+                pure (),
+            oneOffJobRunnerJobName = "adminless-deletion",
+            oneOffJobRunnerQueueName = adminlessDeletionQueueName
+          }
+  pure $ cleanupRecurring >> cleanupDeletion

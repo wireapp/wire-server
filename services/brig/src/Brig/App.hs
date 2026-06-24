@@ -227,6 +227,7 @@ data Env = Env
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
     amqpJobsPublisherChannel :: MVar Q.Channel,
+    jobsApiConnStr :: Text,
     jobsApiApp :: Application,
     postgresMigration :: PostgresMigrationOpts
   }
@@ -332,6 +333,7 @@ newEnv opts = do
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,
+        jobsApiConnStr,
         jobsApiApp,
         postgresMigration = opts.postgresMigration
       }

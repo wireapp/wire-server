@@ -12,8 +12,11 @@
 , amazonka-sqs
 , amqp
 , arbiter-core
+, arbiter-hasql
+, arbiter-migrations
 , arbiter-servant
 , arbiter-servant-ui
+, arbiter-worker
 , asn1-encoding
 , asn1-types
 , async
@@ -35,6 +38,7 @@
 , contravariant
 , cookie
 , cql
+, cron
 , crypton
 , crypton-asn1-encoding
 , crypton-asn1-types
@@ -158,8 +162,11 @@ mkDerivation {
     amazonka-sqs
     amqp
     arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     arbiter-servant
     arbiter-servant-ui
+    arbiter-worker
     asn1-encoding
     asn1-types
     async
@@ -181,6 +188,7 @@ mkDerivation {
     contravariant
     cookie
     cql
+    cron
     crypton
     crypton-asn1-encoding
     crypton-asn1-types
@@ -292,8 +300,11 @@ mkDerivation {
     amazonka-sqs
     amqp
     arbiter-core
+    arbiter-hasql
+    arbiter-migrations
     arbiter-servant
     arbiter-servant-ui
+    arbiter-worker
     asn1-encoding
     asn1-types
     async
@@ -314,6 +325,7 @@ mkDerivation {
     contravariant
     cookie
     cql
+    cron
     crypton
     crypton-asn1-encoding
     crypton-asn1-types

@@ -34,6 +34,7 @@ import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
+import Arbiter.Core qualified as ArbiterCore
 import Galley.Types.Error (InternalError, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
@@ -93,6 +94,10 @@ import Wire.HashPassword.Interpreter (runHashPassword)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.JobStore (JobStore)
+import Wire.JobStore.Postgres (interpretJobStoreToPostgres)
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley (GuestLinkTTLSeconds)
@@ -210,6 +215,8 @@ type BackgroundWorkerEffects =
      Now,
      TeamJournal,
      LegalHoldStore,
+     JobSubsystem,
+     JobStore,
      TeamCollaboratorsStore,
      TeamStore,
      ConversationStore,
@@ -322,6 +329,12 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
+    . interpretJobStoreToPostgres
+    . interpretJobSubsystem
+      JobSubsystemConfig
+        { jobSubsystemArbiterConnStr = env.arbiterConnStr,
+          jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+        }
     . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing
     . nowToIO

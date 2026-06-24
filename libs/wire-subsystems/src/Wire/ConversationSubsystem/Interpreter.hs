@@ -76,6 +76,7 @@ import Wire.NotificationSubsystem as NS
 import Wire.Options.Galley (GuestLinkTTLSeconds)
 import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit (RateLimit)
+import Wire.JobSubsystem (JobSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.TeamCollaboratorsSubsystem
@@ -115,6 +116,7 @@ interpretConversationSubsystem ::
     Member TeamStore r,
     Member ConvStore.MLSCommitLockStore r,
     Member FederationSubsystem r,
+    Member JobSubsystem r,
     Member Resource r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member UserClientIndexStore r,

@@ -11,22 +11,27 @@
 -- any later version.
 --
 -- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+-- FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
+-- for more details.
 --
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
+-- You should have received a copy of the GNU Affero General Public License
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.JobStore.Postgres
   ( interpretJobStoreToPostgres,
   )
 where
 
+import Data.Int qualified as Int
+import Data.Time.Clock (UTCTime)
+import Data.UUID (UUID)
+import Data.Vector (Vector)
+import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Hasql.Pool
+import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Imports
-import Data.UUID (UUID)
 import Polysemy
 import Polysemy.Error (Error)
 import Polysemy.Input
@@ -58,93 +63,111 @@ createJobImpl ::
   ScheduledJob ->
   Sem r ()
 createJobImpl job =
-  runStatement job $
-    lmapPG
-      [resultlessStatement|
-        INSERT INTO scheduled_jobs
-          (id, kind, team_id, conversation_id, scheduled_for)
-        VALUES
-          ($1 :: uuid, $2 :: int4, $3 :: uuid, $4 :: uuid?, $5 :: timestamptz) |]
+  runStatement job insertJob
+  where
+    insertJob :: Hasql.Statement ScheduledJob ()
+    insertJob =
+      lmapPG
+        [resultlessStatement|
+          INSERT INTO scheduled_jobs
+            (id, kind, team_id, conversation_id, scheduled_for)
+          VALUES
+            ($1 :: uuid, $2 :: int4, $3 :: uuid, $4 :: uuid?, $5 :: timestamptz) |]
 
 findJobByIdImpl ::
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
   ) =>
-  UUID ->
+  ScheduledJobId ->
   Sem r (Maybe ScheduledJob)
 findJobByIdImpl jobId =
-  runStatement jobId $
-    dimapPG
-      [maybeStatement|
-        SELECT
-          (id :: uuid), (kind :: int4), (team_id :: uuid), (conversation_id :: uuid?),
-          (scheduled_for :: timestamptz)
-        FROM scheduled_jobs
-        WHERE id = ($1 :: uuid) |]
+  runStatement jobId selectJob
+  where
+    selectJob :: Hasql.Statement ScheduledJobId (Maybe ScheduledJob)
+    selectJob =
+      dimapPG
+        [maybeStatement|
+          SELECT
+            (id :: uuid), (kind :: int4), (team_id :: uuid), (conversation_id :: uuid?),
+            (scheduled_for :: timestamptz)
+          FROM scheduled_jobs
+          WHERE id = ($1 :: uuid) |]
 
 findJobsByTeamAndKindImpl ::
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
   ) =>
-  UUID ->
+  TeamId ->
   ScheduledJobKind ->
   Sem r [ScheduledJob]
 findJobsByTeamAndKindImpl teamId kind =
-  runStatement (teamId, kind) $
-    dimapPG
-      [vectorStatement|
-        SELECT
-          (id :: uuid), (kind :: int4), (team_id :: uuid), (conversation_id :: uuid?),
-          (scheduled_for :: timestamptz)
-        FROM scheduled_jobs
-        WHERE team_id = ($1 :: uuid) AND kind = ($2 :: int4)
-        ORDER BY scheduled_for ASC, id ASC |]
+  runStatement (teamId, kind) selectJobs
+  where
+    selectJobs :: Hasql.Statement (TeamId, ScheduledJobKind) [ScheduledJob]
+    selectJobs =
+      dimapPG
+        [vectorStatement|
+          SELECT
+            (id :: uuid), (kind :: int4), (team_id :: uuid), (conversation_id :: uuid?),
+            (scheduled_for :: timestamptz)
+          FROM scheduled_jobs
+          WHERE team_id = ($1 :: uuid) AND kind = ($2 :: int4)
+          ORDER BY scheduled_for ASC, id ASC |]
 
 findJobsByConversationIdImpl ::
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
   ) =>
-  UUID ->
+  ConvId ->
   Sem r [ScheduledJob]
 findJobsByConversationIdImpl conversationId =
-  runStatement conversationId $
-    dimapPG
-      [vectorStatement|
-        SELECT
-          (id :: uuid), (kind :: int4), (team_id :: uuid), (conversation_id :: uuid?),
-          (scheduled_for :: timestamptz)
-        FROM scheduled_jobs
-        WHERE conversation_id = ($1 :: uuid)
-        ORDER BY scheduled_for ASC, id ASC |]
+  runStatement conversationId selectJobs
+  where
+    selectJobs :: Hasql.Statement ConvId [ScheduledJob]
+    selectJobs =
+      dimapPG
+        [vectorStatement|
+          SELECT
+            (id :: uuid), (kind :: int4), (team_id :: uuid), (conversation_id :: uuid?),
+            (scheduled_for :: timestamptz)
+          FROM scheduled_jobs
+          WHERE conversation_id = ($1 :: uuid)
+          ORDER BY scheduled_for ASC, id ASC |]
 
 deleteJobImpl ::
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
   ) =>
-  UUID ->
+  ScheduledJobId ->
   Sem r ()
 deleteJobImpl jobId =
-  runStatement jobId $
-    lmapPG
-      [resultlessStatement|
-        DELETE FROM scheduled_jobs
-        WHERE id = ($1 :: uuid) |]
+  runStatement jobId deleteJob
+  where
+    deleteJob :: Hasql.Statement ScheduledJobId ()
+    deleteJob =
+      lmapPG
+        [resultlessStatement|
+          DELETE FROM scheduled_jobs
+          WHERE id = ($1 :: uuid) |]
 
 deleteJobsByTeamAndKindImpl ::
   ( Member (Embed IO) r,
     Member (Input Pool) r,
     Member (Error UsageError) r
   ) =>
-  UUID ->
+  TeamId ->
   ScheduledJobKind ->
   Sem r ()
 deleteJobsByTeamAndKindImpl teamId kind =
-  runStatement (teamId, kind) $
-    lmapPG
-      [resultlessStatement|
-        DELETE FROM scheduled_jobs
-        WHERE team_id = ($1 :: uuid) AND kind = ($2 :: int4) |]
+  runStatement (teamId, kind) deleteJobs
+  where
+    deleteJobs :: Hasql.Statement (TeamId, ScheduledJobKind) ()
+    deleteJobs =
+      lmapPG
+        [resultlessStatement|
+          DELETE FROM scheduled_jobs
+          WHERE team_id = ($1 :: uuid) AND kind = ($2 :: int4) |]
