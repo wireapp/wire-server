@@ -368,6 +368,8 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.JobStore
+    Wire.JobStore.Postgres
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
