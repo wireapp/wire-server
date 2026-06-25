@@ -44,7 +44,7 @@ import Brig.Options qualified as Opt
 import Cassandra qualified as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
-import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
+import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeaderProtected, runJOSE)
 import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, emptyClaimsSet, signClaims, signJWT, stringOrUri, verifyClaims)
 import Data.Aeson qualified as A
 import Data.ByteString.Char8 qualified as BS
@@ -823,7 +823,7 @@ signAccessToken key claims = do
     doSignClaims :: IO (Either JWTError SignedJWT)
     doSignClaims = runJOSE $ do
       algo <- bestJWSAlg key
-      signJWT key (newJWSHeader ((), algo)) claims
+      signJWT key (newJWSHeaderProtected algo) claims
 
 signRefreshToken :: JWK -> ClaimsSet -> IO SignedJWT
 signRefreshToken key claims = do
@@ -833,7 +833,7 @@ signRefreshToken key claims = do
     doSignClaims :: IO (Either JWTError SignedJWT)
     doSignClaims = runJOSE $ do
       algo <- bestJWSAlg key
-      signClaims key (newJWSHeader ((), algo)) claims
+      signClaims key (newJWSHeaderProtected algo) claims
 
 badKey :: JWK
 badKey = do

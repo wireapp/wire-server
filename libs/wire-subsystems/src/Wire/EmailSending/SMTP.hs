@@ -105,7 +105,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
     catch
       ( logExceptionOrResult
           lg
-          ("Checking test connection to " ++ unpack host ++ " on startup")
+          ("Checking test connection to " ++ unpack host ++ ":" ++ show port ++ " on startup")
           establishConnection
       )
       ( \(e :: SomeException) -> do
@@ -155,7 +155,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
     create =
       logExceptionOrResult
         lg
-        ("Creating pooled SMTP connection to " ++ unpack host)
+        ("Creating pooled SMTP connection to " ++ unpack host ++ ":" ++ show port)
         establishConnection
 
     -- NOTE: because `Data.Pool` masks the async exceptions for the resource deallocation function,
@@ -166,9 +166,11 @@ initSMTP' timeoutDuration lg host port credentials connType = do
       withAsyncWithUnmask
         do
           \unmask -> do
-            logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host) $
+            logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host ++ ":" ++ show port) $
               unmask do
-                ensureTimeout $ SMTP.gracefullyCloseSMTP c
+                ensureTimeout $
+                  SMTP.gracefullyCloseSMTP c
+                    `catch` (\(_ :: SMTP.SMTPException) -> pure ())
         do wait
 
 logExceptionOrResult :: (MonadIO m, MonadCatch m) => Logger -> String -> m a -> m a

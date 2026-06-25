@@ -28,6 +28,7 @@
 , containers
 , cookie
 , crypton
+, crypton-pem
 , currency-codes
 , data-default
 , data-timeout
@@ -68,7 +69,6 @@
 , lens
 , lens-aeson
 , lib
-, memory
 , metrics-core
 , metrics-wai
 , mime
@@ -81,7 +81,6 @@
 , network-uri
 , openapi3
 , optparse-applicative
-, pem
 , pipes
 , polysemy
 , polysemy-conc
@@ -93,6 +92,7 @@
 , prometheus-client
 , proto-lens
 , QuickCheck
+, ram
 , random
 , random-shuffle
 , raw-strings-qq
@@ -208,7 +208,6 @@ mkDerivation {
     jose
     jwt-tools
     lens
-    memory
     metrics-core
     metrics-wai
     mime
@@ -227,6 +226,7 @@ mkDerivation {
     polysemy-wire-zoo
     prometheus-client
     proto-lens
+    ram
     random-shuffle
     raw-strings-qq
     resourcet
@@ -277,6 +277,7 @@ mkDerivation {
     cassandra-util
     containers
     cookie
+    crypton-pem
     data-default
     data-timeout
     email-validate
@@ -306,7 +307,6 @@ mkDerivation {
     network
     network-uri
     optparse-applicative
-    pem
     pipes
     polysemy
     polysemy-wire-zoo
@@ -385,5 +385,5 @@ mkDerivation {
     wire-subsystems
   ];
   description = "User Service";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

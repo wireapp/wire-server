@@ -62,12 +62,6 @@ let
       src = inputs.bloodhound;
     };
 
-    # PR: https://github.com/informatikr/hedis/pull/224
-    # PR: https://github.com/informatikr/hedis/pull/226
-    # PR: https://github.com/informatikr/hedis/pull/227
-    hedis = {
-      src = inputs.hedis;
-    };
 
     # Our fork because we need to a few special things
     http-client = {
@@ -173,21 +167,26 @@ let
     postgresql-connection-string = {
       src = inputs.postgresql-connection-string;
     };
+
+    cryptostore = {
+      src = inputs.cryptostore;
+    };
+
+    hsaml2 = {
+      src = inputs.hsaml2;
+    };
   };
 
   hackagePins = {
-    # This pin should not be necessary. However, without it, Nix tries to fetch
-    # the sources from the `amazonka` package and fails.
-    # Fix: https://github.com/NixOS/nixpkgs/pull/409098
-    amazonka-s3-streaming = {
-      version = "2.0.0.0";
-      sha256 = "sha256-SQyFjl1Zf4vnntjZHJpf46gMR3LXWCQAMsR56NdsvRA=";
-    };
-
     # Pin uri-bytestring: newer parser rejects unescaped Set-Cookie in SSO mobile redirect query, breaking Spar’s URI substitution; stick to 0.3.3.1 for now
     uri-bytestring = {
       version = "0.3.3.1";
       sha256 = "sha256-jgSTBBDcxRQ0tjs0wTyvEpEAkGA7npJKjdXDT81VpT4=";
+    };
+
+    hedis = {
+      version = "0.16.1";
+      sha256 = "sha256-Kx0oOKRcxeemmZ80bMT9ULYxCboLYp3pcabk0ND2bZU=";
     };
 
     warp = {
@@ -195,35 +194,9 @@ let
       sha256 = "sha256-Y9xQ1wBbBtSZ4qw3yTGSYX27qi2uFRDJVtAdmQqRnFQ=";
     };
 
-    # Version freshly released, thus not in nixpkgs, yet: https://github.com/dylex/hsaml2/issues/21
-    hsaml2 = {
-      version = "0.2.0";
-      sha256 = "sha256-kEalrs79uI8CMaVa7suYEzeer/YqFoJOqkV+LhiUwY4=";
-    };
-
-    postgresql-binary = {
-      version = "0.15.0.1";
-      sha256 = "sha256-q5t2OgiDxyt8WU+zHVxpyVhFF9PtDu2BlQRfuPpBkgk=";
-    };
-
-    hasql = {
-      version = "1.10.3";
-      sha256 = "sha256-aJg6+oSWGkXm9pYLVv15d7M7HcnHhZpkw5c7ezxh2Yc=";
-    };
-
-    hasql-th = {
-      version = "0.5";
-      sha256 = "sha256-qD9RljGDwMpPZ2epCxzL3Sbbn2Ce1472Vf2AGFroIW8=";
-    };
-
-    hasql-transaction = {
-      version = "1.2.2";
-      sha256 = "sha256-o53h6ly2Kukhw9dcyAOvywzwlZDdgb+b/jqbw72lLHg=";
-    };
-
-    hasql-pool = {
-      version = "1.4.2";
-      sha256 = "sha256-iQB2TD9hsPnqoVh5mR3Y2K8Cv67rWqBR0WHxOWZeiD8=";
+    jose = {
+      version = "0.13";
+      sha256 = "sha256-m8Q1jwCyDrlEPbv2cZ/FIv/ey3dPjDVkmppzvi3Zjw4=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv

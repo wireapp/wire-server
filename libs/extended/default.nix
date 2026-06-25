@@ -5,12 +5,12 @@
 { mkDerivation
 , aeson
 , amqp
-, asn1-types
 , base
 , bytestring
 , cassandra-util
 , containers
 , crypton
+, crypton-asn1-types
 , crypton-connection
 , crypton-pem
 , crypton-x509
@@ -20,7 +20,6 @@
 , exceptions
 , hasql
 , hasql-pool
-, hourglass
 , hspec
 , hspec-discover
 , http-client
@@ -28,11 +27,11 @@
 , http-types
 , imports
 , lib
-, memory
 , metrics-wai
 , monad-control
 , postgresql-connection-string
 , prometheus-client
+, ram
 , retry
 , servant
 , servant-client
@@ -43,6 +42,7 @@
 , temporary
 , text
 , time
+, time-hourglass
 , tinylog
 , tls
 , transformers
@@ -58,12 +58,12 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
-    asn1-types
     base
     bytestring
     cassandra-util
     containers
     crypton
+    crypton-asn1-types
     crypton-connection
     crypton-x509
     crypton-x509-store
@@ -72,16 +72,15 @@ mkDerivation {
     exceptions
     hasql
     hasql-pool
-    hourglass
     http-client
     http-client-tls
     http-types
     imports
-    memory
     metrics-wai
     monad-control
     postgresql-connection-string
     prometheus-client
+    ram
     retry
     servant
     servant-client
@@ -90,6 +89,7 @@ mkDerivation {
     servant-server
     text
     time
+    time-hourglass
     tinylog
     tls
     transformers
@@ -100,17 +100,17 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
-    asn1-types
     base
     bytestring
     crypton
+    crypton-asn1-types
     crypton-pem
     crypton-x509
-    hourglass
     hspec
     imports
     string-conversions
     temporary
+    time-hourglass
   ];
   testToolDepends = [ hspec-discover ];
   description = "Extended versions of common modules";

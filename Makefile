@@ -499,10 +499,6 @@ kube-integration-test:
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-teardown-federation.sh
 
-.PHONY: kube-integration-e2e-telepresence
-kube-integration-e2e-telepresence:
-	./services/brig/federation-tests.sh $(NAMESPACE)
-
 .PHONY: helm-oci-login
 helm-oci-login:
 	./hack/bin/helm-oci-login.sh

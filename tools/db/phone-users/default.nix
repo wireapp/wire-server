@@ -42,6 +42,6 @@ mkDerivation {
   ];
   executableHaskellDepends = [ base ];
   description = "Check users that are only able to login via phone";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
   mainProgram = "phone-users";
 }

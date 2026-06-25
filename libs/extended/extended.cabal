@@ -90,12 +90,12 @@ library
   build-depends:
       aeson
     , amqp
-    , asn1-types
     , base
     , bytestring
     , cassandra-util
     , containers
     , crypton
+    , crypton-asn1-types
     , crypton-connection
     , crypton-x509
     , crypton-x509-store
@@ -104,16 +104,15 @@ library
     , exceptions
     , hasql
     , hasql-pool
-    , hourglass
     , http-client
     , http-client-tls
     , http-types
     , imports
-    , memory
     , metrics-wai
     , monad-control
     , postgresql-connection-string
     , prometheus-client
+    , ram
     , retry
     , servant
     , servant-client
@@ -122,6 +121,7 @@ library
     , servant-server
     , text
     , time
+    , time-hourglass
     , tinylog
     , tls
     , transformers
@@ -195,17 +195,17 @@ test-suite extended-tests
 
   build-depends:
       aeson
-    , asn1-types
     , base
     , bytestring
     , crypton
+    , crypton-asn1-types
     , crypton-pem
     , crypton-x509
     , extended
-    , hourglass
     , hspec
     , imports
     , string-conversions
     , temporary
+    , time-hourglass
 
   default-language:   GHC2021

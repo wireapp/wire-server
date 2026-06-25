@@ -4,9 +4,6 @@
 # dependencies are added or removed.
 { mkDerivation
 , aeson
-, asn1-encoding
-, asn1-parse
-, asn1-types
 , base
 , base64-bytestring
 , binary
@@ -15,6 +12,9 @@
 , containers
 , cookie
 , crypton
+, crypton-asn1-encoding
+, crypton-asn1-parse
+, crypton-asn1-types
 , crypton-x509
 , data-default
 , directory
@@ -29,7 +29,6 @@
 , ghc-prim
 , hedgehog
 , hedgehog-quickcheck
-, hourglass
 , hsaml2
 , hspec
 , hspec-core
@@ -44,7 +43,6 @@
 , lens
 , lens-datetime
 , lib
-, memory
 , mtl
 , network-uri
 , openapi3
@@ -52,6 +50,7 @@
 , process
 , QuickCheck
 , quickcheck-instances
+, ram
 , random
 , schema-profunctor
 , servant
@@ -63,6 +62,7 @@
 , temporary
 , text
 , time
+, time-hourglass
 , tinylog
 , transformers
 , types-common
@@ -87,9 +87,6 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     aeson
-    asn1-encoding
-    asn1-parse
-    asn1-types
     base
     base64-bytestring
     binary
@@ -98,6 +95,9 @@ mkDerivation {
     containers
     cookie
     crypton
+    crypton-asn1-encoding
+    crypton-asn1-parse
+    crypton-asn1-types
     crypton-x509
     data-default
     directory
@@ -112,7 +112,6 @@ mkDerivation {
     ghc-prim
     hedgehog
     hedgehog-quickcheck
-    hourglass
     hsaml2
     hspec
     hspec-wai
@@ -124,7 +123,6 @@ mkDerivation {
     invertible-hxt
     lens
     lens-datetime
-    memory
     mtl
     network-uri
     openapi3
@@ -132,6 +130,7 @@ mkDerivation {
     process
     QuickCheck
     quickcheck-instances
+    ram
     random
     schema-profunctor
     servant
@@ -143,6 +142,7 @@ mkDerivation {
     temporary
     text
     time
+    time-hourglass
     tinylog
     transformers
     types-common
@@ -163,9 +163,6 @@ mkDerivation {
   ];
   testHaskellDepends = [
     aeson
-    asn1-encoding
-    asn1-parse
-    asn1-types
     base
     base64-bytestring
     binary
@@ -174,6 +171,9 @@ mkDerivation {
     containers
     cookie
     crypton
+    crypton-asn1-encoding
+    crypton-asn1-parse
+    crypton-asn1-types
     crypton-x509
     data-default
     directory
@@ -187,7 +187,6 @@ mkDerivation {
     ghc-prim
     hedgehog
     hedgehog-quickcheck
-    hourglass
     hsaml2
     hspec
     hspec-core
@@ -199,13 +198,13 @@ mkDerivation {
     imports
     lens
     lens-datetime
-    memory
     mtl
     network-uri
     pretty-show
     process
     QuickCheck
     quickcheck-instances
+    ram
     random
     schema-profunctor
     servant
@@ -217,6 +216,7 @@ mkDerivation {
     temporary
     text
     time
+    time-hourglass
     tinylog
     transformers
     types-common
@@ -236,5 +236,5 @@ mkDerivation {
   ];
   testToolDepends = [ hspec-discover ];
   description = "Library and example web app for the SAML Web-based SSO profile";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }
