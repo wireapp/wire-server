@@ -30,12 +30,13 @@ import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Data.Id
 import Data.Proxy (Proxy (..))
+import Data.Time
 import Data.UUID.V4 qualified as UUID
 import Imports
 import Polysemy
 import Wire.API.Jobs
 import Wire.JobStore qualified as JobStore
-import Wire.JobSubsystem
+import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkersConfig (..))
 import Wire.JobSubsystem.Workers (runOneOffJobRunner, runRecurringJobRunner)
 
 runJobWorkers :: JobWorkersConfig -> IO CleanupAction
@@ -49,38 +50,45 @@ interpretJobSubsystem ::
     Member (Embed IO) r
   ) =>
   JobSubsystemConfig ->
-  Sem (JobSubsystem : r) a ->
-  Sem r a
-interpretJobSubsystem JobSubsystemConfig {..} sem = do
+  InterpreterFor JobSubsystem r
+interpretJobSubsystem conf =
+  interpret
+    \case
+      ScheduleAdminlessDeletionJob tid cid scheduledFor -> scheduleAdminlessDeletionJob conf tid cid scheduledFor
+      StartJobWorkers cfg -> embed $ runJobWorkers cfg
+
+scheduleAdminlessDeletionJob ::
+  forall r.
+  (Member (Embed IO) r, Member JobStore.JobStore r) =>
+  JobSubsystemConfig ->
+  TeamId ->
+  Maybe ConvId ->
+  UTCTime ->
+  Sem r ScheduledJob
+scheduleAdminlessDeletionJob JobSubsystemConfig {..} teamId convId scheduledFor = do
   arbiterEnv <-
     embed $
       ArbiterHasql.createHasqlEnv
         (Proxy @ScheduledJobsRegistry)
         jobSubsystemArbiterConnStr
         jobSubsystemSchemaName
-  interpret
-    ( \case
-        ScheduleAdminlessDeletionJob teamId conversationId scheduledFor -> do
-          jobId <- embed $ Id <$> UUID.nextRandom
-          let job =
-                ScheduledJob
-                  { scheduledJobId = jobId,
-                    scheduledJobKind = AdminlessDeletion,
-                    scheduledJobTeamId = teamId,
-                    scheduledJobConversationId = conversationId,
-                    scheduledJobScheduledFor = scheduledFor
-                  }
-              arbiterJob =
-                (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName AdminlessDeletionJob)
-                  { ArbiterCore.notVisibleUntil = Just scheduledFor
-                  }
-          JobStore.createJob job
-          embed $
-            void $
-              ArbiterHasql.runHasqlDb arbiterEnv $
-                void $
-                  ArbiterCore.insertJob arbiterJob
-          pure job
-        StartJobWorkers cfg -> embed $ runJobWorkers cfg
-    )
-    sem
+  jobId <- embed $ Id <$> UUID.nextRandom
+  let job =
+        ScheduledJob
+          { scheduledJobId = jobId,
+            scheduledJobKind = AdminlessDeletion,
+            scheduledJobTeamId = teamId,
+            scheduledJobConversationId = convId,
+            scheduledJobScheduledFor = scheduledFor
+          }
+      arbiterJob =
+        (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName AdminlessDeletionJob)
+          { ArbiterCore.notVisibleUntil = Just scheduledFor
+          }
+  JobStore.createJob job
+  embed $
+    void $
+      ArbiterHasql.runHasqlDb arbiterEnv $
+        void $
+          ArbiterCore.insertJob arbiterJob
+  pure job
