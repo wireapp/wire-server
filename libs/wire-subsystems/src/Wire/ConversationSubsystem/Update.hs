@@ -84,8 +84,8 @@ import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
-import Data.Vector qualified as V
 import Data.Time.Clock (addUTCTime, nominalDay)
+import Data.Vector qualified as V
 import Galley.Types.Error
 import Imports hiding (forkIO)
 import Polysemy
@@ -141,12 +141,12 @@ import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
 import Wire.FireAndForget
 import Wire.HashPassword as HashPassword
+import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessDeletionJob)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Options.Galley
 import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit
-import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessDeletionJob)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Random (Random)

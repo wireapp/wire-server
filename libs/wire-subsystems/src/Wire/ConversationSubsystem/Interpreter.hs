@@ -71,12 +71,12 @@ import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget (FireAndForget)
 import Wire.HashPassword (HashPassword)
+import Wire.JobSubsystem (JobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem as NS
 import Wire.Options.Galley (GuestLinkTTLSeconds)
 import Wire.ProposalStore (ProposalStore)
 import Wire.RateLimit (RateLimit)
-import Wire.JobSubsystem (JobSubsystem)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.TeamCollaboratorsSubsystem

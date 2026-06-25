@@ -42,8 +42,8 @@ module Galley.App
   )
 where
 
-import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Arbiter.Core qualified as ArbiterCore
+import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
@@ -126,13 +126,13 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
-import Wire.LegalHoldStore (LegalHoldStore)
-import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
-import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.JobStore (JobStore)
 import Wire.JobStore.Postgres (interpretJobStoreToPostgres)
 import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
 import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
+import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
+import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.ListItems (ListItems)
 import Wire.ListItems.Team.Cassandra
   ( interpretInternalTeamListToCassandra,

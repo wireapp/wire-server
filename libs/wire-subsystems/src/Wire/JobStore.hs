@@ -28,9 +28,9 @@ module Wire.JobStore
   )
 where
 
+import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Imports
 import Polysemy
-import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Wire.API.Jobs
 
 data JobStore m a where

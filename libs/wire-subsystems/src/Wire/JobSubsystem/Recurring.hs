@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
-
 {-# LANGUAGE TypeFamilies #-}
 
 -- This file is part of the Wire Server implementation.
@@ -28,20 +27,20 @@ module Wire.JobSubsystem.Recurring
   )
 where
 
+import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
-import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
-import Data.Kind (Type)
-import Data.ByteString qualified as ByteString
 import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString qualified as ByteString
+import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Data.Time.Clock (UTCTime, getCurrentTime)
+import GHC.TypeLits (KnownSymbol)
 import Imports
 import System.Cron (CronSchedule, nextMatch)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
-import GHC.TypeLits (KnownSymbol)
 
 data RecurringJobRunnerConfig registry (payload :: Type) = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,

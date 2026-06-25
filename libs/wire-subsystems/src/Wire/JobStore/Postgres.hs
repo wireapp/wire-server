@@ -23,11 +23,11 @@ module Wire.JobStore.Postgres
   )
 where
 
+import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Data.Int qualified as Int
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Data.Vector (Vector)
-import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Hasql.Pool
 import Hasql.Statement qualified as Hasql
 import Hasql.TH

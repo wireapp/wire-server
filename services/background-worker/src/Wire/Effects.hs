@@ -20,6 +20,7 @@ module Wire.Effects
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge qualified
 import Bilge.Retry
 import Cassandra (ClientState)
@@ -34,7 +35,6 @@ import Data.Qualified
 import Data.Tagged (Tagged)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
-import Arbiter.Core qualified as ArbiterCore
 import Galley.Types.Error (InternalError, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
@@ -91,13 +91,13 @@ import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword.Interpreter (runHashPassword)
-import Wire.LegalHoldStore (LegalHoldStore)
-import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
-import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.JobStore (JobStore)
 import Wire.JobStore.Postgres (interpretJobStoreToPostgres)
 import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
 import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
+import Wire.LegalHoldStore (LegalHoldStore)
+import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
+import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley (GuestLinkTTLSeconds)
