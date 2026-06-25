@@ -268,7 +268,7 @@ interpretJobSubsystem ::
   Sem r a
 interpretJobSubsystem =
   interpret $ \case
-    ScheduleAdminlessDeletionJob _ _ _ ->
+    ScheduleAdminlessDeletionJob {} ->
       pure
         ScheduledJob
           { scheduledJobId = Id UUID.nil,
