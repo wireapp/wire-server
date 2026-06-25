@@ -32,9 +32,17 @@ defaultMeetingJson title startTime endTime invitedEmails =
       "invited_emails" .= invitedEmails
     ]
 
+-- | Unlock and enable the @meetings@ feature for a team. The feature is disabled
+-- and locked by default, so team-based meeting operations require this.
+enableMeetings :: Value -> String -> App ()
+enableMeetings owner tid = do
+  I.setTeamFeatureLockStatus owner tid "meetings" "unlocked"
+  I.setTeamFeatureConfig owner tid "meetings" (object ["status" .= "enabled"]) >>= assertStatus 200
+
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   ownerId <- owner %. "id" >>= asString
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
@@ -59,7 +67,8 @@ testMeetingCreate = do
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   fakeMeetingId <- randomId
 
   getMeeting owner "example.com" fakeMeetingId >>= assertLabel 404 "meeting-not-found"
@@ -83,6 +92,7 @@ testMeetingCreatePersonalUserTrial = do
 testMeetingCreatePayingTeamNonTrial :: (HasCallStack) => App ()
 testMeetingCreatePayingTeamNonTrial = do
   (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
 
   let firstMeeting = object ["status" .= "enabled"]
   I.setTeamFeatureLockStatus owner tid "meetingsPremium" "unlocked"
@@ -104,7 +114,8 @@ testMeetingsConfigDisabledBlocksCreate :: (HasCallStack) => App ()
 testMeetingsConfigDisabledBlocksCreate = do
   (owner, tid, _members) <- createTeam OwnDomain 1
 
-  -- Disable the MeetingsConfig feature
+  -- Disable the MeetingsConfig feature (unlock first, since it is locked by default)
+  I.setTeamFeatureLockStatus owner tid "meetings" "unlocked"
   let firstMeeting = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
   I.setTeamFeatureConfig owner tid "meetings" firstMeeting >>= assertStatus 200
 
@@ -118,7 +129,8 @@ testMeetingsConfigDisabledBlocksCreate = do
 
 testMeetingRecurrence :: (HasCallStack) => App ()
 testMeetingRecurrence = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -167,7 +179,8 @@ testMeetingRecurrence = do
 
 testMeetingUpdateNotFound :: (HasCallStack) => App ()
 testMeetingUpdateNotFound = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   fakeMeetingId <- randomId
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
@@ -183,8 +196,10 @@ testMeetingUpdateNotFound = do
 
 testMeetingUpdateUnauthorized :: (HasCallStack) => App ()
 testMeetingUpdateUnauthorized = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
-  (otherUser, _, _membersOther) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
+  (otherUser, otherTid, _membersOther) <- createTeam OwnDomain 1
+  enableMeetings otherUser otherTid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -206,7 +221,8 @@ testMeetingUpdateUnauthorized = do
 
 testMeetingListEmpty :: (HasCallStack) => App ()
 testMeetingListEmpty = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   resp <- getMeetingsList owner
   assertSuccess resp
   meetings <- resp.json & asList
@@ -214,7 +230,8 @@ testMeetingListEmpty = do
 
 testMeetingListNoMeetings :: (HasCallStack) => App ()
 testMeetingListNoMeetings = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   _ <- createTeam OwnDomain 1
   resp <- getMeetingsList owner
   assertSuccess resp
@@ -223,7 +240,8 @@ testMeetingListNoMeetings = do
 
 testMeetingListMultiple :: (HasCallStack) => App ()
 testMeetingListMultiple = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let firstMeeting = defaultMeetingJson "First Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
       secondMeeting = defaultMeetingJson "Second Meeting" (addUTCTime 3600 now) (addUTCTime 7200 now) []
@@ -258,7 +276,8 @@ testMeetingListMultiple = do
 
 testMeetingListPagination :: (HasCallStack) => App ()
 testMeetingListPagination = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
 
   -- The internal page size is 1000, so we create 1001 meetings to test pagination.
@@ -274,7 +293,8 @@ testMeetingListPagination = do
 
 testMeetingAddInvitation :: (HasCallStack) => App ()
 testMeetingAddInvitation = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -288,14 +308,16 @@ testMeetingAddInvitation = do
 
 testMeetingAddInvitationNotFound :: (HasCallStack) => App ()
 testMeetingAddInvitationNotFound = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   fakeMeetingId <- randomId
   let invitation = object ["emails" .= ["bob@example.com"]]
   postMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404
 
 testMeetingRemoveInvitation :: (HasCallStack) => App ()
 testMeetingRemoveInvitation = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -312,7 +334,8 @@ testMeetingRemoveInvitation = do
 
 testMeetingRemoveInvitationNotFound :: (HasCallStack) => App ()
 testMeetingRemoveInvitationNotFound = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   fakeMeetingId <- randomId
   let removeInvitation = object ["emails" .= ["alice@example.com"]]
 
@@ -320,7 +343,8 @@ testMeetingRemoveInvitationNotFound = do
 
 testMeetingReplaceInvitation :: (HasCallStack) => App ()
 testMeetingReplaceInvitation = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -335,7 +359,8 @@ testMeetingReplaceInvitation = do
 
 testMeetingReplaceInvitationEmpty :: (HasCallStack) => App ()
 testMeetingReplaceInvitationEmpty = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -350,15 +375,18 @@ testMeetingReplaceInvitationEmpty = do
 
 testMeetingReplaceInvitationNotFound :: (HasCallStack) => App ()
 testMeetingReplaceInvitationNotFound = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   fakeMeetingId <- randomId
   let invitation = object ["emails" .= ["bob@example.com"]]
   putMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404
 
 testMeetingReplaceInvitationUnauthorized :: (HasCallStack) => App ()
 testMeetingReplaceInvitationUnauthorized = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
-  (otherUser, _, _) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
+  (otherUser, otherTid, _) <- createTeam OwnDomain 1
+  enableMeetings otherUser otherTid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -371,7 +399,8 @@ testMeetingReplaceInvitationUnauthorized = do
 
 testMeetingDelete :: (HasCallStack) => App ()
 testMeetingDelete = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -399,14 +428,17 @@ testMeetingDelete = do
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()
 testMeetingDeleteNotFound = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   fakeMeetingId <- randomId
   deleteMeeting owner "example.com" fakeMeetingId >>= assertStatus 404
 
 testMeetingDeleteUnauthorized :: (HasCallStack) => App ()
 testMeetingDeleteUnauthorized = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
-  (otherUser, _, _membersOther) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
+  (otherUser, otherTid, _membersOther) <- createTeam OwnDomain 1
+  enableMeetings otherUser otherTid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
@@ -422,7 +454,8 @@ testMeetingCleanup = do
   env <- ask
   timedOutResult <- liftIO $ timeout (2 * 60 * 1_000_000) $ runAppWithEnv env $ do
     -- 2 minutes timeout
-    (owner, _tid, _members) <- createTeam OwnDomain 1
+    (owner, tid, _members) <- createTeam OwnDomain 1
+    enableMeetings owner tid
     now <- liftIO getCurrentTime
     -- Create a meeting that ends now.
     -- Configured retention is 0.0014 hours (~5 seconds).
@@ -487,7 +520,8 @@ waitForCleanupJob domain = do
 
 testMeetingExpiration :: (HasCallStack) => App ()
 testMeetingExpiration = do
-  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  enableMeetings owner tid
   now <- liftIO getCurrentTime
   let startTime = addUTCTime (negate 3600) now
       -- meetingValidityPeriodSeconds is configured to 5 seconds in galley.integration.yaml

@@ -241,7 +241,7 @@ defAllFeatures =
                   "storage" .= object ["perUserQuotaBytes" .= "1000000000000"]
                 ]
           ],
-      "meetings" .= enabled,
+      "meetings" .= disabledLocked,
       "meetingsPremium" .= disabledLocked,
       "backgroundEffects" .= disabled,
       "preventAdminlessGroups"
@@ -443,7 +443,7 @@ defAllConfiguredFeatures =
                     ]
               ]
           ),
-      "meetings" .= defaults enabled,
+      "meetings" .= defaults disabledLocked,
       "meetingsPremium" .= defaults disabledLocked,
       "backgroundEffects" .= defaults disabled
     ]

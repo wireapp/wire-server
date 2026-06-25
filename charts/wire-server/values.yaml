@@ -313,8 +313,8 @@ galley:
             lockStatus: locked
         meetings:
           defaults:
-            status: enabled
-            lockStatus: unlocked
+            status: disabled
+            lockStatus: locked
         meetingsPremium:
           defaults:
             status: disabled
