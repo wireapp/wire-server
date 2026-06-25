@@ -75,6 +75,7 @@ module Brig.App
     amqpJobsPublisherChannelLens,
     postgresMigrationLens,
     jobsApiAppLens,
+    jobsApiConnStrLens,
     initZAuth,
     initLogger,
     initPostgresPool,
