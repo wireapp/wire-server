@@ -21,9 +21,9 @@ module Wire.JobSubsystem
   ( CleanupAction,
     JobSubsystemConfig (..),
     JobSubsystem (..),
-    JobRunnerConfig,
+    JobWorkersConfig (..),
     scheduleAdminlessDeletionJob,
-    startJobRunner,
+    startJobWorkers,
   )
 where
 
@@ -33,7 +33,10 @@ import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Jobs
-import Wire.JobSubsystem.Recurring (RecurringJobRunnerConfig)
+import Wire.JobSubsystem.Workers
+  ( OneOffJobRunnerConfig,
+    RecurringJobRunnerConfig,
+  )
 
 type CleanupAction = IO ()
 
@@ -42,10 +45,13 @@ data JobSubsystemConfig = JobSubsystemConfig
     jobSubsystemSchemaName :: Text
   }
 
-type JobRunnerConfig = RecurringJobRunnerConfig ScheduledJobsRegistry MeetingsCleanupJob
+data JobWorkersConfig = JobWorkersConfig
+  { recurringJobRunnerConfig :: RecurringJobRunnerConfig ScheduledJobsRegistry MeetingsCleanupJob,
+    oneOffJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessDeletionJob
+  }
 
 data JobSubsystem m a where
   ScheduleAdminlessDeletionJob :: TeamId -> Maybe ConvId -> UTCTime -> JobSubsystem m ScheduledJob
-  StartJobRunner :: JobRunnerConfig -> JobSubsystem m CleanupAction
+  StartJobWorkers :: JobWorkersConfig -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem

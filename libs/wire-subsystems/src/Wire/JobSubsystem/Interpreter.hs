@@ -22,7 +22,7 @@
 
 module Wire.JobSubsystem.Interpreter
   ( interpretJobSubsystem,
-    runJobRunner,
+    runJobWorkers,
   )
 where
 
@@ -36,10 +36,13 @@ import Polysemy
 import Wire.API.Jobs
 import Wire.JobStore qualified as JobStore
 import Wire.JobSubsystem
-import Wire.JobSubsystem.Recurring (runRecurringJobRunner)
+import Wire.JobSubsystem.Workers (runOneOffJobRunner, runRecurringJobRunner)
 
-runJobRunner :: JobRunnerConfig -> IO CleanupAction
-runJobRunner = runRecurringJobRunner (Proxy @ScheduledJobsRegistry)
+runJobWorkers :: JobWorkersConfig -> IO CleanupAction
+runJobWorkers JobWorkersConfig {..} = do
+  cleanupRecurring <- runRecurringJobRunner (Proxy @ScheduledJobsRegistry) recurringJobRunnerConfig
+  cleanupOneOff <- runOneOffJobRunner (Proxy @ScheduledJobsRegistry) oneOffJobRunnerConfig
+  pure $ cleanupRecurring >> cleanupOneOff
 
 interpretJobSubsystem ::
   ( Member JobStore.JobStore r,
@@ -78,6 +81,6 @@ interpretJobSubsystem JobSubsystemConfig {..} sem = do
                 void $
                   ArbiterCore.insertJob arbiterJob
           pure job
-        StartJobRunner cfg -> embed $ runRecurringJobRunner (Proxy @ScheduledJobsRegistry) cfg
+        StartJobWorkers cfg -> embed $ runJobWorkers cfg
     )
     sem

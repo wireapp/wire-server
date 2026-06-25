@@ -277,7 +277,7 @@ interpretJobSubsystem =
             scheduledJobConversationId = Just (Id UUID.nil),
             scheduledJobScheduledFor = defaultTime
           }
-    StartJobRunner _ -> pure (pure ())
+    StartJobWorkers _ -> pure (pure ())
 
 interpretRandom ::
   Sem (Random ': r) a ->

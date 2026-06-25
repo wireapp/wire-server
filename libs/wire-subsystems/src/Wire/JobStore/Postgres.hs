@@ -24,10 +24,6 @@ module Wire.JobStore.Postgres
 where
 
 import Data.Id (ConvId, ScheduledJobId, TeamId)
-import Data.Int qualified as Int
-import Data.Time.Clock (UTCTime)
-import Data.UUID (UUID)
-import Data.Vector (Vector)
 import Hasql.Pool
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -145,10 +141,10 @@ deleteJobImpl ::
   ScheduledJobId ->
   Sem r ()
 deleteJobImpl jobId =
-  runStatement jobId deleteJob
+  runStatement jobId deleteJobStmt
   where
-    deleteJob :: Hasql.Statement ScheduledJobId ()
-    deleteJob =
+    deleteJobStmt :: Hasql.Statement ScheduledJobId ()
+    deleteJobStmt =
       lmapPG
         [resultlessStatement|
           DELETE FROM scheduled_jobs
@@ -163,10 +159,10 @@ deleteJobsByTeamAndKindImpl ::
   ScheduledJobKind ->
   Sem r ()
 deleteJobsByTeamAndKindImpl teamId kind =
-  runStatement (teamId, kind) deleteJobs
+  runStatement (teamId, kind) deleteJobsStmt
   where
-    deleteJobs :: Hasql.Statement (TeamId, ScheduledJobKind) ()
-    deleteJobs =
+    deleteJobsStmt :: Hasql.Statement (TeamId, ScheduledJobKind) ()
+    deleteJobsStmt =
       lmapPG
         [resultlessStatement|
           DELETE FROM scheduled_jobs

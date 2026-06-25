@@ -376,7 +376,7 @@ library
     Wire.JobStore.Postgres
     Wire.JobSubsystem
     Wire.JobSubsystem.Interpreter
-    Wire.JobSubsystem.Recurring
+    Wire.JobSubsystem.Workers
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra
