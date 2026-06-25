@@ -38,7 +38,7 @@ import Wire.API.Conversation.Role hiding (DeleteConversation)
 import Wire.API.Error.Galley (AdminlessConversation (..), GalleyError (..))
 import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error (FederationError)
-import Wire.API.Jobs (ScheduledJob (..), ScheduledJobKind (AdminlessDeletion))
+import Wire.API.Jobs (ScheduledJob (..), ScheduledJobKind (AdminlessDeletion, AdminlessReminder))
 import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), LockStatus (..), LockableFeature (..), PreventAdminlessGroupsConfig, npProject, npUpdate)
 import Wire.API.User (AccountStatus (..), User (..), UserType (..), userId)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess (..))
@@ -277,7 +277,16 @@ interpretJobSubsystem =
             scheduledJobConversationId = Just (Id UUID.nil),
             scheduledJobScheduledFor = defaultTime
           }
-    StartJobWorkers _ -> pure (pure ())
+    ScheduleAdminlessReminderJob {} ->
+      pure
+        ScheduledJob
+          { scheduledJobId = Id UUID.nil,
+            scheduledJobKind = AdminlessReminder,
+            scheduledJobTeamId = Id UUID.nil,
+            scheduledJobConversationId = Just (Id UUID.nil),
+            scheduledJobScheduledFor = defaultTime
+          }
+    StartJobWorkers _ _ -> pure (pure ())
 
 interpretRandom ::
   Sem (Random ': r) a ->

@@ -27,6 +27,7 @@ module Wire.JobSubsystem.Workers
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Arbiter.Migrations qualified as ArbiterMigrations
@@ -49,7 +50,6 @@ data RecurringJobRunnerConfig registry (payload :: Type) = RecurringJobRunnerCon
     recurringJobRunnerSchemaName :: Text,
     recurringJobRunnerWorkerThreads :: Int,
     recurringJobRunnerEnqueueAt :: UTCTime -> ArbiterHasql.HasqlDb registry IO (),
-    recurringJobRunnerRunJob :: IO (),
     recurringJobRunnerJobName :: Text,
     recurringJobRunnerQueueName :: Text
   }
@@ -59,7 +59,6 @@ data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
     oneOffJobRunnerArbiterConnStr :: ByteString.ByteString,
     oneOffJobRunnerSchemaName :: Text,
     oneOffJobRunnerWorkerThreads :: Int,
-    oneOffJobRunnerRunJob :: IO (),
     oneOffJobRunnerJobName :: Text,
     oneOffJobRunnerQueueName :: Text
   }
@@ -73,8 +72,9 @@ runRecurringJobRunner ::
   ) =>
   Proxy registry ->
   RecurringJobRunnerConfig registry payload ->
+  (payload -> IO ()) ->
   IO (IO ())
-runRecurringJobRunner registry RecurringJobRunnerConfig {..} = do
+runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
   Log.info recurringJobRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
       . Log.field "job_name" recurringJobRunnerJobName
@@ -110,13 +110,13 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} = do
           enqueueNextRun nextRun
           pure True
 
-      workerHandler _ _ =
+      workerHandler _conn job =
         liftIO $ do
           Log.info recurringJobRunnerLogger $
             Log.msg (Log.val "Running scheduled job")
               . Log.field "job_name" recurringJobRunnerJobName
               . Log.field "queue_name" recurringJobRunnerQueueName
-          recurringJobRunnerRunJob
+          runJob (ArbiterCore.payload job)
           now <- getCurrentTime
           void $ enqueueIfScheduled now
 
@@ -161,8 +161,9 @@ runOneOffJobRunner ::
   ) =>
   Proxy registry ->
   OneOffJobRunnerConfig registry payload ->
+  (payload -> IO ()) ->
   IO (IO ())
-runOneOffJobRunner registry OneOffJobRunnerConfig {..} = do
+runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
   Log.info oneOffJobRunnerLogger $
     Log.msg (Log.val "Starting one-off jobs worker")
       . Log.field "job_name" oneOffJobRunnerJobName
@@ -174,13 +175,13 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} = do
       oneOffJobRunnerArbiterConnStr
       oneOffJobRunnerSchemaName
 
-  let workerHandler _ _ =
+  let workerHandler _conn job =
         liftIO $ do
           Log.info oneOffJobRunnerLogger $
             Log.msg (Log.val "Running one-off job")
               . Log.field "job_name" oneOffJobRunnerJobName
               . Log.field "queue_name" oneOffJobRunnerQueueName
-          oneOffJobRunnerRunJob
+          runJob (ArbiterCore.payload job)
 
   void $
     ArbiterMigrations.runMigrationsForRegistry

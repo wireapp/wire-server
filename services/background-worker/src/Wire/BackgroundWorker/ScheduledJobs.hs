@@ -25,27 +25,14 @@ import Arbiter.Core qualified as ArbiterCore
 import Data.Id (RequestId (..))
 import Imports
 import Wire.API.Jobs
-  ( MeetingsCleanupJob (..),
-    adminlessDeletionQueueName,
-    meetingsCleanupQueueName,
-  )
+import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
-import Wire.BackgroundWorker.Util (CleanupAction)
 import Wire.Effects (runBackgroundWorkerEffects)
 import Wire.ExternalAccess.External (initExtEnv)
 import Wire.JobSubsystem
-  ( JobWorkersConfig (..),
-    startJobWorkers,
-  )
 import Wire.JobSubsystem.Workers
-  ( OneOffJobRunnerConfig (..),
-    RecurringJobRunnerConfig (..),
-  )
 import Wire.MeetingsCleanupWorker
-  ( CleanupConfig (..),
-    runCleanupOldMeetings,
-  )
 
 startWorker :: MeetingsCleanupConfig -> AppT IO CleanupAction
 startWorker config = do
@@ -61,6 +48,18 @@ startWorker config = do
           { ArbiterCore.dedupKey = Just (ArbiterCore.IgnoreDuplicate meetingsCleanupQueueName),
             ArbiterCore.notVisibleUntil = Just scheduledFor
           }
+      jobHandlers =
+        JobWorkerHandlers
+          { recurringJobRunnerRunJob = \_ ->
+              runAppT env $
+                runCleanupOldMeetings cleanupConfig,
+            adminlessDeletionJobRunnerRunJob = \job ->
+              runAppT env $
+                runAdminlessDeletionJob extEnv job,
+            adminlessReminderJobRunnerRunJob = \job ->
+              runAppT env $
+                runAdminlessReminderJob job
+          }
       workersConfig =
         JobWorkersConfig
           { recurringJobRunnerConfig =
@@ -72,27 +71,30 @@ startWorker config = do
                   recurringJobRunnerWorkerThreads = 1,
                   recurringJobRunnerEnqueueAt = \scheduledFor ->
                     void $ ArbiterCore.insertJob (jobWrite scheduledFor),
-                  recurringJobRunnerRunJob =
-                    runAppT env $
-                      runCleanupOldMeetings cleanupConfig,
                   recurringJobRunnerJobName = "meetings-cleanup",
                   recurringJobRunnerQueueName = meetingsCleanupQueueName
                 },
-            oneOffJobRunnerConfig =
+            adminlessDeletionJobRunnerConfig =
               OneOffJobRunnerConfig
                 { oneOffJobRunnerLogger = env.logger,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
                   oneOffJobRunnerWorkerThreads = 1,
-                  oneOffJobRunnerRunJob =
-                    runAppT env $
-                      pure (),
                   oneOffJobRunnerJobName = "adminless-deletion",
                   oneOffJobRunnerQueueName = adminlessDeletionQueueName
+                },
+            adminlessReminderJobRunnerConfig =
+              OneOffJobRunnerConfig
+                { oneOffJobRunnerLogger = env.logger,
+                  oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
+                  oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+                  oneOffJobRunnerWorkerThreads = 1,
+                  oneOffJobRunnerJobName = "adminless-reminder",
+                  oneOffJobRunnerQueueName = adminlessReminderQueueName
                 }
           }
   result <-
     liftIO $
       runBackgroundWorkerEffects env extEnv (RequestId "scheduled-jobs") Nothing $
-        startJobWorkers workersConfig
+        startJobWorkers workersConfig jobHandlers
   either (liftIO . fail . show) pure result

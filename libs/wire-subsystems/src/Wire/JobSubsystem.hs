@@ -21,22 +21,22 @@ module Wire.JobSubsystem
   ( CleanupAction,
     JobSubsystemConfig (..),
     JobSubsystem (..),
+    JobWorkerHandlers (..),
     JobWorkersConfig (..),
     scheduleAdminlessDeletionJob,
+    scheduleAdminlessReminderJob,
     startJobWorkers,
   )
 where
 
 import Data.ByteString qualified as ByteString
-import Data.Id (ConvId, TeamId)
+import Data.Id
+import Data.Qualified
 import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Jobs
 import Wire.JobSubsystem.Workers
-  ( OneOffJobRunnerConfig,
-    RecurringJobRunnerConfig,
-  )
 
 type CleanupAction = IO ()
 
@@ -47,11 +47,19 @@ data JobSubsystemConfig = JobSubsystemConfig
 
 data JobWorkersConfig = JobWorkersConfig
   { recurringJobRunnerConfig :: RecurringJobRunnerConfig ScheduledJobsRegistry MeetingsCleanupJob,
-    oneOffJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessDeletionJob
+    adminlessDeletionJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessDeletionJob,
+    adminlessReminderJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessReminderJob
+  }
+
+data JobWorkerHandlers = JobWorkerHandlers
+  { recurringJobRunnerRunJob :: MeetingsCleanupJob -> IO (),
+    adminlessDeletionJobRunnerRunJob :: AdminlessDeletionJob -> IO (),
+    adminlessReminderJobRunnerRunJob :: AdminlessReminderJob -> IO ()
   }
 
 data JobSubsystem m a where
-  ScheduleAdminlessDeletionJob :: TeamId -> Maybe ConvId -> UTCTime -> JobSubsystem m ScheduledJob
-  StartJobWorkers :: JobWorkersConfig -> JobSubsystem m CleanupAction
+  ScheduleAdminlessDeletionJob :: Local UserId -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ScheduledJob
+  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ScheduledJob
+  StartJobWorkers :: JobWorkersConfig -> JobWorkerHandlers -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem

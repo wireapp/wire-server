@@ -12,6 +12,7 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.AdminlessJobsWorker
     Wire.BackendNotificationPusher
     Wire.BackgroundWorker
     Wire.BackgroundWorker.Env

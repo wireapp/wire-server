@@ -231,7 +231,8 @@ instance ToSchema EventType where
           element "conversation.history-update" ConvHistoryUpdate,
           element "meeting.create" MeetingCreate,
           element "meeting.update" MeetingUpdate,
-          element "meeting.delete" MeetingDelete
+          element "meeting.delete" MeetingDelete,
+          element "conversation.adminless-reminder" ConvAdminlessReminder
         ]
 
 data EventData

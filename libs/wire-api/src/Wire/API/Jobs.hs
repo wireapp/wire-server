@@ -25,6 +25,7 @@ module Wire.API.Jobs where
 import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
 import Data.Id
 import Data.Int qualified as Int
+import Data.Schema
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Imports
@@ -38,6 +39,10 @@ meetingsCleanupQueueName = "meetings_cleanup_jobs"
 adminlessDeletionQueueName :: Text
 adminlessDeletionQueueName = "adminless_deletion_jobs"
 
+-- | Shared queue name for the adminless reminder job.
+adminlessReminderQueueName :: Text
+adminlessReminderQueueName = "adminless_reminder_jobs"
+
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
   deriving stock (Eq, Generic, Show)
@@ -49,16 +54,39 @@ instance FromJSON MeetingsCleanupJob where
   parseJSON Null = pure MeetingsCleanupJob
   parseJSON _ = fail "MeetingsCleanupJob expects null"
 
--- | Empty payload for adminless deletions.
+-- | Payload for adminless deletions.
 data AdminlessDeletionJob = AdminlessDeletionJob
+  { adminlessDeletionJobTeamId :: TeamId,
+    adminlessDeletionJobConversationId :: ConvId,
+    adminlessDeletionJobOrigUserId :: UserId
+  }
   deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON) via (Schema AdminlessDeletionJob)
 
-instance ToJSON AdminlessDeletionJob where
-  toJSON AdminlessDeletionJob = Null
+instance ToSchema AdminlessDeletionJob where
+  schema =
+    object $
+      AdminlessDeletionJob
+        <$> (.adminlessDeletionJobTeamId) .= field "team_id" schema
+        <*> (.adminlessDeletionJobConversationId) .= field "conversation_id" schema
+        <*> (.adminlessDeletionJobOrigUserId) .= field "orig_user_id" schema
 
-instance FromJSON AdminlessDeletionJob where
-  parseJSON Null = pure AdminlessDeletionJob
-  parseJSON _ = fail "AdminlessDeletionJob expects null"
+-- | Payload for adminless reminders.
+data AdminlessReminderJob = AdminlessReminderJob
+  { adminlessReminderJobTeamId :: TeamId,
+    adminlessReminderJobConversationId :: ConvId,
+    adminlessReminderJobOrigUserId :: UserId
+  }
+  deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON) via (Schema AdminlessReminderJob)
+
+instance ToSchema AdminlessReminderJob where
+  schema =
+    object $
+      AdminlessReminderJob
+        <$> (.adminlessReminderJobTeamId) .= field "team_id" schema
+        <*> (.adminlessReminderJobConversationId) .= field "conversation_id" schema
+        <*> (.adminlessReminderJobOrigUserId) .= field "orig_user_id" schema
 
 -- | The generic scheduled-job families we currently need to persist.
 data ScheduledJobKind
@@ -134,5 +162,6 @@ instance PostgresUnmarshall (UUID, Int.Int32, UUID, Maybe UUID, UTCTime) Schedul
 -- | Registry for the scheduled jobs we expose via Arbiter.
 type ScheduledJobsRegistry =
   '[ '("meetings_cleanup_jobs", MeetingsCleanupJob),
-     '("adminless_deletion_jobs", AdminlessDeletionJob)
+     '("adminless_deletion_jobs", AdminlessDeletionJob),
+     '("adminless_reminder_jobs", AdminlessReminderJob)
    ]

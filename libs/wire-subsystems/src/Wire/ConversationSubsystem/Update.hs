@@ -42,6 +42,7 @@ module Wire.ConversationSubsystem.Update
     updateConversationProtocolWithLocalUser,
     updateLocalStateOfRemoteConv,
     updateCellsState,
+    adminlessAutopromoteOrDelete,
 
     -- * Managing Members
     addQualifiedMembersUnqualified,
@@ -141,7 +142,7 @@ import Wire.FederationAPIAccess qualified as E
 import Wire.FederationSubsystem
 import Wire.FireAndForget
 import Wire.HashPassword as HashPassword
-import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessDeletionJob)
+import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessDeletionJob, scheduleAdminlessReminderJob)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Options.Galley
@@ -1202,7 +1203,7 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
   for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
     when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
-      eligibleMembers <- eligibleAdminFallbackMembers lcnv (qUnqualified victim) conv
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv (Just (qUnqualified victim)) conv
       case (responseMode, eligibleMembers) of
         (RemoveMemberLegacyResponse, x : xs) -> do
           seed <- randomWord64
@@ -1217,17 +1218,80 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
         (RemoveMemberEligibleMembersResponse, []) ->
           scheduleDeletion tid feature
   where
-    -- Use eight random bytes and fold them into a big-endian Word64. This keeps
-    -- the helper small, deterministic under tests, and free of extra Random API.
-    randomWord64 :: (Member Random r) => Sem r Word64
-    randomWord64 = BS.foldl' step 0 <$> Random.bytes 8
-      where
-        step acc byte = shiftL acc 8 .|. fromIntegral byte
     scheduleDeletion tid feature = do
-          now <- Now.get
-          let scheduledFor = addUTCTime (fromIntegral feature.config.deletionTimeout * nominalDay) now
+      now <- Now.get
+      let scheduledFor = addUTCTime (fromIntegral feature.config.deletionTimeout * nominalDay) now
+      void $ scheduleAdminlessDeletionJob lusr tid (qUnqualified (tUntagged lcnv)) scheduledFor
+      for_ feature.config.reminderTimeouts $
+        scheduleReminder now tid feature.config.deletionTimeout
+
+    scheduleReminder now tid deletionTimeout reminderTimeout = do
+      when (reminderTimeout < deletionTimeout) do
+        let reminderAt = addUTCTime (fromIntegral (deletionTimeout - reminderTimeout) * nominalDay) now
+        void $ scheduleAdminlessReminderJob lusr tid (qUnqualified (tUntagged lcnv)) reminderAt
+
+adminlessAutopromoteOrDelete ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member BrigAPIAccess r,
+    Member Random r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member FeaturesConfigSubsystem r,
+    Member ProposalStore r,
+    Member CodeStore r
+  ) =>
+  Local UserId ->
+  Local ConvId ->
+  Sem r ()
+adminlessAutopromoteOrDelete lusr lcnv = do
+  -- the local user is probably not a conversation member, it could be e.g. the user that had previously left
+  conv <- getConversationWithError lcnv
+  for_ conv.metadata.cnvmTeam $ \tid -> do
+    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
+    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
+      case eligibleMembers of
+        x : xs -> do
+          seed <- randomWord64
+          let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
+              update = (OtherMemberUpdate (Just roleNameWireAdmin))
+          for_ autopromotionCandidates $ \candidate -> do
+            E.setOtherMember lcnv candidate update
           void $
-            scheduleAdminlessDeletionJob tid (Just (qUnqualified (tUntagged lcnv))) scheduledFor
+            sendConversationActionNotifications
+              (sing @'ConversationMemberUpdateTag)
+              (tUntagged lusr)
+              False
+              Nothing
+              (qualifyAs lcnv conv)
+              (convBotsAndMembers conv)
+              (ConversationMemberUpdate (tUntagged lusr) update)
+              def
+        [] -> do 
+          removeConversation (qualifyAs lcnv conv)
+          void $
+            sendConversationActionNotifications
+              (sing @'ConversationDeleteTag)
+              (tUntagged lusr)
+              False
+              Nothing
+              (qualifyAs lcnv conv)
+              (convBotsAndMembers conv)
+              ()
+              def
+
+
+-- Use eight random bytes and fold them into a big-endian Word64. This keeps
+-- the helper small, deterministic under tests, and free of extra Random API.
+randomWord64 :: (Member Random r) => Sem r Word64
+randomWord64 = BS.foldl' step 0 <$> Random.bytes 8
+  where
+    step acc byte = shiftL acc 8 .|. fromIntegral byte
 
 isLeavingLastConversationAdmin :: UserId -> StoredConversation -> Bool
 isLeavingLastConversationAdmin leavingUser conv =
@@ -1242,16 +1306,16 @@ isLeavingLastConversationAdmin leavingUser conv =
 eligibleAdminFallbackMembers ::
   (Member BrigAPIAccess r) =>
   Local ConvId ->
-  UserId ->
+  Maybe UserId ->
   StoredConversation ->
   Sem r [(Qualified UserId, User.Name)]
-eligibleAdminFallbackMembers lcnv leavingUser conv = do
-  users <- Brig.getUsers (map (.id_) (filter ((/= leavingUser) . (.id_)) conv.localMembers))
+eligibleAdminFallbackMembers lcnv mLeavingUser conv = do
+  users <- Brig.getUsers (map (.id_) (filter ((/= mLeavingUser) . Just . (.id_)) conv.localMembers))
   let usersById = Map.fromList [(User.userId u, u) | u <- users]
   pure
     [ (tUntagged (qualifyAs lcnv member.id_), u.userDisplayName)
     | member <- conv.localMembers,
-      member.id_ /= leavingUser,
+      Just member.id_ /= mLeavingUser,
       Just u <- [Map.lookup member.id_ usersById],
       isEligibleUser u
     ]
