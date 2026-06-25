@@ -268,12 +268,6 @@ interpretJobSubsystem ::
   Sem r a
 interpretJobSubsystem =
   interpret $ \case
-    RegisterJob _ -> pure ()
-    CancelJob _ -> pure ()
-    CancelJobsByTeamAndKind _ _ -> pure ()
-    FindJobById _ -> pure Nothing
-    FindJobsByTeamAndKind _ _ -> pure []
-    FindJobsByConversationId _ -> pure []
     ScheduleAdminlessDeletionJob _ _ _ ->
       pure
         ScheduledJob

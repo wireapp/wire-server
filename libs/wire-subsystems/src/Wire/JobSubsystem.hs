@@ -22,23 +22,16 @@ module Wire.JobSubsystem
     JobSubsystemConfig (..),
     JobSubsystem (..),
     JobRunnerConfig,
-    registerJob,
     scheduleAdminlessDeletionJob,
-    registerAdminlessDeletionJob,
-    cancelJob,
-    cancelJobsByTeamAndKind,
-    findJobById,
-    findJobsByConversationId,
-    findJobsByTeamAndKind,
     startJobRunner,
   )
 where
 
 import Data.ByteString qualified as ByteString
+import Data.Id (ConvId, TeamId)
 import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
-import Data.Id (ConvId, ScheduledJobId, TeamId)
 import Wire.API.Jobs
 import Wire.JobSubsystem.Recurring (RecurringJobRunnerConfig)
 
@@ -52,21 +45,7 @@ data JobSubsystemConfig = JobSubsystemConfig
 type JobRunnerConfig = RecurringJobRunnerConfig ScheduledJobsRegistry MeetingsCleanupJob
 
 data JobSubsystem m a where
-  RegisterJob :: ScheduledJob -> JobSubsystem m ()
-  CancelJob :: ScheduledJobId -> JobSubsystem m ()
-  CancelJobsByTeamAndKind :: TeamId -> ScheduledJobKind -> JobSubsystem m ()
-  FindJobById :: ScheduledJobId -> JobSubsystem m (Maybe ScheduledJob)
-  FindJobsByTeamAndKind :: TeamId -> ScheduledJobKind -> JobSubsystem m [ScheduledJob]
-  FindJobsByConversationId :: ConvId -> JobSubsystem m [ScheduledJob]
   ScheduleAdminlessDeletionJob :: TeamId -> Maybe ConvId -> UTCTime -> JobSubsystem m ScheduledJob
   StartJobRunner :: JobRunnerConfig -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem
-
-registerAdminlessDeletionJob ::
-  (Member JobSubsystem r) =>
-  TeamId ->
-  Maybe ConvId ->
-  UTCTime ->
-  Sem r ScheduledJob
-registerAdminlessDeletionJob = scheduleAdminlessDeletionJob

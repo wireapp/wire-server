@@ -57,12 +57,6 @@ interpretJobSubsystem JobSubsystemConfig {..} sem = do
         jobSubsystemSchemaName
   interpret
     ( \case
-        RegisterJob job -> JobStore.createJob job
-        CancelJob jobId -> JobStore.deleteJob jobId
-        CancelJobsByTeamAndKind teamId kind -> JobStore.deleteJobsByTeamAndKind teamId kind
-        FindJobById jobId -> JobStore.findJobById jobId
-        FindJobsByTeamAndKind teamId kind -> JobStore.findJobsByTeamAndKind teamId kind
-        FindJobsByConversationId conversationId -> JobStore.findJobsByConversationId conversationId
         ScheduleAdminlessDeletionJob teamId conversationId scheduledFor -> do
           jobId <- embed $ Id <$> UUID.nextRandom
           let job =
