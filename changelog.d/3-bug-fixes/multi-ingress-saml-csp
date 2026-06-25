@@ -1,1 +1,0 @@
-Fix CSP headers for SAML endpoints. These were falsely emitted for *versioned* SAML endpoints.
