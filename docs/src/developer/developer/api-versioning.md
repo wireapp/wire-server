@@ -144,7 +144,11 @@ include the development version. The supported version is unaffected.
 We keep the endpoint in the routing table, but reduce its version range to
 exclude the development version. The implementation is unaffected.
 
-#### Making an incompatible change (e.g. removing a field)
+#### Making an incompatible change (e.g. removing a field, or changing an enum type)
+
+> **_NOTE:_** Adding to an enum type might feel like a non-breaking change, but
+> a client trying to parse a new value for an enum would fail to parse the new
+> value. Therefore, we must treat expanding enums as breaking changes.
 
 This is the most complicated scenario, but hopefully the rarest. It can only be
 done indirectly, as a combination of the two scenarios above: we add a new
