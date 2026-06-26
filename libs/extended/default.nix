@@ -32,6 +32,7 @@
 , postgresql-connection-string
 , prometheus-client
 , ram
+, QuickCheck
 , retry
 , servant
 , servant-client
@@ -108,9 +109,11 @@ mkDerivation {
     crypton-x509
     hspec
     imports
+    QuickCheck
     string-conversions
     temporary
     time-hourglass
+    text
   ];
   testToolDepends = [ hspec-discover ];
   description = "Extended versions of common modules";

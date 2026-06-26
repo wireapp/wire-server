@@ -45,4 +45,7 @@ maxScimTokens: 8 # Token limit {#RefScimToken}
 richInfoLimit: 5000 # should be in sync with Brig
 enableIdPByEmailDiscovery: false # Disable IdP discovery by email (default of Helm value)
 
+# SHA-1 cert fingerprint allowlist. Empty = disabled. Format: "AA:BB:CC:...".
+idpCertFingerprintAllowlist: []
+
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

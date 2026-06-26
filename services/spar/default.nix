@@ -205,10 +205,13 @@ mkDerivation {
     aeson
     aeson-qq
     base
+    bytestring
     bytestring-conversion
     containers
     cookie
+    crypton-x509
     data-default
+    extended
     filepath
     hscim
     hspec
@@ -225,7 +228,9 @@ mkDerivation {
     QuickCheck
     saml2-web-sso
     servant
+    servant-multipart
     servant-openapi3
+    servant-server
     string-conversions
     text
     these

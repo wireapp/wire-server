@@ -20,6 +20,7 @@
 -- | Reading the Spar config.
 module Spar.Options
   ( Opts (..),
+    CertFingerprintAllowlist (..),
     getOpts,
     readOptsFile,
     maxttlAuthreqDiffTime,
@@ -28,7 +29,11 @@ where
 
 import Control.Exception
 import Data.Aeson hiding (fieldLabelModifier)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.Set as Set
 import Data.Time
+import Data.X509.Extended (Fingerprint, parseFingerprintHex)
 import qualified Data.Yaml as Yaml
 import Imports
 import Options.Applicative
@@ -60,11 +65,33 @@ data Opts = Opts
     disabledAPIVersions :: !(Set VersionExp),
     scimBaseUri :: URI,
     -- | Enable IdP discovery by email address via the @/sso/get-by-email@ endpoint
-    enableIdPByEmailDiscovery :: !Bool
+    enableIdPByEmailDiscovery :: !Bool,
+    -- | IdP descriptor cert SHA-1 allowlist.  'Nothing' or empty 'Set'
+    -- disables the check.  When set, every cert in 'edCertAuthnResponse'
+    -- (on create/update and on AuthnResponse) must be listed or the request
+    -- is rejected with 'SparIdPCertNotAllowed' (HTTP 403).
+    idpCertFingerprintAllowlist :: !(Maybe CertFingerprintAllowlist)
   }
   deriving (Show, Generic)
 
 instance FromJSON Opts
+
+-- | Allowlist of SHA-1 cert fingerprints. Parsed once at config load from
+-- a JSON array of hex strings.
+newtype CertFingerprintAllowlist = CertFingerprintAllowlist
+  {unCertFingerprintAllowlist :: Set Fingerprint}
+  deriving (Eq, Show, Semigroup, Monoid)
+
+instance FromJSON CertFingerprintAllowlist where
+  parseJSON =
+    Aeson.withArray "CertFingerprintAllowlist" $ \arr -> do
+      items <- traverse parseOne (toList arr)
+      pure $ CertFingerprintAllowlist (Set.fromList items)
+    where
+      parseOne :: Aeson.Value -> Aeson.Parser Fingerprint
+      parseOne =
+        Aeson.withText "fingerprint" $ \t ->
+          either fail pure (parseFingerprintHex t)
 
 maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
 maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
