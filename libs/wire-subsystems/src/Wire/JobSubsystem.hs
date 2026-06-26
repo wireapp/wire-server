@@ -29,6 +29,7 @@ module Wire.JobSubsystem
   )
 where
 
+import Arbiter.Core.Job.Types (JobRead)
 import Data.ByteString qualified as ByteString
 import Data.Id
 import Data.Qualified
@@ -53,8 +54,8 @@ data JobWorkersConfig = JobWorkersConfig
 
 data JobWorkerHandlers = JobWorkerHandlers
   { recurringJobRunnerRunJob :: MeetingsCleanupJob -> IO (),
-    adminlessDeletionJobRunnerRunJob :: AdminlessDeletionJob -> IO (),
-    adminlessReminderJobRunnerRunJob :: AdminlessReminderJob -> IO ()
+    adminlessDeletionJobRunnerRunJob :: JobRead AdminlessDeletionJob -> IO (),
+    adminlessReminderJobRunnerRunJob :: JobRead AdminlessReminderJob -> IO ()
   }
 
 data JobSubsystem m a where

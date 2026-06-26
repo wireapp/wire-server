@@ -27,6 +27,7 @@ module Wire.JobSubsystem.Workers
 where
 
 import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Core.Job.Types (JobRead)
 import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Arbiter.Migrations qualified as ArbiterMigrations
@@ -154,7 +155,7 @@ runOneOffJobRunner ::
   ) =>
   Proxy registry ->
   OneOffJobRunnerConfig registry payload ->
-  (payload -> IO ()) ->
+  (JobRead payload -> IO ()) ->
   IO (IO ())
 runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
   Log.info oneOffJobRunnerLogger $
@@ -167,14 +168,13 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
       registry
       oneOffJobRunnerArbiterConnStr
       oneOffJobRunnerSchemaName
-
   let workerHandler _conn job =
         liftIO $ do
           Log.info oneOffJobRunnerLogger $
             Log.msg (Log.val "Running one-off job")
               . Log.field "job_name" oneOffJobRunnerJobName
               . Log.field "queue_name" oneOffJobRunnerQueueName
-          runJob (ArbiterCore.payload job)
+          runJob job
 
   void $
     ArbiterMigrations.runMigrationsForRegistry
