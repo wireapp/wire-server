@@ -127,7 +127,7 @@ tests s =
       test s "PUT /teams/:tid/features/apps{,'?lockOrUnlock'}" $ testLockStatus @AppsConfig,
       test s "/teams/:tid/features/apps" $ testFeatureStatus @AppsConfig,
       test s "PUT /teams/:tid/features/meetings{,'?lockOrUnlock'}" $ testLockStatus @MeetingsConfig,
-      test s "/teams/:tid/features/meetings" $ testFeatureStatus @MeetingsConfig,
+      test s "/teams/:tid/features/meetings" $ testFeatureStatusOptTtl @MeetingsConfig defMeetings Nothing,
       test s "PUT /teams/:tid/features/meetingsPremium{,'?lockOrUnlock'}" $ testLockStatus @MeetingsPremiumConfig,
       test s "/teams/:tid/features/meetingsPremium" $ testFeatureStatus @MeetingsPremiumConfig,
       test s "PUT /teams/:tid/features/backgroundEffects{,'?lockOrUnlock'}" $ testLockStatus @BackgroundEffectsConfig,
@@ -141,6 +141,9 @@ tests s =
 
 defConfCalling :: LockableFeature ConferenceCallingConfig
 defConfCalling = def {status = FeatureStatusDisabled}
+
+defMeetings :: LockableFeature MeetingsConfig
+defMeetings = def {status = FeatureStatusEnabled, lockStatus = LockStatusUnlocked}
 
 testRudSsoDomainRedirect :: TestM ()
 testRudSsoDomainRedirect = do
