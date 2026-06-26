@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeApplications #-}
+
 {-# LANGUAGE TypeFamilies #-}
 
 -- This file is part of the Wire Server implementation.
@@ -43,11 +43,6 @@ startWorker config = do
           { retentionHours = config.cleanOlderThanHours,
             batchSize = config.batchSize
           }
-      jobWrite scheduledFor =
-        (ArbiterCore.defaultGroupedJob meetingsCleanupQueueName MeetingsCleanupJob)
-          { ArbiterCore.dedupKey = Just (ArbiterCore.IgnoreDuplicate meetingsCleanupQueueName),
-            ArbiterCore.notVisibleUntil = Just scheduledFor
-          }
       jobHandlers =
         JobWorkerHandlers
           { recurringJobRunnerRunJob = \_ ->
@@ -69,8 +64,6 @@ startWorker config = do
                   recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
                   recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
                   recurringJobRunnerWorkerThreads = 1,
-                  recurringJobRunnerEnqueueAt = \scheduledFor ->
-                    void $ ArbiterCore.insertJob (jobWrite scheduledFor),
                   recurringJobRunnerJobName = "meetings-cleanup",
                   recurringJobRunnerQueueName = meetingsCleanupQueueName
                 },

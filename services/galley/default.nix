@@ -7,6 +7,7 @@
 , aeson-qq
 , amazonka
 , amqp
+, arbiter-core
 , async
 , base
 , base64-bytestring
@@ -28,7 +29,6 @@
 , errors
 , exceptions
 , extended
-, arbiter-core
 , extra
 , federator
 , filepath
@@ -122,6 +122,7 @@ mkDerivation {
     aeson
     amazonka
     amqp
+    arbiter-core
     async
     base
     bilge
@@ -134,7 +135,6 @@ mkDerivation {
     errors
     exceptions
     extended
-    arbiter-core
     galley-types
     hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
@@ -207,7 +207,6 @@ mkDerivation {
     errors
     exceptions
     extended
-    arbiter-core
     extra
     federator
     filepath

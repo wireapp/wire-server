@@ -46,7 +46,7 @@ data JobSubsystemConfig = JobSubsystemConfig
   }
 
 data JobWorkersConfig = JobWorkersConfig
-  { recurringJobRunnerConfig :: RecurringJobRunnerConfig ScheduledJobsRegistry MeetingsCleanupJob,
+  { recurringJobRunnerConfig :: RecurringJobRunnerConfig ScheduledJobsRegistry,
     adminlessDeletionJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessDeletionJob,
     adminlessReminderJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessReminderJob
   }

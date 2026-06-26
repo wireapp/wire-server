@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -32,24 +31,26 @@ import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
+import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
+import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString qualified as ByteString
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Text qualified as T
 import GHC.TypeLits (KnownSymbol)
 import Imports
-import System.Cron (CronSchedule, nextMatch)
+import System.Cron (CronSchedule, serializeCronSchedule)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
+import Wire.API.Jobs (MeetingsCleanupJob (..))
 
-data RecurringJobRunnerConfig registry (payload :: Type) = RecurringJobRunnerConfig
+data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,
     recurringJobRunnerSchedule :: CronSchedule,
     recurringJobRunnerArbiterConnStr :: ByteString.ByteString,
     recurringJobRunnerSchemaName :: Text,
     recurringJobRunnerWorkerThreads :: Int,
-    recurringJobRunnerEnqueueAt :: UTCTime -> ArbiterHasql.HasqlDb registry IO (),
     recurringJobRunnerJobName :: Text,
     recurringJobRunnerQueueName :: Text
   }
@@ -63,16 +64,19 @@ data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
     oneOffJobRunnerQueueName :: Text
   }
 
+-- This runner is specialized to the meetings cleanup payload for now.
+-- If we add another cron job later, we can either reuse this helper with a
+-- shared payload type or factor out the common Arbiter setup first.
 runRecurringJobRunner ::
-  forall registry (payload :: Type).
+  forall registry.
   ( RegistryTables registry,
-    KnownSymbol (TableForPayload payload registry),
-    FromJSON payload,
-    ToJSON payload
+    KnownSymbol (TableForPayload MeetingsCleanupJob registry),
+    FromJSON MeetingsCleanupJob,
+    ToJSON MeetingsCleanupJob
   ) =>
   Proxy registry ->
-  RecurringJobRunnerConfig registry payload ->
-  (payload -> IO ()) ->
+  RecurringJobRunnerConfig registry ->
+  (MeetingsCleanupJob -> IO ()) ->
   IO (IO ())
 runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
   Log.info recurringJobRunnerLogger $
@@ -87,38 +91,28 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
       recurringJobRunnerArbiterConnStr
       recurringJobRunnerSchemaName
 
-  let enqueueNextRun :: UTCTime -> IO ()
-      enqueueNextRun scheduledFor =
-        void $
-          ArbiterHasql.runHasqlDb arbiterEnv $
-            recurringJobRunnerEnqueueAt scheduledFor
-
-      enqueueIfScheduled :: UTCTime -> IO Bool
-      enqueueIfScheduled now = case nextMatch recurringJobRunnerSchedule now of
-        Nothing -> do
-          Log.warn recurringJobRunnerLogger $
-            Log.msg (Log.val "Scheduled job will not be enqueued")
-              . Log.field "job_name" recurringJobRunnerJobName
-              . Log.field "queue_name" recurringJobRunnerQueueName
-          pure False
-        Just nextRun -> do
-          Log.info recurringJobRunnerLogger $
-            Log.msg (Log.val "Enqueuing scheduled job")
-              . Log.field "job_name" recurringJobRunnerJobName
-              . Log.field "queue_name" recurringJobRunnerQueueName
-              . Log.field "scheduled_for" (show nextRun)
-          enqueueNextRun nextRun
-          pure True
-
-      workerHandler _conn job =
+  let workerHandler _conn job =
         liftIO $ do
           Log.info recurringJobRunnerLogger $
             Log.msg (Log.val "Running scheduled job")
               . Log.field "job_name" recurringJobRunnerJobName
               . Log.field "queue_name" recurringJobRunnerQueueName
           runJob (ArbiterCore.payload job)
-          now <- getCurrentTime
-          void $ enqueueIfScheduled now
+
+      cronJob =
+        case
+          ArbiterWorkerCron.cronJob
+            recurringJobRunnerJobName
+            (serializeCronSchedule recurringJobRunnerSchedule)
+            ArbiterWorkerCron.SkipOverlap
+            (\_ scheduledFor ->
+               (ArbiterCore.defaultGroupedJob recurringJobRunnerQueueName MeetingsCleanupJob)
+                 { ArbiterCore.notVisibleUntil = Just scheduledFor
+                 }
+            )
+        of
+          Left err -> error $ "Invalid cron schedule for " <> T.unpack recurringJobRunnerJobName <> ": " <> err
+          Right job -> job
 
   void $
     ArbiterMigrations.runMigrationsForRegistry
@@ -135,21 +129,22 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
         IO
           ( ArbiterWorker.WorkerConfig
               (ArbiterHasql.HasqlDb registry IO)
-              payload
+              MeetingsCleanupJob
               ()
           )
     )
-
-  now <- getCurrentTime
-  void $ enqueueIfScheduled now
+  let workerConfig' =
+        workerConfig
+          { ArbiterWorkerConfig.cronJobs = [cronJob]
+          }
 
   workerAsync <-
     Async.async $
       ArbiterHasql.runHasqlDb arbiterEnv $
-        ArbiterWorker.runWorkerPool workerConfig
+        ArbiterWorker.runWorkerPool workerConfig'
 
   pure $ do
-    ArbiterWorker.shutdownWorker workerConfig
+    ArbiterWorker.shutdownWorker workerConfig'
     Async.cancel workerAsync
 
 runOneOffJobRunner ::
