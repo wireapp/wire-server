@@ -57,6 +57,7 @@ hsuper: hself: {
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { };
   team-info = hself.callPackage ../tools/db/team-info/default.nix { };
   entreprise-provisioning = hself.callPackage ../tools/entreprise-provisioning/default.nix { };
+  lint-openapi-regression = hself.callPackage ../tools/lint-openapi-regression/default.nix { };
   mlsstats = hself.callPackage ../tools/mlsstats/default.nix { };
   rabbitmq-consumer = hself.callPackage ../tools/rabbitmq-consumer/default.nix { };
   stern = hself.callPackage ../tools/stern/default.nix { };
