@@ -31,8 +31,8 @@
 , monad-control
 , postgresql-connection-string
 , prometheus-client
-, ram
 , QuickCheck
+, ram
 , retry
 , servant
 , servant-client
@@ -112,8 +112,8 @@ mkDerivation {
     QuickCheck
     string-conversions
     temporary
-    time-hourglass
     text
+    time-hourglass
   ];
   testToolDepends = [ hspec-discover ];
   description = "Extended versions of common modules";
