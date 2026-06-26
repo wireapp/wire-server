@@ -826,6 +826,17 @@ spar:
     # an email address of a team member.
     enableIdPByEmailDiscovery: false
 
+    # Optional SHA-1 certificate fingerprint allowlist for IdP descriptor
+    # certificates. Empty list (the default) disables the check. Any non-empty
+    # list enforces that every cert in an IdP descriptor  is present in this
+    # list (on create/update and on AuthnResponse). Entries are hex strings;
+    # canonical form is uppercase pairs separated by ':' (e.g. "AA:BB:CC:..."),
+    # but the parser accepts lowercase and omitted separators.
+    # Example:
+    # idpCertFingerprintAllowlist:
+    #   - "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
+    idpCertFingerprintAllowlist: []
+
     logLevel: Info
     logFormat: StructuredJSON
     logNetStrings: false

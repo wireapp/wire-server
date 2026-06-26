@@ -209,6 +209,7 @@ library
     Test.Services
     Test.Shape
     Test.Spar
+    Test.Spar.CertFingerprintAllowlist
     Test.Spar.GetByEmail
     Test.Spar.MultiIngressIdp
     Test.Spar.MultiIngressSSO

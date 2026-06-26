@@ -1321,6 +1321,50 @@ is rate limited as `reqs_per_addr_sso_get_by_email` zone. Details can be
 configured in `nginz`'s Helm chart in the
 `nginx_conf.user_rate_limit_request_zones` list.
 
+#### IdP certificate fingerprint allowlist
+
+This optional feature restricts which X.509 certificates can be used in IdP
+metadata. When configured, all certificates in IdP descriptors must have a
+SHA-1 fingerprint present in the allowlist, or IdP creation/update and SAML
+AuthnResponse (`/sso/finalize-login`) requests will be rejected.
+
+This limits team admins in their choice of IdPs. E.g. a malicious team admin
+couldn't provision bad IdPs, as possible IdP certificates are restricted by the
+allowlist.
+
+The feature is disabled by default in Helm (the attribute can be left out as well):
+
+```yaml
+config:
+  spar:
+...
+    idpCertFingerprintAllowlist: []
+```
+
+Example with certificate fingerprints:
+
+```yaml
+config:
+  spar:
+...
+    idpCertFingerprintAllowlist:
+      - "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
+      - "F4:A2:73:D7:B7:2E:EA:66:E1:CB:81:E9:58:BC:1A:E9:CF:3C:95:C4"
+```
+
+The allowlist is a JSON/YAML array of SHA-1 fingerprints as hex strings. Entries
+can be in any of these formats (all parse to the same value):
+
+- Uppercase with colons: `AA:BB:CC:DD:...`
+- Lowercase with colons: `aa:bb:cc:dd:...`
+- No separators: `AABBCCDD...` or `aabbccdd...`
+- Mixed case with optional colons/whitespace: `__AA:bb:CC:dd_`
+
+All formats must be exactly 40 hex digits (20 bytes).
+
+Invalid hex or wrong length (anything not exactly 20 bytes / 40 hex digits) causes
+the configuration to fail at startup with a clear error message.
+
 ### SCIM
 
 In Helm:

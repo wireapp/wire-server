@@ -31,6 +31,7 @@
 , monad-control
 , postgresql-connection-string
 , prometheus-client
+, QuickCheck
 , ram
 , retry
 , servant
@@ -108,8 +109,10 @@ mkDerivation {
     crypton-x509
     hspec
     imports
+    QuickCheck
     string-conversions
     temporary
+    text
     time-hourglass
   ];
   testToolDepends = [ hspec-discover ];

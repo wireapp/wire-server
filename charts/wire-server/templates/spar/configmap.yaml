@@ -38,6 +38,8 @@ data:
 
     enableIdPByEmailDiscovery: {{ .enableIdPByEmailDiscovery }}
 
+    idpCertFingerprintAllowlist: {{ toJson .idpCertFingerprintAllowlist }}
+
     disabledAPIVersions: {{ toJson .disabledAPIVersions }}
 
     saml:

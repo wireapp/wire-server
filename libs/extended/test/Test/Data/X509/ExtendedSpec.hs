@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Test.Data.X509.ExtendedSpec where
 
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
@@ -8,25 +10,37 @@ import Data.ByteString qualified as BS
 import Data.Hourglass
 import Data.Hourglass.Const
 import Data.PEM
-import Data.String.Conversions
+import Data.Text qualified as T
 import Data.X509
 import Data.X509.Extended
 import Imports
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (Gen, elements, forAll, vectorOf)
+
+svenTestPemPath :: FilePath
+svenTestPemPath = "test/data/sven-test.pem"
+
+svenTestFingerprint :: String
+svenTestFingerprint = "F4:A2:73:D7:B7:2E:EA:66:E1:CB:81:E9:58:BC:1A:E9:CF:3C:95:C4"
+
+testCertPemPath :: FilePath
+testCertPemPath = "test/data/test-cert.pem"
+
+testCertFingerprint :: String
+testCertFingerprint = "15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
 
 spec :: Spec
 spec =
   describe "Data.X509.Extended" $ do
     describe "certToString" $ do
       it "should render a representative string of a certificate from stars' Keycloak" $ do
-        let pemFilePath = "test/data/" <> "sven-test.pem"
-            expected = "Issuer: CN=sven-test; Subject: CN=sven-test; SHA1 Fingerprint: F4:A2:73:D7:B7:2E:EA:66:E1:CB:81:E9:58:BC:1A:E9:CF:3C:95:C4"
-        checkDecodingWithPEMFile pemFilePath expected
+        let expected = "Issuer: CN=sven-test; Subject: CN=sven-test; SHA1 Fingerprint: " <> svenTestFingerprint
+        checkDecodingWithPEMFile svenTestPemPath expected
 
       it "should render a representative string of a certificate from unit test data (saml2-web-sso)" $ do
-        let pemFilePath = "test/data/" <> "test-cert.pem"
-            expected = "Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: 15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37"
-        checkDecodingWithPEMFile pemFilePath expected
+        let expected = "Issuer: CN=accounts.accesscontrol.windows.net; Subject: CN=accounts.accesscontrol.windows.net; SHA1 Fingerprint: " <> testCertFingerprint
+        checkDecodingWithPEMFile testCertPemPath expected
 
       it "should handle empty issuer and subject" $ do
         let dn = DistinguishedName []
@@ -57,26 +71,24 @@ spec =
 
     describe "certDescription" $ do
       it "should extract certificate description from stars' Keycloak certificate" $ do
-        let pemFilePath = "test/data/" <> "sven-test.pem"
-            expected =
+        let expected =
               CertDescription
                 { fingerprintAlgorithm = "SHA1",
-                  fingerprint = "F4:A2:73:D7:B7:2E:EA:66:E1:CB:81:E9:58:BC:1A:E9:CF:3C:95:C4",
+                  fingerprint = svenTestFingerprint,
                   subject = "CN=sven-test",
                   issuer = "CN=sven-test"
                 }
-        checkCertDescriptionWithPEMFile pemFilePath expected
+        checkCertDescriptionWithPEMFile svenTestPemPath expected
 
       it "should extract certificate description from unit test data (saml2-web-sso)" $ do
-        let pemFilePath = "test/data/" <> "test-cert.pem"
-            expected =
+        let expected =
               CertDescription
                 { fingerprintAlgorithm = "SHA1",
-                  fingerprint = "15:28:A6:B8:5A:C5:36:80:B4:B0:95:C6:9A:FD:77:9C:D6:5C:78:37",
+                  fingerprint = testCertFingerprint,
                   subject = "CN=accounts.accesscontrol.windows.net",
                   issuer = "CN=accounts.accesscontrol.windows.net"
                 }
-        checkCertDescriptionWithPEMFile pemFilePath expected
+        checkCertDescriptionWithPEMFile testCertPemPath expected
 
       it "should handle empty issuer and subject" $ do
         let dn = DistinguishedName []
@@ -109,6 +121,74 @@ spec =
         desc.issuer `shouldBe` "CN=Wire Root CA,O=Wire Swiss GmbH,OU=Engineering,Country=CH,Email Address=ca@wire.com"
         desc.subject `shouldBe` "CN=api.wire.com,O=Wire Germany GmbH,OU=Backend Services,Country=DE,Email Address=admin@wire.com"
 
+    svenTestCert <- runIO (loadSignedCertificate svenTestPemPath)
+    let svenTestFingerprintText = T.pack svenTestFingerprint
+        rejects t = parseFingerprintHex t `shouldSatisfy` isLeft
+
+    describe "renderFingerprintHex" $
+      it "renders the canonical AA:BB:.. form" $
+        renderFingerprintHex (certSha1Fingerprint svenTestCert) `shouldBe` svenTestFingerprintText
+
+    describe "certSha1Fingerprint" $ do
+      it "produces exactly 20 raw bytes" $
+        BS.length (unFingerprint (certSha1Fingerprint svenTestCert)) `shouldBe` 20
+
+      it "produces the expected SHA1 bytes for the sven-test cert" $ do
+        let Right expected = parseFingerprintHex svenTestFingerprintText
+        certSha1Fingerprint svenTestCert `shouldBe` expected
+
+    describe "parseFingerprintHex" $ do
+      it "accepts the canonical AA:BB:.. form" $
+        fmap renderFingerprintHex (parseFingerprintHex svenTestFingerprintText) `shouldBe` Right svenTestFingerprintText
+
+      it "accepts the lowercase no-separator form" $
+        fmap
+          renderFingerprintHex
+          (parseFingerprintHex "f4a273d7b72eea66e1cb81e958bc1ae9cf3c95c4")
+          `shouldBe` Right svenTestFingerprintText
+
+      prop "ignores arbitrary whitespace padding on both sides" $
+        forAll
+          ( do
+              nL <- elements [0 .. 20]
+              nR <- elements [0 .. 20]
+              leftPad <- T.pack <$> vectorOf nL wsChar
+              rightPad <- T.pack <$> vectorOf nR wsChar
+              hex <- T.pack <$> vectorOf 40 hexChar
+              pure (leftPad, hex, rightPad)
+          )
+          ( \(leftPad, hex, rightPad) ->
+              parseFingerprintHex (leftPad <> hex <> rightPad) `shouldBe` parseFingerprintHex hex
+          )
+
+      it "rejects an empty string" $
+        rejects ""
+
+      prop "rejects hex strings of length /= 40" $
+        forAll
+          ( do
+              n <- elements [n | n <- [0 .. 99], n /= 40]
+              T.pack <$> vectorOf n hexChar
+          )
+          rejects
+
+      prop "rejects a 40-char string with one non-hex / non-separator character" $
+        -- 39 hex + 1 bad char = total 40, so any rejection is due to the bad
+        -- char, not wrong length.
+        forAll
+          ( do
+              hexPart <- vectorOf 39 hexChar
+              bad <- elements ("ghijklmnopqrstuvwxyzGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+-=[]{}<>?/.|" :: String)
+              pos <- elements [0 .. 39]
+              let (a, b) = splitAt pos hexPart
+              pure $ T.pack (a ++ [bad] ++ b)
+          )
+          rejects
+
+      it "round-trips with renderFingerprintHex on a real certificate" $
+        let fp = certSha1Fingerprint svenTestCert
+         in parseFingerprintHex (renderFingerprintHex fp) `shouldBe` Right fp
+
 checkDecodingWithPEMFile :: FilePath -> String -> IO ()
 checkDecodingWithPEMFile pemFilePath expected = do
   cert <- loadSignedCertificate pemFilePath
@@ -119,6 +199,12 @@ checkCertDescriptionWithPEMFile pemFilePath expected = do
   cert <- loadSignedCertificate pemFilePath
   certDescription cert `shouldBe` expected
 
+hexChar :: Gen Char
+hexChar = elements (['0' .. '9'] ++ ['a' .. 'f'] ++ ['A' .. 'F'])
+
+wsChar :: Gen Char
+wsChar = elements " \t\n\r\v\f"
+
 -- | Load and decode a SignedCertificate from a PEM file
 loadSignedCertificate :: FilePath -> IO SignedCertificate
 loadSignedCertificate pemFilePath = do
@@ -127,7 +213,7 @@ loadSignedCertificate pemFilePath = do
   exists `shouldBe` True
 
   file <- BS.readFile pemFilePath
-  pure . either error id $ do
+  either error pure $ do
     pemBS <- pemContent . fromMaybe (error "Empty PEM list") . listToMaybe <$> pemParseBS file
     decodeSignedCertificate pemBS
 

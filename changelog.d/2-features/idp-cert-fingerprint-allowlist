@@ -1,0 +1,4 @@
+Add `idpCertFingerprintAllowlist` configuration to restrict IdP certificates by
+fingerprint. This setting only changes the behaviour of wire-server if
+configured. So, no e.g. migration or action is required as long as this feature
+is not intended to be used.

@@ -204,8 +204,10 @@ test-suite extended-tests
     , extended
     , hspec
     , imports
+    , QuickCheck
     , string-conversions
     , temporary
+    , text
     , time-hourglass
 
   default-language:   GHC2021
