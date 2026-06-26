@@ -43,6 +43,7 @@ module Wire.ConversationSubsystem.Update
     updateLocalStateOfRemoteConv,
     updateCellsState,
     adminlessAutopromoteOrDelete,
+    adminlessAutopromoteOrSendReminder,
 
     -- * Managing Members
     addQualifiedMembersUnqualified,
@@ -1226,9 +1227,64 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
         scheduleReminder now tid feature.config.deletionTimeout
 
     scheduleReminder now tid deletionTimeout reminderTimeout = do
-      when (reminderTimeout < deletionTimeout) do
+      when (reminderTimeout < deletionTimeout) $ do
         let reminderAt = addUTCTime (fromIntegral (deletionTimeout - reminderTimeout) * nominalDay) now
-        void $ scheduleAdminlessReminderJob lusr tid (qUnqualified (tUntagged lcnv)) reminderAt
+        void $ scheduleAdminlessReminderJob lusr tid (qUnqualified (tUntagged lcnv)) (fromIntegral reminderTimeout) reminderAt
+
+onAdminless ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member BrigAPIAccess r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  Local ConvId ->
+  (StoredConversation -> LockableFeature PreventAdminlessGroupsConfig -> [(Qualified UserId, User.Name)] -> Sem r ()) ->
+  Sem r ()
+onAdminless lcnv action = do
+  conv <- getConversationWithError lcnv
+  for_ conv.metadata.cnvmTeam $ \tid -> do
+    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
+    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
+      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
+      action conv feature eligibleMembers
+
+adminlessTryAutopromote ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member BrigAPIAccess r,
+    Member Random r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  Local UserId ->
+  Local ConvId ->
+  (StoredConversation -> Sem r ()) ->
+  Sem r ()
+adminlessTryAutopromote lusr lcnv altAction = do
+  onAdminless lcnv $ \conv feature eligibleMembers -> do
+    case eligibleMembers of
+      x : xs -> do
+        seed <- randomWord64
+        let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
+            update = (OtherMemberUpdate (Just roleNameWireAdmin))
+        for_ autopromotionCandidates $ \candidate -> do
+          E.setOtherMember lcnv candidate update
+        void $
+          sendConversationActionNotifications
+            (sing @'ConversationMemberUpdateTag)
+            (tUntagged lusr)
+            False
+            Nothing
+            (qualifyAs lcnv conv)
+            (convBotsAndMembers conv)
+            (ConversationMemberUpdate (tUntagged lusr) update)
+            def
+      [] -> altAction conv
 
 adminlessAutopromoteOrDelete ::
   ( Member ConversationStore r,
@@ -1247,44 +1303,51 @@ adminlessAutopromoteOrDelete ::
   Local UserId ->
   Local ConvId ->
   Sem r ()
-adminlessAutopromoteOrDelete lusr lcnv = do
-  -- the local user is probably not a conversation member, it could be e.g. the user that had previously left
-  conv <- getConversationWithError lcnv
-  for_ conv.metadata.cnvmTeam $ \tid -> do
-    (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
-    let adminExists = any (\member -> member.convRoleName == roleNameWireAdmin) conv.localMembers || any (\member -> member.convRoleName == roleNameWireAdmin) conv.remoteMembers
-    when (feature.status == FeatureStatusEnabled && not adminExists) $ do
-      eligibleMembers <- eligibleAdminFallbackMembers lcnv Nothing conv
-      case eligibleMembers of
-        x : xs -> do
-          seed <- randomWord64
-          let autopromotionCandidates = selectAutopromotionCandidate seed feature.config.promotionStrategy (x :| xs)
-              update = (OtherMemberUpdate (Just roleNameWireAdmin))
-          for_ autopromotionCandidates $ \candidate -> do
-            E.setOtherMember lcnv candidate update
-          void $
-            sendConversationActionNotifications
-              (sing @'ConversationMemberUpdateTag)
-              (tUntagged lusr)
-              False
-              Nothing
-              (qualifyAs lcnv conv)
-              (convBotsAndMembers conv)
-              (ConversationMemberUpdate (tUntagged lusr) update)
-              def
-        [] -> do 
-          removeConversation (qualifyAs lcnv conv)
-          void $
-            sendConversationActionNotifications
-              (sing @'ConversationDeleteTag)
-              (tUntagged lusr)
-              False
-              Nothing
-              (qualifyAs lcnv conv)
-              (convBotsAndMembers conv)
-              ()
-              def
+adminlessAutopromoteOrDelete lusr lcnv = adminlessTryAutopromote lusr lcnv orAlternativelyDeleteConv
+  where
+    orAlternativelyDeleteConv conv = do
+      removeConversation (qualifyAs lcnv conv)
+      void $
+        sendConversationActionNotifications
+          (sing @'ConversationDeleteTag)
+          (tUntagged lusr)
+          False
+          Nothing
+          (qualifyAs lcnv conv)
+          (convBotsAndMembers conv)
+          ()
+          def
 
+adminlessAutopromoteOrSendReminder ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member BrigAPIAccess r,
+    Member Random r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member FeaturesConfigSubsystem r
+  ) =>
+  Local UserId ->
+  Local ConvId ->
+  Int ->
+  Sem r ()
+adminlessAutopromoteOrSendReminder lusr lcnv daysUntilDeletion = adminlessTryAutopromote lusr lcnv orAlternativelySendReminder
+  where
+    orAlternativelySendReminder _ = do
+      conv <- getConversationWithError lcnv
+      now <- Now.get
+      let event =
+            Event
+              (tUntagged lcnv)
+              Nothing
+              (EventFromUser (tUntagged lusr))
+              now
+              (conv.metadata.cnvmTeam)
+              (EdAdminlessReminder (AdminlessReminder daysUntilDeletion))
+      pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
 
 -- Use eight random bytes and fold them into a big-endian Word64. This keeps
 -- the helper small, deterministic under tests, and free of extra Random API.

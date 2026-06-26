@@ -75,6 +75,7 @@ testIsCellsConversationEvent =
         ConvReset -> isCellsConversationEvent e === False
         ConvMessageTimerUpdate -> isCellsConversationEvent e === False
         ConvHistoryUpdate -> isCellsConversationEvent e === False
+        ConvAdminlessReminder -> isCellsConversationEvent e === False
         ConvReceiptModeUpdate -> isCellsConversationEvent e === False
         ConvRename -> isCellsConversationEvent e === True
         MemberJoin -> isCellsConversationEvent e === True

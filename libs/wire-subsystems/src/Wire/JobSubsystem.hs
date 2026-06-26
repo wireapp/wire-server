@@ -59,7 +59,7 @@ data JobWorkerHandlers = JobWorkerHandlers
 
 data JobSubsystem m a where
   ScheduleAdminlessDeletionJob :: Local UserId -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ScheduledJob
-  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ScheduledJob
+  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> Int -> UTCTime -> JobSubsystem m ScheduledJob
   StartJobWorkers :: JobWorkersConfig -> JobWorkerHandlers -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem

@@ -57,7 +57,7 @@ interpretJobSubsystem conf =
   interpret
     \case
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
-      ScheduleAdminlessReminderJob lusr tid cid scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid scheduledFor
+      ScheduleAdminlessReminderJob lusr tid cid daysUntilDeletion scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid daysUntilDeletion scheduledFor
       StartJobWorkers cfg handlers -> embed $ runJobWorkers cfg handlers
 
 scheduleAdminlessDeletionJob ::
@@ -104,9 +104,10 @@ scheduleAdminlessReminderJob ::
   Local UserId ->
   TeamId ->
   ConvId ->
+  Int ->
   UTCTime ->
   Sem r ScheduledJob
-scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId scheduledFor = do
+scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUntilDeletion scheduledFor = do
   arbiterEnv <-
     embed $
       ArbiterHasql.createHasqlEnv
@@ -123,7 +124,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId schedule
             scheduledJobScheduledFor = scheduledFor
           }
       arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr)))
+        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) daysUntilDeletion))
           { ArbiterCore.notVisibleUntil = Just scheduledFor
           }
   JobStore.createJob job

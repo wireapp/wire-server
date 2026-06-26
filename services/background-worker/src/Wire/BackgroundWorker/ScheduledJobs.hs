@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-
 {-# LANGUAGE TypeFamilies #-}
 
 -- This file is part of the Wire Server implementation.
@@ -53,7 +52,7 @@ startWorker config = do
                 runAdminlessDeletionJob extEnv job,
             adminlessReminderJobRunnerRunJob = \job ->
               runAppT env $
-                runAdminlessReminderJob job
+                runAdminlessReminderJob extEnv job
           }
       workersConfig =
         JobWorkersConfig

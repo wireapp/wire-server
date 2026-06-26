@@ -71,6 +71,7 @@ module Wire.API.Event.Conversation
     MemberUpdateData (..),
     OtrMessage (..),
     ConversationReset (..),
+    AdminlessReminder (..),
 
     -- * re-exports
     ConversationReceiptModeUpdate (..),
@@ -200,6 +201,7 @@ data EventType
   | MeetingCreate
   | MeetingUpdate
   | MeetingDelete
+  | ConvAdminlessReminder
   deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
@@ -260,6 +262,7 @@ data EventData
   | EdMeetingCreate (Qualified MeetingId)
   | EdMeetingUpdate (Qualified MeetingId)
   | EdMeetingDelete (Qualified MeetingId)
+  | EdAdminlessReminder AdminlessReminder
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -288,6 +291,7 @@ genEventData = \case
   MeetingCreate -> EdMeetingCreate <$> arbitrary
   MeetingUpdate -> EdMeetingUpdate <$> arbitrary
   MeetingDelete -> EdMeetingDelete <$> arbitrary
+  ConvAdminlessReminder -> EdAdminlessReminder <$> arbitrary
 
 eventDataType :: EventData -> EventType
 eventDataType (EdMembersJoin _) = MemberJoin
@@ -314,6 +318,7 @@ eventDataType (EdConvHistoryUpdate _) = ConvHistoryUpdate
 eventDataType (EdMeetingCreate _) = MeetingCreate
 eventDataType (EdMeetingUpdate _) = MeetingUpdate
 eventDataType (EdMeetingDelete _) = MeetingDelete
+eventDataType (EdAdminlessReminder _) = ConvAdminlessReminder
 
 createConversationEventData ::
   OwnConversation GroupConvType -> EventData
@@ -348,6 +353,7 @@ isCellsConversationEvent eventType =
     MeetingCreate -> False
     MeetingUpdate -> False
     MeetingDelete -> False
+    ConvAdminlessReminder -> False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -515,6 +521,19 @@ instance ToSchema ConversationReset where
         <$> (.groupId) .= field "group_id" schema
         <*> (.newGroupId) .= maybe_ (optField "new_group_id" schema)
 
+data AdminlessReminder = AdminlessReminder
+  { daysUntilDeletion :: Int
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AdminlessReminder)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AdminlessReminder
+
+instance ToSchema AdminlessReminder where
+  schema =
+    object $
+      AdminlessReminder
+        <$> (.daysUntilDeletion) .= field "days_until_deletion" schema
+
 makePrisms ''EventData
 
 taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
@@ -554,6 +573,7 @@ taggedEventDataSchema =
       MeetingCreate -> tag _EdMeetingCreate (unnamed schema)
       MeetingUpdate -> tag _EdMeetingUpdate (unnamed schema)
       MeetingDelete -> tag _EdMeetingDelete (unnamed schema)
+      ConvAdminlessReminder -> tag _EdAdminlessReminder (unnamed schema)
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =

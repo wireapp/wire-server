@@ -51,7 +51,7 @@ module Wire.ConversationSubsystem.Action
     addLocalUsersToRemoteConv,
     ConversationUpdate,
     ensureAllowed,
-    removeConversation 
+    removeConversation,
   )
 where
 
@@ -116,13 +116,13 @@ import Wire.BrigAPIAccess qualified as E
 import Wire.CodeStore
 import Wire.CodeStore qualified as E
 import Wire.CodeStore.Code (CodeReferent (..))
+import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action.Kick
 import Wire.ConversationSubsystem.Action.Leave
 import Wire.ConversationSubsystem.Action.Notify
 import Wire.ConversationSubsystem.Action.Reset
 import Wire.ConversationSubsystem.MLS.Conversation
-import Wire.ConversationStore (ConversationStore)
 import Wire.ConversationSubsystem.MLS.Migration
 import Wire.ConversationSubsystem.MLS.Removal
 import Wire.ConversationSubsystem.Util

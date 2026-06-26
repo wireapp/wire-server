@@ -345,6 +345,11 @@ data ConversationSubsystem m a where
     Local UserId ->
     Local ConvId ->
     ConversationSubsystem m ()
+  InternalNotifyAdminlessReminder ::
+    Local UserId ->
+    Local ConvId ->
+    Int ->
+    ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))

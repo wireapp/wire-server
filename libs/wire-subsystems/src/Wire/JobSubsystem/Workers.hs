@@ -100,17 +100,15 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
           runJob (ArbiterCore.payload job)
 
       cronJob =
-        case
-          ArbiterWorkerCron.cronJob
-            recurringJobRunnerJobName
-            (serializeCronSchedule recurringJobRunnerSchedule)
-            ArbiterWorkerCron.SkipOverlap
-            (\_ scheduledFor ->
-               (ArbiterCore.defaultGroupedJob recurringJobRunnerQueueName MeetingsCleanupJob)
-                 { ArbiterCore.notVisibleUntil = Just scheduledFor
-                 }
-            )
-        of
+        case ArbiterWorkerCron.cronJob
+          recurringJobRunnerJobName
+          (serializeCronSchedule recurringJobRunnerSchedule)
+          ArbiterWorkerCron.SkipOverlap
+          ( \_ scheduledFor ->
+              (ArbiterCore.defaultGroupedJob recurringJobRunnerQueueName MeetingsCleanupJob)
+                { ArbiterCore.notVisibleUntil = Just scheduledFor
+                }
+          ) of
           Left err -> error $ "Invalid cron schedule for " <> T.unpack recurringJobRunnerJobName <> ": " <> err
           Right job -> job
 

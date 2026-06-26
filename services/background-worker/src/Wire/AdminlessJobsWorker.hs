@@ -46,10 +46,19 @@ runAdminlessDeletionJob extEnv job = do
         internalDeleteLocalAdminlessGroup (loc job.adminlessDeletionJobOrigUserId) (loc job.adminlessDeletionJobConversationId)
   either (liftIO . fail . show) pure result
 
-runAdminlessReminderJob :: AdminlessReminderJob -> AppT IO ()
-runAdminlessReminderJob job = do
+runAdminlessReminderJob :: ExtEnv -> AdminlessReminderJob -> AppT IO ()
+runAdminlessReminderJob extEnv job = do
   env <- ask
   Log.info env.logger $
     Log.msg (Log.val "Running adminless reminder job")
       . Log.field "team_id" (show (adminlessReminderJobTeamId job))
       . Log.field "conversation_id" (show (adminlessReminderJobConversationId job))
+      . Log.field "days_until_deletion" (show (adminlessReminderJobDaysUntilDeletion job))
+  result <-
+    liftIO $
+      runBackgroundWorkerEffects env extEnv (RequestId "adminless-reminder") Nothing $
+        internalNotifyAdminlessReminder
+          (toLocalUnsafe env.federationDomain job.adminlessReminderJobOrigUserId)
+          (toLocalUnsafe env.federationDomain job.adminlessReminderJobConversationId)
+          job.adminlessReminderJobDaysUntilDeletion
+  either (liftIO . fail . show) pure result

@@ -55,6 +55,9 @@ instance FromJSON MeetingsCleanupJob where
   parseJSON _ = fail "MeetingsCleanupJob expects null"
 
 -- | Payload for adminless deletions.
+-- Keep the JSON encoding backwards compatible. The jobs API reads these payloads
+-- back from Arbiter, so changing field names or shapes without a migration will
+-- break job listing and management.
 data AdminlessDeletionJob = AdminlessDeletionJob
   { adminlessDeletionJobTeamId :: TeamId,
     adminlessDeletionJobConversationId :: ConvId,
@@ -72,10 +75,14 @@ instance ToSchema AdminlessDeletionJob where
         <*> (.adminlessDeletionJobOrigUserId) .= field "orig_user_id" schema
 
 -- | Payload for adminless reminders.
+-- Keep the JSON encoding backwards compatible. The jobs API reads these payloads
+-- back from Arbiter, so changing field names or shapes without a migration will
+-- break job listing and management.
 data AdminlessReminderJob = AdminlessReminderJob
   { adminlessReminderJobTeamId :: TeamId,
     adminlessReminderJobConversationId :: ConvId,
-    adminlessReminderJobOrigUserId :: UserId
+    adminlessReminderJobOrigUserId :: UserId,
+    adminlessReminderJobDaysUntilDeletion :: Int
   }
   deriving stock (Eq, Generic, Show)
   deriving (ToJSON, FromJSON) via (Schema AdminlessReminderJob)
@@ -87,6 +94,7 @@ instance ToSchema AdminlessReminderJob where
         <$> (.adminlessReminderJobTeamId) .= field "team_id" schema
         <*> (.adminlessReminderJobConversationId) .= field "conversation_id" schema
         <*> (.adminlessReminderJobOrigUserId) .= field "orig_user_id" schema
+        <*> (.adminlessReminderJobDaysUntilDeletion) .= field "days_until_deletion" schema
 
 -- | The generic scheduled-job families we currently need to persist.
 data ScheduledJobKind
