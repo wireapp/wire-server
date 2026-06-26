@@ -20,6 +20,8 @@ module Test.AdminlessGroups where
 import API.Brig
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
+import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime, nominalDay)
+import Data.Time.Format.ISO8601 (iso8601ParseM)
 import MLS.Util
 import SetupHelpers hiding (deleteUser)
 import Testlib.Prelude
@@ -100,19 +102,91 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
   (alice, tid, _) <- createTeam OwnDomain 1
 
   setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
-  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
+  patchTeamFeature
+    OwnDomain
+    tid
+    "preventAdminlessGroups"
+    ( object
+        [ "status" .= "enabled",
+          "config"
+            .= object
+              [ "deletionTimeout" .= (1 :: Int),
+                "reminderTimeouts" .= ([0] :: [Int]),
+                "promotionStrategy" .= "random"
+              ]
+        ]
+    )
+    >>= assertSuccess
 
   alice1 <- createMLSClient def alice
   void $ uploadNewKeyPackage def alice1
 
   conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
+  convIdText <- conv %. "qualified_id.id" & asString
   createGroup def alice1 convId
   void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+
+  now <- liftIO getCurrentTime
 
   -- alice leaves the conversation, no error, group will be marked for deletion
   bindResponse (removeMember alice conv alice) $ \resp -> do
     resp.status `shouldMatchInt` 200
+
+  deletionJobs <- listArbiterJobs alice "adminless_deletion_jobs" >>= getJSON 200
+  deletionJobs %. "jobs"
+    & asList >>= \jobs -> do
+      jobInfo <- forM jobs $ \job -> do
+        jobTeamId <- job %. "payload.team_id" & asString
+        jobConversationId <- job %. "payload.conversation_id" & asString
+        notVisibleUntil <- job %. "notVisibleUntil" & asString
+        pure (job, jobTeamId, jobConversationId, notVisibleUntil)
+      let matchingJobs = [job | (job, jobTeamId, jobConversationId, _) <- jobInfo, jobTeamId == tid && jobConversationId == convIdText]
+      assertBool
+        ( "expected one deletion job for team "
+            <> show tid
+            <> " and conversation "
+            <> convIdText
+            <> ", but saw: "
+            <> show [(team, conversation, visibleUntil) | (_, team, conversation, visibleUntil) <- jobInfo]
+        )
+        (length matchingJobs == 1)
+      [job] <- pure matchingJobs
+      assertJobTimeout now (1 :: Int) job
+
+  reminderJobs <- listArbiterJobs alice "adminless_reminder_jobs" >>= getJSON 200
+  reminderJobs %. "jobs"
+    & asList >>= \jobs -> do
+      jobInfo <- forM jobs $ \job -> do
+        jobTeamId <- job %. "payload.team_id" & asString
+        jobConversationId <- job %. "payload.conversation_id" & asString
+        notVisibleUntil <- job %. "notVisibleUntil" & asString
+        pure (job, jobTeamId, jobConversationId, notVisibleUntil)
+      let matchingJobs = [job | (job, jobTeamId, jobConversationId, _) <- jobInfo, jobTeamId == tid && jobConversationId == convIdText]
+      assertBool
+        ( "expected one reminder job for team "
+            <> show tid
+            <> " and conversation "
+            <> convIdText
+            <> ", but saw: "
+            <> show [(team, conversation, visibleUntil) | (_, team, conversation, visibleUntil) <- jobInfo]
+        )
+        (length matchingJobs == 1)
+      [job] <- pure matchingJobs
+      assertJobTimeout now (1 :: Int) job
+  where
+    assertJobTimeout scheduledAt expectedDays job = do
+      notVisibleUntilStr <- job %. "notVisibleUntil" & asString
+      notVisibleUntil <- assertJust ("expected ISO 8601 timestamp, got: " <> notVisibleUntilStr) $ iso8601ParseM @Maybe @UTCTime notVisibleUntilStr
+      let expected = addUTCTime (fromIntegral expectedDays * nominalDay) scheduledAt
+          tolerance = 120 :: NominalDiffTime
+      assertBool
+        ("notVisibleUntil " <> show notVisibleUntil <> " is not within tolerance of expected " <> show expected)
+        (notVisibleUntil >= addUTCTime (negate tolerance) expected && notVisibleUntil <= addUTCTime tolerance expected)
+
+    listArbiterJobs user table = do
+      req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "jobs", "api", "v1", table, "jobs"]
+      submit "GET" $ req & addQueryParams [("limit", "100"), ("offset", "0")]
 
 testOnLastAdminLeaveFeatureDisabled :: (HasCallStack) => App ()
 testOnLastAdminLeaveFeatureDisabled = do

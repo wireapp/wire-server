@@ -217,6 +217,9 @@ isConvCreateNotifNotSelf n =
 isConvDeleteNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvDeleteNotif n = fieldEquals n "payload.0.type" "conversation.delete"
 
+isConvAdminlessReminderNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvAdminlessReminderNotif n = fieldEquals n "payload.0.type" "conversation.adminless-reminder"
+
 notifTypeIsEqual :: (HasCallStack, MakesValue a) => String -> a -> App Bool
 notifTypeIsEqual typ n = nPayload n %. "type" `isEqual` typ
 
