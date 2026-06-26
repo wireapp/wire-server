@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module Test.Data.X509.ExtendedSpec where
 
 import Crypto.Hash.Algorithms (SHA256 (SHA256))
@@ -132,7 +134,7 @@ spec =
         BS.length (unFingerprint (certSha1Fingerprint svenTestCert)) `shouldBe` 20
 
       it "produces the expected SHA1 bytes for the sven-test cert" $ do
-        let expected = either (error "invalid test fingerprint") id (parseFingerprintHex svenTestFingerprintText)
+        let Right expected = parseFingerprintHex svenTestFingerprintText
         certSha1Fingerprint svenTestCert `shouldBe` expected
 
     describe "parseFingerprintHex" $ do
@@ -211,7 +213,7 @@ loadSignedCertificate pemFilePath = do
   exists `shouldBe` True
 
   file <- BS.readFile pemFilePath
-  pure . either error id $ do
+  either error pure $ do
     pemBS <- pemContent . fromMaybe (error "Empty PEM list") . listToMaybe <$> pemParseBS file
     decodeSignedCertificate pemBS
 
