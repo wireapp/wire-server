@@ -236,7 +236,7 @@ See also: conference falling for personal accounts (below).
 
 ### Meetings
 
-The `meetings` feature flag controls whether a user can initiate a meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+The `meetings` feature flag controls whether a user can initiate a meetings. It is disabled and locked by default. If you want a different configuration, use the following syntax:
 
 ```yaml
 meetings:
