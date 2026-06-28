@@ -456,6 +456,7 @@ servantSitemap =
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH
         :<|> Named @"get-user-qualified" getUserProfileH
+        :<|> Named @"get-public-profile" getPublicProfileH
         :<|> Named @"update-user-email" updateUserEmail
         :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
@@ -644,6 +645,9 @@ servantSitemap =
         :<|> Named @"get-apps" getApps
         :<|> Named @"put-app" putApp
         :<|> Named @"refresh-app-cookie" refreshAppCookie
+
+getPublicProfileH :: (Member UserSubsystem r) => Handle -> Handler r (Maybe Public.PublicProfile)
+getPublicProfileH = lift . liftSem . User.getPublicProfile
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -1118,12 +1122,16 @@ updateUser ::
   Handler r ()
 updateUser uid conn uu = do
   let update =
-        def
+        MkUserProfileUpdate
           { name = uu.uupName,
             pict = uu.uupPict,
             textStatus = uu.uupTextStatus,
             assets = uu.uupAssets,
-            accentId = uu.uupAccentId
+            accentId = uu.uupAccentId,
+            bio = uu.uupBio,
+            links = uu.uupLinks,
+            locale = Nothing,
+            supportedProtocols = Nothing
           }
   lift . liftSem $
     updateUserProfile uid (Just conn) UpdateOriginWireClient update

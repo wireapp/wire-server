@@ -166,6 +166,7 @@ inMemoryUserStoreInterpreter = interpret $ \case
   DeleteServiceUser {} -> error "DeleteServiceUser: Not implemented"
   LookupServiceUsers {} -> error "lookupServiceUsers: Not implemented"
   LookupServiceUsersForTeam {} -> error "lookupServiceUsersForteam: Not implemented"
+  GetBio {} -> error "getBio: Not implemented"
 
 storedUserToIndexUser :: StoredUser -> IndexUser
 storedUserToIndexUser storedUser =

@@ -178,6 +178,14 @@ type UserAPI =
                :> GetUserVerb
            )
     :<|> Named
+           "get-public-profile"
+           ( Summary "Get a user's public profile"
+               :> "users"
+               :> "public"
+               :> Capture' '[Description "The user handle"] "handle" Handle
+               :> Get '[JSON] (Maybe PublicProfile)
+           )
+    :<|> Named
            "update-user-email"
            ( Summary "Resend email address validation email."
                :> Description "If the user has a pending email validation, the validation email will be resent."

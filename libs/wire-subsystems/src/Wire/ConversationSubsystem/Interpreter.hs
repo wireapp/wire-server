@@ -225,6 +225,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Query.getOwnConversation lusr qcnv
   GetConversation lusr qcnv ->
     mapErrors $ Query.getConversation lusr qcnv
+  GetConversationDescription lusr qcnv ->
+    mapErrors $ Query.getConversationDescription lusr qcnv
   InternalGetConversation cnv ->
     mapErrors $ ConvStore.getConversation cnv
   GetConversationRoles lusr cnv ->
@@ -283,6 +285,8 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.updateOtherMember lusr con qcnv quid update
   UpdateConversationName lusr zcon qcnv rename ->
     mapErrors $ Update.updateConversationName lusr zcon qcnv rename
+  UpdateConversationDescription lusr zcon qcnv description ->
+    mapErrors $ Update.updateConversationDescription lusr zcon qcnv description
   UpdateConversationMessageTimer lusr zcon qcnv update ->
     mapErrors $ Update.updateConversationMessageTimer lusr zcon qcnv update
   UpdateConversationReceiptMode lusr zcon qcnv update ->

@@ -90,6 +90,10 @@ module Wire.API.Conversation
     ExtraConversationData (..),
     ConversationHistoryUpdate (..),
 
+    -- * conversation description
+    ConversationDescription (..),
+    ConversationDescriptionUpdate (..),
+
     -- * re-exports
     module Wire.API.Conversation.Member,
     fromOwnConversation,
@@ -105,6 +109,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Json.Util (Base64ByteString (..))
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map qualified as Map
@@ -1337,6 +1342,44 @@ instance ToSchema ConversationHistoryUpdate where
     object $
       ConversationHistoryUpdate
         <$> (.history) .= field "history" schema
+
+data ConversationDescription = ConversationDescription
+  { descriptionVersion :: Int64,
+    descriptionCiphertext :: ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationDescription)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConversationDescription)
+
+instance ToSchema ConversationDescription where
+  schema =
+    object $
+      ConversationDescription
+        <$> descriptionVersion .= field "version" schema
+        <*> descriptionCiphertext
+          .= fieldWithDocModifier
+            "ciphertext"
+            (DS.description ?~ "Encrypted description payload, Base64 in JSON")
+            (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
+
+data ConversationDescriptionUpdate = ConversationDescriptionUpdate
+  { descriptionUpdateBaseVersion :: Int64,
+    descriptionUpdateCiphertext :: ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationDescriptionUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConversationDescriptionUpdate)
+
+instance ToSchema ConversationDescriptionUpdate where
+  schema =
+    object $
+      ConversationDescriptionUpdate
+        <$> descriptionUpdateBaseVersion .= field "base_version" schema
+        <*> descriptionUpdateCiphertext
+          .= fieldWithDocModifier
+            "ciphertext"
+            (DS.description ?~ "Encrypted description payload, Base64 in JSON")
+            (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

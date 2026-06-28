@@ -29,6 +29,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.Codensity
 import Control.Monad.Reader
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Text as T
 import GHC.Stack
 import MLS.Util
@@ -757,6 +758,70 @@ testConversationReceiptModeUpdate proto = do
   bindResponse (getConversation alice conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "receipt_mode" `shouldMatchInt` receiptMode
+
+testConversationDescriptionUpdate :: (HasCallStack) => App ()
+testConversationDescriptionUpdate = do
+  (owner, tid, [convMember, outsider]) <- createTeam OwnDomain 3
+  conv <-
+    postConversation
+      owner
+      (defProteus {team = Just tid, qualifiedUsers = [convMember], newUsersRole = "wire_member"})
+      >>= getJSON 201
+
+  let assertDescription :: (HasCallStack) => Response -> Int -> ByteString -> App ()
+      assertDescription resp version ciphertext = do
+        resp.status `shouldMatchInt` 200
+        resp.json %. "version" `shouldMatchInt` version
+        resp.json %. "ciphertext" `shouldMatchBase64` ciphertext
+
+      firstCiphertext = BS.pack "group description v1"
+      secondCiphertext = BS.pack "group description v2"
+
+  withWebSockets [owner, convMember] $ \[ownerWs, memberWs] -> do
+    bindResponse (updateConversationDescription owner conv (0 :: Int64) firstCiphertext) $ \resp ->
+      assertDescription resp 1 firstCiphertext
+
+    for_ [ownerWs, memberWs] $ \ws -> do
+      notif <- awaitMatch isConvDescriptionUpdateNotif ws
+      assertBool "notification should target the updated conversation" =<< isNotifConv conv notif
+      assertBool "notification should be emitted by the updating user" =<< isNotifFromUser owner notif
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject owner
+      notif %. "payload.0.data.version" `shouldMatchInt` 1
+      notif %. "payload.0.data.ciphertext" `shouldMatchBase64` firstCiphertext
+
+    bindResponse (getConversationDescription owner conv) $ \resp ->
+      assertDescription resp 1 firstCiphertext
+
+    bindResponse (getConversationDescription convMember conv) $ \resp ->
+      assertDescription resp 1 firstCiphertext
+
+    bindResponse (updateConversationDescription owner conv (1 :: Int64) secondCiphertext) $ \resp ->
+      assertDescription resp 2 secondCiphertext
+
+    for_ [ownerWs, memberWs] $ \ws -> do
+      notif <- awaitMatch isConvDescriptionUpdateNotif ws
+      assertBool "notification should target the updated conversation" =<< isNotifConv conv notif
+      assertBool "notification should be emitted by the updating user" =<< isNotifFromUser owner notif
+      notif %. "payload.0.qualified_conversation" `shouldMatch` objQidObject conv
+      notif %. "payload.0.qualified_from" `shouldMatch` objQidObject owner
+      notif %. "payload.0.data.version" `shouldMatchInt` 2
+      notif %. "payload.0.data.ciphertext" `shouldMatchBase64` secondCiphertext
+
+  bindResponse (getConversationDescription owner conv) $ \resp ->
+    assertDescription resp 2 secondCiphertext
+
+  bindResponse (updateConversationDescription owner conv (0 :: Int64) (BS.pack "stale update")) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "invalid-op"
+
+  bindResponse (updateConversationDescription convMember conv (2 :: Int64) (BS.pack "non-admin update")) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "access-denied"
+
+  bindResponse (getConversationDescription outsider conv) $ \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "access-denied"
 
 testReceiptModeWithRemotesOk :: (HasCallStack) => App ()
 testReceiptModeWithRemotesOk = do

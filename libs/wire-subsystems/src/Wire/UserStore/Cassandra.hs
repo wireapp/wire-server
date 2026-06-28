@@ -22,6 +22,7 @@ import Cassandra.Exec (prepared)
 import Control.Lens ((^.))
 import Data.Handle
 import Data.Id
+import Data.Range
 import Database.CQL.Protocol
 import Imports
 import Polysemy
@@ -79,6 +80,17 @@ interpretUserStoreCassandra casClient =
       DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
       LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStateCassandra =<< mPagingState)
       LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStateCassandra =<< mPagingState)
+      GetBio uid -> getBioImpl uid
+
+getBioImpl :: UserId -> Client (Maybe Bio)
+getBioImpl u = do
+  storedBio <-
+    (runIdentity =<<)
+      <$> (query1 selectBio (params LocalQuorum (Identity u)))
+  pure $ checked =<< storedBio
+  where
+    selectBio :: PrepQuery R (Identity UserId) (Identity (Maybe Text))
+    selectBio = "SELECT bio FROM user WHERE id = ?"
 
 createUserImpl :: NewStoredUser -> Maybe (ConvId, Maybe TeamId) -> Client ()
 createUserImpl new mbConv = retry x5 . batch $ do
@@ -182,6 +194,7 @@ updateUserImpl uid update =
     for_ update.locale \a -> addPrepQuery userLocaleUpdate (a.lLanguage, a.lCountry, uid)
     for_ update.accentId \c -> addPrepQuery userAccentIdUpdate (c, uid)
     for_ update.supportedProtocols \a -> addPrepQuery userSupportedProtocolsUpdate (a, uid)
+    for_ update.bio $ \b -> addPrepQuery userBioUpdate (fromRange b, uid)
 
 updateEmailImpl :: UserId -> EmailAddress -> Client ()
 updateEmailImpl u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
@@ -495,6 +508,9 @@ userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?"
 
 userSupportedProtocolsUpdate :: PrepQuery W (Imports.Set BaseProtocolTag, UserId) ()
 userSupportedProtocolsUpdate = "UPDATE user SET supported_protocols = ? WHERE id = ?"
+
+userBioUpdate :: PrepQuery W (Text, UserId) ()
+userBioUpdate = "UPDATE user SET bio = ? WHERE id = ?"
 
 handleInsert :: PrepQuery W (Handle, UserId) ()
 handleInsert = "INSERT INTO user_handle (handle, user) VALUES (?, ?)"

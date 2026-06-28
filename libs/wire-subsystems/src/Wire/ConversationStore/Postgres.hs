@@ -20,6 +20,7 @@
 module Wire.ConversationStore.Postgres (interpretConversationStoreToPostgres) where
 
 import Control.Monad.Trans.Maybe
+import Data.ByteString qualified as BS
 import Data.Domain
 import Data.Id
 import Data.Map qualified as Map
@@ -87,6 +88,9 @@ interpretConversationStoreToPostgres = interpret $ \case
   SetConversationHistory cid value -> setConversationHistoryImpl cid value
   SetConversationEpoch cid epoch -> setConversationEpochImpl cid epoch
   SetConversationCipherSuite cid cs -> setConversationCipherSuiteImpl cid cs
+  InsertConversationDescription cid description -> insertConversationDescriptionImpl cid description
+  GetConversationDescription cid -> getConversationDescriptionImpl cid
+  UpdateConversationDescription cid description -> updateConversationDescriptionImpl cid description
   SetConversationCellsState cid ps -> setConversationCellsStateImpl cid ps
   ResetConversation cid groupId -> resetConversationImpl cid groupId
   DeleteConversation cid -> deleteConversationImpl cid
@@ -518,6 +522,68 @@ setConversationCipherSuiteImpl convId cs =
         [resultlessStatement|UPDATE conversation
                              SET cipher_suite = ($2 :: integer)
                              WHERE id = ($1 :: uuid)|]
+
+insertConversationDescriptionImpl :: (PGConstraints r) => ConvId -> ConversationDescription -> Sem r (Maybe ConversationDescription)
+insertConversationDescriptionImpl convId ConversationDescription {..} =
+  fmap toDescription <$> runStatement (convId, descriptionVersion, descriptionCiphertext) insert
+  where
+    insert :: Hasql.Statement (ConvId, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
+    insert =
+      lmapPG
+        [maybeStatement|INSERT INTO conversation_description
+                         (conv_id, version, ciphertext)
+                         VALUES
+                         ($1 :: uuid, $2 :: bigint, $3 :: bytea)
+                         ON CONFLICT (conv_id) DO NOTHING
+                         RETURNING (version :: bigint), (ciphertext :: bytea)
+                            |]
+    toDescription (version', ciphertext') =
+      ConversationDescription
+        { descriptionVersion = version',
+          descriptionCiphertext = ciphertext'
+        }
+
+getConversationDescriptionImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationDescription)
+getConversationDescriptionImpl convId =
+  fmap (\(descriptionVersion, descriptionCiphertext) -> ConversationDescription {..}) <$> runStatement convId select
+  where
+    select :: Hasql.Statement ConvId (Maybe (Int64, BS.ByteString))
+    select =
+      dimapPG
+        [maybeStatement|SELECT (version :: bigint), (ciphertext :: bytea)
+                        FROM conversation_description
+                        WHERE conv_id = ($1 :: uuid)
+                       |]
+
+updateConversationDescriptionImpl ::
+  (PGConstraints r) =>
+  ConvId ->
+  ConversationDescriptionUpdate ->
+  Sem r (Maybe ConversationDescription)
+updateConversationDescriptionImpl convId ConversationDescriptionUpdate {..} =
+  fmap (fmap toDescription) $
+    runTransactionWithRetry ReadCommitted Write $
+      Transaction.statement (convId, descriptionUpdateBaseVersion, descriptionUpdateCiphertext) stmt
+  where
+    stmt :: Hasql.Statement (ConvId, Int64, BS.ByteString) (Maybe (Int64, BS.ByteString))
+    stmt =
+      lmapPG
+        [maybeStatement|
+          WITH updated AS (
+            UPDATE conversation_description
+               SET version = (($2 :: bigint) + 1),
+                   ciphertext = ($3 :: bytea)
+             WHERE conv_id = ($1 :: uuid)
+               AND version = ($2 :: bigint)
+           RETURNING version, ciphertext
+          )
+          SELECT (version :: bigint), (ciphertext :: bytea) FROM updated
+        |]
+    toDescription (version', ciphertext') =
+      ConversationDescription
+        { descriptionVersion = version',
+          descriptionCiphertext = ciphertext'
+        }
 
 setConversationCellsStateImpl :: (PGConstraints r) => ConvId -> CellsState -> Sem r ()
 setConversationCellsStateImpl convId cells =

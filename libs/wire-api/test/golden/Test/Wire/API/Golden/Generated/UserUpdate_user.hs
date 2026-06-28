@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,6 +21,8 @@
 module Test.Wire.API.Golden.Generated.UserUpdate_user where
 
 import Data.Id
+import Data.Misc
+import Data.Range
 import Data.UUID qualified as UUID
 import Imports
 import Wire.API.Asset
@@ -32,15 +35,20 @@ testObject_UserUpdate_user_1 =
       uupTextStatus = Nothing,
       uupPict = Nothing,
       uupAssets = Nothing,
-      uupAccentId = Nothing
+      uupAccentId = Nothing,
+      uupBio = Nothing,
+      uupLinks = Nothing
     }
 
 testObject_UserUpdate_user_2 :: UserUpdate
 testObject_UserUpdate_user_2 =
-  UserUpdate
-    { uupName = Just (Name {fromName = "~\RSK\1033973w\EMd\156648\59199g"}),
-      uupTextStatus = rightToMaybe $ mkTextStatus "text status",
-      uupPict = Just (Pict {fromPict = []}),
-      uupAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
-      uupAccentId = Just (ColourId {fromColourId = 3})
-    }
+  let Right u = httpsUrlFromText "https://website.example/test"
+   in UserUpdate
+        { uupName = Just (Name {fromName = "~\RSK\1033973w\EMd\156648\59199g"}),
+          uupTextStatus = rightToMaybe $ mkTextStatus "text status",
+          uupPict = Just (Pict {fromPict = []}),
+          uupAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
+          uupAccentId = Just (ColourId {fromColourId = 3}),
+          uupBio = Just (unsafeRange "Its me, the test user"),
+          uupLinks = Just [ProfileLink {name = unsafeRange "github", url = u, verified = ()}]
+        }

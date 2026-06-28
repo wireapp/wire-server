@@ -37,6 +37,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
 import Data.Misc
 import Data.Profunctor
+import Data.Range
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Ascii qualified as Ascii
@@ -45,6 +46,7 @@ import Data.Time (UTCTime)
 import Data.UUID
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import GHC.TypeLits
 import Hasql.Statement
 import Imports
 import SAML2.WebSSO qualified as SAML
@@ -590,6 +592,12 @@ instance PostgresMarshall Int32 TeamInviteTag where
 instance PostgresMarshall UUID SAML.IdPId where
   postgresMarshall = SAML.fromIdPId
 
+instance PostgresMarshall Text HttpsUrl where
+  postgresMarshall = httpsUrlToText
+
+instance PostgresMarshall a (Range n m a) where
+  postgresMarshall = fromRange
+
 ---
 
 class PostgresUnmarshall db domain where
@@ -1061,6 +1069,12 @@ instance PostgresUnmarshall Text Handle where
 
 instance PostgresUnmarshall UTCTime UTCTimeMillis where
   postgresUnmarshall = Right . toUTCTimeMillis
+
+instance PostgresUnmarshall Text HttpsUrl where
+  postgresUnmarshall = mapLeft Text.pack . httpsUrlFromText
+
+instance (KnownNat n, KnownNat m, Within a n m) => PostgresUnmarshall a (Range n m a) where
+  postgresUnmarshall = mapLeft Text.pack . checkedEither
 
 ---
 

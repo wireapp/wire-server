@@ -32,6 +32,7 @@ module Wire.ConversationSubsystem.Update
     rmCodeUnqualified,
     getCode,
     updateConversationName,
+    updateConversationDescription,
     updateConversationReceiptMode,
     updateConversationMessageTimer,
     updateConversationAccess,
@@ -1633,6 +1634,88 @@ updateConversationName lusr zcon qcnv convRename = do
     (\_ _ -> throw FederationNotImplemented)
     qcnv
     convRename
+
+updateConversationDescription ::
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  ConversationDescriptionUpdate ->
+  Sem r ConversationDescription
+updateConversationDescription lusr zcon qcnv descriptionUpdate =
+  foldQualified
+    lusr
+    (updateLocalConversationDescription lusr zcon)
+    (\_ _ -> throw FederationNotImplemented)
+    qcnv
+    descriptionUpdate
+
+updateLocalConversationDescription ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member TeamSubsystem r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  Local ConvId ->
+  ConversationDescriptionUpdate ->
+  Sem r ConversationDescription
+updateLocalConversationDescription lusr zcon lcnv descriptionUpdate = do
+  storedConv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  mTeamMember <- maybe (pure Nothing) (TeamSubsystem.internalGetTeamMember (tUnqualified lusr)) storedConv.metadata.cnvmTeam
+  Query.ensureConvAdmin storedConv (tUnqualified lusr) mTeamMember
+  current <- E.getConversationDescription (tUnqualified lcnv)
+  let convDescription =
+        ConversationDescription
+          { descriptionVersion = descriptionUpdate.descriptionUpdateBaseVersion + 1,
+            descriptionCiphertext = descriptionUpdate.descriptionUpdateCiphertext
+          }
+  description <-
+    case current of
+      Nothing -> do
+        when (descriptionUpdate.descriptionUpdateBaseVersion /= 0) $
+          throwS @'InvalidOperation
+        E.insertConversationDescription (tUnqualified lcnv) convDescription >>= \case
+          Just created -> pure created
+          Nothing ->
+            E.updateConversationDescription (tUnqualified lcnv) descriptionUpdate >>= noteS @'InvalidOperation
+      Just ConversationDescription {descriptionVersion} -> do
+        unless (descriptionUpdate.descriptionUpdateBaseVersion == descriptionVersion) $
+          throwS @'InvalidOperation
+        E.updateConversationDescription (tUnqualified lcnv) descriptionUpdate >>= noteS @'InvalidOperation
+  notifyConversationDescriptionUpdated lusr zcon storedConv lcnv description
+
+notifyConversationDescriptionUpdated ::
+  ( Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  StoredConversation ->
+  Local ConvId ->
+  ConversationDescription ->
+  Sem r ConversationDescription
+notifyConversationDescriptionUpdated lusr zcon conv lcnv description = do
+  now <- Now.get
+  let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConvDescriptionUpdate description)
+      (bots, users) = localBotsAndUsers $ conv.localMembers
+  pushConversationEvent (Just zcon) conv event (qualifyAs lusr (map (.id_) users)) bots
+  pure description
 
 updateLocalConversationName ::
   ( Member ConversationStore r,

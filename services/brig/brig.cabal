@@ -189,6 +189,7 @@ library
     Brig.Schema.V90_DomainRegistrationTeamIndex
     Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl
     Brig.Schema.V92_AddUserType
+    Brig.Schema.V93_AddBio
     Brig.Team.API
     Brig.Team.Template
     Brig.Template

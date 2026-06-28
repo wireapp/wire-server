@@ -76,6 +76,11 @@ interpretUserStorePostgres =
     DeleteServiceUser pid sid bid -> deleteServiceUserImpl pid sid bid
     LookupServiceUsers pid sid mPagingState -> lookupServiceUsersImpl pid sid (paginationStatePostgres =<< mPagingState)
     LookupServiceUsersForTeam pid sid tid mPagingState -> lookupServiceUsersForTeamImpl pid sid tid (paginationStatePostgres =<< mPagingState)
+    GetBio uid -> getBioImpl uid
+
+-- TODO: Implement
+getBioImpl :: UserId -> Sem r (Maybe Bio)
+getBioImpl _ = pure Nothing
 
 {- ORMOLU_DISABLE -}
 type InsertUserRow =

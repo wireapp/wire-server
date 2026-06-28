@@ -44,6 +44,7 @@ module Wire.API.Event.Conversation
     _EdConnect,
     _EdConvReceiptModeUpdate,
     _EdConvRename,
+    _EdConvDescriptionUpdate,
     _EdConvDelete,
     _EdConvAccessUpdate,
     _EdConvMessageTimerUpdate,
@@ -175,6 +176,7 @@ data EventType
   | MemberLeave
   | MemberStateUpdate
   | ConvRename
+  | ConvDescriptionUpdate
   | ConvAccessUpdate
   | ConvMessageTimerUpdate
   | ConvCodeUpdate
@@ -203,6 +205,7 @@ instance ToSchema EventType where
           element "conversation.member-leave" MemberLeave,
           element "conversation.member-update" MemberStateUpdate,
           element "conversation.rename" ConvRename,
+          element "conversation.description-update" ConvDescriptionUpdate,
           element "conversation.access-update" ConvAccessUpdate,
           element "conversation.receipt-mode-update" ConvReceiptModeUpdate,
           element "conversation.message-timer-update" ConvMessageTimerUpdate,
@@ -227,6 +230,7 @@ data EventData
   | EdConnect Connect
   | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
   | EdConvRename ConversationRename
+  | EdConvDescriptionUpdate ConversationDescription
   | EdConvDelete
   | EdConvReset ConversationReset
   | EdConvAccessUpdate ConversationAccessData
@@ -250,6 +254,7 @@ genEventData = \case
   MemberLeave -> EdMembersLeave <$> arbitrary <*> arbitrary
   MemberStateUpdate -> EdMemberUpdate <$> arbitrary
   ConvRename -> EdConvRename <$> arbitrary
+  ConvDescriptionUpdate -> EdConvDescriptionUpdate <$> arbitrary
   ConvAccessUpdate -> EdConvAccessUpdate <$> arbitrary
   ConvMessageTimerUpdate -> EdConvMessageTimerUpdate <$> arbitrary
   ConvCodeUpdate -> EdConvCodeUpdate <$> arbitrary
@@ -272,6 +277,7 @@ eventDataType (EdMembersJoin _) = MemberJoin
 eventDataType (EdMembersLeave _ _) = MemberLeave
 eventDataType (EdMemberUpdate _) = MemberStateUpdate
 eventDataType (EdConvRename _) = ConvRename
+eventDataType (EdConvDescriptionUpdate _) = ConvDescriptionUpdate
 eventDataType (EdConvAccessUpdate _) = ConvAccessUpdate
 eventDataType (EdConvMessageTimerUpdate _) = ConvMessageTimerUpdate
 eventDataType (EdConvCodeUpdate _) = ConvCodeUpdate
@@ -312,6 +318,7 @@ isCellsConversationEvent eventType =
     ProtocolUpdate -> False
     AddPermissionUpdate -> False
     ConvHistoryUpdate -> False
+    ConvDescriptionUpdate -> False
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -492,6 +499,7 @@ taggedEventDataSchema =
       MemberLeave -> tag _EdMembersLeave (unnamed memberLeaveSchema)
       MemberStateUpdate -> tag _EdMemberUpdate (unnamed schema)
       ConvRename -> tag _EdConvRename (unnamed schema)
+      ConvDescriptionUpdate -> tag _EdConvDescriptionUpdate (unnamed schema)
       -- FUTUREWORK: when V2 is dropped, it is fine to change this schema to
       -- V3, since V3 clients are guaranteed to know how to parse V2 and V3
       -- conversation access update events.

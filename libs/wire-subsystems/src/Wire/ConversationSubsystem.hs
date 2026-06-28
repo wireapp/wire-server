@@ -376,6 +376,10 @@ data ConversationSubsystem m a where
     Local UserId ->
     Qualified ConvId ->
     ConversationSubsystem m Public.Conversation
+  GetConversationDescription ::
+    Local UserId ->
+    Qualified ConvId ->
+    ConversationSubsystem m ConversationDescription
   InternalGetConversation ::
     ConvId ->
     ConversationSubsystem m (Maybe StoredConversation)
@@ -531,6 +535,12 @@ data ConversationSubsystem m a where
     Qualified ConvId ->
     ConversationRename ->
     ConversationSubsystem m (UpdateResult Event)
+  UpdateConversationDescription ::
+    Local UserId ->
+    ConnId ->
+    Qualified ConvId ->
+    ConversationDescriptionUpdate ->
+    ConversationSubsystem m ConversationDescription
   UpdateConversationMessageTimer ::
     Local UserId ->
     ConnId ->
