@@ -123,10 +123,12 @@ generate ref t = do
       }
 
 mkKey :: (MonadIO m) => CodeReferent -> m Key
-mkKey (CodeReferentConv cid) = mkKeyId cid
-mkKey (CodeReferentMeeting mid) = mkKeyId mid
+mkKey =
+  \case
+    CodeReferentConv cid -> mkKeyId "" cid -- don't pad (legacy)
+    CodeReferentMeeting mid -> mkKeyId "meeting:" mid
 
-mkKeyId :: (MonadIO m) => Id a -> m Key
-mkKeyId ident = do
+mkKeyId :: (MonadIO m) => ByteString -> Id a -> m Key
+mkKeyId pad ident = do
   sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
-  pure $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' ident)
+  pure $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (pad <> toByteString' ident)
