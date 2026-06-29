@@ -1,0 +1,1 @@
+Added an optional `qualified_users` field to `POST /meetings` that adds the given users to the meeting's conversation.

@@ -136,7 +136,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              qualifiedUsers = Nothing
             }
 
     result <- runTestStack now gen Map.empty def $ do
@@ -150,6 +151,30 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting.title `shouldBe` fromJust (checked "Test Meeting")
         fetched `shouldBe` Just meeting
 
+  it "creates a meeting when qualifiedUsers are provided" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        otherUid = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Meeting With Users",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              recurrence = Nothing,
+              invitedEmails = [],
+              qualifiedUsers = Just [Qualified otherUid (Domain "wire.com")]
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      (meeting, _conv) <- createMeeting zUser newMeeting
+      pure meeting
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right meeting -> meeting.title `shouldBe` fromJust (checked "Meeting With Users")
+
   it "fails to create a meeting if end time is before start time" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -161,7 +186,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 3500 now,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              qualifiedUsers = Nothing
             }
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
@@ -188,7 +214,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime (-7200) now,
                 endTime = addUTCTime (-5000) now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -204,7 +231,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -223,7 +251,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
@@ -245,7 +274,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
@@ -265,7 +295,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              qualifiedUsers = Nothing
             }
 
     result <- runTestStack now gen Map.empty def $ do
@@ -291,7 +322,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              qualifiedUsers = Nothing
             }
 
     result <- runTestStack now gen (Map.singleton teamId [teamMember]) teamConfig $ do
@@ -317,7 +349,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              qualifiedUsers = Nothing
             }
 
     result <- runTestStack now gen (Map.singleton teamId [teamMember]) teamConfig $ do
@@ -346,7 +379,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -362,7 +396,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -385,7 +420,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime (-7200) now,
                 endTime = addUTCTime (-5000) now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -401,7 +437,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
@@ -417,7 +454,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
           effectiveStart = fromMaybe baseMeeting.startTime update.startTime
           effectiveEnd = fromMaybe baseMeeting.endTime update.endTime
@@ -461,7 +499,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -479,7 +518,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
@@ -495,7 +535,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime (-7200) now,
                 endTime = addUTCTime (-5000) now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -519,7 +560,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -537,7 +579,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -570,7 +613,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -593,7 +637,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime (-7200) now,
                 endTime = addUTCTime (-5000) now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -609,7 +654,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = []
+                invitedEmails = [],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
@@ -650,7 +696,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2, email3]
+                invitedEmails = [email1, email2, email3],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -673,7 +720,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2]
+                invitedEmails = [email1, email2],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -696,7 +744,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1]
+                invitedEmails = [email1],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -719,7 +768,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime (-7200) now,
                 endTime = addUTCTime (-5000) now,
                 recurrence = Nothing,
-                invitedEmails = [email1]
+                invitedEmails = [email1],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -735,7 +785,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2]
+                invitedEmails = [email1, email2],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
@@ -776,7 +827,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2]
+                invitedEmails = [email1, email2],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -799,7 +851,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2]
+                invitedEmails = [email1, email2],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -822,7 +875,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2]
+                invitedEmails = [email1, email2],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -845,7 +899,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime (-7200) now,
                 endTime = addUTCTime (-5000) now,
                 recurrence = Nothing,
-                invitedEmails = [email1]
+                invitedEmails = [email1],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
@@ -861,7 +916,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 startTime = addUTCTime 3600 now,
                 endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
-                invitedEmails = [email1, email2]
+                invitedEmails = [email1, email2],
+                qualifiedUsers = Nothing
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
@@ -898,7 +954,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               recurrence = Nothing,
-              invitedEmails = []
+              invitedEmails = [],
+              qualifiedUsers = Nothing
             }
 
     it "allows operations for personal user even when meetings disabled" $ do

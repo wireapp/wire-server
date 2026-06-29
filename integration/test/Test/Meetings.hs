@@ -57,6 +57,31 @@ testMeetingCreate = do
   fetchedMeeting <- getJSON 200 r2
   fetchedMeeting %. "title" `shouldMatch` ("Team Standup" :: String)
 
+testMeetingCreateWithUsers :: (HasCallStack) => App ()
+testMeetingCreateWithUsers = do
+  (owner, _tid, [other]) <- createTeam OwnDomain 2
+  otherQid <- other %. "qualified_id"
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting =
+        object
+          [ "title" .= "Standup with Users",
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "qualified_users" .= [otherQid]
+          ]
+
+  resp <- postMeetings owner newMeeting
+  assertSuccess resp
+
+  meeting <- getJSON 201 resp
+  convQid <- meeting %. "qualified_conversation"
+  bindResponse (getConversation owner convQid) $ \r -> do
+    r.status `shouldMatchInt` 200
+    mems <- r.json %. "members.others" & asList
+    for mems (%. "qualified_id") `shouldMatchSet` [otherQid]
+
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
   (owner, _tid, _members) <- createTeam OwnDomain 1

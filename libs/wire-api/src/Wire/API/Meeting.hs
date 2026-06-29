@@ -72,7 +72,10 @@ data NewMeeting = NewMeeting
     endTime :: UTCTime,
     recurrence :: Maybe Recurrence,
     title :: Range 1 256 Text,
-    invitedEmails :: [EmailAddress]
+    invitedEmails :: [EmailAddress],
+    -- | Optional list of qualified users to add to the meeting's conversation.
+    -- Backward compatible: when omitted (Nothing), no users are added.
+    qualifiedUsers :: Maybe [Qualified UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewMeeting)
@@ -112,6 +115,7 @@ instance ToSchema NewMeeting where
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.title) .= field "title" schema
         <*> (.invitedEmails) .= (fromMaybe [] <$> optField "invited_emails" (array schema))
+        <*> (.qualifiedUsers) .= maybe_ (optField "qualified_users" (array schema))
 
 -- | Request to update an existing meeting
 data UpdateMeeting = UpdateMeeting

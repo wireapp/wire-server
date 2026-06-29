@@ -128,7 +128,7 @@ createMeetingImpl zUser newMeeting = do
   let newConv =
         NewConv
           { newConvUsers = [],
-            newConvQualifiedUsers = [],
+            newConvQualifiedUsers = fromMaybe [] newMeeting.qualifiedUsers,
             newConvName = Just newMeeting.title,
             newConvAccess = Set.singleton PrivateAccess,
             newConvAccessRoles = Nothing,
