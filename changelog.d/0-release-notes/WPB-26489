@@ -1,0 +1,1 @@
+Background-worker scheduled jobs now run through Arbiter. The background-worker configuration includes `scheduledJobs.pollInterval`, which controls how often the scheduler wakes up to look for due jobs. Arbiter's internal UI is available under `/i/jobs`, and its internal REST API is available under `/i/jobs/api/v1`.
