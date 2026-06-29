@@ -550,9 +550,19 @@ type ConversationAPI =
                :> ConversationVerb 'V5 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
            )
     :<|> Named
-           "create-self-conversation"
+           "create-self-conversation@v15"
            ( Summary "Create a self-conversation"
                :> From 'V6
+               :> Until 'V16
+               :> ZLocalUser
+               :> "conversations"
+               :> "self"
+               :> ConversationVerb 'V6 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
+           )
+    :<|> Named
+           "create-self-conversation"
+           ( Summary "Create a self-conversation"
+               :> From 'V16
                :> ZLocalUser
                :> "conversations"
                :> "self"
@@ -742,9 +752,30 @@ type ConversationAPI =
                :> ConversationVerb 'V3 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
            )
     :<|> Named
-           "create-one-to-one-conversation"
+           "create-one-to-one-conversation@v15"
            ( Summary "Create a 1:1 conversation"
                :> From 'V7
+               :> Until 'V16
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NoBindingTeamMembers
+               :> CanThrow 'NonBindingTeam
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
+               :> ZLocalUser
+               :> ZConn
+               :> "one2one-conversations"
+               :> ReqBody '[JSON] NewOne2OneConv
+               :> ConversationVerb 'V3 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
+           )
+    :<|> Named
+           "create-one-to-one-conversation"
+           ( Summary "Create a 1:1 conversation"
+               :> From 'V16
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers
