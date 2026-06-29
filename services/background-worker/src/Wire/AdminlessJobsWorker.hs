@@ -44,10 +44,20 @@ runAdminlessDeletionJob extEnv job = do
     Log.msg (Log.val "Running adminless deletion job")
       . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
       . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
+  Log.info env.logger $
+    Log.msg (Log.val "Adminless deletion job payload")
+      . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
+      . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
+      . Log.field "orig_user_id" (show (adminlessDeletionJobOrigUserId jobPayload))
+      . Log.field "scheduled_for" (show (notVisibleUntil job))
   result <-
     liftIO $
       runBackgroundWorkerEffects env extEnv (RequestId "adminless-deletion") Nothing $
         do
+          Log.info env.logger $
+            Log.msg (Log.val "Adminless deletion job: invoking conversation delete")
+              . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
+              . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
           internalDeleteLocalAdminlessGroup
             (toLocalUnsafe env.federationDomain (adminlessDeletionJobOrigUserId jobPayload))
             (toLocalUnsafe env.federationDomain (adminlessDeletionJobConversationId jobPayload))
@@ -56,6 +66,10 @@ runAdminlessDeletionJob extEnv job = do
             (adminlessDeletionJobTeamId jobPayload)
             (adminlessDeletionJobConversationId jobPayload)
             (notVisibleUntil job)
+          Log.info env.logger $
+            Log.msg (Log.val "Adminless deletion job finished")
+              . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
+              . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
   either (liftIO . fail . show) pure result
 
 runAdminlessReminderJob :: ExtEnv -> JobRead AdminlessReminderJob -> AppT IO ()
@@ -80,6 +94,10 @@ runAdminlessReminderJob extEnv job = do
             (adminlessReminderJobTeamId jobPayload)
             (adminlessReminderJobConversationId jobPayload)
             (notVisibleUntil job)
+          Log.info env.logger $
+            Log.msg (Log.val "Adminless reminder job finished")
+              . Log.field "team_id" (show (adminlessReminderJobTeamId jobPayload))
+              . Log.field "conversation_id" (show (adminlessReminderJobConversationId jobPayload))
   either (liftIO . fail . show) pure result
 
 cleanupScheduledJob ::
