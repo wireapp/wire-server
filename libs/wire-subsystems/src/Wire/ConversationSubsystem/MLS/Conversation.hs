@@ -52,7 +52,7 @@ mkMLSConversation conv =
         }
 
 -- | Creates a new MLS conversation with members but no clients.
-newMLSConversation :: Local ConvId -> ConversationMetadata -> ConversationMLSData -> MLSConversation
+newMLSConversation :: Local ConvId -> ConversationMetadata GroupConvType -> ConversationMLSData -> MLSConversation
 newMLSConversation lcnv meta mlsData =
   MLSConversation
     { mcId = tUnqualified lcnv,

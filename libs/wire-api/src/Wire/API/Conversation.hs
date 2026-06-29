@@ -68,6 +68,9 @@ module Wire.API.Conversation
     -- * create
     NewConv (..),
     GroupConvType (..),
+    GroupConvTypeLegacy (..),
+    fromGroupConvTypeLegacy,
+    toGroupConvTypeLegacy,
     NewOne2OneConv (..),
     ConvTeamInfo (..),
 
@@ -140,7 +143,7 @@ import Wire.Arbitrary
 --------------------------------------------------------------------------------
 -- Conversation
 
-data ConversationMetadata = ConversationMetadata
+data ConversationMetadata gct = ConversationMetadata
   { cnvmType :: ConvType,
     -- FUTUREWORK: Make this a qualified user ID.
     cnvmCreator :: Maybe UserId,
@@ -152,17 +155,17 @@ data ConversationMetadata = ConversationMetadata
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
     cnvmReceiptMode :: Maybe ReceiptMode,
-    cnvmGroupConvType :: Maybe GroupConvType,
+    cnvmGroupConvType :: Maybe gct,
     cnvmChannelAddPermission :: Maybe AddPermission,
     cnvmCellsState :: CellsState,
     cnvmParent :: Maybe ConvId,
     cnvmHistory :: History
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationMetadata)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationMetadata
+  deriving (Arbitrary) via (GenericUniform (ConversationMetadata gct))
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (ConversationMetadata gct)
 
-defConversationMetadata :: Maybe UserId -> ConversationMetadata
+defConversationMetadata :: Maybe UserId -> ConversationMetadata GroupConvType
 defConversationMetadata mCreator =
   ConversationMetadata
     { cnvmType = RegularConv,
@@ -214,8 +217,9 @@ accessRolesSchemaTuple =
     <*> snd .= optField "access_role_v2" (maybeWithDefault A.Null $ set schema)
 
 conversationMetadataObjectSchema ::
+  (ToSchema gct) =>
   ObjectSchema SwaggerDoc (Set AccessRole) ->
-  ObjectSchema SwaggerDoc ConversationMetadata
+  ObjectSchema SwaggerDoc (ConversationMetadata gct)
 conversationMetadataObjectSchema sch =
   ConversationMetadata
     <$> cnvmType .= field "type" schema
@@ -243,17 +247,17 @@ conversationMetadataObjectSchema sch =
     <*> cnvmParent .= optField "parent" (maybeWithDefault A.Null schema)
     <*> cnvmHistory .= (fromMaybe def <$> optField "history" schema)
 
-instance ToSchema ConversationMetadata where
+instance (ToSchema gct, Typeable gct) => ToSchema (ConversationMetadata gct) where
   schema = object (conversationMetadataObjectSchema accessRolesSchema)
 
-instance ToSchema (Versioned 'V2 ConversationMetadata) where
+instance (ToSchema gct, Typeable gct) => ToSchema (Versioned 'V2 (ConversationMetadata gct)) where
   schema =
     Versioned
       <$> unVersioned
         .= object
           (conversationMetadataObjectSchema accessRolesSchemaV2)
 
-instance HasCellsState ConversationMetadata where
+instance HasCellsState (ConversationMetadata gct) where
   getCellsState = cnvmCellsState
 
 -- | Public-facing conversation type. Represents information that a
@@ -263,52 +267,52 @@ instance HasCellsState ConversationMetadata where
 -- by using 'Galley.API.Mapping.conversationView'.
 --
 -- This type represents a conversation that the user is a member of
-data OwnConversation = OwnConversation
+data OwnConversation gct = OwnConversation
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
-    cnvMetadata :: ConversationMetadata,
+    cnvMetadata :: ConversationMetadata gct,
     cnvMembers :: OwnConvMembers,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
     cnvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OwnConversation)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema OwnConversation
+  deriving (Arbitrary) via (GenericUniform (OwnConversation gct))
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (OwnConversation gct)
 
-instance HasCellsState OwnConversation where
+instance HasCellsState (OwnConversation gct) where
   getCellsState = getCellsState . cnvMetadata
 
-cnvType :: OwnConversation -> ConvType
+cnvType :: OwnConversation gct -> ConvType
 cnvType = cnvmType . cnvMetadata
 
-cnvCreator :: OwnConversation -> Maybe UserId
+cnvCreator :: OwnConversation gct -> Maybe UserId
 cnvCreator = cnvmCreator . cnvMetadata
 
-cnvAccess :: OwnConversation -> [Access]
+cnvAccess :: OwnConversation gct -> [Access]
 cnvAccess = cnvmAccess . cnvMetadata
 
-cnvAccessRoles :: OwnConversation -> Set AccessRole
+cnvAccessRoles :: OwnConversation gct -> Set AccessRole
 cnvAccessRoles = cnvmAccessRoles . cnvMetadata
 
-cnvName :: OwnConversation -> Maybe Text
+cnvName :: OwnConversation gct -> Maybe Text
 cnvName = cnvmName . cnvMetadata
 
-cnvTeam :: OwnConversation -> Maybe TeamId
+cnvTeam :: OwnConversation gct -> Maybe TeamId
 cnvTeam = cnvmTeam . cnvMetadata
 
-cnvMessageTimer :: OwnConversation -> Maybe Milliseconds
+cnvMessageTimer :: OwnConversation gct -> Maybe Milliseconds
 cnvMessageTimer = cnvmMessageTimer . cnvMetadata
 
-cnvReceiptMode :: OwnConversation -> Maybe ReceiptMode
+cnvReceiptMode :: OwnConversation gct -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
-instance ToSchema OwnConversation where
+instance (ToSchema gct, Typeable gct) => ToSchema (OwnConversation gct) where
   schema = conversationSchema (Just V9)
 
-instance (SingI v) => ToSchema (Versioned v OwnConversation) where
+instance (SingI v, ToSchema gct, Typeable gct) => ToSchema (Versioned v (OwnConversation gct)) where
   schema = Versioned <$> unVersioned .= conversationSchema (Just (demote @v))
 
-ownConversationObjectSchema :: Maybe Version -> ObjectSchema SwaggerDoc OwnConversation
+ownConversationObjectSchema :: (ToSchema gct) => Maybe Version -> ObjectSchema SwaggerDoc (OwnConversation gct)
 ownConversationObjectSchema v =
   OwnConversation
     <$> cnvQualifiedId .= field "qualified_id" schema
@@ -319,15 +323,16 @@ ownConversationObjectSchema v =
     <*> cnvProtocol .= protocolSchema v
 
 conversationSchema ::
+  (ToSchema gct, Typeable gct) =>
   Maybe Version ->
-  ValueSchema NamedSwaggerDoc OwnConversation
+  ValueSchema NamedSwaggerDoc (OwnConversation gct)
 conversationSchema v =
   versionedObjectWithDocModifier
     v
     (DS.description ?~ "A conversation object as returned from the server")
     (ownConversationObjectSchema v)
 
-fromOwnConversation :: OwnConversation -> Conversation
+fromOwnConversation :: OwnConversation gct -> Conversation gct
 fromOwnConversation conv =
   Conversation
     { qualifiedId = conv.cnvQualifiedId,
@@ -341,23 +346,23 @@ fromOwnConversation conv =
     }
 
 -- | A conversation the requestor may or may not be a member of.
-data Conversation = Conversation
+data Conversation gct = Conversation
   { qualifiedId :: Qualified ConvId,
-    metadata :: ConversationMetadata,
+    metadata :: ConversationMetadata gct,
     members :: ConvMembers,
     protocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Conversation)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Conversation
+  deriving (Arbitrary) via (GenericUniform (Conversation gct))
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (Conversation gct)
 
-instance ToSchema Conversation where
+instance (ToSchema gct, Typeable gct) => ToSchema (Conversation gct) where
   schema =
     objectWithDocModifier
       (DS.description ?~ "A conversation object as returned from the server")
       $ conversationObjectSchema
 
-conversationObjectSchema :: ObjectSchema SwaggerDoc Conversation
+conversationObjectSchema :: (ToSchema gct) => ObjectSchema SwaggerDoc (Conversation gct)
 conversationObjectSchema =
   Conversation
     <$> qualifiedId .= field "qualified_id" schema
@@ -365,13 +370,13 @@ conversationObjectSchema =
     <*> members .= field "members" schema
     <*> protocol .= protocolSchema Nothing
 
-data MLSOne2OneConversation a = MLSOne2OneConversation
-  { conversation :: OwnConversation,
+data MLSOne2OneConversation a gct = MLSOne2OneConversation
+  { conversation :: OwnConversation gct,
     publicKeys :: MLSKeysByPurpose (MLSKeys a)
   }
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a))
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (MLSOne2OneConversation a gct))
 
-instance (Typeable a, ToSchema a) => ToSchema (MLSOne2OneConversation a) where
+instance (Typeable a, ToSchema a, ToSchema gct, Typeable gct) => ToSchema (MLSOne2OneConversation a gct) where
   schema =
     object $
       MLSOne2OneConversation
@@ -380,23 +385,23 @@ instance (Typeable a, ToSchema a) => ToSchema (MLSOne2OneConversation a) where
 
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
-data CreateGroupOwnConversation = CreateGroupOwnConversation
-  { cgcConversation :: OwnConversation,
+data CreateGroupOwnConversation gct = CreateGroupOwnConversation
+  { cgcConversation :: OwnConversation gct,
     -- | Remote users that could not be added to the created group conversation
     -- because their backend was not reachable.
     cgcFailedToAdd :: Map Domain (Set UserId)
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform CreateGroupOwnConversation)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateGroupOwnConversation
+  deriving (Arbitrary) via (GenericUniform (CreateGroupOwnConversation gct))
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema (CreateGroupOwnConversation gct)
 
-instance ToSchema CreateGroupOwnConversation where
+instance (ToSchema gct, Typeable gct) => ToSchema (CreateGroupOwnConversation gct) where
   schema = createGroupConversationSchema Nothing
 
-instance (SingI v) => ToSchema (Versioned v CreateGroupOwnConversation) where
+instance (SingI v, ToSchema gct, Typeable gct) => ToSchema (Versioned v (CreateGroupOwnConversation gct)) where
   schema = Versioned <$> unVersioned .= createGroupConversationSchema (Just (demote @v))
 
-createGroupConversationSchema :: Maybe Version -> ValueSchema NamedSwaggerDoc CreateGroupOwnConversation
+createGroupConversationSchema :: (ToSchema gct, Typeable gct) => Maybe Version -> ValueSchema NamedSwaggerDoc (CreateGroupOwnConversation gct)
 createGroupConversationSchema v =
   objectWithDocModifier
     (DS.description ?~ "A created group-conversation object extended with a list of failed-to-add users")
@@ -412,15 +417,15 @@ toFlatList m =
 fromFlatList :: (Ord a) => [Qualified a] -> Map Domain (Set a)
 fromFlatList = fmap Set.fromList . indexQualified
 
-data CreateGroupConversation = CreateGroupConversation
-  { conversation :: Conversation,
+data CreateGroupConversation gct = CreateGroupConversation
+  { conversation :: Conversation gct,
     failedToAdd :: Map Domain (Set UserId)
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform CreateGroupConversation)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateGroupConversation
+  deriving (Arbitrary) via (GenericUniform (CreateGroupConversation gct))
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (CreateGroupConversation gct)
 
-instance ToSchema CreateGroupConversation where
+instance (ToSchema gct, Typeable gct) => ToSchema (CreateGroupConversation gct) where
   schema =
     objectWithDocModifier
       (DS.description ?~ "A created group-conversation object extended with a list of failed-to-add users")
@@ -464,13 +469,13 @@ class ConversationListItem a where
 instance ConversationListItem ConvId where
   convListItemName _ = "conversation IDs"
 
-instance ConversationListItem OwnConversation where
+instance ConversationListItem (OwnConversation gct) where
   convListItemName _ = "conversations"
 
 instance (Typeable a, ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
   schema = conversationListSchema schema
 
-instance ToSchema (Versioned 'V2 (ConversationList OwnConversation)) where
+instance (ToSchema gct, Typeable gct) => ToSchema (Versioned 'V2 (ConversationList (OwnConversation gct))) where
   schema =
     Versioned
       <$> unVersioned
@@ -525,17 +530,18 @@ instance ToSchema ListConversations where
       $ ListConversations
         <$> (fromRange . lcQualifiedIds) .= field "qualified_ids" (rangedSchema (array schema))
 
-data ConversationsResponse = ConversationsResponse
-  { crFound :: [OwnConversation],
+data ConversationsResponse gct = ConversationsResponse
+  { crFound :: [OwnConversation gct],
     crNotFound :: [Qualified ConvId],
     crFailed :: [Qualified ConvId]
   }
   deriving stock (Eq, Show)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (ConversationsResponse gct)
 
 conversationsResponseSchema ::
+  (ToSchema gct, Typeable gct) =>
   Maybe Version ->
-  ValueSchema NamedSwaggerDoc ConversationsResponse
+  ValueSchema NamedSwaggerDoc (ConversationsResponse gct)
 conversationsResponseSchema v =
   let notFoundDoc = DS.description ?~ "These conversations either don't exist or are deleted."
       failedDoc = DS.description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
@@ -547,10 +553,10 @@ conversationsResponseSchema v =
           <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
           <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
-instance ToSchema ConversationsResponse where
+instance (ToSchema gct, Typeable gct) => ToSchema (ConversationsResponse gct) where
   schema = conversationsResponseSchema Nothing
 
-instance (SingI v) => ToSchema (Versioned v ConversationsResponse) where
+instance (SingI v, ToSchema gct, Typeable gct) => ToSchema (Versioned v (ConversationsResponse gct)) where
   schema = Versioned <$> unVersioned .= conversationsResponseSchema (Just (demote @v))
 
 --------------------------------------------------------------------------------
@@ -862,6 +868,42 @@ instance PostgresMarshall Int32 GroupConvType where
 
 instance PostgresUnmarshall Int32 GroupConvType where
   postgresUnmarshall = Right . toEnum . fromIntegral
+
+data GroupConvTypeLegacy = GroupConversationLegacy | ChannelLegacy
+  deriving stock (Eq, Show, Generic, Enum, Bounded)
+  deriving (Arbitrary) via (GenericUniform GroupConvTypeLegacy)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GroupConvTypeLegacy
+
+instance ToSchema GroupConvTypeLegacy where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "group_conversation" GroupConversationLegacy,
+          element "channel" ChannelLegacy
+        ]
+
+instance C.Cql GroupConvTypeLegacy where
+  ctype = C.Tagged C.IntColumn
+  toCql = C.CqlInt . fromIntegral . fromEnum
+  fromCql (C.CqlInt i) = Right . toEnum . fromIntegral $ i
+  fromCql _ = Left "GroupConvTypeLegacy: int expected"
+
+instance PostgresMarshall Int32 GroupConvTypeLegacy where
+  postgresMarshall = fromIntegral . fromEnum
+
+instance PostgresUnmarshall Int32 GroupConvTypeLegacy where
+  postgresUnmarshall = Right . toEnum . fromIntegral
+
+fromGroupConvTypeLegacy :: GroupConvTypeLegacy -> GroupConvType
+fromGroupConvTypeLegacy = \case
+  GroupConversationLegacy -> GroupConversation
+  ChannelLegacy -> Channel
+
+toGroupConvTypeLegacy :: GroupConvType -> Maybe GroupConvTypeLegacy
+toGroupConvTypeLegacy = \case
+  GroupConversation -> Just GroupConversationLegacy
+  Channel -> Just ChannelLegacy
+  MeetingConversation -> Nothing
 
 data NewConv = NewConv
   { newConvUsers :: [UserId],
@@ -1341,20 +1383,20 @@ instance ToSchema ConversationHistoryUpdate where
 --------------------------------------------------------------------------------
 -- MultiVerb instances
 
-instance AsHeaders '[ConvId] OwnConversation OwnConversation where
+instance AsHeaders '[ConvId] (OwnConversation gct) (OwnConversation gct) where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
   fromHeaders = snd
 
-instance AsHeaders '[ConvId] Conversation Conversation where
+instance AsHeaders '[ConvId] (Conversation gct) (Conversation gct) where
   toHeaders c = (I (qUnqualified c.qualifiedId) :* Nil, c)
   fromHeaders = snd
 
-instance AsHeaders '[ConvId] CreateGroupOwnConversation CreateGroupOwnConversation where
+instance AsHeaders '[ConvId] (CreateGroupOwnConversation gct) (CreateGroupOwnConversation gct) where
   toHeaders c =
     ((I . qUnqualified . cnvQualifiedId . cgcConversation $ c) :* Nil, c)
   fromHeaders = snd
 
-instance AsHeaders '[ConvId] CreateGroupConversation CreateGroupConversation where
+instance AsHeaders '[ConvId] (CreateGroupConversation gct) (CreateGroupConversation gct) where
   toHeaders c =
     (I c.conversation.qualifiedId.qUnqualified :* Nil, c)
   fromHeaders = snd

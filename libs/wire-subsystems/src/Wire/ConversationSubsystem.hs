@@ -104,30 +104,30 @@ data ConversationSubsystem m a where
     Local UserId ->
     Maybe ConnId ->
     NewConv ->
-    ConversationSubsystem m (ConversationResponse Public.OwnConversation)
+    ConversationSubsystem m (ConversationResponse (Public.OwnConversation GroupConvType))
   CreateGroupOwnConversation ::
     Local UserId ->
     Maybe ConnId ->
     NewConv ->
-    ConversationSubsystem m CreateGroupConversationResponseV9
+    ConversationSubsystem m (CreateGroupConversationResponseV9 GroupConvType)
   CreateGroupConversation ::
     Local UserId ->
     Maybe ConnId ->
     NewConv ->
-    ConversationSubsystem m CreateGroupConversation
+    ConversationSubsystem m (CreateGroupConversation GroupConvType)
   CreateProteusSelfConversation ::
     Local UserId ->
-    ConversationSubsystem m (ConversationResponse Public.OwnConversation)
+    ConversationSubsystem m (ConversationResponse (Public.OwnConversation GroupConvType))
   CreateOne2OneConversation ::
     Local UserId ->
     ConnId ->
     NewOne2OneConv ->
-    ConversationSubsystem m (ConversationResponse Public.OwnConversation)
+    ConversationSubsystem m (ConversationResponse (Public.OwnConversation GroupConvType))
   CreateConnectConversation ::
     Local UserId ->
     Maybe ConnId ->
     Connect ->
-    ConversationSubsystem m (ConversationResponse Public.OwnConversation)
+    ConversationSubsystem m (ConversationResponse (Public.OwnConversation GroupConvType))
   GetConversations ::
     [ConvId] ->
     ConversationSubsystem m [StoredConversation]
@@ -146,18 +146,18 @@ data ConversationSubsystem m a where
     ConversationSubsystem m (Maybe Public.Member)
   GetConversationMeta ::
     ConvId ->
-    ConversationSubsystem m ConversationMetadata
+    ConversationSubsystem m (ConversationMetadata GroupConvType)
   GetMLSOne2OneConversationInternal ::
     Local UserId ->
     Qualified UserId ->
-    ConversationSubsystem m Public.OwnConversation
+    ConversationSubsystem m (Public.OwnConversation GroupConvType)
   IsMLSOne2OneEstablished ::
     Local UserId ->
     Qualified UserId ->
     ConversationSubsystem m Bool
   GetLocalConversationInternal ::
     ConvId ->
-    ConversationSubsystem m Conversation
+    ConversationSubsystem m (Conversation GroupConvType)
   RemoveClient ::
     UserId ->
     ClientId ->
@@ -361,21 +361,21 @@ data ConversationSubsystem m a where
   GetUnqualifiedOwnConversation ::
     Local UserId ->
     ConvId ->
-    ConversationSubsystem m Public.OwnConversation
+    ConversationSubsystem m (Public.OwnConversation GroupConvType)
   GetOwnConversation ::
     Local UserId ->
     Qualified ConvId ->
-    ConversationSubsystem m Public.OwnConversation
+    ConversationSubsystem m (Public.OwnConversation GroupConvType)
   GetPaginatedConversations ::
     Local UserId ->
     Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
     Maybe ConvId ->
     Maybe (Range 1 500 Int32) ->
-    ConversationSubsystem m (Public.ConversationList Public.OwnConversation)
+    ConversationSubsystem m (Public.ConversationList (Public.OwnConversation GroupConvType))
   GetConversation ::
     Local UserId ->
     Qualified ConvId ->
-    ConversationSubsystem m Public.Conversation
+    ConversationSubsystem m (Public.Conversation GroupConvType)
   InternalGetConversation ::
     ConvId ->
     ConversationSubsystem m (Maybe StoredConversation)
@@ -414,7 +414,7 @@ data ConversationSubsystem m a where
   ListConversations ::
     Local UserId ->
     Public.ListConversations ->
-    ConversationSubsystem m ConversationsResponse
+    ConversationSubsystem m (ConversationsResponse GroupConvType)
   GetConversationByReusableCode ::
     Local UserId ->
     Code.Key ->
@@ -422,20 +422,20 @@ data ConversationSubsystem m a where
     ConversationSubsystem m ConversationCoverView
   GetMLSSelfConversationWithError ::
     Local UserId ->
-    ConversationSubsystem m Public.OwnConversation
+    ConversationSubsystem m (Public.OwnConversation GroupConvType)
   GetMLSOne2OneOwnConversation ::
     Local UserId ->
     Qualified UserId ->
-    ConversationSubsystem m Public.OwnConversation
+    ConversationSubsystem m (Public.OwnConversation GroupConvType)
   GetMLSOne2OneMLSConversation ::
     Local UserId ->
     Qualified UserId ->
-    ConversationSubsystem m (MLSOne2OneConversation MLSPublicKey)
+    ConversationSubsystem m (MLSOne2OneConversation MLSPublicKey GroupConvType)
   GetMLSOne2OneConversation ::
     Local UserId ->
     Qualified UserId ->
     Maybe MLSPublicKeyFormat ->
-    ConversationSubsystem m (MLSOne2OneConversation SomeKey)
+    ConversationSubsystem m (MLSOne2OneConversation SomeKey GroupConvType)
   GetLocalSelf ::
     Local UserId ->
     ConvId ->
@@ -616,7 +616,7 @@ data ConversationSubsystem m a where
     QualifiedWithTag QLocal UserId ->
     Maybe ConnId ->
     ConvId ->
-    ConversationSubsystem m OwnConversation
+    ConversationSubsystem m (OwnConversation GroupConvType)
   BlockConv ::
     QualifiedWithTag QLocal UserId ->
     Qualified ConvId ->

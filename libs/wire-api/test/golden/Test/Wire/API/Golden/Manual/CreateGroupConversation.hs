@@ -34,14 +34,14 @@ user1, user2 :: UserId
 user1 = Id (fromJust (UUID.fromString "a0000001-0000-0001-0000-000200000007"))
 user2 = Id (fromJust (UUID.fromString "f0000001-b000-0001-0000-000200060005"))
 
-testObject_CreateGroupConversation_1 :: CreateGroupOwnConversation
+testObject_CreateGroupConversation_1 :: CreateGroupOwnConversation GroupConvType
 testObject_CreateGroupConversation_1 =
   CreateGroupOwnConversation
     { cgcConversation = testObject_Conversation_user_1,
       cgcFailedToAdd = Map.empty
     }
 
-testObject_CreateGroupConversation_2 :: CreateGroupOwnConversation
+testObject_CreateGroupConversation_2 :: CreateGroupOwnConversation GroupConvType
 testObject_CreateGroupConversation_2 =
   CreateGroupOwnConversation
     { cgcConversation = testObject_Conversation_user_1,
@@ -49,7 +49,7 @@ testObject_CreateGroupConversation_2 =
         Map.singleton unreachableDomain1 $ Set.fromList $ [user1, user2]
     }
 
-testObject_CreateGroupConversation_3 :: CreateGroupOwnConversation
+testObject_CreateGroupConversation_3 :: CreateGroupOwnConversation GroupConvType
 testObject_CreateGroupConversation_3 =
   CreateGroupOwnConversation
     { cgcConversation = testObject_Conversation_user_1,

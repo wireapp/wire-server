@@ -749,7 +749,7 @@ toConversationCreated now lusr StoredConversation {metadata = ConversationMetada
 fromConversationCreated ::
   Local x ->
   ConversationCreated (Remote ConvId) ->
-  [(Public.Member, Public.OwnConversation)]
+  [(Public.Member, Public.OwnConversation GroupConvType)]
 fromConversationCreated loc rc@ConversationCreated {..} =
   let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
@@ -782,7 +782,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           memHiddenRef = Nothing,
           memConvRoleName = Public.omConvRoleName m
         }
-    conv :: Public.Member -> [OtherMember] -> Public.OwnConversation
+    conv :: Public.Member -> [OtherMember] -> Public.OwnConversation GroupConvType
     conv this others =
       Public.OwnConversation
         (tUntagged cnvId)

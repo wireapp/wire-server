@@ -68,7 +68,7 @@ messageTimerInit mtimer = do
   cid <- assertConv rsp RegularConv (Just alice) qalice [qbob, qjane] Nothing mtimer
   -- Check that the timer is indeed what it should be
   getConvQualified jane cid
-    !!! const mtimer === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const mtimer === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
 
 messageTimerChange :: TestM ()
 messageTimerChange = do
@@ -87,17 +87,17 @@ messageTimerChange = do
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec)
     !!! const 200 === statusCode
   getConvQualified jane qcid
-    !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const timer1sec === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
   -- Set timer to null
   putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate Nothing)
     !!! const 200 === statusCode
   getConvQualified jane qcid
-    !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const Nothing === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
   -- Set timer to 1 year
   putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate timer1year)
     !!! const 200 === statusCode
   getConvQualified jane qcid
-    !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const timer1year === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
 
 messageTimerChangeQualified :: TestM ()
 messageTimerChangeQualified = do
@@ -115,17 +115,17 @@ messageTimerChangeQualified = do
   putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate timer1sec)
     !!! const 200 === statusCode
   getConvQualified jane qcid
-    !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const timer1sec === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
   -- Set timer to null
   putMessageTimerUpdateQualified bob qcid (ConversationMessageTimerUpdate Nothing)
     !!! const 200 === statusCode
   getConvQualified jane qcid
-    !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const Nothing === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
   -- Set timer to 1 year
   putMessageTimerUpdateQualified bob qcid (ConversationMessageTimerUpdate timer1year)
     !!! const 200 === statusCode
   getConvQualified jane qcid
-    !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const timer1year === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
 
 messageTimerChangeWithoutAllowedAction :: TestM ()
 messageTimerChangeWithoutAllowedAction = do
@@ -141,7 +141,7 @@ messageTimerChangeWithoutAllowedAction = do
     const 403 === statusCode
     const "action-denied" === (label . responseJsonUnsafeWithMsg "error label")
   getConvQualified guest qcid
-    !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const Nothing === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
   -- Try to change the timer (as a non admin, team member) and observe failure too
   putMessageTimerUpdate member cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 403 === statusCode
@@ -150,7 +150,7 @@ messageTimerChangeWithoutAllowedAction = do
   putMessageTimerUpdate owner cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 200 === statusCode
   getConvQualified guest qcid
-    !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
+    !!! const timer1sec === (cnvMessageTimer <=< (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
 
 messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
@@ -167,7 +167,7 @@ messageTimerChangeO2O = do
     const 403 === statusCode
     const "invalid-op" === (label . responseJsonUnsafeWithMsg "error label")
   getConvQualified alice qcid
-    !!! const Nothing === (cnvMessageTimer <=< responseJsonMaybe)
+    !!! const Nothing === (cnvMessageTimer <=< (responseJsonMaybe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)))
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do

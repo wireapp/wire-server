@@ -165,7 +165,7 @@ getConv ::
   Version ->
   UserId ->
   Local ConvId ->
-  Sem r (Maybe OwnConversation)
+  Sem r (Maybe (OwnConversation GroupConvType))
 getConv v usr lcnv = do
   rs <- galleyRequest req
   case Bilge.statusCode rs of
@@ -662,10 +662,10 @@ unblockConversation ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  Sem r OwnConversation
+  Sem r (OwnConversation GroupConvType)
 unblockConversation v lusr mconn (Qualified cnv cdom) = do
   void $ galleyRequest putReq
-  galleyRequest getReq >>= decodeBodyOrThrow @OwnConversation "galley"
+  galleyRequest getReq >>= decodeBodyOrThrow @(OwnConversation GroupConvType) "galley"
   where
     putReq =
       method PUT
@@ -703,7 +703,7 @@ internalGetConversation ::
     Member (Input Endpoint) r
   ) =>
   ConvId ->
-  Sem r (Maybe Conversation)
+  Sem r (Maybe (Conversation GroupConvType))
 internalGetConversation convId = do
   rs <- galleyRequest req
   case Bilge.statusCode rs of

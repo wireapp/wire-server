@@ -90,7 +90,7 @@ spec = describe "ConversationMapping" do
         tUntagged ruid
           `notElem` map omQualifiedId rcnv.members.others
 
-cnvUids :: OwnConversation -> [Qualified UserId]
+cnvUids :: OwnConversation GroupConvType -> [Qualified UserId]
 cnvUids c =
   let mems = cnvMembers c
    in memId (cmSelf mems)
@@ -121,7 +121,7 @@ genConversation =
     <*> genConversationMetadata
     <*> pure ProtocolProteus
 
-genConversationMetadata :: Gen ConversationMetadata
+genConversationMetadata :: Gen (ConversationMetadata GroupConvType)
 genConversationMetadata =
   ConversationMetadata RegularConv
     <$> arbitrary

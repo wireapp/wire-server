@@ -1,0 +1,4 @@
+Added `MeetingConversation` as a new `GroupConvType`. Conversations can now be
+created with `group_conv_type: "meeting"`. API version V16 is required to
+interact with meeting conversations. Older API versions will not see meeting
+conversations in list responses.

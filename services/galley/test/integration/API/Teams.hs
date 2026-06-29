@@ -699,7 +699,7 @@ testCreateTeamMLSConv = do
         Nothing
         Nothing
         Nothing
-    Right conv <- responseJsonError <$> getConvQualified owner (tUntagged lConvId)
+    Right (conv :: OwnConversation GroupConvType) <- responseJsonError <$> getConvQualified owner (tUntagged lConvId)
     liftIO $ do
       assertEqual "protocol mismatch" ProtocolMLSTag (protocolTag (cnvProtocol conv))
     checkConvCreateEvent (tUnqualified lConvId) wsOwner

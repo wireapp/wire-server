@@ -94,7 +94,7 @@ createLegacyGroupConversation ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r (ConversationResponse Public.OwnConversation)
+  Sem r (ConversationResponse (Public.OwnConversation GroupConvType))
 createLegacyGroupConversation lusr conn newConv = mapError UnreachableBackendsLegacy $ do
   dbConv <- createGroupConversationGeneric lusr conn newConv
   maybe (throwIfNotOwnConversation lusr dbConv.id_) (pure . Created) $ ownConversationView lusr dbConv
@@ -133,7 +133,7 @@ createGroupOwnConversation ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r CreateGroupConversationResponseV9
+  Sem r (CreateGroupConversationResponseV9 GroupConvType)
 createGroupOwnConversation lusr conn newConv = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
@@ -174,7 +174,7 @@ createGroupConversation ::
   Local UserId ->
   Maybe ConnId ->
   NewConv ->
-  Sem r CreateGroupConversation
+  Sem r (CreateGroupConversation GroupConvType)
 createGroupConversation lusr conn newConv = do
   let remoteDomains = void <$> snd (partitionQualified lusr $ newConv.newConvQualifiedUsers)
   enforceFederationProtocol (baseProtocolToProtocol newConv.newConvProtocol) remoteDomains
@@ -192,7 +192,7 @@ createProteusSelfConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r (ConversationResponse Public.OwnConversation)
+  Sem r (ConversationResponse (Public.OwnConversation GroupConvType))
 createProteusSelfConversation lusr = do
   (c, created) <- createProteusSelfConversationLogic lusr
   let mConv =
@@ -227,7 +227,7 @@ createOne2OneConversation ::
   Local UserId ->
   ConnId ->
   NewOne2OneConv ->
-  Sem r (ConversationResponse Public.OwnConversation)
+  Sem r (ConversationResponse (Public.OwnConversation GroupConvType))
 createOne2OneConversation lusr zcon j = do
   (c, created) <- createOne2OneConversationLogic lusr zcon j
   let mConv =
@@ -256,7 +256,7 @@ createConnectConversation ::
   Local UserId ->
   Maybe ConnId ->
   Connect ->
-  Sem r (ConversationResponse Public.OwnConversation)
+  Sem r (ConversationResponse (Public.OwnConversation GroupConvType))
 createConnectConversation lusr conn j = do
   (c, created) <- createConnectConversationLogic lusr conn j
   let mConv =

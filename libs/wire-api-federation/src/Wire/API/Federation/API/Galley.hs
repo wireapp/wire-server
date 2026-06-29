@@ -222,7 +222,7 @@ data RemoteConversation = RemoteConversation
   { -- | Id of the conversation, implicitly qualified with the domain of the
     -- backend that created this value.
     id :: ConvId,
-    metadata :: ConversationMetadata,
+    metadata :: ConversationMetadata GroupConvType,
     members :: RemoteConvMembers,
     protocol :: ClientAPI.Versioned 'ClientAPI.V5 Protocol
   }
@@ -240,7 +240,7 @@ data RemoteConversationView = RemoteConversationView
   { -- | Id of the conversation, implicitly qualified with the domain of the
     -- backend that created this value.
     id :: ConvId,
-    metadata :: ConversationMetadata,
+    metadata :: ConversationMetadata GroupConvType,
     members :: RemoteConvMembers,
     protocol :: Protocol
   }

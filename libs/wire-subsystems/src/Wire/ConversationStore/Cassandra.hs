@@ -135,7 +135,7 @@ deleteConversation cid = do
 
   retry x5 $ write Cql.deleteConv (params LocalQuorum (Identity cid))
 
-conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
+conversationMeta :: ConvId -> Client (Maybe (ConversationMetadata GroupConvType))
 conversationMeta conv =
   fmap (toConvMeta . snd . toStoredConvRow)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))

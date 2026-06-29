@@ -157,7 +157,7 @@ getUnqualifiedOwnConversation ::
   ) =>
   Local UserId ->
   ConvId ->
-  Sem r Public.OwnConversation
+  Sem r (Public.OwnConversation GroupConvType)
 getUnqualifiedOwnConversation lusr cnv = do
   c <- getConversationAsMember (tUntagged lusr) (qualifyAs lusr cnv)
   maybe (throwIfNotOwnConversation lusr cnv) pure $ ownConversationView lusr c
@@ -171,7 +171,7 @@ getUnqualifiedConversation ::
   ) =>
   Local UserId ->
   ConvId ->
-  Sem r Public.Conversation
+  Sem r (Public.Conversation GroupConvType)
 getUnqualifiedConversation lusr cnv =
   conversationView (qualifyAs lusr ()) (Just lusr) . (.conv)
     <$> getConversationAsViewer (tUntagged lusr) (qualifyAs lusr cnv)
@@ -188,7 +188,7 @@ getConversation ::
   ) =>
   Local UserId ->
   Qualified ConvId ->
-  Sem r Public.Conversation
+  Sem r (Public.Conversation GroupConvType)
 getConversation lusr cnv =
   foldQualified
     lusr
@@ -209,7 +209,7 @@ getOwnConversation ::
   ) =>
   Local UserId ->
   Qualified ConvId ->
-  Sem r Public.OwnConversation
+  Sem r (Public.OwnConversation GroupConvType)
 getOwnConversation lusr cnv = do
   foldQualified
     lusr
@@ -226,7 +226,7 @@ getRemoteConversation ::
   ) =>
   Local UserId ->
   Remote ConvId ->
-  Sem r Public.OwnConversation
+  Sem r (Public.OwnConversation GroupConvType)
 getRemoteConversation lusr remoteConvId = do
   conversations <- getRemoteConversations lusr [remoteConvId]
   case conversations of
@@ -243,7 +243,7 @@ getRemoteConversations ::
   ) =>
   Local UserId ->
   [Remote ConvId] ->
-  Sem r [Public.OwnConversation]
+  Sem r [Public.OwnConversation GroupConvType]
 getRemoteConversations lusr remoteConvs =
   getRemoteConversationsWithFailures lusr remoteConvs >>= \case
     -- throw first error
@@ -256,7 +256,7 @@ getLocalConversationInternal ::
     Member ConversationStore.ConversationStore r
   ) =>
   ConvId ->
-  Sem r Conversation
+  Sem r (Conversation GroupConvType)
 getLocalConversationInternal cid = do
   lcid <- qualifyLocal cid
   conv <- getConversationWithError lcid
@@ -312,11 +312,11 @@ getRemoteConversationsWithFailures ::
   ) =>
   Local UserId ->
   [Remote ConvId] ->
-  Sem r ([FailedGetConversation], [Public.OwnConversation])
+  Sem r ([FailedGetConversation], [Public.OwnConversation GroupConvType])
 getRemoteConversationsWithFailures lusr convs = do
   -- get self member statuses from the database
   statusMap <- ConversationStore.getRemoteConversationStatus (tUnqualified lusr) convs
-  let remoteView :: Remote RemoteConversationView -> OwnConversation
+  let remoteView :: Remote RemoteConversationView -> OwnConversation GroupConvType
       remoteView rconv =
         remoteConversationView
           lusr
@@ -463,7 +463,7 @@ getConversations ::
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
   Maybe (Range 1 500 Int32) ->
-  Sem r (Public.ConversationList Public.OwnConversation)
+  Sem r (Public.ConversationList (Public.OwnConversation GroupConvType))
 getConversations luser mids mstart msize = do
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
   ownConvs <- for cs (\c -> maybe (throwIfNotOwnConversation luser c.id_) pure $ ownConversationView luser c)
@@ -509,7 +509,7 @@ listConversations ::
   ) =>
   Local UserId ->
   Public.ListConversations ->
-  Sem r Public.ConversationsResponse
+  Sem r (Public.ConversationsResponse GroupConvType)
 listConversations luser (Public.ListConversations ids) = do
   let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <-
@@ -627,7 +627,7 @@ getConversationMeta ::
     Member (ErrorS 'ConvNotFound) r
   ) =>
   ConvId ->
-  Sem r ConversationMetadata
+  Sem r (ConversationMetadata GroupConvType)
 getConversationMeta cnv =
   ifM
     (ConversationStore.isConversationAlive cnv)
@@ -718,7 +718,7 @@ getMLSSelfConversationWithError ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r OwnConversation
+  Sem r (OwnConversation GroupConvType)
 getMLSSelfConversationWithError lusr = do
   assertMLSEnabled
   getMLSSelfConversation lusr
@@ -736,7 +736,7 @@ getMLSSelfConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Sem r OwnConversation
+  Sem r (OwnConversation GroupConvType)
 getMLSSelfConversation lusr = do
   let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- ConversationStore.getConversation selfConvId
@@ -785,7 +785,7 @@ getMLSOne2OneOwnConversation ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r OwnConversation
+  Sem r (OwnConversation GroupConvType)
 getMLSOne2OneOwnConversation lself qother = do
   if isLocal lself qother
     then getMLSOne2OneConversationInternal lself qother
@@ -808,7 +808,7 @@ getMLSOne2OneConversationInternal ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r OwnConversation
+  Sem r (OwnConversation GroupConvType)
 getMLSOne2OneConversationInternal lself qother =
   (.conversation) <$> getMLSOne2OneConversation lself qother Nothing
 
@@ -829,7 +829,7 @@ getMLSOne2OneMLSConversation ::
   ) =>
   Local UserId ->
   Qualified UserId ->
-  Sem r (MLSOne2OneConversation MLSPublicKey)
+  Sem r (MLSOne2OneConversation MLSPublicKey GroupConvType)
 getMLSOne2OneMLSConversation lself qother = do
   assertMLSEnabled
   ensureConnectedOrSameTeam lself [qother]
@@ -857,7 +857,7 @@ getMLSOne2OneConversation ::
   Local UserId ->
   Qualified UserId ->
   Maybe MLSPublicKeyFormat ->
-  Sem r (MLSOne2OneConversation SomeKey)
+  Sem r (MLSOne2OneConversation SomeKey GroupConvType)
 getMLSOne2OneConversation lself qother fmt = do
   convWithUnformattedKeys <- getMLSOne2OneMLSConversation lself qother
   MLSOne2OneConversation convWithUnformattedKeys.conversation
@@ -872,7 +872,7 @@ getLocalMLSOne2OneConversation ::
   ) =>
   Local UserId ->
   Local ConvId ->
-  Sem r (MLSOne2OneConversation MLSPublicKey)
+  Sem r (MLSOne2OneConversation MLSPublicKey GroupConvType)
 getLocalMLSOne2OneConversation lself lconv = do
   mconv <- ConversationStore.getConversation (tUnqualified lconv)
   keys <- mlsKeysToPublic <$$> getMLSPrivateKeys
@@ -896,7 +896,7 @@ getRemoteMLSOne2OneConversation ::
   Local UserId ->
   Qualified UserId ->
   Remote conv ->
-  Sem r (MLSOne2OneConversation MLSPublicKey)
+  Sem r (MLSOne2OneConversation MLSPublicKey GroupConvType)
 getRemoteMLSOne2OneConversation lself qother rconv = do
   -- a conversation can only be remote if it is hosted on the other user's domain
   rother <-
