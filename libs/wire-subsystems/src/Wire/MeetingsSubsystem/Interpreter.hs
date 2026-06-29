@@ -39,7 +39,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig, MeetingsPremiumConfig)
-import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
+import Wire.API.User (BaseProtocolTag (BaseProtocolProteusTag), EmailAddress)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
@@ -136,7 +136,7 @@ createMeetingImpl zUser newMeeting = do
             newConvMessageTimer = Nothing,
             newConvReceiptMode = Nothing,
             newConvUsersRole = roleNameWireAdmin,
-            newConvProtocol = BaseProtocolMLSTag,
+            newConvProtocol = BaseProtocolProteusTag,
             newConvGroupConvType = MeetingConversation,
             newConvCells = True,
             newConvChannelAddPermission = Nothing,
