@@ -1002,6 +1002,12 @@ background-worker:
       # Total attempts, including the first try
       maxAttempts: 3
 
+    # Scheduled-jobs dispatcher configuration.
+    scheduledJobs:
+      # Arbiter dispatcher poll interval for all scheduled jobs.
+      # Lower values reduce discovery latency, but increase DB polling.
+      pollInterval: 5s
+
     # Meetings cleanup configuration
     meetingsCleanup:
       # Delete meetings older than this many hours (48 hours = 2 days)

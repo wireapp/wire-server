@@ -65,6 +65,10 @@ backgroundJobs:
   jobTimeout: 5s
   maxAttempts: 3
 
+# Scheduled-jobs dispatcher configuration for integration
+scheduledJobs:
+  pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
+
 # Meetings cleanup configuration for integration
 meetingsCleanup:
   cleanOlderThanHours: 0.0014  # Clean meetings older than ~5 seconds

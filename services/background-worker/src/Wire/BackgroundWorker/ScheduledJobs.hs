@@ -22,11 +22,13 @@ module Wire.BackgroundWorker.ScheduledJobs (startWorker) where
 
 import Arbiter.Core qualified as ArbiterCore
 import Data.Id (RequestId (..))
+import Data.Misc (Duration, durationToMicros)
+import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Wire.API.Jobs
 import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
-import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..))
+import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..), ScheduledJobsConfig (..))
 import Wire.Effects (runBackgroundWorkerEffects)
 import Wire.ExternalAccess.External (initExtEnv)
 import Wire.JobSubsystem
@@ -40,8 +42,8 @@ import Wire.MeetingsCleanupWorker
 scheduledJobsWorkerThreads :: Int
 scheduledJobsWorkerThreads = 1
 
-startWorker :: MeetingsCleanupConfig -> AppT IO CleanupAction
-startWorker config = do
+startWorker :: ScheduledJobsConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
+startWorker scheduledConfig config = do
   env <- ask
   extEnv <- liftIO $ initExtEnv True
   let cleanupConfig =
@@ -69,6 +71,7 @@ startWorker config = do
                   recurringJobRunnerSchedule = config.schedule,
                   recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
                   recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+                  recurringJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
                   recurringJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
                   recurringJobRunnerJobName = "meetings-cleanup",
                   recurringJobRunnerQueueName = meetingsCleanupQueueName
@@ -78,6 +81,7 @@ startWorker config = do
                 { oneOffJobRunnerLogger = env.logger,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+                  oneOffJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
                   oneOffJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
                   oneOffJobRunnerJobName = "adminless-deletion",
                   oneOffJobRunnerQueueName = adminlessDeletionQueueName
@@ -87,6 +91,7 @@ startWorker config = do
                 { oneOffJobRunnerLogger = env.logger,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+                  oneOffJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
                   oneOffJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
                   oneOffJobRunnerJobName = "adminless-reminder",
                   oneOffJobRunnerQueueName = adminlessReminderQueueName
@@ -97,3 +102,8 @@ startWorker config = do
       runBackgroundWorkerEffects env extEnv (RequestId "scheduled-jobs") Nothing $
         startJobWorkers workersConfig jobHandlers
   either (liftIO . fail . show) pure result
+
+-- | Convert the explicit background-worker config into the Arbiter poll
+-- interval in seconds.
+scheduledJobsPollIntervalSeconds :: Duration -> NominalDiffTime
+scheduledJobsPollIntervalSeconds = (/ 1_000_000) . fromIntegral . durationToMicros

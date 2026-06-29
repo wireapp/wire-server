@@ -39,6 +39,7 @@ import Data.ByteString qualified as ByteString
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
+import Data.Time.Clock (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
@@ -51,6 +52,7 @@ data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
     recurringJobRunnerSchedule :: CronSchedule,
     recurringJobRunnerArbiterConnStr :: ByteString.ByteString,
     recurringJobRunnerSchemaName :: Text,
+    recurringJobRunnerPollInterval :: NominalDiffTime,
     recurringJobRunnerWorkerThreads :: Int,
     recurringJobRunnerJobName :: Text,
     recurringJobRunnerQueueName :: Text
@@ -60,6 +62,7 @@ data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
   { oneOffJobRunnerLogger :: Log.Logger,
     oneOffJobRunnerArbiterConnStr :: ByteString.ByteString,
     oneOffJobRunnerSchemaName :: Text,
+    oneOffJobRunnerPollInterval :: NominalDiffTime,
     oneOffJobRunnerWorkerThreads :: Int,
     oneOffJobRunnerJobName :: Text,
     oneOffJobRunnerQueueName :: Text
@@ -134,7 +137,7 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
           )
     )
   let workerConfig' =
-        applyExplicitDefaults workerConfig
+        applyExplicitDefaults recurringJobRunnerPollInterval workerConfig
           { ArbiterWorkerConfig.cronJobs = [cronJob]
           }
 
@@ -196,7 +199,7 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
               ()
           )
     )
-  let workerConfig' = applyExplicitDefaults workerConfig
+  let workerConfig' = applyExplicitDefaults oneOffJobRunnerPollInterval workerConfig
 
   workerAsync <-
     Async.async $
@@ -214,13 +217,14 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
 -- show the runtime behavior in our repository and keep the knobs in one place
 -- if we need to tune them later.
 applyExplicitDefaults ::
+  NominalDiffTime ->
   ArbiterWorker.WorkerConfig m payload result ->
   ArbiterWorker.WorkerConfig m payload result
-applyExplicitDefaults cfg =
+applyExplicitDefaults pollInterval cfg =
   cfg
     { -- How often the dispatcher wakes up to look for newly visible jobs.
       -- Lower values reduce discovery latency at the cost of more DB traffic.
-      ArbiterWorkerConfig.pollInterval = 5,
+      ArbiterWorkerConfig.pollInterval = pollInterval,
       -- How long a claimed job stays invisible while a worker processes it.
       -- Must exceed the job heartbeat interval so active jobs are not reclaimed.
       ArbiterWorkerConfig.visibilityTimeout = 60,

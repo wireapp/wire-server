@@ -55,6 +55,7 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateDomainRegistration :: !Bool,
+    scheduledJobs :: ScheduledJobsConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig
   }
@@ -98,6 +99,14 @@ data BackgroundJobsConfig = BackgroundJobsConfig
   }
   deriving (Show, Generic)
   deriving (FromJSON) via Generically BackgroundJobsConfig
+
+data ScheduledJobsConfig = ScheduledJobsConfig
+  { -- | Arbiter dispatcher poll interval for scheduled jobs.
+    -- Lower values reduce discovery latency for due jobs.
+    pollInterval :: Duration
+  }
+  deriving (Show, Generic)
+  deriving (FromJSON) via Generically ScheduledJobsConfig
 
 data MeetingsCleanupConfig = MeetingsCleanupConfig
   { -- | Delete meetings older than this many hours
