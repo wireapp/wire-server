@@ -28,42 +28,46 @@ import Wire.ConversationSubsystem
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
-  mkNamedAPI @"get-unqualified-conversation" getUnqualifiedOwnConversation
-    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedOwnConversation
-    <@> mkNamedAPI @"get-conversation@v2" getOwnConversation
-    <@> mkNamedAPI @"get-conversation@v5" getOwnConversation
-    <@> mkNamedAPI @"get-conversation@v9" getOwnConversation
+  mkNamedAPI @"get-unqualified-conversation" (\lusr cnv -> toLegacyOwnConversation <$> getUnqualifiedOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" (\lusr cnv -> toLegacyOwnConversation <$> getUnqualifiedOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v2" (\lusr cnv -> toLegacyOwnConversation <$> getOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v5" (\lusr cnv -> toLegacyOwnConversation <$> getOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v9" (\lusr cnv -> toLegacyOwnConversation <$> getOwnConversation lusr cnv)
+    <@> mkNamedAPI @"get-conversation@v15" (\lusr cnv -> toLegacyConversation <$> getConversation lusr cnv)
     <@> mkNamedAPI @"get-conversation" getConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
     <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPaginated DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
-    <@> mkNamedAPI @"get-conversations" getPaginatedConversations
-    <@> mkNamedAPI @"list-conversations@v1" listConversations
-    <@> mkNamedAPI @"list-conversations@v2" listConversations
-    <@> mkNamedAPI @"list-conversations@v5" listConversations
+    <@> mkNamedAPI @"get-conversations" (\lusr mids mstart msize -> (\cl -> ConversationList (map toLegacyOwnConversation cl.convList) cl.convHasMore) <$> getPaginatedConversations lusr mids mstart msize)
+    <@> mkNamedAPI @"list-conversations@v1" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
+    <@> mkNamedAPI @"list-conversations@v2" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
+    <@> mkNamedAPI @"list-conversations@v5" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
+    <@> mkNamedAPI @"list-conversations@v15" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
     <@> mkNamedAPI @"list-conversations" listConversations
     <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
-    <@> mkNamedAPI @"create-group-conversation@v2" createLegacyGroupConversation
-    <@> mkNamedAPI @"create-group-conversation@v3" createLegacyGroupConversation
-    <@> mkNamedAPI @"create-group-conversation@v5" createGroupOwnConversation
-    <@> mkNamedAPI @"create-group-conversation@v9" createGroupOwnConversation
+    <@> mkNamedAPI @"create-group-conversation@v2" (\lusr conn nc -> fmap toLegacyOwnConversation <$> createLegacyGroupConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v3" (\lusr conn nc -> fmap toLegacyOwnConversation <$> createLegacyGroupConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v5" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v9" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
-    <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
-    <@> mkNamedAPI @"create-self-conversation@v5" createProteusSelfConversation
+    <@> mkNamedAPI @"create-self-conversation@v2" (\lusr -> fmap toLegacyOwnConversation <$> createProteusSelfConversation lusr)
+    <@> mkNamedAPI @"create-self-conversation@v5" (\lusr -> fmap toLegacyOwnConversation <$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
-    <@> mkNamedAPI @"get-mls-self-conversation@v5" getMLSSelfConversationWithError
+    <@> mkNamedAPI @"get-mls-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$> getMLSSelfConversationWithError lusr)
+    <@> mkNamedAPI @"get-mls-self-conversation@v15" (\lusr -> toLegacyOwnConversation <$> getMLSSelfConversationWithError lusr)
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
     <@> mkNamedAPI @"get-subconversation" getSubConversation
     <@> mkNamedAPI @"leave-subconversation" leaveSubConversation
     <@> mkNamedAPI @"delete-subconversation" deleteSubConversation
     <@> mkNamedAPI @"get-subconversation-group-info" getSubConversationGroupInfo
-    <@> mkNamedAPI @"create-one-to-one-conversation@v2" createOne2OneConversation
-    <@> mkNamedAPI @"create-one-to-one-conversation@v6" createOne2OneConversation
+    <@> mkNamedAPI @"create-one-to-one-conversation@v2" (\lusr conn req -> fmap toLegacyOwnConversation <$> createOne2OneConversation lusr conn req)
+    <@> mkNamedAPI @"create-one-to-one-conversation@v6" (\lusr conn req -> fmap toLegacyOwnConversation <$> createOne2OneConversation lusr conn req)
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
-    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" getMLSOne2OneOwnConversation
-    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" getMLSOne2OneMLSConversation
+    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" (\lusr usr -> toLegacyOwnConversation <$> getMLSOne2OneOwnConversation lusr usr)
+    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" (\lusr usr -> toLegacyMLSOne2OneConversation <$> getMLSOne2OneMLSConversation lusr usr)
+    <@> mkNamedAPI @"get-one-to-one-mls-conversation@v15" (\lusr usr fmt -> toLegacyMLSOne2OneConversation <$> getMLSOne2OneConversation lusr usr fmt)
     <@> mkNamedAPI @"get-one-to-one-mls-conversation" getMLSOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (\lusr con cnv invite -> addMembers lusr con (tUntagged (qualifyAs lusr cnv)) (InviteQualified (fmap (tUntagged . qualifyAs lusr) (invUsers invite)) (invRoleName invite)))
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addQualifiedMembersUnqualified
@@ -101,3 +105,10 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember
     <@> mkNamedAPI @"update-conversation-protocol" updateConversationProtocolWithLocalUser
     <@> mkNamedAPI @"update-channel-add-permission" updateChannelAddPermission
+
+toLegacyCGRV9 ::
+  CreateGroupConversationResponseV9 GroupConvType ->
+  CreateGroupConversationResponseV9 GroupConvTypeLegacy
+toLegacyCGRV9 = \case
+  GroupConversationExistedV9 conv -> GroupConversationExistedV9 (toLegacyOwnConversation conv)
+  GroupConversationCreatedV9 cgoc -> GroupConversationCreatedV9 (toLegacyCreateGroupOwnConversation cgoc)
