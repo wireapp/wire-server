@@ -93,6 +93,10 @@ data:
     backgroundJobs:
 {{ toYaml . | indent 6 }}
     {{- end }}
+    scheduledJobs:
+      # Arbiter dispatcher poll interval for all scheduled jobs.
+      # Lower values reduce discovery latency, but increase DB polling.
+      pollInterval: {{ .scheduledJobs.pollInterval }}
     {{- with .meetingsCleanup }}
     meetingsCleanup:
 {{ toYaml . | indent 6 }}

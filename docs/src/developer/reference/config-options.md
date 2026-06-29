@@ -2235,3 +2235,4 @@ Notes
 - The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
+- `scheduledJobs.pollInterval` controls how often the background worker wakes up to check Arbiter for due jobs.
