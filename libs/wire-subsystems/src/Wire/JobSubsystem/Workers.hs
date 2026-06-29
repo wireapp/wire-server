@@ -110,14 +110,17 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
           ArbiterWorkerCron.SkipOverlap
           ( \_ scheduledFor ->
               (ArbiterCore.defaultGroupedJob recurringJobRunnerQueueName MeetingsCleanupJob)
-                { ArbiterCore.notVisibleUntil = Just scheduledFor
-                , ArbiterCore.maxAttempts = Just 3
+                { ArbiterCore.notVisibleUntil = Just scheduledFor,
+                  ArbiterCore.maxAttempts = Just 3
                 }
           ) of
           Left err -> error $ "Invalid cron schedule for " <> T.unpack recurringJobRunnerJobName <> ": " <> err
           Right job -> job
 
   void $
+    -- Arbiter can optionally use LISTEN/NOTIFY to wake workers sooner, but we
+    -- keep polling as the baseline and treat notifications as a latency
+    -- optimization rather than a correctness requirement.
     ArbiterMigrations.runMigrationsForRegistry
       registry
       recurringJobRunnerArbiterConnStr
@@ -137,9 +140,11 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
           )
     )
   let workerConfig' =
-        applyExplicitDefaults recurringJobRunnerPollInterval workerConfig
-          { ArbiterWorkerConfig.cronJobs = [cronJob]
-          }
+        applyExplicitDefaults
+          recurringJobRunnerPollInterval
+          workerConfig
+            { ArbiterWorkerConfig.cronJobs = [cronJob]
+            }
 
   workerAsync <-
     Async.async $
