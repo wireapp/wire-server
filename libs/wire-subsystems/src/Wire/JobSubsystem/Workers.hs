@@ -108,6 +108,7 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
           ( \_ scheduledFor ->
               (ArbiterCore.defaultGroupedJob recurringJobRunnerQueueName MeetingsCleanupJob)
                 { ArbiterCore.notVisibleUntil = Just scheduledFor
+                , ArbiterCore.maxAttempts = Just 3
                 }
           ) of
           Left err -> error $ "Invalid cron schedule for " <> T.unpack recurringJobRunnerJobName <> ": " <> err
@@ -133,7 +134,7 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
           )
     )
   let workerConfig' =
-        workerConfig
+        applyExplicitDefaults workerConfig
           { ArbiterWorkerConfig.cronJobs = [cronJob]
           }
 
@@ -195,12 +196,53 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
               ()
           )
     )
+  let workerConfig' = applyExplicitDefaults workerConfig
 
   workerAsync <-
     Async.async $
       ArbiterHasql.runHasqlDb arbiterEnv $
-        ArbiterWorker.runWorkerPool workerConfig
+        ArbiterWorker.runWorkerPool workerConfig'
 
   pure $ do
-    ArbiterWorker.shutdownWorker workerConfig
+    ArbiterWorker.shutdownWorker workerConfig'
     Async.cancel workerAsync
+
+-- | Make the effective Arbiter defaults explicit in our code, even when we
+-- keep the same values as 'defaultWorkerConfig'.
+--
+-- This is intentionally redundant with Arbiter's own defaults. The point is to
+-- show the runtime behavior in our repository and keep the knobs in one place
+-- if we need to tune them later.
+applyExplicitDefaults ::
+  ArbiterWorker.WorkerConfig m payload result ->
+  ArbiterWorker.WorkerConfig m payload result
+applyExplicitDefaults cfg =
+  cfg
+    { -- How often the dispatcher wakes up to look for newly visible jobs.
+      -- Lower values reduce discovery latency at the cost of more DB traffic.
+      ArbiterWorkerConfig.pollInterval = 5,
+      -- How long a claimed job stays invisible while a worker processes it.
+      -- Must exceed the job heartbeat interval so active jobs are not reclaimed.
+      ArbiterWorkerConfig.visibilityTimeout = 60,
+      -- How often a running job refreshes its visibility timeout.
+      -- Keeps long-running jobs from being reclaimed mid-flight.
+      ArbiterWorkerConfig.jobHeartbeatInterval = 30,
+      -- How often the worker process updates its own heartbeat and pause state.
+      -- This drives liveness, re-registration, and paused-state reconciliation.
+      ArbiterWorkerConfig.workerHeartbeatInterval = 10,
+      -- Retry strategy for transient worker failures.
+      -- Arbiter uses exponential backoff with jitter by default.
+      ArbiterWorkerConfig.backoffStrategy = ArbiterWorker.exponentialBackoff 2.0 1_048_576,
+      -- Jitter mode for retry delays.
+      -- Equal jitter smooths retry spikes without making them too aggressive.
+      ArbiterWorkerConfig.jitter = ArbiterWorker.EqualJitter,
+      -- How long the worker waits for in-flight jobs during shutdown.
+      -- If set, the pool exits after this grace period instead of waiting forever.
+      ArbiterWorkerConfig.gracefulShutdownTimeout = Just 30,
+      -- How often the reaper runs. It refreshes groups, sweeps stale workers,
+      -- and moves exhausted jobs to the DLQ.
+      ArbiterWorkerConfig.reaperInterval = 300,
+      -- How old a worker heartbeat may be before it is considered stale.
+      -- Stale workers are swept from the registry by the reaper.
+      ArbiterWorkerConfig.workerStaleThreshold = 300
+    }

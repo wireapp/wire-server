@@ -88,6 +88,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
       arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified lusr)))
           { ArbiterCore.notVisibleUntil = Just scheduledFor
+          , ArbiterCore.maxAttempts = Just 3
           }
   JobStore.createJob job
   embed $
@@ -126,6 +127,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUnti
       arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) daysUntilDeletion))
           { ArbiterCore.notVisibleUntil = Just scheduledFor
+          , ArbiterCore.maxAttempts = Just 3
           }
   JobStore.createJob job
   embed $
