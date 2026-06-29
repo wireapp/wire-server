@@ -77,6 +77,7 @@ module Wire.API.Conversation
     toLegacyConversationMetadata,
     toLegacyMLSOne2OneConversation,
     toLegacyCreateGroupOwnConversation,
+    toLegacyCreateGroupConversation,
     isMeetingConversation,
     NewOne2OneConv (..),
     ConvTeamInfo (..),
@@ -1433,6 +1434,15 @@ toLegacyCreateGroupOwnConversation ::
   CreateGroupOwnConversation GroupConvTypeLegacy
 toLegacyCreateGroupOwnConversation cgoc =
   cgoc {cgcConversation = toLegacyOwnConversation cgoc.cgcConversation}
+
+toLegacyCreateGroupConversation ::
+  CreateGroupConversation GroupConvType ->
+  CreateGroupConversation GroupConvTypeLegacy
+toLegacyCreateGroupConversation cgc =
+  CreateGroupConversation
+    { conversation = toLegacyConversation cgc.conversation,
+      failedToAdd = cgc.failedToAdd
+    }
 
 isMeetingConversation :: OwnConversation GroupConvType -> Bool
 isMeetingConversation conv = conv.cnvMetadata.cnvmGroupConvType == Just MeetingConversation

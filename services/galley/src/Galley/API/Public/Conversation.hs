@@ -51,6 +51,7 @@ conversationAPI =
     <@> mkNamedAPI @"create-group-conversation@v3" (\lusr conn nc -> toLegacyOwnConversation <$$> createLegacyGroupConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation@v5" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation@v9" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v15" (\lusr conn nc -> toLegacyCreateGroupConversation <$> createGroupConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
     <@> mkNamedAPI @"create-self-conversation@v2" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)

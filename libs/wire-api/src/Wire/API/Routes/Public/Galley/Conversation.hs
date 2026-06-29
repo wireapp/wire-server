@@ -500,9 +500,41 @@ type ConversationAPI =
                :> ConversationVerb 'V6 GroupConvTypeLegacy (CreateGroupOwnConversation GroupConvTypeLegacy)
            )
     :<|> Named
-           "create-group-conversation"
+           "create-group-conversation@v15"
            ( Summary "Create a new conversation"
                :> From 'V10
+               :> Until 'V16
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> ReqBody '[Servant.JSON] NewConv
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ WithHeaders
+                         ConversationHeaders
+                         (CreateGroupConversation GroupConvTypeLegacy)
+                         (Respond 201 "Conversation created" (CreateGroupConversation GroupConvTypeLegacy))
+                     ]
+                    (CreateGroupConversation GroupConvTypeLegacy)
+           )
+    :<|> Named
+           "create-group-conversation"
+           ( Summary "Create a new conversation"
+               :> From 'V16
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
