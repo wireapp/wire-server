@@ -33,6 +33,13 @@ import Wire.JobSubsystem
 import Wire.JobSubsystem.Workers
 import Wire.MeetingsCleanupWorker
 
+-- | Initial worker pool size for the scheduled-jobs queues.
+--
+-- Keep this explicit so the next tuning pass has a single obvious place to
+-- change the parallelism for meetings cleanup and adminless jobs.
+scheduledJobsWorkerThreads :: Int
+scheduledJobsWorkerThreads = 1
+
 startWorker :: MeetingsCleanupConfig -> AppT IO CleanupAction
 startWorker config = do
   env <- ask
@@ -62,7 +69,7 @@ startWorker config = do
                   recurringJobRunnerSchedule = config.schedule,
                   recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
                   recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  recurringJobRunnerWorkerThreads = 1,
+                  recurringJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
                   recurringJobRunnerJobName = "meetings-cleanup",
                   recurringJobRunnerQueueName = meetingsCleanupQueueName
                 },
@@ -71,7 +78,7 @@ startWorker config = do
                 { oneOffJobRunnerLogger = env.logger,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  oneOffJobRunnerWorkerThreads = 1,
+                  oneOffJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
                   oneOffJobRunnerJobName = "adminless-deletion",
                   oneOffJobRunnerQueueName = adminlessDeletionQueueName
                 },
@@ -80,7 +87,7 @@ startWorker config = do
                 { oneOffJobRunnerLogger = env.logger,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  oneOffJobRunnerWorkerThreads = 1,
+                  oneOffJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
                   oneOffJobRunnerJobName = "adminless-reminder",
                   oneOffJobRunnerQueueName = adminlessReminderQueueName
                 }
