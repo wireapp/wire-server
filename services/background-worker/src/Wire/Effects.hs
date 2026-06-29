@@ -98,6 +98,7 @@ import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley (GuestLinkTTLSeconds)
@@ -129,6 +130,8 @@ import Wire.TeamCollaboratorsSubsystem.Interpreter (interpretTeamCollaboratorsSu
 import Wire.TeamFeatureStore (TeamFeatureStore)
 import Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra)
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError)
+import Wire.TeamFeatureStore.Migrating (interpretTeamFeatureStoreToCassandraAndPostgres)
+import Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres)
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws (interpretTeamJournal)
 import Wire.TeamStore (TeamStore)
@@ -249,6 +252,7 @@ type BackgroundWorkerEffects =
      Error (Tagged CodeStoreNotFound ()),
      Error TeamFeatureStoreError,
      Error TeamCollaboratorsError,
+     Error MigrationLockError,
      Error UnreachableBackends,
      Error InternalError,
      Error MigrationError,
@@ -297,6 +301,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @MigrationError (T.pack . show)
     . mapError @InternalError (TL.toStrict . internalErrorDescription)
     . mapError @UnreachableBackends (T.pack . show)
+    . mapError @MigrationLockError (const ("Migration lock error" :: Text))
     . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
     . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
     . mapError @(Tagged 'CodeStoreNotFound ()) (const ("Code store not found" :: Text))
@@ -324,7 +329,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
-    . interpretTeamFeatureStoreToCassandra
+    . case env.postgresMigration.teamFeatures of
+      CassandraStorage ->
+        interpretTeamFeatureStoreToCassandra
+      MigrationToPostgresql ->
+        interpretTeamFeatureStoreToCassandraAndPostgres
+      PostgresqlStorage ->
+        interpretTeamFeatureStoreToPostgres
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
