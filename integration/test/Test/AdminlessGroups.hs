@@ -193,7 +193,32 @@ testAdminlessJobsExecuteViaArbiterApi :: (HasCallStack) => App ()
 testAdminlessJobsExecuteViaArbiterApi = do
   (alice, tid, _) <- createTeam OwnDomain 1
 
+  -- we diable the feature and create an adminless group
   setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
+  patchTeamFeature
+    OwnDomain
+    tid
+    "preventAdminlessGroups"
+    (object ["status" .= "disabled"])
+    >>= assertSuccess
+
+  alice1 <- createMLSClient def alice
+  void $ uploadNewKeyPackage def alice1
+
+  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  convId <- objConvId conv
+  convIdText <- conv %. "qualified_id.id" & asString
+  aliceIdText <- alice %. "qualified_id.id" & asString
+  createGroup def alice1 convId
+  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+
+  bindResponse (removeMember alice conv alice) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  bindResponse (GalleyI.getConversation conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+
+  -- now we enabled the feature so that the job will get excecuted
   patchTeamFeature
     OwnDomain
     tid
@@ -210,46 +235,48 @@ testAdminlessJobsExecuteViaArbiterApi = do
     )
     >>= assertSuccess
 
-  alice1 <- createMLSClient def alice
-  void $ uploadNewKeyPackage def alice1
-
-  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
-  convId <- objConvId conv
-  convIdText <- conv %. "qualified_id.id" & asString
-  aliceIdText <- alice %. "qualified_id.id" & asString
-  createGroup def alice1 convId
-  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
-
-  bindResponse (removeMember alice conv alice) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-
   now <- liftIO getCurrentTime
   let deletionAt = addUTCTime (-5) now
 
-  postArbiterJob
-    alice
-    "adminless_deletion_jobs"
-    [ "payload"
-        .= object
-          [ "team_id" .= tid,
-            "conversation_id" .= convIdText,
-            "orig_user_id" .= aliceIdText
-          ],
-      "groupKey" .= convIdText,
-      "priority" .= (0 :: Int),
-      "notVisibleUntil" .= deletionAt,
-      "dedupKey" .= Null,
-      "maxAttempts" .= (10 :: Int)
-    ]
-    >>= assertSuccess
+  insertedJob <-
+    postArbiterJob
+      alice
+      "adminless_deletion_jobs"
+      [ "payload"
+          .= object
+            [ "team_id" .= tid,
+              "conversation_id" .= convIdText,
+              "orig_user_id" .= aliceIdText
+            ],
+        "groupKey" .= convIdText,
+        "priority" .= (0 :: Int),
+        "notVisibleUntil" .= deletionAt,
+        "dedupKey" .= Null,
+        "maxAttempts" .= (3 :: Int)
+      ]
+      >>= getJSON 200
+      >>= (%. "job")
+  assertArbiterJobMatches insertedJob tid convIdText deletionAt
 
-  bindResponse (GalleyI.getConversation conv) $ \resp -> do
-    resp.status `shouldMatchInt` 200
-
-  eventually $ do
+  retryT $ do
     bindResponse (GalleyI.getConversation conv) $ \resp -> do
       resp.status `shouldMatchInt` 404
   where
+    assertArbiterJobMatches job expectedTeamId expectedConvId expectedNotVisibleUntil = do
+      jobTeamId <- job %. "payload.team_id" & asString
+      jobConversationId <- job %. "payload.conversation_id" & asString
+      jobTeamId `shouldMatch` expectedTeamId
+      jobConversationId `shouldMatch` expectedConvId
+      assertJobVisibleAt expectedNotVisibleUntil job
+
+    assertJobVisibleAt expected job = do
+      notVisibleUntilStr <- job %. "notVisibleUntil" & asString
+      notVisibleUntil <- assertJust ("expected ISO 8601 timestamp, got: " <> notVisibleUntilStr) $ iso8601ParseM @Maybe @UTCTime notVisibleUntilStr
+      let tolerance = 5 :: NominalDiffTime
+      assertBool
+        ("notVisibleUntil " <> show notVisibleUntil <> " is not within tolerance of expected " <> show expected)
+        (notVisibleUntil >= addUTCTime (negate tolerance) expected && notVisibleUntil <= addUTCTime tolerance expected)
+
     postArbiterJob user table body = do
       req <- baseRequest user Brig Unversioned $ joinHttpPath ["i", "jobs", "api", "v1", table, "jobs"]
       submit "POST" $ addJSONObject body req
