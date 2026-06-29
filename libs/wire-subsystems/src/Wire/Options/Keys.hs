@@ -28,10 +28,6 @@ import Crypto.ECC hiding (KeyPair)
 import Crypto.Error
 import Crypto.PubKey.ECDSA qualified as ECDSA
 import Crypto.PubKey.Ed25519 qualified as Ed25519
-import "crypton-asn1-encoding" Data.ASN1.BinaryEncoding
-import "crypton-asn1-types" Data.ASN1.BitArray
-import "crypton-asn1-encoding" Data.ASN1.Encoding
-import "crypton-asn1-types" Data.ASN1.Types
 import Data.Bifunctor
 import Data.ByteString.Lazy qualified as LBS
 import Data.PEM
@@ -41,6 +37,10 @@ import Imports
 import Network.Wai.Utilities.Exception
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Keys
+import "crypton-asn1-encoding" Data.ASN1.BinaryEncoding
+import "crypton-asn1-encoding" Data.ASN1.Encoding
+import "crypton-asn1-types" Data.ASN1.BitArray
+import "crypton-asn1-types" Data.ASN1.Types
 
 type MLSPrivateKeyPaths = MLSKeysByPurpose (MLSKeys FilePath)
 
