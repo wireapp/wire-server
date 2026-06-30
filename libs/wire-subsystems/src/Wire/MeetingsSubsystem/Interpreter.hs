@@ -25,6 +25,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
+import Data.List.NonEmpty (nonEmpty)
 import Data.Map qualified as Map
 import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
@@ -39,7 +40,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig, MeetingsPremiumConfig)
-import Wire.API.User (BaseProtocolTag (BaseProtocolProteusTag), EmailAddress)
+import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
@@ -80,8 +81,8 @@ interpretMeetingsSubsystem ::
   NominalDiffTime ->
   InterpreterFor MeetingsSubsystem r
 interpretMeetingsSubsystem validityPeriod = interpret $ \case
-  CreateMeeting zUser newMeeting ->
-    createMeetingImpl zUser newMeeting
+  CreateMeeting zUser connId newMeeting ->
+    createMeetingImpl zUser connId newMeeting
   UpdateMeeting zUser meetingId update ->
     updateMeetingImpl zUser meetingId update validityPeriod
   DeleteMeeting zUser connId meetingId ->
@@ -107,9 +108,10 @@ createMeetingImpl ::
     Member (Error MeetingError) r
   ) =>
   Local UserId ->
+  ConnId ->
   API.NewMeeting ->
   Sem r (API.Meeting, StoredConversation)
-createMeetingImpl zUser newMeeting = do
+createMeetingImpl zUser connId newMeeting = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled conversationTeamId
@@ -128,7 +130,7 @@ createMeetingImpl zUser newMeeting = do
   let newConv =
         NewConv
           { newConvUsers = [],
-            newConvQualifiedUsers = fromMaybe [] newMeeting.qualifiedUsers,
+            newConvQualifiedUsers = [],
             newConvName = Just newMeeting.title,
             newConvAccess = Set.singleton PrivateAccess,
             newConvAccessRoles = Nothing,
@@ -136,7 +138,7 @@ createMeetingImpl zUser newMeeting = do
             newConvMessageTimer = Nothing,
             newConvReceiptMode = Nothing,
             newConvUsersRole = roleNameWireAdmin,
-            newConvProtocol = BaseProtocolProteusTag,
+            newConvProtocol = BaseProtocolMLSTag,
             newConvGroupConvType = MeetingConversation,
             newConvCells = True,
             newConvChannelAddPermission = Nothing,
@@ -147,6 +149,19 @@ createMeetingImpl zUser newMeeting = do
 
   -- Create and store the conversation via ConversationSubsystem
   storedConv <- ConversationSubsystem.internalCreateGroupConversation zUser Nothing newConv
+
+  -- Add the qualified users to the meeting's conversation. The conversation is
+  -- MLS, so members cannot be seeded at creation; instead we add them in a
+  -- second call. 'mkJoinType' yields 'ExternalAdd' for meeting conversations,
+  -- which is the MLS-compatible server-side join path.
+  for_ newMeeting.qualifiedUsers $ \users ->
+    for_ (nonEmpty users) $ \neUsers ->
+      void $
+        ConversationSubsystem.addMembers
+          zUser
+          connId
+          (Qualified storedConv.id_ (tDomain zUser))
+          (InviteQualified neUsers roleNameWireAdmin)
 
   -- Store meeting (trial status is provided by caller)
   storedMeeting <-

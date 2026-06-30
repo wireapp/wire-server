@@ -20,7 +20,7 @@ module Wire.MockInterpreters.ConversationSubsystem where
 import Data.Default (def)
 import Data.Id
 import Data.Map qualified as Map
-import Data.Qualified (tUnqualified)
+import Data.Qualified (qUnqualified, tUnqualified)
 import Data.Range (fromRange)
 import Data.Set qualified as Set
 import Imports
@@ -77,6 +77,11 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
   InternalGetLocalMember cid uid -> do
     members <- gets (Map.lookup cid)
     pureT $ if Set.member uid (fromMaybe Set.empty members) then Just (newMember uid) else Nothing
+  AddMembers _lusr _zcon qcnv invite -> do
+    let cnv = qUnqualified qcnv
+        invited = Set.fromList (qUnqualified <$> toList invite.users)
+    modify @ConversationMembers (Map.insertWith Set.union cnv invited)
+    pureT Unchanged
   InternalGetConversation cid -> do
     conv <- gets (Map.lookup cid)
     pureT conv

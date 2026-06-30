@@ -141,7 +141,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ do
-      (meeting, _conv) <- createMeeting zUser newMeeting
+      (meeting, _conv) <- createMeeting zUser (ConnId (C.pack "test-conn")) newMeeting
       fetched <- getMeeting zUser meeting.id
       pure (meeting, fetched)
 
@@ -168,12 +168,17 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ do
-      (meeting, _conv) <- createMeeting zUser newMeeting
-      pure meeting
+      (meeting, conv) <- createMeeting zUser (ConnId (C.pack "test-conn")) newMeeting
+      -- The qualified user must have been added to the meeting's conversation
+      -- via the second ConversationSubsystem call.
+      added <- internalGetLocalMember conv.id_ otherUid
+      pure (meeting, added)
 
     case result of
       Left err -> fail $ "Error: " <> show err
-      Right meeting -> meeting.title `shouldBe` fromJust (checked "Meeting With Users")
+      Right (meeting, added) -> do
+        meeting.title `shouldBe` fromJust (checked "Meeting With Users")
+        added `shouldSatisfy` isJust
 
   it "fails to create a meeting if end time is before start time" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -190,7 +195,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               qualifiedUsers = Nothing
             }
 
-    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser (ConnId (C.pack "test-conn")) newMeeting
     result `shouldBe` Left InvalidTimes
 
   describe "getMeeting access control" $ do
@@ -219,7 +224,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         getMeeting zUser1 meeting.id
 
       result `shouldBe` Right Nothing
@@ -236,7 +241,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         (meeting,) <$> getMeeting zUser1 meeting.id
 
       case result of
@@ -256,7 +261,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        (meeting, conv) <- createMeeting zUser1 newMeeting
+        (meeting, conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         members <- gets (Map.lookup conv.id_)
         let updatedMembers = maybe (Set.singleton uid2) (Set.insert uid2) members
         modify (Map.insert conv.id_ updatedMembers)
@@ -279,7 +284,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         getMeeting zUser3 meeting.id
 
       result `shouldBe` Right Nothing
@@ -300,7 +305,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen Map.empty def $ do
-      (meeting, _conv) <- createMeeting zUser newMeeting
+      (meeting, _conv) <- createMeeting zUser (ConnId (C.pack "test-conn")) newMeeting
       pure meeting
 
     fmap (.trial) result `shouldBe` Right True
@@ -327,7 +332,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen (Map.singleton teamId [teamMember]) teamConfig $ do
-      (meeting, _conv) <- createMeeting zUser newMeeting
+      (meeting, _conv) <- createMeeting zUser (ConnId (C.pack "test-conn")) newMeeting
       pure meeting
 
     fmap (.trial) result `shouldBe` Right False
@@ -354,7 +359,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             }
 
     result <- runTestStack now gen (Map.singleton teamId [teamMember]) teamConfig $ do
-      (meeting, _conv) <- createMeeting zUser newMeeting
+      (meeting, _conv) <- createMeeting zUser (ConnId (C.pack "test-conn")) newMeeting
       pure meeting
 
     fmap (.trial) result `shouldBe` Right True
@@ -384,7 +389,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         updateMeeting zUser1 meeting.id (API.UpdateMeeting Nothing Nothing Nothing Nothing)
 
       result `shouldBe` Left EmptyUpdate
@@ -401,7 +406,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         let update =
               API.UpdateMeeting
                 { startTime = Just (addUTCTime 8000 now),
@@ -425,7 +430,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         updateMeeting zUser1 meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
 
       result `shouldBe` Right Nothing
@@ -442,7 +447,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         updateMeeting zUser2 meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
 
       result `shouldBe` Right Nothing
@@ -464,7 +469,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
        in isNotEmpty && hasValidTimes ==>
             ioProperty $ do
               result <- runTestStack now gen Map.empty teamConfig $ do
-                (meeting, _conv) <- createMeeting zUser1 baseMeeting
+                (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) baseMeeting
                 updateMeeting zUser1 meeting.id update
               case result of
                 Left err ->
@@ -504,7 +509,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _) <- createMeeting zUser1 newMeeting
+        (meeting, _) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         deleteResult <- deleteMeeting zUser1 testConnId meeting.id
         getResult <- getMeeting zUser1 meeting.id
         pure (deleteResult, getResult)
@@ -523,7 +528,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        (meeting, _) <- createMeeting zUser1 newMeeting
+        (meeting, _) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         deleteMeeting zUser2 testConnId meeting.id
 
       result `shouldBe` Right False
@@ -540,7 +545,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _) <- createMeeting zUser1 newMeeting
+        (meeting, _) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         deleteMeeting zUser1 testConnId meeting.id
 
       result `shouldBe` Right False
@@ -565,7 +570,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, conv) <- createMeeting zUser1 newMeeting
+        (meeting, conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         _ <- internalGetConversation conv.id_
         _ <- deleteMeeting zUser1 testConnId meeting.id
         internalGetConversation conv.id_
@@ -584,7 +589,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _) <- createMeeting zUser1 newMeeting
+        (meeting, _) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         -- Change conversation type to non-meeting by updating local members only
         -- This simulates a non-meeting conversation without touching internal types
         deleteMeeting zUser1 testConnId meeting.id
@@ -618,7 +623,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- addInvitedEmails zUser1 meeting.id [email1, email2]
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -642,7 +647,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         addInvitedEmails zUser1 meeting.id [email1]
 
       result `shouldBe` Right False
@@ -659,7 +664,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         addInvitedEmails zUser2 meeting.id [email1]
 
       result `shouldBe` Right False
@@ -701,7 +706,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- removeInvitedEmails zUser1 meeting.id [email2]
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -725,7 +730,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- removeInvitedEmails zUser1 meeting.id [email1, email2]
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -749,7 +754,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- removeInvitedEmails zUser1 meeting.id [email2, email3]
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -773,7 +778,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         removeInvitedEmails zUser1 meeting.id [email1]
 
       result `shouldBe` Right False
@@ -790,7 +795,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         removeInvitedEmails zUser2 meeting.id [email1]
 
       result `shouldBe` Right False
@@ -832,7 +837,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- replaceInvitedEmails zUser1 meeting.id [email3]
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -856,7 +861,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- replaceInvitedEmails zUser1 meeting.id []
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -880,7 +885,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         success <- replaceInvitedEmails zUser1 meeting.id [email3, email3, email1]
         fetched <- getMeeting zUser1 meeting.id
         pure (success, fetched)
@@ -904,7 +909,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         replaceInvitedEmails zUser1 meeting.id [email2]
 
       result `shouldBe` Right False
@@ -921,7 +926,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               }
 
       result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
-        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        (meeting, _conv) <- createMeeting zUser1 (ConnId (C.pack "test-conn")) newMeeting
         replaceInvitedEmails zUser2 meeting.id [email3]
 
       result `shouldBe` Right False
@@ -961,28 +966,28 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "allows operations for personal user even when meetings disabled" $ do
       result <-
         runTestStack now gen Map.empty meetingsDisabled $
-          createMeeting zUserPersonal newMeeting
+          createMeeting zUserPersonal (ConnId (C.pack "test-conn")) newMeeting
 
       result `shouldSatisfy` isRight
 
     it "allows operations for team user with meetings enabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
 
       result `shouldSatisfy` isRight
 
     it "throws MeetingsFeatureDisabled on createMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
-          createMeeting zUserTeam newMeeting
+          createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
 
       result `shouldBe` Left MeetingsFeatureDisabled
 
     it "throws MeetingsFeatureDisabled on getMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
-          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          (meeting, _conv) <- createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
           pure meeting
 
       case result of
@@ -997,7 +1002,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
-          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          (meeting, _conv) <- createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
           pure meeting
 
       case result of
@@ -1012,7 +1017,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on deleteMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
-          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          (meeting, _conv) <- createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
           pure meeting
 
       case result of
@@ -1034,7 +1039,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
-          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          (meeting, _conv) <- createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
           pure meeting
 
       case result of
@@ -1049,7 +1054,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on removeInvitedEmails for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
-          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          (meeting, _conv) <- createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
           pure meeting
 
       case result of
@@ -1064,7 +1069,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "throws MeetingsFeatureDisabled on replaceInvitedEmails for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
-          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          (meeting, _conv) <- createMeeting zUserTeam (ConnId (C.pack "test-conn")) newMeeting
           pure meeting
 
       case result of

@@ -34,6 +34,7 @@ type MeetingsAPI =
     ( Summary "Create a new meeting"
         :> From 'V15
         :> ZLocalUser
+        :> ZConn
         :> "meetings"
         :> ReqBody '[JSON] NewMeeting
         :> CanThrow 'InvalidOperation

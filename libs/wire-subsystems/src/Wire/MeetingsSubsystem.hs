@@ -31,6 +31,7 @@ import Wire.StoredConversation (StoredConversation)
 data MeetingsSubsystem m a where
   CreateMeeting ::
     Local UserId ->
+    ConnId ->
     NewMeeting ->
     MeetingsSubsystem m (Meeting, StoredConversation)
   UpdateMeeting ::

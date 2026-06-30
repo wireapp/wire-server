@@ -40,10 +40,11 @@ import Wire.MeetingsSubsystem qualified as Meetings
 createMeeting ::
   (Member Meetings.MeetingsSubsystem r) =>
   Local UserId ->
+  ConnId ->
   NewMeeting ->
   Sem r Meeting
-createMeeting lUser newMeeting = do
-  (meeting, _conversation) <- Meetings.createMeeting lUser newMeeting
+createMeeting lUser connId newMeeting = do
+  (meeting, _conversation) <- Meetings.createMeeting lUser connId newMeeting
   pure meeting
 
 updateMeeting ::

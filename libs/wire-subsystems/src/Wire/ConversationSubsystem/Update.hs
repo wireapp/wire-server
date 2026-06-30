@@ -837,7 +837,8 @@ joinConversation lusr zcon conv access = do
 
 mkJoinType :: StoredConversation -> JoinType
 mkJoinType conv =
-  if conv.metadata.cnvmGroupConvType == Just Channel && isJust conv.metadata.cnvmTeam
+  if (conv.metadata.cnvmGroupConvType == Just Channel || conv.metadata.cnvmGroupConvType == Just MeetingConversation)
+    && isJust conv.metadata.cnvmTeam
     then ExternalAdd
     else InternalAdd
 
