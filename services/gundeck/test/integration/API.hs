@@ -953,7 +953,7 @@ connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
     assertPresences (uid, conns)
     pure chs
 
-assertPresences :: (UserId, [ConnId]) -> TestM ()
+assertPresences :: (HasCallStack) => (UserId, [ConnId]) -> TestM ()
 assertPresences (uid, conns) = wsAssertPresences uid (length conns)
 
 wsRun :: (HasCallStack) => CannonR -> UserId -> ConnId -> WS.ClientApp () -> TestM (Async ())
