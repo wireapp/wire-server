@@ -882,18 +882,6 @@ instance ToSchema GroupConvTypeLegacy where
           element "channel" ChannelLegacy
         ]
 
-instance C.Cql GroupConvTypeLegacy where
-  ctype = C.Tagged C.IntColumn
-  toCql = C.CqlInt . fromIntegral . fromEnum
-  fromCql (C.CqlInt i) = Right . toEnum . fromIntegral $ i
-  fromCql _ = Left "GroupConvTypeLegacy: int expected"
-
-instance PostgresMarshall Int32 GroupConvTypeLegacy where
-  postgresMarshall = fromIntegral . fromEnum
-
-instance PostgresUnmarshall Int32 GroupConvTypeLegacy where
-  postgresUnmarshall = Right . toEnum . fromIntegral
-
 fromGroupConvTypeLegacy :: GroupConvTypeLegacy -> GroupConvType
 fromGroupConvTypeLegacy = \case
   GroupConversationLegacy -> GroupConversation
