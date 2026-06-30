@@ -108,6 +108,7 @@ module Wire.API.Team.Feature
     CellsCollabora (..),
     CollaboraEdition (..),
     CellsBackend (..),
+    QuotaBytes (..),
     CellsStorage (..),
     NumBytes (..),
     AllowedGlobalOperationsConfig (..),
@@ -168,13 +169,14 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
+import Data.Text.Read qualified as TR
 import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports hiding (All, First)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (choose, getPrintableString)
+import Test.QuickCheck (choose, frequency, getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import URI.ByteString.QQ qualified as URI.QQ
@@ -1910,18 +1912,53 @@ instance ToSchema NumBytes where
               pure n
           )
 
-newtype CellsStorage = CellsStorage
-  { perUserQuotaBytes :: NumBytes
+data QuotaBytes
+  = QuotaBytesFinite NumBytes
+  | QuotaBytesUnlimited
+  deriving stock (Show, Eq)
+
+instance Arbitrary QuotaBytes where
+  arbitrary =
+    frequency
+      [ (1, pure QuotaBytesUnlimited),
+        (9, QuotaBytesFinite <$> arbitrary)
+      ]
+
+instance ToSchema QuotaBytes where
+  schema = mkSchema quotaBytesDoc parseQuotaBytes quotaBytesToValue
+    where
+      quotaBytesDoc :: NamedSwaggerDoc
+      quotaBytesDoc = swaggerDoc @Text & S.schema . S.example ?~ "-1"
+
+      quotaBytesToValue :: QuotaBytes -> Maybe A.Value
+      quotaBytesToValue QuotaBytesUnlimited = Just $ A.String "-1"
+      quotaBytesToValue (QuotaBytesFinite n) = Just $ A.toJSON n
+
+      parseQuotaBytes :: A.Value -> A.Parser QuotaBytes
+      parseQuotaBytes = A.withText "QuotaBytes" $ \txt ->
+        case TR.signed TR.decimal txt :: Either String (Integer, Text) of
+          Left err -> fail err
+          Right (n, rest) -> do
+            unless (T.null rest) $
+              fail "value must be an integer string without decimals"
+            if n < 0
+              then pure QuotaBytesUnlimited
+              else QuotaBytesFinite <$> schemaParseJSON (A.String txt)
+
+data CellsStorage = CellsStorage
+  { totalLimitBytes :: Maybe QuotaBytes,
+    perUserQuotaBytes :: QuotaBytes
   }
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsStorage
-  deriving newtype (Arbitrary)
+  deriving (Arbitrary) via (GenericUniform CellsStorage)
 
 instance ToSchema CellsStorage where
   schema =
     object $
       CellsStorage
-        <$> perUserQuotaBytes .= field "perUserQuotaBytes" schema
+        <$> totalLimitBytes .= maybe_ (optField "totalLimitBytes" schema)
+        <*> perUserQuotaBytes .= field "perUserQuotaBytes" schema
 
 data CellsInternalConfigB t f = CellsInternalConfig
   { backend :: Wear t f CellsBackend,
@@ -1955,7 +1992,11 @@ instance Default CellsInternalConfig where
     CellsInternalConfig
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Cool,
-        storage = CellsStorage $ NumBytes $ BigIntString 1000000000000 -- 1 TB
+        storage =
+          CellsStorage
+            { totalLimitBytes = Just $ QuotaBytesFinite $ NumBytes $ BigIntString 1000000000000, -- 1 TB
+              perUserQuotaBytes = QuotaBytesUnlimited
+            }
       }
 
 instance (Typeable f, FieldF f) => ToSchema (CellsInternalConfigB Covered f) where

@@ -402,6 +402,9 @@ testCellsInternalConfig :: TestM ()
 testCellsInternalConfig = do
   (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @CellsInternalConfig tid
+  liftIO $ do
+    cfg.config.storage.totalLimitBytes @?= Just (QuotaBytesFinite (NumBytes (BigIntString 1000000000000)))
+    cfg.config.storage.perUserQuotaBytes @?= QuotaBytesUnlimited
   let newBackend :: HttpsUrl
       newBackend = fromMaybe (error "invalid url") . fromByteString $ "https://cells-internal.example.com"
       newCfg =
@@ -410,7 +413,11 @@ testCellsInternalConfig = do
               cfg.config
                 { backend = CellsBackend newBackend,
                   collabora = CellsCollabora Cool,
-                  storage = CellsStorage (NumBytes (BigIntString 2000000000000))
+                  storage =
+                    CellsStorage
+                      { totalLimitBytes = Just (QuotaBytesFinite (NumBytes (BigIntString 2000000000000))),
+                        perUserQuotaBytes = QuotaBytesUnlimited
+                      }
                 }
           } ::
           LockableFeature CellsInternalConfig

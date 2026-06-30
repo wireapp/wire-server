@@ -689,7 +689,10 @@ cells:
 
 ### Cells Internal
 
-Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string.
+Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and two storage quota settings:
+
+- `totalLimitBytes` is the total team data limit. It is optional for backward compatibility with existing records, and any negative value is accepted as unlimited. The API returns `-1` for unlimited.
+- `perUserQuotaBytes` is the per-user quota. Any negative value is accepted as unlimited. The API returns `-1` for unlimited.
 
 ```yaml
 # galley.yaml
@@ -706,7 +709,8 @@ config:
             collabora:
               edition: COOL
             storage:
-              perUserQuotaBytes: "1000000000000" # 1 TB
+              totalLimitBytes: "1000000000000" # 1 TB
+              perUserQuotaBytes: "-1"
 ```
 
 ### Allowed Global Operations

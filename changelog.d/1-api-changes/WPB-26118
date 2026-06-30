@@ -1,0 +1,1 @@
+`cellsInternal` in API version `v17` now exposes storage quotas as `totalLimitBytes` and `perUserQuotaBytes`. `totalLimitBytes` is optional for backward compatibility with existing records, any negative value for either field is accepted as unlimited, and unlimited values are returned as `-1`.

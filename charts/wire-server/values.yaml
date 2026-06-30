@@ -284,7 +284,8 @@ galley:
               collabora:
                 edition: COOL
               storage:
-                perUserQuotaBytes: "1000000000000"
+                totalLimitBytes: "1000000000000"
+                perUserQuotaBytes: "-1"
         allowedGlobalOperations:
           status: enabled
           config:
