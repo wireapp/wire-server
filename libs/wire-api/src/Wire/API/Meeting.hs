@@ -28,6 +28,7 @@ import Data.Schema
 import Data.Time.Clock
 import Deriving.Aeson
 import Imports
+import Wire.API.Conversation (Conversation, GroupConvType)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..))
 import Wire.API.User.Identity (EmailAddress)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -61,6 +62,33 @@ instance ToSchema Meeting where
         <*> (.endTime) .= field "end_time" utcTimeSchema
         <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
         <*> (.conversationId) .= field "qualified_conversation" schema
+        <*> (.invitedEmails) .= field "invited_emails" (array schema)
+        <*> (.trial) .= field "trial" schema
+        <*> (.createdAt) .= field "created_at" utcTimeSchema
+        <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+
+-- | A 'Meeting' extended with the full 'Conversation' associated with it, as
+-- returned when creating or updating a meeting.
+data MeetingWithConversation = MeetingWithConversation
+  { meeting :: Meeting,
+    conversation :: Conversation GroupConvType
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingWithConversation)
+  deriving (Arbitrary) via (GenericUniform MeetingWithConversation)
+
+instance ToSchema MeetingWithConversation where
+  schema =
+    objectWithDocModifier (description ?~ "A scheduled meeting with its associated conversation") $
+      MeetingWithConversation
+        <$> (.id) .= field "qualified_id" schema
+        <*> (.title) .= field "title" schema
+        <*> (.creator) .= field "qualified_creator" schema
+        <*> (.startTime) .= field "start_time" utcTimeSchema
+        <*> (.endTime) .= field "end_time" utcTimeSchema
+        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+        <*> (.conversationId) .= field "qualified_conversation" schema
+        <*> (.conversation) .= field "conversation" schema
         <*> (.invitedEmails) .= field "invited_emails" (array schema)
         <*> (.trial) .= field "trial" schema
         <*> (.createdAt) .= field "created_at" utcTimeSchema

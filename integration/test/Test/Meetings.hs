@@ -24,6 +24,15 @@ getMeetingIdAndDomain meeting = do
   domain <- meeting %. "qualified_id" %. "domain" >>= asString
   pure (meetingId, domain)
 
+-- | On create/update responses, the full @conversation@ object is returned
+-- alongside the legacy @qualified_conversation@ field. This asserts that both
+-- refer to the same conversation.
+assertConversationMatchesLegacy :: (HasCallStack) => Value -> App ()
+assertConversationMatchesLegacy meeting = do
+  convId <- meeting %. "conversation" %. "qualified_id"
+  legacyConvId <- meeting %. "qualified_conversation"
+  convId `shouldMatch` legacyConvId
+
 -- Helper to create a default new meeting JSON object
 defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
 defaultMeetingJson title startTime endTime invitedEmails =
@@ -53,6 +62,9 @@ testMeetingCreate = do
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
   meeting %. "invited_emails" `shouldMatch` (["alice@example.com", "bob@example.com"] :: [String])
+
+  -- The full conversation is returned alongside the legacy field
+  assertConversationMatchesLegacy meeting
 
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -200,6 +212,9 @@ testMeetingRecurrence = do
   recurrence' <- updated %. "recurrence"
   recurrence' %. "frequency" `shouldMatch` "weekly"
   recurrence' %. "interval" `shouldMatchInt` 2
+
+  -- The full conversation is still returned on update
+  assertConversationMatchesLegacy updated
 
 testMeetingUpdateNotFound :: (HasCallStack) => App ()
 testMeetingUpdateNotFound = do

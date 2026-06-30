@@ -41,8 +41,8 @@ type MeetingsAPI =
         :> MultiVerb
              'POST
              '[JSON]
-             '[Respond 201 "Meeting created" Meeting]
-             Meeting
+             '[Respond 201 "Meeting created" MeetingWithConversation]
+             MeetingWithConversation
     )
     :<|> Named
            "update-meeting"
@@ -59,8 +59,8 @@ type MeetingsAPI =
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    '[Respond 200 "Meeting updated" Meeting]
-                    Meeting
+                    '[Respond 200 "Meeting updated" MeetingWithConversation]
+                    MeetingWithConversation
            )
     :<|> Named
            "delete-meeting"

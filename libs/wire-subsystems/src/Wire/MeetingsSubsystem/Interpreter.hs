@@ -114,7 +114,7 @@ createMeetingImpl ::
   ) =>
   Local UserId ->
   API.NewMeeting ->
-  Sem r (API.Meeting, StoredConversation)
+  Sem r API.MeetingWithConversation
 createMeetingImpl zUser newMeeting = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
@@ -168,14 +168,12 @@ createMeetingImpl zUser newMeeting = do
       newMeeting.invitedEmails
       trial
 
-  -- Return created meeting
-  pure
-    ( storedMeetingToMeeting (tDomain zUser) storedMeeting,
-      storedConv
-    )
+  -- Return created meeting with its conversation
+  pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member (Error MeetingError) r,
@@ -185,7 +183,7 @@ updateMeetingImpl ::
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
-  Sem r (Maybe API.Meeting)
+  Sem r (Maybe API.MeetingWithConversation)
 updateMeetingImpl zUser meetingId update validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
@@ -211,7 +209,8 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.startTime
           update.endTime
           update.recurrence
-    pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
+    conv <- MaybeT $ ConversationSubsystem.internalGetConversation updatedMeeting.conversationId
+    pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -290,6 +289,29 @@ storedMeetingToMeeting domain sm =
       API.endTime = sm.endTime,
       API.recurrence = sm.recurrence,
       API.conversationId = Qualified sm.conversationId domain,
+      API.invitedEmails = sm.invitedEmails,
+      API.trial = sm.trial,
+      API.createdAt = sm.createdAt,
+      API.updatedAt = sm.updatedAt
+    }
+
+-- | Like 'storedMeetingToMeeting', but additionally carries the full
+-- 'API.Conversation' associated with the meeting.
+storedMeetingToMeetingWithConversation ::
+  Local UserId ->
+  StoredConversation ->
+  Store.StoredMeeting ->
+  API.MeetingWithConversation
+storedMeetingToMeetingWithConversation lUser conv sm =
+  API.MeetingWithConversation
+    { API.id = Qualified sm.id (tDomain lUser),
+      API.title = sm.title,
+      API.creator = Qualified sm.creator (tDomain lUser),
+      API.startTime = sm.startTime,
+      API.endTime = sm.endTime,
+      API.recurrence = sm.recurrence,
+      API.conversationId = Qualified sm.conversationId (tDomain lUser),
+      API.conversation = conversationView lUser (Just lUser) conv,
       API.invitedEmails = sm.invitedEmails,
       API.trial = sm.trial,
       API.createdAt = sm.createdAt,
