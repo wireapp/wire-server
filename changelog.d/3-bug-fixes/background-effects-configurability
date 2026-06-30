@@ -1,0 +1,1 @@
+Bugfix: backgroundEffects feature flag was not configurable at the helm chart level. Now it is.

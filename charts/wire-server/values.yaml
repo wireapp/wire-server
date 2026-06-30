@@ -320,6 +320,10 @@ galley:
           defaults:
             status: disabled
             lockStatus: locked
+        backgroundEffects:
+          defaults:
+            status: disabled
+            lockStatus: locked
     aws:
       region: "eu-west-1"
     proxy: {}

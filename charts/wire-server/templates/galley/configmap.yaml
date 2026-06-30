@@ -230,5 +230,9 @@ data:
         meetingsPremium:
           {{- toYaml .settings.featureFlags.meetingsPremium | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.backgroundEffects }}
+        backgroundEffects:
+          {{- toYaml .settings.featureFlags.backgroundEffects | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
