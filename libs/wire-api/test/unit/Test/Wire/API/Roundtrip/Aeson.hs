@@ -117,6 +117,9 @@ tests =
       testRoundTrip @Conversation.AccessRoleLegacy,
       testRoundTrip @Conversation.AccessRole,
       testRoundTrip @Conversation.ConvType,
+      testRoundTrip @Conversation.GroupConvType,
+      testRoundTrip @Conversation.GroupConvTypeLegacy,
+      testGroupConvTypeLegacyAlignment,
       testRoundTrip @Conversation.ReceiptMode,
       testRoundTrip @Conversation.ConvTeamInfo,
       testRoundTrip @Conversation.ConversationCoverView,
@@ -385,6 +388,13 @@ testRoundTrip = testProperty msg trip
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
+
+testGroupConvTypeLegacyAlignment :: T.TestTree
+testGroupConvTypeLegacyAlignment =
+  testProperty "GroupConvTypeLegacy <-> GroupConvType alignment" $
+    \(legacy :: Conversation.GroupConvTypeLegacy) ->
+      Conversation.toGroupConvTypeLegacy (Conversation.fromGroupConvTypeLegacy legacy)
+        === Just legacy
 
 testRoundTripWithSwagger ::
   forall a.
