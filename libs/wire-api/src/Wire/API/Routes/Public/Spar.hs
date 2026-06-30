@@ -144,6 +144,7 @@ type APIAuthReqPrecheck =
         :> QueryParam "error_redirect" URI.URI
         :> QueryParam "label" CookieLabel
         :> Capture "idp" SAML.IdPId
+        :> ZHostOpt
         :> CheckOK '[PlainText] NoContent
     )
 

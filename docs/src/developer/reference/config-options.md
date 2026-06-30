@@ -1305,9 +1305,8 @@ Given an email address, the SSO code is looked up by these criteria:
 - The user must be activated. Either by the activation mail flow or by
   [auto-activation](#validate-saml-emails).
 - The mapping must be unambiguous (there must be exactly one matching IdP).
-  This is the case for:
-  - Teams with exactly one configured IdP
-  - There is an IdP for the given multi-ingress domain
+  In multi-ingress mode, IdPs are always bound to one domain; the request domain
+  must match the IdP's configured domain.
 - The user was created via SCIM
 
 The last condition ensures that team admins cannot get into locked-out

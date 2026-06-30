@@ -1,0 +1,8 @@
+Previously, `POST /sso/get-by-email` and `GET /sso/initiate-login` endpoints
+treated an IdP as globally configured for all domains when there was only one
+for a team. This led to information leakage and confusion. Now, these endpoints
+always treat IdPs as bound to a domain when multi-ingress is configured. I.e.
+IdP domain and request domain must match, otherwise an error is returned.
+
+To align with the others, this check is also added to the `HEAD
+/sso/initiate-login` pre-check endpoint.

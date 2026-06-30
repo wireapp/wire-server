@@ -37,32 +37,12 @@ import qualified Text.XML.DSig as SAML
 
 -- | Test multi-ingress SSO with an IdP that is not bound to a domain.
 --
--- The IdP is created via a non-multi-ingress way/domain. It is valid for all
--- domains - no matter if they are configured as multi-ingress domains or not.
--- However, the SP must be consistent in the communication: If the SAML login
--- flow was started on one domain, it must return to exactly this domain.
+-- In this case NO SSO login can happen as a redirect to a common IdP would
+-- leak information about relationships to a common backend. Also, in reality
+-- it is very hard (to impossible for some IdPs) to find a valid and sound
+-- configuration for multiple domains at IdP SaaS.
 testMultiIngressSSOGeneralIdp :: (HasCallStack) => App ()
-testMultiIngressSSOGeneralIdp = multiIngressSSOCommonTest (const . registerTestIdPWithMetaWithPrivateCreds)
-
--- | Test multi-ingress SSO with an IdP that is bound to a domain.
---
--- The IdP is created on a multi-ingress domain. The details of managing
--- multi-ingress IdPs are covered in `Test.Spar.MultiIngressIdp`. Here we want
--- to test that logins are possible with such an IdP, ensuring we haven't
--- broken basic functionality.
-testMultiIngressSSODomainBoundIdp :: (HasCallStack) => App ()
-testMultiIngressSSODomainBoundIdp = multiIngressSSOCommonTest registerTestIdPWithMetaWithPrivateCredsForZHost
-
-multiIngressSSOCommonTest ::
-  (HasCallStack) =>
-  ( forall owner.
-    (HasCallStack, MakesValue owner) =>
-    owner ->
-    Maybe String ->
-    App (Response, (SAML.IdPMetadata, SAML.SignPrivCreds))
-  ) ->
-  App ()
-multiIngressSSOCommonTest registerTestIdPWithMetaWithPrivateCredsFn = do
+testMultiIngressSSOGeneralIdp = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
       kermitZHost = "nginz-https.kermit.example.com"
@@ -95,33 +75,30 @@ multiIngressSSOCommonTest registerTestIdPWithMetaWithPrivateCredsFn = do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCredsFn owner (Just ernieZHost)
+      (idp, _idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
       idpId <- asString $ idp.json %. "id"
 
-      ernieEmail <- ("ernie@" <>) <$> randomDomain
+      _ernieEmail <- ("ernie@" <>) <$> randomDomain
       checkSPMetadata domain ernieZHost tid
-      checkAuthnRequest domain ernieZHost idpId tid
 
-      finalizeLoginWithWrongZHost bertZHost ernieZHost domain tid ernieEmail (idpId, idpMeta) `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
+      -- Z-Host set, but IdP has no domain -> failure
+      initiateSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \authnreq -> do
+        authnreq.status `shouldMatchInt` 404
+        authnreq.json %. "label" `shouldMatch` "not-found"
 
-        let titleName = XML.Name (cs "title") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing
-            getRoot :: ByteString -> Maybe XML.Cursor
-            getRoot = pure . KXML.parseXml . cs
+      precheckSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
 
-        ((getRoot >=> KXML.findElement titleName >=> KXML.getContent) resp.body)
-          `shouldMatch` (Just "wire:sso:error:forbidden")
+      -- When multi-ingress is configured, domain match is mandatory (empty Z-Host is a no-match)
+      initiateSamlLoginWithZHost domain Nothing idpId `bindResponse` \authnreq -> do
+        authnreq.status `shouldMatchInt` 404
+        authnreq.json %. "label" `shouldMatch` "not-found"
 
-      makeSuccessfulSamlLogin domain ernieZHost tid ernieEmail idpId idpMeta
+      precheckSamlLoginWithZHost domain Nothing idpId `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
 
-      bertEmail <- ("bert@" <>) <$> randomDomain
-      checkSPMetadata domain bertZHost tid
-      checkAuthnRequest domain bertZHost idpId tid
-
-      makeSuccessfulSamlLogin domain bertZHost tid bertEmail idpId idpMeta
-
-      -- Kermit's domain is not configured
-      kermitEmail <- ("kermit@" <>) <$> randomDomain
+      -- Kermit's domain is not configured at all
+      _kermitEmail <- ("kermit@" <>) <$> randomDomain
       getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
         resp.json %. "label" `shouldMatch` "not-found"
@@ -130,7 +107,94 @@ multiIngressSSOCommonTest registerTestIdPWithMetaWithPrivateCredsFn = do
         authnreq.status `shouldMatchInt` 404
         authnreq.json %. "label" `shouldMatch` "not-found"
 
-      finalizeLoginWithWrongZHost bertZHost kermitZHost domain tid kermitEmail (idpId, idpMeta) `bindResponse` \resp -> do
+      precheckSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
+
+-- | Test multi-ingress SSO with an IdP that is bound to a domain.
+--
+-- The IdP is created on a multi-ingress domain. The details of managing
+-- multi-ingress IdPs are covered in `Test.Spar.MultiIngressIdp`. Here we want
+-- to test that logins are possible with such an IdP, but only if the request's
+-- and IdP's domains match.
+testMultiIngressSSODomainBoundIdp :: (HasCallStack) => App ()
+testMultiIngressSSODomainBoundIdp = do
+  let ernieZHost = "nginz-https.ernie.example.com"
+      bertZHost = "nginz-https.bert.example.com"
+      kermitZHost = "nginz-https.kermit.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          removeField "saml.spSsoUri"
+            >=> removeField "saml.spAppUri"
+            >=> removeField "saml.contacts"
+            >=> setField
+              "saml.spDomainConfigs"
+              ( object
+                  [ ernieZHost
+                      .= object
+                        [ "spAppUri" .= "https://webapp.ernie.example.com",
+                          "spSsoUri" .= "https://nginz-https.ernie.example.com/sso",
+                          "contacts" .= [object ["type" .= "ContactTechnical"]]
+                        ],
+                    bertZHost
+                      .= object
+                        [ "spAppUri" .= "https://webapp.bert.example.com",
+                          "spSsoUri" .= "https://nginz-https.bert.example.com/sso",
+                          "contacts" .= [object ["type" .= "ContactTechnical"]]
+                        ]
+                  ]
+              )
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just ernieZHost)
+      idpId <- asString $ idp.json %. "id"
+
+      ernieEmail <- ("ernie@" <>) <$> randomDomain
+      checkSPMetadata domain ernieZHost tid
+      checkAuthnRequest domain ernieZHost idpId tid
+
+      -- Ernie's precheck succeeds for the correct domain
+      precheckSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+
+      makeSuccessfulSamlLogin domain ernieZHost tid ernieEmail idpId idpMeta
+
+      -- SAML flow cannot be intercepted and redirected to another domain
+      finalizeLoginWithWrongZHost ernieZHost bertZHost domain tid ernieEmail (idpId, idpMeta)
+        `bindResponse` \resp -> do
+          resp.status `shouldMatchInt` 200
+          let titleName = XML.Name (cs "title") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing
+              getRoot :: ByteString -> Maybe XML.Cursor
+              getRoot = pure . KXML.parseXml . cs
+          ((getRoot >=> KXML.findElement titleName >=> KXML.getContent) resp.body)
+            `shouldMatch` Just "wire:sso:error:forbidden"
+
+      _bertEmail <- ("bert@" <>) <$> randomDomain
+      checkSPMetadata domain bertZHost tid
+
+      -- Bert cannot initiate a login with an Ernie IdP
+      initiateSamlLoginWithZHost domain (Just bertZHost) idpId `bindResponse` \authnreq -> do
+        authnreq.status `shouldMatchInt` 404
+        authnreq.json %. "label" `shouldMatch` "not-found"
+
+      precheckSamlLoginWithZHost domain (Just bertZHost) idpId `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
+
+      -- Kermit's domain is not configured at all
+      _kermitEmail <- ("kermit@" <>) <$> randomDomain
+      getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 404
+        resp.json %. "label" `shouldMatch` "not-found"
+
+      initiateSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \authnreq -> do
+        authnreq.status `shouldMatchInt` 404
+        authnreq.json %. "label" `shouldMatch` "not-found"
+
+      precheckSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
 
 -- | Check the AuthnRequest by the SP (Wire backend) to be sent to the IdP

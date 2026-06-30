@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# HLINT ignore "Use $>" #-}
 -- Disabling to stop warnings on HasCallStack
@@ -226,8 +227,8 @@ apiSSO ::
 apiSSO opts =
   Named @"sso-metadata" (getMetadata Nothing)
     :<|> Named @"sso-team-metadata" (\mbHost tid -> getMetadata (Just tid) mbHost)
-    :<|> Named @"auth-req-precheck" authreqPrecheck
-    :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
+    :<|> Named @"auth-req-precheck" (authreqPrecheck opts.saml)
+    :<|> Named @"auth-req" (authreq opts.saml (maxttlAuthreqDiffTime opts))
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
     :<|> Named @"auth-resp" (authresp . Just)
     :<|> Named @"sso-settings" ssoSettings
@@ -315,23 +316,28 @@ getMetadata mbTid mbHost = do
 
 authreqPrecheck ::
   ( Member IdPConfigStore r,
-    Member (Error SparError) r
+    Member (Error SparError) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
+  SAML.Config ->
   Maybe URI.URI ->
   Maybe URI.URI ->
   Maybe CookieLabel ->
   SAML.IdPId ->
+  Maybe Text ->
   Sem r NoContent
-authreqPrecheck msucc merr mlabel idpid =
-  validateAuthreqParams msucc merr mlabel
-    *> IdPConfigStore.getConfig idpid
-      $> NoContent
+authreqPrecheck samlConfig msucc merr mlabel idpid mbHost =
+  validateAuthreqParams msucc merr mlabel *> do
+    idp <- IdPConfigStore.getConfig idpid
+    checkMultiIngressDomain samlConfig mbHost idp
+    pure NoContent
 
 authreq ::
   forall r.
   ( Member Random r,
     Member (Input Opts) r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
     Member AReqIDStore r,
@@ -340,6 +346,7 @@ authreq ::
     Member (Error SparError) r,
     Member IdPConfigStore r
   ) =>
+  SAML.Config ->
   NominalDiffTime ->
   Maybe URI.URI ->
   Maybe URI.URI ->
@@ -347,10 +354,12 @@ authreq ::
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr mlabel idpid mbHost = do
+authreq samlConfig authreqttl msucc merr mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr mlabel
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
+
+    checkMultiIngressDomain samlConfig mbHost idp
 
     let err :: Sem r any
         err = throwSparSem (SparSPNotFound "")
@@ -365,6 +374,31 @@ authreq authreqttl msucc merr mlabel idpid mbHost = do
     SAML2.authReq authreqttl iss idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
+
+checkMultiIngressDomain ::
+  ( Member (Logger (Msg -> Msg)) r,
+    Member (Error SparError) r
+  ) =>
+  SAML.Config ->
+  Maybe Text ->
+  IdP ->
+  Sem r ()
+checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig samlConfig) $ do
+  let idpDomain = idp._idpExtraInfo._domain
+  case (idpDomain, mbHost) of
+    (Just expectedDomain, Just host)
+      | host == expectedDomain -> pure ()
+    _ -> do
+      let idpIdTxt = idpIdToText idp._idpId
+      Logger.debug $
+        Log.msg ("Multi-ingress domain guard rejected IdP access" :: ByteString)
+          . Log.field "idp" idpIdTxt
+          . Log.field "idp_domain" (fromMaybe "none" idpDomain)
+          . Log.field "request_host" (fromMaybe "none" mbHost)
+      throwSparSem (SparIdPNotFound idpIdTxt)
+
+idpIdToText :: SAML.IdPId -> T.Text
+idpIdToText = T.pack . UUID.toString . SAML.fromIdPId
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -536,7 +570,7 @@ idpGetRaw zusr idpid = do
   _ <- authorizeIdP zusr idp
   IdPRawMetadataStore.get idpid >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSparSem $ SparIdPNotFound (T.pack $ show idpid)
+    Nothing -> throwSparSem $ SparIdPNotFound (idpIdToText idpid)
 
 idpGetAll ::
   ( Member Random r,
