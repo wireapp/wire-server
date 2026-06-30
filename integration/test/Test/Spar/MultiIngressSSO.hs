@@ -82,33 +82,22 @@ testMultiIngressSSOGeneralIdp = do
       checkSPMetadata domain ernieZHost tid
 
       -- Z-Host set, but IdP has no domain -> failure
-      initiateSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \authnreq -> do
-        authnreq.status `shouldMatchInt` 404
-        authnreq.json %. "label" `shouldMatch` "not-found"
+      initiateSamlLoginWithZHost domain (Just ernieZHost) idpId >>= assertLabel 404 "not-found"
 
-      precheckSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
+      precheckSamlLoginWithZHost domain (Just ernieZHost) idpId >>= assertStatus 404
 
       -- When multi-ingress is configured, domain match is mandatory (empty Z-Host is a no-match)
-      initiateSamlLoginWithZHost domain Nothing idpId `bindResponse` \authnreq -> do
-        authnreq.status `shouldMatchInt` 404
-        authnreq.json %. "label" `shouldMatch` "not-found"
+      initiateSamlLoginWithZHost domain Nothing idpId >>= assertLabel 404 "not-found"
 
-      precheckSamlLoginWithZHost domain Nothing idpId `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
+      precheckSamlLoginWithZHost domain Nothing idpId >>= assertStatus 404
 
       -- Kermit's domain is not configured at all
       _kermitEmail <- ("kermit@" <>) <$> randomDomain
-      getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
-        resp.json %. "label" `shouldMatch` "not-found"
+      getSPMetadataWithZHost domain (Just kermitZHost) tid >>= assertLabel 404 "not-found"
 
-      initiateSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \authnreq -> do
-        authnreq.status `shouldMatchInt` 404
-        authnreq.json %. "label" `shouldMatch` "not-found"
+      initiateSamlLoginWithZHost domain (Just kermitZHost) idpId >>= assertLabel 404 "not-found"
 
-      precheckSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
+      precheckSamlLoginWithZHost domain (Just kermitZHost) idpId >>= assertStatus 404
 
 -- | Test multi-ingress SSO with an IdP that is bound to a domain.
 --
@@ -158,15 +147,14 @@ testMultiIngressSSODomainBoundIdp = do
       checkAuthnRequest domain ernieZHost idpId tid
 
       -- Ernie's precheck succeeds for the correct domain
-      precheckSamlLoginWithZHost domain (Just ernieZHost) idpId `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 200
+      precheckSamlLoginWithZHost domain (Just ernieZHost) idpId >>= assertStatus 200
 
       makeSuccessfulSamlLogin domain ernieZHost tid ernieEmail idpId idpMeta
 
       -- SAML flow cannot be intercepted and redirected to another domain
       finalizeLoginWithWrongZHost ernieZHost bertZHost domain tid ernieEmail (idpId, idpMeta)
         `bindResponse` \resp -> do
-          resp.status `shouldMatchInt` 200
+          assertStatus 200 resp
           let titleName = XML.Name (cs "title") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing
               getRoot :: ByteString -> Maybe XML.Cursor
               getRoot = pure . KXML.parseXml . cs
@@ -177,25 +165,17 @@ testMultiIngressSSODomainBoundIdp = do
       checkSPMetadata domain bertZHost tid
 
       -- Bert cannot initiate a login with an Ernie IdP
-      initiateSamlLoginWithZHost domain (Just bertZHost) idpId `bindResponse` \authnreq -> do
-        authnreq.status `shouldMatchInt` 404
-        authnreq.json %. "label" `shouldMatch` "not-found"
+      initiateSamlLoginWithZHost domain (Just bertZHost) idpId >>= assertLabel 404 "not-found"
 
-      precheckSamlLoginWithZHost domain (Just bertZHost) idpId `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
+      precheckSamlLoginWithZHost domain (Just bertZHost) idpId >>= assertStatus 404
 
       -- Kermit's domain is not configured at all
       _kermitEmail <- ("kermit@" <>) <$> randomDomain
-      getSPMetadataWithZHost domain (Just kermitZHost) tid `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
-        resp.json %. "label" `shouldMatch` "not-found"
+      getSPMetadataWithZHost domain (Just kermitZHost) tid >>= assertLabel 404 "not-found"
 
-      initiateSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \authnreq -> do
-        authnreq.status `shouldMatchInt` 404
-        authnreq.json %. "label" `shouldMatch` "not-found"
+      initiateSamlLoginWithZHost domain (Just kermitZHost) idpId >>= assertLabel 404 "not-found"
 
-      precheckSamlLoginWithZHost domain (Just kermitZHost) idpId `bindResponse` \resp -> do
-        resp.status `shouldMatchInt` 404
+      precheckSamlLoginWithZHost domain (Just kermitZHost) idpId >>= assertStatus 404
 
 -- | Check the AuthnRequest by the SP (Wire backend) to be sent to the IdP
 --
@@ -203,7 +183,7 @@ testMultiIngressSSODomainBoundIdp = do
 checkAuthnRequest :: (HasCallStack) => String -> String -> String -> String -> App ()
 checkAuthnRequest domain host idpId tid =
   initiateSamlLoginWithZHost domain (Just host) idpId `bindResponse` \authnreq -> do
-    authnreq.status `shouldMatchInt` 200
+    assertStatus 200 authnreq
 
     let inputName = XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing
         valueName = XML.Name (cs "value") Nothing Nothing
@@ -230,7 +210,7 @@ checkAuthnRequest domain host idpId tid =
 checkSPMetadata :: (HasCallStack) => String -> String -> String -> App ()
 checkSPMetadata domain host tid =
   getSPMetadataWithZHost domain (Just host) tid `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
+    assertStatus 200 resp
 
     let spSsoDescName = XML.Name (cs "SPSSODescriptor") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md"))
         acsName = XML.Name (cs "AssertionConsumerService") (Just (cs "urn:oasis:names:tc:SAML:2.0:metadata")) (Just (cs "md"))
@@ -274,7 +254,7 @@ makeSuccessfulSamlLogin domain host tid email idpId idpMeta = do
   void $ loginWithSamlWithZHost (Just host) domain True tid nameId (idpId, idpMeta)
   activateEmail domain email
   getUsersByEmail domain [email] `bindResponse` \res -> do
-    res.status `shouldMatchInt` 200
+    assertStatus 200 res
     user <- res.json & asList >>= assertOne
     user %. "status" `shouldMatch` "active"
     user %. "email" `shouldMatch` email
