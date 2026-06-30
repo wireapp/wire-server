@@ -168,10 +168,10 @@ testCreateMutualConnections brig galley = do
     Just qcnv -> do
       getConversationQualified galley uid1 qcnv !!! do
         const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe @(OwnConversation GroupConvType)
       getConversationQualified galley uid2 qcnv !!! do
         const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe @(OwnConversation GroupConvType)
 
 testCreateMutualConnectionsQualified :: Brig -> Galley -> Http ()
 testCreateMutualConnectionsQualified brig galley = do
@@ -190,10 +190,10 @@ testCreateMutualConnectionsQualified brig galley = do
     Just cnv -> do
       getConversationQualified galley uid1 cnv !!! do
         const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe @(OwnConversation GroupConvType)
       getConversationQualified galley uid2 cnv !!! do
         const 200 === statusCode
-        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
+        const (Just One2OneConv) === fmap cnvType . responseJsonMaybe @(OwnConversation GroupConvType)
 
 testAcceptConnection :: Brig -> Http ()
 testAcceptConnection brig = do
@@ -305,7 +305,7 @@ testCancelConnection2 brig galley = do
   getConversationQualified galley uid2 qcnv !!! do
     const 200 === statusCode
     const (Just ConnectConv) === \rs -> do
-      conv <- responseJsonMaybe rs
+      conv <- responseJsonMaybe @(OwnConversation GroupConvType) rs
       Just (cnvType conv)
   -- A is a past member, cannot see the conversation
   getConversationQualified galley uid1 qcnv !!! do
@@ -342,7 +342,7 @@ testCancelConnectionQualified2 brig galley = do
   getConversationQualified galley uid2 cnv !!! do
     const 200 === statusCode
     const (Just ConnectConv) === \rs -> do
-      conv <- responseJsonMaybe rs
+      conv <- responseJsonMaybe @(OwnConversation GroupConvType) rs
       Just (cnvType conv)
   -- A is a past member, cannot see the conversation
   getConversationQualified galley uid1 cnv !!! do

@@ -224,14 +224,14 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
   connectUsersEnd2End brig1 brig2 aliceId bobId
 
   convId <-
-    fmap (.qualifiedId) . responseJsonError @_ @Conversation
+    fmap (.qualifiedId) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
-  aliceConvBeforeDelete :: OwnConversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvBeforeDelete :: OwnConversation GroupConvType <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
 
-  bobConvBeforeDelete :: OwnConversation <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
+  bobConvBeforeDelete :: OwnConversation GroupConvType <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers bobConvBeforeDelete)) @?= [aliceId]
 
   -- Alice kicks Bob out of the conversation
@@ -250,7 +250,7 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
     )
     !!! const 200 === statusCode
 
-  aliceConvAfterDelete :: OwnConversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvAfterDelete :: OwnConversation GroupConvType <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvAfterDelete)) @?= []
 
   getConversationQualified galley2 (userId bob) convId
@@ -266,14 +266,14 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
   connectUsersEnd2End brig1 brig2 aliceId bobId
 
   convId <-
-    fmap (.qualifiedId) . responseJsonError @_ @Conversation
+    fmap (.qualifiedId) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (userId alice) [bobId]
         <!! const 201 === statusCode
 
-  aliceConvBeforeDelete :: OwnConversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvBeforeDelete :: OwnConversation GroupConvType <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
 
-  bobConvBeforeDelete :: OwnConversation <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
+  bobConvBeforeDelete :: OwnConversation GroupConvType <- responseJsonUnsafe <$> getConversationQualified galley2 (userId bob) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers bobConvBeforeDelete)) @?= [aliceId]
 
   -- Bob leaves the conversation
@@ -292,7 +292,7 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
     )
     !!! const 200 === statusCode
 
-  aliceConvAfterDelete :: OwnConversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
+  aliceConvAfterDelete :: OwnConversation GroupConvType <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvAfterDelete)) @?= []
 
   getConversationQualified galley2 (userId bob) convId
@@ -307,7 +307,7 @@ testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
 
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
   convId <-
-    fmap (.qualifiedId) . responseJsonError @_ @Conversation
+    fmap (.qualifiedId) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
 
@@ -330,7 +330,7 @@ testQualifiedGetConversation ::
   Http ()
 testQualifiedGetConversation galley msg alice bob qconvId = do
   res <- getConvQualified galley (userId alice) qconvId <!! (const 200 === statusCode)
-  let conv = responseJsonUnsafeWithMsg (msg <> " - get /conversations/domain/cnvId") res
+  let conv = responseJsonUnsafeWithMsg @(OwnConversation GroupConvType) (msg <> " - get /conversations/domain/cnvId") res
       actual = cmOthers $ cnvMembers conv
       expected = [OtherMember (userQualifiedId bob) Nothing roleNameWireAdmin]
   liftIO $ actual @?= expected
@@ -357,11 +357,11 @@ testListConversations brig1 brig2 galley1 galley2 = do
 
   -- create two group conversations with alice & bob, on each of domain1, domain2
   cnv1 <-
-    responseJsonError @_ @Conversation
+    responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
   cnv2 <-
-    responseJsonError @_ @Conversation
+    responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
         <!! const 201 === statusCode
 
@@ -378,7 +378,7 @@ testListConversations brig1 brig2 galley1 galley2 = do
   cids <- liftIO $ case checked (mtpResults page) of
     Nothing -> assertFailure "too many conversations"
     Just r -> pure r
-  (cs :: [OwnConversation]) <-
+  (cs :: [OwnConversation GroupConvType]) <-
     (fmap crFound . responseJsonError)
       =<< listConvs galley1 (userId alice) cids <!! (const 200 === statusCode)
   let c1 = find ((== cnv1.qualifiedId) . cnvQualifiedId) cs
@@ -422,7 +422,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
 
   -- create conversation on domain 2
   convId <-
-    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @Conversation
+    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
         <!! const 201 === statusCode
 
@@ -484,7 +484,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
 
   -- create conversation on domain 1
   convId <-
-    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @Conversation
+    fmap (qUnqualified . (.qualifiedId)) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
 
@@ -532,12 +532,12 @@ testDeleteUser brig1 brig2 galley1 galley2 cannon1 = do
   connectUsersEnd2End brig1 brig2 alice bobDel
 
   conv1 <-
-    fmap (.qualifiedId) . responseJsonError @_ @Conversation
+    fmap (.qualifiedId) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (qUnqualified alice) [bobDel]
         <!! const 201 === statusCode
 
   conv2 <-
-    fmap (.qualifiedId) . responseJsonError @_ @Conversation
+    fmap (.qualifiedId) . responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley2 (qUnqualified bobDel) [alice]
         <!! const 201 === statusCode
 
@@ -604,7 +604,7 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
   cnv <-
-    responseJsonError @_ @Conversation
+    responseJsonError @_ @(Conversation GroupConvType)
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
         <!! const 201 === statusCode
   let isTyping g u s =
