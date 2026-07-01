@@ -168,7 +168,6 @@ createMeetingImpl zUser newMeeting = do
       newMeeting.invitedEmails
       trial
 
-  -- Return created meeting with its conversation
   pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
 updateMeetingImpl ::
@@ -304,18 +303,8 @@ storedMeetingToMeetingWithConversation ::
   API.MeetingWithConversation
 storedMeetingToMeetingWithConversation lUser conv sm =
   API.MeetingWithConversation
-    { API.id = Qualified sm.id (tDomain lUser),
-      API.title = sm.title,
-      API.creator = Qualified sm.creator (tDomain lUser),
-      API.startTime = sm.startTime,
-      API.endTime = sm.endTime,
-      API.recurrence = sm.recurrence,
-      API.conversationId = Qualified sm.conversationId (tDomain lUser),
-      API.conversation = conversationView lUser (Just lUser) conv,
-      API.invitedEmails = sm.invitedEmails,
-      API.trial = sm.trial,
-      API.createdAt = sm.createdAt,
-      API.updatedAt = sm.updatedAt
+    { API.meeting = storedMeetingToMeeting (tDomain lUser) sm,
+      API.conversation = conversationView lUser (Just lUser) conv
     }
 
 listMeetingsImpl ::

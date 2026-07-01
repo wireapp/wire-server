@@ -51,24 +51,30 @@ data Meeting = Meeting
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Meeting)
   deriving (Arbitrary) via (GenericUniform Meeting)
 
+meetingObject :: ObjectSchema SwaggerDoc Meeting
+meetingObject =
+  Meeting
+    <$> (.id) .= field "qualified_id" schema
+    <*> (.title) .= field "title" schema
+    <*> (.creator) .= field "qualified_creator" schema
+    <*> (.startTime) .= field "start_time" utcTimeSchema
+    <*> (.endTime) .= field "end_time" utcTimeSchema
+    <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
+    <*> (.conversationId) .= field "qualified_conversation" schema
+    <*> (.invitedEmails) .= field "invited_emails" (array schema)
+    <*> (.trial) .= field "trial" schema
+    <*> (.createdAt) .= field "created_at" utcTimeSchema
+    <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+
 instance ToSchema Meeting where
   schema =
-    objectWithDocModifier (description ?~ "A scheduled meeting") $
-      Meeting
-        <$> (.id) .= field "qualified_id" schema
-        <*> (.title) .= field "title" schema
-        <*> (.creator) .= field "qualified_creator" schema
-        <*> (.startTime) .= field "start_time" utcTimeSchema
-        <*> (.endTime) .= field "end_time" utcTimeSchema
-        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
-        <*> (.conversationId) .= field "qualified_conversation" schema
-        <*> (.invitedEmails) .= field "invited_emails" (array schema)
-        <*> (.trial) .= field "trial" schema
-        <*> (.createdAt) .= field "created_at" utcTimeSchema
-        <*> (.updatedAt) .= field "updated_at" utcTimeSchema
+    objectWithDocModifier (description ?~ "A scheduled meeting") meetingObject
 
 -- | A 'Meeting' extended with the full 'Conversation' associated with it, as
--- returned when creating or updating a meeting.
+-- returned when creating or updating a meeting. The underlying 'Meeting' is
+-- reused (no field duplication) and flattened into the JSON object in the
+-- 'ToSchema' instance, so that the legacy @qualified_conversation@ field and
+-- the full @conversation@ are returned alongside the meeting fields.
 data MeetingWithConversation = MeetingWithConversation
   { meeting :: Meeting,
     conversation :: Conversation GroupConvType
@@ -81,18 +87,8 @@ instance ToSchema MeetingWithConversation where
   schema =
     objectWithDocModifier (description ?~ "A scheduled meeting with its associated conversation") $
       MeetingWithConversation
-        <$> (.id) .= field "qualified_id" schema
-        <*> (.title) .= field "title" schema
-        <*> (.creator) .= field "qualified_creator" schema
-        <*> (.startTime) .= field "start_time" utcTimeSchema
-        <*> (.endTime) .= field "end_time" utcTimeSchema
-        <*> (.recurrence) .= maybe_ (optField "recurrence" schema)
-        <*> (.conversationId) .= field "qualified_conversation" schema
+        <$> (.meeting) .= meetingObject
         <*> (.conversation) .= field "conversation" schema
-        <*> (.invitedEmails) .= field "invited_emails" (array schema)
-        <*> (.trial) .= field "trial" schema
-        <*> (.createdAt) .= field "created_at" utcTimeSchema
-        <*> (.updatedAt) .= field "updated_at" utcTimeSchema
 
 -- | Request to create a new meeting
 data NewMeeting = NewMeeting
