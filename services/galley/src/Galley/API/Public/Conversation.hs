@@ -47,13 +47,13 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations@v15" (\lusr req -> toLegacyConversationsResponse <$> listConversations lusr req)
     <@> mkNamedAPI @"list-conversations" listConversations
     <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
-    <@> mkNamedAPI @"create-group-conversation@v2" (\lusr conn nc -> fmap toLegacyOwnConversation <$> createLegacyGroupConversation lusr conn nc)
-    <@> mkNamedAPI @"create-group-conversation@v3" (\lusr conn nc -> fmap toLegacyOwnConversation <$> createLegacyGroupConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v2" (\lusr conn nc -> toLegacyOwnConversation <$$> createLegacyGroupConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v3" (\lusr conn nc -> toLegacyOwnConversation <$$> createLegacyGroupConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation@v5" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation@v9" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
-    <@> mkNamedAPI @"create-self-conversation@v2" (\lusr -> fmap toLegacyOwnConversation <$> createProteusSelfConversation lusr)
-    <@> mkNamedAPI @"create-self-conversation@v5" (\lusr -> fmap toLegacyOwnConversation <$> createProteusSelfConversation lusr)
+    <@> mkNamedAPI @"create-self-conversation@v2" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
+    <@> mkNamedAPI @"create-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$> getMLSSelfConversationWithError lusr)
     <@> mkNamedAPI @"get-mls-self-conversation@v15" (\lusr -> toLegacyOwnConversation <$> getMLSSelfConversationWithError lusr)
@@ -62,8 +62,8 @@ conversationAPI =
     <@> mkNamedAPI @"leave-subconversation" leaveSubConversation
     <@> mkNamedAPI @"delete-subconversation" deleteSubConversation
     <@> mkNamedAPI @"get-subconversation-group-info" getSubConversationGroupInfo
-    <@> mkNamedAPI @"create-one-to-one-conversation@v2" (\lusr conn req -> fmap toLegacyOwnConversation <$> createOne2OneConversation lusr conn req)
-    <@> mkNamedAPI @"create-one-to-one-conversation@v6" (\lusr conn req -> fmap toLegacyOwnConversation <$> createOne2OneConversation lusr conn req)
+    <@> mkNamedAPI @"create-one-to-one-conversation@v2" (\lusr conn req -> toLegacyOwnConversation <$$> createOne2OneConversation lusr conn req)
+    <@> mkNamedAPI @"create-one-to-one-conversation@v6" (\lusr conn req -> toLegacyOwnConversation <$$> createOne2OneConversation lusr conn req)
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" (\lusr usr -> toLegacyOwnConversation <$> getMLSOne2OneOwnConversation lusr usr)
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" (\lusr usr -> toLegacyMLSOne2OneConversation <$> getMLSOne2OneMLSConversation lusr usr)
