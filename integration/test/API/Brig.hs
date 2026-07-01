@@ -917,8 +917,11 @@ registerUser :: (HasCallStack, MakesValue domain) => domain -> String -> String 
 registerUser domain email inviteeCode = registerUserWith domain email inviteeCode "Alice"
 
 registerUserWith :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App Response
-registerUserWith domain email inviteeCode name = do
-  req <- baseRequest domain Brig Versioned "register"
+registerUserWith = registerUserWithVersioned Versioned
+
+registerUserWithVersioned :: (HasCallStack, MakesValue domain) => Versioned -> domain -> String -> String -> String -> App Response
+registerUserWithVersioned versioned domain email inviteeCode name = do
+  req <- baseRequest domain Brig versioned "register"
   submit "POST" $
     req
       & addClientIP

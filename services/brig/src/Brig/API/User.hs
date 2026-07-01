@@ -372,7 +372,10 @@ createUser ::
   RateLimitKey ->
   NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUser = createUserWith (flip guardUserDisplayname)
+createUser =
+  createUserWith $ \existingAccount newUser -> do
+    guardUserDisplayname newUser existingAccount
+    pure newUser
 
 createUserV16 ::
   forall r p.
@@ -394,7 +397,12 @@ createUserV16 ::
   RateLimitKey ->
   NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUserV16 = createUserWith (\_ _ -> pure ())
+createUserV16 =
+  createUserWith $ \existingAccount newUser ->
+    pure $
+      case existingAccount.userManagedBy of
+        ManagedByScim -> newUser {newUserDisplayName = existingAccount.userDisplayName}
+        _ -> newUser
 
 createUserWith ::
   forall r p.
@@ -413,11 +421,11 @@ createUserWith ::
     Member ActivationCodeStore r,
     Member RateLimit r
   ) =>
-  (User -> NewUser PlainTextPassword8 -> ExceptT RegisterError (AppT r) ()) ->
+  (User -> NewUser PlainTextPassword8 -> ExceptT RegisterError (AppT r) (NewUser PlainTextPassword8)) ->
   RateLimitKey ->
   NewUser PlainTextPassword8 ->
   ExceptT RegisterError (AppT r) CreateUserResult
-createUserWith checkScimDisplayName rateLimitKey new = do
+createUserWith normalizeScimDisplayName rateLimitKey new = do
   email <- fetchAndValidateEmail new
 
   -- get invitation and existing account
@@ -445,12 +453,14 @@ createUserWith checkScimDisplayName rateLimitKey new = do
             luid :: Local UserId <- qualifyLocal' (coerce invid)
             User.getLocalAccountBy WithPendingInvitations luid
 
-  for_ mbExistingAccount $ \existingAccount ->
-    checkScimDisplayName existingAccount new
+  newForRegistration <-
+    case mbExistingAccount of
+      Nothing -> pure new
+      Just existingAccount -> normalizeScimDisplayName existingAccount new
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
-          ( new {newUserIdentity = newIdentity email (newUserSSOId new)},
+          ( newForRegistration {newUserIdentity = newIdentity email (newUserSSOId new)},
             Nothing
           )
         Just existingAccount ->
@@ -464,7 +474,7 @@ createUserWith checkScimDisplayName rateLimitKey new = do
                   (Just _, Just em, ManagedByScim, _) ->
                     Just $ UserScimExternalId (fromEmail em)
                   _ -> newUserSSOId new
-           in ( new
+           in ( newForRegistration
                   { newUserManagedBy = Just existingAccount.userManagedBy,
                     newUserIdentity = newIdentity email mbSSOid
                   },
