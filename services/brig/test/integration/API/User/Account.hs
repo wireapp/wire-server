@@ -270,7 +270,7 @@ assertOnlySelfConversations galley uid = do
 
   -- check conversation type
   r <-
-    responseJsonError
+    responseJsonError @_ @(ConversationsResponse GroupConvType)
       =<< post
         ( galley
             . zAuthAccess uid "conn"

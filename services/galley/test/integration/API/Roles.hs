@@ -253,7 +253,7 @@ testConversationAccessRole = do
           { newConvQualifiedUsers = [bob],
             newConvAccessRoles = Just (Set.singleton TeamMemberAccessRole)
           }
-  conv :: Conversation <-
+  conv :: Conversation GroupConvType <-
     responseJsonError
       =<< postConvQualified (qUnqualified alice) Nothing nc
         <!! const 201 === statusCode
@@ -264,7 +264,7 @@ testAccessRoleUpdateV2 :: TestM ()
 testAccessRoleUpdateV2 = do
   g <- view tsUnversionedGalley
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  conv :: Conversation <-
+  conv :: Conversation GroupConvType <-
     responseJsonError
       =<< postConvQualified
         (qUnqualified alice)

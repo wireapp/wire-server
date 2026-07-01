@@ -274,7 +274,7 @@ testGetConvQualifiedV2 = do
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (NonEmpty.singleton bob)
-  conv :: Conversation <-
+  conv :: Conversation GroupConvType <-
     responseJsonError
       =<< postConvQualified
         alice
@@ -1479,7 +1479,7 @@ getConvsOk2 = do
   -- create & get one2one conv
   cnv1 <- responseJsonError =<< postO2OConv alice bob (Just "gossip1") <!! const 200 === statusCode
   do
-    r <-
+    r :: ConversationsResponse GroupConvType <-
       responseJsonError
         =<< getConvs alice [cnvQualifiedId cnv1] <!! do
           const 200 === statusCode
@@ -1488,12 +1488,12 @@ getConvsOk2 = do
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (NonEmpty.singleton carl)
-  cnv2 :: Conversation <-
+  cnv2 :: Conversation GroupConvType <-
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
         <!! const 201 === statusCode
   do
-    r <-
+    r :: ConversationsResponse GroupConvType <-
       responseJsonError
         =<< getConvs alice [cnv2.qualifiedId] <!! do
           const 200 === statusCode
@@ -1754,7 +1754,7 @@ getConvsPagingOk = do
       liftIO $ assertEqual "unexpected length (getConvIds)" n (length ids1)
 
       ids2 <- do
-        r <-
+        r :: ConversationsResponse GroupConvType <-
           responseJsonError
             =<< getConvs u ids1 <!! const 200 === statusCode
         pure $ map cnvQualifiedId (crFound r)
@@ -2011,10 +2011,10 @@ putConvAcceptOk = do
   putConvAccept bob (qUnqualified qcnv) !!! const 200 === statusCode
   getConvQualified alice qcnv !!! do
     const 200 === statusCode
-    const (Just One2OneConv) === fmap C.cnvType . responseJsonUnsafe
+    const (Just One2OneConv) === fmap C.cnvType . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType))
   getConvQualified bob qcnv !!! do
     const 200 === statusCode
-    const (Just One2OneConv) === fmap C.cnvType . responseJsonUnsafe
+    const (Just One2OneConv) === fmap C.cnvType . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType))
 
 putConvAcceptRetry :: TestM ()
 putConvAcceptRetry = do
@@ -2049,7 +2049,7 @@ postRepeatConnectConvCancel = do
   bob <- randomUser
   -- Alice wants to connect
   rsp1 <- postConnectConv alice bob "A" "a" Nothing <!! const 201 === statusCode
-  let cnv = responseJsonUnsafeWithMsg "conversation" rsp1
+  let cnv :: OwnConversation GroupConvType = responseJsonUnsafeWithMsg "conversation" rsp1
   liftIO $ do
     ConnectConv @=? C.cnvType cnv
     Just "A" @=? C.cnvName cnv
@@ -2059,7 +2059,7 @@ postRepeatConnectConvCancel = do
   cancel alice cnv
   -- Alice makes another connect attempt
   rsp2 <- postConnectConv alice bob "A2" "a2" Nothing <!! const 200 === statusCode
-  let cnv2 = responseJsonUnsafeWithMsg "conversation" rsp2
+  let cnv2 :: OwnConversation GroupConvType = responseJsonUnsafeWithMsg "conversation" rsp2
   liftIO $ do
     ConnectConv @=? C.cnvType cnv2
     Just "A2" @=? C.cnvName cnv2
@@ -2069,7 +2069,7 @@ postRepeatConnectConvCancel = do
   cancel alice cnv
   -- Now Bob attempts to connect
   rsp3 <- postConnectConv bob alice "B" "b" Nothing <!! const 200 === statusCode
-  let cnv3 = responseJsonUnsafeWithMsg "conversation" rsp3
+  let cnv3 :: OwnConversation GroupConvType = responseJsonUnsafeWithMsg "conversation" rsp3
   liftIO $ do
     ConnectConv @=? C.cnvType cnv3
     Just "B" @=? C.cnvName cnv3
@@ -2078,14 +2078,14 @@ postRepeatConnectConvCancel = do
   let qconvId = C.cnvQualifiedId cnv
   let convId = qUnqualified qconvId
   putConvAccept bob convId !!! const 200 === statusCode
-  cnvX <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified bob qconvId
+  cnvX :: OwnConversation GroupConvType <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified bob qconvId
   liftIO $ do
     ConnectConv @=? C.cnvType cnvX
     Just "B" @=? C.cnvName cnvX
     privateAccess @=? C.cnvAccess cnvX
   -- Alice accepts, finally turning it into a 1-1
   putConvAccept alice convId !!! const 200 === statusCode
-  cnv4 <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
+  cnv4 :: OwnConversation GroupConvType <- responseJsonUnsafeWithMsg "conversation" <$> getConvQualified alice qconvId
   liftIO $ do
     One2OneConv @=? C.cnvType cnv4
     Just "B" @=? C.cnvName cnv4
@@ -2112,7 +2112,7 @@ putBlockConvOk = do
   g <- viewGalley
   alice <- randomUser
   bob <- randomUser
-  conv <- responseJsonUnsafeWithMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
+  conv :: OwnConversation GroupConvType <- responseJsonUnsafeWithMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
   let qconvId = cnvQualifiedId conv
   let convId = qUnqualified qconvId
   getConvQualified alice qconvId !!! const 200 === statusCode
@@ -2131,7 +2131,7 @@ putBlockConvOk = do
   -- A is still the only member of the 1-1
   getConvQualified alice qconvId !!! do
     const 200 === statusCode
-    const (cnvMembers conv) === cnvMembers . responseJsonUnsafeWithMsg "conversation"
+    const (cnvMembers conv) === cnvMembers . (responseJsonUnsafeWithMsg "conversation" :: ResponseLBS -> OwnConversation GroupConvType)
   -- B accepts the conversation by unblocking
   put
     ( g
@@ -2237,7 +2237,7 @@ leaveConnectConversation = do
   (alice, qalice) <- randomUserTuple
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
-  let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
+  let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) ((responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)) bdy)
   qc <- Qualified c <$> viewFederationDomain
   deleteMemberQualified alice qalice qc !!! const 403 === statusCode
 
@@ -2245,7 +2245,7 @@ testGetQualifiedLocalConv :: TestM ()
 testGetQualifiedLocalConv = do
   alice <- randomUser
   convId <- decodeQualifiedConvId <$> postConv alice [] (Just "gossip") [] Nothing Nothing
-  conv :: OwnConversation <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
+  conv :: OwnConversation GroupConvType <- fmap responseJsonUnsafe $ getConvQualified alice convId <!! const 200 === statusCode
   liftIO $ do
     assertEqual "conversation id" convId (C.cnvQualifiedId conv)
     assertEqual "conversation name" (Just "gossip") (C.cnvName conv)
@@ -2336,7 +2336,7 @@ testBulkGetQualifiedConvs = do
   connectWithRemoteUser alice carlQ
   connectWithRemoteUser alice deeQ
 
-  localConv :: Conversation <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
+  localConv :: Conversation GroupConvType <- responseJsonUnsafe <$> postConv alice [] (Just "gossip") [] Nothing Nothing
   let localConvId = localConv.qualifiedId
 
   remoteConvIdA <- randomQualifiedId remoteDomainA
@@ -2446,7 +2446,7 @@ testAddRemoteMemberFederationDisabled = do
       const (Right "federation-not-enabled") === fmap label . responseJsonEither
 
   -- the member is not actually added to the conversation
-  conv <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
+  conv :: OwnConversation GroupConvType <- responseJsonError =<< getConvQualified alice qconvId <!! const 200 === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv)) @?= []
 
 postMembersOk :: TestM ()
@@ -2972,7 +2972,7 @@ putMemberOk update = do
         x -> assertFailure $ "Unexpected event data: " ++ show x
   -- Verify new member state
   rs <- getConvQualified bob qconv <!! const 200 === statusCode
-  let bob' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
+  let bob' = cmSelf . cnvMembers <$> ((responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)) rs)
   liftIO $ do
     assertBool "user" (isJust bob')
     let newBob = fromJust bob'
@@ -3063,7 +3063,7 @@ putRemoteConvMemberOk update = do
         <!! const 200 === statusCode
 
   -- Verify new member state
-  let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
+  let alice' = cmSelf . cnvMembers <$> ((responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)) rs)
   liftIO $ do
     assertBool "user" (isJust alice')
     let newAlice = fromJust alice'
@@ -3089,13 +3089,13 @@ putReceiptModeOk = do
     -- By default, nothing is set
     getConvQualified alice qcnv !!! do
       const 200 === statusCode
-      const (Just Nothing) === fmap cnvReceiptMode . responseJsonUnsafe
+      const (Just Nothing) === fmap cnvReceiptMode . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType))
     -- Set receipt mode
     putReceiptMode alice cnv (ReceiptMode 0) !!! const 200 === statusCode
     -- Ensure the field is properly set
     getConvQualified alice qcnv !!! do
       const 200 === statusCode
-      const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . responseJsonUnsafe
+      const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType))
     void . liftIO $ checkWs qalice (qcnv, wsB)
     -- No changes
     putReceiptMode alice cnv (ReceiptMode 0) !!! const 204 === statusCode
@@ -3104,11 +3104,11 @@ putReceiptModeOk = do
     -- Ensure that the new field remains unchanged
     getConvQualified alice qcnv !!! do
       const 200 === statusCode
-      const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . responseJsonUnsafe
+      const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType))
   qcnv' <- decodeQualifiedConvId <$> postConvWithReceipt alice [bob, jane] (Just "gossip") [] Nothing Nothing (ReceiptMode 0)
   getConvQualified alice qcnv' !!! do
     const 200 === statusCode
-    const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . responseJsonUnsafe
+    const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType))
   where
     checkWs qalice (qcnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
       ntfTransient n @?= False
@@ -3342,9 +3342,9 @@ removeUserNoFederation = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMembersLeave qconv2 bob [bob]
   -- Check memberships
-  mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConvQualified alice' qconv1
-  mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConvQualified alice' qconv2
-  mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConvQualified alice' qconv3
+  mems1 <- fmap cnvMembers . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)) <$> getConvQualified alice' qconv1
+  mems2 <- fmap cnvMembers . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)) <$> getConvQualified alice' qconv2
+  mems3 <- fmap cnvMembers . (responseJsonUnsafe :: ResponseLBS -> Maybe (OwnConversation GroupConvType)) <$> getConvQualified alice' qconv3
   let other u = find ((== u) . omQualifiedId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
@@ -3376,7 +3376,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
             LocalActor -> runMaybeT $ do
               resp <- lift $ getConvQualified (tUnqualified alice) convId
               guard $ statusCode resp == 200
-              conv <- lift $ responseJsonError resp
+              conv :: OwnConversation GroupConvType <- lift $ responseJsonError resp
               pure . map omQualifiedId . cmOthers . cnvMembers $ conv
             RemoteActor -> do
               fedGalleyClient <- view tsFedGalleyClient

@@ -59,7 +59,7 @@ data GalleyAPIAccess m a where
   GetConv ::
     UserId ->
     Local ConvId ->
-    GalleyAPIAccess m (Maybe OwnConversation)
+    GalleyAPIAccess m (Maybe (OwnConversation GroupConvType))
   GetTeamConv ::
     UserId ->
     TeamId ->
@@ -156,14 +156,14 @@ data GalleyAPIAccess m a where
     Local UserId ->
     Maybe ConnId ->
     Qualified ConvId ->
-    GalleyAPIAccess m OwnConversation
+    GalleyAPIAccess m (OwnConversation GroupConvType)
   GetEJPDConvInfo ::
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
   GetConfiguredFeatureFlags ::
     GalleyAPIAccess m FeatureFlags
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
-  InternalGetConversation :: ConvId -> GalleyAPIAccess m (Maybe Conversation)
+  InternalGetConversation :: ConvId -> GalleyAPIAccess m (Maybe (Conversation GroupConvType))
   GetTeamContacts ::
     UserId ->
     GalleyAPIAccess m (Maybe Team.TeamMemberList)

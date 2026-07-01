@@ -158,7 +158,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[JSON] Connect
-               :> ConversationVerb 'V6 OwnConversation
+               :> ConversationVerb 'V6 GroupConvType (OwnConversation GroupConvType)
            )
     -- This endpoint is meant for testing membership of a conversation
     :<|> Named
@@ -445,7 +445,7 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "accept"
                :> "v2"
-               :> Put '[JSON] OwnConversation
+               :> Put '[JSON] (OwnConversation GroupConvType)
            )
     :<|> Named
            "conversation-block"
@@ -478,7 +478,7 @@ type IConversationAPI =
                :> "conversations"
                :> Capture "cnv" ConvId
                :> "meta"
-               :> Get '[JSON] ConversationMetadata
+               :> Get '[JSON] (ConversationMetadata GroupConvType)
            )
     :<|> Named
            "conversation-mls-one-to-one"
@@ -487,7 +487,7 @@ type IConversationAPI =
                :> "mls-one2one-conversations"
                :> ZLocalUser
                :> QualifiedCapture "user" UserId
-               :> Get '[JSON] OwnConversation
+               :> Get '[JSON] (OwnConversation GroupConvType)
            )
     :<|> Named
            "conversation-mls-one-to-one-established"
@@ -504,7 +504,7 @@ type IConversationAPI =
            ( CanThrow 'ConvNotFound
                :> "conversations"
                :> Capture "cnv" ConvId
-               :> Get '[JSON] Conversation
+               :> Get '[JSON] (Conversation GroupConvType)
            )
     :<|> Named
            "is-conversation-out-of-sync"

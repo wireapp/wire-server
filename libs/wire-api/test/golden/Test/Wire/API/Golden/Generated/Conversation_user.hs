@@ -46,7 +46,7 @@ import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _servic
 domain :: Domain
 domain = Domain "golden.example.com"
 
-testObject_Conversation_user_1 :: OwnConversation
+testObject_Conversation_user_1 :: OwnConversation GroupConvType
 testObject_Conversation_user_1 =
   OwnConversation
     { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,
@@ -85,7 +85,7 @@ testObject_Conversation_user_1 =
           }
     }
 
-testObject_Conversation_user_2 :: OwnConversation
+testObject_Conversation_user_2 :: OwnConversation GroupConvType
 testObject_Conversation_user_2 =
   OwnConversation
     { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) domain,
@@ -156,7 +156,7 @@ testObject_Conversation_user_2 =
           }
     }
 
-testObject_Conversation_user_3 :: OwnConversation
+testObject_Conversation_user_3 :: OwnConversation GroupConvType
 testObject_Conversation_user_3 =
   OwnConversation
     { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) domain,
@@ -223,7 +223,7 @@ testObject_Conversation_user_3 =
     timestamp :: UTCTime
     timestamp = UTCTime (fromGregorian 2023 1 17) (secondsToDiffTime 42)
 
-testObject_Conversation_user_4 :: OwnConversation
+testObject_Conversation_user_4 :: OwnConversation GroupConvType
 testObject_Conversation_user_4 =
   OwnConversation
     { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))) domain,
@@ -281,7 +281,7 @@ testObject_Conversation_user_4 =
           )
     }
 
-testObject_Conversation_user_5 :: OwnConversation
+testObject_Conversation_user_5 :: OwnConversation GroupConvType
 testObject_Conversation_user_5 =
   OwnConversation
     { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) domain,

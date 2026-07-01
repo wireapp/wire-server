@@ -52,7 +52,7 @@ data StoredConversation = StoredConversation
   { id_ :: ConvId,
     localMembers :: [LocalMember],
     remoteMembers :: [RemoteMember],
-    metadata :: ConversationMetadata,
+    metadata :: ConversationMetadata GroupConvType,
     protocol :: Protocol
   }
   deriving stock (Eq, Show)
@@ -148,7 +148,7 @@ toConv cid ms remoteMems mconv = do
         metadata = toConvMeta row
       }
 
-toConvMeta :: ConvRow -> ConversationMetadata
+toConvMeta :: ConvRow -> ConversationMetadata GroupConvType
 toConvMeta (cty, muid, acc, roleV2, nme, ti, timer, rm, _, _, _, _, _, mgct, mAp, mcells, mparent, mhdepth) =
   let accessRoles = maybeRole cty roleV2
    in ConversationMetadata
@@ -253,7 +253,7 @@ convReceiptMode :: StoredConversation -> Maybe ReceiptMode
 convReceiptMode c = c.metadata.cnvmReceiptMode
 
 data NewConversation = NewConversation
-  { metadata :: ConversationMetadata,
+  { metadata :: ConversationMetadata GroupConvType,
     users :: UserList (UserId, RoleName),
     protocol :: BaseProtocolTag,
     groupId :: Maybe GroupId
@@ -362,7 +362,7 @@ defAccess _ (Just xs@(_ : _)) = xs
 ownConversationView ::
   Local UserId ->
   StoredConversation ->
-  Maybe OwnConversation
+  Maybe (OwnConversation GroupConvType)
 ownConversationView luid conv = do
   let remoteOthers = map remoteMemberToOther $ conv.remoteMembers
       localOthers = map (localMemberToOther (tDomain luid)) $ conv.localMembers
@@ -372,7 +372,7 @@ conversationView ::
   Local x ->
   Maybe (Local UserId) ->
   StoredConversation ->
-  Conversation
+  Conversation GroupConvType
 conversationView l luid conv =
   let remoteMembers = map remoteMemberToOther $ conv.remoteMembers
       localMembers = map (localMemberToOther (tDomain l)) $ conv.localMembers
@@ -394,14 +394,14 @@ conversationViewWithCachedOthers ::
   [OtherMember] ->
   StoredConversation ->
   Local UserId ->
-  Maybe OwnConversation
+  Maybe (OwnConversation GroupConvType)
 conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
   conversationViewMaybe luid remoteOthers localOthers conv
 
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe OwnConversation
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> StoredConversation -> Maybe (OwnConversation GroupConvType)
 conversationViewMaybe luid remoteOthers localOthers conv = do
   let selfs = filter (\m -> tUnqualified luid == m.id_) conv.localMembers
   self <- localMemberToPublic luid <$> listToMaybe selfs
@@ -418,7 +418,7 @@ remoteConversationView ::
   Local UserId ->
   MemberStatus ->
   Remote RemoteConversationView ->
-  OwnConversation
+  OwnConversation GroupConvType
 remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rconv.members
       others = mems.others

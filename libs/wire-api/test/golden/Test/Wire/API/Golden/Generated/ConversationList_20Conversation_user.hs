@@ -35,7 +35,7 @@ import Wire.API.History
 domain :: Domain
 domain = Domain "golden.example.com"
 
-testObject_ConversationList_20Conversation_user_1 :: ConversationList OwnConversation
+testObject_ConversationList_20Conversation_user_1 :: ConversationList (OwnConversation GroupConvType)
 testObject_ConversationList_20Conversation_user_1 =
   ConversationList
     { convList =
@@ -80,7 +80,7 @@ testObject_ConversationList_20Conversation_user_1 =
       convHasMore = False
     }
 
-testObject_ConversationList_20Conversation_user_2 :: ConversationList OwnConversation
+testObject_ConversationList_20Conversation_user_2 :: ConversationList (OwnConversation GroupConvType)
 testObject_ConversationList_20Conversation_user_2 =
   ConversationList
     { convList = [],

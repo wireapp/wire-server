@@ -461,7 +461,7 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
       luid1 = toLocalUnsafe localDomain uid1
   postConnection brig uid1 uid2 !!! const 201 === statusCode
   putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
-  cnv :: Conversation <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
+  cnv :: Conversation GroupConvType <- responseJsonError =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
   let (cid, qcid) = (qUnqualified &&& id) cnv.qualifiedId
   -- Add two bots there
   bid1 <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
@@ -492,7 +492,7 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
       uid2 = userId u2
   -- Create conversation
   _rs <- createConv galley uid1 [uid2] <!! const 201 === statusCode
-  let Just cnv = responseJsonMaybe @Conversation _rs
+  let Just cnv = responseJsonMaybe @(Conversation GroupConvType) _rs
   let cid = cnv.qualifiedId.qUnqualified
   testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
 
@@ -502,7 +502,7 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
   -- Create conversation without the service access role
   let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole]
   _rs <- createConvWithAccessRoles (Just accessRoles) galley uid1 [uid2] <!! const 201 === statusCode
-  let Just cnv = responseJsonMaybe @Conversation _rs
+  let Just cnv = responseJsonMaybe @(Conversation GroupConvType) _rs
   let cid = qUnqualified . (.qualifiedId) $ cnv
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
@@ -513,7 +513,7 @@ testClaimUserPrekeys config db brig galley = withTestService config db brig defS
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
     rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
-    let Just cnv = responseJsonMaybe @Conversation rs
+    let Just cnv = responseJsonMaybe @(Conversation GroupConvType) rs
     let cid = qUnqualified . (.qualifiedId) $ cnv
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
@@ -536,7 +536,7 @@ testListUserProfiles config db brig galley = withTestService config db brig defS
   (pid, sid, u1, u2, _h) <- prepareUsers sref brig
   cid <- do
     rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
-    let Just cnv = responseJsonMaybe @Conversation rs
+    let Just cnv = responseJsonMaybe @(Conversation GroupConvType) rs
     let cid = qUnqualified . (.qualifiedId) $ cnv
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
@@ -549,7 +549,7 @@ testGetUserClients config db brig galley = withTestService config db brig defSer
   (pid, sid, u1, _u2, _h) <- prepareUsers sref brig
   cid <- do
     rs <- createConv galley (User.userId u1) [] <!! const 201 === statusCode
-    let Just cnv = responseJsonMaybe @Conversation rs
+    let Just cnv = responseJsonMaybe @(Conversation GroupConvType) rs
     let cid = qUnqualified . (.qualifiedId) $ cnv
     pure cid
   addBotResponse :: AddBotResponse <- responseJsonError =<< addBot brig (User.userId u1) pid sid cid <!! const 201 === statusCode
@@ -630,7 +630,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   uc :: Client <- responseJsonError _rs
   -- Create conversation
   _rs <- createConv galley uid [] <!! const 201 === statusCode
-  let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @Conversation _rs
+  let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @(Conversation GroupConvType) _rs
   testMessageBotUtil quid uc.clientId cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -651,7 +651,7 @@ testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort
     _rs <- addClient brig uid new <!! const 201 === statusCode
     -- Create conversation
     _rs <- createConv galley uid [] <!! const 201 === statusCode
-    let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @Conversation _rs
+    let Just cid = qUnqualified . (.qualifiedId) <$> responseJsonMaybe @(Conversation GroupConvType) _rs
     -- Try to add a bot and observe failure
     addBot brig uid pid sid cid
       !!! const 502 === statusCode
@@ -2113,7 +2113,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
     assertEqual "members" [OtherMember quid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
-  mems <- fmap cnvMembers . responseJsonError =<< getConversationQualified galley uid qcid
+  mems <- fmap cnvMembers . responseJsonError @_ @(OwnConversation GroupConvType) =<< getConversationQualified galley uid qcid
   let other = listToMaybe (cmOthers mems)
   liftIO $ do
     assertEqual "id" (Just buid) (qUnqualified . omQualifiedId <$> other)

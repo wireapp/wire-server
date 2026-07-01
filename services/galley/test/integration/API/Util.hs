@@ -1078,7 +1078,7 @@ getConvs u cids = do
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
 
-getAllConvs :: (HasCallStack) => UserId -> TestM [OwnConversation]
+getAllConvs :: (HasCallStack) => UserId -> TestM [OwnConversation GroupConvType]
 getAllConvs u = do
   g <- viewGalley
   cids <- do
@@ -1635,7 +1635,7 @@ assertNotConvMember u c =
     const 200 === statusCode
     const (Right Null) === responseJsonEither
 
-assertConvEquals :: (HasCallStack, MonadIO m) => OwnConversation -> OwnConversation -> m ()
+assertConvEquals :: (HasCallStack, MonadIO m) => OwnConversation GroupConvType -> OwnConversation GroupConvType -> m ()
 assertConvEquals c1 c2 = liftIO $ do
   assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
   assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
@@ -1674,7 +1674,7 @@ assertConvWithRole ::
   TestM (Qualified ConvId)
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
-  cnv :: Conversation <- responseJsonError r
+  cnv :: Conversation GroupConvType <- responseJsonError r
   liftIO $ do
     assertEqual "id" cId cnv.qualifiedId.qUnqualified
     assertEqual "name" n cnv.metadata.cnvmName
@@ -1716,7 +1716,7 @@ assertConvWithRoleV9 ::
   TestM (Qualified ConvId)
 assertConvWithRoleV9 r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
-  cnv <- responseJsonError r
+  cnv :: OwnConversation GroupConvType <- responseJsonError r
   let _self = cmSelf (cnvMembers cnv)
   let others = cmOthers (cnvMembers cnv)
   liftIO $ do
@@ -1981,10 +1981,10 @@ decodeConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId = qUnqualified . decodeQualifiedConvId
 
 decodeQualifiedConvIdV9 :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvIdV9 = cnvQualifiedId . responseJsonUnsafe
+decodeQualifiedConvIdV9 = cnvQualifiedId . responseJsonUnsafe @(OwnConversation GroupConvType)
 
 decodeQualifiedConvId :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> Qualified ConvId
-decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @Conversation
+decodeQualifiedConvId = (.qualifiedId) . responseJsonUnsafe @(Conversation GroupConvType)
 
 decodeConvIdList :: (HasCallStack) => Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
