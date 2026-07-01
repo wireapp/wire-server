@@ -55,7 +55,7 @@ inMemoryConversationSubsystemInterpreter = interpretH $ \case
                 Public.ConversationMetadata
                   { cnvmType = Public.RegularConv,
                     cnvmCreator = Just (tUnqualified lusr),
-                    cnvmAccess = [],
+                    cnvmAccess = Set.toList newConv.newConvAccess,
                     cnvmAccessRoles = def,
                     cnvmName = fromRange <$> newConv.newConvName,
                     cnvmMessageTimer = newConv.newConvMessageTimer,

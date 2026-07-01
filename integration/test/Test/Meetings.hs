@@ -9,6 +9,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
+import MLS.Util
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -56,6 +57,37 @@ testMeetingCreate = do
 
   fetchedMeeting <- getJSON 200 r2
   fetchedMeeting %. "title" `shouldMatch` ("Team Standup" :: String)
+
+-- Regression: meeting conversations must grant InviteAccess so that MLS
+-- commits adding participants succeed. Without InviteAccess, Galley rejects
+-- the join in performConversationJoin (ensureAccess conv InviteAccess) with
+-- 403 access-denied.
+testMeetingMLSAddParticipant :: (HasCallStack) => App ()
+testMeetingMLSAddParticipant = do
+  (alice, _tid, [bob]) <- createTeam OwnDomain 2
+  alice1 <- createMLSClient def alice
+  bob1 <- createMLSClient def bob
+  _ <- uploadNewKeyPackage def bob1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "MLS Meeting" startTime endTime []
+
+  meeting <- postMeetings alice newMeeting >>= getJSON 201
+  convQid <- meeting %. "qualified_conversation"
+
+  conv <- getConversation alice convQid >>= getJSON 200
+  convId <- objConvId conv
+  createGroup def alice1 convId
+
+  -- Before the fix, this add commit fails with 403 access-denied at the
+  -- server (getJSON 201 below throws). After the fix it succeeds.
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice convQid) $ \res -> do
+    res.status `shouldMatchInt` 200
+    (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
+    res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
