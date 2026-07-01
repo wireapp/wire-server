@@ -56,7 +56,6 @@ import Wire.MockInterpreters
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
-import Wire.StoredConversation (convAccess)
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem.GalleyAPI
 
