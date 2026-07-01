@@ -87,7 +87,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Scim.Email
 import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
-import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.Team.Invitation (Invitation (..), InvitationUserView (..))
 import Wire.API.Team.Role (Role (..), defaultRole)
 import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
@@ -1923,13 +1923,19 @@ registerUser brig tid email = do
   let r = call $ get (brig . path "/i/teams/invitations/by-email" . queryItem "email" (toByteString' email))
   inv :: Invitation <- responseJsonError =<< r <!! statusCode === const 200
   Just inviteeCode <- call $ getInvitationCode brig tid inv.invitationId
+  let infoReq =
+        brig
+          . path "/teams/invitations/info"
+          . queryItem "code" (toByteString' inviteeCode)
+  info :: InvitationUserView <- responseJsonError =<< call (get infoReq)
+  let inviteeName = fromMaybe (Name "Alice") info.invitation.inviteeName
   call $
     post
       ( brig
           . path "/register"
           . header "X-Forwarded-For" "127.0.0.42"
           . contentJson
-          . json (acceptWithName (Name "Alice") email inviteeCode)
+          . json (acceptWithName inviteeName email inviteeCode)
       )
       !!! const 201 === statusCode
 

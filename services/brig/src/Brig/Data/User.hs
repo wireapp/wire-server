@@ -22,6 +22,7 @@ module Brig.Data.User
   ( -- * Creation
     newStoredUser,
     newStoredUserViaScim,
+    invitationIdToUserId,
   )
 where
 
@@ -39,6 +40,10 @@ import Wire.API.Password
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Config
 import Wire.StoredUser
+
+-- | Pending invitation users reuse the invitation UUID as the user UUID.
+invitationIdToUserId :: InvitationId -> UserId
+invitationIdToUserId = Id . toUUID
 
 -- | Preconditions:
 --

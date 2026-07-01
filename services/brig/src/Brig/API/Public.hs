@@ -498,6 +498,7 @@ servantSitemap =
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
       Named @"upgrade-personal-to-team" upgradePersonalToTeam
+        :<|> Named @"register@v16" createUserV16
         :<|> Named @"register" createUser
         :<|> Named @"verify-delete" verifyDeleteUser
         :<|> Named @"get-activate" activate
@@ -932,12 +933,43 @@ createUser ::
   IpAddr ->
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
-createUser ip (Public.NewUserPublic new) = lift . runExceptT $ do
+createUser = createUserWith API.createUser
+
+createUserV16 ::
+  ( Member BlockListStore r,
+    Member GalleyAPIAccess r,
+    Member InvitationStore r,
+    Member (UserPendingActivationStore p) r,
+    Member (Input (Local ())) r,
+    Member TinyLog r,
+    Member UserKeyStore r,
+    Member UserStore r,
+    Member EmailSubsystem r,
+    Member Events r,
+    Member UserSubsystem r,
+    Member PasswordResetCodeStore r,
+    Member HashPassword r,
+    Member ActivationCodeStore r,
+    Member RateLimit r,
+    Member AuthenticationSubsystem r
+  ) =>
+  IpAddr ->
+  Public.NewUserPublic ->
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
+createUserV16 = createUserWith API.createUserV16
+
+createUserWith ::
+  (Member EmailSubsystem r, Member AuthenticationSubsystem r) =>
+  (RateLimitKey -> Public.NewUser PlainTextPassword8 -> ExceptT RegisterError (AppT r) CreateUserResult) ->
+  IpAddr ->
+  Public.NewUserPublic ->
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
+createUserWith createUserImpl ip (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $
     mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError
 
-  result <- API.createUser (RateLimitIp ip) new
+  result <- createUserImpl (RateLimitIp ip) new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result

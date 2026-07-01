@@ -1474,3 +1474,71 @@ testNoPasswordResetForSAMLUser = do
   getPasswordResetCode OwnDomain email `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 400
     resp.json %. "label" `shouldMatch` "invalid-key"
+
+testScimUserIsNotAllowedToChangeName :: (HasCallStack) => App ()
+testScimUserIsNotAllowedToChangeName = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  void $ createScimUser OwnDomain tok scimUser >>= assertSuccess
+  registerInvitedUser OwnDomain tid email
+  user <- getUsersByEmail OwnDomain [email] >>= getJSON 200 >>= asList >>= assertOne
+  putHandle user "foo" `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+  putSelf user def {name = Just "foo"} `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+
+testScimUserIsNotAllowedToChangeNameOnRegistering :: (HasCallStack) => App ()
+testScimUserIsNotAllowedToChangeNameOnRegistering = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  scimUserDisplayName <- scimUser %. "displayName"
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  code <-
+    getInvitationByEmail OwnDomain email
+      >>= getJSON 200
+      >>= getInvitationCodeForTeam OwnDomain tid
+      >>= getJSON 200
+      >>= (%. "code")
+      >>= asString
+  getInvitationByCode OwnDomain code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` scimUserId
+    resp.json %. "managed_by" `shouldMatch` "scim"
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+  let newProfilename = "Takemiya Masaki"
+  registerUserWith OwnDomain email code newProfilename `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 403
+    resp.json %. "label" `shouldMatch` "managed-by-scim"
+
+testScimUserChangeNameOnRegisteringIgnoredV16 :: (HasCallStack) => App ()
+testScimUserChangeNameOnRegisteringIgnoredV16 = do
+  (owner, tid, _) <- createTeam OwnDomain 1
+  tok <- createScimToken owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  scimUser <- randomScimUser
+  scimUserDisplayName <- scimUser %. "displayName"
+  email <- scimUser %. "emails" >>= asList >>= assertOne >>= (%. "value") >>= asString
+  scimUserId <- createScimUser OwnDomain tok scimUser >>= getJSON 201 >>= (%. "id") >>= asString
+  code <-
+    getInvitationByEmail OwnDomain email
+      >>= getJSON 200
+      >>= getInvitationCodeForTeam OwnDomain tid
+      >>= getJSON 200
+      >>= (%. "code")
+      >>= asString
+  getInvitationByCode OwnDomain code `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "id" `shouldMatch` scimUserId
+    resp.json %. "managed_by" `shouldMatch` "scim"
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+  let newProfilename = "Takemiya Masaki"
+  registerUserWithVersioned (ExplicitVersion 16) OwnDomain email code newProfilename `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 201
+    resp.json %. "name" `shouldMatch` scimUserDisplayName
