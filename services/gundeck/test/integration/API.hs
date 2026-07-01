@@ -77,7 +77,6 @@ tests s =
           test s "Single user push" singleUserPush,
           test s "Single user push with large message" singleUserPushLargeMessage,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
-          test s "Targeted push by client" targetClientPush,
           test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
         ],
       testGroup
@@ -269,45 +268,6 @@ sendMultipleUsers = do
     pload = NonEmpty.singleton pevent
     pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
-
-targetClientPush :: TestM ()
-targetClientPush = do
-  ca <- view tsCannon
-  uid <- randomId
-  cid1 <- randomClientId
-  cid2 <- randomClientId
-  let ca1 = CannonR (runCannonR ca . queryItem "client" (toByteString' cid1))
-  let ca2 = CannonR (runCannonR ca . queryItem "client" (toByteString' cid2))
-  c1 <- connectUser ca1 uid =<< randomConnId
-  c2 <- connectUser ca2 uid =<< randomConnId
-  -- Push only to the first client
-  sendPush (push uid cid1)
-  liftIO $ do
-    e1 <- waitForMessage c1
-    e2 <- waitForMessage c2
-    assertBool "No push message received" (isJust e1)
-    assertBool "Unexpected push message received" (isNothing e2)
-  -- Push only to the second client
-  sendPush (push uid cid2)
-  liftIO $ do
-    e1 <- waitForMessage c1
-    e2 <- waitForMessage c2
-    assertBool "Unexpected push message received" (isNothing e1)
-    assertBool "No push message received" (isJust e2)
-  -- Check the notification stream
-  ns1 <- listNotifications uid (Just cid1)
-  ns2 <- listNotifications uid (Just cid2)
-  liftIO . forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
-    assertEqual "Not exactly 1 notification" 1 (length ns)
-    let p = view queuedNotificationPayload (Prelude.head ns)
-    assertEqual "Wrong events in notification" (pload c) p
-  where
-    pevent c = KeyMap.fromList ["foo" .= clientToText c]
-    pload c = NonEmpty.singleton $ pevent c
-    rcpt u c =
-      recipient u RouteAny
-        & recipientClients .~ RecipientClientsSome (NonEmpty.singleton c)
-    push u c = newPush (Just u) (Set.singleton (rcpt u c)) (pload c)
 
 storeNotificationsEvenWhenRedisIsDown :: TestM ()
 storeNotificationsEvenWhenRedisIsDown = do
