@@ -177,12 +177,82 @@ testMultiIngressSSODomainBoundIdp = do
 
       precheckSamlLoginWithZHost domain (Just kermitZHost) idpId >>= assertStatus 404
 
+-- | Test that without multi-ingress configuration, endpoints are domain-agnostic.
+--
+-- In the standard (non-multi-ingress) case, SAML endpoints work regardless of
+-- which domain (Z-Host) is used or if no Z-Host is specified.
+testSsoWithoutMultiIngress :: (HasCallStack) => App ()
+testSsoWithoutMultiIngress = do
+  let host1 = "nginz-https.host1.example.com"
+      host2 = "nginz-https.host2.example.com"
+      spHost = "nginz-https.example.com"
+
+  withModifiedBackend
+    def
+      { sparCfg =
+          setField "saml.spSsoUri" ("https://" <> spHost <> "/sso")
+            >=> setField "saml.spAppUri" ("https://" <> spHost <> "/")
+            >=> setField "saml.contacts" [object ["type" .= "ContactTechnical"]]
+      }
+    $ \domain -> do
+      (owner, tid, _) <- createTeam domain 1
+      void $ setTeamFeatureStatus owner tid "sso" "enabled"
+
+      -- Create both types of IdPs
+      idpGeneral <- registerTestIdPWithMetaWithPrivateCreds owner
+      idpZHost1 <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just host1)
+      idpZHost2 <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just host2)
+
+      forM_
+        [idpGeneral, idpZHost1, idpZHost2]
+        $ \(idp, idpMeta) -> do
+          idpId <- asString $ idp.json %. "id"
+
+          -- Precheck succeeds from any domain
+          precheckSamlLoginWithZHost domain (Just host1) idpId >>= assertStatus 200
+          precheckSamlLoginWithZHost domain (Just host2) idpId >>= assertStatus 200
+          precheckSamlLoginWithZHost domain Nothing idpId >>= assertStatus 200
+
+          -- SP metadata is accessible from any domain
+          getSPMetadataWithZHost domain (Just host1) tid >>= assertStatus 200
+          getSPMetadataWithZHost domain (Just host2) tid >>= assertStatus 200
+          getSPMetadataWithZHost domain Nothing tid >>= assertStatus 200
+
+          -- AuthnRequest Issuer is same regardless of Z-Host (domain-agnostic)
+          checkAuthnRequestBase domain (Just host1) spHost idpId tid
+          checkAuthnRequestBase domain (Just host2) spHost idpId tid
+          checkAuthnRequestBase domain Nothing spHost idpId tid
+
+          -- Authentication request can be initiated from any domain
+          initiateSamlLoginWithZHost domain (Just host1) idpId >>= assertStatus 200
+          initiateSamlLoginWithZHost domain (Just host2) idpId >>= assertStatus 200
+          initiateSamlLoginWithZHost domain Nothing idpId >>= assertStatus 200
+
+          -- SAML login
+          email1 <- ("user1@" <>) <$> randomDomain
+          makeSuccessfulSamlLogin domain host1 tid email1 idpId idpMeta
+
+          email2 <- ("user2@" <>) <$> randomDomain
+          makeSuccessfulSamlLogin domain host2 tid email2 idpId idpMeta
+
+          email3 <- ("user3@" <>) <$> randomDomain
+          let nameId3 = fromRight (error "could not create name id") $ SAML.emailNameID (cs email3)
+          void $ loginWithSamlWithZHost Nothing domain True tid nameId3 (idpId, idpMeta)
+
 -- | Check the AuthnRequest by the SP (Wire backend) to be sent to the IdP
 --
 -- Most important: The @Issuer@ must fit to the multi-ingress domain (@host@).
-checkAuthnRequest :: (HasCallStack) => String -> String -> String -> String -> App ()
-checkAuthnRequest domain host idpId tid =
-  initiateSamlLoginWithZHost domain (Just host) idpId `bindResponse` \authnreq -> do
+checkAuthnRequest :: (HasCallStack, MakesValue domain) => domain -> String -> String -> String -> App ()
+checkAuthnRequest domain host idpId tid = checkAuthnRequestBase domain (Just host) host idpId tid
+
+-- | Check the AuthnRequest by the SP (Wire backend) to be sent to the IdP
+--
+-- Compares the Issuer in the request against an expected target host URL. This
+-- allows testing that requests to different hosts produce different (or same)
+-- Issuer URLs.
+checkAuthnRequestBase :: (HasCallStack, MakesValue domain) => domain -> Maybe String -> String -> String -> String -> App ()
+checkAuthnRequestBase domain mbRequestHost targetHost idpId tid =
+  initiateSamlLoginWithZHost domain mbRequestHost idpId `bindResponse` \authnreq -> do
     assertStatus 200 authnreq
 
     let inputName = XML.Name (cs "input") (Just (cs "http://www.w3.org/1999/xhtml")) Nothing
@@ -192,7 +262,7 @@ checkAuthnRequest domain host idpId tid =
         decodeBase64 :: T.Text -> Maybe ByteString
         decodeBase64 = either (const Nothing) Just . Data.ByteString.Base64.decode . cs
 
-        targetSPUrl = T.pack ("https://" <> host <> "/sso/finalize-login/" <> tid)
+        targetSPUrl = T.pack ("https://" <> targetHost <> "/sso/finalize-login/" <> tid)
 
         getIssuerUrl :: ByteString -> Maybe T.Text
         getIssuerUrl =
@@ -207,7 +277,7 @@ checkAuthnRequest domain host idpId tid =
     getIssuerUrl authnreq.body `shouldMatch` targetSPUrl
 
 -- | Check the metadata of the ServiceProvider (i.e. of the Wire backend on multi-ingress domain @host@)
-checkSPMetadata :: (HasCallStack) => String -> String -> String -> App ()
+checkSPMetadata :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 checkSPMetadata domain host tid =
   getSPMetadataWithZHost domain (Just host) tid `bindResponse` \resp -> do
     assertStatus 200 resp
