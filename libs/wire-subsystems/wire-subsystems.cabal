@@ -521,6 +521,7 @@ library
     , hashable
     , HaskellNet
     , HaskellNet-SSL
+    , hasql-transaction-io
     , hex
     , HsOpenSSL
     , hspec

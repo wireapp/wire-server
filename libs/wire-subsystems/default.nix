@@ -65,6 +65,7 @@
 , hasql-resource-pool
 , hasql-th
 , hasql-transaction
+, hasql-transaction-io
 , hex
 , hscim
 , HsOpenSSL
@@ -213,6 +214,7 @@ mkDerivation {
     hasql-resource-pool
     hasql-th
     hasql-transaction
+    hasql-transaction-io
     hex
     hscim
     HsOpenSSL

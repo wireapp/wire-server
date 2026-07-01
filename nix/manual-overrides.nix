@@ -31,6 +31,7 @@ hself: hsuper: {
   hasql-resource-pool = hlib.dontCheck hsuper.hasql-resource-pool;
   hasql-migration = hlib.markUnbroken (hlib.doJailbreak (hlib.dontCheck hsuper.hasql-migration));
   hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_2;
+  hasql-transaction-io = hlib.markUnbroken (hlib.doJailbreak hsuper.hasql-transaction-io);
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary_0_15_0_1);
   monad-logger-aeson = hlib.markUnbroken (hlib.dontCheck hsuper.monad-logger-aeson);
   arbiter-core = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-core);
