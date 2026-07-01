@@ -34,6 +34,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.State
+import Polysemy.TinyLog (TinyLog)
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
@@ -53,6 +54,7 @@ import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
 import Wire.MockInterpreters
+import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.StoredConversation
@@ -65,6 +67,7 @@ type TestStack =
      ConversationSubsystem,
      TeamSubsystem,
      FeaturesConfigSubsystem,
+     TinyLog,
      Error MeetingError,
      State (Map MeetingId Store.StoredMeeting),
      State (Map ConvId StoredConversation),
@@ -118,6 +121,7 @@ runTestStack now gen teams configs =
     . evalState Map.empty
     . evalState Map.empty
     . runError @MeetingError
+    . discardTinyLogs
     . interpretFeaturesConfigSubsystemPure configs
     . interpretTeamSubsystemToGalleyAPI
     . inMemoryConversationSubsystemInterpreter
@@ -150,7 +154,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       Right (meeting, fetched) -> do
         meeting.meeting.title `shouldBe` fromJust (checked "Test Meeting")
         meeting.conversation.qualifiedId `shouldBe` meeting.meeting.conversationId
-        (fetched <&> (.id)) `shouldBe` Just meeting.meeting.id
+        fetched `shouldBe` Just meeting.meeting
 
   it "creates meeting conversation with invite access for MLS participant adds" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0

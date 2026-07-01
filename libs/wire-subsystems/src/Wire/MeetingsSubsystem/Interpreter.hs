@@ -22,6 +22,7 @@ module Wire.MeetingsSubsystem.Interpreter
 where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
@@ -34,6 +35,9 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
@@ -80,6 +84,7 @@ interpretMeetingsSubsystem ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member Now r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member (Input (Local ())) r
   ) =>
@@ -175,6 +180,7 @@ updateMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
@@ -208,7 +214,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.startTime
           update.endTime
           update.recurrence
-    conv <- MaybeT $ ConversationSubsystem.internalGetConversation updatedMeeting.conversationId
+    conv <- getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::
@@ -216,6 +222,7 @@ deleteMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
@@ -237,7 +244,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       guard $ meeting.creator == tUnqualified zUser
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
-      conv <- MaybeT $ ConversationSubsystem.internalGetConversation convId
+      conv <- getMeetingConversationOrFail meetingId convId
       when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
         lift $
           void $
@@ -277,6 +284,29 @@ getMeetingImpl zUser meetingId validityPeriod = do
         void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
         pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
 
+-- | Look up the 'StoredConversation' associated with a meeting. When the
+-- conversation cannot be found (a data-integrity anomaly), a warning is logged
+-- before failing: otherwise the missing conversation is indistinguishable from
+-- a missing meeting for callers of 'updateMeetingImpl' / 'deleteMeetingImpl'.
+getMeetingConversationOrFail ::
+  ( Member ConversationSubsystem r,
+    Member TinyLog r
+  ) =>
+  Qualified MeetingId ->
+  ConvId ->
+  MaybeT (Sem r) StoredConversation
+getMeetingConversationOrFail meetingId convId = do
+  mConv <- lift $ ConversationSubsystem.internalGetConversation convId
+  case mConv of
+    Just conv -> pure conv
+    Nothing -> do
+      lift $
+        TinyLog.warn $
+          Log.msg ("conversation not found for meeting" :: ByteString)
+            . Log.field "conversationId" (toByteString' convId)
+            . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
+      MaybeT $ pure Nothing
+
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting
 storedMeetingToMeeting domain sm =
@@ -296,6 +326,13 @@ storedMeetingToMeeting domain sm =
 
 -- | Like 'storedMeetingToMeeting', but additionally carries the full
 -- 'API.Conversation' associated with the meeting.
+--
+-- The local user's domain ('tDomain lUser') is used to qualify the meeting,
+-- its creator and its conversation: meetings are not federated, and every
+-- meeting operation guards @qDomain meetingId == tDomain zUser@ (see
+-- 'updateMeetingImpl', 'deleteMeetingImpl', 'getMeetingImpl', ...). The
+-- conversation itself is always created locally (via
+-- 'ConversationSubsystem.internalCreateGroupConversation').
 storedMeetingToMeetingWithConversation ::
   Local UserId ->
   StoredConversation ->
