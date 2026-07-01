@@ -80,7 +80,6 @@ tests s =
           test s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8,
           test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
-          test s "Targeted push by connection" targetConnectionPush,
           test s "Targeted push by client" targetClientPush,
           test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
         ],
@@ -252,18 +251,13 @@ bulkPush isE2E numUsers numConnsPerUser = do
     ploadGroup :: NonEmpty Aeson.Object
     ploadGroup = NonEmpty.singleton (KeyMap.fromList ["foo" .= (42 :: Int)])
     pushGroup :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
-    pushGroup u ucs = [newPush (Just u) (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
-      where
-        conns =
-          [ connid | (_, cns) <- ucs, (connid, shouldSend) <- cns, shouldSend
-          ]
+    pushGroup u ucs = [newPush (Just u) (toRecipients $ fst <$> ucs) ploadGroup]
     ploadE2E :: ConnId -> NonEmpty Aeson.Object
     ploadE2E connid = NonEmpty.singleton (KeyMap.fromList ["connid" .= connid])
     pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
     pushE2E u ucs =
       targets <&> \(uid, connid) ->
         newPush (Just u) (toRecipients [uid]) (ploadE2E connid)
-          & pushConnections .~ Set.singleton connid
       where
         targets :: [(UserId, ConnId)]
         targets =
@@ -346,23 +340,6 @@ sendMultipleUsers = do
     pload = NonEmpty.singleton pevent
     pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
     push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
-
-targetConnectionPush :: TestM ()
-targetConnectionPush = do
-  ca <- view tsCannon
-  uid <- randomId
-  conn1 <- randomConnId
-  c1 <- connectUser ca uid conn1
-  c2 <- connectUser ca uid =<< randomConnId
-  sendPush (push uid conn1)
-  liftIO $ do
-    e1 <- waitForMessage c1
-    e2 <- waitForMessage c2
-    assertBool "No push message received" (isJust e1)
-    assertBool "Unexpected push message received" (isNothing e2)
-  where
-    pload = NonEmpty.singleton (KeyMap.fromList ["foo" .= (42 :: Int)])
-    push u t = newPush (Just u) (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
 targetClientPush :: TestM ()
 targetClientPush = do
