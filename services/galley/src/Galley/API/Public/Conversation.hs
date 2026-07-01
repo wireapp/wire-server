@@ -55,8 +55,8 @@ conversationAPI =
     <@> mkNamedAPI @"create-self-conversation@v2" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
-    <@> mkNamedAPI @"get-mls-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$> getMLSSelfConversationWithError lusr)
-    <@> mkNamedAPI @"get-mls-self-conversation@v15" (\lusr -> toLegacyOwnConversation <$> getMLSSelfConversationWithError lusr)
+    <@> mkNamedAPI @"get-mls-self-conversation@v5" (fmap toLegacyOwnConversation . getMLSSelfConversationWithError)
+    <@> mkNamedAPI @"get-mls-self-conversation@v15" (fmap toLegacyOwnConversation . getMLSSelfConversationWithError)
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
     <@> mkNamedAPI @"get-subconversation" getSubConversation
     <@> mkNamedAPI @"leave-subconversation" leaveSubConversation
