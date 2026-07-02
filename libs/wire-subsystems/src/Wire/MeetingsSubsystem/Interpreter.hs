@@ -130,7 +130,9 @@ createMeetingImpl zUser newMeeting = do
           { newConvUsers = [],
             newConvQualifiedUsers = [],
             newConvName = Just newMeeting.title,
-            newConvAccess = Set.singleton PrivateAccess,
+            -- InviteAccess is required so MLS commits can add participants via
+            -- performConversationJoin (ensureAccess conv InviteAccess).
+            newConvAccess = Set.fromList [PrivateAccess, InviteAccess],
             newConvAccessRoles = Nothing,
             newConvTeam = ConvTeamInfo <$> conversationTeamId,
             newConvMessageTimer = Nothing,

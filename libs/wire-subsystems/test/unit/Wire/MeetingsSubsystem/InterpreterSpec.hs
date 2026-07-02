@@ -39,6 +39,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
+import Wire.API.Conversation (Access (InviteAccess, PrivateAccess))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Meeting qualified as API
@@ -149,6 +150,30 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       Right (meeting, fetched) -> do
         meeting.title `shouldBe` fromJust (checked "Test Meeting")
         fetched `shouldBe` Just meeting
+
+  it "creates meeting conversation with invite access for MLS participant adds" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Access Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      (_meeting, conv) <- createMeeting zUser newMeeting
+      pure (convAccess conv)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right access -> do
+        PrivateAccess `elem` access `shouldBe` True
+        InviteAccess `elem` access `shouldBe` True
 
   it "fails to create a meeting if end time is before start time" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
