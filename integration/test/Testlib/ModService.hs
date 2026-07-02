@@ -450,10 +450,24 @@ data BackendRuntimeFiles = BackendRuntimeFiles
     nginzWorkingDir :: FilePath
   }
 
+-- | Minimum cumulative budget (microseconds) to wait for a service to come up.
+--
+-- A service such as the background-worker cold-connects to several dependencies
+-- (Cassandra x3, RabbitMQ over TLS x2) before binding its HTTP port. The fixed
+-- 4s budget used previously was far too tight under CI load and caused spurious
+-- "Timed out waiting for service ... to come up" failures (empty stdout/stderr
+-- and no exit code, i.e. a hang in startup rather than a crash). This floor can
+-- still be raised via @TEST_TIMEOUT_SECONDS@.
+serviceStartupDelayFloor :: Int
+serviceStartupDelayFloor = 60 * 1000 * 1000
+
 -- | Wait for a service to come up.
 waitUntilServiceIsUp :: (HasCallStack) => Maybe ProcessDebug -> String -> Service -> App ()
-waitUntilServiceIsUp mDebug domain srv =
+waitUntilServiceIsUp mDebug domain srv = do
+  env <- ask
+  let comeUpDelay = max serviceStartupDelayFloor (env.timeOutSeconds * 1_000_000)
   retryRequestUntilDebug
+    comeUpDelay
     mDebug
     (checkServiceIsUp domain srv)
     (show srv)
@@ -601,8 +615,14 @@ logToConsoleDebug mOutput colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
+-- | Cumulative budget (microseconds) for the federator-ingress readiness
+-- check in 'ensureBackendReachable'. A freshly started dynamic backend may need
+-- a few TLS handshakes before it answers federated calls reliably.
+federatorIngressDelay :: Int
+federatorIngressDelay = 30 * 1000 * 1000
+
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
-retryRequestUntil = retryRequestUntilDebug Nothing
+retryRequestUntil = retryRequestUntilDebug federatorIngressDelay Nothing
 
 data ProcessDebug = ProcessDebug
   { phRef :: IORef (Maybe ProcessHandle),
@@ -610,11 +630,11 @@ data ProcessDebug = ProcessDebug
     stdErr :: IORef [String]
   }
 
-retryRequestUntilDebug :: (HasCallStack) => Maybe ProcessDebug -> ((HasCallStack) => App Bool) -> String -> App ()
-retryRequestUntilDebug mProcessDebug reqAction err = do
+retryRequestUntilDebug :: (HasCallStack) => Int -> Maybe ProcessDebug -> ((HasCallStack) => App Bool) -> String -> App ()
+retryRequestUntilDebug comeUpDelay mProcessDebug reqAction err = do
   isUp <-
     retrying
-      (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
+      (limitRetriesByCumulativeDelay comeUpDelay (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       (const reqAction)
   unless isUp $ do
