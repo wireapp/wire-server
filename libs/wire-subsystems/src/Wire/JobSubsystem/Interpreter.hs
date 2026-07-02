@@ -27,19 +27,17 @@ module Wire.JobSubsystem.Interpreter
 where
 
 import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Data.Id
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Time
 import Data.UUID.V4 qualified as UUID
-import Hasql.Pool qualified as Hasql
 import Imports
 import Polysemy
-import Polysemy.Input (Input, input)
 import Wire.API.Jobs
 import Wire.JobStore qualified as JobStore
 import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkerHandlers (..), JobWorkersConfig (..))
-import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Workers (runOneOffJobRunner, runRecurringJobRunner)
 
 runJobWorkers :: JobWorkersConfig -> JobWorkerHandlers -> IO CleanupAction
@@ -51,8 +49,7 @@ runJobWorkers JobWorkersConfig {..} JobWorkerHandlers {..} = do
 
 interpretJobSubsystem ::
   ( Member JobStore.JobStore r,
-    Member (Embed IO) r,
-    Member (Input Hasql.Pool) r
+    Member (Embed IO) r
   ) =>
   JobSubsystemConfig ->
   InterpreterFor JobSubsystem r
@@ -65,7 +62,7 @@ interpretJobSubsystem conf =
 
 scheduleAdminlessDeletionJob ::
   forall r.
-  (Member (Embed IO) r, Member JobStore.JobStore r, Member (Input Hasql.Pool) r) =>
+  (Member (Embed IO) r, Member JobStore.JobStore r) =>
   JobSubsystemConfig ->
   Local UserId ->
   TeamId ->
@@ -73,8 +70,12 @@ scheduleAdminlessDeletionJob ::
   UTCTime ->
   Sem r ScheduledJob
 scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId scheduledFor = do
-  pool <- input
-  let env = WireArbiterEnv jobSubsystemSchemaName pool
+  arbiterEnv <-
+    embed $
+      ArbiterHasql.createHasqlEnv
+        (Proxy @ScheduledJobsRegistry)
+        jobSubsystemArbiterConnStr
+        jobSubsystemSchemaName
   jobId <- embed $ Id <$> UUID.nextRandom
   let job =
         ScheduledJob
@@ -90,20 +91,16 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
             ArbiterCore.maxAttempts = Just 3
           }
   JobStore.createJob job
-  liftIO $
-    runWireArbiter env $
-      WireArbiter $
+  embed $
+    void $
+      ArbiterHasql.runHasqlDb arbiterEnv $
         void $
-          unWireArbiter $
-            ArbiterCore.insertJob
-              @(WireArbiter ScheduledJobsRegistry)
-              @ScheduledJobsRegistry
-              arbiterJob
+          ArbiterCore.insertJob arbiterJob
   pure job
 
 scheduleAdminlessReminderJob ::
   forall r.
-  (Member (Embed IO) r, Member JobStore.JobStore r, Member (Input Hasql.Pool) r) =>
+  (Member (Embed IO) r, Member JobStore.JobStore r) =>
   JobSubsystemConfig ->
   Local UserId ->
   TeamId ->
@@ -112,8 +109,12 @@ scheduleAdminlessReminderJob ::
   UTCTime ->
   Sem r ScheduledJob
 scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUntilDeletion scheduledFor = do
-  pool <- input
-  let env = WireArbiterEnv jobSubsystemSchemaName pool
+  arbiterEnv <-
+    embed $
+      ArbiterHasql.createHasqlEnv
+        (Proxy @ScheduledJobsRegistry)
+        jobSubsystemArbiterConnStr
+        jobSubsystemSchemaName
   jobId <- embed $ Id <$> UUID.nextRandom
   let job =
         ScheduledJob
@@ -129,13 +130,9 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUnti
             ArbiterCore.maxAttempts = Just 3
           }
   JobStore.createJob job
-  liftIO $
-    runWireArbiter env $
-      WireArbiter $
+  embed $
+    void $
+      ArbiterHasql.runHasqlDb arbiterEnv $
         void $
-          unWireArbiter $
-            ArbiterCore.insertJob
-              @(WireArbiter ScheduledJobsRegistry)
-              @ScheduledJobsRegistry
-              arbiterJob
+          ArbiterCore.insertJob arbiterJob
   pure job

@@ -375,7 +375,6 @@ library
     Wire.JobStore
     Wire.JobStore.Postgres
     Wire.JobSubsystem
-    Wire.JobSubsystem.ArbiterAdapter
     Wire.JobSubsystem.Interpreter
     Wire.JobSubsystem.Workers
     Wire.LegalHold
@@ -521,7 +520,6 @@ library
     , hashable
     , HaskellNet
     , HaskellNet-SSL
-    , hasql-transaction-io
     , hex
     , HsOpenSSL
     , hspec
