@@ -328,14 +328,6 @@ The settings mean:
 
 Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
 
-For backwards compatibility, the legacy day-based fields are still accepted on input:
-
-```yaml
-config:
-  promotionStrategy: alphabetical|random|all
-  deletionTimeout: 7
-  reminderTimeouts: [2, 4, 6]
-```
 
 Clients will see both shapes in feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`:
 
