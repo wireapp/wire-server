@@ -500,9 +500,41 @@ type ConversationAPI =
                :> ConversationVerb 'V6 GroupConvTypeLegacy (CreateGroupOwnConversation GroupConvTypeLegacy)
            )
     :<|> Named
-           "create-group-conversation"
+           "create-group-conversation@v15"
            ( Summary "Create a new conversation"
                :> From 'V10
+               :> Until 'V16
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow NonFederatingBackends
+               :> CanThrow UnreachableBackends
+               :> CanThrow 'NotAnMlsConversation
+               :> CanThrow 'ChannelsNotEnabled
+               :> CanThrow 'HistoryNotSupported
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> ReqBody '[Servant.JSON] NewConv
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[ WithHeaders
+                         ConversationHeaders
+                         (CreateGroupConversation GroupConvTypeLegacy)
+                         (Respond 201 "Conversation created" (CreateGroupConversation GroupConvTypeLegacy))
+                     ]
+                    (CreateGroupConversation GroupConvTypeLegacy)
+           )
+    :<|> Named
+           "create-group-conversation"
+           ( Summary "Create a new conversation"
+               :> From 'V16
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'MLSNotEnabled
@@ -550,9 +582,19 @@ type ConversationAPI =
                :> ConversationVerb 'V5 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
            )
     :<|> Named
-           "create-self-conversation"
+           "create-self-conversation@v15"
            ( Summary "Create a self-conversation"
                :> From 'V6
+               :> Until 'V16
+               :> ZLocalUser
+               :> "conversations"
+               :> "self"
+               :> ConversationVerb 'V6 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
+           )
+    :<|> Named
+           "create-self-conversation"
+           ( Summary "Create a self-conversation"
+               :> From 'V16
                :> ZLocalUser
                :> "conversations"
                :> "self"
@@ -742,9 +784,30 @@ type ConversationAPI =
                :> ConversationVerb 'V3 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
            )
     :<|> Named
-           "create-one-to-one-conversation"
+           "create-one-to-one-conversation@v15"
            ( Summary "Create a 1:1 conversation"
                :> From 'V7
+               :> Until 'V16
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NoBindingTeamMembers
+               :> CanThrow 'NonBindingTeam
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow UnreachableBackendsLegacy
+               :> ZLocalUser
+               :> ZConn
+               :> "one2one-conversations"
+               :> ReqBody '[JSON] NewOne2OneConv
+               :> ConversationVerb 'V3 GroupConvTypeLegacy (OwnConversation GroupConvTypeLegacy)
+           )
+    :<|> Named
+           "create-one-to-one-conversation"
+           ( Summary "Create a 1:1 conversation"
+               :> From 'V16
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers

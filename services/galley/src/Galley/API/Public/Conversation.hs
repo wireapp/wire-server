@@ -51,9 +51,11 @@ conversationAPI =
     <@> mkNamedAPI @"create-group-conversation@v3" (\lusr conn nc -> toLegacyOwnConversation <$$> createLegacyGroupConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation@v5" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation@v9" (\lusr conn nc -> toLegacyCGRV9 <$> createGroupOwnConversation lusr conn nc)
+    <@> mkNamedAPI @"create-group-conversation@v15" (\lusr conn nc -> toLegacyCreateGroupConversation <$> createGroupConversation lusr conn nc)
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
     <@> mkNamedAPI @"create-self-conversation@v2" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation@v5" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
+    <@> mkNamedAPI @"create-self-conversation@v15" (\lusr -> toLegacyOwnConversation <$$> createProteusSelfConversation lusr)
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation@v5" (fmap toLegacyOwnConversation . getMLSSelfConversationWithError)
     <@> mkNamedAPI @"get-mls-self-conversation@v15" (fmap toLegacyOwnConversation . getMLSSelfConversationWithError)
@@ -64,6 +66,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-subconversation-group-info" getSubConversationGroupInfo
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" (\lusr conn req -> toLegacyOwnConversation <$$> createOne2OneConversation lusr conn req)
     <@> mkNamedAPI @"create-one-to-one-conversation@v6" (\lusr conn req -> toLegacyOwnConversation <$$> createOne2OneConversation lusr conn req)
+    <@> mkNamedAPI @"create-one-to-one-conversation@v15" (\lusr conn req -> toLegacyOwnConversation <$$> createOne2OneConversation lusr conn req)
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v5" (\lusr usr -> toLegacyOwnConversation <$> getMLSOne2OneOwnConversation lusr usr)
     <@> mkNamedAPI @"get-one-to-one-mls-conversation@v6" (\lusr usr -> toLegacyMLSOne2OneConversation <$> getMLSOne2OneMLSConversation lusr usr)
