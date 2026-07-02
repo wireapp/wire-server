@@ -402,15 +402,20 @@ parseLsof output =
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
   env <- ask
-  let checkServiceIsUpReq :: (HasCallStack) => App Bool
-      checkServiceIsUpReq = do
+  let -- The new backend must be reachable via federation from every origin
+      -- domain that will fan out to it. The migration test, for example,
+      -- creates federated conversations from both 'domain1' and 'domain2', so
+      -- checking ingress from 'domain1' alone (as before) leaves a race where
+      -- federation from the other origin is not yet warm when the test bursts.
+      checkFrom :: (HasCallStack) => String -> App Bool
+      checkFrom origin = do
         req <-
           rawBaseRequest
-            env.domain1
+            origin
             FederatorInternal
             Unversioned
             ("/rpc/" <> domain <> "/brig/api-version")
-            <&> (addHeader "Wire-Origin-Domain" env.domain1)
+            <&> (addHeader "Wire-Origin-Domain" origin)
               . (addJSONObject [])
         checkStatus <- appToIO $ do
           submit "POST" req `bindResponse` \res -> do
@@ -427,9 +432,10 @@ ensureBackendReachable domain = do
             pure (is200 || isFedDenied)
         eith <- liftIO (E.try checkStatus)
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-
-  when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
-    retryRequestUntil checkServiceIsUpReq "Federator ingress"
+      origins = [env.domain1, env.domain2]
+      checkAll = and <$> traverse checkFrom origins
+  unless (domain == env.domain1 || domain == env.domain2) $
+    retryRequestUntil checkAll "Federator ingress"
 
 processColors :: [(String, String -> String)]
 processColors =
