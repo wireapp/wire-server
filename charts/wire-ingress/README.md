@@ -101,10 +101,10 @@ name overrides, etc.) can be found in `values.yaml`.
 | Old key | Reason |
 |---|---|
 | `config.ingressClass` | |
-| `ingressName` | Multi-ingress out of scope |
-| `config.isAdditionalIngress` | Multi-ingress out of scope |
-| `config.renderCSPInIngress` | Multi-ingress out of scope |
-| `config.dns.base` | Only used for CSP header rendering, which is a multi-ingress feature |
+| `ingressName` | Replaced by `config.domains[].name` — see [Multi-ingress (multiple backend domains)](#multi-ingress-multiple-backend-domains) |
+| `config.isAdditionalIngress` | Implicit — every `config.domains` entry after the first is an additional ingress |
+| `config.renderCSPInIngress` | CSP is injected automatically on additional domains; opt out per-domain with `config.domains[].renderCSP: false` |
+| `config.dns.base` | Replaced by `config.domains[].base` (used for the per-domain CSP wildcard) |
 | `tls.verify_depth` | Envoy Gateway `ClientTrafficPolicy` does not expose a direct verify-depth knob; the CA chain itself controls this |
 | `tls.enabled` | Removed — had no effect; all routes are always TLS-terminated |
 | `secrets.tlsClientCA` | No longer supplied via values. The `federator-ca` ConfigMap is created by the wire-server chart and referenced directly. |
@@ -232,9 +232,26 @@ the name is predictable from chart values.
 
 ---
 
-### Multi-ingress is out of scope
+### Multi-ingress (multiple backend domains)
 
-Single-domain deployments are the only supported topology. Multi-domain support can be added later.
+Set `config.domains` **instead of** `config.dns` to serve several domains from one release:
+
+```yaml
+config:
+  domains:
+    - name: blueberry
+      base: blueberry.example.com
+      dns: { https: nginz-https.blueberry.example.com, ssl: nginz-ssl.blueberry.example.com, webapp: webapp.blueberry.example.com }
+    - name: red
+      base: red.example.org
+      dns: { https: nginz-https.red.example.org, ssl: nginz-ssl.red.example.org, webapp: webapp.red.example.org }
+      tls: { issuer: { name: letsencrypt-red, kind: ClusterIssuer } }  # optional per-domain issuer
+```
+
+First entry = primary (listener `https`, un-suffixed names, no injected CSP — apps set their own).
+Each additional entry gets its own listener `https-<name>`, cert/secret, suffixed routes, and an
+injected per-domain CSP header on the webapp/team-settings/account-pages routes (opt out with
+`renderCSP: false`). `federator` stays single-domain on the primary listener.
 
 ### HTTP01 certificate challenges
 
