@@ -1324,3 +1324,37 @@ testMeetingGroupConvTypeHiddenInLegacy = do
     resp.status `shouldMatchInt` 200
     found <- resp.json %. "found" & asList
     length (found :: [Value]) `shouldMatchInt` 1
+
+-- | Verify that the MLS self-conversation endpoint returns the correct
+-- @group_conv_type@ at both V15 (legacy) and V16+ (WPB-26626).
+testMLSSelfConversationGroupConvType :: (HasCallStack) => App ()
+testMLSSelfConversationGroupConvType = do
+  owner <- randomUser OwnDomain def
+  client <- createMLSClient def owner
+  void $ uploadNewKeyPackage def client
+
+  -- V15 (legacy): group_conv_type should be "group_conversation"
+  bindResponse (getSelfConversationVersioned (ExplicitVersion 15) client) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "group_conv_type" `shouldMatch` ("group_conversation" :: String)
+
+  -- V16+ (current): same value, full type
+  bindResponse (getSelfConversation client) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "group_conv_type" `shouldMatch` ("group_conversation" :: String)
+
+-- | Verify that the MLS one-to-one conversation endpoint returns the correct
+-- @group_conv_type@ at both V15 (legacy) and V16+ (WPB-26626).
+testMLSOne2OneConversationGroupConvType :: (HasCallStack) => App ()
+testMLSOne2OneConversationGroupConvType = do
+  [alice, bob] <- createAndConnectUsers [OwnDomain, OwnDomain]
+
+  -- V15 (legacy): group_conv_type should be "group_conversation"
+  bindResponse (getMLSOne2OneConversationVersioned (ExplicitVersion 15) alice bob) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "conversation" %. "group_conv_type" `shouldMatch` ("group_conversation" :: String)
+
+  -- V16+ (current): same value, full type
+  bindResponse (getMLSOne2OneConversation alice bob) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "conversation" %. "group_conv_type" `shouldMatch` ("group_conversation" :: String)

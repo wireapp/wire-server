@@ -272,8 +272,11 @@ leaveSubConversation user convId = do
   submit "DELETE" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
-getSelfConversation user = do
-  req <- baseRequest user Galley Versioned "/conversations/mls-self"
+getSelfConversation = getSelfConversationVersioned Versioned
+
+getSelfConversationVersioned :: (HasCallStack, MakesValue user) => Versioned -> user -> App Response
+getSelfConversationVersioned version user = do
+  req <- baseRequest user Galley version "/conversations/mls-self"
   submit "GET" $ req
 
 data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
@@ -426,10 +429,18 @@ getMLSOne2OneConversation ::
   self ->
   other ->
   App Response
-getMLSOne2OneConversation self other = do
+getMLSOne2OneConversation = getMLSOne2OneConversationVersioned Versioned
+
+getMLSOne2OneConversationVersioned ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  Versioned ->
+  self ->
+  other ->
+  App Response
+getMLSOne2OneConversationVersioned version self other = do
   (domain, uid) <- objQid other
   req <-
-    baseRequest self Galley Versioned
+    baseRequest self Galley version
       $ joinHttpPath ["one2one-conversations", domain, uid]
   submit "GET" req
 
