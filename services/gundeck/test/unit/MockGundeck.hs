@@ -338,13 +338,6 @@ genPush env = do
   inclorigin <- arbitrary
   transient <- arbitrary
   let connIdsByUser = fmap fakeConnId <$> Map.fromList (allRecipients env)
-      allConnIds = mconcat $ Map.elems connIdsByUser
-  onlyPushToConnections <- do
-    -- from the list of all recipient connections, sometimes add some here.
-    oneof
-      [ pure mempty,
-        Set.fromList <$> QC.sublistOf allConnIds
-      ]
   originConnection <- do
     -- if one of the recipients is the sender, we may 'Just' pick one of the devices of that
     -- recipient here, or 'Nothing'.
@@ -364,7 +357,6 @@ genPush env = do
   isCells <- arbitrary
   pure $
     newPush (Just sender) rcps pload
-      & pushConnections .~ onlyPushToConnections
       & pushOriginConnection .~ originConnection
       & pushTransient .~ transient
       & pushNativeIncludeOrigin .~ inclorigin
@@ -505,9 +497,7 @@ handlePushWS Push {..} = do
       let isReachable = wsReachable env (uid, cid)
       -- Condition 2: we never deliver pushes to the originating device.
       let isOriginDevice = origin == (Just uid, Just cid)
-      -- Condition 3: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
-      let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
-      when (isReachable && not isOriginDevice && isWhitelisted) $
+      when (isReachable && not isOriginDevice) $
         msWSQueue %= deliver (uid, cid) _pushPayload
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
@@ -539,9 +529,7 @@ handlePushNative Push {..} = do
           isOriginDevice = origin == (Just uid, Just cid)
           isAllowedPerOriginRules =
             not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
-      -- Condition 5: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
-      let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
-      when (isNative && isReachable && isAllowedPerOriginRules && isWhitelisted) $
+      when (isNative && isReachable && isAllowedPerOriginRules) $
         msNativeQueue %= deliver (uid, cid) _pushPayload
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)

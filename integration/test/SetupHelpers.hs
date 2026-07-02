@@ -278,6 +278,9 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
+randomConnId :: (HasCallStack) => App String
+randomConnId = show <$> randomIO @Word32
+
 withFederatingBackendsAllowDynamic :: (HasCallStack) => ((String, String, String) -> App a) -> App a
 withFederatingBackendsAllowDynamic k = do
   let setFederationConfig =

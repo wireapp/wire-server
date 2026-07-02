@@ -28,6 +28,7 @@ import Data.Time.Format.ISO8601 (iso8601ParseM)
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
+import UnliftIO (forConcurrently_)
 
 examplePush :: (MakesValue u) => u -> App Value
 examplePush u = do
@@ -129,6 +130,60 @@ testAddClientNotification = do
     nPayload n
 
   void $ e %. "client.capabilities.capabilities" & asList
+
+testBulkPushSameMessage :: (HasCallStack) => App ()
+testBulkPushSameMessage = do
+  let numUsers = 20
+      numClientsPerUser = 8
+  quids <- replicateM numUsers $ randomUserId OwnDomain
+  quidsAndClients <- for quids $ \quid -> (quid,) <$> replicateM numClientsPerUser randomClientId
+
+  let mkIndividualPayload quid cid = object ["qualified_id" .= quid, "client" .= cid]
+  individualPushes <- fmap mconcat $ for quidsAndClients $ \(quid, cids) -> do
+    uid <- quid %. "id" & asString
+    fmap mconcat . for cids $ \cid ->
+      pure
+        [ object
+            [ "recipients"
+                .= [ object
+                       [ "user_id" .= uid,
+                         "clients" .= [cid],
+                         "route" .= "any"
+                       ]
+                   ],
+              "payload" .= [mkIndividualPayload quid cid]
+            ]
+        ]
+
+  uidsAndClients <- for quidsAndClients $ \(quid, cids) -> do
+    uid <- quid %. "id" & asString
+    pure $ (uid, cids)
+  let groupPush =
+        object
+          [ "recipients"
+              .= ( concat . for uidsAndClients $ \(uid, cids) ->
+                     [object ["user_id" .= uid, "clients" .= cids, "route" .= "any"]]
+                 ),
+            "payload" .= [object ["message" .= "hello everyone"]]
+          ]
+
+  quidsConnsAndClients <- fmap mconcat . for quidsAndClients $ \(quid, cids) ->
+    for cids $ \cid -> (quid,,cid) <$> randomConnId
+  withWebSockets quidsConnsAndClients $ \websockets -> do
+    pusher <- randomUserId OwnDomain
+    postPush pusher individualPushes >>= assertSuccess
+    forConcurrently_ websockets $ \ws -> do
+      event <- assertJust "Expected an event, got Nothing" =<< awaitAnyEvent 1 ws
+      event %. "payload.0.qualified_id.id" `shouldMatch` ws.wsConnect.user
+      event %. "payload.0.qualified_id.domain" `shouldMatch` ws.wsConnect.domain
+      event %. "payload.0.client" `shouldMatch` ws.wsConnect.client
+      assertNoEvent 1 ws
+
+    postPush pusher [groupPush] >>= assertSuccess
+    forConcurrently_ websockets $ \ws -> do
+      event <- assertJust "Expected an event, got Nothing" =<< awaitAnyEvent 1 ws
+      event %. "payload.0.message" `shouldMatch` "hello everyone"
+      assertNoEvent 1 ws
 
 testGetServerTime :: (HasCallStack) => App ()
 testGetServerTime = do
