@@ -80,6 +80,11 @@ module Wire.API.Team.Feature
     ChannelPermissions (..),
     PreventAdminlessGroupsConfig,
     PreventAdminlessGroupsConfigB (..),
+    PreventAdminlessTimeout,
+    mkPreventAdminlessTimeout,
+    mkPreventAdminlessTimeoutDays,
+    preventAdminlessTimeoutText,
+    preventAdminlessTimeoutDuration,
     PreventAdminlessGroupsPromotionStrategy (..),
     OutlookCalIntegrationConfig (..),
     UseProxyOnMobile (..),
@@ -156,7 +161,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Map qualified as M
-import Data.Misc (HttpsUrl (..))
+import Data.Misc (Duration (..), HttpsUrl (..), parseDuration)
 import Data.Monoid hiding (All, First)
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -1248,10 +1253,137 @@ instance ToSchema PreventAdminlessGroupsPromotionStrategy where
           element "all" PromotionStrategyAll
         ]
 
+data PreventAdminlessTimeout = PreventAdminlessTimeout
+  { preventAdminlessTimeoutText :: Text,
+    preventAdminlessTimeoutDuration :: Duration
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PreventAdminlessTimeout
+
+instance ToSchema PreventAdminlessTimeout where
+  schema = preventAdminlessTimeoutText .= schema @Text `withParser` parsePreventAdminlessTimeout
+
+instance Arbitrary PreventAdminlessTimeout where
+  arbitrary = mkPreventAdminlessTimeoutDays <$> choose (0, 30)
+
+mkPreventAdminlessTimeout :: Text -> Either String PreventAdminlessTimeout
+mkPreventAdminlessTimeout txt = do
+  parsedDuration <- parseDuration txt
+  let timeout = PreventAdminlessTimeout txt parsedDuration
+      picoseconds = diffTimeToPicoseconds (duration parsedDuration)
+      days = preventAdminlessTimeoutDaysInteger timeout
+  if picoseconds < 0
+    then Left "Duration must not be negative"
+    else
+      if days > toInteger (maxBound :: Word)
+        then Left "Duration is too large to represent as legacy day timeout"
+        else pure timeout
+
+mkPreventAdminlessTimeoutDays :: Word -> PreventAdminlessTimeout
+mkPreventAdminlessTimeoutDays days =
+  PreventAdminlessTimeout
+    { preventAdminlessTimeoutText = T.pack (show days) <> "d",
+      preventAdminlessTimeoutDuration =
+        Duration . picosecondsToDiffTime $
+          toInteger days * preventAdminlessDayPicoseconds
+    }
+
+parsePreventAdminlessTimeout :: Text -> A.Parser PreventAdminlessTimeout
+parsePreventAdminlessTimeout = either fail pure . mkPreventAdminlessTimeout
+
+preventAdminlessTimeoutDays :: PreventAdminlessTimeout -> Word
+preventAdminlessTimeoutDays =
+  fromInteger
+    . min (toInteger (maxBound :: Word))
+    . preventAdminlessTimeoutDaysInteger
+
+preventAdminlessTimeoutDaysInteger :: PreventAdminlessTimeout -> Integer
+preventAdminlessTimeoutDaysInteger timeout =
+  -- Legacy clients only understand whole days. Round up so positive sub-day
+  -- durations such as "1s" are not exposed as 0 days.
+  ceilingDiv
+    (diffTimeToPicoseconds . duration $ preventAdminlessTimeoutDuration timeout)
+    preventAdminlessDayPicoseconds
+
+preventAdminlessDayPicoseconds :: Integer
+preventAdminlessDayPicoseconds = 86_400 * 1_000_000_000_000
+
+ceilingDiv :: Integer -> Integer -> Integer
+ceilingDiv x y
+  | x <= 0 = 0
+  | otherwise = (x + y - 1) `div` y
+
+pickPreventAdminlessTimeout :: Maybe PreventAdminlessTimeout -> Maybe Word -> Maybe PreventAdminlessTimeout
+pickPreventAdminlessTimeout (Just timeout) _ = Just timeout
+pickPreventAdminlessTimeout Nothing (Just days) = Just (mkPreventAdminlessTimeoutDays days)
+pickPreventAdminlessTimeout Nothing Nothing = Nothing
+
+pickPreventAdminlessTimeouts :: Maybe [PreventAdminlessTimeout] -> Maybe [Word] -> Maybe [PreventAdminlessTimeout]
+pickPreventAdminlessTimeouts (Just timeouts) _ = Just timeouts
+pickPreventAdminlessTimeouts Nothing (Just days) = Just (mkPreventAdminlessTimeoutDays <$> days)
+pickPreventAdminlessTimeouts Nothing Nothing = Nothing
+
+publicPreventAdminlessTimeoutField :: Text -> Text -> ObjectSchema SwaggerDoc PreventAdminlessTimeout
+publicPreventAdminlessTimeoutField legacyName durationName =
+  ( pickPreventAdminlessTimeout
+      <$> Just .= maybe_ (optField durationName schema)
+      <*> (Just . preventAdminlessTimeoutDays) .= maybe_ (optField legacyName schema)
+  )
+    `withParser` maybe (fail missingField) pure
+  where
+    missingField =
+      "Missing '" <> T.unpack durationName <> "' or legacy '" <> T.unpack legacyName <> "'"
+
+publicPreventAdminlessTimeoutsField :: Text -> Text -> ObjectSchema SwaggerDoc [PreventAdminlessTimeout]
+publicPreventAdminlessTimeoutsField legacyName durationName =
+  ( pickPreventAdminlessTimeouts
+      <$> Just .= maybe_ (optField durationName (array schema))
+      <*> (Just . fmap preventAdminlessTimeoutDays) .= maybe_ (optField legacyName (array schema))
+  )
+    `withParser` maybe (fail missingField) pure
+  where
+    missingField =
+      "Missing '" <> T.unpack durationName <> "' or legacy '" <> T.unpack legacyName <> "'"
+
+dbPreventAdminlessTimeoutField :: Text -> Text -> ObjectSchema SwaggerDoc (Maybe PreventAdminlessTimeout)
+dbPreventAdminlessTimeoutField legacyName durationName =
+  pickPreventAdminlessTimeout
+    <$> id .= maybe_ (optField durationName schema)
+    <*> const Nothing .= maybe_ (optField legacyName schema)
+
+dbPreventAdminlessTimeoutsField :: Text -> Text -> ObjectSchema SwaggerDoc (Maybe [PreventAdminlessTimeout])
+dbPreventAdminlessTimeoutsField legacyName durationName =
+  pickPreventAdminlessTimeouts
+    <$> id .= maybe_ (optField durationName (array schema))
+    <*> const Nothing .= maybe_ (optField legacyName (array schema))
+
+class (Functor f) => PreventAdminlessTimeoutFieldF f where
+  preventAdminlessTimeoutFieldF ::
+    Text ->
+    Text ->
+    ObjectSchema SwaggerDoc (f PreventAdminlessTimeout)
+
+  preventAdminlessTimeoutsFieldF ::
+    Text ->
+    Text ->
+    ObjectSchema SwaggerDoc (f [PreventAdminlessTimeout])
+
+instance PreventAdminlessTimeoutFieldF Identity where
+  preventAdminlessTimeoutFieldF legacyName durationName =
+    Identity <$> runIdentity .= publicPreventAdminlessTimeoutField legacyName durationName
+
+  preventAdminlessTimeoutsFieldF legacyName durationName =
+    Identity <$> runIdentity .= publicPreventAdminlessTimeoutsField legacyName durationName
+
+instance PreventAdminlessTimeoutFieldF Maybe where
+  preventAdminlessTimeoutFieldF = dbPreventAdminlessTimeoutField
+
+  preventAdminlessTimeoutsFieldF = dbPreventAdminlessTimeoutsField
+
 data PreventAdminlessGroupsConfigB t f = PreventAdminlessGroupsConfig
   { promotionStrategy :: Wear t f PreventAdminlessGroupsPromotionStrategy,
-    deletionTimeout :: Wear t f Word,
-    reminderTimeouts :: Wear t f [Word]
+    deletionTimeout :: Wear t f PreventAdminlessTimeout,
+    reminderTimeouts :: Wear t f [PreventAdminlessTimeout]
   }
   deriving (Generic, BareB)
 
@@ -1279,17 +1411,39 @@ instance Default PreventAdminlessGroupsConfig where
   def =
     PreventAdminlessGroupsConfig
       { promotionStrategy = PromotionStrategyAlphabetical,
-        deletionTimeout = 7,
-        reminderTimeouts = [2, 4, 6]
+        deletionTimeout = mkPreventAdminlessTimeoutDays 7,
+        reminderTimeouts = mkPreventAdminlessTimeoutDays <$> [2, 4, 6]
       }
 
-instance (Typeable f, FieldF f) => ToSchema (PreventAdminlessGroupsConfigB Covered f) where
+instance (Typeable f, FieldF f, PreventAdminlessTimeoutFieldF f) => ToSchema (PreventAdminlessGroupsConfigB Covered f) where
   schema =
     object $
       PreventAdminlessGroupsConfig
         <$> promotionStrategy .= fieldF "promotionStrategy" schema
-        <*> deletionTimeout .= fieldF "deletionTimeout" schema
-        <*> reminderTimeouts .= fieldF "reminderTimeouts" (array schema)
+        <*> deletionTimeout .= preventAdminlessTimeoutFieldF "deletionTimeout" "deletionTimeoutDuration"
+        <*> reminderTimeouts .= preventAdminlessTimeoutsFieldF "reminderTimeouts" "reminderTimeoutDurations"
+
+instance ToSchema (Versioned V16 PreventAdminlessGroupsConfig) where
+  schema =
+    object $
+      Versioned
+        <$> unVersioned .= oldPreventAdminlessGroupsConfigObjectSchema
+
+instance ToObjectSchema (Versioned V16 PreventAdminlessGroupsConfig) where
+  objectSchema = field "config" schema
+
+oldPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
+oldPreventAdminlessGroupsConfigObjectSchema =
+  PreventAdminlessGroupsConfig
+    <$> promotionStrategy .= field "promotionStrategy" schema
+    <*> deletionTimeout .= oldPreventAdminlessTimeoutField "deletionTimeout"
+    <*> reminderTimeouts .= oldPreventAdminlessTimeoutsField "reminderTimeouts"
+
+oldPreventAdminlessTimeoutField :: Text -> ObjectSchema SwaggerDoc PreventAdminlessTimeout
+oldPreventAdminlessTimeoutField name = preventAdminlessTimeoutDays .= (mkPreventAdminlessTimeoutDays <$> field name schema)
+
+oldPreventAdminlessTimeoutsField :: Text -> ObjectSchema SwaggerDoc [PreventAdminlessTimeout]
+oldPreventAdminlessTimeoutsField name = fmap preventAdminlessTimeoutDays .= (fmap mkPreventAdminlessTimeoutDays <$> field name (array schema))
 
 instance Default (LockableFeature PreventAdminlessGroupsConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}

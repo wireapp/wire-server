@@ -255,9 +255,11 @@ defAllFeatures =
             "ttl" .= "unlimited",
             "config"
               .= object
-                [ "promotionStrategy" .= "alphabetical",
-                  "deletionTimeout" .= (7 :: Int),
-                  "reminderTimeouts" .= ([2, 4, 6] :: [Int])
+                [ "deletionTimeout" .= (7 :: Int),
+                  "deletionTimeoutDuration" .= "7d",
+                  "promotionStrategy" .= "alphabetical",
+                  "reminderTimeouts" .= ([2, 4, 6] :: [Int]),
+                  "reminderTimeoutDurations" .= ["2d", "4d", "6d"]
                 ]
           ]
     ]
@@ -347,8 +349,10 @@ defAllConfiguredFeatures =
               [ "config"
                   .= object
                     [ "deletionTimeout" .= (7 :: Int),
+                      "deletionTimeoutDuration" .= "7d",
                       "promotionStrategy" .= "alphabetical",
-                      "reminderTimeouts" .= ([2, 4, 6] :: [Int])
+                      "reminderTimeouts" .= ([2, 4, 6] :: [Int]),
+                      "reminderTimeoutDurations" .= ["2d", "4d", "6d"]
                     ],
                 "lockStatus" .= "unlocked",
                 "status" .= "disabled",
