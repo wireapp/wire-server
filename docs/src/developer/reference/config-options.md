@@ -326,7 +326,7 @@ The settings mean:
 - `deletionTimeoutDuration`: how long to keep an adminless conversation before it is deleted.
 - `reminderTimeoutDurations`: when before deletion reminder notifications should be sent.
 
-Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`.
+Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
 
 For backwards compatibility, the legacy day-based fields are still accepted on input:
 
