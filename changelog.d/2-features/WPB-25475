@@ -1,0 +1,1 @@
+Add multi-domain support to the `wire-ingress` (Envoy Gateway) chart. Set `config.domains` to serve several backend domains from one release, each with its own listener, certificate, and injected per-domain CSP. Single-domain deployments via `config.dns` are unchanged.
