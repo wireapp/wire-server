@@ -20,12 +20,28 @@ module Test.MLS.Notifications where
 import API.Common (recipient)
 import API.Gundeck
 import API.GundeckInternal (postPush)
-import Control.Concurrent (threadDelay)
-import Data.Timeout
 import MLS.Util
 import Notifications
 import SetupHelpers
 import Testlib.Prelude
+
+-- | Return the id of the user's newest notification, if any.
+--
+-- Useful as a pagination anchor ('since'): instead of relying on a short
+-- 'notificationTTL' to expire pre-existing notifications (e.g. the welcome
+-- notification) before querying, we page from the newest existing one. The
+-- previous approach set a 2s TTL and slept for 2.1s, which raced against the
+-- subsequent HTTP/Cassandra round-trips and caused the anchor notification to
+-- expire before it could be used as a 'since' cursor (gundeck then returns 404
+-- by design when 'since' is missing).
+notificationAnchor :: (HasCallStack, MakesValue user) => user -> App (Maybe String)
+notificationAnchor user =
+  getNotifications user def `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    notifs <- resp.json %. "notifications" >>= asList
+    case reverse notifs of
+      [] -> pure Nothing
+      (n : _) -> Just <$> (n %. "id" >>= asString)
 
 testWelcomeNotification :: (HasCallStack) => App ()
 testWelcomeNotification = do
@@ -56,12 +72,14 @@ testNotificationPagination = do
         def
           { gundeckCfg =
               setField "settings.maxPayloadLoadSize" (Just ((2 :: Int) * 1024))
-                >=> setField "settings.notificationTTL" (2 #> Second)
           }
   withModifiedBackend overrides $ \dom -> do
     user <- randomUser dom def
 
-    liftIO $ threadDelay 2_100_000 -- let notifications expire
+    -- Anchor on the newest pre-existing notification (e.g. the welcome
+    -- notification) so it can be ignored via pagination instead of relying on
+    -- TTL expiry.
+    anchor <- notificationAnchor user
 
     -- Create a single oversized notification so Cassandra paging stops after the first row.
     r <- recipient user
@@ -75,7 +93,7 @@ testNotificationPagination = do
     postPush user [push] >>= assertSuccess
 
     notifId <-
-      getNotifications user def `bindResponse` \resp -> do
+      getNotifications user def {since = anchor} `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         notif <- resp.json %. "notifications" >>= asList >>= assertOne
         notif %. "id" >>= asString
@@ -93,11 +111,15 @@ testNotificationPaginationOversizeSince = do
         def
           { gundeckCfg =
               setField "settings.maxPayloadLoadSize" (Just ((2 :: Int) * 1024))
-                >=> setField "settings.notificationTTL" (2 #> Second)
           }
   withModifiedBackend overrides $ \dom -> do
     user <- randomUser dom def
-    liftIO $ threadDelay 2_100_000 -- let notifications expire
+
+    -- Anchor on the newest pre-existing notification (e.g. the welcome
+    -- notification) so it can be ignored via pagination instead of relying on
+    -- TTL expiry.
+    anchor <- notificationAnchor user
+
     r <- recipient user
     let bigPayload = replicate (3 * 1024) 'x'
         smallPayload = "ok"
@@ -110,7 +132,7 @@ testNotificationPaginationOversizeSince = do
     postPush user [mkPush bigPayload] >>= assertSuccess
 
     bigNotifId <-
-      getNotifications user def `bindResponse` \resp -> do
+      getNotifications user def {since = anchor} `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 200
         notif <- resp.json %. "notifications" >>= asList >>= assertOne
         notif %. "id" >>= asString
