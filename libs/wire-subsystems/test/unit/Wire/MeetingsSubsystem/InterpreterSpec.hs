@@ -904,6 +904,110 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Right False
 
+  describe "recurrence vs expiry" $ do
+    -- validityPeriod in runTestStack is 3600s, so a meeting whose endTime is
+    -- more than 1h in the past is treated as expired unless its recurrence
+    -- window keeps it alive.
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            $ def
+        -- endTime (now-5000) is well past the validity cutoff (now-3600).
+        expiredNewMeeting r =
+          API.NewMeeting
+            { title = fromJust $ checked "Recurring Meeting",
+              startTime = addUTCTime (-7200) now,
+              endTime = addUTCTime (-5000) now,
+              recurrence = r,
+              invitedEmails = []
+            }
+        boundedRecurrence =
+          Just $
+            API.Recurrence
+              { freq = API.Daily,
+                interval = 1,
+                until = Just (addUTCTime (30 * nominalDay) now)
+              }
+        openEndedRecurrence =
+          Just $
+            API.Recurrence
+              { freq = API.Daily,
+                interval = 1,
+                until = Nothing
+              }
+
+    it "getMeeting returns a recurring meeting whose slot passed but window is open" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          getMeeting zUser meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just meeting (recurrence window still open)"
+        Right (Just _) -> pure ()
+
+    it "listMeetings includes a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (_meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          listMeetings zUser
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right xs -> length xs `shouldBe` 1
+
+    it "updateMeeting succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          updateMeeting zUser meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+      fmap isJust result `shouldBe` Right True
+
+    it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          addInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+      result `shouldBe` Right True
+
+    it "getMeeting returns an open-ended recurring meeting indefinitely" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          getMeeting zUser meeting.id
+      fmap isJust result `shouldBe` Right True
+
+    it "cleanupOldMeetings skips recurring meetings whose window is still open" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (recurring, _conv1) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          (_plain, _conv2) <- createMeeting zUser (expiredNewMeeting Nothing)
+          deleted <- cleanupOldMeetings (addUTCTime (negate 1) now) 100
+          remaining <- getMeeting zUser recurring.id
+          pure (deleted, fmap (.id) remaining, recurring.id)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (deleted, remainingId, recurringId) -> do
+          -- only the non-recurring meeting is past the cleanup cutoff
+          deleted `shouldBe` 1
+          remainingId `shouldBe` Just recurringId
+
+    it "cleanupOldMeetings never picks up open-ended recurring meetings" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          deleted <- cleanupOldMeetings now 100
+          remaining <- getMeeting zUser meeting.id
+          pure (deleted, fmap (.id) remaining, meeting.id)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (deleted, remainingId, meetingId) -> do
+          deleted `shouldBe` 0
+          remainingId `shouldBe` Just meetingId
+
   describe "checkMeetingsEnabled" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42

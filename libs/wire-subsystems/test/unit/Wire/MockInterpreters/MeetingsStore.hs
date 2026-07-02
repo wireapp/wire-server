@@ -70,12 +70,14 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
         modify (Map.insert mid updatedMeeting) >> pure (Just updatedMeeting)
   ListMeetingsByUser userId cutoffTime ->
     gets $
-      filter (\sm -> sm.creator == userId && sm.endTime >= cutoffTime)
+      filter
+        (\sm -> sm.creator == userId && maybe True (>= cutoffTime) (effectiveEndTime sm))
         . List.sortOn (.startTime)
         . Map.elems
   ListMeetingsByConversation convId cutoffTime ->
     gets $
-      filter (\sm -> sm.conversationId == convId && sm.endTime >= cutoffTime)
+      filter
+        (\sm -> sm.conversationId == convId && maybe True (>= cutoffTime) (effectiveEndTime sm))
         . List.sortOn (.startTime)
         . Map.elems
   AddInvitedEmails mid newEmails -> do
@@ -119,5 +121,5 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
     gets $
       take batchSize
         . List.sortOn (.endTime)
-        . filter (\sm -> sm.endTime < cutoffTime)
+        . filter (\sm -> maybe False (< cutoffTime) (effectiveEndTime sm))
         . Map.elems

@@ -1,0 +1,5 @@
+Fix recurring meetings disappearing from `GET /meetings/list` (and
+`GET/PUT/DELETE /meetings/{id}`, the invitation endpoints, and the background
+cleanup worker) once the original time slot passed. Expiry and cleanup now
+account for `recurrence.until`; open-ended recurring meetings (no `until`) never
+auto-expire.
