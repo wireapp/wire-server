@@ -20,6 +20,7 @@ module Test.MLS.Notifications where
 import API.Common (recipient)
 import API.Gundeck
 import API.GundeckInternal (postPush)
+import Control.Concurrent (threadDelay)
 import MLS.Util
 import Notifications
 import SetupHelpers
@@ -29,19 +30,48 @@ import Testlib.Prelude
 --
 -- Useful as a pagination anchor ('since'): instead of relying on a short
 -- 'notificationTTL' to expire pre-existing notifications (e.g. the welcome
--- notification) before querying, we page from the newest existing one. The
--- previous approach set a 2s TTL and slept for 2.1s, which raced against the
--- subsequent HTTP/Cassandra round-trips and caused the anchor notification to
--- expire before it could be used as a 'since' cursor (gundeck then returns 404
--- by design when 'since' is missing).
+-- notification) before querying, we page from the newest existing one.
+--
+-- The welcome notification is pushed asynchronously on user creation, so it may
+-- not have landed yet when we first look. We therefore poll until the set of
+-- pre-existing notifications stabilizes (two consecutive reads agree) before
+-- anchoring on the newest id. This restores the \"wait for the welcome
+-- notification\" duty of the old fixed sleep without the TTL-expiry race: the
+-- previous approach set a 2s TTL and slept for 2.1s, racing the anchor to
+-- expiry before the final 'since' query (gundeck returns 404 by design when
+-- the 'since' cursor is gone).
 notificationAnchor :: (HasCallStack, MakesValue user) => user -> App (Maybe String)
-notificationAnchor user =
-  getNotifications user def `bindResponse` \resp -> do
-    resp.status `shouldMatchInt` 200
-    notifs <- resp.json %. "notifications" >>= asList
-    case reverse notifs of
-      [] -> pure Nothing
-      (n : _) -> Just <$> (n %. "id" >>= asString)
+notificationAnchor user = stabilize stabilizeRounds []
+  where
+    -- Total budget ~4s; we return early once the pre-existing notifications
+    -- have settled, so the common case is fast.
+    stabilizeRounds :: Int
+    stabilizeRounds = 20
+
+    stabilizeStepUs :: Int
+    stabilizeStepUs = 200_000
+
+    readIds :: App [String]
+    readIds =
+      getNotifications user def `bindResponse` \resp -> do
+        resp.status `shouldMatchInt` 200
+        ns <- resp.json %. "notifications" >>= asList
+        -- gundeck returns notifications oldest-first, so the newest id is last.
+        mapM (\n -> n %. "id" >>= asString) ns
+
+    stabilize :: Int -> [String] -> App (Maybe String)
+    stabilize 0 acc = pure (lastId acc)
+    stabilize n prev = do
+      cur <- readIds
+      if cur == prev && not (null cur)
+        then pure (lastId cur)
+        else do
+          liftIO $ threadDelay stabilizeStepUs
+          stabilize (n - 1) cur
+
+    lastId :: [String] -> Maybe String
+    lastId [] = Nothing
+    lastId xs = Just (last xs)
 
 testWelcomeNotification :: (HasCallStack) => App ()
 testWelcomeNotification = do
