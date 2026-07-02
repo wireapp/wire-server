@@ -136,9 +136,18 @@ mkWorkerRunningGauge =
 mkEnv :: Opts -> Galley.Opts -> IO Env
 mkEnv opts galleyOpts = do
   logger <- Log.mkLogger opts.logLevel Nothing opts.logFormat
+  -- The integration harness captures stdout/stderr and includes them in the
+  -- "Timed out waiting for service ... to come up" failure message. Emitting
+  -- the blocking startup steps makes a hung startup name its culprit (e.g. a
+  -- RabbitMQ TLS handshake) instead of failing with empty stdout/stderr.
+  Log.info logger $ Log.msg @Text "Starting background-worker environment initialization"
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (gundeck)..."
   cassandra <- defInitCassandra opts.cassandra =<< setLoggerName "cassandra-gundeck" logger
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (galley)..."
   cassandraGalley <- defInitCassandra galleyOpts._cassandra =<< setLoggerName "cassandra-galley" logger
+  Log.info logger $ Log.msg @Text "Connecting to Cassandra (brig)..."
   cassandraBrig <- defInitCassandra opts.cassandraBrig =<< setLoggerName "cassandra-brig" logger
+  Log.info logger $ Log.msg @Text "Cassandra connections established"
   http2Manager <- initHttp2Manager
   httpManager <- newManager defaultManagerSettings
   let federatorInternal = opts.federatorInternal
@@ -175,14 +184,17 @@ mkEnv opts galleyOpts = do
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
+  Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
+  Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-backend-notifications..."
   amqpBackendNotificationsChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   convCodeURI <- conversationCodeURISettings galleyOpts
   passwordHashingRateLimitEnv <- newRateLimitEnv galleyOpts._settings._passwordHashingRateLimit
+  Log.info logger $ Log.msg @Text "Environment initialized"
   pure Env {..}
 
 initHttp2Manager :: IO Http2Manager
