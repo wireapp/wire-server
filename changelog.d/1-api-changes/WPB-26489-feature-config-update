@@ -1,0 +1,6 @@
+In API version `v17`, `preventAdminlessGroups` feature config updates should use
+duration string fields `deletionTimeoutDuration` and `reminderTimeoutDurations`.
+Feature config responses include both the new duration fields and the legacy
+day-based `deletionTimeout` and `reminderTimeouts` fields for backwards
+compatibility. API versions before `v17` continue to accept the legacy
+day-based fields.
