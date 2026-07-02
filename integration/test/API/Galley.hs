@@ -195,9 +195,20 @@ getConversation ::
   user ->
   qcnv ->
   App Response
-getConversation user qcnv = do
+getConversation = getConversationVersioned Versioned
+
+getConversationVersioned ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue qcnv
+  ) =>
+  Versioned ->
+  user ->
+  qcnv ->
+  App Response
+getConversationVersioned version user qcnv = do
   (domain, cnv) <- objQid qcnv
-  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
+  req <- baseRequest user Galley version (joinHttpPath ["conversations", domain, cnv])
   submit "GET" req
 
 getConversationInternal ::
@@ -281,8 +292,11 @@ listConversationIds user args = do
       )
 
 listConversations :: (MakesValue user) => user -> [Value] -> App Response
-listConversations user cnvs = do
-  req <- baseRequest user Galley Versioned "/conversations/list"
+listConversations = listConversationsVersioned Versioned
+
+listConversationsVersioned :: (MakesValue user) => Versioned -> user -> [Value] -> App Response
+listConversationsVersioned version user cnvs = do
+  req <- baseRequest user Galley version "/conversations/list"
   submit "POST"
     $ req
     & addJSONObject ["qualified_ids" .= cnvs]

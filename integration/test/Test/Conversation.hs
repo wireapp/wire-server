@@ -1292,3 +1292,35 @@ testReplaceMembersConvNotFoundOtherDomain = do
   bindResponse (replaceMembers alice fakeConv def {users = [bobId]}) $ \resp -> do
     resp.status `shouldMatchInt` 422
     resp.json %. "label" `shouldMatch` "federation-not-implemented"
+
+-- | Meeting conversations must not leak their @group_conv_type@ through legacy
+-- (< V16) conversation endpoints (WPB-26626).
+testMeetingGroupConvTypeHiddenInLegacy :: (HasCallStack) => App ()
+testMeetingGroupConvTypeHiddenInLegacy = do
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  conv <-
+    postConversation owner (defProteus {team = Just tid, groupConvType = Just "meeting"})
+      >>= getJSON 201
+  convQid <- conv %. "qualified_id"
+
+  -- getConversation: V15 (legacy) omits group_conv_type for meetings,
+  -- V16+ exposes it.
+  bindResponse (getConversationVersioned (ExplicitVersion 15) owner conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    assertFieldMissing resp.json "group_conv_type"
+
+  bindResponse (getConversation owner conv) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "group_conv_type" `shouldMatch` ("meeting" :: String)
+
+  -- listConversations: V15 (legacy) excludes meeting conversations from found,
+  -- V16+ includes them.
+  bindResponse (listConversationsVersioned (ExplicitVersion 15) owner [convQid]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    found <- resp.json %. "found" & asList
+    length (found :: [Value]) `shouldMatchInt` 0
+
+  bindResponse (listConversations owner [convQid]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    found <- resp.json %. "found" & asList
+    length (found :: [Value]) `shouldMatchInt` 1
