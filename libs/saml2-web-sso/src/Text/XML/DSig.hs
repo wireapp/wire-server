@@ -77,8 +77,6 @@ import Network.Wai.Utilities.Exception
 import SAML2.XML qualified as HS hiding (Node, URI)
 import SAML2.XML.Canonical qualified as HS
 import SAML2.XML.Signature qualified as HS
-import System.IO (stderr, stdout)
-import System.IO.Silently (hCapture)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (mkStdGen, random)
 import Text.XML as XML
@@ -236,11 +234,10 @@ mkSignCredsWithCertWithLifespan validSinceRaw validUntilRaw size = do
 --
 -- NB: The call to 'unsafePerformIO' in this function is sound under the assumption that
 -- 'verifyIO' has no effects in 'IO' other than throwing 'SomeException' (which are captured
--- by 'try'.  Technically, it does have other effects, like opening temp files for capturing
--- stderr (if any), but we do not care about those.  The only thing we care about is that the
--- conceptually pure function of validating a signature will either be called twice with the
--- same arguments and return the same result value, or not be called a second time with the
--- same arguments, in which case that same value will be used.
+-- by 'try').  The only thing we care about is that the conceptually pure function of
+-- validating a signature will either be called twice with the same arguments and return the
+-- same result value, or not be called a second time with the same arguments, in which case
+-- that same value will be used.
 {-# NOINLINE verify #-}
 verify :: forall m. (MonadError String m) => NonEmpty SignCreds -> LBS -> String -> m HXTC.XmlTree
 verify creds el sid = case unsafePerformIO (try @SomeException $ verifyIO creds el sid) of
@@ -266,17 +263,11 @@ verifyRoot creds el = do
 -- | Try a list of creds against a document.  If all fail, return a list of errors for each cert; if
 -- *any* succeed, return the empty list.
 verifyIO :: NonEmpty SignCreds -> LBS -> String -> IO (SignCreds, Either HS.SignatureError HXTC.XmlTree)
-verifyIO creds el sid = capture' $ do
+verifyIO creds el sid = do
   results <- NL.zip creds <$> forM creds (\cred -> verifyIO' cred el sid)
   case NL.filter (isRight . snd) results of
     [result] -> pure result
     _ -> throwIO . ErrorCall $ "all credentials failed to verify signature"
-  where
-    capture' :: IO a -> IO a
-    capture' action =
-      hCapture [stdout, stderr] action >>= \case
-        ("", out) -> pure out
-        (noise, _) -> throwIO . ErrorCall $ "noise on stdout/stderr from hsaml2 package: " <> noise
 
 verifyIO' :: SignCreds -> LBS -> String -> IO (Either HS.SignatureError HXTC.XmlTree)
 verifyIO' (SignCreds SignDigestSha256 (SignKeyRSA key)) el sid = runExceptT $ do
