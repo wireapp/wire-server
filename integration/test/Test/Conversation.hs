@@ -1307,7 +1307,7 @@ testMeetingGroupConvTypeHiddenInLegacy = do
   -- V16+ exposes it.
   bindResponse (getConversationVersioned (ExplicitVersion 15) owner conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
-    assertFieldMissing resp.json "group_conv_type"
+    resp.json %. "group_conv_type" `shouldMatch` Null
 
   bindResponse (getConversation owner conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
