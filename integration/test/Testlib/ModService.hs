@@ -33,7 +33,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, throwM)
+import Control.Monad.Catch (catch, catchAll, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -422,7 +422,7 @@ ensureBackendReachable domain = do
             -- If we get 533 here it means federation is not available between domains
             -- but ingress is working, since we're processing the request.
             let is200 = res.status == 200
-            mInner <- lookupField res.json "inner"
+            mInner <- lookupField res.json "inner" `catchAll` const (pure Nothing)
             isFedDenied <- case mInner of
               Nothing -> pure False
               Just inner -> do
