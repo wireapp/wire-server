@@ -1069,10 +1069,7 @@ notifyConversationCreated lusr conn conv joinType = do
             case conversationViewMaybe luid remoteOthers localOthers conv of
               Nothing -> pure Nothing
               Just ownConv -> do
-                let evtData =
-                      if isMeetingConversation ownConv
-                        then EdConversationMeeting ownConv
-                        else EdConversation (toLegacyOwnConversation ownConv)
+                let evtData = createConversationEventData ownConv
                     e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing evtData
                 pure $
                   Just

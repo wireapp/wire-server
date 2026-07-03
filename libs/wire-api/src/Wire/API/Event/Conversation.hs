@@ -29,6 +29,7 @@ module Wire.API.Event.Conversation
     EventFrom (..),
     eventFromUserId,
     AddCodeResult (..),
+    createConversationEventData,
     isCellsConversationEvent,
 
     -- * Cells Event
@@ -294,6 +295,12 @@ eventDataType (EdConvReset _) = ConvReset
 eventDataType (EdProtocolUpdate _) = ProtocolUpdate
 eventDataType (EdAddPermissionUpdate _) = AddPermissionUpdate
 eventDataType (EdConvHistoryUpdate _) = ConvHistoryUpdate
+
+createConversationEventData ::
+  OwnConversation GroupConvType -> EventData
+createConversationEventData conv
+  | isMeetingConversation conv = EdConversationMeeting conv
+  | otherwise = EdConversation (toLegacyOwnConversation conv)
 
 isCellsConversationEvent :: EventType -> Bool
 isCellsConversationEvent eventType =

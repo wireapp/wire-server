@@ -192,6 +192,10 @@ isConvAccessUpdateNotif n =
 isConvCreateNotif :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotif n = fieldEquals n "payload.0.type" "conversation.create"
 
+isConvCreateMeetingNotif :: (HasCallStack, MakesValue a) => a -> App Bool
+isConvCreateMeetingNotif n =
+  fieldEquals n "payload.0.type" "conversation.create-meeting"
+
 -- | like 'isConvCreateNotif' but excludes self conversations
 isConvCreateNotifNotSelf :: (HasCallStack, MakesValue a) => a -> App Bool
 isConvCreateNotifNotSelf n =

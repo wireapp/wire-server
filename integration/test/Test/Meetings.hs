@@ -10,6 +10,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import MLS.Util
+import Notifications (isConvCreateMeetingNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -42,10 +43,13 @@ testMeetingCreate = do
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
-  resp <- postMeetings owner newMeeting
-  assertSuccess resp
+  meeting <-
+    withWebSocket owner $ \ws -> do
+      resp <- postMeetings owner newMeeting
+      assertSuccess resp
+      void $ awaitMatch isConvCreateMeetingNotif ws
+      getJSON 201 resp
 
-  meeting <- getJSON 201 resp
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
   meeting %. "invited_emails" `shouldMatch` (["alice@example.com", "bob@example.com"] :: [String])

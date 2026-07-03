@@ -170,10 +170,7 @@ onConversationCreated domain rc = do
   let qrcConnected = qrc {nonCreatorMembers = connectedMembers}
 
   for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
-    let evtData =
-          if isMeetingConversation c
-            then EdConversationMeeting c
-            else EdConversation (toLegacyOwnConversation c)
+    let evtData = createConversationEventData c
         event =
           Event
             (tUntagged (cnvId qrcConnected))
