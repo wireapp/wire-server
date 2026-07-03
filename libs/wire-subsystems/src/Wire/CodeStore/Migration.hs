@@ -132,7 +132,7 @@ migrateCodeRow ::
   Sem r ()
 migrateCodeRow migOpts migCounter migDuration (k, v, ttl, cnv, mPw) =
   when (ttl > 0) $ do
-    let (code, _) = toCode k (v, ttl, cnv, mPw)
+    let (code, _) = toCode k (v, ttl, CodeReferentConv cnv, mPw)
         keyText = T.pack (show k)
     outcomeRef <- liftIO $ IORef.newIORef @Text "error"
     bracket

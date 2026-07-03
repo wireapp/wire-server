@@ -529,11 +529,11 @@ addCode lusr mbZHost mZcon lcnv mReq = do
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
   convUri <- getConversationCodeURI mbZHost
-  key <- E.makeKey (tUnqualified lcnv)
+  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
   E.getCode key >>= \case
     Nothing -> do
       ttl <- inputs (realToFrac . unGuestLinkTTLSeconds . fromMaybe defGuestLinkTTLSeconds)
-      code <- E.generateCode (tUnqualified lcnv) (Timeout ttl)
+      code <- E.generateCode (CodeReferentConv (tUnqualified lcnv)) (Timeout ttl)
       mPw <- for (mReq >>= (.password)) $ HashPassword.hashPassword8 (RateLimitUser (tUnqualified lusr))
       E.createCode code mPw
       now <- Now.get
@@ -594,7 +594,7 @@ rmCode lusr zcon lcnv = do
   Query.ensureConvAdmin conv (tUnqualified lusr) mTeamMember
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ conv.localMembers
-  key <- E.makeKey (tUnqualified lcnv)
+  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
   E.deleteCode key
   now <- Now.get
   let event = Event (tUntagged lcnv) Nothing (EventFromUser (tUntagged lusr)) now Nothing EdConvCodeDelete
@@ -621,7 +621,7 @@ getCode mbZHost lusr cnv = do
   Query.ensureGuestLinksEnabled (convTeam conv)
   ensureAccess conv CodeAccess
   ensureConvMember (conv.localMembers) (tUnqualified lusr)
-  key <- E.makeKey cnv
+  key <- E.makeKey (CodeReferentConv cnv)
   (c, mPw) <- E.getCode key >>= noteS @'CodeNotFound
   convUri <- getConversationCodeURI mbZHost
   pure $ mkConversationCodeInfo (isJust mPw) (codeKey c) (codeValue c) convUri
@@ -642,7 +642,8 @@ checkReusableCode ::
   Sem r ()
 checkReusableCode origIp convCode = do
   code <- verifyReusableCode (RateLimitIp origIp) False Nothing convCode
-  conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
+  codeCid <- noteS @'ConvNotFound (codeConvId code)
+  conv <- E.getConversation codeCid >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
     Query.ensureGuestLinksEnabled (convTeam conv)
 
@@ -761,7 +762,8 @@ joinConversationByReusableCode ::
   Sem r (UpdateResult Event)
 joinConversationByReusableCode lusr zcon req = do
   c <- verifyReusableCode (RateLimitUser (tUnqualified lusr)) True req.password req.code
-  conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
+  codeCid <- noteS @'ConvNotFound (codeConvId c)
+  conv <- E.getConversation codeCid >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled (convTeam conv)
   joinConversation lusr zcon conv CodeAccess
 

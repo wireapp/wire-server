@@ -238,6 +238,7 @@ type BackgroundWorkerEffects =
      Error (Tagged TeamNotFound ()),
      Error (Tagged ConvAccessDenied ()),
      Error (Tagged NotATeamMember ()),
+     Error (Tagged CodeStoreNotFound ()),
      Error TeamFeatureStoreError,
      Error TeamCollaboratorsError,
      Error UnreachableBackends,
@@ -290,6 +291,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @UnreachableBackends (T.pack . show)
     . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
     . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
+    . mapError @(Tagged 'CodeStoreNotFound ()) (const ("Code store not found" :: Text))
     . mapError @(Tagged 'NotATeamMember ()) (const ("Not a team member" :: Text))
     . mapError @(Tagged 'ConvAccessDenied ()) (const ("Conversation access denied" :: Text))
     . mapError @(Tagged 'TeamNotFound ()) (const ("Team not found" :: Text))
