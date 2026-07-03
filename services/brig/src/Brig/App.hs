@@ -74,7 +74,6 @@ module Brig.App
     rateLimitEnvLens,
     amqpJobsPublisherChannelLens,
     postgresMigrationLens,
-    jobsApiAppLens,
     initZAuth,
     initLogger,
     initPostgresPool,
@@ -102,10 +101,6 @@ module Brig.App
   )
 where
 
-import Arbiter.Core qualified as ArbiterCore
-import Arbiter.Servant.Server qualified as ArbServer
-import Arbiter.Servant.UI qualified as ArbUI
-import Arbiter.Simple qualified as ArbSimple
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
@@ -134,7 +129,6 @@ import Data.Credentials (Credentials (..))
 import Data.Domain
 import Data.Id
 import Data.Misc
-import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Text qualified as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -145,13 +139,13 @@ import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended
+import Hasql.Pool.Extended (initPostgresPool, postgresqlConnectionString)
 import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended qualified as Q
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
-import Network.Wai (Application)
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import OpenSSL.Session qualified as SSL
@@ -167,7 +161,6 @@ import System.Logger.Extended qualified as Log
 import Util.Options
 import Util.SuffixNamer
 import Wire.API.Federation.Error (federationNotImplemented)
-import Wire.API.Jobs (ScheduledJobsRegistry)
 import Wire.API.Locale (Locale)
 import Wire.API.Routes.Version
 import Wire.API.User.Identity
@@ -229,7 +222,6 @@ data Env = Env
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
     amqpJobsPublisherChannel :: MVar Q.Channel,
-    jobsApiApp :: Application,
     postgresMigration :: PostgresMigrationOpts
   }
 
@@ -285,22 +277,6 @@ newEnv opts = do
   idxEnv <- mkIndexEnv opts.elasticsearch lgr (Opt.galley opts) mgr
   rateLimitEnv <- newRateLimitEnv opts.settings.passwordHashingRateLimit
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
-  Log.info lgr $ Log.msg (Log.val "Initializing internal jobs API")
-  jobsApiConnStr <- postgresqlConnectionString opts.postgresql opts.postgresqlPassword
-  arbiterEnv <-
-    ArbSimple.createSimpleEnv
-      (Proxy @ScheduledJobsRegistry)
-      (encodeUtf8 jobsApiConnStr)
-      ArbiterCore.defaultSchemaName
-  sseHub <- newMVar Nothing
-  let config =
-        ArbServer.ArbiterServerConfig
-          { serverEnv = arbiterEnv,
-            enableSSE = True,
-            sseHub = sseHub
-          }
-  let jobsApiApp = ArbUI.arbiterAppWithAdmin config
-  Log.info lgr $ Log.msg (Log.val "Internal jobs API initialized")
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pure $!
     Env
@@ -344,7 +320,6 @@ newEnv opts = do
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,
-        jobsApiApp,
         postgresMigration = opts.postgresMigration
       }
   where

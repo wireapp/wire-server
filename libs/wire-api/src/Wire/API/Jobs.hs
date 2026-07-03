@@ -61,9 +61,9 @@ instance FromJSON MeetingsCleanupJob where
   parseJSON _ = fail "MeetingsCleanupJob expects null"
 
 -- | Payload for adminless deletions.
--- Keep the JSON encoding backwards compatible. The jobs API reads these payloads
--- back from Arbiter, so changing field names or shapes without a migration will
--- break job listing and management.
+-- Keep the JSON encoding backwards compatible. Arbiter persists these payloads
+-- and workers decode them later, so changing field names or shapes without a
+-- migration will break already scheduled jobs.
 data AdminlessDeletionJob = AdminlessDeletionJob
   { adminlessDeletionJobTeamId :: TeamId,
     adminlessDeletionJobConversationId :: ConvId,
@@ -84,9 +84,9 @@ instance ToSchema AdminlessDeletionJob where
         <*> (.adminlessDeletionJobOrigUserId) .= field "orig_user_id" schema
 
 -- | Payload for adminless reminders.
--- Keep the JSON encoding backwards compatible. The jobs API reads these payloads
--- back from Arbiter, so changing field names or shapes without a migration will
--- break job listing and management.
+-- Keep the JSON encoding backwards compatible. Arbiter persists these payloads
+-- and workers decode them later, so changing field names or shapes without a
+-- migration will break already scheduled jobs.
 data AdminlessReminderJob = AdminlessReminderJob
   { adminlessReminderJobTeamId :: TeamId,
     adminlessReminderJobConversationId :: ConvId,

@@ -88,7 +88,6 @@ import Wire.API.Routes.Internal.Brig.EnterpriseLogin (EnterpriseLoginApi)
 import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Internal.Brig.SearchIndex (ISearchIndexAPI)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti qualified as Multi
-import Wire.API.Routes.Internal.Jobs (JobsAppAPI)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public (ZUser)
@@ -739,7 +738,6 @@ type API =
            :<|> SAMLIdPAPI
            :<|> DeleteApp
            :<|> GetAppIds
-           :<|> JobsAppAPI
        )
 
 type SAMLIdPAPI =

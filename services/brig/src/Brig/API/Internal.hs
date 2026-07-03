@@ -77,7 +77,6 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Internal.Jobs qualified as JobsIRoutes
 import Wire.API.Routes.Named
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
@@ -193,7 +192,7 @@ servantSitemap ::
     Member ClientSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap env =
+servantSitemap _env =
   istatusAPI
     :<|> ejpdAPI
     :<|> accountAPI
@@ -211,7 +210,6 @@ servantSitemap env =
     :<|> samlIdPApi
     :<|> Named @"i-delete-app" deleteAppH
     :<|> Named @"i-get-app-ids" getAppIdsH
-    :<|> jobsApp env
 
 istatusAPI :: forall r. ServerT BrigIRoutes.IStatusAPI (Handler r)
 istatusAPI = Named @"get-status" (pure NoContent)
@@ -1073,6 +1071,3 @@ deleteAppH tid uid = lift . liftSem $ AppSubsystem.deleteApp tid uid >> pure NoC
 
 getAppIdsH :: (Member AppStore r) => TeamId -> Handler r [UserId]
 getAppIdsH tid = lift . liftSem $ map (.id) <$> AppStore.getApps tid
-
-jobsApp :: App.Env -> ServerT JobsIRoutes.JobsAppAPI (Handler r)
-jobsApp env = Tagged env.jobsApiApp

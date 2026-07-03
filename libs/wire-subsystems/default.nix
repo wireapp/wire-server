@@ -14,8 +14,6 @@
 , arbiter-core
 , arbiter-hasql
 , arbiter-migrations
-, arbiter-servant
-, arbiter-servant-ui
 , arbiter-worker
 , asn1-encoding
 , asn1-types
@@ -164,8 +162,6 @@ mkDerivation {
     arbiter-core
     arbiter-hasql
     arbiter-migrations
-    arbiter-servant
-    arbiter-servant-ui
     arbiter-worker
     asn1-encoding
     asn1-types
@@ -302,8 +298,6 @@ mkDerivation {
     arbiter-core
     arbiter-hasql
     arbiter-migrations
-    arbiter-servant
-    arbiter-servant-ui
     arbiter-worker
     asn1-encoding
     asn1-types
