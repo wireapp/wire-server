@@ -18,9 +18,16 @@
 module Hasql.Pool.Extended where
 
 import Data.Aeson
-import Data.Map as Map
+import Data.ByteString qualified as ByteString
+import Data.Map qualified as Map
 import Data.Misc
+import Data.Pool qualified as Pool
+import Data.Set qualified as Set
+import Data.Text.Encoding qualified as Text
+import Data.Time.Clock (diffUTCTime, getCurrentTime, secondsToDiffTime)
+import Data.UUID
 import Hasql.Connection qualified
+import Hasql.Connection qualified as Hasql
 import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Pool qualified as HasqlPool
 import Imports
@@ -40,12 +47,51 @@ data PoolConfig = PoolConfig
   }
   deriving (Eq, Show)
 
+defaultArbiterConnectionPoolConfig :: PoolConfig
+defaultArbiterConnectionPoolConfig =
+  PoolConfig
+    { size = 10,
+      acquisitionTimeout = Duration (secondsToDiffTime 5),
+      agingTimeout = Duration (secondsToDiffTime 300),
+      idlenessTimeout = Duration (secondsToDiffTime 60)
+    }
+
 instance FromJSON PoolConfig where
   parseJSON = withObject "PoolConfig" $ \o ->
     PoolConfig
       <$> o .: "size"
       <*> o .: "acquisitionTimeout"
       <*> o .: "idlenessTimeout"
+
+-- | Render a PostgreSQL connection string in libpq key-value format.
+--
+-- Passwords from the optional secret file are inserted into the key-value map
+-- before rendering so the resulting connection string can be reused by code
+-- that expects a plain connection string.
+postgresqlConnectionString :: Map Text Text -> Maybe FilePathSecrets -> IO Text
+postgresqlConnectionString pgConfig mFpSecrets = do
+  mPw <- for mFpSecrets initCredentials
+  let pgConfig' = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
+  pure . PostgresqlConnectionString.toKeyValueString $
+    PostgresqlConnectionString.fromKeyValueParams pgConfig'
+
+-- | Creates a dedicated raw connection pool for Arbiter-backed code paths.
+--
+-- This intentionally returns 'Pool Connection' instead of the opaque
+-- 'Hasql.Pool' wrapper so Arbiter can manage its own pool state directly.
+initPostgresConnectionPool :: PoolConfig -> ByteString.ByteString -> IO (Pool.Pool Hasql.Connection)
+initPostgresConnectionPool config connStr =
+  Pool.newPool $
+    Pool.defaultPoolConfig
+      ( do
+          result <- Hasql.acquire (HasqlConnSettings.connectionString (Text.decodeUtf8 connStr))
+          case result of
+            Right conn -> pure conn
+            Left err -> fail $ "Failed to acquire Arbiter Hasql connection: " <> show err
+      )
+      Hasql.release
+      (realToFrac config.idlenessTimeout.duration)
+      (size config)
 
 data HasqlPoolMetrics = HasqlPoolMetrics
   { readyForUseGauge :: Gauge,

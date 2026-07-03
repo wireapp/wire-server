@@ -37,10 +37,12 @@ import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString qualified as ByteString
 import Data.Kind (Type)
+import Data.Pool qualified as Pool
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import Data.Time.Clock (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
+import Hasql.Connection qualified as Hasql
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
 import System.Logger qualified as Log
@@ -50,6 +52,7 @@ import Wire.API.Jobs (MeetingsCleanupJob (..))
 data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,
     recurringJobRunnerSchedule :: CronSchedule,
+    recurringJobRunnerArbiterPool :: Pool.Pool Hasql.Connection,
     recurringJobRunnerArbiterConnStr :: ByteString.ByteString,
     recurringJobRunnerSchemaName :: Text,
     recurringJobRunnerPollInterval :: NominalDiffTime,
@@ -60,6 +63,7 @@ data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
 
 data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
   { oneOffJobRunnerLogger :: Log.Logger,
+    oneOffJobRunnerArbiterPool :: Pool.Pool Hasql.Connection,
     oneOffJobRunnerArbiterConnStr :: ByteString.ByteString,
     oneOffJobRunnerSchemaName :: Text,
     oneOffJobRunnerPollInterval :: NominalDiffTime,
@@ -89,11 +93,11 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
       . Log.field "queue_name" recurringJobRunnerQueueName
       . Log.field "schedule" (show recurringJobRunnerSchedule)
 
-  arbiterEnv <-
-    ArbiterHasql.createHasqlEnv
-      registry
-      recurringJobRunnerArbiterConnStr
-      recurringJobRunnerSchemaName
+  let arbiterEnv =
+        ArbiterHasql.createHasqlEnvWithPool
+          registry
+          recurringJobRunnerArbiterPool
+          recurringJobRunnerSchemaName
 
   let workerHandler _conn job =
         liftIO $ do
@@ -172,11 +176,11 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
       . Log.field "job_name" oneOffJobRunnerJobName
       . Log.field "queue_name" oneOffJobRunnerQueueName
 
-  arbiterEnv <-
-    ArbiterHasql.createHasqlEnv
-      registry
-      oneOffJobRunnerArbiterConnStr
-      oneOffJobRunnerSchemaName
+  let arbiterEnv =
+        ArbiterHasql.createHasqlEnvWithPool
+          registry
+          oneOffJobRunnerArbiterPool
+          oneOffJobRunnerSchemaName
   let workerHandler _conn job =
         liftIO $ do
           Log.info oneOffJobRunnerLogger $

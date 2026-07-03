@@ -37,7 +37,7 @@ module Galley.Env
     rabbitmqChannel,
     convCodeURI,
     passwordHashingRateLimitEnv,
-    jobsApiConnStr,
+    jobsApiPool,
     reqIdMsg,
     notificationSubsystemConfig,
     currentFanoutLimitOpts,
@@ -49,10 +49,13 @@ import Control.Lens hiding ((.=))
 import Data.Domain (Domain)
 import Data.Id
 import Data.Misc (HttpsUrl)
+import Data.Pool qualified as Pool
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
 import Hasql.Pool.Extended
+import Hasql.Connection qualified as Hasql
+import Hasql.Pool
 import Imports
 import Network.AMQP qualified as Q
 import Network.HTTP.Client
@@ -89,7 +92,7 @@ data Env = Env
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
     _convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
     _passwordHashingRateLimitEnv :: RateLimitEnv,
-    _jobsApiConnStr :: Text
+    _jobsApiPool :: Pool.Pool Hasql.Connection
   }
 
 makeLenses ''Env

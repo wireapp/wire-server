@@ -70,12 +70,11 @@ scheduleAdminlessDeletionJob ::
   UTCTime ->
   Sem r ScheduledJob
 scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId scheduledFor = do
-  arbiterEnv <-
-    embed $
-      ArbiterHasql.createHasqlEnv
-        (Proxy @ScheduledJobsRegistry)
-        jobSubsystemArbiterConnStr
-        jobSubsystemSchemaName
+  let arbiterEnv =
+        ArbiterHasql.createHasqlEnvWithPool
+          (Proxy @ScheduledJobsRegistry)
+          jobSubsystemArbiterPool
+          jobSubsystemSchemaName
   jobId <- embed $ Id <$> UUID.nextRandom
   let job =
         ScheduledJob
@@ -109,12 +108,11 @@ scheduleAdminlessReminderJob ::
   UTCTime ->
   Sem r ScheduledJob
 scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUntilDeletion scheduledFor = do
-  arbiterEnv <-
-    embed $
-      ArbiterHasql.createHasqlEnv
-        (Proxy @ScheduledJobsRegistry)
-        jobSubsystemArbiterConnStr
-        jobSubsystemSchemaName
+  let arbiterEnv =
+        ArbiterHasql.createHasqlEnvWithPool
+          (Proxy @ScheduledJobsRegistry)
+          jobSubsystemArbiterPool
+          jobSubsystemSchemaName
   jobId <- embed $ Id <$> UUID.nextRandom
   let job =
         ScheduledJob

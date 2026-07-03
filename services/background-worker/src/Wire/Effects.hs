@@ -91,8 +91,6 @@ import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword.Interpreter (runHashPassword)
-import Wire.JobStore (JobStore)
-import Wire.JobStore.Postgres (interpretJobStoreToPostgres)
 import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
 import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
@@ -219,7 +217,6 @@ type BackgroundWorkerEffects =
      TeamJournal,
      LegalHoldStore,
      JobSubsystem,
-     JobStore,
      TeamCollaboratorsStore,
      TeamStore,
      ConversationStore,
@@ -329,18 +326,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
-    . interpretTeamFeatureStore  
+    . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
-    . interpretJobStoreToPostgres
-    . interpretJobSubsystem
-      JobSubsystemConfig
-        { jobSubsystemArbiterConnStr = env.arbiterConnStr,
-          jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
-        }
-    . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
+    . interpretJobSubsystem jobSubsystemConfig 
+    . interpretLegalHoldStoreToCassandra FeatureLegalHoldDisabledPermanently
     . interpretTeamJournal Nothing
     . nowToIO
     . randomToIO
@@ -379,9 +371,9 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
       PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
 
     convCodesStoreInterpreter = case env.postgresMigration.conversationCodes of
-        CassandraStorage -> interpretCodeStoreToCassandra
-        MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
-        PostgresqlStorage -> interpretCodeStoreToPostgres
+      CassandraStorage -> interpretCodeStoreToCassandra
+      MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretCodeStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
@@ -394,6 +386,15 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
           http2Manager = env.http2Manager,
           requestId = requestId
         }
+    jobSubsystemConfig =
+      JobSubsystemConfig
+        { jobSubsystemArbiterPool = env.arbiterPool,
+          jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+        }
+    getConversationSubsystemConfig ::
+      (Member GalleyAPIAccess r) =>
+      Sem r ConversationSubsystemConfig
+    getConversationSubsystemConfig = getConversationConfig
     backendQueueEnv =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,

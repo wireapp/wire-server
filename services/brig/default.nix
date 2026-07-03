@@ -100,7 +100,6 @@
 , random
 , random-shuffle
 , raw-strings-qq
-, resource-pool
 , resourcet
 , retry
 , safe
@@ -238,7 +237,6 @@ mkDerivation {
     ram
     random-shuffle
     raw-strings-qq
-    resource-pool
     resourcet
     retry
     safe-exceptions

@@ -30,10 +30,11 @@ module Wire.JobSubsystem
 where
 
 import Arbiter.Core.Job.Types (JobRead)
-import Data.ByteString qualified as ByteString
 import Data.Id
+import Data.Pool qualified as Pool
 import Data.Qualified
 import Data.Time.Clock (UTCTime)
+import Hasql.Connection qualified as Hasql
 import Imports
 import Polysemy
 import Wire.API.Jobs
@@ -42,7 +43,7 @@ import Wire.JobSubsystem.Workers
 type CleanupAction = IO ()
 
 data JobSubsystemConfig = JobSubsystemConfig
-  { jobSubsystemArbiterConnStr :: ByteString.ByteString,
+  { jobSubsystemArbiterPool :: Pool.Pool Hasql.Connection,
     jobSubsystemSchemaName :: Text
   }
 

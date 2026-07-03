@@ -75,7 +75,6 @@ module Brig.App
     amqpJobsPublisherChannelLens,
     postgresMigrationLens,
     jobsApiAppLens,
-    jobsApiConnStrLens,
     initZAuth,
     initLogger,
     initPostgresPool,
@@ -106,6 +105,7 @@ where
 import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Servant.Server qualified as ArbServer
 import Arbiter.Servant.UI qualified as ArbUI
+import Arbiter.Simple qualified as ArbSimple
 import Bilge qualified as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
@@ -143,6 +143,7 @@ import Data.Text.IO qualified as Text
 import Data.Time.Clock
 import Database.Bloodhound qualified as ES
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
+import Hasql.Pool qualified as HasqlPool
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as HasqlPool
 import Imports
@@ -228,7 +229,6 @@ data Env = Env
     enableSFTFederation :: Maybe Bool,
     rateLimitEnv :: RateLimitEnv,
     amqpJobsPublisherChannel :: MVar Q.Channel,
-    jobsApiConnStr :: Text,
     jobsApiApp :: Application,
     postgresMigration :: PostgresMigrationOpts
   }
@@ -287,9 +287,19 @@ newEnv opts = do
   hasqlPool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   Log.info lgr $ Log.msg (Log.val "Initializing internal jobs API")
   jobsApiConnStr <- postgresqlConnectionString opts.postgresql opts.postgresqlPassword
-  jobsApiApp <- do
-    config <- ArbServer.initArbiterServer (Proxy @ScheduledJobsRegistry) (encodeUtf8 jobsApiConnStr) ArbiterCore.defaultSchemaName
-    pure $ ArbUI.arbiterAppWithAdmin config
+  arbiterEnv <-
+    ArbSimple.createSimpleEnv
+      (Proxy @ScheduledJobsRegistry)
+      (encodeUtf8 jobsApiConnStr)
+      ArbiterCore.defaultSchemaName
+  sseHub <- newMVar Nothing
+  let config =
+        ArbServer.ArbiterServerConfig
+          { serverEnv = arbiterEnv,
+            enableSSE = True,
+            sseHub = sseHub
+          }
+  jobsApiApp <- pure $ ArbUI.arbiterAppWithAdmin config
   Log.info lgr $ Log.msg (Log.val "Internal jobs API initialized")
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pure $!
@@ -334,7 +344,6 @@ newEnv opts = do
         enableSFTFederation = opts.multiSFT,
         rateLimitEnv,
         amqpJobsPublisherChannel,
-        jobsApiConnStr,
         jobsApiApp,
         postgresMigration = opts.postgresMigration
       }

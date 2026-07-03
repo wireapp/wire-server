@@ -69,6 +69,9 @@ startWorker scheduledConfig config = do
               RecurringJobRunnerConfig
                 { recurringJobRunnerLogger = env.logger,
                   recurringJobRunnerSchedule = config.schedule,
+                  recurringJobRunnerArbiterPool = env.arbiterPool,
+                  -- Arbiter still uses the connection string for LISTEN/NOTIFY.
+                  -- The actual job DB access goes through 'arbiterPool'.
                   recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
                   recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
                   recurringJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
@@ -79,6 +82,9 @@ startWorker scheduledConfig config = do
             adminlessDeletionJobRunnerConfig =
               OneOffJobRunnerConfig
                 { oneOffJobRunnerLogger = env.logger,
+                  oneOffJobRunnerArbiterPool = env.arbiterPool,
+                  -- Arbiter still uses the connection string for LISTEN/NOTIFY.
+                  -- The actual job DB access goes through 'arbiterPool'.
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
                   oneOffJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
@@ -89,6 +95,7 @@ startWorker scheduledConfig config = do
             adminlessReminderJobRunnerConfig =
               OneOffJobRunnerConfig
                 { oneOffJobRunnerLogger = env.logger,
+                  oneOffJobRunnerArbiterPool = env.arbiterPool,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
                   oneOffJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
