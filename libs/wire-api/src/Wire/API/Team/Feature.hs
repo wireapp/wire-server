@@ -1435,6 +1435,15 @@ instance ToSchema (Versioned V16 PreventAdminlessGroupsConfig) where
 instance ToObjectSchema (Versioned V16 PreventAdminlessGroupsConfig) where
   objectSchema = field "config" schema
 
+instance ToSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+  schema =
+    object $
+      Versioned
+        <$> unVersioned .= durationPreventAdminlessGroupsConfigObjectSchema
+
+instance ToObjectSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+  objectSchema = field "config" schema
+
 oldPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
 oldPreventAdminlessGroupsConfigObjectSchema =
   PreventAdminlessGroupsConfig
@@ -1447,6 +1456,13 @@ oldPreventAdminlessTimeoutField name = preventAdminlessTimeoutDays .= (mkPrevent
 
 oldPreventAdminlessTimeoutsField :: Text -> ObjectSchema SwaggerDoc [PreventAdminlessTimeout]
 oldPreventAdminlessTimeoutsField name = fmap preventAdminlessTimeoutDays .= (fmap mkPreventAdminlessTimeoutDays <$> field name (array schema))
+
+durationPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
+durationPreventAdminlessGroupsConfigObjectSchema =
+  PreventAdminlessGroupsConfig
+    <$> promotionStrategy .= field "promotionStrategy" schema
+    <*> deletionTimeout .= field "deletionTimeoutDuration" preventAdminlessTimeoutSchema
+    <*> reminderTimeouts .= field "reminderTimeoutDurations" (array preventAdminlessTimeoutSchema)
 
 instance Default (LockableFeature PreventAdminlessGroupsConfig) where
   def = defUnlockedFeature {status = FeatureStatusDisabled}

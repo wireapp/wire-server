@@ -69,7 +69,7 @@ type FeatureAPI =
     :<|> FeatureAPIGetPut ChannelsConfig
     :<|> FeatureAPIGet PreventAdminlessGroupsConfig
     :<|> Until 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v16" V16 PreventAdminlessGroupsConfig
-    :<|> From 'V17 ::> FeatureAPIPut PreventAdminlessGroupsConfig
+    :<|> From 'V17 ::> VersionedFeatureAPIPut "put-PreventAdminlessGroupsConfig@v17" V17 PreventAdminlessGroupsConfig
     :<|> FeatureAPIGet CellsConfig
     :<|> Until 'V14 ::> VersionedFeatureAPIPut "put-CellsConfig@v13" V13 CellsConfig
     :<|> From 'V14 ::> FeatureAPIPut CellsConfig
