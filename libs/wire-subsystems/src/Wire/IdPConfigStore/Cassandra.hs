@@ -76,6 +76,9 @@ insertIdPConfig ::
   m ()
 insertIdPConfig idp = do
   ensureDoNotMixApiVersions
+  let oldIssuers = idp ^. SAML.idpExtraInfo . IP.oldIssuers
+      tid = idp ^. SAML.idpExtraInfo . IP.team
+      thisVersion = fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . IP.apiVersion
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -105,6 +108,15 @@ insertIdPConfig idp = do
       ( idp ^. SAML.idpId,
         idp ^. SAML.idpExtraInfo . IP.team
       )
+    -- Delete old issuer mappings atomically with the new config insertion to
+    -- prevent Cassandra tombstone shadowing when an issuer is reused across
+    -- multiple updates (e.g., updating from issuer A to B and back to A).
+    forM_ oldIssuers $ \oldIssuer ->
+      case thisVersion of
+        WireIdPAPIV2 -> addPrepQuery delOldIssuerV2 (oldIssuer, tid)
+        WireIdPAPIV1 -> do
+          addPrepQuery delOldIssuerV1 (Identity oldIssuer)
+          addPrepQuery delOldIssuerV1' (Identity oldIssuer)
   where
     ensureDoNotMixApiVersions :: m ()
     ensureDoNotMixApiVersions = do
@@ -128,6 +140,15 @@ insertIdPConfig idp = do
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
+
+    delOldIssuerV2 :: PrepQuery W (SAML.Issuer, TeamId) ()
+    delOldIssuerV2 = "DELETE FROM issuer_idp_v2 WHERE issuer = ? AND team = ?"
+
+    delOldIssuerV1 :: PrepQuery W (Identity SAML.Issuer) ()
+    delOldIssuerV1 = "DELETE FROM issuer_idp WHERE issuer = ?"
+
+    delOldIssuerV1' :: PrepQuery W (Identity SAML.Issuer) ()
+    delOldIssuerV1' = "DELETE FROM issuer_idp_v2 WHERE issuer = ?"
 
 newIdPHandleForTeam ::
   forall m.

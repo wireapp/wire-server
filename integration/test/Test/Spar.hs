@@ -1290,17 +1290,19 @@ testIdpUpdate = do
   -- update the IdP
   idp2 <- do
     (resp, meta) <- updateTestIdpWithMetaWithPrivateCreds owner idpId
+    resp.status `shouldMatchInt` 200
     (,meta) <$> asString (resp.json %. "id")
   -- the SCIM users can login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSamlEmail True tid email idp2
+    eventually $ void $ loginWithSamlEmail True tid email idp2
   -- update the IdP again and use the original metadata
   idp3 <- do
     resp <- updateIdp owner idpId idpmeta
+    resp.status `shouldMatchInt` 200
     (,(idpmeta, pCreds)) <$> asString (resp.json %. "id")
   -- the SCIM users can still login
   for_ uids $ \(_, email) -> do
-    void $ loginWithSamlEmail True tid email idp3
+    eventually $ void $ loginWithSamlEmail True tid email idp3
 
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
 --

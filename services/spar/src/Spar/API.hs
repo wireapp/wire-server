@@ -967,12 +967,9 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
   -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
   IdPConfigStore.insertConfig idp''
-  -- if the IdP issuer is updated, the old issuer must be removed explicitly.
-  -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
-  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp'' ^. SAML.idpExtraInfo . apiVersion of
-        WireIdPAPIV1 -> Nothing
-        WireIdPAPIV2 -> Just teamid
-  forM_ (idp'' ^. SAML.idpExtraInfo . oldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
+  -- Old issuer mappings are now deleted atomically as part of the same
+  -- Cassandra batch inside 'insertConfig' to prevent tombstone shadowing
+  -- when an issuer is reused across updates.
   when (SAML.isMultiIngressConfig samlConfig) $
     BrigAPIAccess.sendSAMLIdPChangedEmail $
       IdPUpdated zUsr previousIdP idp''
