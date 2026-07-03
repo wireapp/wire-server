@@ -170,18 +170,14 @@ onConversationCreated domain rc = do
   let qrcConnected = qrc {nonCreatorMembers = connectedMembers}
 
   for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
-    let evtData =
-          if isMeetingConversation c
-            then EdConversationMeeting c
-            else EdConversation (toLegacyOwnConversation c)
-        event =
+    let event =
           Event
             (tUntagged (cnvId qrcConnected))
             Nothing
             (EventFromUser (tUntagged (ccRemoteOrigUserId qrcConnected)))
             qrcConnected.time
             Nothing
-            evtData
+            (EdConversation c)
     pushConversationEvent Nothing () event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 

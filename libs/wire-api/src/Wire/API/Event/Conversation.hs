@@ -51,7 +51,6 @@ module Wire.API.Event.Conversation
     _EdConvCodeDelete,
     _EdMemberUpdate,
     _EdConversation,
-    _EdConversationMeeting,
     _EdTyping,
     _EdOtrMessage,
     _EdMLSMessage,
@@ -181,7 +180,6 @@ data EventType
   | ConvCodeUpdate
   | ConvCodeDelete
   | ConvCreate
-  | ConvCreateMeeting
   | ConvConnect
   | ConvDelete
   | ConvReset
@@ -211,7 +209,6 @@ instance ToSchema EventType where
           element "conversation.code-update" ConvCodeUpdate,
           element "conversation.code-delete" ConvCodeDelete,
           element "conversation.create" ConvCreate,
-          element "conversation.create-meeting" ConvCreateMeeting,
           element "conversation.delete" ConvDelete,
           element "conversation.mls-reset" ConvReset,
           element "conversation.connect-request" ConvConnect,
@@ -237,8 +234,7 @@ data EventData
   | EdConvCodeUpdate ConversationCodeInfo
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
-  | EdConversation (OwnConversation GroupConvTypeLegacy)
-  | EdConversationMeeting (OwnConversation GroupConvType)
+  | EdConversation (OwnConversation GroupConvType)
   | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
@@ -260,7 +256,6 @@ genEventData = \case
   ConvCodeDelete -> pure EdConvCodeDelete
   ConvConnect -> EdConnect <$> arbitrary
   ConvCreate -> EdConversation <$> arbitrary
-  ConvCreateMeeting -> EdConversationMeeting <$> arbitrary
   ConvReceiptModeUpdate -> EdConvReceiptModeUpdate <$> arbitrary
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
@@ -283,7 +278,6 @@ eventDataType (EdConvCodeUpdate _) = ConvCodeUpdate
 eventDataType EdConvCodeDelete = ConvCodeDelete
 eventDataType (EdConnect _) = ConvConnect
 eventDataType (EdConversation _) = ConvCreate
-eventDataType (EdConversationMeeting _) = ConvCreateMeeting
 eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
@@ -303,7 +297,6 @@ isCellsConversationEvent eventType =
     MemberStateUpdate -> True
     ConvRename -> True
     ConvCreate -> True
-    ConvCreateMeeting -> True
     ConvDelete -> True
     ConvReset -> False
     ConvCodeDelete -> False
@@ -509,7 +502,6 @@ taggedEventDataSchema =
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
       ConvCreate -> tag _EdConversation (unnamed (conversationSchema (Just V2)))
-      ConvCreateMeeting -> tag _EdConversationMeeting (unnamed (conversationSchema (Just V2)))
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)

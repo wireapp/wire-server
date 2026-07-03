@@ -317,8 +317,7 @@ postProteusConvOk = do
       evtType e @?= ConvCreate
       evtFrom e @?= EventFromUser qalice
       case evtData e of
-        EdConversation c' -> assertConvEquals (toLegacyOwnConversation cnv) c'
-        EdConversationMeeting c' -> assertConvEquals cnv c'
+        EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
 
 postCryptoMessageVerifyMsgSentAndRejectIfMissingClient :: TestM ()

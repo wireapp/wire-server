@@ -168,7 +168,7 @@ testObject_Event_user_8 =
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 283898987885780}),
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -1}),
-                    cnvmGroupConvType = Just GroupConversationLegacy,
+                    cnvmGroupConvType = Just GroupConversation,
                     cnvmChannelAddPermission = Nothing,
                     cnvmCellsState = CellsDisabled,
                     cnvmParent = Nothing,
@@ -357,58 +357,3 @@ testObject_Event_user_16 =
     (read "2021-05-12 13:12:01.005 UTC")
     Nothing
     (EdMLSWelcome "welcome message content")
-
-testObject_Event_user_17 :: Event
-testObject_Event_user_17 =
-  Event
-    (Qualified (Id (fromJust (UUID.fromString "00007d9a-0000-4f23-0000-2b8a000057c1"))) (Domain "faraway.example.com"))
-    Nothing
-    (EventFromUser (Qualified (Id (fromJust (UUID.fromString "00005c6b-0000-6a17-0000-3e5b00006e2f"))) (Domain "faraway.example.com")))
-    (read "1864-05-20 12:14:33.001 UTC")
-    Nothing
-    ( EdConversationMeeting
-        ( OwnConversation
-            { cnvQualifiedId = Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000300000001"))) (Domain "golden.example.com"),
-              cnvMetadata =
-                ConversationMetadata
-                  { cnvmType = RegularConv,
-                    cnvmCreator = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000400000001"))),
-                    cnvmAccess = [PrivateAccess, InviteAccess],
-                    cnvmAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-                    cnvmName = Just "Meeting Room",
-                    cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000100000001"))),
-                    cnvmMessageTimer = Nothing,
-                    cnvmReceiptMode = Nothing,
-                    cnvmGroupConvType = Just MeetingConversation,
-                    cnvmChannelAddPermission = Nothing,
-                    cnvmCellsState = CellsDisabled,
-                    cnvmParent = Nothing,
-                    cnvmHistory = HistoryPrivate
-                  },
-              cnvProtocol = ProtocolProteus,
-              cnvMembers =
-                OwnConvMembers
-                  { cmSelf =
-                      Member
-                        { memId = Qualified (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001"))) (Domain "golden.example.com"),
-                          memService = Nothing,
-                          memOtrMutedStatus = Nothing,
-                          memOtrMutedRef = Nothing,
-                          memOtrArchived = False,
-                          memOtrArchivedRef = Nothing,
-                          memHidden = False,
-                          memHiddenRef = Nothing,
-                          memConvRoleName = fromJust (parseRoleName "wire_admin")
-                        },
-                    cmOthers =
-                      [ OtherMember
-                          { omQualifiedId =
-                              Qualified (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000100000001"))) domain,
-                            omService = Nothing,
-                            omConvRoleName = fromJust (parseRoleName "wire_member")
-                          }
-                      ]
-                  }
-            }
-        )
-    )
