@@ -218,7 +218,7 @@ testAdminlessJobsExecuteViaArbiterApi = do
   bindResponse (GalleyI.getConversation conv) $ \resp -> do
     resp.status `shouldMatchInt` 200
 
-  -- now we enabled the feature so that the job will get excecuted
+  -- now we enabled the feature so that the job will get executed
   patchTeamFeature
     OwnDomain
     tid
