@@ -137,7 +137,7 @@ idTagName Challenge = "Challenge"
 idTagName Job = "Job"
 idTagName Meeting = "Meeting"
 idTagName HistoryClient = "HistoryClient"
-idTagName ScheduledJob = "ScheduledJob "
+idTagName ScheduledJob = "ScheduledJob"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
