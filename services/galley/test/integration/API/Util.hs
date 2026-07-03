@@ -1635,7 +1635,7 @@ assertNotConvMember u c =
     const 200 === statusCode
     const (Right Null) === responseJsonEither
 
-assertConvEquals :: (HasCallStack, MonadIO m) => OwnConversation GroupConvType -> OwnConversation GroupConvType -> m ()
+assertConvEquals :: forall gct m. (HasCallStack, MonadIO m) => OwnConversation gct -> OwnConversation gct -> m ()
 assertConvEquals c1 c2 = liftIO $ do
   assertEqual "id" c1.cnvQualifiedId c2.cnvQualifiedId
   assertEqual "type" (Conv.cnvType c1) (Conv.cnvType c2)
@@ -2698,6 +2698,7 @@ checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   evtType e @?= Conv.ConvCreate
   case evtData e of
     Conv.EdConversation x -> (qUnqualified . cnvQualifiedId) x @?= cid
+    Conv.EdConversationMeeting x -> (qUnqualified . cnvQualifiedId) x @?= cid
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 wsAssertConvCreate ::
@@ -2727,10 +2728,13 @@ wsAssertConvCreateWithRole conv eventFrom selfMember otherMembers n = do
   evtConv e @?= conv
   evtType e @?= Conv.ConvCreate
   evtFrom e @?= EventFromUser eventFrom
-  fmap (memId . cmSelf . cnvMembers) (evtData e ^? _EdConversation) @?= Just selfMember
-  fmap (sort . cmOthers . cnvMembers) (evtData e ^? _EdConversation) @?= Just (sort (toOtherMember <$> otherMembers))
+  fmap (memId . cmSelf) (getConvMembers (evtData e)) @?= Just selfMember
+  fmap (sort . cmOthers) (getConvMembers (evtData e)) @?= Just (sort (toOtherMember <$> otherMembers))
   where
     toOtherMember (quid, role) = OtherMember quid Nothing role
+    getConvMembers (Conv.EdConversation c) = Just (cnvMembers c)
+    getConvMembers (Conv.EdConversationMeeting c) = Just (cnvMembers c)
+    getConvMembers _ = Nothing
 
 checkTeamDeleteEvent :: (HasCallStack) => TeamId -> WS.WebSocket -> TestM ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ checkTimeout w $ \notif -> do
