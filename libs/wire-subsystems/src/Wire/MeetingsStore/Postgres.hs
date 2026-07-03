@@ -306,17 +306,14 @@ listMeetingsByUserImpl userId cutoffTime = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
-          FROM (
-            SELECT *,
-              CASE
-                WHEN recurrence_frequency IS NULL THEN end_time
-                WHEN recurrence_until IS NOT NULL THEN GREATEST(end_time, recurrence_until)
-                ELSE NULL
-              END AS eff_end
-            FROM meetings
-          ) m
+          FROM meetings m
           WHERE m.creator = ($1 :: uuid)
-            AND (m.eff_end IS NULL OR m.eff_end >= ($2 :: timestamptz))
+            AND (
+              (m.recurrence_frequency IS NULL AND m.end_time >= ($2 :: timestamptz))
+              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NULL)
+              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NOT NULL
+                  AND GREATEST(m.end_time, m.recurrence_until) >= ($2 :: timestamptz))
+            )
           ORDER BY start_time ASC
         |]
 
@@ -339,17 +336,14 @@ listMeetingsByConversationImpl convId cutoffTime = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
-          FROM (
-            SELECT *,
-              CASE
-                WHEN recurrence_frequency IS NULL THEN end_time
-                WHEN recurrence_until IS NOT NULL THEN GREATEST(end_time, recurrence_until)
-                ELSE NULL
-              END AS eff_end
-            FROM meetings
-          ) m
+          FROM meetings m
           WHERE m.conversation_id = ($1 :: uuid)
-            AND (m.eff_end IS NULL OR m.eff_end >= ($2 :: timestamptz))
+            AND (
+              (m.recurrence_frequency IS NULL AND m.end_time >= ($2 :: timestamptz))
+              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NULL)
+              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NOT NULL
+                  AND GREATEST(m.end_time, m.recurrence_until) >= ($2 :: timestamptz))
+            )
           ORDER BY start_time ASC
         |]
 
