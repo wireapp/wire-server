@@ -329,13 +329,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
-    . case env.postgresMigration.teamFeatures of
-      CassandraStorage ->
-        interpretTeamFeatureStoreToCassandra
-      MigrationToPostgresql ->
-        interpretTeamFeatureStoreToCassandraAndPostgres
-      PostgresqlStorage ->
-        interpretTeamFeatureStoreToPostgres
+    . interpretTeamFeatureStore  
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
@@ -379,8 +373,12 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamCollaboratorsSubsystem
     . interpretConversationSubsystem
   where
-    convCodesStoreInterpreter =
-      case env.postgresMigration.conversationCodes of
+    interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of
+      CassandraStorage -> interpretTeamFeatureStoreToCassandra
+      MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
+
+    convCodesStoreInterpreter = case env.postgresMigration.conversationCodes of
         CassandraStorage -> interpretCodeStoreToCassandra
         MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
         PostgresqlStorage -> interpretCodeStoreToPostgres
