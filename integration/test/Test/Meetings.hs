@@ -547,7 +547,8 @@ testMeetingListRecurringNotExpired :: (HasCallStack) => App ()
 testMeetingListRecurringNotExpired = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   now <- liftIO getCurrentTime
-  -- endTime = now: past, but the recurrence window stays open for 30 days.
+  -- endTime = now: it only becomes "past" after the threadDelay below;
+  -- the recurrence window stays open for 30 days.
   -- meetingValidityPeriodSeconds is 5s in galley.integration.yaml.
   let startTime = addUTCTime (negate 3600) now
       endTime = now
@@ -580,4 +581,4 @@ testMeetingListRecurringNotExpired = do
   resp <- getMeetingsList owner
   assertSuccess resp
   meetings <- resp.json & asList
-  length (meetings :: [Value]) `shouldMatchInt` 1
+  length meetings `shouldMatchInt` 1

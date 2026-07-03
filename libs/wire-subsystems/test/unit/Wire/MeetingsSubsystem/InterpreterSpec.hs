@@ -1008,6 +1008,38 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           deleted `shouldBe` 0
           remainingId `shouldBe` Just meetingId
 
+    prop "aliveness follows effectiveEndTime across get/list/cleanup" $
+      \(recurrence :: Maybe API.Recurrence) (endOffset :: Int) ->
+        let endTime = addUTCTime (fromIntegral endOffset) now
+            startTime = addUTCTime (negate 3600) endTime
+            nm =
+              API.NewMeeting
+                { title = fromJust $ checked "Recurring Meeting",
+                  startTime = startTime,
+                  endTime = endTime,
+                  recurrence = recurrence,
+                  invitedEmails = []
+                }
+            effEnd = maybe (Just endTime) (\r -> max endTime <$> r.until) recurrence
+            cutoff = addUTCTime (negate 3600) now
+            alive = maybe True (>= cutoff) effEnd
+         in ioProperty $ do
+              result <-
+                runTestStack now gen Map.empty teamConfig $ do
+                  (meeting, _conv) <- createMeeting zUser nm
+                  fetched <- isJust <$> getMeeting zUser meeting.id
+                  listedCount <- length <$> listMeetings zUser
+                  deleted <- cleanupOldMeetings cutoff 100
+                  remains <- isJust <$> getMeeting zUser meeting.id
+                  pure (fetched, listedCount, deleted, remains)
+              pure $ case result of
+                Left err -> counterexample ("Unexpected error: " <> show err) False
+                Right (fetched, listedCount, deleted, remains) ->
+                  (fetched === alive)
+                    .&&. (listedCount === if alive then 1 else 0)
+                    .&&. (deleted === if alive then 0 else 1)
+                    .&&. (remains === alive)
+
   describe "checkMeetingsEnabled" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42

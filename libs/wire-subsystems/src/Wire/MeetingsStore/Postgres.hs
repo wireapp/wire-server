@@ -430,16 +430,10 @@ getOldMeetingsImpl cutoffTime batchSize = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
-          FROM (
-            SELECT *,
-              CASE
-                WHEN recurrence_frequency IS NULL THEN end_time
-                WHEN recurrence_until IS NOT NULL THEN GREATEST(end_time, recurrence_until)
-                ELSE NULL
-              END AS eff_end
-            FROM meetings
-          ) m
-           WHERE m.eff_end IS NOT NULL AND m.eff_end < ($1 :: timestamptz)
-           ORDER BY m.eff_end ASC
+          FROM meetings
+           WHERE (recurrence_frequency IS NULL AND end_time < ($1 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_until IS NOT NULL
+                  AND GREATEST(end_time, recurrence_until) < ($1 :: timestamptz))
+           ORDER BY end_time ASC
            LIMIT ($2 :: int4)
          |]
