@@ -27,7 +27,6 @@ where
 
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
-import Data.Aeson qualified as A
 import Data.ByteString.UTF8 qualified as UTF8
 import Data.Default
 import Data.Id as Id
@@ -58,7 +57,6 @@ import System.Logger.Class hiding (Path, name)
 import System.Logger.Class qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -91,7 +89,6 @@ import Wire.FederationSubsystem (getFederationStatus)
 import Wire.LegalHoldStore as LegalHoldStore
 import Wire.ListItems
 import Wire.NotificationSubsystem
-import Wire.Options.Galley qualified
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.Sem.Paging
@@ -124,12 +121,6 @@ internalAPI =
       <@> conversationAPI
       <@> iEJPDAPI
       <@> cellsAPI
-      <@> mkNamedAPI @"get-conversation-config" getConversationConfigH
-
-getConversationConfigH ::
-  (Member (Input ConversationSubsystemConfig) r) =>
-  Sem r ConversationSubsystemConfig
-getConversationConfigH = input
 
 iEJPDAPI :: API IEJPDAPI GalleyEffects
 iEJPDAPI = mkNamedAPI @"get-conversations-by-user" ejpdGetConvInfo
@@ -330,19 +321,9 @@ featureAPI =
     <@> mkNamedAPI @'("ilock", BackgroundEffectsConfig) (updateLockStatus @BackgroundEffectsConfig)
     -- all features
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllTeamFeaturesForServer getAllTeamFeaturesForUser)
-    <@> mkNamedAPI @"get-configured-feature-flags" getConfiguredFeatureFlags
 
 cellsAPI :: API ICellsAPI GalleyEffects
 cellsAPI = mkNamedAPI @"set-cells-state" updateCellsState
-
-getConfiguredFeatureFlags ::
-  forall r.
-  (Member (Input Env) r) =>
-  Sem r ConfiguredFeatureFlags
-getConfiguredFeatureFlags = do
-  env <- input @Env
-  let flags = (env ^. Galley.App.options . Wire.Options.Galley.settings . Wire.Options.Galley.featureFlags)
-  pure $ ConfiguredFeatureFlags $ A.toJSON flags
 
 rmUser ::
   forall p2 r.
