@@ -1,0 +1,1 @@
+Fixed flaky cross-domain integration tests by pre-warming the static federation path (domain1 <-> domain2) once in test setup
