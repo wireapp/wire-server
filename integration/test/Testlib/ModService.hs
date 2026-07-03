@@ -628,7 +628,7 @@ logToConsoleDebug mOutput colorize prefix hdl = do
   go
 
 -- | Cumulative budget (microseconds) for the federator-ingress readiness
--- checks in 'ensureBackendReachable' and 'warmupFederation'. A freshly started
+-- checks. A freshly started
 -- backend may need a few TLS handshakes before it answers federated calls
 -- reliably.
 federatorIngressDelay :: Int
