@@ -328,8 +328,7 @@ The settings mean:
 
 Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
 
-
-Clients will see both shapes in feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`:
+Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`, include the duration fields:
 
 ```json
 {
@@ -337,8 +336,6 @@ Clients will see both shapes in feature responses, including `GET /feature-confi
   "lockStatus": "unlocked",
   "config": {
     "promotionStrategy": "alphabetical",
-    "deletionTimeout": 7,
-    "reminderTimeouts": [2, 4, 6],
     "deletionTimeoutDuration": "7d",
     "reminderTimeoutDurations": ["2d", "4d", "6d"]
   }
@@ -347,10 +344,8 @@ Clients will see both shapes in feature responses, including `GET /feature-confi
 
 From a client's perspective, API versioning works like this:
 
-- API versions before V17 should continue to send the legacy day-based fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
-- API version V17 and newer should send the duration fields.
-- Feature responses include both shapes so old clients can continue reading the day-based fields while newer clients can read the duration fields.
-- If both old and new fields are sent by a V17 client, the duration fields take precedence.
+- API version V17 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
+- Feature responses include the duration fields for clients to read.
 
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/preventAdminlessGroups/(un)?locked`).
 
