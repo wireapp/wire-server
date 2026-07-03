@@ -193,7 +193,7 @@ testAdminlessJobsExecuteViaArbiterApi :: (HasCallStack) => App ()
 testAdminlessJobsExecuteViaArbiterApi = do
   (alice, tid, _) <- createTeam OwnDomain 1
 
-  -- we diable the feature and create an adminless group
+  -- we disable the feature and create an adminless group
   setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
   patchTeamFeature
     OwnDomain
