@@ -37,6 +37,7 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
 import Data.Json.Util qualified as Util
+import Data.Misc (DurationLiteral)
 import Data.Nonce (Nonce)
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
@@ -222,6 +223,10 @@ tests =
       testGroup
         "BigIntString"
         [ jsonRoundtrip @BigIntString
+        ],
+      testGroup
+        "DurationLiteral"
+        [ jsonRoundtrip @DurationLiteral
         ]
     ]
 
