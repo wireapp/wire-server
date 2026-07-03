@@ -415,7 +415,7 @@ ensureBackendReachable domain = do
 
 -- | Probe the federator ingress from @origin@ to @target@ by issuing the
 -- versioned-federation API-version RPC.  Returns 'True' on a 200 response or a
--- @533 federation-denied@ response: the latter proves that ingress itself is
+-- @533 federation-denied@ response: the latter proves that the ingress itself is
 -- working even when federation between the two domains is disabled (so the
 -- request reaches the target and is processed).  Any transport-level failure
 -- (e.g. a cold federator connection returning 521/525/533 transport errors) is
