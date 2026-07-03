@@ -37,6 +37,7 @@
 , polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
+, resource-pool
 , retry
 , servant
 , servant-client
@@ -91,6 +92,7 @@ mkDerivation {
     polysemy-conc
     polysemy-wire-zoo
     prometheus-client
+    resource-pool
     retry
     servant-client
     servant-server

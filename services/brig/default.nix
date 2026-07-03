@@ -12,6 +12,7 @@
 , arbiter-core
 , arbiter-servant
 , arbiter-servant-ui
+, arbiter-simple
 , async
 , attoparsec
 , auto-update
@@ -99,6 +100,7 @@
 , random
 , random-shuffle
 , raw-strings-qq
+, resource-pool
 , resourcet
 , retry
 , safe
@@ -167,6 +169,7 @@ mkDerivation {
     arbiter-core
     arbiter-servant
     arbiter-servant-ui
+    arbiter-simple
     async
     auto-update
     base
@@ -235,6 +238,7 @@ mkDerivation {
     ram
     random-shuffle
     raw-strings-qq
+    resource-pool
     resourcet
     retry
     safe-exceptions

@@ -217,6 +217,7 @@ library
     , arbiter-core
     , arbiter-servant
     , arbiter-servant-ui
+    , arbiter-simple
     , async                                 >=2.1
     , auto-update                           >=0.1
     , base                                  >=4       && <5
@@ -285,6 +286,7 @@ library
     , ram
     , random-shuffle                        >=0.0.3
     , raw-strings-qq
+    , resource-pool
     , resourcet                             >=1.1
     , retry                                 >=0.7
     , safe-exceptions                       >=0.1

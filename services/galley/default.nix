@@ -68,6 +68,7 @@
 , ram
 , random
 , raw-strings-qq
+, resource-pool
 , retry
 , safe-exceptions
 , servant
@@ -157,6 +158,7 @@ mkDerivation {
     polysemy-wire-zoo
     prometheus-client
     raw-strings-qq
+    resource-pool
     retry
     safe-exceptions
     servant

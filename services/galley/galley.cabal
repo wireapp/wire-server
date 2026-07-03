@@ -232,6 +232,7 @@ library
     , polysemy-wire-zoo
     , prometheus-client
     , raw-strings-qq                        >=1.0
+    , resource-pool
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
     , servant
