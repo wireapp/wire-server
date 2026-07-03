@@ -26,6 +26,8 @@ module Testlib.ModService
     defaultOverrides,
     readAndUpdateConfig,
     logToConsole,
+    retryFederationTransient,
+    retryOnStatuses,
   )
 where
 
@@ -626,6 +628,32 @@ logToConsoleDebug mOutput colorize prefix hdl = do
 -- a few TLS handshakes before it answers federated calls reliably.
 federatorIngressDelay :: Int
 federatorIngressDelay = 30 * 1000 * 1000
+
+-- | Retry an action while its response status is in the given set of transient
+-- statuses, with exponential backoff, up to a cumulative cap.  Returns the last
+-- response so that genuine (non-transient or persistent) failures still surface
+-- to the caller.
+retryOnStatuses :: (HasCallStack) => [Int] -> App Response -> App Response
+retryOnStatuses statuses action = go (0 :: Int) initialDelay
+  where
+    go spent delay = do
+      resp <- action
+      if resp.status `elem` statuses && spent < maxCumulativeDelay
+        then do
+          liftIO $ threadDelay delay
+          go (spent + delay) (min delayCap (delay * 2))
+        else pure resp
+    initialDelay = 100_000
+    delayCap = 2_000_000
+    maxCumulativeDelay = 30_000_000
+
+-- | Retry cross-domain calls that fail with transient federator-transport
+-- errors (521 connection refused, 525 SSL, 533 unreachable backend).  The
+-- static domain1<->domain2 path is not pre-warmed (see 'ensureBackendReachable'),
+-- so the first federated call in a test can return one of these; wrap such
+-- calls to tolerate federator cold-start.
+retryFederationTransient :: (HasCallStack) => App Response -> App Response
+retryFederationTransient = retryOnStatuses [521, 525, 533]
 
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
 retryRequestUntil = retryRequestUntilDebug federatorIngressDelay Nothing

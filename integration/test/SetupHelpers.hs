@@ -137,8 +137,8 @@ connectTwoUsers ::
   bob ->
   App ()
 connectTwoUsers alice bob = do
-  postConnection alice bob >>= assertSuccess
-  putConnection bob alice "accepted" >>= assertSuccess
+  retryFederationTransient (postConnection alice bob) >>= assertSuccess
+  retryFederationTransient (putConnection bob alice "accepted") >>= assertSuccess
 
 connectUsers :: (HasCallStack, MakesValue usr) => [usr] -> App ()
 connectUsers users = traverse_ (uncurry connectTwoUsers) $ do
@@ -308,7 +308,7 @@ createOne2OneConversation owningDomain otherDomain = do
         otherUser <- randomUser otherDomain def
         otherUserId <- otherUser %. "qualified_id"
         conn <-
-          postConnection owningUser otherUser `bindResponse` \resp -> do
+          retryFederationTransient (postConnection owningUser otherUser) `bindResponse` \resp -> do
             resp.status `shouldMatchInt` 201
             let payload = resp.json
             payload %. "status" `shouldMatch` "sent"
