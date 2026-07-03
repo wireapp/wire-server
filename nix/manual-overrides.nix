@@ -36,6 +36,7 @@ hself: hsuper: {
   arbiter-core = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-core);
   arbiter-hasql = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-hasql);
   arbiter-migrations = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-migrations);
+  arbiter-simple = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-simple);
   arbiter-worker = hlib.markUnbroken (hlib.dontCheck hsuper.arbiter-worker);
 
   # Test fixtures don't seem to be bundled for Hackage

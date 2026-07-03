@@ -113,7 +113,6 @@ tests =
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      testRoundTrip @Jobs.ScheduledJobKind,
       testRoundTrip @(Conversation.OwnConversation Conversation.GroupConvType),
       testRoundTrip @(Conversation.OwnConversation Conversation.GroupConvTypeLegacy),
       testRoundTrip @(Conversation.Conversation Conversation.GroupConvType),

@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,15 +23,11 @@ module Wire.API.Jobs where
 
 import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
 import Data.Id
-import Data.Int qualified as Int
 import Data.Json.Util
 import Data.OpenApi qualified as S
 import Data.Schema
-import Data.Time.Clock (UTCTime)
-import Data.UUID (UUID)
 import Imports
-import Test.QuickCheck (Arbitrary (..), elements)
-import Wire.API.PostgresMarshall
+import Test.QuickCheck (Arbitrary (..))
 
 -- | Shared queue name for the scheduled meetings cleanup job.
 meetingsCleanupQueueName :: Text
@@ -107,91 +102,6 @@ instance ToSchema AdminlessReminderJob where
         <*> (.adminlessReminderJobConversationId) .= field "conversation_id" schema
         <*> (.adminlessReminderJobOrigUserId) .= field "orig_user_id" schema
         <*> (.adminlessReminderJobDeletionScheduledFor) .= field "deletion_scheduled_for" schema
-
--- | The generic scheduled-job families we currently need to persist.
-data ScheduledJobKind
-  = AdminlessReminder
-  | AdminlessDeletion
-  | AdminlessSetup
-  | AdminlessTeardown
-  deriving stock (Bounded, Enum, Eq, Generic, Ord, Show)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScheduledJobKind)
-
-instance Arbitrary ScheduledJobKind where
-  arbitrary = elements [minBound .. maxBound]
-
-instance ToSchema ScheduledJobKind where
-  schema =
-    enum @Text $
-      mconcat
-        [ element "adminless-reminder" AdminlessReminder,
-          element "adminless-deletion" AdminlessDeletion,
-          element "adminless-setup" AdminlessSetup,
-          element "adminless-teardown" AdminlessTeardown
-        ]
-
-scheduledJobKindToInt :: ScheduledJobKind -> Int
-scheduledJobKindToInt = fromEnum
-
-scheduledJobKindFromInt :: Int -> Maybe ScheduledJobKind
-scheduledJobKindFromInt n
-  | n < fromEnum (minBound :: ScheduledJobKind) = Nothing
-  | n > fromEnum (maxBound :: ScheduledJobKind) = Nothing
-  | otherwise = Just (toEnum n)
-
--- | App-level metadata stored alongside Arbiter's runtime state.
-data ScheduledJob = ScheduledJob
-  { scheduledJobId :: ScheduledJobId,
-    scheduledJobKind :: ScheduledJobKind,
-    scheduledJobTeamId :: TeamId,
-    scheduledJobConversationId :: Maybe ConvId,
-    scheduledJobScheduledFor :: UTCTime
-  }
-  deriving stock (Eq, Generic, Show)
-
-instance PostgresMarshall Int.Int32 ScheduledJobKind where
-  postgresMarshall = fromIntegral . scheduledJobKindToInt
-
-instance PostgresUnmarshall Int.Int32 ScheduledJobKind where
-  postgresUnmarshall n =
-    maybe (Left "invalid scheduled job kind") Right $
-      scheduledJobKindFromInt (fromIntegral n)
-
-instance PostgresMarshall (ScheduledJobId, Int.Int32, TeamId, Maybe ConvId, UTCTime) ScheduledJob where
-  postgresMarshall ScheduledJob {..} =
-    ( scheduledJobId,
-      postgresMarshall scheduledJobKind,
-      scheduledJobTeamId,
-      scheduledJobConversationId,
-      scheduledJobScheduledFor
-    )
-
-instance PostgresUnmarshall (ScheduledJobId, Int.Int32, TeamId, Maybe ConvId, UTCTime) ScheduledJob where
-  postgresUnmarshall (jobId, jobKind, teamId, conversationId, scheduledFor) =
-    ScheduledJob
-      <$> postgresUnmarshall jobId
-      <*> postgresUnmarshall jobKind
-      <*> postgresUnmarshall teamId
-      <*> postgresUnmarshall conversationId
-      <*> postgresUnmarshall scheduledFor
-
-instance PostgresMarshall (UUID, Int.Int32, UUID, Maybe UUID, UTCTime) ScheduledJob where
-  postgresMarshall ScheduledJob {..} =
-    ( toUUID scheduledJobId,
-      postgresMarshall scheduledJobKind,
-      toUUID scheduledJobTeamId,
-      toUUID <$> scheduledJobConversationId,
-      scheduledJobScheduledFor
-    )
-
-instance PostgresUnmarshall (UUID, Int.Int32, UUID, Maybe UUID, UTCTime) ScheduledJob where
-  postgresUnmarshall (jobId, jobKind, teamId, conversationId, scheduledFor) =
-    ScheduledJob
-      <$> postgresUnmarshall jobId
-      <*> postgresUnmarshall jobKind
-      <*> postgresUnmarshall teamId
-      <*> postgresUnmarshall conversationId
-      <*> pure scheduledFor
 
 -- | Registry for the scheduled jobs we expose via Arbiter.
 type ScheduledJobsRegistry =

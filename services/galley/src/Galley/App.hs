@@ -126,8 +126,6 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
-import Wire.JobStore (JobStore)
-import Wire.JobStore.Postgres (interpretJobStoreToPostgres)
 import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
 import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
@@ -198,7 +196,6 @@ type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
      JobSubsystem,
-     JobStore,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -560,7 +557,6 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
-        . interpretJobStoreToPostgres
         . interpretJobSubsystem
           JobSubsystemConfig
             { jobSubsystemArbiterPool = e ^. jobsApiPool,

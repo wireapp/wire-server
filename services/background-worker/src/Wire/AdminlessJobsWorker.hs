@@ -22,19 +22,15 @@ module Wire.AdminlessJobsWorker
 where
 
 import Arbiter.Core.Job.Types (JobRead, notVisibleUntil, payload)
-import Data.Id (ConvId, RequestId (..), TeamId)
-import Data.List qualified as List
+import Data.Id (RequestId (..))
 import Data.Qualified (toLocalUnsafe)
-import Data.Time.Clock (UTCTime)
 import Imports
-import Polysemy
 import System.Logger qualified as Log
-import Wire.API.Jobs (AdminlessDeletionJob (..), AdminlessReminderJob (..), ScheduledJob (..), ScheduledJobKind (..))
+import Wire.API.Jobs (AdminlessDeletionJob (..), AdminlessReminderJob (..))
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.ConversationSubsystem
 import Wire.Effects (runBackgroundWorkerEffects)
 import Wire.ExternalAccess.External (ExtEnv)
-import Wire.JobStore (JobStore, deleteJob, findJobsByConversationId)
 
 runAdminlessDeletionJob :: ExtEnv -> JobRead AdminlessDeletionJob -> AppT IO ()
 runAdminlessDeletionJob extEnv job = do
@@ -61,11 +57,6 @@ runAdminlessDeletionJob extEnv job = do
           internalDeleteLocalAdminlessGroup
             (toLocalUnsafe env.federationDomain (adminlessDeletionJobOrigUserId jobPayload))
             (toLocalUnsafe env.federationDomain (adminlessDeletionJobConversationId jobPayload))
-          cleanupScheduledJob
-            AdminlessDeletion
-            (adminlessDeletionJobTeamId jobPayload)
-            (adminlessDeletionJobConversationId jobPayload)
-            (notVisibleUntil job)
           Log.info env.logger $
             Log.msg (Log.val "Adminless deletion job finished")
               . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
@@ -89,34 +80,8 @@ runAdminlessReminderJob extEnv job = do
             (toLocalUnsafe env.federationDomain (adminlessReminderJobOrigUserId jobPayload))
             (toLocalUnsafe env.federationDomain (adminlessReminderJobConversationId jobPayload))
             (adminlessReminderJobDeletionScheduledFor jobPayload)
-          cleanupScheduledJob
-            AdminlessReminder
-            (adminlessReminderJobTeamId jobPayload)
-            (adminlessReminderJobConversationId jobPayload)
-            (notVisibleUntil job)
           Log.info env.logger $
             Log.msg (Log.val "Adminless reminder job finished")
               . Log.field "team_id" (show (adminlessReminderJobTeamId jobPayload))
               . Log.field "conversation_id" (show (adminlessReminderJobConversationId jobPayload))
   either (liftIO . fail . show) pure result
-
-cleanupScheduledJob ::
-  (Member JobStore r) =>
-  ScheduledJobKind ->
-  TeamId ->
-  ConvId ->
-  Maybe UTCTime ->
-  Sem r ()
-cleanupScheduledJob _ _ _ Nothing = pure ()
-cleanupScheduledJob kind teamId convId (Just scheduledFor) = do
-  jobs <- findJobsByConversationId convId
-  let matchingJobs =
-        List.filter
-          ( \job ->
-              job.scheduledJobKind == kind
-                && job.scheduledJobTeamId == teamId
-                && job.scheduledJobConversationId == Just convId
-                && job.scheduledJobScheduledFor == scheduledFor
-          )
-          jobs
-  traverse_ (deleteJob . scheduledJobId) matchingJobs

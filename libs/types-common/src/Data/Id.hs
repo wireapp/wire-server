@@ -59,7 +59,6 @@ module Data.Id
     ChallengeId,
     MeetingId,
     HistoryClientId,
-    ScheduledJobId,
 
     -- * Utils
     uuidSchema,
@@ -119,7 +118,6 @@ data IdTag
   | Job
   | Meeting
   | HistoryClient
-  | ScheduledJob
 
 idTagName :: IdTag -> Text
 idTagName Asset = "Asset"
@@ -137,7 +135,6 @@ idTagName Challenge = "Challenge"
 idTagName Job = "Job"
 idTagName Meeting = "Meeting"
 idTagName HistoryClient = "HistoryClient"
-idTagName ScheduledJob = "ScheduledJob"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -170,8 +167,6 @@ instance KnownIdTag 'Meeting where idTagValue = Meeting
 
 instance KnownIdTag 'HistoryClient where idTagValue = HistoryClient
 
-instance KnownIdTag 'ScheduledJob where idTagValue = ScheduledJob
-
 type AssetId = Id 'Asset
 
 type InvitationId = Id 'Invitation
@@ -203,8 +198,6 @@ type JobId = Id 'Job
 type MeetingId = Id 'Meeting
 
 type HistoryClientId = Id 'HistoryClient
-
-type ScheduledJobId = Id 'ScheduledJob
 
 -- Id -------------------------------------------------------------------------
 

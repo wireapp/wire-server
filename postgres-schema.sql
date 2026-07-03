@@ -362,21 +362,6 @@ CREATE TABLE public.remote_conversation_local_member (
 ALTER TABLE public.remote_conversation_local_member OWNER TO "wire-server";
 
 --
--- Name: scheduled_jobs; Type: TABLE; Schema: public; Owner: wire-server
---
-
-CREATE TABLE public.scheduled_jobs (
-    id uuid NOT NULL,
-    kind integer NOT NULL,
-    team_id uuid NOT NULL,
-    conversation_id uuid,
-    scheduled_for timestamp with time zone NOT NULL
-);
-
-
-ALTER TABLE public.scheduled_jobs OWNER TO "wire-server";
-
---
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: wire-server
 --
 
@@ -625,14 +610,6 @@ ALTER TABLE ONLY public.remote_conversation_local_member
 
 
 --
--- Name: scheduled_jobs scheduled_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
---
-
-ALTER TABLE ONLY public.scheduled_jobs
-    ADD CONSTRAINT scheduled_jobs_pkey PRIMARY KEY (id);
-
-
---
 -- Name: subconversation subconversation_pkey; Type: CONSTRAINT; Schema: public; Owner: wire-server
 --
 
@@ -827,34 +804,6 @@ CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GRE
 --
 
 CREATE INDEX idx_meetings_start_time ON public.meetings USING btree (start_time);
-
-
---
--- Name: idx_scheduled_jobs_conversation_id; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX idx_scheduled_jobs_conversation_id ON public.scheduled_jobs USING btree (conversation_id);
-
-
---
--- Name: idx_scheduled_jobs_kind; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX idx_scheduled_jobs_kind ON public.scheduled_jobs USING btree (kind);
-
-
---
--- Name: idx_scheduled_jobs_scheduled_for; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX idx_scheduled_jobs_scheduled_for ON public.scheduled_jobs USING btree (scheduled_for);
-
-
---
--- Name: idx_scheduled_jobs_team_kind; Type: INDEX; Schema: public; Owner: wire-server
---
-
-CREATE INDEX idx_scheduled_jobs_team_kind ON public.scheduled_jobs USING btree (team_id, kind);
 
 
 --

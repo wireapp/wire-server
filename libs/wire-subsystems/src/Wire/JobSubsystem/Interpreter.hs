@@ -33,11 +33,9 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Time
-import Data.UUID.V4 qualified as UUID
 import Imports
 import Polysemy
 import Wire.API.Jobs
-import Wire.JobStore qualified as JobStore
 import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkerHandlers (..), JobWorkersConfig (..))
 import Wire.JobSubsystem.Workers (runOneOffJobRunner, runRecurringJobRunner)
 
@@ -49,9 +47,7 @@ runJobWorkers JobWorkersConfig {..} JobWorkerHandlers {..} = do
   pure $ cleanupRecurring >> cleanupDeletion >> cleanupReminder
 
 interpretJobSubsystem ::
-  ( Member JobStore.JobStore r,
-    Member (Embed IO) r
-  ) =>
+  (Member (Embed IO) r) =>
   JobSubsystemConfig ->
   InterpreterFor JobSubsystem r
 interpretJobSubsystem conf =
@@ -63,75 +59,53 @@ interpretJobSubsystem conf =
 
 scheduleAdminlessDeletionJob ::
   forall r.
-  (Member (Embed IO) r, Member JobStore.JobStore r) =>
+  (Member (Embed IO) r) =>
   JobSubsystemConfig ->
   Local UserId ->
   TeamId ->
   ConvId ->
   UTCTime ->
-  Sem r ScheduledJob
+  Sem r ()
 scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId scheduledFor = do
   let arbiterEnv =
         ArbiterHasql.createHasqlEnvWithPool
           (Proxy @ScheduledJobsRegistry)
           jobSubsystemArbiterPool
           jobSubsystemSchemaName
-  jobId <- embed $ Id <$> UUID.nextRandom
-  let job =
-        ScheduledJob
-          { scheduledJobId = jobId,
-            scheduledJobKind = AdminlessDeletion,
-            scheduledJobTeamId = teamId,
-            scheduledJobConversationId = Just convId,
-            scheduledJobScheduledFor = scheduledFor
-          }
-      arbiterJob =
+  let arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified lusr)))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.maxAttempts = Just 3
           }
-  JobStore.createJob job
   embed $
     void $
       ArbiterHasql.runHasqlDb arbiterEnv $
         void $
           ArbiterCore.insertJob arbiterJob
-  pure job
 
 scheduleAdminlessReminderJob ::
   forall r.
-  (Member (Embed IO) r, Member JobStore.JobStore r) =>
+  (Member (Embed IO) r) =>
   JobSubsystemConfig ->
   Local UserId ->
   TeamId ->
   ConvId ->
   UTCTimeMillis ->
   UTCTime ->
-  Sem r ScheduledJob
+  Sem r ()
 scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletionScheduledFor scheduledFor = do
   let arbiterEnv =
         ArbiterHasql.createHasqlEnvWithPool
           (Proxy @ScheduledJobsRegistry)
           jobSubsystemArbiterPool
           jobSubsystemSchemaName
-  jobId <- embed $ Id <$> UUID.nextRandom
-  let job =
-        ScheduledJob
-          { scheduledJobId = jobId,
-            scheduledJobKind = AdminlessReminder,
-            scheduledJobTeamId = teamId,
-            scheduledJobConversationId = Just convId,
-            scheduledJobScheduledFor = scheduledFor
-          }
-      arbiterJob =
+  let arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) deletionScheduledFor))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.maxAttempts = Just 3
           }
-  JobStore.createJob job
   embed $
     void $
       ArbiterHasql.runHasqlDb arbiterEnv $
         void $
           ArbiterCore.insertJob arbiterJob
-  pure job

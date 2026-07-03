@@ -64,6 +64,7 @@ let
         arbiter-core = "arbiter-core";
         arbiter-hasql = "arbiter-hasql";
         arbiter-migrations = "arbiter-migrations";
+        arbiter-simple = "arbiter-simple";
         arbiter-test-common = "arbiter-test-common";
         arbiter-worker = "arbiter-worker";
       };
