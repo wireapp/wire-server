@@ -31,6 +31,7 @@ where
 
 import Arbiter.Core.Job.Types (JobRead)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Pool qualified as Pool
 import Data.Qualified
 import Data.Time.Clock (UTCTime)
@@ -61,7 +62,7 @@ data JobWorkerHandlers = JobWorkerHandlers
 
 data JobSubsystem m a where
   ScheduleAdminlessDeletionJob :: Local UserId -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ScheduledJob
-  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> Int -> UTCTime -> JobSubsystem m ScheduledJob
+  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> UTCTimeMillis -> UTCTime -> JobSubsystem m ScheduledJob
   StartJobWorkers :: JobWorkersConfig -> JobWorkerHandlers -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem

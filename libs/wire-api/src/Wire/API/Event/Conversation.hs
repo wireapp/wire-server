@@ -522,7 +522,7 @@ instance ToSchema ConversationReset where
         <*> (.newGroupId) .= maybe_ (optField "new_group_id" schema)
 
 data AdminlessReminder = AdminlessReminder
-  { daysUntilDeletion :: Int
+  { deletionScheduledFor :: UTCTimeMillis
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AdminlessReminder)
@@ -532,7 +532,7 @@ instance ToSchema AdminlessReminder where
   schema =
     object $
       AdminlessReminder
-        <$> (.daysUntilDeletion) .= field "days_until_deletion" schema
+        <$> (.deletionScheduledFor) .= field "deletion_scheduled_for" schema
 
 makePrisms ''EventData
 

@@ -80,7 +80,7 @@ runAdminlessReminderJob extEnv job = do
     Log.msg (Log.val "Running adminless reminder job")
       . Log.field "team_id" (show (adminlessReminderJobTeamId jobPayload))
       . Log.field "conversation_id" (show (adminlessReminderJobConversationId jobPayload))
-      . Log.field "days_until_deletion" (show (adminlessReminderJobDaysUntilDeletion jobPayload))
+      . Log.field "deletion_scheduled_for" (show (adminlessReminderJobDeletionScheduledFor jobPayload))
   result <-
     liftIO $
       runBackgroundWorkerEffects env extEnv (RequestId "adminless-reminder") Nothing $
@@ -88,7 +88,7 @@ runAdminlessReminderJob extEnv job = do
           internalNotifyAdminlessReminder
             (toLocalUnsafe env.federationDomain (adminlessReminderJobOrigUserId jobPayload))
             (toLocalUnsafe env.federationDomain (adminlessReminderJobConversationId jobPayload))
-            (adminlessReminderJobDaysUntilDeletion jobPayload)
+            (adminlessReminderJobDeletionScheduledFor jobPayload)
           cleanupScheduledJob
             AdminlessReminder
             (adminlessReminderJobTeamId jobPayload)

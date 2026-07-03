@@ -32,10 +32,12 @@ import Data.Code qualified as Code
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (IpAddr)
 import Data.Qualified
 import Data.Range
 import Data.Singletons (Sing)
+import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Bot (AddBot, RemoveBot)
@@ -348,7 +350,7 @@ data ConversationSubsystem m a where
   InternalNotifyAdminlessReminder ::
     Local UserId ->
     Local ConvId ->
-    Int ->
+    UTCTimeMillis ->
     ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->

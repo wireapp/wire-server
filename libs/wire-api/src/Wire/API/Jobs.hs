@@ -25,10 +25,13 @@ module Wire.API.Jobs where
 import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
 import Data.Id
 import Data.Int qualified as Int
+import Data.Json.Util
+import Data.OpenApi qualified as S
 import Data.Schema
 import Data.Time.Clock (UTCTime)
 import Data.UUID (UUID)
 import Imports
+import Test.QuickCheck (Arbitrary (..), elements)
 import Wire.API.PostgresMarshall
 
 -- | Shared queue name for the scheduled meetings cleanup job.
@@ -47,6 +50,9 @@ adminlessReminderQueueName = "adminless_reminder_jobs"
 data MeetingsCleanupJob = MeetingsCleanupJob
   deriving stock (Eq, Generic, Show)
 
+instance Arbitrary MeetingsCleanupJob where
+  arbitrary = pure MeetingsCleanupJob
+
 instance ToJSON MeetingsCleanupJob where
   toJSON MeetingsCleanupJob = Null
 
@@ -64,7 +70,10 @@ data AdminlessDeletionJob = AdminlessDeletionJob
     adminlessDeletionJobOrigUserId :: UserId
   }
   deriving stock (Eq, Generic, Show)
-  deriving (ToJSON, FromJSON) via (Schema AdminlessDeletionJob)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AdminlessDeletionJob)
+
+instance Arbitrary AdminlessDeletionJob where
+  arbitrary = AdminlessDeletionJob <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance ToSchema AdminlessDeletionJob where
   schema =
@@ -82,10 +91,13 @@ data AdminlessReminderJob = AdminlessReminderJob
   { adminlessReminderJobTeamId :: TeamId,
     adminlessReminderJobConversationId :: ConvId,
     adminlessReminderJobOrigUserId :: UserId,
-    adminlessReminderJobDaysUntilDeletion :: Int
+    adminlessReminderJobDeletionScheduledFor :: UTCTimeMillis
   }
   deriving stock (Eq, Generic, Show)
-  deriving (ToJSON, FromJSON) via (Schema AdminlessReminderJob)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AdminlessReminderJob)
+
+instance Arbitrary AdminlessReminderJob where
+  arbitrary = AdminlessReminderJob <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance ToSchema AdminlessReminderJob where
   schema =
@@ -94,7 +106,7 @@ instance ToSchema AdminlessReminderJob where
         <$> (.adminlessReminderJobTeamId) .= field "team_id" schema
         <*> (.adminlessReminderJobConversationId) .= field "conversation_id" schema
         <*> (.adminlessReminderJobOrigUserId) .= field "orig_user_id" schema
-        <*> (.adminlessReminderJobDaysUntilDeletion) .= field "days_until_deletion" schema
+        <*> (.adminlessReminderJobDeletionScheduledFor) .= field "deletion_scheduled_for" schema
 
 -- | The generic scheduled-job families we currently need to persist.
 data ScheduledJobKind
@@ -103,6 +115,20 @@ data ScheduledJobKind
   | AdminlessSetup
   | AdminlessTeardown
   deriving stock (Bounded, Enum, Eq, Generic, Ord, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScheduledJobKind)
+
+instance Arbitrary ScheduledJobKind where
+  arbitrary = elements [minBound .. maxBound]
+
+instance ToSchema ScheduledJobKind where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "adminless-reminder" AdminlessReminder,
+          element "adminless-deletion" AdminlessDeletion,
+          element "adminless-setup" AdminlessSetup,
+          element "adminless-teardown" AdminlessTeardown
+        ]
 
 scheduledJobKindToInt :: ScheduledJobKind -> Int
 scheduledJobKindToInt = fromEnum

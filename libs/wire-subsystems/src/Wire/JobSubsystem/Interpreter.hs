@@ -29,6 +29,7 @@ where
 import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Time
@@ -57,7 +58,7 @@ interpretJobSubsystem conf =
   interpret
     \case
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
-      ScheduleAdminlessReminderJob lusr tid cid daysUntilDeletion scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid daysUntilDeletion scheduledFor
+      ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor scheduledFor
       StartJobWorkers cfg handlers -> embed $ runJobWorkers cfg handlers
 
 scheduleAdminlessDeletionJob ::
@@ -104,10 +105,10 @@ scheduleAdminlessReminderJob ::
   Local UserId ->
   TeamId ->
   ConvId ->
-  Int ->
+  UTCTimeMillis ->
   UTCTime ->
   Sem r ScheduledJob
-scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUntilDeletion scheduledFor = do
+scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletionScheduledFor scheduledFor = do
   let arbiterEnv =
         ArbiterHasql.createHasqlEnvWithPool
           (Proxy @ScheduledJobsRegistry)
@@ -123,7 +124,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId daysUnti
             scheduledJobScheduledFor = scheduledFor
           }
       arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) daysUntilDeletion))
+        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) deletionScheduledFor))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.maxAttempts = Just 3
           }

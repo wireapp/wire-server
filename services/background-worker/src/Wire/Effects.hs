@@ -331,7 +331,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
-    . interpretJobSubsystem jobSubsystemConfig 
+    . interpretJobSubsystem jobSubsystemConfig
     . interpretLegalHoldStoreToCassandra FeatureLegalHoldDisabledPermanently
     . interpretTeamJournal Nothing
     . nowToIO

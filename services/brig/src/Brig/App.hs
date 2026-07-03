@@ -299,7 +299,7 @@ newEnv opts = do
             enableSSE = True,
             sseHub = sseHub
           }
-  jobsApiApp <- pure $ ArbUI.arbiterAppWithAdmin config
+  let jobsApiApp = ArbUI.arbiterAppWithAdmin config
   Log.info lgr $ Log.msg (Log.val "Internal jobs API initialized")
   amqpJobsPublisherChannel <- Q.mkRabbitMqChannelMVar lgr (Just "brig") opts.rabbitmq
   pure $!

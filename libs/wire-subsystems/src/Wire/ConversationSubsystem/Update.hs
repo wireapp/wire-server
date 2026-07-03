@@ -86,7 +86,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Set qualified as Set
 import Data.Singletons
-import Data.Time.Clock (addUTCTime, nominalDay)
+import Data.Time.Clock (NominalDiffTime, addUTCTime)
 import Data.Vector qualified as V
 import Galley.Types.Error
 import Imports hiding (forkIO)
@@ -1221,15 +1221,28 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
   where
     scheduleDeletion tid feature = do
       now <- Now.get
-      let scheduledFor = addUTCTime (fromIntegral feature.config.deletionTimeout * nominalDay) now
+      let deletionTimeout = timeoutToNominalDiffTime feature.config.deletionTimeout
+          scheduledFor = addUTCTime deletionTimeout now
+          deletionScheduledFor = toUTCTimeMillis scheduledFor
       void $ scheduleAdminlessDeletionJob lusr tid (qUnqualified (tUntagged lcnv)) scheduledFor
       for_ feature.config.reminderTimeouts $
-        scheduleReminder now tid feature.config.deletionTimeout
+        scheduleReminder now tid deletionScheduledFor deletionTimeout
 
-    scheduleReminder now tid deletionTimeout reminderTimeout = do
+    scheduleReminder now tid deletionScheduledFor deletionTimeout reminderTimeoutCfg = do
+      let reminderTimeout = timeoutToNominalDiffTime reminderTimeoutCfg
       when (reminderTimeout < deletionTimeout) $ do
-        let reminderAt = addUTCTime (fromIntegral (deletionTimeout - reminderTimeout) * nominalDay) now
-        void $ scheduleAdminlessReminderJob lusr tid (qUnqualified (tUntagged lcnv)) (fromIntegral reminderTimeout) reminderAt
+        let reminderAt = addUTCTime (deletionTimeout - reminderTimeout) now
+        void $
+          scheduleAdminlessReminderJob
+            lusr
+            tid
+            (qUnqualified (tUntagged lcnv))
+            deletionScheduledFor
+            reminderAt
+
+    timeoutToNominalDiffTime :: PreventAdminlessTimeout -> NominalDiffTime
+    timeoutToNominalDiffTime =
+      realToFrac . duration . durationLiteralValue . preventAdminlessTimeoutLiteral
 
 onAdminless ::
   ( Member ConversationStore r,
@@ -1332,9 +1345,9 @@ adminlessAutopromoteOrSendReminder ::
   ) =>
   Local UserId ->
   Local ConvId ->
-  Int ->
+  UTCTimeMillis ->
   Sem r ()
-adminlessAutopromoteOrSendReminder lusr lcnv daysUntilDeletion = adminlessTryAutopromote lusr lcnv orAlternativelySendReminder
+adminlessAutopromoteOrSendReminder lusr lcnv deletionScheduledFor = adminlessTryAutopromote lusr lcnv orAlternativelySendReminder
   where
     orAlternativelySendReminder _ = do
       conv <- getConversationWithError lcnv
@@ -1346,7 +1359,7 @@ adminlessAutopromoteOrSendReminder lusr lcnv daysUntilDeletion = adminlessTryAut
               (EventFromUser (tUntagged lusr))
               now
               (conv.metadata.cnvmTeam)
-              (EdAdminlessReminder (AdminlessReminder daysUntilDeletion))
+              (EdAdminlessReminder (AdminlessReminder deletionScheduledFor))
       pushConversationEvent Nothing conv event (qualifyAs lcnv (map (.id_) conv.localMembers)) []
 
 -- Use eight random bytes and fold them into a big-endian Word64. This keeps
