@@ -45,11 +45,14 @@ import System.Logger qualified as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 import System.Logger.Extended qualified as Log
 import Util.Options
+import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Conversation.Protocol (ProtocolTag)
-import Wire.API.Team.FeatureFlags (FanoutLimit)
+import Wire.API.Team.Feature (LegalholdConfig, npProject)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureFlags)
 import Wire.BackgroundWorker.Options
 import Wire.Options.Galley (GuestLinkTTLSeconds, conversationCodeURISettings)
 import Wire.Options.Galley qualified as Galley
+import Wire.Options.Keys (loadAllMLSKeys)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter (RateLimitEnv, newRateLimitEnv)
 
@@ -99,6 +102,8 @@ data Env = Env
     maxFanoutSize :: !(Maybe FanoutLimit),
     exposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
     intraListing :: !Bool,
+    featureFlags :: !FeatureFlags,
+    conversationSubsystemConfig :: !ConversationSubsystemConfig,
     federationProtocols :: !(Maybe [ProtocolTag]),
     guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
     passwordHashingOptions :: !PasswordHashingOptions,
@@ -178,6 +183,7 @@ mkEnv opts galleyOpts = do
       maxFanoutSize = galleyOpts._settings._maxFanoutSize
       exposeInvitationURLsTeamAllowlist = galleyOpts._settings._exposeInvitationURLsTeamAllowlist
       intraListing = galleyOpts._settings._intraListing
+      featureFlags = galleyOpts._settings._featureFlags
       federationProtocols = galleyOpts._settings._federationProtocols
       guestLinkTTLSeconds = galleyOpts._settings._guestLinkTTLSeconds
       passwordHashingOptions = galleyOpts._settings._passwordHashingOptions
@@ -193,6 +199,18 @@ mkEnv opts galleyOpts = do
     mkRabbitMqChannelMVar logger (Just "background-worker-backend-notifications") $
       either id demoteOpts opts.rabbitmq.unRabbitMqOpts
   convCodeURI <- conversationCodeURISettings galleyOpts
+  loadedMlsKeys <-
+    case galleyOpts._settings._mlsPrivateKeyPaths of
+      Nothing -> pure Nothing
+      Just keyPaths -> Just <$> loadAllMLSKeys keyPaths
+  let conversationSubsystemConfig =
+        ConversationSubsystemConfig
+          { mlsKeys = loadedMlsKeys,
+            federationProtocols = galleyOpts._settings._federationProtocols,
+            legalholdDefaults = npProject @LegalholdConfig featureFlags,
+            maxConvSize = galleyOpts._settings._maxConvSize,
+            listClientsUsingBrig = galleyOpts._settings._intraListing
+          }
   passwordHashingRateLimitEnv <- newRateLimitEnv galleyOpts._settings._passwordHashingRateLimit
   Log.info logger $ Log.msg @Text "Environment initialized"
   pure Env {..}
