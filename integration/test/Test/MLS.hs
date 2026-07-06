@@ -394,7 +394,9 @@ testMLSProtocolUpgrade secondDomain = do
   void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
 
   void $ withWebSocket bob $ \ws -> do
-    -- charlie is added to the group
+    -- charlie is added to the group, but he does not become part of the
+    -- conversation, since the Proteus part of the conversation is the source of
+    -- truth in mixed conversations
     void $ uploadNewKeyPackage def charlie1
     void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
     awaitMatch isNewMLSMessageNotif ws
@@ -424,6 +426,54 @@ testMLSProtocolUpgrade secondDomain = do
   bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "protocol" `shouldMatch` "mls"
+    resp.json %. "receipt_mode" `shouldMatchInt` 0
+
+testMLSProtocolUpgradeManual :: (HasCallStack) => Domain -> App ()
+testMLSProtocolUpgradeManual secondDomain = do
+  (alice, bob, convId) <- simpleMixedConversationSetup secondDomain
+  updateReceiptMode alice convId (9 :: Int) >>= assertSuccess
+  charlie <- randomUser OwnDomain def
+
+  -- alice creates MLS group and bob joins
+  [alice1, bob1, charlie1] <- traverse (createMLSClient def) [alice, bob, charlie]
+  createGroup def alice1 convId
+  void $ createPendingProposalCommit convId alice1 >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
+  void $ createExternalCommit convId bob1 Nothing >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
+
+  void $ withWebSocket bob $ \ws -> do
+    -- charlie is added to the group, but he does not become part of the
+    -- conversation, since the Proteus part of the conversation is the source of
+    -- truth in mixed conversations
+    void $ uploadNewKeyPackage def charlie1
+    void $ createAddCommit alice1 convId [charlie] >>= sendAndConsumeCommitBundleWithProtocol MLSProtocolMixed
+    awaitMatch isNewMLSMessageNotif ws
+
+  supportMLS alice
+  bindResponse (putConversationProtocol alice convId "mls") $ \resp -> do
+    resp.status `shouldMatchInt` 400
+    resp.json %. "label" `shouldMatch` "mls-migration-criteria-not-satisfied"
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mixed"
+    resp.json %. "receipt_mode" `shouldMatchInt` 9
+
+  supportMLS bob
+
+  withWebSockets [alice1, bob1] $ \wss -> do
+    bindResponse (putConversationProtocol alice convId "mls") $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json %. "data.protocol" `shouldMatch` "mls"
+    for_ wss $ \ws -> do
+      n <- awaitMatch isNewMLSMessageNotif ws
+      msg <- asByteString (nPayload n %. "data") >>= showMessage def alice1
+      let leafIndexCharlie = 2
+      msg %. "message.content.body.Proposal.Remove.removed" `shouldMatchInt` leafIndexCharlie
+      msg %. "message.content.sender.External" `shouldMatchInt` 0
+
+  bindResponse (getConversation alice (convIdToQidObject convId)) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "protocol" `shouldMatch` "mls"
+    -- read receipts should be disabled by default for MLS conversations for now
     resp.json %. "receipt_mode" `shouldMatchInt` 0
 
 testAddUserSimple :: (HasCallStack) => Ciphersuite -> CredentialType -> App ()
