@@ -395,7 +395,8 @@ removeConversation ::
     Member ProposalStore r,
     Member CodeStore r
   ) =>
-  Local StoredConversation -> Sem r ()
+  Local StoredConversation ->
+  Sem r ()
 removeConversation lconv = do
   let lcnv = fmap (.id_) lconv
       storedConv = tUnqualified lconv
@@ -413,7 +414,7 @@ removeConversation lconv = do
       deleteGroup gidSub
     deleteGroup gidParent
 
-  key <- E.makeKey (tUnqualified lcnv)
+  key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
   E.deleteCode key
   case convTeam storedConv of
     Nothing -> E.deleteConversation (tUnqualified lcnv)

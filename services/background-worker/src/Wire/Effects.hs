@@ -332,7 +332,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
     . interpretJobSubsystem jobSubsystemConfig
-    . interpretLegalHoldStoreToCassandra FeatureLegalHoldDisabledPermanently
+    . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing
     . nowToIO
     . randomToIO
@@ -391,10 +391,6 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
         { jobSubsystemArbiterPool = env.arbiterPool,
           jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
         }
-    getConversationSubsystemConfig ::
-      (Member GalleyAPIAccess r) =>
-      Sem r ConversationSubsystemConfig
-    getConversationSubsystemConfig = getConversationConfig
     backendQueueEnv =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,

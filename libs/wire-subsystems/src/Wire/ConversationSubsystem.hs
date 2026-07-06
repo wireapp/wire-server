@@ -37,7 +37,6 @@ import Data.Misc (IpAddr)
 import Data.Qualified
 import Data.Range
 import Data.Singletons (Sing)
-import Data.Time.Clock (UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Bot (AddBot, RemoveBot)
