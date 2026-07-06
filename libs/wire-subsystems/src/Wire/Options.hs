@@ -4,6 +4,7 @@ module Wire.Options where
 
 import Amazonka (Region)
 import Amazonka.Types (S3AddressingStyle)
+import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON (..), Value (..), parseJSON, withObject, (.:), (.:?))
 import Data.Aeson.TH (Options (..), defaultOptions, deriveFromJSON, deriveJSON)
 import Data.Aeson.Types qualified as A
@@ -28,6 +29,7 @@ import Util.Options.Common (toOptionFieldName)
 import Util.Timeout (Timeout)
 import Wire.API.Allowlists (AllowlistEmailDomains (..))
 import Wire.API.Routes.FederationDomainConfig (FederationDomainConfig (..), FederationRestriction (..), FederationStrategy)
+import Wire.API.Routes.Version
 import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
@@ -35,6 +37,7 @@ import Wire.AuthenticationSubsystem.Cookie.Limit (CookieThrottle)
 import Wire.EmailSending.SMTP (SMTPConnType (..))
 import Wire.EmailSubsystem.Template (TeamOpts)
 import Wire.PostgresMigrationOpts (PostgresMigrationOpts)
+import Wire.RateLimit.Interpreter
 
 asciiOnly :: Text -> A.Parser ByteString
 asciiOnly t =
@@ -187,7 +190,8 @@ data WireSettings = WireSettings
     assets :: AssetSettings,
     bots :: BotSettings,
     postgresMigration :: PostgresMigrationOpts,
-    logSettings :: LogSettings
+    logs :: LogSettings,
+    disabledAPIVersions :: !(Set VersionExp)
   }
 
 data SearchSettings = SearchSettings
@@ -225,10 +229,9 @@ data UserSettings = UserSettings
     -- | Default locale to use when selecting templates use
     -- `defaultTemplateLocale` as the getter function which always provides a
     -- default value. TODO: Merge this and next.
-    defaultTemplateLocaleInternal :: !(Maybe Locale),
+    defaultTemplateLocale :: !(Maybe Locale),
     -- | Default locale to use for users
-    -- use `defaultUserLocale` as the getter function which always provides a default value
-    defaultUserLocaleInternal :: !(Maybe Locale),
+    defaultUserLocale :: !(Maybe Locale),
     propertyMaxKeyLen :: !(Maybe Int64),
     propertyMaxValueLen :: !(Maybe Int64),
     -- | How long, in milliseconds, to wait in between processing delete events
@@ -245,12 +248,9 @@ data UserSettings = UserSettings
     sqsThrottleMillis :: !(Maybe Int),
     -- | Do not allow certain user creation flows.
     -- docs/reference/user/registration.md {#RefRestrictRegistration}.
-    restrictUserCreation :: !(Maybe Bool)
+    restrictUserCreation :: !(Maybe Bool),
+    domainsBlockedForRegistration :: !(HashSet Domain)
   }
-
--- TODO: Make this the actual default when the YAML doesn't specify a value.
-defaultTemplateLocale :: UserSettings -> Locale
-defaultTemplateLocale = fromMaybe defaultLocale . defaultTemplateLocaleInternal
 
 data TeamSettings = TeamSettings
   { -- \| Team invitation timeout, in seconds
@@ -276,7 +276,9 @@ data AuthSettings = AuthSettings
     -- | Throttling tings (not to be confused with 'LoginRetryOpts')
     userCookieThrottle :: !CookieThrottle,
     -- | Block user from logging in for m minutes after n failed logins
-    limitFailedLogins :: !(Maybe LimitFailedLogins)
+    limitFailedLogins :: !(Maybe LimitFailedLogins),
+    -- | Rate limit on password hashing
+    passwordHashingRateLimit :: RateLimitConfig
   }
 
 data NotificationSettings = NotificationSettings {}
@@ -627,3 +629,5 @@ defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 defSftListLength :: Range 1 100 Int
 defSftListLength = toRange (Proxy @5)
+
+makePrisms ''PrekeySelectionOpts

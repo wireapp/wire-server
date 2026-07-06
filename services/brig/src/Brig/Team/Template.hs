@@ -35,5 +35,5 @@ loadTeamTemplatesWithBrigOpts o =
   loadTeamTemplates
     o.settings.email.team
     o.settings.email.general.templateDir
-    (defaultTemplateLocale o.settings.users)
+    (fromMaybe defaultLocale o.settings.users.defaultTemplateLocale)
     o.settings.email.general.emailSender

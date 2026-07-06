@@ -21,6 +21,7 @@ import Data.Text.Template
 import Imports
 import Wire.EmailSubsystem.Template hiding (readTemplate, readText)
 import Wire.EmailSubsystem.Templates.User
+import Wire.Options ()
 import Wire.Options qualified as Opt
 
 loadUserTemplates :: Opt.WireConfig -> IO (Localised UserTemplates)
@@ -105,7 +106,7 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     teamActivationUrl = template tOptions.tActivationUrl
     passwordResetUrl = template uOptions.passwordResetUrl
     deletionUserUrl = template uOptions.deletionUrl
-    defLocale = Opt.defaultTemplateLocale o.settings.users
+    defLocale = fromMaybe Opt.defaultLocale o.settings.users.defaultTemplateLocale
     templateDir = gOptions.templateDir
     readTemplate = readTemplateWithDefault templateDir defLocale "user"
     readText = readTextWithDefault templateDir defLocale "user"

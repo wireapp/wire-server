@@ -106,7 +106,7 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
     maybeUrl = fromByteString . encodeUtf8 $ pOptions.homeUrl
     gOptions = o.settings.email.general
     pOptions = o.settings.email.provider
-    defLocale = defaultTemplateLocale o.settings.users
+    defLocale = fromMaybe defaultLocale o.settings.users.defaultTemplateLocale
     readTemplate = readTemplateWithDefault gOptions.templateDir defLocale "provider"
     readText = readTextWithDefault gOptions.templateDir defLocale "provider"
     -- URL templates
