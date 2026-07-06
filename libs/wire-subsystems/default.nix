@@ -14,7 +14,6 @@
 , async
 , attoparsec
 , base
-, base16-bytestring
 , base64-bytestring
 , bilge
 , bimap
@@ -27,7 +26,6 @@
 , conduit
 , constraints
 , containers
-, contravariant
 , cookie
 , cql
 , crypton
@@ -48,7 +46,6 @@
 , file-embed
 , filepath
 , galley-types
-, generics-sop
 , hashable
 , HaskellNet
 , HaskellNet-SSL
@@ -76,12 +73,10 @@
 , lens-aeson
 , lib
 , lrucaching
-, mime
 , mime-mail
 , MonadRandom
 , mtl
 , network
-, network-conduit-tls
 , network-uri
 , polysemy
 , polysemy-conc
@@ -101,7 +96,6 @@
 , resourcet
 , retry
 , saml2-web-sso
-, schema-profunctor
 , scientific
 , servant
 , servant-client-core
@@ -111,7 +105,6 @@
 , sop-core
 , ssl-util
 , statistics
-, stomp-queue
 , string-conversions
 , tagged
 , template
@@ -136,7 +129,6 @@
 , wai-utilities
 , wire-api
 , wire-api-federation
-, wire-otel
 , witherable
 , zauth
 }:
@@ -156,7 +148,6 @@ mkDerivation {
     async
     attoparsec
     base
-    base16-bytestring
     base64-bytestring
     bilge
     bimap
@@ -169,7 +160,6 @@ mkDerivation {
     conduit
     constraints
     containers
-    contravariant
     cookie
     cql
     crypton
@@ -188,7 +178,6 @@ mkDerivation {
     extra
     file-embed
     galley-types
-    generics-sop
     hashable
     HaskellNet
     HaskellNet-SSL
@@ -200,7 +189,6 @@ mkDerivation {
     hex
     hscim
     HsOpenSSL
-    hspec
     html-entities
     http-api-data
     http-client
@@ -214,12 +202,10 @@ mkDerivation {
     lens
     lens-aeson
     lrucaching
-    mime
     mime-mail
     MonadRandom
     mtl
     network
-    network-conduit-tls
     network-uri
     polysemy
     polysemy-conc
@@ -237,7 +223,6 @@ mkDerivation {
     resourcet
     retry
     saml2-web-sso
-    schema-profunctor
     servant
     servant-client-core
     servant-server
@@ -246,7 +231,6 @@ mkDerivation {
     sop-core
     ssl-util
     statistics
-    stomp-queue
     tagged
     template
     text
@@ -270,139 +254,56 @@ mkDerivation {
     wai-utilities
     wire-api
     wire-api-federation
-    wire-otel
     witherable
     zauth
   ];
   testHaskellDepends = [
     aeson
-    aeson-pretty
-    amazonka
-    amazonka-core
-    amazonka-dynamodb
-    amazonka-ses
-    amazonka-sqs
-    amqp
     async
-    attoparsec
     base
-    base16-bytestring
-    base64-bytestring
-    bilge
     bloodhound
     bytestring
-    bytestring-conversion
-    case-insensitive
-    cassandra-util
-    comonad
-    conduit
-    constraints
     containers
-    contravariant
-    cookie
-    cql
     crypton
-    crypton-asn1-encoding
-    crypton-asn1-types
-    crypton-pem
-    crypton-x509
     crypton-x509-store
-    currency-codes
     data-default
-    data-timeout
-    dns
     email-validate
     errors
-    exceptions
     extended
     extra
-    file-embed
     filepath
-    galley-types
-    generics-sop
-    hashable
-    HaskellNet
-    HaskellNet-SSL
-    hasql
-    hasql-migration
-    hasql-pool
-    hasql-th
-    hasql-transaction
-    hex
     hscim
-    HsOpenSSL
     hspec
-    html-entities
-    http-client
-    http-client-openssl
-    http-types
-    http2-manager
     imports
     iproute
     iso639
-    kan-extensions
     lens
-    lens-aeson
-    lrucaching
-    mime
     mime-mail
-    MonadRandom
-    network
-    network-conduit-tls
     network-uri
     polysemy
-    polysemy-conc
     polysemy-plugin
-    polysemy-time
     polysemy-wire-zoo
-    profunctors
-    prometheus-client
-    proto-lens
     QuickCheck
     quickcheck-instances
-    ram
     random
-    raw-strings-qq
-    resource-pool
-    resourcet
-    retry
     saml2-web-sso
-    schema-profunctor
     scientific
-    servant
     servant-client-core
-    servant-server
-    singletons
     sodium-crypto-sign
-    sop-core
-    ssl-util
-    statistics
-    stomp-queue
     string-conversions
     tagged
-    template
     text
-    text-icu-translit
     time
-    time-out
-    time-units
     tinylog
-    token-bucket
     transformers
     types-common
-    types-common-journal
-    unliftio
     unordered-containers
     uri-bytestring
     utf8-string
     uuid
     vector
-    wai
-    wai-utilities
     wire-api
     wire-api-federation
-    wire-otel
-    witherable
     zauth
   ];
   testToolDepends = [ hspec-discover ];
