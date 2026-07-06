@@ -306,13 +306,15 @@ listMeetingsByUserImpl userId cutoffTime = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
-          FROM meetings m
-          WHERE m.creator = ($1 :: uuid)
+          FROM meetings
+          WHERE creator = ($1 :: uuid)
             AND (
-              (m.recurrence_frequency IS NULL AND m.end_time >= ($2 :: timestamptz))
-              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NULL)
-              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NOT NULL
-                  AND GREATEST(m.end_time, m.recurrence_until) >= ($2 :: timestamptz))
+                 (recurrence_frequency IS NULL AND end_time >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NOT NULL
+                  AND GREATEST(end_time, recurrence_until) >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NULL)
             )
           ORDER BY start_time ASC
         |]
@@ -336,13 +338,15 @@ listMeetingsByConversationImpl convId cutoffTime = do
             recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
-          FROM meetings m
-          WHERE m.conversation_id = ($1 :: uuid)
+          FROM meetings
+          WHERE conversation_id = ($1 :: uuid)
             AND (
-              (m.recurrence_frequency IS NULL AND m.end_time >= ($2 :: timestamptz))
-              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NULL)
-              OR (m.recurrence_frequency IS NOT NULL AND m.recurrence_until IS NOT NULL
-                  AND GREATEST(m.end_time, m.recurrence_until) >= ($2 :: timestamptz))
+                 (recurrence_frequency IS NULL AND end_time >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NOT NULL
+                  AND GREATEST(end_time, recurrence_until) >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NULL)
             )
           ORDER BY start_time ASC
         |]
@@ -426,7 +430,8 @@ getOldMeetingsImpl cutoffTime batchSize = do
             created_at :: timestamptz, updated_at :: timestamptz
           FROM meetings
            WHERE (recurrence_frequency IS NULL AND end_time < ($1 :: timestamptz))
-              OR (recurrence_frequency IS NOT NULL AND recurrence_until IS NOT NULL
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NOT NULL
                   AND GREATEST(end_time, recurrence_until) < ($1 :: timestamptz))
            ORDER BY end_time ASC
            LIMIT ($2 :: int4)

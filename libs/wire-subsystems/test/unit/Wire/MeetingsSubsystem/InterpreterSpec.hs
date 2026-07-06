@@ -973,6 +973,27 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           addInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
+    it "deleteMeeting succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          deleteMeeting zUser (ConnId "test-conv") meeting.id
+      result `shouldBe` Right True
+
+    it "removeInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          removeInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+      result `shouldBe` Right True
+
+    it "replaceInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          replaceInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+      result `shouldBe` Right True
+
     it "getMeeting returns an open-ended recurring meeting indefinitely" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
