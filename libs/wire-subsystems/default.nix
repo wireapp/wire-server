@@ -39,6 +39,7 @@
 , currency-codes
 , data-default
 , data-timeout
+, dns
 , email-validate
 , errors
 , exceptions
@@ -179,6 +180,7 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
+    dns
     email-validate
     errors
     exceptions
@@ -308,6 +310,7 @@ mkDerivation {
     currency-codes
     data-default
     data-timeout
+    dns
     email-validate
     errors
     exceptions
