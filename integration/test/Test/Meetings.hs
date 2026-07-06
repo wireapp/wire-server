@@ -79,7 +79,7 @@ testMeetingMLSAddParticipant = do
     (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
--- Helper to extract meetingId and domain from a meeting JSON object
+-- | Helper to extract meetingId and domain from a meeting JSON object
 getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)
 getMeetingIdAndDomain meeting = do
   meetingId <- meeting %. "qualified_id" %. "id" >>= asString
@@ -95,7 +95,7 @@ assertConversationMatchesLegacy meeting = do
   legacyConvId <- meeting %. "qualified_conversation"
   convId `shouldMatch` legacyConvId
 
--- Helper to create a default new meeting JSON object
+-- | Helper to create a default new meeting JSON object
 defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
 defaultMeetingJson title startTime endTime invitedEmails =
   object

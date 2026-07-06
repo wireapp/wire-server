@@ -287,7 +287,7 @@ getMeetingImpl zUser meetingId validityPeriod = do
 -- | Look up the 'StoredConversation' associated with a meeting. When the
 -- conversation cannot be found (a data-integrity anomaly), a warning is logged
 -- before failing: otherwise the missing conversation is indistinguishable from
--- a missing meeting for callers of 'updateMeetingImpl' / 'deleteMeetingImpl'.
+-- a missing meeting for callers.
 getMeetingConversationOrFail ::
   ( Member ConversationSubsystem r,
     Member TinyLog r
@@ -329,10 +329,8 @@ storedMeetingToMeeting domain sm =
 --
 -- The local user's domain ('tDomain lUser') is used to qualify the meeting,
 -- its creator and its conversation: meetings are not federated, and every
--- meeting operation guards @qDomain meetingId == tDomain zUser@ (see
--- 'updateMeetingImpl', 'deleteMeetingImpl', 'getMeetingImpl', ...). The
--- conversation itself is always created locally (via
--- 'ConversationSubsystem.internalCreateGroupConversation').
+-- meeting operation guards @qDomain meetingId == tDomain zUser@. The
+-- conversation itself is always created locally.
 storedMeetingToMeetingWithConversation ::
   Local UserId ->
   StoredConversation ->
