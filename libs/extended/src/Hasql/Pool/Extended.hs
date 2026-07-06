@@ -29,8 +29,15 @@ import Util.Options
 
 data PoolConfig = PoolConfig
   { size :: Int,
+    -- | Kept for config compatibility. hasql-resource-pool does not currently
+    -- expose a direct equivalent, so we parse and retain it but do not enforce
+    -- it here.
     acquisitionTimeout :: Duration,
+    -- | Kept for config compatibility. hasql-resource-pool does not currently
+    -- expose a direct equivalent, so we parse and retain it but do not enforce
+    -- it here.
     agingTimeout :: Duration,
+    -- | This is the only timeout we actively apply to the resource pool.
     idlenessTimeout :: Duration
   }
   deriving (Eq, Show)
@@ -43,7 +50,11 @@ instance FromJSON PoolConfig where
       <*> o .: "agingTimeout"
       <*> o .: "idlenessTimeout"
 
--- | Creates a pool from postgres config params
+-- | Creates a pool from postgres config params.
+--
+-- Only 'idlenessTimeout' is enforced by the new resource pool backend. The
+-- other timeout fields stay in the config shape so existing configuration
+-- files continue to decode, but they are currently compatibility-only.
 initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO HasqlPool.Pool
 initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
