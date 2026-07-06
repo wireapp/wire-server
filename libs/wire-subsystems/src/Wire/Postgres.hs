@@ -100,7 +100,9 @@ type PGConstraints r =
 -- | Resets the pool if it detects server errors due to admin intervention.
 -- Things like server restart. Then retries the session.
 --
--- Inspired by https://github.com/nikita-volkov/hasql-pool/issues/27
+-- Inspired by https://github.com/nikita-volkov/hasql-pool/issues/27.
+-- The old issue still describes the server-error retry pattern, even though
+-- this module now uses hasql-resource-pool.
 useWithResetAndRetry :: forall a. Pool -> Session a -> IO (Either UsageError a)
 useWithResetAndRetry pool sess = go maxRetries
   where
@@ -115,7 +117,7 @@ useWithResetAndRetry pool sess = go maxRetries
     go n = do
       eithRes <- use pool sess
       case eithRes of
-        Left (SessionUsageError (StatementSessionError _ _ _ _ _ (ServerStatementError (ServerError errCode _ _ _ _)))) -> do
+        Left (SessionError (StatementSessionError _ _ _ _ _ (ServerStatementError (ServerError errCode _ _ _ _)))) -> do
           if (Text.encodeUtf8 errCode `elem` resettableErrors)
             then do
               release pool

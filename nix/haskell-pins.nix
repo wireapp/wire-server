@@ -198,6 +198,11 @@ let
       version = "0.13";
       sha256 = "sha256-m8Q1jwCyDrlEPbv2cZ/FIv/ey3dPjDVkmppzvi3Zjw4=";
     };
+
+    hasql-resource-pool = {
+      version = "1.10.1.0";
+      sha256 = "sha256-dkUSiDMEyP4X1CUWOstiYhubkTkrf/kYM8TRO6h8RYU=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:

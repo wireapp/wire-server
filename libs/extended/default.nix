@@ -19,7 +19,7 @@
 , errors
 , exceptions
 , hasql
-, hasql-pool
+, hasql-resource-pool
 , hspec
 , hspec-discover
 , http-client
@@ -30,7 +30,6 @@
 , metrics-wai
 , monad-control
 , postgresql-connection-string
-, prometheus-client
 , QuickCheck
 , ram
 , retry
@@ -49,7 +48,6 @@
 , transformers
 , types-common
 , unliftio
-, uuid
 , wai
 }:
 mkDerivation {
@@ -72,7 +70,7 @@ mkDerivation {
     errors
     exceptions
     hasql
-    hasql-pool
+    hasql-resource-pool
     http-client
     http-client-tls
     http-types
@@ -80,7 +78,6 @@ mkDerivation {
     metrics-wai
     monad-control
     postgresql-connection-string
-    prometheus-client
     ram
     retry
     servant
@@ -96,7 +93,6 @@ mkDerivation {
     transformers
     types-common
     unliftio
-    uuid
     wai
   ];
   testHaskellDepends = [

@@ -53,7 +53,7 @@
 , HaskellNet-SSL
 , hasql
 , hasql-migration
-, hasql-pool
+, hasql-resource-pool
 , hasql-th
 , hasql-transaction
 , hex
@@ -192,7 +192,7 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex
@@ -322,7 +322,7 @@ mkDerivation {
     HaskellNet-SSL
     hasql
     hasql-migration
-    hasql-pool
+    hasql-resource-pool
     hasql-th
     hasql-transaction
     hex

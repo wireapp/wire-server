@@ -26,7 +26,9 @@ hself: hsuper: {
 
   # Tests require a running postgresql
   hasql = hlib.dontCheck hsuper.hasql_1_10_3;
-  hasql-pool = hlib.dontCheck hsuper.hasql-pool_1_4_2;
+  # The library builds with hasql-1.10.x, but its packaged test suite still
+  # uses older hasql APIs.
+  hasql-resource-pool = hlib.dontCheck hsuper.hasql-resource-pool;
   hasql-migration = hlib.markUnbroken (hlib.doJailbreak (hlib.dontCheck hsuper.hasql-migration));
   hasql-transaction = hlib.dontCheck hsuper.hasql-transaction_1_2_2;
   postgresql-binary = hlib.dontCheck (hsuper.postgresql-binary_0_15_0_1);
