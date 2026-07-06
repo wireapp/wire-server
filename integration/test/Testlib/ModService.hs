@@ -274,10 +274,14 @@ defaultOverrides resource =
 
     localMlsPrivateKeyPaths :: Value -> App Value
     localMlsPrivateKeyPaths paths = do
-      asks ((\case
-        Nothing -> paths
-        Just servicesCwdBase ->
-          absolutizeRelativeJsonStrings (servicesCwdBase </> "galley") paths) . ((.servicesCwdBase)))
+      asks
+        ( ( \case
+              Nothing -> paths
+              Just servicesCwdBase ->
+                absolutizeRelativeJsonStrings (servicesCwdBase </> "galley") paths
+          )
+            . ((.servicesCwdBase))
+        )
 
     -- Galley and background-worker both read this Galley config, but local
     -- binaries run with different service-specific working directories. Use
