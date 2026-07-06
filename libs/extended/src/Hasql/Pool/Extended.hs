@@ -29,9 +29,8 @@ import Util.Options
 
 data PoolConfig = PoolConfig
   { size :: Int,
-    -- | Kept for config compatibility. hasql-resource-pool does not currently
-    -- expose a direct equivalent, so we parse and retain it but do not enforce
-    -- it here.
+    -- | Configured pool acquisition wait time. hasql-resource-pool only
+    -- accepts whole seconds here, so we round up to the nearest second.
     acquisitionTimeout :: Duration,
     -- | Kept for config compatibility. hasql-resource-pool does not currently
     -- expose a direct equivalent, so we parse and retain it but do not enforce
@@ -65,26 +64,29 @@ initPostgresPool config pgConfig mFpSecrets = do
     (Hasql.Connection.acquire pgSettings)
     ( config.size,
       realToFrac config.idlenessTimeout.duration,
-      unusedConnectionSettings
+      poolAcquireSettings
     )
   where
-    -- hasql-resource-pool does not expose equivalents for the old
-    -- acquisitionTimeout and agingTimeout settings. Those fields remain in the
-    -- config shape for compatibility but are not enforced by this pool.
+    -- hasql-resource-pool does not expose a direct equivalent for the old
+    -- agingTimeout setting. That field remains in the config shape for
+    -- compatibility but is not enforced by this pool.
     --
-    -- The custom connection getter above keeps the existing wire-server
-    -- connection-string parsing path. hasql-resource-pool ignores this
-    -- settings value when acquireWith is used.
-    unusedConnectionSettings =
+    -- The custom getter above performs the actual connection establishment.
+    -- This record only configures pool behavior, including acquisition timing.
+    poolAcquireSettings =
       HasqlPool.ConnectionSettings
         { host = "",
           port = 5432,
           user = "",
           password = "",
           dbName = "",
-          connAcqTimeout = 0,
+          connAcqTimeout = acquisitionTimeoutSeconds config.acquisitionTimeout,
           txIdleTimeout = HasqlPool.TimeoutSetting 0 HasqlPool.Seconds,
           stmtTimeout = HasqlPool.TimeoutSetting 0 HasqlPool.Seconds,
           sslMode = "prefer",
           sslRootCert = ""
         }
+
+    acquisitionTimeoutSeconds d
+      | d.duration <= 0 = 0
+      | otherwise = fromInteger $ ceiling (realToFrac d.duration :: Double)
