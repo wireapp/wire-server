@@ -107,10 +107,7 @@ import Bilge.RPC (HasRequestId (..))
 import Brig.AWS qualified as AWS
 import Brig.Calling qualified as Calling
 import Brig.DeleteQueue.Interpreter
-import Wire.Options (ElasticSearchOpts, Opts, Settings (..))
-import Wire.Options qualified as Opt
 import Brig.Provider.Template
-import Brig.Queue.Stomp qualified as Stomp
 import Brig.Queue.Types
 import Brig.Schema.Run qualified as Migrations
 import Brig.Team.Template
@@ -168,6 +165,8 @@ import Wire.EmailSending.SMTP qualified as SMTP
 import Wire.EmailSubsystem.Template (Localised, TemplateBranding, forLocale)
 import Wire.EmailSubsystem.Templates.User
 import Wire.ExternalAccess.External
+import Wire.Options (ElasticSearchOpts, Opts, Settings (..))
+import Wire.Options qualified as Opt
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
 import Wire.SessionStore

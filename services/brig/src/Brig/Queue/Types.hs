@@ -24,12 +24,11 @@ import Data.Aeson
 import Imports
 
 -- | Config file info for a remote queue that you can publish to and listen from.
-data QueueOpts = StompQueueOpts Text | SqsQueueOpts Text
+data QueueOpts = SqsQueueOpts Text
   deriving (Eq, Show)
 
 instance FromJSON QueueOpts where
   parseJSON = withObject "Queue" $ \o ->
     o .: "queueType" >>= \case
-      "stomp" -> StompQueueOpts <$> o .: "queueName"
       "sqs" -> SqsQueueOpts <$> o .: "queueName"
       other -> fail ("unknown 'queueType': " <> other)
