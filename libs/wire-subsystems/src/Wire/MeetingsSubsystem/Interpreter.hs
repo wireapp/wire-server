@@ -214,7 +214,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.startTime
           update.endTime
           update.recurrence
-    conv <- getMeetingConversationOrFail meetingId updatedMeeting.conversationId
+    conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::
@@ -244,7 +244,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       guard $ meeting.creator == tUnqualified zUser
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
-      conv <- getMeetingConversationOrFail meetingId convId
+      conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
       when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
         lift $
           void $
@@ -294,18 +294,17 @@ getMeetingConversationOrFail ::
   ) =>
   Qualified MeetingId ->
   ConvId ->
-  MaybeT (Sem r) StoredConversation
+  Sem r (Maybe StoredConversation)
 getMeetingConversationOrFail meetingId convId = do
-  mConv <- lift $ ConversationSubsystem.internalGetConversation convId
+  mConv <- ConversationSubsystem.internalGetConversation convId
   case mConv of
-    Just conv -> pure conv
+    Just conv -> pure (Just conv)
     Nothing -> do
-      lift $
-        TinyLog.warn $
-          Log.msg ("conversation not found for meeting" :: ByteString)
-            . Log.field "conversationId" (toByteString' convId)
-            . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
-      MaybeT $ pure Nothing
+      TinyLog.warn $
+        Log.msg ("conversation not found for meeting" :: ByteString)
+          . Log.field "conversationId" (toByteString' convId)
+          . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
+      pure Nothing
 
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting

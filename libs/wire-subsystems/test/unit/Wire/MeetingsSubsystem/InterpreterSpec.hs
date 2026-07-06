@@ -440,6 +440,24 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Right Nothing
 
+    it "returns Nothing when the meeting's conversation is missing" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Orphaned Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 newMeeting
+        -- Simulate a data-inconsistency: the meeting's conversation vanished.
+        modify @(Map ConvId StoredConversation) (Map.delete (qUnqualified meeting.meeting.conversationId))
+        updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+
+      result `shouldBe` Right Nothing
+
     prop "applies valid update, preserves unchanged fields" $ \(update :: API.UpdateMeeting) ->
       let baseMeeting =
             API.NewMeeting
@@ -457,18 +475,20 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             ioProperty $ do
               result <- runTestStack now gen Map.empty teamConfig $ do
                 meeting <- createMeeting zUser1 baseMeeting
-                updateMeeting zUser1 meeting.meeting.id update
+                updated <- updateMeeting zUser1 meeting.meeting.id update
+                pure (meeting.meeting.conversationId, updated)
               case result of
                 Left err ->
                   pure $ counterexample ("Unexpected error: " <> show err) False
-                Right Nothing ->
+                Right (_, Nothing) ->
                   pure $ counterexample "Expected Just meeting, got Nothing" False
-                Right (Just m) ->
+                Right (convId, Just m) ->
                   pure $
                     m.meeting.title === fromMaybe baseMeeting.title update.title
                       .&&. m.meeting.startTime === effectiveStart
                       .&&. m.meeting.endTime === effectiveEnd
                       .&&. m.meeting.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
+                      .&&. m.meeting.conversationId === convId
 
   describe "deleteMeeting" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -948,8 +968,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "getMeeting returns a recurring meeting whose slot passed but window is open" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          getMeeting zUser meeting.id
+          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          getMeeting zUser meeting.meeting.id
       case result of
         Left err -> fail $ "Error: " <> show err
         Right Nothing -> fail "Expected Just meeting (recurrence window still open)"
@@ -958,7 +978,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "listMeetings includes a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (_meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          _meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
           listMeetings zUser
       case result of
         Left err -> fail $ "Error: " <> show err
@@ -967,53 +987,53 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "updateMeeting succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          updateMeeting zUser meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          updateMeeting zUser meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
       fmap isJust result `shouldBe` Right True
 
     it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          addInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          addInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
     it "deleteMeeting succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          deleteMeeting zUser (ConnId "test-conv") meeting.id
+          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          deleteMeeting zUser (ConnId "test-conv") meeting.meeting.id
       result `shouldBe` Right True
 
     it "removeInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          removeInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          removeInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
     it "replaceInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          replaceInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          replaceInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
     it "getMeeting returns an open-ended recurring meeting indefinitely" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
-          getMeeting zUser meeting.id
+          meeting <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          getMeeting zUser meeting.meeting.id
       fmap isJust result `shouldBe` Right True
 
     it "cleanupOldMeetings skips recurring meetings whose window is still open" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (recurring, _conv1) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          (_plain, _conv2) <- createMeeting zUser (expiredNewMeeting Nothing)
+          recurring <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          _plain <- createMeeting zUser (expiredNewMeeting Nothing)
           deleted <- cleanupOldMeetings (addUTCTime (negate 1) now) 100
-          remaining <- getMeeting zUser recurring.id
-          pure (deleted, fmap (.id) remaining, recurring.id)
+          remaining <- getMeeting zUser recurring.meeting.id
+          pure (deleted, fmap (.id) remaining, recurring.meeting.id)
       case result of
         Left err -> fail $ "Error: " <> show err
         Right (deleted, remainingId, recurringId) -> do
@@ -1024,10 +1044,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "cleanupOldMeetings never picks up open-ended recurring meetings" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          meeting <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
           deleted <- cleanupOldMeetings now 100
-          remaining <- getMeeting zUser meeting.id
-          pure (deleted, fmap (.id) remaining, meeting.id)
+          remaining <- getMeeting zUser meeting.meeting.id
+          pure (deleted, fmap (.id) remaining, meeting.meeting.id)
       case result of
         Left err -> fail $ "Error: " <> show err
         Right (deleted, remainingId, meetingId) -> do
@@ -1052,11 +1072,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
          in ioProperty $ do
               result <-
                 runTestStack now gen Map.empty teamConfig $ do
-                  (meeting, _conv) <- createMeeting zUser nm
-                  fetched <- isJust <$> getMeeting zUser meeting.id
+                  meeting <- createMeeting zUser nm
+                  fetched <- isJust <$> getMeeting zUser meeting.meeting.id
                   listedCount <- length <$> listMeetings zUser
                   deleted <- cleanupOldMeetings cutoff 100
-                  remains <- isJust <$> getMeeting zUser meeting.id
+                  remains <- isJust <$> getMeeting zUser meeting.meeting.id
                   pure (fetched, listedCount, deleted, remains)
               pure $ case result of
                 Left err -> counterexample ("Unexpected error: " <> show err) False
