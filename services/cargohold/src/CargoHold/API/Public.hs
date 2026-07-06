@@ -30,7 +30,7 @@ import Control.Monad.Trans.Except (throwE)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy as LBS
-import Data.Domain
+import Data.Domain (domainText)
 import Data.Id
 import Data.Kind
 import Data.Qualified
@@ -45,6 +45,7 @@ import Wire.API.Asset
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Named
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.User (AccountStatus (..), User (userStatus, userTeam))
 
@@ -192,7 +193,7 @@ downloadAssetV3 ::
   AssetKey ->
   Maybe AssetToken ->
   Maybe AssetToken ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Handler (Maybe (AssetLocation Absolute))
 downloadAssetV3 usr key tok1 tok2 mbHostHeader = do
   AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2) mbHostHeader
@@ -203,7 +204,7 @@ downloadAssetV4 ::
   Qualified AssetKey ->
   Maybe AssetToken ->
   Maybe AssetToken ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Handler (Maybe LocalOrRemoteAsset)
 downloadAssetV4 usr qkey tok1 tok2 mbHostHeader =
   let tok = tok1 <|> tok2

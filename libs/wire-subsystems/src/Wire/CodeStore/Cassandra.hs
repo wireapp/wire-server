@@ -22,6 +22,7 @@ where
 
 import Cassandra
 import Data.Code
+import Data.Domain (domainText)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
@@ -60,7 +61,7 @@ interpretCodeStoreToCassandra = interpret $ \case
       Left uri -> pure (Just uri)
       Right map' ->
         case mbHost of
-          Just host -> pure (Map.lookup host map')
+          Just host -> pure (Map.lookup (domainText host) map')
           Nothing -> pure Nothing
 
 -- | Insert a conversation code

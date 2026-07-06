@@ -16,6 +16,7 @@ import Polysemy
 import Polysemy.Error
 import SAML2.WebSSO qualified as SAML
 import System.Logger.Message qualified as Log
+import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User
 import Wire.API.User.IdentityProvider qualified as IP
 import Wire.BrigAPIAccess
@@ -82,7 +83,7 @@ getSsoCodeByEmailImpl ::
     Member GalleyAPIAccess r,
     Member IdPConfigStore r
   ) =>
-  Bool -> Maybe Text -> EmailAddress -> Sem r (Maybe SAML.IdPId)
+  Bool -> Maybe ZHostValue -> EmailAddress -> Sem r (Maybe SAML.IdPId)
 getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
   do
     if not enableIdPByEmailDiscovery
@@ -124,6 +125,6 @@ getSsoCodeByEmailImpl enableIdPByEmailDiscovery mbHost email =
       when (length matches > 1) $
         Logger.warn $
           Log.msg @Text "Found more than one IdP config for domain"
-            . Log.field "domain" (fromMaybe "None" mbHost)
+            . Log.field "domain" (maybe "None" domainText mbHost)
             . Log.field "idpIds" (intercalate "," $ (UUID.toString . SAML.fromIdPId) <$> matches)
       pure $ listToMaybe matches

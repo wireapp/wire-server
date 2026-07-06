@@ -25,6 +25,8 @@ import CargoHold.Options as Opts
 import Control.Exception
 import Control.Lens
 import Data.ByteString.Conversion
+import Data.Domain (mkDomain)
+import qualified Data.Domain as Data.Domain
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import Imports
@@ -68,10 +70,10 @@ testMultiIngressCloudFrontFails = do
           privateKey = "any/path"
         }
 
-multiIngressMap :: Map String AWSEndpoint
+multiIngressMap :: Map Data.Domain.Domain AWSEndpoint
 multiIngressMap =
   Map.singleton
-    "red.example.com"
+    (either (error . show) id $ mkDomain "red.example.com")
     (toAWSEndpoint "http://s3-download.red.example.com")
 
 toAWSEndpoint :: ByteString -> AWSEndpoint

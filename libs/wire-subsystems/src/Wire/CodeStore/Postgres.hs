@@ -21,6 +21,7 @@ module Wire.CodeStore.Postgres
 where
 
 import Data.Code
+import Data.Domain (domainText)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
@@ -57,7 +58,7 @@ interpretCodeStoreToPostgres = interpret $ \case
     convCodeURI <- input
     pure $ case convCodeURI of
       Left uri -> Just uri
-      Right map' -> mbHost >>= flip Map.lookup map'
+      Right map' -> (domainText <$> mbHost) >>= flip Map.lookup map'
 
 insertCode :: (PGConstraints r) => Code -> Maybe Password -> Sem r ()
 insertCode c password = do

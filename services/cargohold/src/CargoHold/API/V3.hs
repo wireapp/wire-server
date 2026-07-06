@@ -52,6 +52,7 @@ import Data.ByteString.Conversion (toByteString')
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
+import Data.Domain (Domain)
 import Data.Id
 import qualified Data.List as List
 import Data.Qualified
@@ -122,13 +123,13 @@ updateToken own key tok = do
 randToken :: (MonadIO m) => m V3.AssetToken
 randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
-download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Text -> Handler (Maybe URI)
+download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Maybe Domain -> Handler (Maybe URI)
 download own key tok mbHost = runMaybeT $ do
   qown <- lift $ qualifyLocal own
   meta <- checkMetadata (tUntagged qown) key tok
   lift $ genSignedURL (Just $ tUntagged qown) (Just meta) (S3.mkKey key) mbHost
 
-downloadUnsafe :: V3.AssetKey -> Maybe Text -> Handler URI
+downloadUnsafe :: V3.AssetKey -> Maybe Domain -> Handler URI
 downloadUnsafe key mbHost = do
   meta <- S3.getMetadataV3 key
   genSignedURL Nothing meta (S3.mkKey key) mbHost
