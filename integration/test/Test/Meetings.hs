@@ -543,3 +543,46 @@ testMeetingExpiration = do
 
   -- Check it is expired
   getMeeting owner domain meetingId >>= assertStatus 404
+
+-- A recurring meeting whose original time slot has passed but whose
+-- recurrence window is still open must remain visible in the list (and via
+-- get-meeting) after the meeting validity period elapses.
+testMeetingListRecurringNotExpired :: (HasCallStack) => App ()
+testMeetingListRecurringNotExpired = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  -- endTime = now: it only becomes "past" after the threadDelay below;
+  -- the recurrence window stays open for 30 days.
+  -- meetingValidityPeriodSeconds is 5s in galley.integration.yaml.
+  let startTime = addUTCTime (negate 3600) now
+      endTime = now
+      recurrenceUntil = Time.formatTime Time.defaultTimeLocale "%FT%TZ" $ addUTCTime (30 * nominalDay) now
+      recurrence =
+        object
+          [ "frequency" .= "daily",
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
+          ]
+      newMeeting =
+        object
+          [ "title" .= "Recurring Past Meeting",
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "recurrence" .= recurrence,
+            "invited_emails" .= ([] :: [String])
+          ]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Wait beyond the validity period so a non-recurring meeting would expire.
+  liftIO $ threadDelay 6_000_000
+
+  -- Still accessible directly.
+  getMeeting owner domain meetingId >>= assertStatus 200
+
+  -- Still listed.
+  resp <- getMeetingsList owner
+  assertSuccess resp
+  meetings <- resp.json & asList
+  length meetings `shouldMatchInt` 1
