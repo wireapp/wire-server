@@ -91,8 +91,6 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
-    , asn1-encoding
-    , asn1-types
     , async
     , attoparsec
     , base
@@ -112,6 +110,8 @@ common common-all
     , cookie
     , cql
     , crypton
+    , crypton-asn1-encoding
+    , crypton-asn1-types
     , crypton-pem
     , currency-codes
     , data-default
@@ -148,7 +148,6 @@ common common-all
     , lens
     , lens-aeson
     , lrucaching
-    , memory
     , mime
     , mime-mail
     , MonadRandom
@@ -164,6 +163,7 @@ common common-all
     , prometheus-client
     , proto-lens
     , QuickCheck
+    , ram
     , raw-strings-qq
     , resource-pool
     , resourcet
@@ -519,7 +519,6 @@ library
     , iso639
     , lens
     , lrucaching
-    , memory
     , mime
     , mime-mail
     , mtl
@@ -532,6 +531,7 @@ library
     , postgresql-error-codes
     , prometheus-client
     , QuickCheck
+    , ram
     , resource-pool
     , resourcet
     , retry

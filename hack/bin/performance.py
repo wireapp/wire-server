@@ -58,6 +58,8 @@ RES_CREATION_JSON = "res_creation.json"
 
 RES_REGISTER_JSON = "res_register.json"
 
+RES_LOGIN_JSON = "res_login.json"
+
 def save_json_file(ob, path):
     with open(path, "w") as f:
         return json.dump(ob, f, indent=2)
@@ -349,7 +351,7 @@ def create_admin(ctx, basedir):
 
     res_login = save(
         api.login(ctx, res_creation["request"]["body"]["email"]),
-        j(ud, "res_login.json"),
+        j(ud, RES_LOGIN_JSON),
     )
     simple_expect_status(200, res_login)
 
@@ -414,7 +416,7 @@ def create_user(ctx, basedir):
     admin_user = admin["response"]["content"]["id"]
     team = admin["response"]["content"]["team"]
 
-    admin_res_login = load_json_file(j(admin_dir, "res_login.json"))
+    admin_res_login = load_json_file(j(admin_dir, RES_LOGIN_JSON))
     ctx.load_cookies_from_response(admin_res_login)
 
     ud_temp = random_path(basedir)
@@ -447,7 +449,7 @@ def create_user(ctx, basedir):
     shutil.move(j(ud_temp, RES_REGISTER_JSON), dest)
     print("Moving to", dest)
 
-    res_login = save(api.login(ctx, email_invitee), j(ud, "res_login.json"))
+    res_login = save(api.login(ctx, email_invitee), j(ud, RES_LOGIN_JSON))
     simple_expect_status(200, res_login)
 
     return user_id
@@ -692,7 +694,7 @@ def main_setup_add_participants(basedir, batchsize=500):
     admin = res_creation['response']['content']
     res_login = save(
         api.login(ctx_admin, res_creation["request"]["body"]["email"]),
-        j(admin_dir, "res_login.json"),
+        j(admin_dir, RES_LOGIN_JSON),
     )
     simple_expect_status(200, res_login)
 
@@ -801,7 +803,7 @@ def main_send(basedir):
         ctx.switch_user(admin_id)
         ud = user_dir(basedir, admin_id)
 
-        res_login = load_json_file(j(ud, "res_login.json"))
+        res_login = load_json_file(j(ud, RES_LOGIN_JSON))
         res = simplify_response(api.login(ctx, res_login["request"]["body"]["email"]))
         simple_expect_status(200, res)
 
@@ -990,7 +992,7 @@ async def main_receive(basedir, batch_index=0, batch_size=100):
             ctx = Context()
 
             ud = user_dir(basedir, user_id)
-            res_login = load_json_file(j(ud, "res_login.json"))
+            res_login = load_json_file(j(ud, RES_LOGIN_JSON))
 
             res = simplify_response(
                 api.login(ctx, res_login["request"]["body"]["email"])

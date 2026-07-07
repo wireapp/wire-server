@@ -195,7 +195,7 @@ data ListGlobalSelfConvs = ListGlobalSelf | DoNotListGlobalSelf
 
 data MLSConversation = MLSConversation
   { mcId :: ConvId,
-    mcMetadata :: ConversationMetadata,
+    mcMetadata :: ConversationMetadata GroupConvType,
     mcMLSData :: ConversationMLSData,
     mcLocalMembers :: [LocalMember],
     mcRemoteMembers :: [RemoteMember],
@@ -250,7 +250,7 @@ toPublicSubConv (Qualified (SubConversation {..}) domain) =
 
 type ConvOrSubConv = ConvOrSubChoice MLSConversation SubConversation
 
-instance HasField "meta" ConvOrSubConv ConversationMetadata where
+instance HasField "meta" ConvOrSubConv (ConversationMetadata GroupConvType) where
   getField x = x.conv.mcMetadata
 
 instance HasField "mlsMeta" ConvOrSubConv ConversationMLSData where

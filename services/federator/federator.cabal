@@ -112,6 +112,7 @@ library
     , bytestring
     , bytestring-conversion
     , containers
+    , crypton-pem
     , crypton-x509
     , crypton-x509-validation
     , data-default
@@ -135,7 +136,6 @@ library
     , metrics-wai
     , mtl
     , network
-    , pem
     , polysemy
     , polysemy-wire-zoo
     , prometheus-client

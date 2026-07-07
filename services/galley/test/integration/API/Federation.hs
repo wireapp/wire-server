@@ -121,7 +121,7 @@ getConversationsAllFound = do
   connectWithRemoteUser bob aliceQ
 
   -- create & get group conv
-  cnv2 :: Conversation <-
+  cnv2 :: Conversation GroupConvType <-
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
@@ -141,7 +141,8 @@ getConversationsAllFound = do
     iUpsertOne2OneConversation createO2O !!! const 200 === statusCode
 
   do
-    convs <-
+    convs ::
+      ConversationsResponse GroupConvType <-
       responseJsonError
         =<< getConvs bob [cnv1Id, cnv2.qualifiedId] <!! do
           const 200 === statusCode
@@ -186,9 +187,10 @@ getConversationsNotPartOf = do
   connectUsers alice (NonEmpty.singleton bob)
   localDomain <- viewFederationDomain
   -- create & get one2one conv
-  cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
+  cnv1 :: OwnConversation GroupConvType <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
   do
-    convs <-
+    convs ::
+      ConversationsResponse GroupConvType <-
       responseJsonError
         =<< getConvs alice [cnvQualifiedId cnv1] <!! do
           const 200 === statusCode

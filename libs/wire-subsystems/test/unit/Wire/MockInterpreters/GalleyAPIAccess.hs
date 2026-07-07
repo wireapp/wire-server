@@ -18,16 +18,13 @@
 module Wire.MockInterpreters.GalleyAPIAccess where
 
 import Control.Lens (to, (^.))
-import Data.Default (def)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Proxy
 import Data.Range
 import Imports
 import Polysemy
-import Wire.API.Conversation.Config (ConversationSubsystemConfig (..))
 import Wire.API.Team.Feature (AllTeamFeatures, FeatureStatus (..), IsFeatureConfig (..), LockableFeature (..), SndFactorPasswordChallengeConfig, npProject')
-import Wire.API.Team.FeatureFlags
 import Wire.API.Team.Member
 import Wire.API.Team.Member.Info (TeamMemberInfoList (..))
 import Wire.API.Team.SearchVisibility
@@ -68,8 +65,6 @@ miniGalleyAPIAccess teams configs = interpret $ \case
     pure $ memberIsTeamOwnerImpl teams tid uid
   GetAllTeamFeaturesForUser _ -> pure configs
   GetFeatureConfigForTeam tid -> pure $ getFeatureConfigForTeamImpl configs tid
-  GetConfiguredFeatureFlags ->
-    pure def
   GetVerificationCodeEnabled _ ->
     pure $
       case npProject' (Proxy @SndFactorPasswordChallengeConfig) configs of
@@ -84,15 +79,6 @@ miniGalleyAPIAccess teams configs = interpret $ \case
   InternalGetConversation _ -> pure Nothing
   GetTeamContacts _ -> pure Nothing
   SelectTeamMembers {} -> error "SelectTeamMembers not implemented in miniGalleyAPIAccess"
-  GetConversationConfig ->
-    pure
-      ConversationSubsystemConfig
-        { mlsKeys = Nothing,
-          federationProtocols = Nothing,
-          legalholdDefaults = FeatureLegalHoldDisabledPermanently,
-          maxConvSize = 500,
-          listClientsUsingBrig = False
-        }
   GetUserLHStatus _ _ -> error "GetUserLHStatus not implemented in miniGalleyAPIAccess"
   GetUsersLHStatus _ -> error "GetUsersLHStatus not implemented in miniGalleyAPIAccess"
   GuardLegalHold {} -> pure ()

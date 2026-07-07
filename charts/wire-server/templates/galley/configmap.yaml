@@ -85,7 +85,7 @@ data:
       {{- else if .settings.multiIngress }}
       multiIngress: {{- toYaml .settings.multiIngress | nindent 8 }}
       {{- else }}
-      {{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set"}}
+      {{ fail "Either settings.conversationCodeURI or settings.multiIngress have to be set" }}
       {{- end }}
       {{- if (and .settings.conversationCodeURI .settings.multiIngress) }}
       {{ fail "settings.conversationCodeURI and settings.multiIngress are mutually exclusive" }}
@@ -186,6 +186,10 @@ data:
         channels:
           {{- toYaml .settings.featureFlags.channels | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.preventAdminlessGroups }}
+        preventAdminlessGroups:
+          {{- toYaml .settings.featureFlags.preventAdminlessGroups | nindent 10 }}
+        {{- end }}
         {{- if .settings.featureFlags.cells }}
         cells:
           {{- toYaml .settings.featureFlags.cells | nindent 10 }}
@@ -229,6 +233,10 @@ data:
         {{- if .settings.featureFlags.meetingsPremium }}
         meetingsPremium:
           {{- toYaml .settings.featureFlags.meetingsPremium | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.backgroundEffects }}
+        backgroundEffects:
+          {{- toYaml .settings.featureFlags.backgroundEffects | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

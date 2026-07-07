@@ -78,7 +78,7 @@ library
     , errors
     , http-types
     , imports
-    , memory
+    , ram
     , text                   >=0.11
     , types-common           >=0.16
     , uuid

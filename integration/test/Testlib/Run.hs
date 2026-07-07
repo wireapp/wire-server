@@ -46,7 +46,7 @@ import System.IO.Temp (writeTempFile)
 import System.Process
 import Testlib.Assertions
 import Testlib.Env
-import Testlib.ModService (readAndUpdateConfig)
+import Testlib.ModService (readAndUpdateConfig, warmupFederation)
 import Testlib.Options
 import Testlib.Printing
 import Testlib.ResourcePool (acquireResources)
@@ -145,10 +145,15 @@ runTests tests mXMLOutput cfg = do
 
   runCodensity (mkEnvs cfg) $ \(genv, env) ->
     withAsync displayOutput $ \displayThread -> do
-      -- Although migrations are run on service start up we are running them here before
-      -- to prevent race conditions between brig and galley
-      -- which cause flakiness and can make the complete test suite fail
-      runAppWithEnv env runMigrations
+      runAppWithEnv env $ do
+        -- Although migrations are run on service start up we are running them here before
+        -- to prevent race conditions between brig and galley
+        -- which cause flakiness and can make the complete test suite fail
+        runMigrations
+        -- Pre-warm the static domain1 <-> domain2 federation path once, before
+        -- the concurrent test pool starts, so the first cross-domain call does
+        -- not race the federator cold-start (see 'warmupFederation').
+        warmupFederation
       -- Currently 4 seems to be stable, more seems to create more timeouts.
       report <- fmap mconcat $ pooledForConcurrentlyN 4 tests $ \(qname, _, _, action) -> do
         timestamp <- getCurrentTime

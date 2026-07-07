@@ -313,7 +313,7 @@ createAccessToken key uid cid scope = do
         doSignClaims :: IO (Either JWTError SignedJWT)
         doSignClaims = runJOSE $ do
           algo <- bestJWSAlg key
-          signJWT key (newJWSHeader ((), algo)) claims
+          signJWT key (newJWSHeaderProtected algo) claims
 
     signRefreshToken :: ClaimsSet -> (Handler r) SignedJWT
     signRefreshToken claims = do
@@ -323,7 +323,7 @@ createAccessToken key uid cid scope = do
         doSignClaims :: IO (Either JWTError SignedJWT)
         doSignClaims = runJOSE $ do
           algo <- bestJWSAlg key
-          signClaims key (newJWSHeader ((), algo)) claims
+          signClaims key (newJWSHeaderProtected algo) claims
 
 revokeRefreshToken :: (Member Jwk r) => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do

@@ -39,6 +39,6 @@ mkDerivation {
   ];
   executableHaskellDepends = [ base ];
   description = "CLI tool to consume messages from a RabbitMQ queue";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
   mainProgram = "rabbitmq-consumer";
 }

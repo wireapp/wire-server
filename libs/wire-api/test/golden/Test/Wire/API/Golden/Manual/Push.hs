@@ -53,7 +53,6 @@ testObject_Push_1 =
   Push
     { _pushRecipients = Set.fromList [rcp1],
       _pushOrigin = Nothing,
-      _pushConnections = mempty,
       _pushOriginConnection = Nothing,
       _pushTransient = False,
       _pushNativeIncludeOrigin = False,
@@ -69,7 +68,6 @@ testObject_Push_2 =
   Push
     { _pushRecipients = Set.fromList [rcp2, rcp3],
       _pushOrigin = Just (Id . fromJust $ UUID.fromString "dec9b47a-7f12-11ef-b634-6710e7ae3d33"),
-      _pushConnections = Set.fromList [ConnId "sdf", ConnId "mempty", ConnId "wire-client"],
       _pushOriginConnection = Just (ConnId "123"),
       _pushTransient = True,
       _pushNativeIncludeOrigin = True,

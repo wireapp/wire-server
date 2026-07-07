@@ -20,7 +20,7 @@ spec:
     - name: "spar-cassandra"
       secret:
         secretName: {{ (include "spar.tlsSecretRef" .Values.spar.config | fromYaml).name }}
-    {{- end}}
+    {{- end }}
   containers:
   - name: integration
     image: "{{ .Values.spar.image.repository }}-integration:{{ .Values.spar.image.tag }}"

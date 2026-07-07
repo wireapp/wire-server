@@ -68,7 +68,9 @@ featureAPI =
     <@> deprecatedFeatureAPI
     <@> mkNamedAPI @'("get", DomainRegistrationConfig) getFeature
     <@> featureAPIGetPut
-    <@> featureAPIGetPut
+    <@> mkNamedAPI @'("get", PreventAdminlessGroupsConfig) getFeature
+    <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v16" setFeature
+    <@> mkNamedAPI @"put-PreventAdminlessGroupsConfig@v17" setFeature
     <@> mkNamedAPI @'("get", CellsConfig) getFeature
     <@> mkNamedAPI @"put-CellsConfig@v13" setFeature
     <@> mkNamedAPI @'("put", CellsConfig) setFeature

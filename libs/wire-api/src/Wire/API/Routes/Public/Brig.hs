@@ -667,8 +667,9 @@ type AccountAPI =
     -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
     -- - UserIdentityUpdated event to created user, if email code or phone code is provided
     Named
-      "register"
+      "register@v16"
       ( Summary "Register a new user."
+          :> Until 'V17
           :> Description
                "If the environment where the registration takes \
                \place is private and a registered email address \
@@ -678,6 +679,19 @@ type AccountAPI =
           :> ReqBody '[JSON] NewUserPublic
           :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
       )
+    :<|> Named
+           "register"
+           ( Summary "Register a new user."
+               :> From 'V17
+               :> Description
+                    "If the environment where the registration takes \
+                    \place is private and a registered email address \
+                    \is not whitelisted, a 403 error is returned."
+               :> "register"
+               :> Header' '[Required, Strict] "X-Forwarded-For" IpAddr
+               :> ReqBody '[JSON] NewUserPublic
+               :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
+           )
     -- This endpoint can lead to the following events being sent:
     -- UserDeleted event to contacts of deleted user
     -- MemberLeave event to members for all conversations the user was in (via galley)

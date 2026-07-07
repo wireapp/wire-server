@@ -127,7 +127,7 @@ tests s =
       test s "PUT /teams/:tid/features/apps{,'?lockOrUnlock'}" $ testLockStatus @AppsConfig,
       test s "/teams/:tid/features/apps" $ testFeatureStatus @AppsConfig,
       test s "PUT /teams/:tid/features/meetings{,'?lockOrUnlock'}" $ testLockStatus @MeetingsConfig,
-      test s "/teams/:tid/features/meetings" $ testFeatureStatus @MeetingsConfig,
+      test s "/teams/:tid/features/meetings" $ testFeatureStatusOptTtl @MeetingsConfig defMeetings Nothing,
       test s "PUT /teams/:tid/features/meetingsPremium{,'?lockOrUnlock'}" $ testLockStatus @MeetingsPremiumConfig,
       test s "/teams/:tid/features/meetingsPremium" $ testFeatureStatus @MeetingsPremiumConfig,
       test s "PUT /teams/:tid/features/backgroundEffects{,'?lockOrUnlock'}" $ testLockStatus @BackgroundEffectsConfig,
@@ -141,6 +141,9 @@ tests s =
 
 defConfCalling :: LockableFeature ConferenceCallingConfig
 defConfCalling = def {status = FeatureStatusDisabled}
+
+defMeetings :: LockableFeature MeetingsConfig
+defMeetings = def {status = FeatureStatusEnabled, lockStatus = LockStatusUnlocked}
 
 testRudSsoDomainRedirect :: TestM ()
 testRudSsoDomainRedirect = do
@@ -399,6 +402,9 @@ testCellsInternalConfig :: TestM ()
 testCellsInternalConfig = do
   (_, tid, _) <- createTeamWithNMembers 1
   cfg <- getFeatureConfig @CellsInternalConfig tid
+  liftIO $ do
+    cfg.config.storage.totalLimitBytes @?= Just (QuotaBytesFinite (NumBytes (BigIntString 1000000000000)))
+    cfg.config.storage.perUserQuotaBytes @?= QuotaBytesUnlimited
   let newBackend :: HttpsUrl
       newBackend = fromMaybe (error "invalid url") . fromByteString $ "https://cells-internal.example.com"
       newCfg =
@@ -407,7 +413,11 @@ testCellsInternalConfig = do
               cfg.config
                 { backend = CellsBackend newBackend,
                   collabora = CellsCollabora Cool,
-                  storage = CellsStorage (NumBytes (BigIntString 2000000000000))
+                  storage =
+                    CellsStorage
+                      { totalLimitBytes = Just (QuotaBytesFinite (NumBytes (BigIntString 2000000000000))),
+                        perUserQuotaBytes = QuotaBytesUnlimited
+                      }
                 }
           } ::
           LockableFeature CellsInternalConfig

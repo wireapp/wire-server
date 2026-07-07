@@ -236,7 +236,7 @@ See also: conference falling for personal accounts (below).
 
 ### Meetings
 
-The `meetings` feature flag controls whether a user can initiate a meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+The `meetings` feature flag controls whether a user can initiate a meetings. It is disabled and locked by default. If you want a different configuration, use the following syntax:
 
 ```yaml
 meetings:
@@ -266,7 +266,7 @@ The feature status for individual teams can be changed via the public API (if th
 
 ### Background Effects
 
-The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is enabled and unlocked by default. If you want a different configuration, use the following syntax: 
+The `backgroundEffects` feature flag controls whether background effects are available in meetings. It is disabled and locked by default. If you want a different configuration, use the following syntax: 
 ```yaml
 backgroundEffects:
   defaults:
@@ -301,6 +301,55 @@ These are all the possible combinations of `status` and `lockStatus`:
 The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/fileSharing/(un)?locked`).
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+
+### Prevent Adminless Groups
+
+The `preventAdminlessGroups` feature flag controls what happens when a team conversation would otherwise end up without an admin. It is disabled by default and unlocked by default, so team admins can toggle it on or off unless a site administrator locks it.
+
+If you want a different backend-wide default, use the following syntax:
+
+```yaml
+# galley.yaml
+preventAdminlessGroups:
+  defaults:
+    status: disabled|enabled
+    lockStatus: locked|unlocked
+    config:
+      promotionStrategy: alphabetical|random|all
+      deletionTimeoutDuration: 7d
+      reminderTimeoutDurations: [2d, 4d, 6d]
+```
+
+The settings mean:
+
+- `promotionStrategy`: how the backend chooses which eligible members to promote when the last admin leaves and autopromotion is possible.
+- `deletionTimeoutDuration`: how long to keep an adminless conversation before it is deleted.
+- `reminderTimeoutDurations`: when before deletion reminder notifications should be sent.
+
+Durations are strings with a number and a unit suffix. Supported units are `us`, `ms`, `s`, `m`, `h`, `d`, and `w`. It is **not** recommended or supported to set these below a day in production environments.
+
+Feature responses, including `GET /feature-configs`, `GET /teams/:tid/features`, and `GET /teams/:tid/features/preventAdminlessGroups`, include the duration fields:
+
+```json
+{
+  "status": "enabled",
+  "lockStatus": "unlocked",
+  "config": {
+    "promotionStrategy": "alphabetical",
+    "deletionTimeoutDuration": "7d",
+    "reminderTimeoutDurations": ["2d", "4d", "6d"]
+  }
+}
+```
+
+From a client's perspective, API versioning works like this:
+
+- API version V17 and newer should send the duration fields to `PUT /teams/:tid/features/preventAdminlessGroups`.
+- Feature responses include the duration fields for clients to read.
+
+The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/preventAdminlessGroups/(un)?locked`).
+
+The feature status for individual teams can be changed via the public API if the feature is unlocked.
 
 ### Require External Email Verification
 
@@ -661,7 +710,10 @@ cells:
 
 ### Cells Internal
 
-Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and a storage quota. The quota must be provided as a positive decimal string.
+Cells configuration is intentionally split: `cells` is controlled by the team admin, while `cellsInternal` is set by the site operator/customer support via the internal API only. For `cellsInternal`, the `status` and `lockStatus` fields are *required* to be set to `enabled` and `unlocked` respectively, as enforced by validation logic. Failure to set these values will result in a configuration error. This block holds the backend URL, Collabora edition, and two storage quota settings:
+
+- `totalLimitBytes` is the total team data limit. It is optional for backward compatibility with existing records, and any negative value is accepted as unlimited. The API returns `-1` for unlimited.
+- `perUserQuotaBytes` is the per-user quota. Any negative value is accepted as unlimited. The API returns `-1` for unlimited.
 
 ```yaml
 # galley.yaml
@@ -678,7 +730,8 @@ config:
             collabora:
               edition: COOL
             storage:
-              perUserQuotaBytes: "1000000000000" # 1 TB
+              totalLimitBytes: "1000000000000" # 1 TB
+              perUserQuotaBytes: "-1"
 ```
 
 ### Allowed Global Operations
@@ -1277,9 +1330,8 @@ Given an email address, the SSO code is looked up by these criteria:
 - The user must be activated. Either by the activation mail flow or by
   [auto-activation](#validate-saml-emails).
 - The mapping must be unambiguous (there must be exactly one matching IdP).
-  This is the case for:
-  - Teams with exactly one configured IdP
-  - There is an IdP for the given multi-ingress domain
+  In multi-ingress mode, IdPs are always bound to one domain; the request domain
+  must match the IdP's configured domain.
 - The user was created via SCIM
 
 The last condition ensures that team admins cannot get into locked-out
@@ -1292,6 +1344,50 @@ addresses and explore their IdPs by applying brute-force strategies. Thus, it
 is rate limited as `reqs_per_addr_sso_get_by_email` zone. Details can be
 configured in `nginz`'s Helm chart in the
 `nginx_conf.user_rate_limit_request_zones` list.
+
+#### IdP certificate fingerprint allowlist
+
+This optional feature restricts which X.509 certificates can be used in IdP
+metadata. When configured, all certificates in IdP descriptors must have a
+SHA-1 fingerprint present in the allowlist, or IdP creation/update and SAML
+AuthnResponse (`/sso/finalize-login`) requests will be rejected.
+
+This limits team admins in their choice of IdPs. E.g. a malicious team admin
+couldn't provision bad IdPs, as possible IdP certificates are restricted by the
+allowlist.
+
+The feature is disabled by default in Helm (the attribute can be left out as well):
+
+```yaml
+config:
+  spar:
+...
+    idpCertFingerprintAllowlist: []
+```
+
+Example with certificate fingerprints:
+
+```yaml
+config:
+  spar:
+...
+    idpCertFingerprintAllowlist:
+      - "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
+      - "F4:A2:73:D7:B7:2E:EA:66:E1:CB:81:E9:58:BC:1A:E9:CF:3C:95:C4"
+```
+
+The allowlist is a JSON/YAML array of SHA-1 fingerprints as hex strings. Entries
+can be in any of these formats (all parse to the same value):
+
+- Uppercase with colons: `AA:BB:CC:DD:...`
+- Lowercase with colons: `aa:bb:cc:dd:...`
+- No separators: `AABBCCDD...` or `aabbccdd...`
+- Mixed case with optional colons/whitespace: `__AA:bb:CC:dd_`
+
+All formats must be exactly 40 hex digits (20 bytes).
+
+Invalid hex or wrong length (anything not exactly 20 bytes / 40 hex digits) causes
+the configuration to fail at startup with a clear error message.
 
 ### SCIM
 

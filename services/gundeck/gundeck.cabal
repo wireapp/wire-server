@@ -40,7 +40,6 @@ library
     Gundeck.Push.Websocket
     Gundeck.React
     Gundeck.Redis
-    Gundeck.Redis.HedisExtensions
     Gundeck.Run
     Gundeck.Schema.Run
     Gundeck.Schema.V1

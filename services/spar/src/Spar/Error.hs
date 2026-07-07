@@ -117,6 +117,7 @@ data SparCustomError
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
   | SparIdPDomainInUse
+  | SparIdPCertNotAllowed LText
   deriving (Eq, Show)
 
 data SparProvisioningMoreThanOneIdP
@@ -223,6 +224,12 @@ renderSparError (SAML.CustomError (IdpDbError IdpNonUnique)) = StdError $ Wai.mk
 renderSparError (SAML.CustomError (IdpDbError IdpWrongTeam)) = StdError $ Wai.mkError status409 "idp-wrong-team" "The IdP is not part of this team."
 renderSparError (SAML.CustomError (IdpDbError IdpNotFound)) = renderSparError (SAML.CustomError (SparIdPNotFound ""))
 renderSparError (SAML.CustomError SparIdPDomainInUse) = StdError $ Wai.mkError status409 "idp-duplicate-domain-for-team" "This team already has an IdP configured for this domain."
+renderSparError (SAML.CustomError (SparIdPCertNotAllowed fingerprint)) =
+  StdError $
+    Wai.mkError
+      status403
+      "idp-cert-not-allowed"
+      ("IdP certificate not in the configured allowlist: " <> fingerprint)
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = StdError $
   Wai.mkError status400 "more-than-one-idp" do

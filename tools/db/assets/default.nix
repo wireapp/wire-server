@@ -39,6 +39,6 @@ mkDerivation {
   ];
   executableHaskellDepends = [ base ];
   description = "Scan the brig user table, search for malformatted asset keys and print them";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
   mainProgram = "assets";
 }

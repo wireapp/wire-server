@@ -13,7 +13,7 @@
 , http-types
 , imports
 , lib
-, memory
+, ram
 , text
 , types-common
 , uuid
@@ -34,7 +34,7 @@ mkDerivation {
     errors
     http-types
     imports
-    memory
+    ram
     text
     types-common
     uuid

@@ -365,6 +365,7 @@ executable galley-integration
     , cereal
     , containers
     , cookie
+    , crypton-pem
     , currency-codes
     , data-default
     , data-timeout
@@ -385,17 +386,16 @@ executable galley-integration
     , kan-extensions
     , lens
     , lens-aeson
-    , memory
     , mtl
     , network
     , network-uri
     , optparse-applicative
-    , pem
     , process
     , proto-lens
     , protobuf
     , QuickCheck
     , quickcheck-instances
+    , ram
     , random
     , retry
     , servant-client

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# HLINT ignore "Use $>" #-}
 -- Disabling to stop warnings on HasCallStack
@@ -51,6 +52,7 @@ module Spar.API
     idpCreateV7,
     idpDelete,
     idpUpdate,
+    authresp,
   )
 where
 
@@ -66,6 +68,8 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map as Map
 import Data.Proxy
 import Data.Range
+import qualified Data.Set as Set
+import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
@@ -200,6 +204,7 @@ api opts =
 apiSSO ::
   ( Member GalleyAPIAccess r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Input Opts) r,
     Member BrigAPIAccess r,
     Member AssIDStore r,
@@ -222,8 +227,8 @@ apiSSO ::
 apiSSO opts =
   Named @"sso-metadata" (getMetadata Nothing)
     :<|> Named @"sso-team-metadata" (\mbHost tid -> getMetadata (Just tid) mbHost)
-    :<|> Named @"auth-req-precheck" authreqPrecheck
-    :<|> Named @"auth-req" (authreq (maxttlAuthreqDiffTime opts))
+    :<|> Named @"auth-req-precheck" (authreqPrecheck opts.saml)
+    :<|> Named @"auth-req" (authreq opts.saml (maxttlAuthreqDiffTime opts))
     :<|> Named @"auth-resp-legacy" (authresp Nothing)
     :<|> Named @"auth-resp" (authresp . Just)
     :<|> Named @"sso-settings" ssoSettings
@@ -233,6 +238,7 @@ apiIDP ::
   ( Member Random r,
     Member (Logger String) r,
     Member (Logger (Msg -> Msg)) r,
+    Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
@@ -310,23 +316,28 @@ getMetadata mbTid mbHost = do
 
 authreqPrecheck ::
   ( Member IdPConfigStore r,
-    Member (Error SparError) r
+    Member (Error SparError) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
+  SAML.Config ->
   Maybe URI.URI ->
   Maybe URI.URI ->
   Maybe CookieLabel ->
   SAML.IdPId ->
+  Maybe Text ->
   Sem r NoContent
-authreqPrecheck msucc merr mlabel idpid =
-  validateAuthreqParams msucc merr mlabel
-    *> IdPConfigStore.getConfig idpid
-      $> NoContent
+authreqPrecheck samlConfig msucc merr mlabel idpid mbHost =
+  validateAuthreqParams msucc merr mlabel *> do
+    idp <- IdPConfigStore.getConfig idpid
+    checkMultiIngressDomain samlConfig mbHost idp
+    pure NoContent
 
 authreq ::
   forall r.
   ( Member Random r,
     Member (Input Opts) r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member AssIDStore r,
     Member VerdictFormatStore r,
     Member AReqIDStore r,
@@ -335,6 +346,7 @@ authreq ::
     Member (Error SparError) r,
     Member IdPConfigStore r
   ) =>
+  SAML.Config ->
   NominalDiffTime ->
   Maybe URI.URI ->
   Maybe URI.URI ->
@@ -342,10 +354,12 @@ authreq ::
   SAML.IdPId ->
   Maybe Text ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr mlabel idpid mbHost = do
+authreq samlConfig authreqttl msucc merr mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr mlabel
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid
+
+    checkMultiIngressDomain samlConfig mbHost idp
 
     let err :: Sem r any
         err = throwSparSem (SparSPNotFound "")
@@ -360,6 +374,31 @@ authreq authreqttl msucc merr mlabel idpid mbHost = do
     SAML2.authReq authreqttl iss idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
+
+checkMultiIngressDomain ::
+  ( Member (Logger (Msg -> Msg)) r,
+    Member (Error SparError) r
+  ) =>
+  SAML.Config ->
+  Maybe Text ->
+  IdP ->
+  Sem r ()
+checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig samlConfig) $ do
+  let idpDomain = idp._idpExtraInfo._domain
+  case (idpDomain, mbHost) of
+    (Just expectedDomain, Just host)
+      | host == expectedDomain -> pure ()
+    _ -> do
+      let idpIdTxt = idpIdToText idp._idpId
+      Logger.debug $
+        Log.msg ("Multi-ingress domain guard rejected IdP access" :: ByteString)
+          . Log.field "idp" idpIdTxt
+          . Log.field "idp_domain" (fromMaybe "none" idpDomain)
+          . Log.field "request_host" (fromMaybe "none" mbHost)
+      throwSparSem (SparIdPNotFound idpIdTxt)
+
+idpIdToText :: SAML.IdPId -> T.Text
+idpIdToText = T.pack . UUID.toString . SAML.fromIdPId
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -383,6 +422,7 @@ authresp ::
   forall r.
   ( Member Random r,
     Member (Logger String) r,
+    Member (Logger (Msg -> Msg)) r,
     Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
@@ -416,13 +456,14 @@ authresp mbtid arbody mbHost = do
   logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
     go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
-    go _assertions idp (SAML.AccessDenied (shouldRedirectToInit -> True)) = do
-      -- redirect back to idp for idp-initiated login.
-      redirectToInit idp
-    go assertions verdict idp = do
-      -- handle the verdict
-      SAML.ResponseVerdict result <- verdictHandler assertions idp verdict
-      throw @SparError $ SAML.CustomServant result
+    go assertions idp verdict = do
+      assertCertsAllowlisted (idp ^. SAML.idpMetadata)
+      case verdict of
+        SAML.AccessDenied (shouldRedirectToInit -> True) ->
+          redirectToInit idp
+        _ -> do
+          SAML.ResponseVerdict result <- verdictHandler assertions verdict idp
+          throw @SparError $ SAML.CustomServant result
 
     -- Whenever at least one of the denied reasons is `DeniedNoInResponseTo`, try again.
     -- there may be other reasons that will make the redirect less likely to result in a
@@ -529,7 +570,7 @@ idpGetRaw zusr idpid = do
   _ <- authorizeIdP zusr idp
   IdPRawMetadataStore.get idpid >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSparSem $ SparIdPNotFound (T.pack $ show idpid)
+    Nothing -> throwSparSem $ SparIdPNotFound (idpIdToText idpid)
 
 idpGetAll ::
   ( Member Random r,
@@ -664,6 +705,7 @@ idpDelete samlConfig mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idp
 idpCreate ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
+    Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
@@ -684,6 +726,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
   let mbHost = filterMultiIngressZHost (samlConfig._cfgDomainConfigs) uncheckedMbHost
   Intra.assertSSOEnabled tid
   guardMultiIngressDuplicateDomain tid mbHost
+  assertCertsAllowlisted idpmeta
   idp <-
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
       >>= validateNewIdP apiversion idpmeta tid mReplaces mbHost
@@ -737,6 +780,7 @@ filterMultiIngressZHost _ _ = Nothing
 idpCreateV7 ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
+    Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member ScimTokenStore r,
@@ -771,6 +815,38 @@ idpCreateV7 samlConfig tid zUser idpmeta mReplaces mApiversion mHandle = do
       when (numTokens > 0 && numIdps > 0) $
         throwSparSem $
           SparProvisioningMoreThanOneIdP ScimTokenAndSecondIdpForbidden
+
+-- | Reject IdPs whose cert SHA-1 is not in the configured allowlist.
+--
+-- Empty/absent allowlist is a no-op.  On miss: warn-log fingerprint +
+-- issuer, then throw 'SparIdPCertNotAllowed' (HTTP 403).
+assertCertsAllowlisted ::
+  ( Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Error SparError) r
+  ) =>
+  SAML.IdPMetadata ->
+  Sem r ()
+assertCertsAllowlisted idpmeta = do
+  mAllow <- inputs idpCertFingerprintAllowlist
+  case mAllow of
+    Nothing -> pure ()
+    Just (CertFingerprintAllowlist allowed)
+      | Set.null allowed -> pure ()
+      | otherwise -> do
+          let certs = idpmeta ^. SAML.edCertAuthnResponse
+              issuerTxt =
+                TE.decodeUtf8 $
+                  URI.serializeURIRef' (idpmeta ^. SAML.edIssuer . SAML.fromIssuer)
+          forM_ certs $ \c -> do
+            let fingerprint = certSha1Fingerprint c
+            unless (Set.member fingerprint allowed) $ do
+              let fingerprintHex = renderFingerprintHex fingerprint
+              Logger.warn $
+                Log.msg ("Refusing IdP request: cert fingerprint not in allowlist" :: ByteString)
+                  . Log.field "fingerprint" fingerprintHex
+                  . Log.field "issuer" issuerTxt
+              throwSparSem (SparIdPCertNotAllowed (T.fromStrict fingerprintHex))
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
@@ -841,6 +917,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces idpDomain idHandle = wit
 idpUpdate ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
+    Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
@@ -861,6 +938,7 @@ idpUpdate samlConfig zusr uncheckedMbHost (IdPMetadataValue raw xml) =
 idpUpdateXML ::
   ( Member Random r,
     Member (Logger (Msg -> Msg)) r,
+    Member (Input Opts) r,
     Member GalleyAPIAccess r,
     Member BrigAPIAccess r,
     Member IdPConfigStore r,
@@ -878,6 +956,7 @@ idpUpdateXML ::
 idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (zUsr, teamid, idp, previousIdP) <- validateIdPUpdate mbZUsr idpmeta idpid
   Intra.assertSSOEnabled teamid
+  assertCertsAllowlisted idpmeta
   guardMultiIngressDuplicateDomain teamid mDomain idpid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   let idp' :: IdP = case mHandle of

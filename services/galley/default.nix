@@ -21,6 +21,7 @@
 , conduit
 , containers
 , cookie
+, crypton-pem
 , currency-codes
 , data-default
 , data-timeout
@@ -47,14 +48,12 @@
 , lens
 , lens-aeson
 , lib
-, memory
 , metrics-core
 , metrics-wai
 , mtl
 , network
 , network-uri
 , optparse-applicative
-, pem
 , polysemy
 , polysemy-conc
 , polysemy-plugin
@@ -65,6 +64,7 @@
 , protobuf
 , QuickCheck
 , quickcheck-instances
+, ram
 , random
 , raw-strings-qq
 , retry
@@ -198,6 +198,7 @@ mkDerivation {
     conduit
     containers
     cookie
+    crypton-pem
     currency-codes
     data-default
     data-timeout
@@ -218,17 +219,16 @@ mkDerivation {
     kan-extensions
     lens
     lens-aeson
-    memory
     mtl
     network
     network-uri
     optparse-applicative
-    pem
     process
     proto-lens
     protobuf
     QuickCheck
     quickcheck-instances
+    ram
     random
     retry
     servant-client
@@ -266,5 +266,5 @@ mkDerivation {
     yaml
   ];
   description = "Conversations";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

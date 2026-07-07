@@ -29,13 +29,11 @@ import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
 import Wire.API.Conversation
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
-import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member qualified as Team
 import Wire.API.Team.Member.Info qualified as Team
@@ -59,7 +57,7 @@ data GalleyAPIAccess m a where
   GetConv ::
     UserId ->
     Local ConvId ->
-    GalleyAPIAccess m (Maybe OwnConversation)
+    GalleyAPIAccess m (Maybe (OwnConversation GroupConvType))
   GetTeamConv ::
     UserId ->
     TeamId ->
@@ -156,19 +154,15 @@ data GalleyAPIAccess m a where
     Local UserId ->
     Maybe ConnId ->
     Qualified ConvId ->
-    GalleyAPIAccess m OwnConversation
+    GalleyAPIAccess m (OwnConversation GroupConvType)
   GetEJPDConvInfo ::
     UserId ->
     GalleyAPIAccess m [EJPDConvInfo]
-  GetConfiguredFeatureFlags ::
-    GalleyAPIAccess m FeatureFlags
   GetTeamAdmins :: TeamId -> GalleyAPIAccess m Team.TeamMemberList
-  InternalGetConversation :: ConvId -> GalleyAPIAccess m (Maybe Conversation)
+  InternalGetConversation :: ConvId -> GalleyAPIAccess m (Maybe (Conversation GroupConvType))
   GetTeamContacts ::
     UserId ->
     GalleyAPIAccess m (Maybe Team.TeamMemberList)
-  GetConversationConfig ::
-    GalleyAPIAccess m ConversationSubsystemConfig
   GuardLegalHold :: LegalholdProtectee -> UserClients -> GalleyAPIAccess m ()
   GetUserLHStatus :: Maybe TeamId -> UserId -> GalleyAPIAccess m UserLegalHoldStatus
   GetUsersLHStatus :: [UserId] -> GalleyAPIAccess m [(UserId, UserLegalHoldStatus)]

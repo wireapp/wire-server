@@ -31,7 +31,7 @@ import Wire.API.Conversation
 domain :: Domain
 domain = Domain "golden.example.com"
 
-testObject_ConversationsResponse_1 :: ConversationsResponse
+testObject_ConversationsResponse_1 :: ConversationsResponse GroupConvType
 testObject_ConversationsResponse_1 =
   ConversationsResponse
     { crFound = [testObject_Conversation_user_5, testObject_Conversation_user_3],

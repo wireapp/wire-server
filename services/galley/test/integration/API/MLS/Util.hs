@@ -426,7 +426,7 @@ hasClientGroupState cid =
 -- corresponding group.
 setupMLSGroupWithConv ::
   (HasCallStack) =>
-  MLSTest Conversation ->
+  MLSTest (Conversation GroupConvType) ->
   ClientIdentity ->
   MLSTest (GroupId, Qualified ConvId)
 setupMLSGroupWithConv convAction creator = do

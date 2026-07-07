@@ -749,7 +749,7 @@ toConversationCreated now lusr StoredConversation {metadata = ConversationMetada
 fromConversationCreated ::
   Local x ->
   ConversationCreated (Remote ConvId) ->
-  [(Public.Member, Public.OwnConversation)]
+  [(Public.Member, Public.OwnConversation GroupConvType)]
 fromConversationCreated loc rc@ConversationCreated {..} =
   let membersView = fmap (second Set.toList) . setHoles $ nonCreatorMembers
       creatorOther =
@@ -782,7 +782,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
           memHiddenRef = Nothing,
           memConvRoleName = Public.omConvRoleName m
         }
-    conv :: Public.Member -> [OtherMember] -> Public.OwnConversation
+    conv :: Public.Member -> [OtherMember] -> Public.OwnConversation GroupConvType
     conv this others =
       Public.OwnConversation
         (tUntagged cnvId)
@@ -1069,7 +1069,8 @@ notifyConversationCreated lusr conn conv joinType = do
             case conversationViewMaybe luid remoteOthers localOthers conv of
               Nothing -> pure Nothing
               Just ownConv -> do
-                let e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing (EdConversation ownConv)
+                let evtData = createConversationEventData ownConv
+                    e = Event (tUntagged . qualifyAs luid $ conv.id_) Nothing (EventFromUser (tUntagged lusr)) now Nothing evtData
                 pure $
                   Just
                     def

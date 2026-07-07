@@ -8,7 +8,6 @@
 , aeson-pretty
 , aeson-qq
 , amqp
-, asn1-encoding
 , async
 , attoparsec
 , barbies
@@ -30,6 +29,8 @@
 , containers
 , cookie
 , crypton
+, crypton-asn1-encoding
+, crypton-pem
 , crypton-x509
 , currency-codes
 , data-default
@@ -63,13 +64,11 @@
 , kan-extensions
 , lens
 , lib
-, memory
 , metrics-wai
 , mime
 , mtl
 , network-uri
 , openapi3
-, pem
 , polysemy
 , polysemy-wire-zoo
 , process
@@ -78,6 +77,7 @@
 , protobuf
 , QuickCheck
 , quickcheck-instances
+, ram
 , random
 , regex-base
 , regex-tdfa
@@ -132,7 +132,6 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amqp
-    asn1-encoding
     attoparsec
     barbies
     base
@@ -152,6 +151,8 @@ mkDerivation {
     containers
     cookie
     crypton
+    crypton-asn1-encoding
+    crypton-pem
     crypton-x509
     currency-codes
     data-default
@@ -181,13 +182,11 @@ mkDerivation {
     jose
     kan-extensions
     lens
-    memory
     metrics-wai
     mime
     mtl
     network-uri
     openapi3
-    pem
     polysemy
     polysemy-wire-zoo
     profunctors
@@ -195,6 +194,7 @@ mkDerivation {
     protobuf
     QuickCheck
     quickcheck-instances
+    ram
     random
     regex-base
     regex-tdfa
@@ -250,6 +250,7 @@ mkDerivation {
     cassava
     containers
     crypton
+    crypton-pem
     currency-codes
     filepath
     hex
@@ -261,13 +262,12 @@ mkDerivation {
     iso3166-country-codes
     iso639
     lens
-    memory
     metrics-wai
     openapi3
-    pem
     process
     proto-lens
     QuickCheck
+    ram
     random
     saml2-web-sso
     schema-profunctor
@@ -288,5 +288,5 @@ mkDerivation {
     wai
     wire-message-proto-lens
   ];
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

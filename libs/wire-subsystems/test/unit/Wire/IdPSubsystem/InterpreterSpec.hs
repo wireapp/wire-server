@@ -113,7 +113,7 @@ brigAPIAccessMockFn expectedEmail resUser uids handles emails havePending =
 spec :: Spec
 spec = describe "IdPSubsystem.Interpreter" $ do
   describe "getSsoCodeByEmail" $ do
-    prop "returns IdP for SCIM user with single IdP" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
+    prop "returns IdP for SCIM user with single IdP only if the domain fits" $ \(teamMember :: TeamMember) user userRef email teamId mbDomain -> do
       idp <- generate $ do
         -- Generate IdPs with and without fitting domain
         idp' <- arbitrary <&> SAML.idpExtraInfo . domain .~ mbDomain
@@ -142,7 +142,12 @@ spec = describe "IdPSubsystem.Interpreter" $ do
               (brigAPIAccessMockFn email userWithEmail)
               (getSsoCodeByEmail mbDomain email)
 
-      result `shouldBe` Right (Just idp._idpId)
+          expectedResult =
+            if (idp ^. SAML.idpExtraInfo . domain) == mbDomain
+              then Right (Just idp._idpId)
+              else Right Nothing
+
+      result `shouldBe` expectedResult
       expectedSevereLogs logs mempty
 
     prop "finds IdP for SCIM user by domain" $ \(teamMember :: TeamMember) user idp userRef email teamId dom otherIdPs ->

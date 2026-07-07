@@ -170,14 +170,15 @@ onConversationCreated domain rc = do
   let qrcConnected = qrc {nonCreatorMembers = connectedMembers}
 
   for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
-    let event =
+    let evtData = createConversationEventData c
+        event =
           Event
             (tUntagged (cnvId qrcConnected))
             Nothing
             (EventFromUser (tUntagged (ccRemoteOrigUserId qrcConnected)))
             qrcConnected.time
             Nothing
-            (EdConversation c)
+            evtData
     pushConversationEvent Nothing () event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
   pure EmptyResponse
 
@@ -727,7 +728,8 @@ deleteSubConversationForRemoteUser ::
     Member (Input (Local ())) r,
     Member Resource r,
     Member TeamSubsystem r,
-    Member E.MLSCommitLockStore r
+    Member E.MLSCommitLockStore r,
+    Member TinyLog r
   ) =>
   Domain ->
   DeleteSubConversationFedRequest ->

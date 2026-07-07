@@ -26,7 +26,6 @@ module Wire.API.Push.V2
     newPush,
     pushRecipients,
     pushOrigin,
-    pushConnections,
     pushOriginConnection,
     pushTransient,
     pushNativeIncludeOrigin,
@@ -255,11 +254,6 @@ data Push = Push
     --
     -- REFACTOR: where is this required, and for what?  or can it be removed?  (see also: #531)
     _pushOrigin :: !(Maybe UserId),
-    -- | Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
-    -- from '_pushRecipients' and only push to those contained in this set.
-    --
-    -- REFACTOR: change this to @_pushConnectionWhitelist :: Maybe (Set ConnId)@.
-    _pushConnections :: !(Set ConnId),
     -- | Originating connection, if any.
     _pushOriginConnection :: !(Maybe ConnId),
     -- | Transient payloads are not forwarded to the notification stream.
@@ -289,7 +283,6 @@ newPush from to pload =
   Push
     { _pushRecipients = to,
       _pushOrigin = from,
-      _pushConnections = Set.empty,
       _pushOriginConnection = Nothing,
       _pushTransient = False,
       _pushNativeIncludeOrigin = True,
@@ -309,8 +302,6 @@ instance ToSchema Push where
       Push
         <$> _pushRecipients .= field "recipients" (set schema)
         <*> _pushOrigin .= maybe_ (optField "origin" schema)
-        <*> (ifNot Set.null . _pushConnections)
-          .= maybe_ (fmap (fromMaybe mempty) (optField "connections" (set schema)))
         <*> _pushOriginConnection .= maybe_ (optField "origin_connection" schema)
         <*> (ifNot not . _pushTransient)
           .= maybe_

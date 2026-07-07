@@ -48,7 +48,7 @@ data:
       enableTls: {{ .redis.enableTls }}
       insecureSkipVerifyTls: {{ .redis.insecureSkipVerifyTls }}
       {{- if eq (include "gundeck.configureRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "gundeck.redisTlsSecretKey" .}}
+      tlsCa: /etc/wire/gundeck/redis-ca/{{ include "gundeck.redisTlsSecretKey" . }}
       {{- end }}
 
     {{- if .redisAdditionalWrite }}
@@ -59,7 +59,7 @@ data:
       enableTls: {{ .redisAdditionalWrite.enableTls }}
       insecureSkipVerifyTls: {{ .redisAdditionalWrite.insecureSkipVerifyTls }}
       {{- if eq (include "gundeck.configureAdditionalRedisCa" .) "true" }}
-      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "gundeck.additionalRedisTlsSecretKey" .}}
+      tlsCa: /etc/wire/gundeck/additional-redis-ca/{{ include "gundeck.additionalRedisTlsSecretKey" . }}
       {{- end }}
     {{- end }}
 

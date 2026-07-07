@@ -74,7 +74,7 @@ data ConversationStore m a where
   GetConversations :: [ConvId] -> ConversationStore m [StoredConversation]
   GetLocalConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> ConversationStore m (ResultSet ConvId)
   GetRemoteConversationIds :: UserId -> Maybe (Remote ConvId) -> Range 1 1000 Int32 -> ConversationStore m (ResultSet (Remote ConvId))
-  GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
+  GetConversationMetadata :: ConvId -> ConversationStore m (Maybe (ConversationMetadata GroupConvType))
   GetGroupInfo :: ConvId -> ConversationStore m (Maybe GroupInfoData)
   -- FUTUREWORK: This is only relevant for Convs in Cassandra, we can delete it
   -- once we delete the Cassandra interpreter

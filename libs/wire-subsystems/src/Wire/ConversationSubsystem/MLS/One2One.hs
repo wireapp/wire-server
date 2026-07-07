@@ -46,7 +46,7 @@ import Wire.UserList
 localMLSOne2OneConversation ::
   Local UserId ->
   Local ConvId ->
-  OwnConversation
+  OwnConversation GroupConvType
 localMLSOne2OneConversation lself (tUntagged -> convId) =
   let members =
         OwnConvMembers
@@ -82,7 +82,7 @@ localMLSOne2OneConversationAsRemote lcnv =
 
 localMLSOne2OneConversationMetadata ::
   Qualified ConvId ->
-  (ConversationMetadata, ConversationMLSData)
+  (ConversationMetadata GroupConvType, ConversationMLSData)
 localMLSOne2OneConversationMetadata convId =
   let metadata =
         (defConversationMetadata Nothing)
@@ -102,7 +102,7 @@ remoteMLSOne2OneConversation ::
   Local UserId ->
   Remote UserId ->
   RemoteMLSOne2OneConversation ->
-  (MLSOne2OneConversation MLSPublicKey)
+  (MLSOne2OneConversation MLSPublicKey GroupConvType)
 remoteMLSOne2OneConversation lself rother rc =
   let members =
         OwnConvMembers

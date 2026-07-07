@@ -479,7 +479,7 @@ testAddRemotesSomeUnreachable = do
       $ localPostCommitBundle (mpSender commit) bundle
         <!! const 533 === statusCode
 
-    convAfter <- responseJsonError =<< getConvQualified (qUnqualified alice) qcnv
+    convAfter :: OwnConversation GroupConvType <- responseJsonError =<< getConvQualified (qUnqualified alice) qcnv
     liftIO $ do
       memId (cmSelf (cnvMembers convAfter)) @?= alice
       cmOthers (cnvMembers convAfter) @?= []

@@ -25,9 +25,12 @@ import Data.Misc
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.CodeStore (CodeStore (..))
 import Wire.CodeStore qualified as CodeStore
 import Wire.CodeStore.Cassandra qualified as Cassandra
+import Wire.CodeStore.Code (CodeReferent (..), codeReferent)
 import Wire.CodeStore.Postgres qualified as Postgres
 import Wire.Postgres (PGConstraints)
 
@@ -35,6 +38,7 @@ import Wire.Postgres (PGConstraints)
 interpretCodeStoreToCassandraAndPostgres ::
   ( Member (Input ClientState) r,
     Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (ErrorS 'CodeStoreNotFound) r,
     PGConstraints r
   ) =>
   Sem (CodeStore ': r) a ->
@@ -43,14 +47,18 @@ interpretCodeStoreToCassandraAndPostgres = interpret $ \case
   GetCode k -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.getCode k
   CreateCode code mPw -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.createCode code mPw
+    case codeReferent code of
+      CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.createCode code mPw
+      CodeReferentMeeting _ -> pure ()
     Postgres.interpretCodeStoreToPostgres $ CodeStore.createCode code mPw
   DeleteCode k -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.deleteCode k
     Postgres.interpretCodeStoreToPostgres $ CodeStore.deleteCode k
-  MakeKey cid -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey cid
-  GenerateCode cid t -> do
-    Cassandra.interpretCodeStoreToCassandra $ CodeStore.generateCode cid t
+  MakeKey ref -> case ref of
+    CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.makeKey ref
+    CodeReferentMeeting _ -> Postgres.interpretCodeStoreToPostgres $ CodeStore.makeKey ref
+  GenerateCode ref t -> case ref of
+    CodeReferentConv _ -> Cassandra.interpretCodeStoreToCassandra $ CodeStore.generateCode ref t
+    CodeReferentMeeting _ -> Postgres.interpretCodeStoreToPostgres $ CodeStore.generateCode ref t
   GetConversationCodeURI mbHost -> do
     Cassandra.interpretCodeStoreToCassandra $ CodeStore.getConversationCodeURI mbHost

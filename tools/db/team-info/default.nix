@@ -34,6 +34,6 @@ mkDerivation {
   ];
   executableHaskellDepends = [ base ];
   description = "get team info from cassandra";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
   mainProgram = "team-info";
 }

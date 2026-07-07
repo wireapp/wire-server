@@ -32,7 +32,7 @@ import Control.Concurrent.Async (Async, async)
 import Control.Monad.Catch qualified as Catch
 import Control.Retry
 import Database.Redis
-import Gundeck.Redis.HedisExtensions
+import Database.Redis.Connection (ClusterDownError)
 import Imports
 import System.Logger qualified as Log
 import System.Logger.Class (MonadLogger)

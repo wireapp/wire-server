@@ -9,6 +9,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
+import MLS.Util
+import Notifications (isConvCreateMeetingNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -41,10 +43,13 @@ testMeetingCreate = do
       endTime = addUTCTime 7200 now
       newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
 
-  resp <- postMeetings owner newMeeting
-  assertSuccess resp
+  meeting <-
+    withWebSocket owner $ \ws -> do
+      resp <- postMeetings owner newMeeting
+      assertSuccess resp
+      void $ awaitMatch isConvCreateMeetingNotif ws
+      getJSON 201 resp
 
-  meeting <- getJSON 201 resp
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
   meeting %. "invited_emails" `shouldMatch` (["alice@example.com", "bob@example.com"] :: [String])
@@ -56,6 +61,37 @@ testMeetingCreate = do
 
   fetchedMeeting <- getJSON 200 r2
   fetchedMeeting %. "title" `shouldMatch` ("Team Standup" :: String)
+
+-- Regression: meeting conversations must grant InviteAccess so that MLS
+-- commits adding participants succeed. Without InviteAccess, Galley rejects
+-- the join in performConversationJoin (ensureAccess conv InviteAccess) with
+-- 403 access-denied.
+testMeetingMLSAddParticipant :: (HasCallStack) => App ()
+testMeetingMLSAddParticipant = do
+  (alice, _tid, [bob]) <- createTeam OwnDomain 2
+  alice1 <- createMLSClient def alice
+  bob1 <- createMLSClient def bob
+  _ <- uploadNewKeyPackage def bob1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "MLS Meeting" startTime endTime []
+
+  meeting <- postMeetings alice newMeeting >>= getJSON 201
+  convQid <- meeting %. "qualified_conversation"
+
+  conv <- getConversation alice convQid >>= getJSON 200
+  convId <- objConvId conv
+  createGroup def alice1 convId
+
+  -- Before the fix, this add commit fails with 403 access-denied at the
+  -- server (getJSON 201 below throws). After the fix it succeeds.
+  void $ createAddCommit alice1 convId [bob] >>= sendAndConsumeCommitBundle
+
+  bindResponse (getConversation alice convQid) $ \res -> do
+    res.status `shouldMatchInt` 200
+    (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
+    res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
@@ -318,6 +354,57 @@ testMeetingRemoveInvitationNotFound = do
 
   deleteMeetingInvitation owner "example.com" fakeMeetingId removeInvitation >>= assertStatus 404
 
+testMeetingReplaceInvitation :: (HasCallStack) => App ()
+testMeetingReplaceInvitation = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ["charlie@example.com"]]
+  putMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
+  updated <- getMeeting owner domain meetingId >>= getJSON 200
+  updated %. "invited_emails" `shouldMatch` ["charlie@example.com"]
+
+testMeetingReplaceInvitationEmpty :: (HasCallStack) => App ()
+testMeetingReplaceInvitationEmpty = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com", "bob@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ([] :: [String])]
+  putMeetingInvitation owner domain meetingId invitation >>= assertStatus 200
+  updated <- getMeeting owner domain meetingId >>= getJSON 200
+  updated %. "invited_emails" `shouldMatch` ([] :: [String])
+
+testMeetingReplaceInvitationNotFound :: (HasCallStack) => App ()
+testMeetingReplaceInvitationNotFound = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  fakeMeetingId <- randomId
+  let invitation = object ["emails" .= ["bob@example.com"]]
+  putMeetingInvitation owner "example.com" fakeMeetingId invitation >>= assertStatus 404
+
+testMeetingReplaceInvitationUnauthorized :: (HasCallStack) => App ()
+testMeetingReplaceInvitationUnauthorized = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  (otherUser, _, _) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "Team Standup" startTime endTime ["alice@example.com"]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+  let invitation = object ["emails" .= ["eve@example.com"]]
+  putMeetingInvitation otherUser domain meetingId invitation >>= assertStatus 404
+
 testMeetingDelete :: (HasCallStack) => App ()
 testMeetingDelete = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -456,3 +543,46 @@ testMeetingExpiration = do
 
   -- Check it is expired
   getMeeting owner domain meetingId >>= assertStatus 404
+
+-- A recurring meeting whose original time slot has passed but whose
+-- recurrence window is still open must remain visible in the list (and via
+-- get-meeting) after the meeting validity period elapses.
+testMeetingListRecurringNotExpired :: (HasCallStack) => App ()
+testMeetingListRecurringNotExpired = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  -- endTime = now: it only becomes "past" after the threadDelay below;
+  -- the recurrence window stays open for 30 days.
+  -- meetingValidityPeriodSeconds is 5s in galley.integration.yaml.
+  let startTime = addUTCTime (negate 3600) now
+      endTime = now
+      recurrenceUntil = Time.formatTime Time.defaultTimeLocale "%FT%TZ" $ addUTCTime (30 * nominalDay) now
+      recurrence =
+        object
+          [ "frequency" .= "daily",
+            "interval" .= (1 :: Int),
+            "until" .= recurrenceUntil
+          ]
+      newMeeting =
+        object
+          [ "title" .= "Recurring Past Meeting",
+            "start_time" .= startTime,
+            "end_time" .= endTime,
+            "recurrence" .= recurrence,
+            "invited_emails" .= ([] :: [String])
+          ]
+
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Wait beyond the validity period so a non-recurring meeting would expire.
+  liftIO $ threadDelay 6_000_000
+
+  -- Still accessible directly.
+  getMeeting owner domain meetingId >>= assertStatus 200
+
+  -- Still listed.
+  resp <- getMeetingsList owner
+  assertSuccess resp
+  meetings <- resp.json & asList
+  length meetings `shouldMatchInt` 1

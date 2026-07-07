@@ -48,12 +48,12 @@ spec:
     - name: elasticsearch-ca
       secret:
         secretName: {{ include "brig.elasticsearchTlsSecretName" .Values.brig.config }}
-    {{- end}}
+    {{- end }}
     {{- if eq (include "useCassandraTLS" .Values.brig.config.cassandra) "true" }}
     - name: "brig-cassandra"
       secret:
         secretName: {{ (include "brig.tlsSecretRef" .Values.brig.config | fromYaml).name }}
-    {{- end}}
+    {{- end }}
     {{- if .Values.brig.config.rabbitmq.tlsCaSecretRef }}
     - name: "rabbitmq-ca"
       secret:
@@ -119,7 +119,7 @@ spec:
     {{- if eq (include "brig.configureElasticSearchCa" .Values.brig.config) "true" }}
     - name: elasticsearch-ca
       mountPath: "/etc/wire/brig/elasticsearch-ca"
-    {{- end}}
+    {{- end }}
     {{- if eq (include "useCassandraTLS" .Values.brig.config.cassandra) "true" }}
     - name: "brig-cassandra"
       mountPath: "/etc/wire/brig/cassandra"

@@ -278,6 +278,9 @@ randomUserId domain = do
   uid <- randomId
   pure $ object ["id" .= uid, "domain" .= d]
 
+randomConnId :: (HasCallStack) => App String
+randomConnId = show <$> randomIO @Word32
+
 withFederatingBackendsAllowDynamic :: (HasCallStack) => ((String, String, String) -> App a) -> App a
 withFederatingBackendsAllowDynamic k = do
   let setFederationConfig =
@@ -745,14 +748,9 @@ activateEmail domain email = do
 
 registerInvitedUser :: (HasCallStack, MakesValue domain) => domain -> String -> String -> App ()
 registerInvitedUser domain tid email = do
-  getInvitationByEmail domain email
-    >>= getJSON 200
-    >>= getInvitationCodeForTeam domain tid
-    >>= getJSON 200
-    >>= (%. "code")
-    >>= asString
-    >>= registerUser domain email
-    >>= assertSuccess
+  code <- getInvitationByEmail domain email >>= getJSON 200 >>= getInvitationCodeForTeam domain tid >>= getJSON 200 >>= (%. "code") >>= asString
+  name <- getInvitationByCode domain code >>= getJSON 200 >>= flip lookupField "name" >>= maybe (pure "Alice") asString
+  registerUserWith domain email code name >>= assertSuccess
 
 getMetrics :: (HasCallStack, MakesValue domain) => domain -> Service -> App Response
 getMetrics domain service = do

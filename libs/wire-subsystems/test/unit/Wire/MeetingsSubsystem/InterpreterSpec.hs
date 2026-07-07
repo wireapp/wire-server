@@ -39,6 +39,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
+import Wire.API.Conversation (Access (InviteAccess, PrivateAccess))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Meeting qualified as API
@@ -150,6 +151,30 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         meeting.title `shouldBe` fromJust (checked "Test Meeting")
         fetched `shouldBe` Just meeting
 
+  it "creates meeting conversation with invite access for MLS participant adds" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Access Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ do
+      (_meeting, conv) <- createMeeting zUser newMeeting
+      pure (convAccess conv)
+
+    case result of
+      Left err -> fail $ "Error: " <> show err
+      Right access -> do
+        PrivateAccess `elem` access `shouldBe` True
+        InviteAccess `elem` access `shouldBe` True
+
   it "fails to create a meeting if end time is before start time" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -179,7 +204,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamId = Id $ read "00000000-0000-0000-0000-000000000100"
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
-        teamConfig = npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        teamConfig = npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
 
     it "returns Nothing for expired meeting" $ do
       let newMeeting =
@@ -282,10 +307,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamId = Id $ read "00000000-0000-0000-0000-000000000100"
         teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate
-            @MeetingsPremiumConfig
-            (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
-            def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            $ def
         newMeeting =
           API.NewMeeting
             { title = fromJust $ checked "Team Premium Meeting",
@@ -309,10 +333,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamId = Id $ read "00000000-0000-0000-0000-000000000100"
         teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate
-            @MeetingsPremiumConfig
-            (LockableFeature FeatureStatusDisabled LockStatusUnlocked def)
-            def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def)
+            $ def
         newMeeting =
           API.NewMeeting
             { title = fromJust $ checked "Team Free Meeting",
@@ -339,7 +362,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
 
     it "throws EmptyUpdate when no fields provided" $ do
       let newMeeting =
@@ -453,7 +476,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         testConnId = ConnId (C.pack "test-conn")
 
     it "returns True for successful deletion by creator" $ do
@@ -561,7 +584,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         email1 = unsafeEmailAddress "user1" "example.com"
         email2 = unsafeEmailAddress "user2" "example.com"
 
@@ -640,7 +663,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         email1 = unsafeEmailAddress "user1" "example.com"
         email2 = unsafeEmailAddress "user2" "example.com"
         email3 = unsafeEmailAddress "user3" "example.com"
@@ -754,6 +777,289 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           removeInvitedEmails zUser1 nonExistentId [email1]
 
       result `shouldBe` Right False
+
+  describe "replaceInvitedEmails" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+        email1 = unsafeEmailAddress "user1" "example.com"
+        email2 = unsafeEmailAddress "user2" "example.com"
+        email3 = unsafeEmailAddress "user3" "example.com"
+
+    it "returns True and replaces emails for creator of valid meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Test Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = [email1, email2]
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        success <- replaceInvitedEmails zUser1 meeting.id [email3]
+        fetched <- getMeeting zUser1 meeting.id
+        pure (success, fetched)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (success, Just m) -> do
+          success `shouldBe` True
+          m.invitedEmails `shouldBe` [email3]
+        Right (_, Nothing) -> fail "Expected Just meeting"
+
+    it "returns True when replacing with an empty list" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Test Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = [email1, email2]
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        success <- replaceInvitedEmails zUser1 meeting.id []
+        fetched <- getMeeting zUser1 meeting.id
+        pure (success, fetched)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (success, Just m) -> do
+          success `shouldBe` True
+          m.invitedEmails `shouldBe` []
+        Right (_, Nothing) -> fail "Expected Just meeting"
+
+    it "deduplicates emails when replacing (mirrors Postgres semantics)" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Test Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = [email1, email2]
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        success <- replaceInvitedEmails zUser1 meeting.id [email3, email3, email1]
+        fetched <- getMeeting zUser1 meeting.id
+        pure (success, fetched)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (success, Just m) -> do
+          success `shouldBe` True
+          m.invitedEmails `shouldBe` [email3, email1]
+        Right (_, Nothing) -> fail "Expected Just meeting"
+
+    it "returns False for expired meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime (-7200) now,
+                endTime = addUTCTime (-5000) now,
+                recurrence = Nothing,
+                invitedEmails = [email1]
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        replaceInvitedEmails zUser1 meeting.id [email2]
+
+      result `shouldBe` Right False
+
+    it "returns False for non-creator" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Non-creator Test",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = [email1, email2]
+              }
+
+      result <- runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+        (meeting, _conv) <- createMeeting zUser1 newMeeting
+        replaceInvitedEmails zUser2 meeting.id [email3]
+
+      result `shouldBe` Right False
+
+    it "returns False for non-existent meeting" $ do
+      let nonExistentId = Qualified (Id $ read "00000000-0000-0000-0000-000000000999") (Domain "wire.com")
+
+      result <-
+        runTestStack now gen Map.empty teamConfig $
+          replaceInvitedEmails zUser1 nonExistentId [email1]
+
+      result `shouldBe` Right False
+
+  describe "recurrence vs expiry" $ do
+    -- validityPeriod in runTestStack is 3600s, so a meeting whose endTime is
+    -- more than 1h in the past is treated as expired unless its recurrence
+    -- window keeps it alive.
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
+            $ def
+        -- endTime (now-5000) is well past the validity cutoff (now-3600).
+        expiredNewMeeting r =
+          API.NewMeeting
+            { title = fromJust $ checked "Recurring Meeting",
+              startTime = addUTCTime (-7200) now,
+              endTime = addUTCTime (-5000) now,
+              recurrence = r,
+              invitedEmails = []
+            }
+        boundedRecurrence =
+          Just $
+            API.Recurrence
+              { freq = API.Daily,
+                interval = 1,
+                until = Just (addUTCTime (30 * nominalDay) now)
+              }
+        openEndedRecurrence =
+          Just $
+            API.Recurrence
+              { freq = API.Daily,
+                interval = 1,
+                until = Nothing
+              }
+
+    it "getMeeting returns a recurring meeting whose slot passed but window is open" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          getMeeting zUser meeting.id
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just meeting (recurrence window still open)"
+        Right (Just _) -> pure ()
+
+    it "listMeetings includes a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (_meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          listMeetings zUser
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right xs -> length xs `shouldBe` 1
+
+    it "updateMeeting succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          updateMeeting zUser meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+      fmap isJust result `shouldBe` Right True
+
+    it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          addInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+      result `shouldBe` Right True
+
+    it "deleteMeeting succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          deleteMeeting zUser (ConnId "test-conv") meeting.id
+      result `shouldBe` Right True
+
+    it "removeInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          removeInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+      result `shouldBe` Right True
+
+    it "replaceInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          replaceInvitedEmails zUser meeting.id [unsafeEmailAddress "user" "example.com"]
+      result `shouldBe` Right True
+
+    it "getMeeting returns an open-ended recurring meeting indefinitely" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          getMeeting zUser meeting.id
+      fmap isJust result `shouldBe` Right True
+
+    it "cleanupOldMeetings skips recurring meetings whose window is still open" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (recurring, _conv1) <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          (_plain, _conv2) <- createMeeting zUser (expiredNewMeeting Nothing)
+          deleted <- cleanupOldMeetings (addUTCTime (negate 1) now) 100
+          remaining <- getMeeting zUser recurring.id
+          pure (deleted, fmap (.id) remaining, recurring.id)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (deleted, remainingId, recurringId) -> do
+          -- only the non-recurring meeting is past the cleanup cutoff
+          deleted `shouldBe` 1
+          remainingId `shouldBe` Just recurringId
+
+    it "cleanupOldMeetings never picks up open-ended recurring meetings" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          (meeting, _conv) <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          deleted <- cleanupOldMeetings now 100
+          remaining <- getMeeting zUser meeting.id
+          pure (deleted, fmap (.id) remaining, meeting.id)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (deleted, remainingId, meetingId) -> do
+          deleted `shouldBe` 0
+          remainingId `shouldBe` Just meetingId
+
+    prop "aliveness follows effectiveEndTime across get/list/cleanup" $
+      \(recurrence :: Maybe API.Recurrence) (endOffset :: Int) ->
+        let endTime = addUTCTime (fromIntegral endOffset) now
+            startTime = addUTCTime (negate 3600) endTime
+            nm =
+              API.NewMeeting
+                { title = fromJust $ checked "Recurring Meeting",
+                  startTime = startTime,
+                  endTime = endTime,
+                  recurrence = recurrence,
+                  invitedEmails = []
+                }
+            effEnd = maybe (Just endTime) (\r -> max endTime <$> r.until) recurrence
+            cutoff = addUTCTime (negate 3600) now
+            alive = maybe True (>= cutoff) effEnd
+         in ioProperty $ do
+              result <-
+                runTestStack now gen Map.empty teamConfig $ do
+                  (meeting, _conv) <- createMeeting zUser nm
+                  fetched <- isJust <$> getMeeting zUser meeting.id
+                  listedCount <- length <$> listMeetings zUser
+                  deleted <- cleanupOldMeetings cutoff 100
+                  remains <- isJust <$> getMeeting zUser meeting.id
+                  pure (fetched, listedCount, deleted, remains)
+              pure $ case result of
+                Left err -> counterexample ("Unexpected error: " <> show err) False
+                Right (fetched, listedCount, deleted, remains) ->
+                  (fetched === alive)
+                    .&&. (listedCount === if alive then 1 else 0)
+                    .&&. (deleted === if alive then 0 else 1)
+                    .&&. (remains === alive)
 
   describe "checkMeetingsEnabled" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
@@ -877,5 +1183,20 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           result2 <-
             runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
               removeInvitedEmails zUserTeam meeting.id [unsafeEmailAddress "test" "example.com"]
+
+          result2 `shouldBe` Left MeetingsFeatureDisabled
+
+    it "throws MeetingsFeatureDisabled on replaceInvitedEmails for team user with meetings disabled" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $ do
+          (meeting, _conv) <- createMeeting zUserTeam newMeeting
+          pure meeting
+
+      case result of
+        Left err -> fail $ "Failed to create meeting: " <> show err
+        Right meeting -> do
+          result2 <-
+            runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
+              replaceInvitedEmails zUserTeam meeting.id [unsafeEmailAddress "test" "example.com"]
 
           result2 `shouldBe` Left MeetingsFeatureDisabled

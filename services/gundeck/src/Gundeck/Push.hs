@@ -450,18 +450,11 @@ compilePushResps notifIdMap (Map.fromList -> deliveries) =
 -- | Is 'PushTarget' the origin of the 'Push', or is missing in a non-empty whitelist?  (Whitelists
 -- reside both in 'Push' itself and in each 'Recipient').
 shouldActuallyPush :: Push -> Recipient -> Presence -> Bool
-shouldActuallyPush psh rcp pres = not isOrigin && okByPushAllowlist && okByRecipientAllowlist
+shouldActuallyPush psh rcp pres = not isOrigin && okByRecipientAllowlist
   where
     isOrigin =
       psh ^. pushOrigin == Just (userId pres)
         && psh ^. pushOriginConnection == Just (connId pres)
-
-    okByPushAllowlist :: Bool
-    okByPushAllowlist = not allowlistExists || isAllowlisted
-      where
-        allowlist = psh ^. pushConnections
-        allowlistExists = not $ Set.null allowlist
-        isAllowlisted = connId pres `Set.member` allowlist
 
     okByRecipientAllowlist :: Bool
     okByRecipientAllowlist =
@@ -508,15 +501,10 @@ nativeTargets psh rcps' dontPush =
       | Just (a ^. addrUser) == psh ^. pushOrigin && Just (a ^. addrConn) == psh ^. pushOriginConnection = False
       -- Is the specific client an intended recipient?
       | not (eligibleClient a (u ^. recipientClients)) = False
-      -- Is the client not whitelisted?
-      | not (whitelistedOrNoWhitelist a) = False
       -- Include client if not found in already served presences.
       | otherwise = not $ List.elem (a ^. addrUser, a ^. addrClient) dontPush --  (List.find (isOnline a) alreadySent)
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a ^. addrClient) `elem` cs
-    whitelistedOrNoWhitelist a =
-      null (psh ^. pushConnections)
-        || a ^. addrConn `elem` psh ^. pushConnections
 
     check :: Either SomeException [a] -> m [a]
     check (Left e) = mntgtLogErr e >> pure []

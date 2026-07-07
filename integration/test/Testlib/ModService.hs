@@ -26,6 +26,7 @@ module Testlib.ModService
     defaultOverrides,
     readAndUpdateConfig,
     logToConsole,
+    warmupFederation,
   )
 where
 
@@ -266,8 +267,35 @@ defaultOverrides resource =
     setMlsPrivateKeyPaths :: ServiceOverrides
     setMlsPrivateKeyPaths =
       def
-        { galleyCfg = setField "settings.mlsPrivateKeyPaths" resource.berMlsPrivateKeyPaths
+        { galleyCfg = \cfg -> do
+            paths <- localMlsPrivateKeyPaths resource.berMlsPrivateKeyPaths
+            setField "settings.mlsPrivateKeyPaths" paths cfg
         }
+
+    localMlsPrivateKeyPaths :: Value -> App Value
+    localMlsPrivateKeyPaths paths = do
+      asks
+        ( ( \case
+              Nothing -> paths
+              Just servicesCwdBase ->
+                absolutizeRelativeJsonStrings (servicesCwdBase </> "galley") paths
+          )
+            . ((.servicesCwdBase))
+        )
+
+    -- Galley and background-worker both read this Galley config, but local
+    -- binaries run with different service-specific working directories. Use
+    -- absolute paths locally while leaving external/CI configs untouched.
+    absolutizeRelativeJsonStrings :: FilePath -> Value -> Value
+    absolutizeRelativeJsonStrings base = \case
+      String path
+        | isRelative (Text.unpack path) ->
+            String . Text.pack . normalise $ base </> Text.unpack path
+      Object objectValue ->
+        Object (absolutizeRelativeJsonStrings base <$> objectValue)
+      Array array ->
+        Array (absolutizeRelativeJsonStrings base <$> array)
+      value -> value
 
     setLogLevel :: ServiceOverrides
     setLogLevel =
@@ -402,34 +430,45 @@ parseLsof output =
 ensureBackendReachable :: (HasCallStack) => String -> App ()
 ensureBackendReachable domain = do
   env <- ask
-  let checkServiceIsUpReq :: (HasCallStack) => App Bool
-      checkServiceIsUpReq = do
-        req <-
-          rawBaseRequest
-            env.domain1
-            FederatorInternal
-            Unversioned
-            ("/rpc/" <> domain <> "/brig/api-version")
-            <&> (addHeader "Wire-Origin-Domain" env.domain1)
-              . (addJSONObject [])
-        checkStatus <- appToIO $ do
-          submit "POST" req `bindResponse` \res -> do
-            -- If we get 533 here it means federation is not available between domains
-            -- but ingress is working, since we're processing the request.
-            let is200 = res.status == 200
-            mInner <- lookupField res.json "inner"
-            isFedDenied <- case mInner of
-              Nothing -> pure False
-              Just inner -> do
-                label <- inner %. "label" & asString
-                pure $ res.status == 533 && label == "federation-denied"
+  -- The new backend must be reachable via federation from every origin
+  -- domain that will fan out to it. The migration test, for example,
+  -- creates federated conversations from both 'domain1' and 'domain2', so
+  -- checking ingress from 'domain1' alone (as before) leaves a race where
+  -- federation from the other origin is not yet warm when the test bursts.
+  let origins = [env.domain1, env.domain2]
+      checkAll = and <$> traverse (\origin -> checkFederationIngress origin domain) origins
+  unless (domain == env.domain1 || domain == env.domain2) $
+    retryRequestUntil checkAll "Federator ingress"
 
-            pure (is200 || isFedDenied)
-        eith <- liftIO (E.try checkStatus)
-        pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
-
-  when ((domain /= env.domain1) && (domain /= env.domain2)) $ do
-    retryRequestUntil checkServiceIsUpReq "Federator ingress"
+-- | Probe the federator ingress from @origin@ to @target@ by issuing the
+-- versioned-federation API-version RPC.  Returns 'True' on a 200 response or a
+-- @533 federation-denied@ response: the latter proves that the ingress itself is
+-- working even when federation between the two domains is disabled (so the
+-- request reaches the target and is processed).  Any transport-level failure
+-- (e.g. a cold federator connection returning 521/525/533 transport errors) is
+-- treated as "not yet warm" by catching the resulting 'HTTP.HttpException'.
+checkFederationIngress :: (HasCallStack) => String -> String -> App Bool
+checkFederationIngress origin target = do
+  req <-
+    rawBaseRequest
+      origin
+      FederatorInternal
+      Unversioned
+      ("/rpc/" <> target <> "/brig/api-version")
+      <&> (addHeader "Wire-Origin-Domain" origin)
+        . (addJSONObject [])
+  checkStatus <- appToIO $ do
+    submit "POST" req `bindResponse` \res -> do
+      let is200 = res.status == 200
+      mInner <- lookupField res.json "inner"
+      isFedDenied <- case mInner of
+        Nothing -> pure False
+        Just inner -> do
+          label <- inner %. "label" & asString
+          pure $ res.status == 533 && label == "federation-denied"
+      pure (is200 || isFedDenied)
+  eith <- liftIO (E.try checkStatus)
+  pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
 
 processColors :: [(String, String -> String)]
 processColors =
@@ -450,10 +489,24 @@ data BackendRuntimeFiles = BackendRuntimeFiles
     nginzWorkingDir :: FilePath
   }
 
+-- | Minimum cumulative budget (microseconds) to wait for a service to come up.
+--
+-- A service such as the background-worker cold-connects to several dependencies
+-- (Cassandra x3, RabbitMQ over TLS x2) before binding its HTTP port. The fixed
+-- 4s budget used previously was far too tight under CI load and caused spurious
+-- "Timed out waiting for service ... to come up" failures (empty stdout/stderr
+-- and no exit code, i.e. a hang in startup rather than a crash). This floor can
+-- still be raised via @TEST_TIMEOUT_SECONDS@.
+serviceStartupDelayFloor :: Int
+serviceStartupDelayFloor = 60 * 1000 * 1000
+
 -- | Wait for a service to come up.
 waitUntilServiceIsUp :: (HasCallStack) => Maybe ProcessDebug -> String -> Service -> App ()
-waitUntilServiceIsUp mDebug domain srv =
+waitUntilServiceIsUp mDebug domain srv = do
+  env <- ask
+  let comeUpDelay = max serviceStartupDelayFloor (env.timeOutSeconds * 1_000_000)
   retryRequestUntilDebug
+    comeUpDelay
     mDebug
     (checkServiceIsUp domain srv)
     (show srv)
@@ -601,8 +654,33 @@ logToConsoleDebug mOutput colorize prefix hdl = do
           `E.catch` (\(_ :: E.IOException) -> pure ())
   go
 
+-- | Cumulative budget (microseconds) for the federator-ingress readiness
+-- checks. A freshly started
+-- backend may need a few TLS handshakes before it answers federated calls
+-- reliably.
+federatorIngressDelay :: Int
+federatorIngressDelay = 30 * 1000 * 1000
+
+-- | Pre-warm the static 'domain1' <-> 'domain2' federation path once, before
+-- the test suite bursts. 'ensureBackendReachable' only warms /dynamic/ backends
+-- (it skips the two static domains), so the very first cross-domain call
+-- between them can fail with a transient federator-transport error
+-- (521 connection refused, 525 SSL, 533 unreachable backend). Polling the
+-- federator ingress in both directions here removes that cold-start race
+-- globally, rather than retrying individual requests whose execution order is
+-- not guaranteed.
+warmupFederation :: (HasCallStack) => App ()
+warmupFederation = do
+  env <- ask
+  let checkBoth =
+        and
+          <$> traverse
+            (uncurry checkFederationIngress)
+            [(env.domain1, env.domain2), (env.domain2, env.domain1)]
+  retryRequestUntil checkBoth "Static federator ingress (domain1 <-> domain2)"
+
 retryRequestUntil :: (HasCallStack) => ((HasCallStack) => App Bool) -> String -> App ()
-retryRequestUntil = retryRequestUntilDebug Nothing
+retryRequestUntil = retryRequestUntilDebug federatorIngressDelay Nothing
 
 data ProcessDebug = ProcessDebug
   { phRef :: IORef (Maybe ProcessHandle),
@@ -610,11 +688,11 @@ data ProcessDebug = ProcessDebug
     stdErr :: IORef [String]
   }
 
-retryRequestUntilDebug :: (HasCallStack) => Maybe ProcessDebug -> ((HasCallStack) => App Bool) -> String -> App ()
-retryRequestUntilDebug mProcessDebug reqAction err = do
+retryRequestUntilDebug :: (HasCallStack) => Int -> Maybe ProcessDebug -> ((HasCallStack) => App Bool) -> String -> App ()
+retryRequestUntilDebug comeUpDelay mProcessDebug reqAction err = do
   isUp <-
     retrying
-      (limitRetriesByCumulativeDelay (4 * 1000 * 1000) (fibonacciBackoff (200 * 1000)))
+      (limitRetriesByCumulativeDelay comeUpDelay (fibonacciBackoff (200 * 1000)))
       (\_ isUp -> pure (not isUp))
       (const reqAction)
   unless isUp $ do
@@ -761,6 +839,8 @@ replaceUpstreamsInConfig nginxConf sm =
     removeUpstreamBlocks :: Text.Text
     removeUpstreamBlocks =
       replaceAll "" $
+        -- regex-tdfa does unfortunately not support shorthands for character classes.
+        -- regex-tdfa does unfortunately not support shorthands for character classes.
         -- regex-tdfa does unfortunately not support shorthands for character classes.
         nginxConf *=~ [re|upstream[[:blank:]]+[[:word:]]+([[:blank:]]|[[:cntrl:]])+{([^}]|[[:cntrl:]])+}|]
 

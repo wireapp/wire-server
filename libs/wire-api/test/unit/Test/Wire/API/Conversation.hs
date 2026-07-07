@@ -23,7 +23,7 @@ module Test.Wire.API.Conversation where
 import Data.Set qualified as Set
 import Imports
 import Test.Tasty
-import Test.Tasty.QuickCheck (testProperty, (===))
+import Test.Tasty.QuickCheck (testProperty, (.&&.), (===))
 import Wire.API.Conversation hiding (AddPermissionUpdate)
 import Wire.API.Event.Conversation
 
@@ -33,7 +33,12 @@ tests =
     "Conversation"
     [ accessRoleFromLegacyToV2ToLegacy,
       accessRoleFromV2ToLegacyToV2,
-      testIsCellsConversationEvent
+      testIsCellsConversationEvent,
+      testToLegacyConversationMetadata,
+      testToLegacyOwnConversation,
+      testToLegacyConversation,
+      testToLegacyConversationsResponse,
+      testIsMeetingConversation
     ]
 
 accessRoleFromLegacyToV2ToLegacy :: TestTree
@@ -65,6 +70,7 @@ testIsCellsConversationEvent =
         ConvCodeUpdate -> isCellsConversationEvent e === False
         ConvConnect -> isCellsConversationEvent e === False
         ConvCreate -> isCellsConversationEvent e === True
+        ConvCreateMeeting -> isCellsConversationEvent e === True
         ConvDelete -> isCellsConversationEvent e === True
         ConvReset -> isCellsConversationEvent e === False
         ConvMessageTimerUpdate -> isCellsConversationEvent e === False
@@ -79,3 +85,70 @@ testIsCellsConversationEvent =
         OtrMessageAdd -> isCellsConversationEvent e === False
         ProtocolUpdate -> isCellsConversationEvent e === False
         Typing -> isCellsConversationEvent e === False
+
+--------------------------------------------------------------------------------
+-- Legacy conversion tests
+
+setGct :: Maybe GroupConvType -> ConversationMetadata GroupConvType -> ConversationMetadata GroupConvType
+setGct gct meta = meta {cnvmGroupConvType = gct}
+
+testToLegacyConversationMetadata :: TestTree
+testToLegacyConversationMetadata =
+  testGroup
+    "toLegacyConversationMetadata"
+    [ testProperty "converts GroupConversation -> GroupConversationLegacy" $
+        \meta ->
+          let converted = toLegacyConversationMetadata (setGct (Just GroupConversation) meta)
+           in converted.cnvmGroupConvType === Just GroupConversationLegacy,
+      testProperty "converts Channel -> ChannelLegacy" $
+        \meta ->
+          let converted = toLegacyConversationMetadata (setGct (Just Channel) meta)
+           in converted.cnvmGroupConvType === Just ChannelLegacy,
+      testProperty "drops MeetingConversation to Nothing" $
+        \meta ->
+          let converted = toLegacyConversationMetadata (setGct (Just MeetingConversation) meta)
+           in converted.cnvmGroupConvType === Nothing,
+      testProperty "preserves all fields except group conv type" $
+        \meta ->
+          let withGct = setGct meta.cnvmGroupConvType meta
+              converted = toLegacyConversationMetadata withGct
+           in (converted {cnvmGroupConvType = withGct.cnvmGroupConvType} === withGct)
+    ]
+
+testToLegacyOwnConversation :: TestTree
+testToLegacyOwnConversation =
+  testProperty "converts metadata, preserves other fields" $
+    \(conv :: OwnConversation GroupConvType) ->
+      let conv' = toLegacyOwnConversation conv
+       in conv'.cnvQualifiedId === conv.cnvQualifiedId
+            .&&. conv'.cnvMembers === conv.cnvMembers
+            .&&. conv'.cnvProtocol === conv.cnvProtocol
+            .&&. conv'.cnvMetadata.cnvmGroupConvType === (conv.cnvMetadata.cnvmGroupConvType >>= toGroupConvTypeLegacy)
+
+testToLegacyConversation :: TestTree
+testToLegacyConversation =
+  testProperty "converts metadata, preserves other fields" $
+    \(conv :: Conversation GroupConvType) ->
+      let conv' = toLegacyConversation conv
+       in conv'.qualifiedId === conv.qualifiedId
+            .&&. conv'.members === conv.members
+            .&&. conv'.protocol === conv.protocol
+            .&&. conv'.metadata.cnvmGroupConvType === (conv.metadata.cnvmGroupConvType >>= toGroupConvTypeLegacy)
+
+testToLegacyConversationsResponse :: TestTree
+testToLegacyConversationsResponse =
+  testProperty "drops meeting conversations from found, preserves the rest" $
+    \(convs :: [OwnConversation GroupConvType]) ->
+      let resp = toLegacyConversationsResponse (ConversationsResponse convs [] [])
+          foundIds = map (.cnvQualifiedId) resp.crFound
+          expectedFound = map (.cnvQualifiedId) (filter (not . isMeetingConversation) convs)
+       in foundIds === expectedFound
+            .&&. resp.crNotFound === []
+            .&&. resp.crFailed === []
+
+testIsMeetingConversation :: TestTree
+testIsMeetingConversation =
+  testProperty "matches Just MeetingConversation" $
+    \(conv :: OwnConversation GroupConvType) gct ->
+      isMeetingConversation (conv {cnvMetadata = conv.cnvMetadata {cnvmGroupConvType = gct}})
+        === (gct == Just MeetingConversation)

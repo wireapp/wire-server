@@ -59,7 +59,7 @@ import Wire.API.Federation.Error (FederationError)
 import Wire.API.MLS.Keys (MLSKeysByPurpose, MLSPrivateKeys)
 import Wire.API.Team.Collaborator (TeamCollaboratorsError)
 import Wire.API.Team.Feature (AllTeamFeatures, LegalholdConfig)
-import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults (FeatureLegalHoldDisabledPermanently), FeatureFlags, currentFanoutLimit)
+import Wire.API.Team.FeatureFlags (FanoutLimit, FeatureDefaults, FeatureFlags, currentFanoutLimit)
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
 import Wire.BackgroundWorker.Env (Env (..))
@@ -238,6 +238,7 @@ type BackgroundWorkerEffects =
      Error (Tagged TeamNotFound ()),
      Error (Tagged ConvAccessDenied ()),
      Error (Tagged NotATeamMember ()),
+     Error (Tagged CodeStoreNotFound ()),
      Error TeamFeatureStoreError,
      Error TeamCollaboratorsError,
      Error UnreachableBackends,
@@ -290,6 +291,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @UnreachableBackends (T.pack . show)
     . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
     . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
+    . mapError @(Tagged 'CodeStoreNotFound ()) (const ("Code store not found" :: Text))
     . mapError @(Tagged 'NotATeamMember ()) (const ("Not a team member" :: Text))
     . mapError @(Tagged 'ConvAccessDenied ()) (const ("Conversation access denied" :: Text))
     . mapError @(Tagged 'TeamNotFound ()) (const ("Team not found" :: Text))
@@ -301,7 +303,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTinyLog
     . runInputConst @Hasql.Pool env.hasqlPool
     . runInputConst @(Local ()) (toLocalUnsafe env.federationDomain ())
-    . runInputConst @(FeatureDefaults LegalholdConfig) FeatureLegalHoldDisabledPermanently
+    . runInputConst @(FeatureDefaults LegalholdConfig) (env.conversationSubsystemConfig.legalholdDefaults)
     . runInputConst @ClientState env.cassandraGalley
     . runInputConst @LegalHoldEnv legalHoldEnv
     . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.exposeInvitationURLsTeamAllowlist)
@@ -319,7 +321,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
-    . interpretLegalHoldStoreToCassandra FeatureLegalHoldDisabledPermanently
+    . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing
     . nowToIO
     . randomToIO
@@ -333,9 +335,9 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     -- However, to prevent the background worker to require HTTP access to brig, we should consider refactoring this at some point.
     . interpretBrigAccess env.brigEndpoint
     . interpretGalleyAPIAccessToRpc mempty env.galleyEndpoint
-    . runInputSem getConversationSubsystemConfig
+    . runInputConst env.conversationSubsystemConfig
     . runInputSem @(Maybe (MLSKeysByPurpose MLSPrivateKeys)) (inputs @ConversationSubsystemConfig (.mlsKeys))
-    . runInputSem getConfiguredFeatureFlags
+    . runInputConst env.featureFlags
     . runHashPassword env.passwordHashingOptions
     . interpretRateLimit env.passwordHashingRateLimitEnv
     . interpretExternalAccess extEnv
@@ -369,10 +371,6 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
           http2Manager = env.http2Manager,
           requestId = requestId
         }
-    getConversationSubsystemConfig ::
-      (Member GalleyAPIAccess r) =>
-      Sem r ConversationSubsystemConfig
-    getConversationSubsystemConfig = getConversationConfig
     backendQueueEnv =
       BackendNotificationQueueAccess.Env
         { channelMVar = env.amqpBackendNotificationsChannel,

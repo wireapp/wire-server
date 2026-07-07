@@ -38,7 +38,6 @@ import Gundeck.Aws qualified as Aws
 import Gundeck.Options as Opt hiding (host, port)
 import Gundeck.Options qualified as O
 import Gundeck.Redis qualified as Redis
-import Gundeck.Redis.HedisExtensions qualified as Redis
 import Gundeck.ThreadBudget
 import Imports
 import Network.AMQP (Channel)
@@ -136,8 +135,7 @@ createRedisPool l ep username password identifier = do
             }
   let redisConnInfo =
         Redis.defaultConnectInfo
-          { Redis.connectHost = Text.unpack $ ep ^. O.host,
-            Redis.connectPort = Redis.PortNumber (fromIntegral $ ep ^. O.port),
+          { Redis.connectAddr = Redis.ConnectAddrHostPort (Text.unpack ep._host) (fromIntegral ep._port),
             Redis.connectUsername = username,
             Redis.connectAuth = password,
             Redis.connectTimeout = Just (secondsToNominalDiffTime 5),

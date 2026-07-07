@@ -19,6 +19,7 @@
 
 module Test.Wire.Util where
 
+import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Misc
 import Data.Proxy
@@ -27,6 +28,8 @@ import Imports
 import Network.HTTP.Client hiding (Proxy)
 import System.Logger.Class qualified as Logger
 import Util.Options (Endpoint (..), PasswordHashingOptions (..))
+import Wire.API.Conversation.Config
+import Wire.API.Team.FeatureFlags
 import Wire.BackgroundWorker.Env hiding (federatorInternal)
 import Wire.BackgroundWorker.Env qualified as E
 import Wire.BackgroundWorker.Options
@@ -81,6 +84,15 @@ testEnv = do
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
+      featureFlags = def
+      conversationSubsystemConfig =
+        ConversationSubsystemConfig
+          { mlsKeys = Nothing,
+            federationProtocols = Nothing,
+            legalholdDefaults = FeatureLegalHoldDisabledPermanently,
+            maxConvSize = 500,
+            listClientsUsingBrig = False
+          }
   passwordHashingRateLimitEnv <- newRateLimitEnv defTestRateLimitConfig
   pure Env {..}
 

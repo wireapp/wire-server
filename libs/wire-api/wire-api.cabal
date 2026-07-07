@@ -283,7 +283,6 @@ library
   build-depends:
     , aeson                      >=2.0.1.0
     , amqp
-    , asn1-encoding
     , attoparsec                 >=0.10
     , barbies
     , base                       >=4        && <5
@@ -303,6 +302,8 @@ library
     , containers                 >=0.5
     , cookie
     , crypton
+    , crypton-asn1-encoding
+    , crypton-pem                >=0.2
     , crypton-x509
     , currency-codes             >=2.0
     , data-default
@@ -332,13 +333,11 @@ library
     , jose
     , kan-extensions
     , lens                       >=4.12
-    , memory
     , metrics-wai
     , mime                       >=0.4
     , mtl
     , network-uri
     , openapi3
-    , pem                        >=0.2
     , polysemy
     , polysemy-wire-zoo
     , profunctors
@@ -346,6 +345,7 @@ library
     , protobuf                   >=0.2
     , QuickCheck                 >=2.14
     , quickcheck-instances       >=0.3.16
+    , ram
     , random                     >=1.2.0
     , regex-base
     , regex-tdfa
@@ -674,13 +674,13 @@ test-suite wire-api-golden-tests
     , bytestring
     , bytestring-conversion
     , containers               >=0.5
+    , crypton-pem
     , currency-codes
     , http-api-data
     , imports
     , iso3166-country-codes
     , iso639
     , lens
-    , pem
     , proto-lens
     , saml2-web-sso
     , string-conversions
@@ -749,11 +749,11 @@ test-suite wire-api-tests
     , http-types
     , imports
     , lens
-    , memory
     , metrics-wai
     , openapi3
     , process
     , QuickCheck
+    , ram
     , random
     , schema-profunctor
     , servant

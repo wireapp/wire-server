@@ -368,7 +368,7 @@ getRemoteConversationIdsImpl usr start (fromRange -> maxIds) = do
                          LIMIT ($4 :: integer)
                         |]
 
-getConversationMetadataImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe ConversationMetadata)
+getConversationMetadataImpl :: (PGConstraints r) => ConvId -> Sem r (Maybe (ConversationMetadata GroupConvType))
 getConversationMetadataImpl cid =
   toConvMeta <$$> runStatement cid selectConvMetadata
 

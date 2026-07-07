@@ -17,6 +17,8 @@
 
 module Test.FeatureFlags.PreventAdminlessGroups where
 
+import qualified API.Galley as Public
+import SetupHelpers
 import Test.FeatureFlags.Util
 import Testlib.Prelude
 
@@ -31,12 +33,7 @@ validConfig :: Value
 validConfig =
   object
     [ "status" .= "enabled",
-      "config"
-        .= object
-          [ "promotionStrategy" .= "random",
-            "deletionTimeout" .= (30 :: Int),
-            "reminderTimeouts" .= ([15, 20, 25] :: [Int])
-          ]
+      "config" .= canonicalPreventAdminlessGroupsConfig
     ]
 
 invalidConfig :: Value
@@ -47,7 +44,9 @@ invalidConfig =
         .= object
           [ "promotionStrategy" .= "dsdfhjsdf",
             "deletionTimeout" .= (30 :: Int),
-            "reminderTimeouts" .= ([15, 20, 25] :: [Int])
+            "reminderTimeouts" .= ([15, 20, 25] :: [Int]),
+            "deletionTimeoutDuration" .= "30d",
+            "reminderTimeoutDurations" .= ["15d", "20d", "25d"]
           ]
     ]
 
@@ -62,10 +61,97 @@ testPatchPreventAdminlessGroups = do
   checkPatch OwnDomain "preventAdminlessGroups"
     $ object
       [ "lockStatus" .= "unlocked",
-        "config"
-          .= object
-            [ "promotionStrategy" .= "random",
-              "deletionTimeout" .= (30 :: Int),
-              "reminderTimeouts" .= ([15, 20, 25] :: [Int])
-            ]
+        "config" .= canonicalPreventAdminlessGroupsConfig
       ]
+
+testPreventAdminlessGroupsPutV16AcceptsLegacyTimeoutFields :: (HasCallStack) => App ()
+testPreventAdminlessGroupsPutV16AcceptsLegacyTimeoutFields = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  bindResponse
+    ( Public.setTeamFeatureConfigVersioned
+        (ExplicitVersion 16)
+        owner
+        tid
+        "preventAdminlessGroups"
+        legacyTimeoutFeatureConfig
+    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json `shouldMatch` canonicalPreventAdminlessGroupsFeature
+  checkFeature "preventAdminlessGroups" owner tid canonicalPreventAdminlessGroupsFeature
+
+testPreventAdminlessGroupsPutV17AcceptsDurationTimeoutFields :: (HasCallStack) => App ()
+testPreventAdminlessGroupsPutV17AcceptsDurationTimeoutFields = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  bindResponse
+    ( Public.setTeamFeatureConfigVersioned
+        (ExplicitVersion 17)
+        owner
+        tid
+        "preventAdminlessGroups"
+        durationTimeoutFeatureConfig
+    )
+    $ \resp -> do
+      resp.status `shouldMatchInt` 200
+      resp.json `shouldMatch` canonicalPreventAdminlessGroupsFeature
+  checkFeature "preventAdminlessGroups" owner tid canonicalPreventAdminlessGroupsFeature
+
+testPreventAdminlessGroupsPutV16RejectsDurationOnlyTimeoutFields :: (HasCallStack) => App ()
+testPreventAdminlessGroupsPutV16RejectsDurationOnlyTimeoutFields = do
+  (owner, tid, _) <- createTeam OwnDomain 0
+  Public.setTeamFeatureConfigVersioned
+    (ExplicitVersion 16)
+    owner
+    tid
+    "preventAdminlessGroups"
+    durationTimeoutFeatureConfig
+    >>= assertStatus 400
+
+legacyTimeoutFeatureConfig :: Value
+legacyTimeoutFeatureConfig =
+  object
+    [ "status" .= "enabled",
+      "config" .= legacyTimeoutConfig
+    ]
+
+durationTimeoutFeatureConfig :: Value
+durationTimeoutFeatureConfig =
+  object
+    [ "status" .= "enabled",
+      "config" .= durationTimeoutConfig
+    ]
+
+canonicalPreventAdminlessGroupsFeature :: Value
+canonicalPreventAdminlessGroupsFeature =
+  object
+    [ "lockStatus" .= "unlocked",
+      "status" .= "enabled",
+      "ttl" .= "unlimited",
+      "config" .= canonicalPreventAdminlessGroupsConfig
+    ]
+
+canonicalPreventAdminlessGroupsConfig :: Value
+canonicalPreventAdminlessGroupsConfig =
+  object
+    [ "promotionStrategy" .= "random",
+      "deletionTimeout" .= (30 :: Int),
+      "reminderTimeouts" .= ([15, 20, 25] :: [Int]),
+      "deletionTimeoutDuration" .= "30d",
+      "reminderTimeoutDurations" .= ["15d", "20d", "25d"]
+    ]
+
+legacyTimeoutConfig :: Value
+legacyTimeoutConfig =
+  object
+    [ "promotionStrategy" .= "random",
+      "deletionTimeout" .= (30 :: Int),
+      "reminderTimeouts" .= ([15, 20, 25] :: [Int])
+    ]
+
+durationTimeoutConfig :: Value
+durationTimeoutConfig =
+  object
+    [ "promotionStrategy" .= "random",
+      "deletionTimeoutDuration" .= "30d",
+      "reminderTimeoutDurations" .= ["15d", "20d", "25d"]
+    ]

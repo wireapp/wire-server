@@ -65,6 +65,8 @@ interpretMeetingsStoreToPostgres =
       addInvitedEmailsImpl meetingId email
     RemoveInvitedEmails meetingId emails ->
       removeInvitedEmailsImpl meetingId emails
+    ReplaceInvitedEmails meetingId emails ->
+      replaceInvitedEmailsImpl meetingId emails
     GetOldMeetings cutoffTime batchSize ->
       getOldMeetingsImpl cutoffTime batchSize
 
@@ -305,7 +307,15 @@ listMeetingsByUserImpl userId cutoffTime = do
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
           FROM meetings
-          WHERE creator = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
+          WHERE creator = ($1 :: uuid)
+            AND (
+                 (recurrence_frequency IS NULL AND end_time >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NOT NULL
+                  AND GREATEST(end_time, recurrence_until) >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NULL)
+            )
           ORDER BY start_time ASC
         |]
 
@@ -329,7 +339,15 @@ listMeetingsByConversationImpl convId cutoffTime = do
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
           FROM meetings
-          WHERE conversation_id = ($1 :: uuid) AND end_time >= ($2 :: timestamptz)
+          WHERE conversation_id = ($1 :: uuid)
+            AND (
+                 (recurrence_frequency IS NULL AND end_time >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NOT NULL
+                  AND GREATEST(end_time, recurrence_until) >= ($2 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NULL)
+            )
           ORDER BY start_time ASC
         |]
 
@@ -367,6 +385,23 @@ removeInvitedEmailsImpl meetingId emails = do
         WHERE id = ($2 :: uuid)
       |]
 
+replaceInvitedEmailsImpl ::
+  (PGConstraints r) =>
+  MeetingId ->
+  [EmailAddress] ->
+  Sem r ()
+replaceInvitedEmailsImpl meetingId emails = do
+  runStatement (V.fromList (fromEmail <$> emails), toUUID meetingId) replaceEmailStatement
+  where
+    replaceEmailStatement :: Statement (V.Vector Text, UUID) ()
+    replaceEmailStatement =
+      [resultlessStatement|
+        UPDATE meetings
+        SET invited_emails = array(SELECT DISTINCT unnest($1 :: text[])),
+            updated_at = NOW()
+        WHERE id = ($2 :: uuid)
+      |]
+
 getOldMeetingsImpl ::
   ( Member (Input Pool) r,
     Member (Embed IO) r,
@@ -394,7 +429,10 @@ getOldMeetingsImpl cutoffTime batchSize = do
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
           FROM meetings
-           WHERE end_time < ($1 :: timestamptz)
+           WHERE (recurrence_frequency IS NULL AND end_time < ($1 :: timestamptz))
+              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
+                  AND recurrence_until IS NOT NULL
+                  AND GREATEST(end_time, recurrence_until) < ($1 :: timestamptz))
            ORDER BY end_time ASC
            LIMIT ($2 :: int4)
          |]

@@ -80,6 +80,8 @@ module Wire.API.Team.Feature
     ChannelPermissions (..),
     PreventAdminlessGroupsConfig,
     PreventAdminlessGroupsConfigB (..),
+    PreventAdminlessTimeout (..),
+    mkPreventAdminlessTimeoutDays,
     PreventAdminlessGroupsPromotionStrategy (..),
     OutlookCalIntegrationConfig (..),
     UseProxyOnMobile (..),
@@ -108,6 +110,7 @@ module Wire.API.Team.Feature
     CellsCollabora (..),
     CollaboraEdition (..),
     CellsBackend (..),
+    QuotaBytes (..),
     CellsStorage (..),
     NumBytes (..),
     AllowedGlobalOperationsConfig (..),
@@ -155,7 +158,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Map qualified as M
-import Data.Misc (HttpsUrl (..))
+import Data.Misc (Duration (..), DurationLiteral, HttpsUrl (..), durationLiteralText, durationLiteralValue, mkDurationLiteral, unsafeDurationLiteral)
 import Data.Monoid hiding (All, First)
 import Data.OpenApi qualified as S
 import Data.Proxy
@@ -168,13 +171,14 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Encoding.Error
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
+import Data.Text.Read qualified as TR
 import Data.Time
 import Deriving.Aeson
 import GHC.TypeLits
 import Generics.SOP qualified as GSOP
 import Imports hiding (All, First)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (choose, getPrintableString)
+import Test.QuickCheck (choose, frequency, getPrintableString)
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
 import URI.ByteString.QQ qualified as URI.QQ
@@ -1246,10 +1250,143 @@ instance ToSchema PreventAdminlessGroupsPromotionStrategy where
           element "all" PromotionStrategyAll
         ]
 
+newtype PreventAdminlessTimeout = PreventAdminlessTimeout
+  { preventAdminlessTimeoutLiteral :: DurationLiteral
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance Arbitrary PreventAdminlessTimeout where
+  arbitrary = mkPreventAdminlessTimeoutDays <$> choose (0, 30)
+
+mkPreventAdminlessTimeout :: Text -> Either String PreventAdminlessTimeout
+mkPreventAdminlessTimeout txt = do
+  timeout <- mkDurationLiteral txt
+  let wrapped = PreventAdminlessTimeout timeout
+      picoseconds = diffTimeToPicoseconds (duration (durationLiteralValue timeout))
+      days = preventAdminlessTimeoutDaysInteger wrapped
+  if picoseconds < 0
+    then Left "Duration must not be negative"
+    else
+      if days > toInteger (maxBound :: Word)
+        then Left "Duration is too large to represent as legacy day timeout"
+        else pure wrapped
+
+mkPreventAdminlessTimeoutDays :: Word -> PreventAdminlessTimeout
+mkPreventAdminlessTimeoutDays days =
+  PreventAdminlessTimeout
+    ( unsafeDurationLiteral
+        (T.pack (show days) <> "d")
+        ( Duration . picosecondsToDiffTime $
+            toInteger days * preventAdminlessDayPicoseconds
+        )
+    )
+
+validatePreventAdminlessTimeout :: DurationLiteral -> A.Parser DurationLiteral
+validatePreventAdminlessTimeout =
+  fmap preventAdminlessTimeoutLiteral
+    . either fail pure
+    . mkPreventAdminlessTimeout
+    . durationLiteralText
+
+preventAdminlessTimeoutSchema :: ValueSchema NamedSwaggerDoc PreventAdminlessTimeout
+preventAdminlessTimeoutSchema =
+  PreventAdminlessTimeout
+    <$> preventAdminlessTimeoutLiteral
+      .= (schema @DurationLiteral `withParser` validatePreventAdminlessTimeout)
+
+preventAdminlessTimeoutDays :: PreventAdminlessTimeout -> Word
+preventAdminlessTimeoutDays =
+  fromInteger
+    . min (toInteger (maxBound :: Word))
+    . preventAdminlessTimeoutDaysInteger
+
+preventAdminlessTimeoutDaysInteger :: PreventAdminlessTimeout -> Integer
+preventAdminlessTimeoutDaysInteger timeout =
+  -- Legacy clients only understand whole days. Round up so positive sub-day
+  -- durations such as "1s" are not exposed as 0 days.
+  ceilingDiv
+    (diffTimeToPicoseconds . duration . durationLiteralValue $ preventAdminlessTimeoutLiteral timeout)
+    preventAdminlessDayPicoseconds
+
+preventAdminlessDayPicoseconds :: Integer
+preventAdminlessDayPicoseconds = 86_400 * 1_000_000_000_000
+
+ceilingDiv :: Integer -> Integer -> Integer
+ceilingDiv x y
+  | x <= 0 = 0
+  | otherwise = (x + y - 1) `div` y
+
+pickPreventAdminlessTimeout :: Maybe PreventAdminlessTimeout -> Maybe Word -> Maybe PreventAdminlessTimeout
+pickPreventAdminlessTimeout (Just timeout) _ = Just timeout
+pickPreventAdminlessTimeout Nothing (Just days) = Just (mkPreventAdminlessTimeoutDays days)
+pickPreventAdminlessTimeout Nothing Nothing = Nothing
+
+pickPreventAdminlessTimeouts :: Maybe [PreventAdminlessTimeout] -> Maybe [Word] -> Maybe [PreventAdminlessTimeout]
+pickPreventAdminlessTimeouts (Just timeouts) _ = Just timeouts
+pickPreventAdminlessTimeouts Nothing (Just days) = Just (mkPreventAdminlessTimeoutDays <$> days)
+pickPreventAdminlessTimeouts Nothing Nothing = Nothing
+
+publicPreventAdminlessTimeoutField :: Text -> Text -> ObjectSchema SwaggerDoc PreventAdminlessTimeout
+publicPreventAdminlessTimeoutField legacyName durationName =
+  ( pickPreventAdminlessTimeout
+      <$> Just .= maybe_ (optField durationName preventAdminlessTimeoutSchema)
+      <*> (Just . preventAdminlessTimeoutDays) .= maybe_ (optField legacyName schema)
+  )
+    `withParser` maybe (fail missingField) pure
+  where
+    missingField =
+      "Missing '" <> T.unpack durationName <> "' or legacy '" <> T.unpack legacyName <> "'"
+
+publicPreventAdminlessTimeoutsField :: Text -> Text -> ObjectSchema SwaggerDoc [PreventAdminlessTimeout]
+publicPreventAdminlessTimeoutsField legacyName durationName =
+  ( pickPreventAdminlessTimeouts
+      <$> Just .= maybe_ (optField durationName (array preventAdminlessTimeoutSchema))
+      <*> (Just . fmap preventAdminlessTimeoutDays) .= maybe_ (optField legacyName (array schema))
+  )
+    `withParser` maybe (fail missingField) pure
+  where
+    missingField =
+      "Missing '" <> T.unpack durationName <> "' or legacy '" <> T.unpack legacyName <> "'"
+
+dbPreventAdminlessTimeoutField :: Text -> Text -> ObjectSchema SwaggerDoc (Maybe PreventAdminlessTimeout)
+dbPreventAdminlessTimeoutField legacyName durationName =
+  pickPreventAdminlessTimeout
+    <$> id .= maybe_ (optField durationName preventAdminlessTimeoutSchema)
+    <*> const Nothing .= maybe_ (optField legacyName schema)
+
+dbPreventAdminlessTimeoutsField :: Text -> Text -> ObjectSchema SwaggerDoc (Maybe [PreventAdminlessTimeout])
+dbPreventAdminlessTimeoutsField legacyName durationName =
+  pickPreventAdminlessTimeouts
+    <$> id .= maybe_ (optField durationName (array preventAdminlessTimeoutSchema))
+    <*> const Nothing .= maybe_ (optField legacyName (array schema))
+
+class (Functor f) => PreventAdminlessTimeoutFieldF f where
+  preventAdminlessTimeoutFieldF ::
+    Text ->
+    Text ->
+    ObjectSchema SwaggerDoc (f PreventAdminlessTimeout)
+
+  preventAdminlessTimeoutsFieldF ::
+    Text ->
+    Text ->
+    ObjectSchema SwaggerDoc (f [PreventAdminlessTimeout])
+
+instance PreventAdminlessTimeoutFieldF Identity where
+  preventAdminlessTimeoutFieldF legacyName durationName =
+    Identity <$> runIdentity .= publicPreventAdminlessTimeoutField legacyName durationName
+
+  preventAdminlessTimeoutsFieldF legacyName durationName =
+    Identity <$> runIdentity .= publicPreventAdminlessTimeoutsField legacyName durationName
+
+instance PreventAdminlessTimeoutFieldF Maybe where
+  preventAdminlessTimeoutFieldF = dbPreventAdminlessTimeoutField
+
+  preventAdminlessTimeoutsFieldF = dbPreventAdminlessTimeoutsField
+
 data PreventAdminlessGroupsConfigB t f = PreventAdminlessGroupsConfig
   { promotionStrategy :: Wear t f PreventAdminlessGroupsPromotionStrategy,
-    deletionTimeout :: Wear t f Word,
-    reminderTimeouts :: Wear t f [Word]
+    deletionTimeout :: Wear t f PreventAdminlessTimeout,
+    reminderTimeouts :: Wear t f [PreventAdminlessTimeout]
   }
   deriving (Generic, BareB)
 
@@ -1277,20 +1414,58 @@ instance Default PreventAdminlessGroupsConfig where
   def =
     PreventAdminlessGroupsConfig
       { promotionStrategy = PromotionStrategyAlphabetical,
-        deletionTimeout = 7,
-        reminderTimeouts = [2, 4, 6]
+        deletionTimeout = mkPreventAdminlessTimeoutDays 7,
+        reminderTimeouts = mkPreventAdminlessTimeoutDays <$> [2, 4, 6]
       }
 
-instance (Typeable f, FieldF f) => ToSchema (PreventAdminlessGroupsConfigB Covered f) where
+instance (Typeable f, FieldF f, PreventAdminlessTimeoutFieldF f) => ToSchema (PreventAdminlessGroupsConfigB Covered f) where
   schema =
     object $
       PreventAdminlessGroupsConfig
         <$> promotionStrategy .= fieldF "promotionStrategy" schema
-        <*> deletionTimeout .= fieldF "deletionTimeout" schema
-        <*> reminderTimeouts .= fieldF "reminderTimeouts" (array schema)
+        <*> deletionTimeout .= preventAdminlessTimeoutFieldF "deletionTimeout" "deletionTimeoutDuration"
+        <*> reminderTimeouts .= preventAdminlessTimeoutsFieldF "reminderTimeouts" "reminderTimeoutDurations"
+
+instance ToSchema (Versioned V16 PreventAdminlessGroupsConfig) where
+  schema =
+    object $
+      Versioned
+        <$> unVersioned .= oldPreventAdminlessGroupsConfigObjectSchema
+
+instance ToObjectSchema (Versioned V16 PreventAdminlessGroupsConfig) where
+  objectSchema = field "config" schema
+
+instance ToSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+  schema =
+    object $
+      Versioned
+        <$> unVersioned .= durationPreventAdminlessGroupsConfigObjectSchema
+
+instance ToObjectSchema (Versioned V17 PreventAdminlessGroupsConfig) where
+  objectSchema = field "config" schema
+
+oldPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
+oldPreventAdminlessGroupsConfigObjectSchema =
+  PreventAdminlessGroupsConfig
+    <$> promotionStrategy .= field "promotionStrategy" schema
+    <*> deletionTimeout .= oldPreventAdminlessTimeoutField "deletionTimeout"
+    <*> reminderTimeouts .= oldPreventAdminlessTimeoutsField "reminderTimeouts"
+
+oldPreventAdminlessTimeoutField :: Text -> ObjectSchema SwaggerDoc PreventAdminlessTimeout
+oldPreventAdminlessTimeoutField name = preventAdminlessTimeoutDays .= (mkPreventAdminlessTimeoutDays <$> field name schema)
+
+oldPreventAdminlessTimeoutsField :: Text -> ObjectSchema SwaggerDoc [PreventAdminlessTimeout]
+oldPreventAdminlessTimeoutsField name = fmap preventAdminlessTimeoutDays .= (fmap mkPreventAdminlessTimeoutDays <$> field name (array schema))
+
+durationPreventAdminlessGroupsConfigObjectSchema :: ObjectSchema SwaggerDoc PreventAdminlessGroupsConfig
+durationPreventAdminlessGroupsConfigObjectSchema =
+  PreventAdminlessGroupsConfig
+    <$> promotionStrategy .= field "promotionStrategy" schema
+    <*> deletionTimeout .= field "deletionTimeoutDuration" preventAdminlessTimeoutSchema
+    <*> reminderTimeouts .= field "reminderTimeoutDurations" (array preventAdminlessTimeoutSchema)
 
 instance Default (LockableFeature PreventAdminlessGroupsConfig) where
-  def = defLockedFeature
+  def = defUnlockedFeature {status = FeatureStatusDisabled}
 
 instance ToObjectSchema PreventAdminlessGroupsConfig where
   objectSchema = field "config" schema
@@ -1910,18 +2085,53 @@ instance ToSchema NumBytes where
               pure n
           )
 
-newtype CellsStorage = CellsStorage
-  { perUserQuotaBytes :: NumBytes
+data QuotaBytes
+  = QuotaBytesFinite NumBytes
+  | QuotaBytesUnlimited
+  deriving stock (Show, Eq)
+
+instance Arbitrary QuotaBytes where
+  arbitrary =
+    frequency
+      [ (1, pure QuotaBytesUnlimited),
+        (9, QuotaBytesFinite <$> arbitrary)
+      ]
+
+instance ToSchema QuotaBytes where
+  schema = mkSchema quotaBytesDoc parseQuotaBytes quotaBytesToValue
+    where
+      quotaBytesDoc :: NamedSwaggerDoc
+      quotaBytesDoc = swaggerDoc @Text & S.schema . S.example ?~ "-1"
+
+      quotaBytesToValue :: QuotaBytes -> Maybe A.Value
+      quotaBytesToValue QuotaBytesUnlimited = Just $ A.String "-1"
+      quotaBytesToValue (QuotaBytesFinite n) = Just $ A.toJSON n
+
+      parseQuotaBytes :: A.Value -> A.Parser QuotaBytes
+      parseQuotaBytes = A.withText "QuotaBytes" $ \txt ->
+        case TR.signed TR.decimal txt :: Either String (Integer, Text) of
+          Left err -> fail err
+          Right (n, rest) -> do
+            unless (T.null rest) $
+              fail "value must be an integer string without decimals"
+            if n < 0
+              then pure QuotaBytesUnlimited
+              else QuotaBytesFinite <$> schemaParseJSON (A.String txt)
+
+data CellsStorage = CellsStorage
+  { totalLimitBytes :: Maybe QuotaBytes,
+    perUserQuotaBytes :: QuotaBytes
   }
   deriving (Show, Eq, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema CellsStorage
-  deriving newtype (Arbitrary)
+  deriving (Arbitrary) via (GenericUniform CellsStorage)
 
 instance ToSchema CellsStorage where
   schema =
     object $
       CellsStorage
-        <$> perUserQuotaBytes .= field "perUserQuotaBytes" schema
+        <$> totalLimitBytes .= maybe_ (optField "totalLimitBytes" schema)
+        <*> perUserQuotaBytes .= field "perUserQuotaBytes" schema
 
 data CellsInternalConfigB t f = CellsInternalConfig
   { backend :: Wear t f CellsBackend,
@@ -1955,7 +2165,11 @@ instance Default CellsInternalConfig where
     CellsInternalConfig
       { backend = CellsBackend $ HttpsUrl [URI.QQ.uri|https://cells-beta.wire.com|],
         collabora = CellsCollabora Cool,
-        storage = CellsStorage $ NumBytes $ BigIntString 1000000000000 -- 1 TB
+        storage =
+          CellsStorage
+            { totalLimitBytes = Just $ QuotaBytesFinite $ NumBytes $ BigIntString 1000000000000, -- 1 TB
+              perUserQuotaBytes = QuotaBytesUnlimited
+            }
       }
 
 instance (Typeable f, FieldF f) => ToSchema (CellsInternalConfigB Covered f) where
@@ -2173,7 +2387,7 @@ instance ToSchema MeetingsConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature MeetingsConfig) where
-  def = defUnlockedFeature
+  def = defLockedFeature
 
 instance IsFeatureConfig MeetingsConfig where
   type FeatureSymbol MeetingsConfig = "meetings"
@@ -2222,7 +2436,7 @@ instance ToSchema BackgroundEffectsConfig where
   schema = object objectSchema
 
 instance Default (LockableFeature BackgroundEffectsConfig) where
-  def = defUnlockedFeature
+  def = defLockedFeature
 
 instance IsFeatureConfig BackgroundEffectsConfig where
   type FeatureSymbol BackgroundEffectsConfig = "backgroundEffects"

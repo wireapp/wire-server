@@ -195,9 +195,20 @@ getConversation ::
   user ->
   qcnv ->
   App Response
-getConversation user qcnv = do
+getConversation = getConversationVersioned Versioned
+
+getConversationVersioned ::
+  ( HasCallStack,
+    MakesValue user,
+    MakesValue qcnv
+  ) =>
+  Versioned ->
+  user ->
+  qcnv ->
+  App Response
+getConversationVersioned version user qcnv = do
   (domain, cnv) <- objQid qcnv
-  req <- baseRequest user Galley Versioned (joinHttpPath ["conversations", domain, cnv])
+  req <- baseRequest user Galley version (joinHttpPath ["conversations", domain, cnv])
   submit "GET" req
 
 getConversationInternal ::
@@ -261,8 +272,11 @@ leaveSubConversation user convId = do
   submit "DELETE" req
 
 getSelfConversation :: (HasCallStack, MakesValue user) => user -> App Response
-getSelfConversation user = do
-  req <- baseRequest user Galley Versioned "/conversations/mls-self"
+getSelfConversation = getSelfConversationVersioned Versioned
+
+getSelfConversationVersioned :: (HasCallStack, MakesValue user) => Versioned -> user -> App Response
+getSelfConversationVersioned version user = do
+  req <- baseRequest user Galley version "/conversations/mls-self"
   submit "GET" $ req
 
 data ListConversationIds = ListConversationIds {pagingState :: Maybe String, size :: Maybe Int}
@@ -281,8 +295,11 @@ listConversationIds user args = do
       )
 
 listConversations :: (MakesValue user) => user -> [Value] -> App Response
-listConversations user cnvs = do
-  req <- baseRequest user Galley Versioned "/conversations/list"
+listConversations = listConversationsVersioned Versioned
+
+listConversationsVersioned :: (MakesValue user) => Versioned -> user -> [Value] -> App Response
+listConversationsVersioned version user cnvs = do
+  req <- baseRequest user Galley version "/conversations/list"
   submit "POST"
     $ req
     & addJSONObject ["qualified_ids" .= cnvs]
@@ -412,10 +429,18 @@ getMLSOne2OneConversation ::
   self ->
   other ->
   App Response
-getMLSOne2OneConversation self other = do
+getMLSOne2OneConversation = getMLSOne2OneConversationVersioned Versioned
+
+getMLSOne2OneConversationVersioned ::
+  (HasCallStack, MakesValue self, MakesValue other) =>
+  Versioned ->
+  self ->
+  other ->
+  App Response
+getMLSOne2OneConversationVersioned version self other = do
   (domain, uid) <- objQid other
   req <-
-    baseRequest self Galley Versioned
+    baseRequest self Galley version
       $ joinHttpPath ["one2one-conversations", domain, uid]
   submit "GET" req
 
@@ -1031,3 +1056,8 @@ deleteMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> 
 deleteMeetingInvitation user domain meetingId removeInvitation = do
   req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations", "delete"])
   submit "POST" $ req & addJSON removeInvitation
+
+putMeetingInvitation :: (HasCallStack, MakesValue user) => user -> String -> String -> Aeson.Value -> App Response
+putMeetingInvitation user domain meetingId invitation = do
+  req <- baseRequest user Galley Versioned (joinHttpPath ["meetings", domain, meetingId, "invitations"])
+  submit "PUT" $ req & addJSON invitation

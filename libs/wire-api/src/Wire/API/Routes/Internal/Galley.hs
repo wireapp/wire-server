@@ -31,7 +31,6 @@ import Wire.API.Bot
 import Wire.API.Bot.Service
 import Wire.API.Conversation
 import Wire.API.Conversation.CellsState
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
@@ -118,13 +117,6 @@ type IFeatureAPI =
                     UserId
                :> Get '[JSON] AllTeamFeatures
            )
-    :<|> Named
-           "get-configured-feature-flags"
-           ( Summary "Get the server-wide feature flag defaults (from galley config)"
-               :> "features"
-               :> "configured"
-               :> Get '[JSON] ConfiguredFeatureFlags
-           )
 
 type InternalAPI = "i" :> InternalAPIBase
 
@@ -158,7 +150,7 @@ type InternalAPIBase =
                :> "conversations"
                :> "connect"
                :> ReqBody '[JSON] Connect
-               :> ConversationVerb 'V6 OwnConversation
+               :> ConversationVerb 'V6 GroupConvType (OwnConversation GroupConvType)
            )
     -- This endpoint is meant for testing membership of a conversation
     :<|> Named
@@ -197,9 +189,6 @@ type InternalAPIBase =
     :<|> IConversationAPI
     :<|> IEJPDAPI
     :<|> ICellsAPI
-    :<|> Named
-           "get-conversation-config"
-           ("conversations" :> "config" :> Get '[JSON] ConversationSubsystemConfig)
 
 type ILegalholdWhitelistedTeamsAPI =
   "legalhold"
@@ -445,7 +434,7 @@ type IConversationAPI =
                :> Capture "cnv" ConvId
                :> "accept"
                :> "v2"
-               :> Put '[JSON] OwnConversation
+               :> Put '[JSON] (OwnConversation GroupConvType)
            )
     :<|> Named
            "conversation-block"
@@ -478,7 +467,7 @@ type IConversationAPI =
                :> "conversations"
                :> Capture "cnv" ConvId
                :> "meta"
-               :> Get '[JSON] ConversationMetadata
+               :> Get '[JSON] (ConversationMetadata GroupConvType)
            )
     :<|> Named
            "conversation-mls-one-to-one"
@@ -487,7 +476,7 @@ type IConversationAPI =
                :> "mls-one2one-conversations"
                :> ZLocalUser
                :> QualifiedCapture "user" UserId
-               :> Get '[JSON] OwnConversation
+               :> Get '[JSON] (OwnConversation GroupConvType)
            )
     :<|> Named
            "conversation-mls-one-to-one-established"
@@ -504,7 +493,7 @@ type IConversationAPI =
            ( CanThrow 'ConvNotFound
                :> "conversations"
                :> Capture "cnv" ConvId
-               :> Get '[JSON] Conversation
+               :> Get '[JSON] (Conversation GroupConvType)
            )
     :<|> Named
            "is-conversation-out-of-sync"

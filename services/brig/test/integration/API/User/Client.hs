@@ -1487,18 +1487,18 @@ testCreateAccessToken opts n brig = do
     _signProof claims = runJOSE $ do
       algo <- bestJWSAlg jwkKey
       let h =
-            newJWSHeader ((), algo)
-              & (jwk ?~ HeaderParam () jwkPubKey)
-              & (typ ?~ HeaderParam () "dpop+jwt")
+            newJWSHeaderProtected algo
+              & (jwk ?~ HeaderParam RequiredProtection jwkPubKey)
+              & (typ ?~ HeaderParam RequiredProtection "dpop+jwt")
       signJWT jwkKey h claims
 
     signProofEcdsaP256 :: DPoPClaimsSet -> IO (Either JWTError SignedJWT)
     signProofEcdsaP256 claims = runJOSE $ do
       algo <- bestJWSAlg jwkKeyBundleEcdsaP256
       let h =
-            newJWSHeader ((), algo)
-              & (jwk ?~ HeaderParam () jwkPublicKeyEcdsaP256)
-              & (typ ?~ HeaderParam () "dpop+jwt")
+            newJWSHeaderProtected algo
+              & (jwk ?~ HeaderParam RequiredProtection jwkPublicKeyEcdsaP256)
+              & (typ ?~ HeaderParam RequiredProtection "dpop+jwt")
       signJWT jwkKeyBundleEcdsaP256 h claims
 
     jwkKey :: JWK

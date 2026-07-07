@@ -242,5 +242,5 @@ mkDerivation {
     wire-api
   ];
   description = "Push Notification Hub";
-  license = lib.licenses.agpl3Only;
+  license = lib.meta.getLicenseFromSpdxId "AGPL-3.0-only";
 }

@@ -44,7 +44,6 @@ import Servant.API (toHeader)
 import System.Logger.Message
 import Util.Options
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Config (ConversationSubsystemConfig)
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDConvInfo)
 import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
@@ -52,7 +51,6 @@ import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Conversation qualified as Conv
 import Wire.API.Team.Feature
-import Wire.API.Team.FeatureFlags (FeatureFlags)
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member as Member
 import Wire.API.Team.Member.Info
@@ -102,7 +100,6 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           FinalizeDeleteTeam lusr mconn tid -> finalizeDeleteTeam lusr mconn tid
           MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
           GetAllTeamFeaturesForUser m_id' -> getAllTeamFeaturesForUser m_id'
-          GetConfiguredFeatureFlags -> getConfiguredFeatureFlags
           GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
           GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
           IsMLSOne2OneEstablished lusr qother -> checkMLSOne2OneEstablished lusr qother
@@ -111,7 +108,6 @@ interpretGalleyAPIAccessToRpc disabledVersions galleyEndpoint =
           GetTeamAdmins tid -> getTeamAdmins tid
           InternalGetConversation id' -> internalGetConversation id'
           GetTeamContacts uid -> getTeamContacts uid
-          GetConversationConfig -> getConversationConfig
           GuardLegalHold protectee userClient -> guardLegalhold protectee userClient
           GetUserLHStatus mtid uid -> getUserLHStatus mtid uid
           GetUsersLHStatus uids -> getUsersLHStatus uids
@@ -165,7 +161,7 @@ getConv ::
   Version ->
   UserId ->
   Local ConvId ->
-  Sem r (Maybe OwnConversation)
+  Sem r (Maybe (OwnConversation GroupConvType))
 getConv v usr lcnv = do
   rs <- galleyRequest req
   case Bilge.statusCode rs of
@@ -555,19 +551,6 @@ getAllTeamFeaturesForUser mbUserId =
           . maybe id (queryItem "user_id" . toByteString') mbUserId
       )
 
-getConfiguredFeatureFlags ::
-  ( Member Rpc r,
-    Member (Input Endpoint) r
-  ) =>
-  Sem r FeatureFlags
-getConfiguredFeatureFlags = do
-  responseJsonUnsafe
-    <$> galleyRequest
-      ( method GET
-          . paths ["i", "features", "configured"]
-          . expect2xx
-      )
-
 -- | Calls 'Wire.ConversationSubsystem.updateTeamStatusH'.
 changeTeamStatus ::
   ( Member Rpc r,
@@ -662,10 +645,10 @@ unblockConversation ::
   Local UserId ->
   Maybe ConnId ->
   Qualified ConvId ->
-  Sem r OwnConversation
+  Sem r (OwnConversation GroupConvType)
 unblockConversation v lusr mconn (Qualified cnv cdom) = do
   void $ galleyRequest putReq
-  galleyRequest getReq >>= decodeBodyOrThrow @OwnConversation "galley"
+  galleyRequest getReq >>= decodeBodyOrThrow @(OwnConversation GroupConvType) "galley"
   where
     putReq =
       method PUT
@@ -703,7 +686,7 @@ internalGetConversation ::
     Member (Input Endpoint) r
   ) =>
   ConvId ->
-  Sem r (Maybe Conversation)
+  Sem r (Maybe (Conversation GroupConvType))
 internalGetConversation convId = do
   rs <- galleyRequest req
   case Bilge.statusCode rs of
@@ -732,19 +715,6 @@ getTeamContacts uid = do
       method GET
         . paths ["i", "users", toByteString' uid, "team", "members"]
         . expect [status200, status404]
-
-getConversationConfig ::
-  ( Member Rpc r,
-    Member (Input Endpoint) r
-  ) =>
-  Sem r ConversationSubsystemConfig
-getConversationConfig = do
-  responseJsonUnsafe
-    <$> galleyRequest
-      ( method GET
-          . paths ["i", "conversations", "config"]
-          . expect2xx
-      )
 
 guardLegalhold ::
   ( Member Rpc r,

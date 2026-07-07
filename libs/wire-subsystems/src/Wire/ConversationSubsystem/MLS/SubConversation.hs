@@ -220,7 +220,8 @@ deleteSubConversation ::
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member Resource r,
     Member Conversation.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member TinyLog r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -395,7 +396,8 @@ resetLocalSubConversation ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member Resource r,
     Member Conversation.MLSCommitLockStore r,
-    Member TeamSubsystem r
+    Member TeamSubsystem r,
+    Member TinyLog r
   ) =>
   Qualified UserId ->
   Local ConvId ->

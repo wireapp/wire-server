@@ -25,6 +25,7 @@ import qualified API.Nginz as Nginz
 import Data.String.Conversions (cs)
 import SetupHelpers
 import Testlib.Prelude
+import Web.Cookie
 
 testProviderUploadAsset :: (HasCallStack) => App ()
 testProviderUploadAsset = do
@@ -40,7 +41,8 @@ testProviderUploadAsset = do
       resp.status `shouldMatchInt` 200
       let hs = headers resp
           setCookieHeader = fromString "Set-Cookie"
-      pure . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
+          cookie = parseSetCookie . fromJust . foldMap (\(k, v) -> guard (k == setCookieHeader) $> v) $ hs
+      pure $ renderCookiesBS [(setCookieName cookie, setCookieValue cookie)]
 
   -- test Nginz API
   bindResponse (Nginz.uploadProviderAsset OwnDomain (cs cookie) "another profile pic") $ \resp -> do
