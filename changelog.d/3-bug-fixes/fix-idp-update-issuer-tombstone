@@ -1,0 +1,1 @@
+Fix flaky IdP updates caused by Cassandra tombstone shadowing when an issuer is reused across updates. Old issuer mappings are now deleted atomically within the same Cassandra batch as the new config insertion.

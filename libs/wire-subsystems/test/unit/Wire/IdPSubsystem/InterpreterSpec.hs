@@ -70,7 +70,7 @@ runAllEffects ::
   (Either IdPSubsystemError a, [RecordedLog])
 runAllEffects enableDiscovery idps teams brigAPIMockFn action = swap $ run $ runState [] $ do
   (_idpState, result) <- idPToMem $ do
-    forM_ idps insertConfig
+    forM_ idps (insertConfig InsertOnly)
     -- Run the action
     miniGalleyAPIAccess teams def
       . brigAPIAccessMock brigAPIMockFn

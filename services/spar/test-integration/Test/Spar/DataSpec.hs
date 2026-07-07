@@ -190,26 +190,26 @@ spec = do
     describe "IdPConfig" $ do
       it "insertIdPConfig, getIdPConfig are \"inverses\"" $ do
         idp <- makeTestIdP
-        () <- runSpar $ IdPEffect.insertConfig idp
+        () <- runSpar $ IdPEffect.insertConfig IdPEffect.InsertOnly idp
         midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
         liftIO $ midp `shouldBe` idp
       it "getIdPByIssuer works" $ do
         idp <- makeTestIdP
-        () <- runSpar $ IdPEffect.insertConfig idp
+        () <- runSpar $ IdPEffect.insertConfig IdPEffect.InsertOnly idp
         midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . team)
         liftIO $ midp `shouldBe` Just idp
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
         teamid <- nextWireId
         idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid Nothing [] Nothing (IdPHandle "IdP 1") Nothing
-        () <- runSpar $ IdPEffect.insertConfig idp
+        () <- runSpar $ IdPEffect.insertConfig IdPEffect.InsertOnly idp
         idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
         idpApiVersion <- asks (^. teWireIdPAPIVersion)
         idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid (Just idpApiVersion) [] Nothing (IdPHandle "IdP 1") Nothing
-        () <- runSpar $ IdPEffect.insertConfig idp
+        () <- runSpar $ IdPEffect.insertConfig IdPEffect.InsertOnly idp
         do
           midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
           liftIO $ midp `shouldBe` idp

@@ -39,7 +39,7 @@ import Wire.API.Routes.Public (ZHostValue)
 import Wire.API.User.IdentityProvider hiding (apiVersion, oldIssuers, replacedBy, team)
 import Wire.API.User.IdentityProvider qualified as IP
 import {- instance Cql SAML.IdPId -} Wire.DomainRegistrationStore.Cassandra ()
-import Wire.IdPConfigStore (IdPConfigStore (..), IdpDbError (..), Replaced (..), Replacing (..))
+import Wire.IdPConfigStore (IdPConfigStore (..), IdpDbError (..), InsertMode (..), Replaced (..), Replacing (..))
 import Wire.IdPConfigStore.Orphans ()
 
 idPToCassandra ::
@@ -50,7 +50,7 @@ idPToCassandra ::
 idPToCassandra =
   interpret $
     \case
-      InsertConfig iw -> embed @m (runExceptT $ insertIdPConfig iw) >>= either throw pure
+      InsertConfig mode iw -> embed @m (runExceptT $ insertIdPConfig mode iw) >>= either throw pure
       NewHandle tid -> embed @m (runExceptT $ newIdPHandleForTeam tid) >>= either throw pure
       GetConfig i -> embed @m (runExceptT $ getIdPConfig i) >>= either throw pure
       GetIdPByIssuerV1 i -> embed @m (runExceptT $ getIdPByIssuerV1 i) >>= either throw pure
@@ -72,10 +72,14 @@ type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCer
 insertIdPConfig ::
   forall m.
   (HasCallStack, MonadClient m, MonadError IdpDbError m) =>
+  InsertMode ->
   IdP ->
   m ()
-insertIdPConfig idp = do
+insertIdPConfig insertMode idp = do
   ensureDoNotMixApiVersions
+  let oldIssuers = idp ^. SAML.idpExtraInfo . IP.oldIssuers
+      tid = idp ^. SAML.idpExtraInfo . IP.team
+      thisVersion = fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . IP.apiVersion
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -105,6 +109,20 @@ insertIdPConfig idp = do
       ( idp ^. SAML.idpId,
         idp ^. SAML.idpExtraInfo . IP.team
       )
+    -- Delete old issuer mappings atomically with the new config insertion to
+    -- prevent Cassandra tombstone shadowing when an issuer is reused across
+    -- multiple updates (e.g., updating from issuer A to B and back to A).
+    -- Only done when the caller requests issuer cleanup (e.g. on IdP update,
+    -- but not on creation where replaced IdPs must keep their mappings).
+    case insertMode of
+      InsertOnly -> pure ()
+      InsertWithIssuerCleanup ->
+        forM_ oldIssuers $ \oldIssuer ->
+          case thisVersion of
+            WireIdPAPIV2 -> addPrepQuery delOldIssuerV2 (oldIssuer, tid)
+            WireIdPAPIV1 -> do
+              addPrepQuery delOldIssuerV1 (Identity oldIssuer)
+              addPrepQuery delOldIssuerV1' (Identity oldIssuer)
   where
     ensureDoNotMixApiVersions :: m ()
     ensureDoNotMixApiVersions = do
@@ -128,6 +146,15 @@ insertIdPConfig idp = do
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
+
+    delOldIssuerV2 :: PrepQuery W (SAML.Issuer, TeamId) ()
+    delOldIssuerV2 = "DELETE FROM issuer_idp_v2 WHERE issuer = ? AND team = ?"
+
+    delOldIssuerV1 :: PrepQuery W (Identity SAML.Issuer) ()
+    delOldIssuerV1 = "DELETE FROM issuer_idp WHERE issuer = ?"
+
+    delOldIssuerV1' :: PrepQuery W (Identity SAML.Issuer) ()
+    delOldIssuerV1' = "DELETE FROM issuer_idp_v2 WHERE issuer = ?"
 
 newIdPHandleForTeam ::
   forall m.

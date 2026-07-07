@@ -124,7 +124,7 @@ instance
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
-  storeIdPConfig = SPImpl . IdPConfigStore.insertConfig
+  storeIdPConfig = SPImpl . IdPConfigStore.insertConfig IdPConfigStore.InsertOnly
   getIdPConfig = SPImpl . IdPConfigStore.getConfig
   getIdPConfigByIssuerOptionalSPId issuer mbteam = SPImpl $ case mbteam of
     Nothing -> IdPConfigStore.getIdPByIssuerV1 issuer
