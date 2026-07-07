@@ -390,8 +390,8 @@ checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig 
       Logger.debug $
         Log.msg ("Multi-ingress domain guard rejected IdP access" :: ByteString)
           . Log.field "idp" idpIdTxt
-          . Log.field "idp_domain" (fromMaybe "None" (domainText <$> idpDomain))
-          . Log.field "request_host" (fromMaybe "None" (domainText <$> mbHost))
+          . Log.field "idp_domain" (maybe "None" domainText idpDomain)
+          . Log.field "request_host" (maybe "None" domainText mbHost)
       throwSparSem (SparIdPNotFound idpIdTxt)
 
 idpIdToText :: SAML.IdPId -> T.Text

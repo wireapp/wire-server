@@ -26,7 +26,7 @@ import Control.Exception
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.Domain (mkDomain)
-import qualified Data.Domain as Data.Domain
+import qualified Data.Domain
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import Imports
