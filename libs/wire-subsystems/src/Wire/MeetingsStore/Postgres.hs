@@ -30,14 +30,11 @@ import Data.Range (Range, fromRange)
 import Data.Time.Clock
 import Data.UUID (UUID, nil)
 import Data.Vector qualified as V
-import Hasql.Pool
 import Hasql.Session
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
-import Polysemy.Error (Error, throw)
-import Polysemy.Input
 import Wire.API.Meeting (Recurrence)
 import Wire.API.PostgresMarshall (PostgresMarshall (..), PostgresUnmarshall (..), dimapPG)
 import Wire.API.User.Identity (EmailAddress, fromEmail)
@@ -245,10 +242,7 @@ updateMeetingImpl meetingId mTitle mStartDate mEndDate mRecurrence = do
 -- * Delete
 
 deleteMeetingImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   MeetingId ->
   Sem r ()
 deleteMeetingImpl meetingId = do
@@ -403,17 +397,12 @@ replaceInvitedEmailsImpl meetingId emails = do
       |]
 
 getOldMeetingsImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UTCTime ->
   Int ->
   Sem r [StoredMeeting]
 getOldMeetingsImpl cutoffTime batchSize = do
-  pool <- input
-  result <- liftIO $ use pool session
-  either throw pure result
+  runSession session
   where
     session :: Session [StoredMeeting]
     session = statement (cutoffTime, fromIntegral batchSize) $ V.toList <$> listStatement

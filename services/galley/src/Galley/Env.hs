@@ -50,7 +50,7 @@ import Data.Misc (HttpsUrl)
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
 import Galley.Queue qualified as Q
 import HTTP2.Client.Manager (Http2Manager)
-import Hasql.Pool
+import Hasql.Pool.Extended
 import Imports
 import Network.AMQP qualified as Q
 import Network.HTTP.Client

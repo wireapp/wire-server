@@ -40,7 +40,7 @@ import Data.Coerce (coerce)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.ZAuth.CryptoSign (CryptoSign, runCryptoSign)
 import Hasql.Pool (UsageError)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.Wai.Utilities.Error qualified as Wai
 import Polysemy
@@ -242,7 +242,7 @@ type BrigLowerLevelEffects =
      SFT,
      ConnectionStore InternalPaging,
      Input Cas.ClientState,
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      Input AppSubsystemConfig,
      Input UserSubsystemConfig,
      Input VerificationCodeThrottleTTL,

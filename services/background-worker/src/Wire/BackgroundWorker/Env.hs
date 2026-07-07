@@ -30,8 +30,8 @@ import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
 import HTTP2.Client.Manager
-import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended
+import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Network.AMQP qualified as Q
 import Network.AMQP.Extended

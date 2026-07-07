@@ -27,7 +27,7 @@ import Data.Id (ConvId)
 import Data.Misc (HttpsUrl)
 import Data.Text qualified as T
 import Data.Time
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async

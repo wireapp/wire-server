@@ -27,7 +27,7 @@ import Data.Conduit.List qualified as C
 import Data.Domain
 import Data.Id
 import Database.CQL.Protocol (Record (asRecord), TupleType)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as Hasql
 import Imports hiding (lookup)
 import Polysemy
 import Polysemy.Async

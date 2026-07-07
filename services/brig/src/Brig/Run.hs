@@ -45,6 +45,7 @@ import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant qualified as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
+import Hasql.Pool.Extended (rawPool)
 import Imports hiding (head)
 import Network.HTTP.Media qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -82,7 +83,7 @@ import Wire.UserStore
 run :: Opts -> IO ()
 run opts = withTracer \tracer -> do
   (app, e) <- mkApp opts
-  runAllMigrations e.hasqlPool e.appLogger
+  runAllMigrations e.hasqlPool.rawPool e.appLogger
   let s = Server.newSettings (server e)
   internalEventListener <-
     Async.async $
@@ -113,7 +114,7 @@ run opts = withTracer \tracer -> do
 migratePostgres :: Opts -> Bool -> IO ()
 migratePostgres opts resetFirst = do
   logger <- initLogger opts
-  pool <- initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
+  pool <- (.rawPool) <$> initPostgresPool opts.postgresqlPool opts.postgresql opts.postgresqlPassword
   when resetFirst $ resetSchema pool logger
   runAllMigrations pool logger
   flush logger

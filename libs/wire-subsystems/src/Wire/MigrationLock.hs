@@ -25,6 +25,7 @@ import Data.Id
 import Data.UUID qualified as UUID
 import Data.Vector (Vector)
 import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -97,7 +98,7 @@ withMigrationLocks lockType maxWait lockables action = do
       lockAcquired <- embed newEmptyMVar
       actionCompleted <- embed newEmptyMVar
 
-      pool <- input
+      pool <- (.rawPool) <$> input @HasqlPoolExt.Pool
       lockThread <- async . embed . Hasql.use pool $ do
         let lockIds = fmap lockKey lockables
         Session.statement lockIds acquireLocks

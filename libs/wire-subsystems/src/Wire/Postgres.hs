@@ -72,13 +72,14 @@ import Data.Functor.Contravariant
 import Data.Id
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Data.Time.Clock
+import Data.Time.Clock (UTCTime)
 import Hasql.Decoders qualified as Dec
 import Hasql.Encoders qualified as Enc
 import Hasql.Errors
 import Hasql.Pipeline (Pipeline)
-import Hasql.Pool
 import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
+import Hasql.Pool.Observer qualified as HasqlObserver
 import Hasql.Session
 import Hasql.Statement
 import Hasql.Transaction (Transaction)
@@ -92,7 +93,7 @@ import PostgreSQL.ErrorCodes qualified as PostgreSQL
 import Wire.API.Pagination
 
 type PGConstraints r =
-  ( Member (Input Hasql.Pool) r,
+  ( Member (Input HasqlPoolExt.Pool) r,
     Member (Embed IO) r,
     Member (Error Hasql.UsageError) r
   )
@@ -103,7 +104,7 @@ type PGConstraints r =
 -- Inspired by https://github.com/nikita-volkov/hasql-pool/issues/27.
 -- The old issue still describes the server-error retry pattern, even though
 -- this module now uses hasql-resource-pool.
-useWithResetAndRetry :: forall a. Pool -> Session a -> IO (Either UsageError a)
+useWithResetAndRetry :: forall a. HasqlPoolExt.Pool -> Session a -> IO (Either Hasql.UsageError a)
 useWithResetAndRetry pool sess = go maxRetries
   where
     maxRetries :: Int
@@ -112,18 +113,32 @@ useWithResetAndRetry pool sess = go maxRetries
     resettableErrors :: [ByteString]
     resettableErrors = [PostgreSQL.admin_shutdown, PostgreSQL.crash_shutdown, PostgreSQL.cannot_connect_now, PostgreSQL.database_dropped]
 
-    go :: Int -> IO (Either UsageError a)
-    go 0 = use pool sess
+    go :: Int -> IO (Either Hasql.UsageError a)
+    go 0 = useObservedNoRetry pool sess
     go n = do
-      eithRes <- use pool sess
+      eithRes <- useObservedNoRetry pool sess
       case eithRes of
-        Left (SessionError (StatementSessionError _ _ _ _ _ (ServerStatementError (ServerError errCode _ _ _ _)))) -> do
+        Left (Hasql.SessionError (StatementSessionError _ _ _ _ _ (ServerStatementError (ServerError errCode _ _ _ _)))) -> do
           if (Text.encodeUtf8 errCode `elem` resettableErrors)
             then do
-              release pool
+              Hasql.release pool.rawPool
               go (n - 1)
             else pure eithRes
         _ -> pure eithRes
+
+    useObservedNoRetry :: HasqlPoolExt.Pool -> Session a -> IO (Either Hasql.UsageError a)
+    useObservedNoRetry p s = do
+      HasqlPoolExt.recordHasqlPoolSessionStarted p
+      result <-
+        Hasql.useWithObserver
+          (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration p (realToFrac $ HasqlObserver.latency observed))
+          p.rawPool
+          s
+      case result of
+        Left (Hasql.ConnectionError _) -> HasqlPoolExt.recordHasqlPoolConnectionFailure p.metrics
+        Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure p
+        Right _ -> pure ()
+      pure result
 
 -- | Runs a 'Session' using the 'Hasql.Pool'. Retries on server errors due to
 -- admin intervention. Things like server restart.
@@ -144,7 +159,21 @@ runSessionWithRetry sess = do
 runSession :: (PGConstraints r) => Session a -> Sem r a
 runSession sess = do
   pool <- input
-  liftIO (use pool sess) >>= either throw pure
+  liftIO (useObserved pool sess) >>= either throw pure
+
+useObserved :: HasqlPoolExt.Pool -> Session a -> IO (Either Hasql.UsageError a)
+useObserved pool sess = do
+  HasqlPoolExt.recordHasqlPoolSessionStarted pool
+  result <-
+    Hasql.useWithObserver
+      (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration pool (realToFrac $ HasqlObserver.latency observed))
+      pool.rawPool
+      sess
+  case result of
+    Left (Hasql.ConnectionError _) -> HasqlPoolExt.recordHasqlPoolConnectionFailure pool.metrics
+    Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure pool
+    Right _ -> pure ()
+  pure result
 
 -- | Runs a 'Statement' using the 'Hasql.Pool'. Always retries on server errors
 -- due to admin intervention. Things like server restart.

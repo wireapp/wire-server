@@ -111,6 +111,7 @@ library
     , metrics-wai
     , monad-control
     , postgresql-connection-string
+    , prometheus-client
     , ram
     , retry
     , servant

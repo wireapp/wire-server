@@ -22,7 +22,7 @@ import Data.ByteString.Conversion
 import Data.Conduit
 import Data.Conduit.List qualified as C
 import Data.Id
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Polysemy
 import Polysemy.Async

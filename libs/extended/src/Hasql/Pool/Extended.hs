@@ -20,17 +20,20 @@ module Hasql.Pool.Extended where
 import Data.Aeson
 import Data.Map as Map
 import Data.Misc
+import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Hasql.Connection qualified
 import Hasql.Connection.Settings qualified as HasqlConnSettings
-import Hasql.Pool as HasqlPool
+import Hasql.Pool qualified as HasqlPool
 import Imports
 import PostgresqlConnectionString qualified
+import Prometheus
 import Util.Options
 
 data PoolConfig = PoolConfig
   { size :: Int,
     -- | Configured pool acquisition wait time. hasql-resource-pool only
-    -- accepts whole seconds here, so we round up to the nearest second.
+    -- accepts whole seconds here, so we round up to the nearest second and
+    -- pass it through as the pool acquisition timeout.
     acquisitionTimeout :: Duration,
     -- | Kept for config compatibility. hasql-resource-pool does not currently
     -- expose a direct equivalent, so we parse and retain it but do not enforce
@@ -41,6 +44,8 @@ data PoolConfig = PoolConfig
   }
   deriving (Eq, Show)
 
+type UsageError = HasqlPool.UsageError
+
 instance FromJSON PoolConfig where
   parseJSON = withObject "PoolConfig" $ \o ->
     PoolConfig
@@ -49,38 +54,130 @@ instance FromJSON PoolConfig where
       <*> o .: "agingTimeout"
       <*> o .: "idlenessTimeout"
 
+data HasqlPoolMetrics = HasqlPoolMetrics
+  { readyForUseGauge :: Gauge,
+    inUseGauge :: Gauge,
+    establishedCounter :: Counter,
+    terminationCounter :: Counter,
+    connectionFailureCounter :: Counter,
+    sessionFailureCounter :: Counter,
+    sessionCounter :: Counter,
+    connectionAcquisitionDuration :: Histogram,
+    sessionDuration :: Histogram
+  }
+
+data Pool = Pool
+  { rawPool :: HasqlPool.Pool,
+    metrics :: HasqlPoolMetrics,
+    -- we periodically store the total number of live connections
+    -- to be able to approximate the terminated count
+    totalConnectionsStats :: IORef Int
+  }
+
+recordHasqlPoolConnectionAcquisition :: HasqlPoolMetrics -> Double -> IO ()
+recordHasqlPoolConnectionAcquisition metrics secs =
+  observe metrics.connectionAcquisitionDuration secs
+
+recordHasqlPoolConnectionEstablished :: HasqlPoolMetrics -> IO ()
+recordHasqlPoolConnectionEstablished metrics =
+  void $ addCounter metrics.establishedCounter 1
+
+recordHasqlPoolConnectionFailure :: HasqlPoolMetrics -> IO ()
+recordHasqlPoolConnectionFailure metrics =
+  void $ addCounter metrics.connectionFailureCounter 1
+
+recordHasqlPoolSessionStarted :: Pool -> IO ()
+recordHasqlPoolSessionStarted pool =
+  void $ addCounter pool.metrics.sessionCounter 1
+
+recordHasqlPoolSessionFailure :: Pool -> IO ()
+recordHasqlPoolSessionFailure pool =
+  void $ addCounter pool.metrics.sessionFailureCounter 1
+
+recordHasqlPoolSessionDuration :: Pool -> Double -> IO ()
+recordHasqlPoolSessionDuration pool secs =
+  observe pool.metrics.sessionDuration secs
+
+recordHasqlPoolStats :: Pool -> IO ()
+recordHasqlPoolStats pool = do
+  -- hasql-resource-pool does not expose per-acquire/release callbacks, so
+  -- these gauges are refreshed from the pool's current total connections stats instead.
+  poolStats <- HasqlPool.stats pool.rawPool
+  setGauge pool.metrics.readyForUseGauge (fromIntegral poolStats.available)
+  setGauge pool.metrics.inUseGauge (fromIntegral poolStats.currentUsage)
+  let total = poolStats.currentUsage + poolStats.available
+  prevTotal <- readIORef pool.totalConnectionsStats
+  let delta = total - prevTotal
+  when (delta < 0) $ replicateM_ (abs delta) (addCounter pool.metrics.terminationCounter 1)
+  writeIORef pool.totalConnectionsStats (poolStats.currentUsage + poolStats.available)
+
+startHasqlPoolStatsReporter :: Pool -> IO ()
+startHasqlPoolStatsReporter pool = void $ forkIO $ forever $ do
+  recordHasqlPoolStats pool
+  threadDelay (5 * 1_000_000) -- 5s
+
 -- | Creates a pool from postgres config params.
 --
--- Only 'idlenessTimeout' is enforced by the new resource pool backend. The
--- other timeout fields stay in the config shape so existing configuration
--- files continue to decode, but they are currently compatibility-only.
-initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO HasqlPool.Pool
+-- 'acquisitionTimeout' is mapped to the pool acquisition timeout,
+-- 'idlenessTimeout' controls how long idle connections stay resident, and
+-- 'agingTimeout' stays in the config shape for compatibility because the new
+-- pool backend does not expose an equivalent setting.
+initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO Pool
 initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   let pgSettings =
         HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl $ PostgresqlConnectionString.fromKeyValueParams pgConfig)
           <> foldMap HasqlConnSettings.password mPw
-  HasqlPool.acquireWith
-    (Hasql.Connection.acquire pgSettings)
-    ( config.size,
-      realToFrac config.idlenessTimeout.duration,
-      poolAcquireSettings
-    )
+  metrics <- mkHasqlPoolMetrics
+  totalConnectionsStats <- newIORef 0
+  rawPool <-
+    HasqlPool.acquireWith
+      (instrumentedConnectionGetter metrics (Hasql.Connection.acquire pgSettings))
+      ( config.size,
+        realToFrac config.idlenessTimeout.duration,
+        poolAcquireSettings config.acquisitionTimeout
+      )
+  let pool = Pool {rawPool, metrics, totalConnectionsStats}
+  startHasqlPoolStatsReporter pool
+  pure pool
   where
-    -- hasql-resource-pool does not expose a direct equivalent for the old
-    -- agingTimeout setting. That field remains in the config shape for
-    -- compatibility but is not enforced by this pool.
-    --
-    -- The custom getter above performs the actual connection establishment.
-    -- This record only configures pool behavior, including acquisition timing.
-    poolAcquireSettings =
+    instrumentedConnectionGetter metrics getter = do
+      started <- getCurrentTime
+      res <- getter
+      ended <- getCurrentTime
+      recordHasqlPoolConnectionAcquisition metrics (realToFrac (diffUTCTime ended started))
+      case res of
+        Right _ -> recordHasqlPoolConnectionEstablished metrics
+        Left _ -> recordHasqlPoolConnectionFailure metrics
+      pure res
+
+    mkHasqlPoolMetrics :: IO HasqlPoolMetrics
+    mkHasqlPoolMetrics =
+      HasqlPoolMetrics
+        <$> register (gauge $ Info "wire_hasql_pool_ready_for_use" "Number of hasql pool connections ready for use")
+        <*> register (gauge $ Info "wire_hasql_pool_in_use" "Number of hasql pool connections in use")
+        <*> register (counter $ Info "wire_hasql_pool_connection_established_count" "Number of established connections")
+        <*> register (counter $ Info "wire_hasql_pool_connection_terminated_count" "Number of terminated connections")
+        <*> register (counter $ Info "wire_hasql_pool_connection_failure_count" "Number of failed connection acquisition attempts")
+        <*> register (counter $ Info "wire_hasql_pool_session_failure_count" "Number of times a session has failed")
+        <*> register (counter $ Info "wire_hasql_pool_session_count" "Number of times a session was created")
+        <*> register (histogram (Info "wire_hasql_pool_connection_acquisition_seconds" "Time spent establishing new PostgreSQL connections") defaultBuckets)
+        <*> register (histogram (Info "wire_hasql_pool_session_seconds" "Time spent using PostgreSQL sessions") defaultBuckets)
+
+    poolAcquireSettings acquisitionTimeout =
+      -- hasql-resource-pool does not expose a direct equivalent for the old
+      -- agingTimeout setting. That field remains in the config shape for
+      -- compatibility but is not enforced by this pool.
+      --
+      -- The custom getter above performs the actual connection establishment.
+      -- This record configures pool behavior, including acquisition timing.
       HasqlPool.ConnectionSettings
         { host = "",
           port = 5432,
           user = "",
           password = "",
           dbName = "",
-          connAcqTimeout = acquisitionTimeoutSeconds config.acquisitionTimeout,
+          connAcqTimeout = acquisitionTimeoutSeconds acquisitionTimeout,
           txIdleTimeout = HasqlPool.TimeoutSetting 0 HasqlPool.Seconds,
           stmtTimeout = HasqlPool.TimeoutSetting 0 HasqlPool.Seconds,
           sslMode = "prefer",

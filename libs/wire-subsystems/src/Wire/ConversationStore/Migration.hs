@@ -34,7 +34,7 @@ import Data.Time
 import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
 import Hasql.Transaction qualified as Transaction
