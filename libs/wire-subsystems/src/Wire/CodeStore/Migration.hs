@@ -22,8 +22,8 @@ import Data.ByteString.Conversion
 import Data.Code (Key, Value)
 import Data.Conduit
 import Data.Conduit.List qualified as C
-import Data.IORef qualified as IORef
 import Data.Domain (Domain)
+import Data.IORef qualified as IORef
 import Data.Id (ConvId)
 import Data.Misc (HttpsUrl)
 import Data.Text qualified as T
