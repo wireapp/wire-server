@@ -17,23 +17,6 @@ import Testlib.Prelude
 import Text.Regex.TDFA ((=~))
 import UnliftIO.Concurrent (threadDelay)
 
--- Helper to extract meetingId and domain from a meeting JSON object
-getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)
-getMeetingIdAndDomain meeting = do
-  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
-  domain <- meeting %. "qualified_id" %. "domain" >>= asString
-  pure (meetingId, domain)
-
--- Helper to create a default new meeting JSON object
-defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
-defaultMeetingJson title startTime endTime invitedEmails =
-  object
-    [ "title" .= title,
-      "start_time" .= startTime,
-      "end_time" .= endTime,
-      "invited_emails" .= invitedEmails
-    ]
-
 testMeetingCreate :: (HasCallStack) => App ()
 testMeetingCreate = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -53,6 +36,9 @@ testMeetingCreate = do
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
   meeting %. "invited_emails" `shouldMatch` (["alice@example.com", "bob@example.com"] :: [String])
+
+  -- The full conversation is returned alongside the legacy field
+  assertConversationMatchesLegacy meeting
 
   -- Verify fetching the meeting
   (meetingId, domain) <- getMeetingIdAndDomain meeting
@@ -92,6 +78,32 @@ testMeetingMLSAddParticipant = do
     res.status `shouldMatchInt` 200
     (length <$> (res.json %. "members.others" & asList)) `shouldMatchInt` 1
     res.json %. "members.others.0.qualified_id" `shouldMatch` objQidObject bob
+
+-- | Helper to extract meetingId and domain from a meeting JSON object
+getMeetingIdAndDomain :: (HasCallStack) => Value -> App (String, String)
+getMeetingIdAndDomain meeting = do
+  meetingId <- meeting %. "qualified_id" %. "id" >>= asString
+  domain <- meeting %. "qualified_id" %. "domain" >>= asString
+  pure (meetingId, domain)
+
+-- | On create/update responses, the full @conversation@ object is returned
+-- alongside the legacy @qualified_conversation@ field. This asserts that both
+-- refer to the same conversation.
+assertConversationMatchesLegacy :: (HasCallStack) => Value -> App ()
+assertConversationMatchesLegacy meeting = do
+  convId <- meeting %. "conversation" %. "qualified_id"
+  legacyConvId <- meeting %. "qualified_conversation"
+  convId `shouldMatch` legacyConvId
+
+-- | Helper to create a default new meeting JSON object
+defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
+defaultMeetingJson title startTime endTime invitedEmails =
+  object
+    [ "title" .= title,
+      "start_time" .= startTime,
+      "end_time" .= endTime,
+      "invited_emails" .= invitedEmails
+    ]
 
 testMeetingGetNotFound :: (HasCallStack) => App ()
 testMeetingGetNotFound = do
@@ -200,6 +212,9 @@ testMeetingRecurrence = do
   recurrence' <- updated %. "recurrence"
   recurrence' %. "frequency" `shouldMatch` "weekly"
   recurrence' %. "interval" `shouldMatchInt` 2
+
+  -- The full conversation is still returned on update
+  assertConversationMatchesLegacy updated
 
 testMeetingUpdateNotFound :: (HasCallStack) => App ()
 testMeetingUpdateNotFound = do

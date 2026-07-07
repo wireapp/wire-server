@@ -22,6 +22,7 @@ module Wire.MeetingsSubsystem.Interpreter
 where
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
@@ -34,6 +35,9 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input)
+import Polysemy.TinyLog (TinyLog)
+import Polysemy.TinyLog qualified as TinyLog
+import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
@@ -80,6 +84,7 @@ interpretMeetingsSubsystem ::
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
     Member Now r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member (Input (Local ())) r
   ) =>
@@ -114,7 +119,7 @@ createMeetingImpl ::
   ) =>
   Local UserId ->
   API.NewMeeting ->
-  Sem r (API.Meeting, StoredConversation)
+  Sem r API.MeetingWithConversation
 createMeetingImpl zUser newMeeting = do
   -- Look up user's team once and reuse for both checks
   conversationTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
@@ -168,16 +173,14 @@ createMeetingImpl zUser newMeeting = do
       newMeeting.invitedEmails
       trial
 
-  -- Return created meeting
-  pure
-    ( storedMeetingToMeeting (tDomain zUser) storedMeeting,
-      storedConv
-    )
+  pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
 updateMeetingImpl ::
   ( Member Store.MeetingsStore r,
+    Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
@@ -185,7 +188,7 @@ updateMeetingImpl ::
   Qualified MeetingId ->
   API.UpdateMeeting ->
   NominalDiffTime ->
-  Sem r (Maybe API.Meeting)
+  Sem r (Maybe API.MeetingWithConversation)
 updateMeetingImpl zUser meetingId update validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
   checkMeetingsEnabled maybeTeamId
@@ -211,13 +214,15 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.startTime
           update.endTime
           update.recurrence
-    pure $ storedMeetingToMeeting (tDomain zUser) updatedMeeting
+    conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
+    pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
   ) =>
@@ -239,7 +244,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
       guard $ meeting.creator == tUnqualified zUser
       let convId = meeting.conversationId
           lConvId = qualifyAs zUser convId
-      conv <- MaybeT $ ConversationSubsystem.internalGetConversation convId
+      conv <- MaybeT $ getMeetingConversationOrFail meetingId convId
       when (conv.metadata.cnvmGroupConvType == Just MeetingConversation) $
         lift $
           void $
@@ -279,6 +284,28 @@ getMeetingImpl zUser meetingId validityPeriod = do
         void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
         pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
 
+-- | Look up the 'StoredConversation' associated with a meeting. When the
+-- conversation cannot be found (a data-integrity anomaly), a warning is logged
+-- before failing: otherwise the missing conversation is indistinguishable from
+-- a missing meeting for callers.
+getMeetingConversationOrFail ::
+  ( Member ConversationSubsystem r,
+    Member TinyLog r
+  ) =>
+  Qualified MeetingId ->
+  ConvId ->
+  Sem r (Maybe StoredConversation)
+getMeetingConversationOrFail meetingId convId = do
+  mConv <- ConversationSubsystem.internalGetConversation convId
+  case mConv of
+    Just conv -> pure (Just conv)
+    Nothing -> do
+      TinyLog.warn $
+        Log.msg ("conversation not found for meeting" :: ByteString)
+          . Log.field "conversationId" (toByteString' convId)
+          . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
+      pure Nothing
+
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting
 storedMeetingToMeeting domain sm =
@@ -294,6 +321,24 @@ storedMeetingToMeeting domain sm =
       API.trial = sm.trial,
       API.createdAt = sm.createdAt,
       API.updatedAt = sm.updatedAt
+    }
+
+-- | Like 'storedMeetingToMeeting', but additionally carries the full
+-- 'API.Conversation' associated with the meeting.
+--
+-- The local user's domain ('tDomain lUser') is used to qualify the meeting,
+-- its creator and its conversation: meetings are not federated, and every
+-- meeting operation guards @qDomain meetingId == tDomain zUser@. The
+-- conversation itself is always created locally.
+storedMeetingToMeetingWithConversation ::
+  Local UserId ->
+  StoredConversation ->
+  Store.StoredMeeting ->
+  API.MeetingWithConversation
+storedMeetingToMeetingWithConversation lUser conv sm =
+  API.MeetingWithConversation
+    { API.meeting = storedMeetingToMeeting (tDomain lUser) sm,
+      API.conversation = conversationView lUser (Just lUser) conv
     }
 
 listMeetingsImpl ::
