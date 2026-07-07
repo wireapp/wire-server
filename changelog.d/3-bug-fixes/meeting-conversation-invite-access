@@ -1,4 +1,0 @@
-Fix MLS participant adds on meeting conversations by granting `InviteAccess`
-alongside `PrivateAccess` when creating the underlying conversation. Without
-`InviteAccess`, Galley rejects member joins after MLS commits with 403
-`access-denied`.

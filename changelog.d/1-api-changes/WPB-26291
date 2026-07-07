@@ -1,2 +1,0 @@
-- In API version v17 `POST /register` may now return a new `403 managed-by-scim` error when a SCIM-managed pending user changes the display name during registration
-- The `GET /teams/invitations/info?code=...` response may now include the optional `managed_by` field
