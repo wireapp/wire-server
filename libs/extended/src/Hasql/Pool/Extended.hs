@@ -39,7 +39,7 @@ data PoolConfig = PoolConfig
     -- expose a direct equivalent, so we parse and retain it but do not enforce
     -- it here.
     agingTimeout :: Duration,
-    -- | This is the only timeout we actively apply to the resource pool.
+    -- | Controls how long idle connections stay resident in the pool.
     idlenessTimeout :: Duration
   }
   deriving (Eq, Show)
