@@ -68,6 +68,7 @@ import Brig.Schema.V90_DomainRegistrationTeamIndex qualified as V90_DomainRegist
 import Brig.Schema.V91_UpdateDomainRegistrationSchema_AddWebappUrl qualified as V91_UpdateDomainRegistrationSchema_AddWebappUrl
 import Brig.Schema.V92_AddUserType qualified as V92_AddUserType
 import Brig.Schema.V93_AddScimPendingUserEmail qualified as V93_AddScimPendingUserEmail
+import Brig.Schema.V94_ReduceUserGCGracePeriod qualified as V94_ReduceUserGCGracePeriod
 import Cassandra.MigrateSchema (migrateSchema)
 import Cassandra.Schema
 import Control.Exception (finally)
@@ -142,7 +143,8 @@ migrations =
     V90_DomainRegistrationTeamIndex.migration,
     V91_UpdateDomainRegistrationSchema_AddWebappUrl.migration,
     V92_AddUserType.migration,
-    V93_AddScimPendingUserEmail.migration
+    V93_AddScimPendingUserEmail.migration,
+    V94_ReduceUserGCGracePeriod.migration
     -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
     -- https://github.com/wireapp/wire-server/pull/964
   ]

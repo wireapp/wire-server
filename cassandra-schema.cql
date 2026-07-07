@@ -738,7 +738,7 @@ CREATE TABLE brig_test.rich_info (
     AND crc_check_chance = 1.0
     AND default_time_to_live = 0
     AND extensions = {}
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -848,7 +848,7 @@ CREATE TABLE brig_test.service_team (
     AND crc_check_chance = 1.0
     AND default_time_to_live = 0
     AND extensions = {}
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -874,7 +874,7 @@ CREATE TABLE brig_test.service_user (
     AND crc_check_chance = 1.0
     AND default_time_to_live = 0
     AND extensions = {}
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1088,7 +1088,7 @@ CREATE TABLE brig_test.user (
     AND crc_check_chance = 1.0
     AND default_time_to_live = 0
     AND extensions = {}
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -1137,7 +1137,7 @@ CREATE TABLE brig_test.user_handle (
     AND crc_check_chance = 1.0
     AND default_time_to_live = 0
     AND extensions = {}
-    AND gc_grace_seconds = 864000
+    AND gc_grace_seconds = 86400
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
