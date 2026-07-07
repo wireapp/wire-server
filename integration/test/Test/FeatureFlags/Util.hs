@@ -57,6 +57,9 @@ disabled = object ["lockStatus" .= "unlocked", "status" .= "disabled", "ttl" .= 
 disabledLocked :: Value
 disabledLocked = object ["lockStatus" .= "locked", "status" .= "disabled", "ttl" .= "unlimited"]
 
+enabledLocked :: Value
+enabledLocked = object ["lockStatus" .= "locked", "status" .= "enabled", "ttl" .= "unlimited"]
+
 enabled :: Value
 enabled = object ["lockStatus" .= "unlocked", "status" .= "enabled", "ttl" .= "unlimited"]
 
@@ -246,7 +249,7 @@ defAllFeatures =
                 ]
           ],
       "meetings" .= enabled,
-      "meetingsPremium" .= disabledLocked,
+      "meetingsPremium" .= enabledLocked,
       "backgroundEffects" .= disabledLocked,
       "preventAdminlessGroups"
         .= object

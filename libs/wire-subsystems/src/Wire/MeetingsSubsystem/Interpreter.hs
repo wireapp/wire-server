@@ -42,7 +42,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Meeting qualified as API
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
-import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig, MeetingsPremiumConfig)
+import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
 import Wire.ConversationSubsystem (ConversationSubsystem)
 import Wire.ConversationSubsystem qualified as ConversationSubsystem
@@ -128,12 +128,10 @@ createMeetingImpl zUser newMeeting = do
   when (newMeeting.endTime <= newMeeting.startTime) $
     throw InvalidTimes
 
-  -- Determine trial status based on team membership and premium feature
-  trial <- case conversationTeamId of
-    Nothing -> pure True -- Personal users create trial meetings
-    Just teamId -> do
-      premiumFeature <- getFeatureForTeam @_ @MeetingsPremiumConfig teamId
-      pure $ premiumFeature.status /= FeatureStatusEnabled
+  -- Determine trial status: personal users (no team) create trial meetings.
+  -- The deprecated meetingsPremium feature flag no longer affects this; team
+  -- meetings are always non-trial (see WPB-26771).
+  let trial = isNothing conversationTeamId
 
   -- Create conversation with the meeting creator as the only member (admin role)
   let newConv =

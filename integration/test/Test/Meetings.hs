@@ -127,19 +127,17 @@ testMeetingCreatePersonalUserTrial = do
   meeting <- getJSON 201 r
   meeting %. "trial" `shouldMatch` True
 
--- Test that paying team members create non-trial meetings
-testMeetingCreatePayingTeamNonTrial :: (HasCallStack) => App ()
-testMeetingCreatePayingTeamNonTrial = do
-  (owner, tid, _members) <- createTeam OwnDomain 1
-
-  let firstMeeting = object ["status" .= "enabled"]
-  I.setTeamFeatureLockStatus owner tid "meetingsPremium" "unlocked"
-  I.setTeamFeatureConfig owner tid "meetingsPremium" firstMeeting >>= assertStatus 200
+-- Test that team members create non-trial meetings. The deprecated
+-- meetingsPremium flag no longer affects this; team meetings are always
+-- non-trial (see WPB-26771).
+testMeetingCreateTeamNonTrial :: (HasCallStack) => App ()
+testMeetingCreateTeamNonTrial = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
 
   now <- liftIO getCurrentTime
   let startTime = addUTCTime 3600 now
       endTime = addUTCTime 7200 now
-      newMeeting = defaultMeetingJson "Paying Team Meeting" startTime endTime []
+      newMeeting = defaultMeetingJson "Team Meeting" startTime endTime []
 
   r <- postMeetings owner newMeeting
   assertSuccess r
