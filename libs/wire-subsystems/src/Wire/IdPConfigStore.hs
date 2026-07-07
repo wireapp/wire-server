@@ -19,6 +19,7 @@
 
 module Wire.IdPConfigStore
   ( IdPConfigStore (..),
+    InsertMode (..),
     Replacing (..),
     Replaced (..),
     insertConfig,
@@ -49,8 +50,18 @@ newtype Replaced = Replaced SAML.IdPId
 newtype Replacing = Replacing SAML.IdPId
   deriving (Eq, Ord, Show)
 
+-- | Controls whether 'insertConfig' also cleans up old issuer mappings from the
+-- issuer lookup tables inside the same Cassandra batch.
+data InsertMode
+  = -- | Insert the config only; leave old issuer mappings intact.
+    InsertOnly
+  | -- | Insert the config and atomically delete old issuer mappings to prevent
+    -- Cassandra tombstone shadowing when an issuer is reused across updates.
+    InsertWithIssuerCleanup
+  deriving stock (Eq, Show)
+
 data IdPConfigStore m a where
-  InsertConfig :: IP.IdP -> IdPConfigStore m ()
+  InsertConfig :: InsertMode -> IP.IdP -> IdPConfigStore m ()
   NewHandle :: TeamId -> IdPConfigStore m IP.IdPHandle
   GetConfig :: SAML.IdPId -> IdPConfigStore m IP.IdP
   GetIdPByIssuerV1Maybe :: SAML.Issuer -> IdPConfigStore m (Maybe IP.IdP)

@@ -132,7 +132,7 @@ import Wire.API.User.Saml
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import qualified Wire.BrigAPIAccess as BrigAPIAccess
 import Wire.GalleyAPIAccess (GalleyAPIAccess)
-import Wire.IdPConfigStore (IdPConfigStore, Replaced (..), Replacing (..))
+import Wire.IdPConfigStore (IdPConfigStore, InsertMode (..), Replaced (..), Replacing (..))
 import qualified Wire.IdPConfigStore as IdPConfigStore
 import Wire.IdPSubsystem (IdPSubsystem)
 import qualified Wire.IdPSubsystem as IdPSubsystem
@@ -731,7 +731,7 @@ idpCreate samlConfig tid zUser uncheckedMbHost (IdPMetadataValue rawIdpMetadata 
     maybe (IdPConfigStore.newHandle tid) (pure . IdPHandle . fromRange) mHandle
       >>= validateNewIdP apiversion idpmeta tid mReplaces mbHost
   IdPRawMetadataStore.store (idp ^. SAML.idpId) rawIdpMetadata
-  IdPConfigStore.insertConfig idp
+  IdPConfigStore.insertConfig InsertOnly idp
   forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   when (SAML.isMultiIngressConfig samlConfig) $
@@ -966,7 +966,7 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
-  IdPConfigStore.insertConfig idp''
+  IdPConfigStore.insertConfig InsertWithIssuerCleanup idp''
   -- Old issuer mappings are now deleted atomically as part of the same
   -- Cassandra batch inside 'insertConfig' to prevent tombstone shadowing
   -- when an issuer is reused across updates.

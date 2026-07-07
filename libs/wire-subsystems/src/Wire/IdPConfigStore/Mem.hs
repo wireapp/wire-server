@@ -44,7 +44,7 @@ idPToMem = evState . evEff
 
     evEff :: Sem (IdPConfigStore ': r) a -> Sem (State TypedState ': r) a
     evEff = reinterpret @_ @(State TypedState) $ \case
-      InsertConfig iw ->
+      InsertConfig _mode iw ->
         modify' (insertConfig iw)
       NewHandle _tid ->
         -- Same handle for all IdPs is good enough, for now

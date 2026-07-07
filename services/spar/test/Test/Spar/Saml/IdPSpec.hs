@@ -665,7 +665,7 @@ spec =
                   let allow = singletonAllowlist bogusFingerprint
                   (_logs2, _notifs2, res) <-
                     interpretWithLoggingMockOptsE (withAllow (Just allow)) Nothing $ do
-                      insertConfig idp
+                      insertConfig InsertOnly idp
                       idpUpdate singleIngressSamlConfig zUser host idpInfo (idp._idpId) Nothing
                   res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed fingerprint))
 
@@ -681,7 +681,7 @@ spec =
                 Right idp -> do
                   (_logs2, _notifs2, res) <-
                     interpretWithLoggingMockOptsE (withAllow (Just partialAllow)) Nothing $ do
-                      insertConfig idp
+                      insertConfig InsertOnly idp
                       idpUpdate singleIngressSamlConfig zUser host idpInfo (idp._idpId) Nothing
                   res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed secondCertFingerprint))
 
