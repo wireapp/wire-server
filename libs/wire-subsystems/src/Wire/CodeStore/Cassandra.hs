@@ -22,7 +22,7 @@ where
 
 import Cassandra
 import Data.Code
-import Data.Domain (domainText)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
@@ -40,7 +40,7 @@ import Wire.Util (embedClientInput)
 interpretCodeStoreToCassandra ::
   ( Member (Embed IO) r,
     Member (Input ClientState) r,
-    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (Input (Either HttpsUrl (Map Domain HttpsUrl))) r,
     Member (ErrorS 'CodeStoreNotFound) r
   ) =>
   Sem (CodeStore ': r) a ->
@@ -61,7 +61,7 @@ interpretCodeStoreToCassandra = interpret $ \case
       Left uri -> pure (Just uri)
       Right map' ->
         case mbHost of
-          Just host -> pure (Map.lookup (domainText host) map')
+          Just host -> pure (Map.lookup host map')
           Nothing -> pure Nothing
 
 -- | Insert a conversation code

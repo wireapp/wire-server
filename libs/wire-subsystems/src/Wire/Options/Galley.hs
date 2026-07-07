@@ -138,7 +138,7 @@ data Settings = Settings
     --
     -- multiIngress and conversationCodeURI are mutually exclusive. One of
     -- both options need to be configured.
-    _multiIngress :: Maybe (Map Text HttpsUrl),
+    _multiIngress :: Maybe (Map Domain HttpsUrl),
     -- | Throttling: limits to concurrent deletion events
     _concurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
@@ -243,7 +243,7 @@ deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
 
-conversationCodeURISettings :: (Applicative m) => Opts -> m (Either HttpsUrl (Map Text HttpsUrl))
+conversationCodeURISettings :: (Applicative m) => Opts -> m (Either HttpsUrl (Map Domain HttpsUrl))
 conversationCodeURISettings opts =
   case (opts._settings._conversationCodeURI, opts._settings._multiIngress) of
     (Nothing, Nothing) -> error errMsg

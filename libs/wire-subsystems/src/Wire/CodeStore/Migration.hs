@@ -23,6 +23,7 @@ import Data.Code (Key, Value)
 import Data.Conduit
 import Data.Conduit.List qualified as C
 import Data.IORef qualified as IORef
+import Data.Domain (Domain)
 import Data.Id (ConvId)
 import Data.Misc (HttpsUrl)
 import Data.Text qualified as T
@@ -55,7 +56,7 @@ type EffectStack =
   [ State Int,
     Input ClientState,
     Input Hasql.Pool,
-    Input (Either HttpsUrl (Map Text HttpsUrl)),
+    Input (Either HttpsUrl (Map Domain HttpsUrl)),
     Resource,
     Async,
     Race,
@@ -100,7 +101,7 @@ interpreter cassClient pgPool logger name =
 
 migrateAllCodes ::
   ( Member (Input Hasql.Pool) r,
-    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+    Member (Input (Either HttpsUrl (Map Domain HttpsUrl))) r,
     Member (Embed IO) r,
     Member (Input ClientState) r,
     Member TinyLog r,
@@ -119,7 +120,7 @@ migrateAllCodes migOpts migCounter migDuration = do
     .| C.mapM_ (traverse_ (\row@(key, _, _, _, _) -> handleErrors (toByteString' key) (migrateCodeRow migOpts migCounter migDuration row)))
 
 migrateCodeRow ::
-  ( Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r,
+  ( Member (Input (Either HttpsUrl (Map Domain HttpsUrl))) r,
     PGConstraints r,
     Member TinyLog r,
     Member Resource r,

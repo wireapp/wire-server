@@ -27,6 +27,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -222,7 +223,7 @@ type BackgroundWorkerEffects =
      Input (Maybe GuestLinkTTLSeconds),
      Input (Maybe GroupInfoCheckEnabled),
      Input IntraListing,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Input ExposeInvitationURLsAllowlist,
      Input LegalHoldEnv,
      Input ClientState,
@@ -307,7 +308,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . runInputConst @ClientState env.cassandraGalley
     . runInputConst @LegalHoldEnv legalHoldEnv
     . runInputConst @ExposeInvitationURLsAllowlist (ExposeInvitationURLsAllowlist $ fromMaybe [] env.exposeInvitationURLsTeamAllowlist)
-    . runInputConst @(Either HttpsUrl (Map Text HttpsUrl)) env.convCodeURI
+    . runInputConst @(Either HttpsUrl (Map Domain HttpsUrl)) env.convCodeURI
     . runInputConst @IntraListing (IntraListing env.intraListing)
     . runInputConst @(Maybe GroupInfoCheckEnabled) (GroupInfoCheckEnabled <$> env.checkGroupInfo)
     . runInputConst @(Maybe GuestLinkTTLSeconds) env.guestLinkTTLSeconds

@@ -45,6 +45,7 @@ where
 
 import Cassandra
 import Control.Lens hiding ((.=))
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc (HttpsUrl)
 import Data.Time.Clock.DiffTime (millisecondsToDiffTime)
@@ -85,7 +86,7 @@ data Env = Env
     _aEnv :: Maybe Aws.Env,
     _mlsKeys :: Maybe (MLSKeysByPurpose MLSPrivateKeys),
     _rabbitmqChannel :: Maybe (MVar Q.Channel),
-    _convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
+    _convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
     _passwordHashingRateLimitEnv :: RateLimitEnv
   }
 

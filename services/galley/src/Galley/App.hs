@@ -47,6 +47,7 @@ import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
+import Data.Domain (Domain)
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -236,7 +237,7 @@ type GalleyEffects =
      Input (Maybe (MLSKeysByPurpose MLSPrivateKeys)),
      Input (Maybe GroupInfoCheckEnabled),
      Input Opts,
-     Input (Either HttpsUrl (Map Text HttpsUrl)),
+     Input (Either HttpsUrl (Map Domain HttpsUrl)),
      Now,
      GE.Queue DeleteItem,
      Error Meeting.MeetingError,
@@ -294,7 +295,7 @@ type GalleyEffects =
    ]
 
 -- Define some invariants for the options used
-validateOptions :: Opts -> IO (Either HttpsUrl (Map Text HttpsUrl))
+validateOptions :: Opts -> IO (Either HttpsUrl (Map Domain HttpsUrl))
 validateOptions o = do
   let settings' = view settings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit settings'._maxTeamSize settings'._maxFanoutSize

@@ -108,7 +108,7 @@ data Env = Env
     guestLinkTTLSeconds :: !(Maybe GuestLinkTTLSeconds),
     passwordHashingOptions :: !PasswordHashingOptions,
     checkGroupInfo :: !(Maybe Bool),
-    convCodeURI :: Either HttpsUrl (Map Text HttpsUrl),
+    convCodeURI :: Either HttpsUrl (Map Domain HttpsUrl),
     passwordHashingRateLimitEnv :: RateLimitEnv
   }
 
