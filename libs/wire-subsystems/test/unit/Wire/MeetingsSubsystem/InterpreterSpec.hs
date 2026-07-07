@@ -38,7 +38,7 @@ import Polysemy.TinyLog (TinyLog)
 import System.Random (StdGen, mkStdGen)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (counterexample, ioProperty, (.&&.), (===), (==>))
+import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Conversation (Access (InviteAccess, PrivateAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Error (ErrorS)
@@ -197,6 +197,41 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
     result `shouldBe` Left InvalidTimes
 
+  it "fails to create a meeting if start time is in the past" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Past Meeting",
+              startTime = addUTCTime (negate 3600) now,
+              endTime = addUTCTime 3600 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result `shouldBe` Left InvalidTimes
+
+  it "creates a meeting if start time is within the grace period" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        -- 30s in the past is within the 60s tolerance
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Grace Meeting",
+              startTime = addUTCTime (negate 30) now,
+              endTime = addUTCTime 3600 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result `shouldSatisfy` isRight
+
   describe "getMeeting access control" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -215,14 +250,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Past Meeting",
-                startTime = addUTCTime (-7200) now,
-                endTime = addUTCTime (-5000) now,
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
                 invitedEmails = []
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
+        passTime 11000
         getMeeting zUser1 meeting.meeting.id
 
       result `shouldBe` Right Nothing
@@ -381,18 +417,42 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Left InvalidTimes
 
-    it "returns Nothing for expired meeting" $ do
+    it "throws InvalidTimes when updating startTime to the past" $ do
       let newMeeting =
             API.NewMeeting
-              { title = fromJust $ checked "Expired Meeting",
-                startTime = addUTCTime (-7200) now,
-                endTime = addUTCTime (-5000) now,
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
                 invitedEmails = []
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
+        let update =
+              API.UpdateMeeting
+                { startTime = Just (addUTCTime (negate 3600) now),
+                  endTime = Nothing,
+                  title = Nothing,
+                  recurrence = Nothing
+                }
+        updateMeeting zUser1 meeting.meeting.id update
+
+      result `shouldBe` Left InvalidTimes
+
+    it "returns Nothing for expired meeting" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Expired Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 newMeeting
+        passTime 11000
         updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
 
       result `shouldBe` Right Nothing
@@ -440,15 +500,24 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 recurrence = Nothing,
                 invitedEmails = []
               }
-          effectiveStart = fromMaybe baseMeeting.startTime update.startTime
-          effectiveEnd = fromMaybe baseMeeting.endTime update.endTime
-          isNotEmpty = update /= API.UpdateMeeting Nothing Nothing Nothing Nothing
+          -- Clamp the updated start time so it is not in the past (within
+          -- tolerance). This avoids discarding QuickCheck-generated updates
+          -- whose arbitrary UTCTime is far from `now`.
+          sanitizedUpdate =
+            API.UpdateMeeting
+              (fmap (max (addUTCTime (negate 60) now)) update.startTime)
+              update.endTime
+              update.title
+              update.recurrence
+          effectiveStart = fromMaybe baseMeeting.startTime sanitizedUpdate.startTime
+          effectiveEnd = fromMaybe baseMeeting.endTime sanitizedUpdate.endTime
+          isNotEmpty = sanitizedUpdate /= API.UpdateMeeting Nothing Nothing Nothing Nothing
           hasValidTimes = effectiveStart < effectiveEnd
        in isNotEmpty && hasValidTimes ==>
             ioProperty $ do
               result <- runTestStack now gen Map.empty teamConfig $ do
                 meeting <- createMeeting zUser1 baseMeeting
-                updated <- updateMeeting zUser1 meeting.meeting.id update
+                updated <- updateMeeting zUser1 meeting.meeting.id sanitizedUpdate
                 pure (meeting.meeting.conversationId, updated)
               case result of
                 Left err ->
@@ -457,10 +526,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   pure $ counterexample "Expected Just meeting, got Nothing" False
                 Right (convId, Just m) ->
                   pure $
-                    m.meeting.title === fromMaybe baseMeeting.title update.title
+                    m.meeting.title === fromMaybe baseMeeting.title sanitizedUpdate.title
                       .&&. m.meeting.startTime === effectiveStart
                       .&&. m.meeting.endTime === effectiveEnd
-                      .&&. m.meeting.recurrence === fromMaybe baseMeeting.recurrence update.recurrence
+                      .&&. m.meeting.recurrence === fromMaybe baseMeeting.recurrence sanitizedUpdate.recurrence
                       .&&. m.meeting.conversationId === convId
 
   describe "deleteMeeting" $ do
@@ -515,14 +584,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
-                startTime = addUTCTime (-7200) now,
-                endTime = addUTCTime (-5000) now,
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
                 invitedEmails = []
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
+        passTime 11000
         deleteMeeting zUser1 testConnId meeting.meeting.id
 
       result `shouldBe` Right False
@@ -613,14 +683,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
-                startTime = addUTCTime (-7200) now,
-                endTime = addUTCTime (-5000) now,
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
                 invitedEmails = []
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
+        passTime 11000
         addInvitedEmails zUser1 meeting.meeting.id [email1]
 
       result `shouldBe` Right False
@@ -739,14 +810,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
-                startTime = addUTCTime (-7200) now,
-                endTime = addUTCTime (-5000) now,
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
+        passTime 11000
         removeInvitedEmails zUser1 meeting.meeting.id [email1]
 
       result `shouldBe` Right False
@@ -865,14 +937,15 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       let newMeeting =
             API.NewMeeting
               { title = fromJust $ checked "Expired Meeting",
-                startTime = addUTCTime (-7200) now,
-                endTime = addUTCTime (-5000) now,
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
                 recurrence = Nothing,
                 invitedEmails = [email1]
               }
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
+        passTime 11000
         replaceInvitedEmails zUser1 meeting.meeting.id [email2]
 
       result `shouldBe` Right False
@@ -913,12 +986,14 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamConfig =
           npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $
             def
-        -- endTime (now-5000) is well past the validity cutoff (now-3600).
-        expiredNewMeeting r =
+        -- Meetings are created with future times. We then advance the mock
+        -- clock past the validity window (11000s) so that the original slot
+        -- has passed, while the recurrence window stays open.
+        futureMeeting r =
           API.NewMeeting
             { title = fromJust $ checked "Recurring Meeting",
-              startTime = addUTCTime (-7200) now,
-              endTime = addUTCTime (-5000) now,
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
               recurrence = r,
               invitedEmails = []
             }
@@ -940,7 +1015,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "getMeeting returns a recurring meeting whose slot passed but window is open" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           getMeeting zUser meeting.meeting.id
       case result of
         Left err -> fail $ "Error: " <> show err
@@ -950,7 +1026,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "listMeetings includes a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          _meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          _meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           listMeetings zUser
       case result of
         Left err -> fail $ "Error: " <> show err
@@ -959,51 +1036,60 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "updateMeeting succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           updateMeeting zUser meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
       fmap isJust result `shouldBe` Right True
 
     it "addInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           addInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
     it "deleteMeeting succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           deleteMeeting zUser (ConnId "test-conv") meeting.meeting.id
       result `shouldBe` Right True
 
     it "removeInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           removeInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
     it "replaceInvitedEmails succeeds on a recurring meeting whose slot passed" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
+          passTime 11000
           replaceInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
     it "getMeeting returns an open-ended recurring meeting indefinitely" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
+          meeting <- createMeeting zUser (futureMeeting openEndedRecurrence)
+          passTime 11000
           getMeeting zUser meeting.meeting.id
       fmap isJust result `shouldBe` Right True
 
     it "cleanupOldMeetings skips recurring meetings whose window is still open" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          recurring <- createMeeting zUser (expiredNewMeeting boundedRecurrence)
-          _plain <- createMeeting zUser (expiredNewMeeting Nothing)
-          deleted <- cleanupOldMeetings (addUTCTime (negate 1) now) 100
+          recurring <- createMeeting zUser (futureMeeting boundedRecurrence)
+          _plain <- createMeeting zUser (futureMeeting Nothing)
+          passTime 11000
+          -- cutoff is past the endTime (now+7200) so the non-recurring
+          -- meeting is picked up, but well before the recurrence window.
+          deleted <- cleanupOldMeetings (addUTCTime 7300 now) 100
           remaining <- getMeeting zUser recurring.meeting.id
           pure (deleted, fmap (.id) remaining, recurring.meeting.id)
       case result of
@@ -1016,8 +1102,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "cleanupOldMeetings never picks up open-ended recurring meetings" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          meeting <- createMeeting zUser (expiredNewMeeting openEndedRecurrence)
-          deleted <- cleanupOldMeetings now 100
+          meeting <- createMeeting zUser (futureMeeting openEndedRecurrence)
+          passTime 11000
+          -- Even with a cutoff well past the endTime, open-ended
+          -- recurrence is never picked up.
+          deleted <- cleanupOldMeetings (addUTCTime 11000 now) 100
           remaining <- getMeeting zUser meeting.meeting.id
           pure (deleted, fmap (.id) remaining, meeting.meeting.id)
       case result of
@@ -1027,9 +1116,9 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
           remainingId `shouldBe` Just meetingId
 
     prop "aliveness follows effectiveEndTime across get/list/cleanup" $
-      \(recurrence :: Maybe API.Recurrence) (endOffset :: Int) ->
-        let endTime = addUTCTime (fromIntegral endOffset) now
-            startTime = addUTCTime (negate 3600) endTime
+      \(recurrence :: Maybe API.Recurrence) (advance :: NonNegative Int) ->
+        let startTime = addUTCTime 3600 now
+            endTime = addUTCTime 7200 now
             nm =
               API.NewMeeting
                 { title = fromJust $ checked "Recurring Meeting",
@@ -1038,13 +1127,16 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                   recurrence = recurrence,
                   invitedEmails = []
                 }
+            advanceTime = fromIntegral (getNonNegative advance) :: NominalDiffTime
+            -- After advancing the clock, the validity cutoff moves forward.
+            cutoff = addUTCTime (advanceTime - 3600) now
             effEnd = maybe (Just endTime) (\r -> max endTime <$> r.until) recurrence
-            cutoff = addUTCTime (negate 3600) now
             alive = maybe True (>= cutoff) effEnd
          in ioProperty $ do
               result <-
                 runTestStack now gen Map.empty teamConfig $ do
                   meeting <- createMeeting zUser nm
+                  passTime advanceTime
                   fetched <- isJust <$> getMeeting zUser meeting.meeting.id
                   listedCount <- length <$> listMeetings zUser
                   deleted <- cleanupOldMeetings cutoff 100
