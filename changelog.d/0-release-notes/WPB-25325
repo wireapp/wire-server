@@ -1,0 +1,2 @@
+The PostgreSQL connection pool implementation was switched to `hasql-resource-pool`.
+The external configuration shape stays unchanged, but pool metrics now include acquisition/session latency and the termination counter is derived from periodic snapshots.
