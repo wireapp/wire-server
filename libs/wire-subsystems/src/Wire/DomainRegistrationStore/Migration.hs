@@ -122,7 +122,7 @@ migrateAllDomainRegistrations migOpts migCounter migDuration = do
   lift $ info $ Log.msg (Log.val "migrateAllDomainRegistrations")
   withCount (paginateSem selectAllRegistrations (paramsP LocalQuorum () migOpts.pageSize) x5)
     .| logRetrievedPage migOpts.pageSize asRecord
-    .| C.mapM_ (traverse_ (\row -> handleRegistrationErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migOpts migCounter migDuration row)))
+    .| C.mapM_ (traverse_ (\row -> handleLockAndDBErrors (toByteString' (show row.domain)) (migrateDomainRegistrationRow migOpts migCounter migDuration row)))
 
 migrateDomainRegistrationRow ::
   ( PGConstraints r,

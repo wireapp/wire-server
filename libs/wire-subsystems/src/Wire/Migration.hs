@@ -169,6 +169,27 @@ handleErrors key action = do
           . Log.field "error" (show e)
       modify (+ 1)
 
+handleLockAndDBErrors ::
+  ( Member (State Int) r,
+    Member TinyLog r
+  ) =>
+  ByteString ->
+  (Sem (Error MigrationLockError : Error Hasql.UsageError : r) ()) ->
+  Sem r ()
+handleLockAndDBErrors key action = do
+  eithErr <- runError (runError action)
+  case eithErr of
+    Right (Right _) -> pure ()
+    Right (Left e) -> logError (show e)
+    Left e -> logError (show e)
+  where
+    logError e = do
+      warn $
+        Log.msg (Log.val "error occurred during migration")
+          . Log.field "key" (show key)
+          . Log.field "error" e
+      modify (+ 1)
+
 withExclusiveMigrationLockAndTimeout ::
   forall x r.
   ( PGConstraints r,

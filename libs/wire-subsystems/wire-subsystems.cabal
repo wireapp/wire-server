@@ -501,6 +501,8 @@ library
     Wire.UserStore
     Wire.UserStore.Cassandra
     Wire.UserStore.IndexUser
+    Wire.UserStore.Migration
+    Wire.UserStore.Migration.Types
     Wire.UserStore.Postgres
     Wire.UserStore.Unique
     Wire.UserSubsystem
