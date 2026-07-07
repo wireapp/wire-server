@@ -1,1 +1,0 @@
-Background worker now builds conversation subsystem config from the loaded Galley config and no longer fetches it over internal Galley RPC.
