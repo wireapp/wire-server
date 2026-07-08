@@ -57,6 +57,7 @@ import Control.Error (ExceptT, runExceptT)
 import Control.Exception (catch, throwIO)
 import Control.Lens (lensField, lensRules, makeLensesWith, non, (.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Data.Domain (Domain)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -87,7 +88,7 @@ data Env = Env
     requestId :: RequestId,
     options :: Opt.Opts,
     localUnit :: Local (),
-    multiIngress :: Map String AWS.Env
+    multiIngress :: Map Domain AWS.Env
   }
 
 makeLensesWith (lensRules & lensField .~ suffixNamer) ''Env
@@ -103,7 +104,7 @@ newEnv opts = do
   let localDomain = toLocalUnsafe opts.settings.federationDomain ()
   pure $ Env awsEnv logger httpMgr http2Mgr (RequestId defRequestId) opts localDomain multiIngressAWS
   where
-    initMultiIngressAWS :: Logger -> Manager -> IO (Map String AWS.Env)
+    initMultiIngressAWS :: Logger -> Manager -> IO (Map Domain AWS.Env)
     initMultiIngressAWS logger httpMgr =
       Map.fromList
         <$> mapM

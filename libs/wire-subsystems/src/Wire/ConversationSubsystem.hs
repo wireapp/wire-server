@@ -449,7 +449,7 @@ data ConversationSubsystem m a where
     ConvId ->
     ConversationSubsystem m (LockableFeature GuestLinksConfig)
   GetCode ::
-    Maybe Text ->
+    Maybe ZHostValue ->
     Local UserId ->
     ConvId ->
     ConversationSubsystem m ConversationCodeInfo

@@ -227,7 +227,7 @@ instance (HasLink api) => HasLink (ZHostOpt :> api) where
   type MkLink (ZHostOpt :> api) a = MkLink api a
   toLink toA _ = toLink toA (Proxy :: Proxy api)
 
-type ZHostValue = Text -- FUTUREWORK: use Data.Domain.Domain here instead of Text?
+type ZHostValue = Domain
 
 type ZOptHostHeader =
   Header' '[Servant.Optional, Strict] "Z-Host" ZHostValue
@@ -281,7 +281,7 @@ instance
   ) =>
   HasServer (ZHostOpt :> api) ctx
   where
-  type ServerT (ZHostOpt :> api) m = Maybe Text -> ServerT api m
+  type ServerT (ZHostOpt :> api) m = Maybe ZHostValue -> ServerT api m
   route ::
     Proxy (ZHostOpt :> api) ->
     Context ctx ->

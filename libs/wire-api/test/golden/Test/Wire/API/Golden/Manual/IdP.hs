@@ -1,5 +1,6 @@
 module Test.Wire.API.Golden.Manual.IdP where
 
+import Data.Domain (Domain (..))
 import Data.Id
 import Data.List.NonEmpty
 import Data.UUID
@@ -114,7 +115,7 @@ testObject_IdP_1 =
               ],
             _replacedBy = Just (IdPId {fromIdPId = (fromJust . Data.UUID.fromString) "fc5f3bf8-c296-69e7-27fd-70d483740fe4"}),
             _handle = IdPHandle {unIdPHandle = "614c0bb0-1b33-98b6-8600-a1b290bbe1d7"},
-            _domain = Just "wire.com"
+            _domain = Just (Domain "wire.com")
           }
     }
 

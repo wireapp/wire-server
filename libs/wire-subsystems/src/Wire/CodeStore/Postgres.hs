@@ -21,6 +21,7 @@ module Wire.CodeStore.Postgres
 where
 
 import Data.Code
+import Data.Domain (Domain)
 import Data.Id
 import Data.Map qualified as Map
 import Data.Misc (HttpsUrl)
@@ -38,7 +39,7 @@ import Wire.Postgres
 
 interpretCodeStoreToPostgres ::
   ( PGConstraints r,
-    Member (Input (Either HttpsUrl (Map Text HttpsUrl))) r
+    Member (Input (Either HttpsUrl (Map Domain HttpsUrl))) r
   ) =>
   Sem (CodeStore ': r) a ->
   Sem r a

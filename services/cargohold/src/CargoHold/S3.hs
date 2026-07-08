@@ -62,6 +62,7 @@ import Data.ByteString.Lazy (fromStrict)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Binary
+import Data.Domain (Domain, domainText)
 import qualified Data.HashMap.Lazy as HML
 import Data.Id
 import Data.Qualified (Qualified)
@@ -273,7 +274,7 @@ updateMetadataV3 (s3Key . mkKey -> key) meta = do
 -- `Map` with the @Z-Host@ header's value as key. Otherwise (the default case
 -- that applies to most deployments), use the default AWS environment; i.e. the
 -- environment with @aws.s3DownloadEndpoint@.
-signedURL :: (ToByteString p) => p -> Maybe Text -> Handler URI
+signedURL :: (ToByteString p) => p -> Maybe Domain -> Handler URI
 signedURL path mbHost = do
   e <- awsEnvForHost
   now <- liftIO getCurrentTime
@@ -299,7 +300,7 @@ signedURL path mbHost = do
         then asks (.aws)
         else awsEnvForHost' mbHost multiIngressConf
       where
-        awsEnvForHost' :: Maybe Text -> Map String AWS.Env -> Handler AWS.Env
+        awsEnvForHost' :: Maybe Domain -> Map Domain AWS.Env -> Handler AWS.Env
         awsEnvForHost' Nothing _ = do
           Log.debug $
             msg (val "awsEnvForHost - multiIngress configured, but no Z-Host header provided.")
@@ -307,19 +308,19 @@ signedURL path mbHost = do
         awsEnvForHost' (Just host) multiIngressConf = do
           Log.debug $
             "host"
-              .= host
+              .= domainText host
               ~~ msg (val "awsEnvForHost - Looking up multiIngress config.")
-          case multiIngressConf ^. at (Text.unpack host) of
+          case multiIngressConf ^. at host of
             Nothing -> do
               Log.debug $
                 "host"
-                  .= host
+                  .= domainText host
                   ~~ msg (val "awsEnvForHost - multiIngress lookup failed, no config for provided Z-Host header.")
               throwE noMatchingAssetEndpoint
             Just hostAwsEnv -> do
               Log.debug $
                 "host"
-                  .= host
+                  .= domainText host
                   ~~ "s3DownloadEndpoint"
                     .= show hostAwsEnv.amazonkaDownloadEndpoint
                   ~~ msg (val "awsEnvForHost - multiIngress lookup succeed, using specific AWS env.")

@@ -61,7 +61,7 @@ import Control.Lens hiding ((.=))
 import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
-import Data.Domain
+import Data.Domain (Domain, domainText)
 import Data.HavePendingInvitations
 import Data.Id
 import Data.List.NonEmpty (NonEmpty)
@@ -295,22 +295,20 @@ getMetadata ::
     Member (Error SparError) r
   ) =>
   Maybe TeamId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r SAML.SPMetadata
 getMetadata mbTid mbHost = do
   let err :: Sem r any
       err = throwSparSem (SparSPNotFound "")
 
-  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
-
   let iss :: Sem r SAML.Issuer
-      iss = SamlProtocolSettings.spIssuer mbTid mbHostDom >>= maybe err pure
+      iss = SamlProtocolSettings.spIssuer mbTid mbHost >>= maybe err pure
 
       rsp :: Sem r URI.URI
-      rsp = SamlProtocolSettings.responseURI mbTid mbHostDom >>= maybe err pure
+      rsp = SamlProtocolSettings.responseURI mbTid mbHost >>= maybe err pure
 
       contactList :: Sem r [SAML.ContactPerson]
-      contactList = SamlProtocolSettings.contactPersons mbHostDom
+      contactList = SamlProtocolSettings.contactPersons mbHost
 
   SAML2.meta appName iss rsp contactList
 
@@ -324,7 +322,7 @@ authreqPrecheck ::
   Maybe URI.URI ->
   Maybe CookieLabel ->
   SAML.IdPId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r NoContent
 authreqPrecheck samlConfig msucc merr mlabel idpid mbHost =
   validateAuthreqParams msucc merr mlabel *> do
@@ -352,7 +350,7 @@ authreq ::
   Maybe URI.URI ->
   Maybe CookieLabel ->
   SAML.IdPId ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r (SAML.FormRedirect SAML.AuthnRequest)
 authreq samlConfig authreqttl msucc merr mlabel idpid mbHost = do
   vformat <- validateAuthreqParams msucc merr mlabel
@@ -363,14 +361,13 @@ authreq samlConfig authreqttl msucc merr mlabel idpid mbHost = do
 
     let err :: Sem r any
         err = throwSparSem (SparSPNotFound "")
-    mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
 
     let mbtid :: Maybe TeamId
         mbtid = case fromMaybe defWireIdPAPIVersion (idp ^. SAML.idpExtraInfo . apiVersion) of
           WireIdPAPIV1 -> Nothing
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . team
         iss :: Sem r SAML.Issuer
-        iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
+        iss = SamlProtocolSettings.spIssuer mbtid mbHost >>= maybe err pure
     SAML2.authReq authreqttl iss idpid
   VerdictFormatStore.store authreqttl reqid vformat
   pure form
@@ -380,7 +377,7 @@ checkMultiIngressDomain ::
     Member (Error SparError) r
   ) =>
   SAML.Config ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   IdP ->
   Sem r ()
 checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig samlConfig) $ do
@@ -393,8 +390,8 @@ checkMultiIngressDomain samlConfig mbHost idp = when (SAML.isMultiIngressConfig 
       Logger.debug $
         Log.msg ("Multi-ingress domain guard rejected IdP access" :: ByteString)
           . Log.field "idp" idpIdTxt
-          . Log.field "idp_domain" (fromMaybe "none" idpDomain)
-          . Log.field "request_host" (fromMaybe "none" mbHost)
+          . Log.field "idp_domain" (maybe "None" domainText idpDomain)
+          . Log.field "request_host" (maybe "None" domainText mbHost)
       throwSparSem (SparIdPNotFound idpIdTxt)
 
 idpIdToText :: SAML.IdPId -> T.Text
@@ -439,19 +436,17 @@ authresp ::
   ) =>
   Maybe TeamId ->
   SAML.AuthnResponseBody ->
-  Maybe Text ->
+  Maybe ZHostValue ->
   Sem r Void
 authresp mbtid arbody mbHost = do
   let err :: Sem r any
       err = throwSparSem (SparSPNotFound "")
 
-  mbHostDom <- (\host -> mkDomain host & either (const err) pure) `mapM` mbHost
-
   let iss :: Sem r SAML.Issuer
-      iss = SamlProtocolSettings.spIssuer mbtid mbHostDom >>= maybe err pure
+      iss = SamlProtocolSettings.spIssuer mbtid mbHost >>= maybe err pure
 
       rsp :: Sem r URI.URI
-      rsp = SamlProtocolSettings.responseURI mbtid mbHostDom >>= maybe err pure
+      rsp = SamlProtocolSettings.responseURI mbtid mbHost >>= maybe err pure
 
   logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
@@ -766,7 +761,7 @@ logIdPAction msg idp zUser additionalFields =
       . Log.field "team" (idp ^. SAML.idpExtraInfo . team . to idToText)
       . Log.field "idpId" (idp ^. SAML.idpId . to SAML.fromIdPId . to UUID.toString)
       . Log.field "issuer" (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to URI.serializeURIRef')
-      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (fromMaybe "None"))
+      . Log.field "domain" (idp ^. SAML.idpExtraInfo . domain . to (maybe "None" domainText))
       . Log.field "user" (maybe "None" idToText zUser)
       . Log.field "certificates" (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse . to (intercalate ";; " . map certToString . toList))
       . Log.field "idp-endpoint" (idp ^. SAML.idpMetadata . SAML.edRequestURI . to URI.serializeURIRef')
@@ -774,7 +769,7 @@ logIdPAction msg idp zUser additionalFields =
 
 -- | Only return a ZHost when multi-ingress is configured and the host value is a configured domain
 filterMultiIngressZHost :: Either SAML.MultiIngressDomainConfig (Map Domain SAML.MultiIngressDomainConfig) -> Maybe ZHostValue -> Maybe ZHostValue
-filterMultiIngressZHost (Right domainMap) (Just zHost) | (Domain zHost) `Map.member` domainMap = Just zHost
+filterMultiIngressZHost (Right domainMap) (Just zHost) | zHost `Map.member` domainMap = Just zHost
 filterMultiIngressZHost _ _ = Nothing
 
 idpCreateV7 ::
@@ -1017,7 +1012,7 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
                 (idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer)
               . logChangeableScalar
                 "domain"
-                (fromMaybe "None")
+                (maybe "None" domainText)
                 (previousIdP ^. SAML.idpExtraInfo . domain)
                 (idp ^. SAML.idpExtraInfo . domain)
               . Log.field "user" (idToText zUsr)

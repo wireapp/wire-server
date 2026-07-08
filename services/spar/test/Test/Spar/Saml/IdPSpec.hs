@@ -94,13 +94,13 @@ spec =
             _cfgSPPort = 8081,
             _cfgDomainConfigs = Left anyMultiIngressDomainCfg
           }
-      host = Just "backend.example.com"
+      host = either (error . show) Just $ mkDomain "backend.example.com"
       miHost1AsText = "backend-1.example.com"
       miDomain1 = either (error . show) id $ mkDomain miHost1AsText
-      miHost1 = Just miHost1AsText
+      miHost1 = Just miDomain1
       miHost2AsText = "backend-2.example.com"
       miDomain2 = either (error . show) id $ mkDomain miHost2AsText
-      miHost2 = Just miHost2AsText
+      miHost2 = Just miDomain2
       multiIngressSamlConfig =
         Config
           { -- The log level only matters for log output, not production.
