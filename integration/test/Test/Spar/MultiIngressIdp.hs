@@ -80,6 +80,9 @@ testMultiIngressIdpSimpleCase = do
 -- multi-ingress domain.
 testUnconfiguredDomain :: (HasCallStack) => App ()
 testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost -> do
+  credsWithCert1@(_, _, signedCert1) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert2@(_, _, signedCert2) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert3@(_, _, signedCert3) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -89,12 +92,13 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
             >=> setField
               "saml.spDomainConfigs"
               (object [ernieZHost .= makeSpDomainConfig ernieZHost])
+            >=> setField "idpCertFingerprintAllowlist" (fingerprintHex <$> [signedCert1, signedCert2, signedCert3])
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert1
       idpId1 <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -120,7 +124,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
         resp.json %. "extraInfo.domain" `shouldMatch` ernieZHost
 
       -- Create unconfigured -> no multi-ingress domain
-      SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert2
       idpId2 <-
         createIdpWithZHostV2 owner (unconfiguredZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -132,7 +136,7 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
         resp.json %. "extraInfo.domain" `shouldMatch` Null
 
       -- Create a second unconfigured -> no multi-ingress domain
-      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert3
       idpId3 <-
         createIdpWithZHostV2 owner (unconfiguredZHost) idpmeta3 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
