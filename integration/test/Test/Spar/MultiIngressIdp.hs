@@ -195,7 +195,7 @@ testMultiIngressAtMostOneIdPPerDomain = do
       -- Create an IdP for one domain and update it to another that already has one -> failure
       SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert3
       idpId3 <-
-        createIdpWithZHostV2 owner (Just bertZHost) idpmeta2 `bindResponse` \resp -> do
+        createIdpWithZHostV2 owner (Just bertZHost) idpmeta3 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "id" >>= asString
 
