@@ -6,7 +6,9 @@ import Control.Lens ((.~), (^.))
 import qualified SAML2.WebSSO.Test.Util as SAML
 import qualified SAML2.WebSSO.Types as SAML
 import SetupHelpers
+import Testlib.Certs (fingerprintHex)
 import Testlib.Prelude
+import qualified Text.XML.DSig as XMLDSig
 
 ernieZHost :: String
 ernieZHost = "nginz-https.ernie.example.com"
@@ -28,6 +30,7 @@ makeSpDomainConfig zhost =
 
 testMultiIngressIdpSimpleCase :: (HasCallStack) => App ()
 testMultiIngressIdpSimpleCase = do
+  credsWithCert@(_, _, signedCert) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -42,13 +45,14 @@ testMultiIngressIdpSimpleCase = do
                     kermitZHost .= makeSpDomainConfig kermitZHost
                   ]
               )
+            >=> setField "idpCertFingerprintAllowlist" [fingerprintHex signedCert]
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
       -- Create IdP for one domain
-      SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert
       idpId <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmeta `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
