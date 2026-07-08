@@ -35,6 +35,7 @@ import Data.Time
 import Data.UUID qualified as UUID
 import Data.UUID.V4 qualified as UUID
 import Data.Void (Void)
+import Data.X509 qualified as X509
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.API.Example (GetAllIdPs (..), RequestStore, simpleGetIdPConfigBy, simpleGetIdpIssuer', simpleIsAliveID', simpleStoreID', simpleStoreRequest', simpleUnStoreID', simpleUnStoreRequest')
 import SAML2.WebSSO.Test.Util.Types
@@ -212,12 +213,18 @@ makeTestIdPConfig = do
   pure (IdPConfig {..}, sampleIdP)
 
 makeSampleIdPMetadata :: (HasCallStack) => (MonadIO m, MonadRandom m) => m SampleIdP
-makeSampleIdPMetadata = do
+makeSampleIdPMetadata = SAML.mkSignCredsWithCert Nothing 96 >>= makeSampleIdPMetadataWithCert
+
+makeSampleIdPMetadataWithCert ::
+  (HasCallStack) =>
+  (MonadIO m, MonadRandom m) =>
+  (SignPrivCreds, SignCreds, X509.SignedCertificate) ->
+  m SampleIdP
+makeSampleIdPMetadataWithCert (privcreds, creds, cert) = do
   issuer <- makeIssuer
   requri <- do
     uuid <- UUID.toASCIIBytes <$> liftIO UUID.nextRandom
     pure $ [uri|https://requri.net/|] & pathL .~ ("/" <> uuid)
-  (privcreds, creds, cert) <- SAML.mkSignCredsWithCert Nothing 96
   pure $ SampleIdP (IdPMetadata issuer requri (NonEmpty.singleton cert)) privcreds creds cert
 
 makeIssuer :: (MonadIO m) => m Issuer
