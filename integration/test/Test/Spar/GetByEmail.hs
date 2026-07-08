@@ -242,6 +242,7 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
+  credsWithCertErnie@(_, _, signedCertErnie) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -266,13 +267,14 @@ testGetSsoCodeByEmailDisabledMultiIngress = do
                         ]
                   ]
               )
+            >=> setField "idpCertFingerprintAllowlist" [fingerprintHex signedCertErnie]
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
       -- Create IdP for ernie domain
-      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertErnie
       idpIdErnie <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
