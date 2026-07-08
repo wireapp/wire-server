@@ -209,7 +209,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamId = Id $ read "00000000-0000-0000-0000-000000000100"
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
-        teamConfig = npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+        teamConfig = npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
 
     it "returns Nothing for expired meeting" $ do
       let newMeeting =
@@ -304,7 +304,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     fmap (.meeting.trial) result `shouldBe` Right True
 
-  it "creates meeting with trial flag when premium is enabled for team" $ do
+  it "creates non-trial meeting for team user" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
@@ -312,12 +312,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamId = Id $ read "00000000-0000-0000-0000-000000000100"
         teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
-            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
-            $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $
+            def
         newMeeting =
           API.NewMeeting
-            { title = fromJust $ checked "Team Premium Meeting",
+            { title = fromJust $ checked "Team Meeting",
               startTime = addUTCTime 3600 now,
               endTime = addUTCTime 7200 now,
               recurrence = Nothing,
@@ -330,32 +329,6 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     fmap (.meeting.trial) result `shouldBe` Right False
 
-  it "creates meeting without trial flag when premium is disabled for team" $ do
-    let now = UTCTime (fromGregorian 2026 1 1) 0
-        gen = mkStdGen 42
-        uid = Id $ read "00000000-0000-0000-0000-000000000001"
-        zUser = toLocalUnsafe (Domain "wire.com") uid
-        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
-        teamMember = mkTeamMember uid fullPermissions Nothing UserLegalHoldDisabled
-        teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
-            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusDisabled LockStatusUnlocked def)
-            $ def
-        newMeeting =
-          API.NewMeeting
-            { title = fromJust $ checked "Team Free Meeting",
-              startTime = addUTCTime 3600 now,
-              endTime = addUTCTime 7200 now,
-              recurrence = Nothing,
-              invitedEmails = []
-            }
-
-    result <-
-      runTestStack now gen (Map.singleton teamId [teamMember]) teamConfig $
-        createMeeting zUser newMeeting
-
-    fmap (.meeting.trial) result `shouldBe` Right True
-
   describe "updateMeeting" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
@@ -367,7 +340,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
 
     it "throws EmptyUpdate when no fields provided" $ do
       let newMeeting =
@@ -501,7 +474,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         testConnId = ConnId (C.pack "test-conn")
 
     it "returns True for successful deletion by creator" $ do
@@ -609,7 +582,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         email1 = unsafeEmailAddress "user1" "example.com"
         email2 = unsafeEmailAddress "user2" "example.com"
 
@@ -688,7 +661,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         email1 = unsafeEmailAddress "user1" "example.com"
         email2 = unsafeEmailAddress "user2" "example.com"
         email3 = unsafeEmailAddress "user3" "example.com"
@@ -814,7 +787,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
         teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $ def
         email1 = unsafeEmailAddress "user1" "example.com"
         email2 = unsafeEmailAddress "user2" "example.com"
         email3 = unsafeEmailAddress "user3" "example.com"
@@ -938,9 +911,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
         zUser = toLocalUnsafe (Domain "wire.com") uid
         teamConfig =
-          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
-            . npUpdate @MeetingsPremiumConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def)
-            $ def
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) $
+            def
         -- endTime (now-5000) is well past the validity cutoff (now-3600).
         expiredNewMeeting r =
           API.NewMeeting

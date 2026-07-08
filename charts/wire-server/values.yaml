@@ -324,10 +324,6 @@ galley:
           defaults:
             status: disabled
             lockStatus: locked
-        meetingsPremium:
-          defaults:
-            status: disabled
-            lockStatus: locked
         backgroundEffects:
           defaults:
             status: disabled

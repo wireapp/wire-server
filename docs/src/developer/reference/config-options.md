@@ -249,20 +249,19 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
-### Meetings Premium
+### Meetings Premium (deprecated)
 
-The `meetingsPremium` feature flag controls whether a team has premium meetings features. When enabled, meetings created by team members are not marked as trial. When disabled, meetings are trial and limited to 25 minutes. It is enabled and unlocked by default. If you want a different configuration, use the following syntax:
+> **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer
+> affects meeting behaviour. Team meetings are always non-trial regardless of
+> this flag's value. The flag, its data type and its public/internal endpoints
+> are retained for backward compatibility and are scheduled for removal in a
+> future release.
 
-```yaml
-meetingsPremium:
-  defaults:
-    status: disabled|enabled
-    lockStatus: locked|unlocked
-```
-
-The lock status for individual teams can be changed via the internal API (`PUT /i/teams/:tid/features/meetingsPremium/(un)?locked`).
-
-The feature status for individual teams can be changed via the public API (if the feature is unlocked).
+The flag now defaults to **enabled and locked** and the Helm configuration
+override has been removed (operators can no longer change it via Helm). The
+`MeetingsPremiumConfig` type carries a `DEPRECATED` pragma. Existing
+`GET/PUT /teams/:tid/features/meetingsPremium` and internal lock-status
+endpoints remain available but have no behavioural effect.
 
 ### Background Effects
 
