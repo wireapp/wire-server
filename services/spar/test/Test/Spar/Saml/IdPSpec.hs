@@ -903,7 +903,7 @@ spec =
                           verdict = SAML.AccessGranted uref
                       interpretAuthrespE opts (Just user') (ass NonEmptyL.:| [], idp, verdict) $ do
                         SAMLUserStore.insert uref (userId user')
-                        authresp teamIdParam dummyBody (Just miHost1AsText)
+                        authresp teamIdParam dummyBody (Just miDomain1)
 
                 it ("accepts when all fingerprints are allowlisted - teamId param " <> show requestParamTeamId) $ do
                   idpInfo <- generateArbitraryIdPInfo
