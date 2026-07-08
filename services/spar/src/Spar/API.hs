@@ -814,7 +814,7 @@ idpCreateV7 samlConfig tid zUser idpmeta mReplaces mApiversion mHandle = do
 -- | Reject IdPs whose cert SHA-1 is not in the configured allowlist.
 --
 -- Empty/absent allowlist is a no-op in the regular case, it short-circuits to
--- error for mulit-ingress setups. I.e. the allowlist is required for
+-- error for multi-ingress setups. I.e. the allowlist is required for
 -- multi-ingress setups.
 assertCertsAllowlisted ::
   ( Member (Input Opts) r,
