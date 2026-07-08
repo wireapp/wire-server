@@ -120,6 +120,8 @@ testMultiIngressSSODomainBoundIdp = do
       bertZHost = "nginz-https.bert.example.com"
       kermitZHost = "nginz-https.kermit.example.com"
 
+  ernieCredsWithCert@(_, _, ernieCert) <- SAML.mkSignCredsWithCert Nothing 96
+
   withModifiedBackend
     def
       { sparCfg =
@@ -143,13 +145,18 @@ testMultiIngressSSODomainBoundIdp = do
                         ]
                   ]
               )
+            >=> setField "idpCertFingerprintAllowlist" [fingerprintHex ernieCert]
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      (idp, idpMeta) <- registerTestIdPWithMetaWithPrivateCredsForZHost owner (Just ernieZHost)
-      idpId <- asString $ idp.json %. "id"
+      SampleIdP ernieIdpmeta erniePrivCreds _ _ <- makeSampleIdPMetadataWithCert ernieCredsWithCert
+      idpId <-
+        createIdpWithZHostV2 owner (Just ernieZHost) ernieIdpmeta `bindResponse` \resp -> do
+          assertStatus 201 resp
+          resp.json %. "id" >>= asString
+      let idpMeta = (ernieIdpmeta, erniePrivCreds)
 
       ernieEmail <- ("ernie@" <>) <$> randomDomain
       checkSPMetadata domain ernieZHost tid
