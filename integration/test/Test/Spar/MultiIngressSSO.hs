@@ -74,7 +74,6 @@ testMultiIngressSSOGeneralIdp = do
                         ]
                   ]
               )
-            -- TODO: Use withAllowlist
             >=> setField "idpCertFingerprintAllowlist" [fingerprintHex signedCert]
       }
     $ \domain -> do
