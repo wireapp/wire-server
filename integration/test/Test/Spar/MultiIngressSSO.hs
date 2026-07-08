@@ -28,7 +28,9 @@ import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import GHC.Stack
 import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Util
 import SetupHelpers
+import Testlib.Certs (fingerprintHex)
 import qualified Testlib.KleisliXML as KXML
 import Testlib.Prelude
 import qualified Text.XML as XML
@@ -46,6 +48,8 @@ testMultiIngressSSOGeneralIdp = do
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
       kermitZHost = "nginz-https.kermit.example.com"
+
+  ernieCredsWithCert@(_, _, signedCert) <- SAML.mkSignCredsWithCert Nothing 96
 
   withModifiedBackend
     def
@@ -70,13 +74,18 @@ testMultiIngressSSOGeneralIdp = do
                         ]
                   ]
               )
+            -- TODO: Use withAllowlist
+            >=> setField "idpCertFingerprintAllowlist" [fingerprintHex signedCert]
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      (idp, _idpMeta) <- registerTestIdPWithMetaWithPrivateCreds owner
-      idpId <- asString $ idp.json %. "id"
+      SampleIdP idpmeta _pCreds _ _ <- makeSampleIdPMetadataWithCert ernieCredsWithCert
+      idpId <-
+        createIdpWithZHostV2 owner Nothing idpmeta `bindResponse` \resp -> do
+          assertStatus 201 resp
+          resp.json %. "id" >>= asString
 
       _ernieEmail <- ("ernie@" <>) <$> randomDomain
       checkSPMetadata domain ernieZHost tid
