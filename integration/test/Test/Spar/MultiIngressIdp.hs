@@ -149,6 +149,12 @@ testUnconfiguredDomain = forM_ [Nothing, Just kermitZHost] $ \unconfiguredZHost 
 
 testMultiIngressAtMostOneIdPPerDomain :: (HasCallStack) => App ()
 testMultiIngressAtMostOneIdPPerDomain = do
+  credsWithCert1@(_, _, signedCert1) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert2@(_, _, signedCert2) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert3@(_, _, signedCert3) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert4@(_, _, signedCert4) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert5@(_, _, signedCert5) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCert6@(_, _, signedCert6) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -163,26 +169,31 @@ testMultiIngressAtMostOneIdPPerDomain = do
                     kermitZHost .= makeSpDomainConfig kermitZHost
                   ]
               )
+            >=> setField
+              "idpCertFingerprintAllowlist"
+              ( fingerprintHex
+                  <$> [signedCert1, signedCert2, signedCert3, signedCert4, signedCert5, signedCert6]
+              )
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
       void $ setTeamFeatureStatus owner tid "sso" "enabled"
 
-      SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta1 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert1
       idpId1 <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmeta1 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
           resp.json %. "id" >>= asString
 
       -- Creating a second IdP for the same domain -> failure
-      SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta2 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert2
       _idpId2 <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 409
           resp.json %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
       -- Create an IdP for one domain and update it to another that already has one -> failure
-      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta3 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert3
       idpId3 <-
         createIdpWithZHostV2 owner (Just bertZHost) idpmeta2 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -194,7 +205,7 @@ testMultiIngressAtMostOneIdPPerDomain = do
           resp.json %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
 
       -- Create an IdP with no domain and update it to a domain that already has one -> failure
-      SAML.SampleIdP idpmeta4 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta4 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert4
       idpId4 <-
         createIdpWithZHostV2 owner Nothing idpmeta4 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -221,7 +232,7 @@ testMultiIngressAtMostOneIdPPerDomain = do
       deleteIdp owner idpId1 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 204
 
-      SAML.SampleIdP idpmeta5 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta5 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert5
       idpId5 <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmeta5 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -229,7 +240,7 @@ testMultiIngressAtMostOneIdPPerDomain = do
           resp.json %. "id" >>= asString
 
       -- After deletion of the IdP of a domain, one can be moved from another domain
-      SAML.SampleIdP idpmeta6 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmeta6 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCert6
       createIdpWithZHostV2 owner (Just bertZHost) idpmeta6 `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 409
         resp.json %. "label" `shouldMatch` "idp-duplicate-domain-for-team"
