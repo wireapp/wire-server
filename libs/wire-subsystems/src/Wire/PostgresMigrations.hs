@@ -42,7 +42,12 @@ allMigrations = map (\(name, contentBS) -> MigrationScript name (Text.decodeUtf8
 
 -- | Scripts which cannot be run in a transaction
 nonTransactionMigrations :: Set ScriptName
-nonTransactionMigrations = Set.fromList ["20260428072649-create-conv-parent-index.sql"]
+nonTransactionMigrations =
+  Set.fromList
+    [ "20260428072649-create-conv-parent-index.sql",
+      "20260708090000-meetings-recurrence-eff-end-index.sql",
+      "20260708100000-meetings-end-time-nonrecurring-index.sql"
+    ]
 
 data PostgresMigrationError
   = PostgresMigrationError MigrationError

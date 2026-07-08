@@ -25,6 +25,7 @@ module Wire.MeetingsStore.Postgres
 where
 
 import Data.Id
+import Data.List qualified as List
 import Data.Profunctor (dimap)
 import Data.Range (Range, fromRange)
 import Data.Time.Clock
@@ -404,10 +405,16 @@ getOldMeetingsImpl ::
 getOldMeetingsImpl cutoffTime batchSize = do
   runSession session
   where
+    n = fromIntegral batchSize :: Int32
     session :: Session [StoredMeeting]
-    session = statement (cutoffTime, fromIntegral batchSize) $ V.toList <$> listStatement
-    listStatement :: Statement (UTCTime, Int32) (V.Vector StoredMeeting)
-    listStatement =
+    session = do
+      nonRecurring <- statement (cutoffTime, n) nonRecurringOldStatement
+      recurring <- statement (cutoffTime, n) recurringOldStatement
+      pure $
+        take batchSize $
+          List.sortOn (.endTime) (V.toList nonRecurring <> V.toList recurring)
+    nonRecurringOldStatement :: Statement (UTCTime, Int32) (V.Vector StoredMeeting)
+    nonRecurringOldStatement =
       refineResult
         (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
         $ [vectorStatement|
@@ -418,10 +425,27 @@ getOldMeetingsImpl cutoffTime batchSize = do
             conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
             created_at :: timestamptz, updated_at :: timestamptz
           FROM meetings
-           WHERE (recurrence_frequency IS NULL AND end_time < ($1 :: timestamptz))
-              OR (recurrence_frequency IS NOT NULL AND recurrence_interval IS NOT NULL
-                  AND recurrence_until IS NOT NULL
-                  AND GREATEST(end_time, recurrence_until) < ($1 :: timestamptz))
-           ORDER BY end_time ASC
-           LIMIT ($2 :: int4)
-         |]
+          WHERE recurrence_frequency IS NULL
+            AND end_time < ($1 :: timestamptz)
+          ORDER BY end_time ASC
+          LIMIT ($2 :: int4)
+        |]
+    recurringOldStatement :: Statement (UTCTime, Int32) (V.Vector StoredMeeting)
+    recurringOldStatement =
+      refineResult
+        (traverse (postgresUnmarshall @StoredMeetingTuple @StoredMeeting))
+        $ [vectorStatement|
+          SELECT
+            id :: uuid, title :: text, creator :: uuid,
+            start_time :: timestamptz, end_time :: timestamptz,
+            recurrence_frequency :: text?, recurrence_interval :: int4?, recurrence_until :: timestamptz?,
+            conversation_id :: uuid, invited_emails :: text[], trial :: boolean,
+            created_at :: timestamptz, updated_at :: timestamptz
+          FROM meetings
+          WHERE recurrence_frequency IS NOT NULL
+            AND recurrence_interval IS NOT NULL
+            AND recurrence_until IS NOT NULL
+            AND GREATEST(end_time, recurrence_until) < ($1 :: timestamptz)
+          ORDER BY GREATEST(end_time, recurrence_until) ASC
+          LIMIT ($2 :: int4)
+        |]

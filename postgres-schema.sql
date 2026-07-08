@@ -785,6 +785,20 @@ CREATE INDEX idx_meetings_end_time ON public.meetings USING btree (end_time);
 
 
 --
+-- Name: idx_meetings_end_time_nonrecurring; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_end_time_nonrecurring ON public.meetings USING btree (end_time) WHERE (recurrence_frequency IS NULL);
+
+
+--
+-- Name: idx_meetings_recurrence_eff_end; Type: INDEX; Schema: public; Owner: wire-server
+--
+
+CREATE INDEX idx_meetings_recurrence_eff_end ON public.meetings USING btree (GREATEST(end_time, recurrence_until)) WHERE ((recurrence_frequency IS NOT NULL) AND (recurrence_interval IS NOT NULL) AND (recurrence_until IS NOT NULL));
+
+
+--
 -- Name: idx_meetings_start_time; Type: INDEX; Schema: public; Owner: wire-server
 --
 
