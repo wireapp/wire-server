@@ -766,10 +766,10 @@ spec =
                           let logged = TL.decodeUtf8 $ LBS.concat (map snd logsUpd)
                           logged `shouldSatisfy` (("Refusing IdP request: multi-ingress enabled and allowlist empty" :: TL.Text) `TL.isInfixOf`)
 
-              testRejectEmptyAllowlistOnUpdate "rejects when allowlist is Nothing on update" Nothing
+              testRejectEmptyAllowlistOnUpdate "rejects when allowlist is Nothing" Nothing
 
               testRejectEmptyAllowlistOnUpdate
-                "rejects when allowlist is empty on update"
+                "rejects when allowlist is empty"
                 (Just (Spar.Options.CertFingerprintAllowlist Set.empty))
 
           describe "authresp" $ do
