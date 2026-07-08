@@ -335,6 +335,11 @@ testNonMultiIngressSetupsCanHaveMoreIdPsPerDomain = do
 -- practical benefit, this complexity is not justified for now.
 testMultiIngressIdPIssuerDifferentDomains :: (HasCallStack) => App ()
 testMultiIngressIdPIssuerDifferentDomains = do
+  credsWithCertV1@(_, _, signedCertV1) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCertV1_alt@(_, _, signedCertV1_alt) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCertV1_differentIssuer@(_, _, signedCertV1_differentIssuer) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCertV2@(_, _, signedCertV2) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCertV2_alt@(_, _, signedCertV2_alt) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -349,6 +354,16 @@ testMultiIngressIdPIssuerDifferentDomains = do
                     kermitZHost .= makeSpDomainConfig kermitZHost
                   ]
               )
+            >=> setField
+              "idpCertFingerprintAllowlist"
+              ( fingerprintHex
+                  <$> [ signedCertV1,
+                        signedCertV1_alt,
+                        signedCertV1_differentIssuer,
+                        signedCertV2,
+                        signedCertV2_alt
+                      ]
+              )
       }
     $ \domain -> do
       -- V1 API: Issuers must be unique per backend (across all teams)
@@ -356,7 +371,7 @@ testMultiIngressIdPIssuerDifferentDomains = do
       void $ setTeamFeatureStatus owner1 tid1 "sso" "enabled"
 
       -- Create first IdP metadata for V1
-      SAML.SampleIdP idpmetaV1 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaV1 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertV1
       _idpId1 <-
         createIdpWithZHostV1 owner1 (Just ernieZHost) idpmetaV1 `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -369,7 +384,7 @@ testMultiIngressIdPIssuerDifferentDomains = do
       void $ setTeamFeatureStatus owner2 tid2 "sso" "enabled"
 
       -- Try with same domain as original -> should fail (V1 global uniqueness)
-      SAML.SampleIdP idpmetaV1_alt _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaV1_alt _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertV1_alt
       let idpmetaV1_alt_sameIssuer = idpmetaV1_alt & SAML.edIssuer .~ (idpmetaV1 ^. SAML.edIssuer)
 
       createIdpWithZHostV1 owner2 (Just ernieZHost) idpmetaV1_alt_sameIssuer `bindResponse` \resp -> do
@@ -387,7 +402,7 @@ testMultiIngressIdPIssuerDifferentDomains = do
         resp.json %. "label" `shouldMatch` "idp-already-in-use"
 
       -- Counter-example: V1 IdP with different issuer -> success
-      SAML.SampleIdP idpmetaV1_differentIssuer _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaV1_differentIssuer _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertV1_differentIssuer
       void
         $ createIdpWithZHostV1 owner2 (Just ernieZHost) idpmetaV1_differentIssuer
         `bindResponse` \resp -> do
@@ -399,7 +414,7 @@ testMultiIngressIdPIssuerDifferentDomains = do
       void $ setTeamFeatureStatus owner3 tid3 "sso" "enabled"
 
       -- Create V2 IdP on team 3 with new issuer
-      SAML.SampleIdP idpmetaV2 _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaV2 _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertV2
 
       _idpId3 <-
         createIdpWithZHostV2 owner3 (Just ernieZHost) idpmetaV2 `bindResponse` \resp -> do
@@ -409,7 +424,7 @@ testMultiIngressIdPIssuerDifferentDomains = do
 
       -- Try to create another V2 IdP on same team with different metadata but same issuer -> failure
       -- First, try with the same domain -> hits domain constraint (409)
-      SAML.SampleIdP idpmetaV2_alt _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaV2_alt _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertV2_alt
       let idpmetaV2_alt_sameIssuer = idpmetaV2_alt & SAML.edIssuer .~ (idpmetaV2 ^. SAML.edIssuer)
 
       createIdpWithZHostV2 owner3 (Just ernieZHost) idpmetaV2_alt_sameIssuer `bindResponse` \resp -> do
