@@ -169,9 +169,9 @@ testGetSsoCodeByEmailRegular (TaggedBool requireExternalEmailVerification) (Tagg
         ssoCodeStr <- resp.json %. "sso_code" >>= asString
         ssoCodeStr `shouldMatch` idpId
 
--- | Test that non-SCIM users get no SSO code
-testGetSsoCodeByEmailNonScimUser :: (HasCallStack) => App ()
-testGetSsoCodeByEmailNonScimUser = do
+-- | Test that non-SSO users get no SSO code
+testGetSsoCodeByEmailNonSSOUser :: (HasCallStack) => App ()
+testGetSsoCodeByEmailNonSSOUser = do
   withModifiedBackend
     def {sparCfg = setField "enableIdPByEmailDiscovery" True}
     $ \domain -> do
@@ -186,7 +186,7 @@ testGetSsoCodeByEmailNonScimUser = do
       usr <- randomUser domain def {activate = True}
       userEmail <- usr %. "email" & asString
 
-      -- Try to get SSO code for regular (non-SCIM) user - should return 404 with null
+      -- Try to get SSO code for regular (non-SSO) user - should return 404 with null
       getSsoCodeByEmail domain userEmail `bindResponse` \resp -> do
         resp.status `shouldMatchInt` 404
         mbSsoCode <- lookupField resp.json "sso_code"
