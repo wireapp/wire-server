@@ -64,7 +64,7 @@ import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText)
 import Data.HavePendingInvitations
 import Data.Id
-import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import Data.Proxy
 import Data.Range
@@ -450,7 +450,7 @@ authresp mbtid arbody mbHost = do
 
   logErrors $ SAML2.authResp mbtid iss rsp go arbody
   where
-    go :: NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go :: NE.NonEmpty SAML.Assertion -> IdP -> SAML.AccessVerdict -> Sem r Void
     go assertions idp verdict = do
       assertCertsAllowlisted (idp ^. SAML.idpMetadata)
       case verdict of
@@ -831,11 +831,9 @@ assertCertsAllowlisted idpmeta = do
         TE.decodeUtf8 $
           URI.serializeURIRef' (idpmeta ^. SAML.edIssuer . SAML.fromIssuer)
   when (isEmptyAllowList mAllow && SAML.isMultiIngressConfig samlConfig) $ do
-    forM_ certs $ \c -> do
-      let fingerprint = certSha1Fingerprint c
-          fingerprintHex = renderFingerprintHex fingerprint
-      logMultiIngressEmptyAllowlist fingerprintHex issuerTxt
-      throwSparSem (SparIdPCertNotAllowed (T.fromStrict fingerprintHex))
+    let fingerprintHex = renderFingerprintHex . certSha1Fingerprint . NE.head $ certs
+    logMultiIngressEmptyAllowlist fingerprintHex issuerTxt
+    throwSparSem (SparIdPCertNotAllowed (T.fromStrict fingerprintHex))
   case mAllow of
     Nothing -> pure ()
     Just (CertFingerprintAllowlist allowed)
@@ -1061,7 +1059,7 @@ idpUpdateXML samlConfig mbZUsr mDomain raw idpmeta idpid mHandle = withDebugLog 
           Log.field fieldName ((intercalate ";; " . map certToString) certs)
     logCertField _ _ = id
 
-    compareNonEmpty :: (Eq a) => NonEmpty a -> NonEmpty a -> ([a], [a])
+    compareNonEmpty :: (Eq a) => NE.NonEmpty a -> NE.NonEmpty a -> ([a], [a])
     compareNonEmpty xs ys =
       let l = nub . toList $ xs
           r = nub . toList $ ys
