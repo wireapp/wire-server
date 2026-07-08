@@ -34,6 +34,7 @@ import Data.Time
 import Data.Time.Calendar.OrdinalDate (fromOrdinalDate)
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended qualified as Hasql
 import Hasql.Statement qualified as Hasql
 import Hasql.TH
@@ -196,7 +197,7 @@ migrateAllUsers migOpts migCounter migDuration = do
     select :: PrepQuery R () (Identity UserId)
     select = "select distinct user from user_remote_conv"
 
-handleErrors :: (Member (State Int) r, Member TinyLog r) => (Id a -> Sem (Error MigrationLockError : Error Hasql.UsageError : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
+handleErrors :: (Member (State Int) r, Member TinyLog r) => (Id a -> Sem (Error MigrationLockError : Error UsageError : r) b) -> ByteString -> Id a -> Sem r (Maybe b)
 handleErrors action lockType id_ =
   join <$> handleError (handleError action lockType) lockType id_
 

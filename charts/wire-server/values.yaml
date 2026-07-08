@@ -71,7 +71,6 @@ galley:
     postgresqlPool:
       size: 100
       acquisitionTimeout: 10s
-      agingTimeout: 1d
       idlenessTimeout: 10m
 
     # Not used if enableFederation is false
@@ -968,7 +967,6 @@ background-worker:
     postgresqlPool:
       size: 5
       acquisitionTimeout: 10s
-      agingTimeout: 1d
       idlenessTimeout: 10m
 
     # Setting this to `true` will start conversation migration to postgresql.
@@ -1132,7 +1130,6 @@ brig:
     postgresqlPool:
       size: 100
       acquisitionTimeout: 10s
-      agingTimeout: 1d
       idlenessTimeout: 10m
 
     emailSMS:

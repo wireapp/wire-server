@@ -35,23 +35,16 @@ data PoolConfig = PoolConfig
     -- accepts whole seconds here, so we round up to the nearest second and
     -- pass it through as the pool acquisition timeout.
     acquisitionTimeout :: Duration,
-    -- | Kept for config compatibility. hasql-resource-pool does not currently
-    -- expose a direct equivalent, so we parse and retain it but do not enforce
-    -- it here.
-    agingTimeout :: Duration,
     -- | Controls how long idle connections stay resident in the pool.
     idlenessTimeout :: Duration
   }
   deriving (Eq, Show)
-
-type UsageError = HasqlPool.UsageError
 
 instance FromJSON PoolConfig where
   parseJSON = withObject "PoolConfig" $ \o ->
     PoolConfig
       <$> o .: "size"
       <*> o .: "acquisitionTimeout"
-      <*> o .: "agingTimeout"
       <*> o .: "idlenessTimeout"
 
 data HasqlPoolMetrics = HasqlPoolMetrics
@@ -119,9 +112,7 @@ startHasqlPoolStatsReporter pool = void $ forkIO $ forever $ do
 -- | Creates a pool from postgres config params.
 --
 -- 'acquisitionTimeout' is mapped to the pool acquisition timeout,
--- 'idlenessTimeout' controls how long idle connections stay resident, and
--- 'agingTimeout' stays in the config shape for compatibility because the new
--- pool backend does not expose an equivalent setting.
+-- 'idlenessTimeout' controls how long idle connections stay resident.
 initPostgresPool :: PoolConfig -> Map Text Text -> Maybe FilePathSecrets -> IO Pool
 initPostgresPool config pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
@@ -165,10 +156,6 @@ initPostgresPool config pgConfig mFpSecrets = do
         <*> register (histogram (Info "wire_hasql_pool_session_seconds" "Time spent using PostgreSQL sessions") defaultBuckets)
 
     poolAcquireSettings acquisitionTimeout =
-      -- hasql-resource-pool does not expose a direct equivalent for the old
-      -- agingTimeout setting. That field remains in the config shape for
-      -- compatibility but is not enforced by this pool.
-      --
       -- The custom getter above performs the actual connection establishment.
       -- This record configures pool behavior, including acquisition timing.
       HasqlPool.ConnectionSettings
