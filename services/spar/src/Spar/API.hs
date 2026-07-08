@@ -813,8 +813,9 @@ idpCreateV7 samlConfig tid zUser idpmeta mReplaces mApiversion mHandle = do
 
 -- | Reject IdPs whose cert SHA-1 is not in the configured allowlist.
 --
--- Empty/absent allowlist is a no-op.  On miss: warn-log fingerprint +
--- issuer, then throw 'SparIdPCertNotAllowed' (HTTP 403).
+-- Empty/absent allowlist is a no-op in the regular case, it short-circuits to
+-- error for mulit-ingress setups. I.e. the allowlist is required for
+-- multi-ingress setups.
 assertCertsAllowlisted ::
   ( Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
@@ -824,24 +825,45 @@ assertCertsAllowlisted ::
   Sem r ()
 assertCertsAllowlisted idpmeta = do
   mAllow <- inputs idpCertFingerprintAllowlist
+  samlConfig <- inputs saml
+  let certs = idpmeta ^. SAML.edCertAuthnResponse
+      issuerTxt =
+        TE.decodeUtf8 $
+          URI.serializeURIRef' (idpmeta ^. SAML.edIssuer . SAML.fromIssuer)
+  when (isEmptyAllowList mAllow && SAML.isMultiIngressConfig samlConfig) $ do
+    forM_ certs $ \c -> do
+      let fingerprint = certSha1Fingerprint c
+          fingerprintHex = renderFingerprintHex fingerprint
+      logMultiIngressEmptyAllowlist fingerprintHex issuerTxt
+      throwSparSem (SparIdPCertNotAllowed (T.fromStrict fingerprintHex))
   case mAllow of
     Nothing -> pure ()
     Just (CertFingerprintAllowlist allowed)
       | Set.null allowed -> pure ()
       | otherwise -> do
-          let certs = idpmeta ^. SAML.edCertAuthnResponse
-              issuerTxt =
-                TE.decodeUtf8 $
-                  URI.serializeURIRef' (idpmeta ^. SAML.edIssuer . SAML.fromIssuer)
           forM_ certs $ \c -> do
             let fingerprint = certSha1Fingerprint c
+                fingerprintHex = renderFingerprintHex fingerprint
             unless (Set.member fingerprint allowed) $ do
-              let fingerprintHex = renderFingerprintHex fingerprint
-              Logger.warn $
-                Log.msg ("Refusing IdP request: cert fingerprint not in allowlist" :: ByteString)
-                  . Log.field "fingerprint" fingerprintHex
-                  . Log.field "issuer" issuerTxt
+              logCertNotInAllowlist fingerprintHex issuerTxt
               throwSparSem (SparIdPCertNotAllowed (T.fromStrict fingerprintHex))
+  where
+    logMultiIngressEmptyAllowlist fingerprintHex issuerTxt =
+      Logger.warn $
+        Log.msg ("Refusing IdP request: multi-ingress enabled and allowlist empty" :: ByteString)
+          . Log.field "fingerprint" fingerprintHex
+          . Log.field "issuer" issuerTxt
+
+    logCertNotInAllowlist fingerprintHex issuerTxt =
+      Logger.warn $
+        Log.msg ("Refusing IdP request: cert fingerprint not in allowlist" :: ByteString)
+          . Log.field "fingerprint" fingerprintHex
+          . Log.field "issuer" issuerTxt
+
+    isEmptyAllowList :: Maybe CertFingerprintAllowlist -> Bool
+    isEmptyAllowList Nothing = True
+    isEmptyAllowList (Just (CertFingerprintAllowlist allowed)) | Set.null allowed = True
+    isEmptyAllowList (Just _) = False
 
 -- | Check that issuer is not used anywhere in the system ('WireIdPAPIV1', here it is a
 -- database key for finding IdPs), or anywhere in this team ('WireIdPAPIV2'), that request
