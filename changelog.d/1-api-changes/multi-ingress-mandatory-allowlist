@@ -1,7 +1,7 @@
-To prevent security-relevant configuration mistakes, make the configuration of
-allowed IdP's fingerprints (`idpCertFingerprintAllowlist`) mandatory for
+To prevent security-relevant configuration mistakes, make configuration of
+allowed IdP certificate fingerprints (`idpCertFingerprintAllowlist`) mandatory for
 multi-ingress SSO. **This will break existing multi-ingress SSO flows until
 `idpCertFingerprintAllowlist` is configured!** This breakage is unfortunately
 necessary, because we're getting more lenient regarding the IdPs a user can use
-to login ("auto IdP migration"). Regular (non-multi-ingress) usecases are
+to log in ("auto IdP migration"). Regular (non-multi-ingress) use cases are
 unaffected.
