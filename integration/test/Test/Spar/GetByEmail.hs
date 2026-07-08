@@ -23,7 +23,9 @@ import API.Spar
 import GHC.Stack
 import qualified SAML2.WebSSO.Test.Util as SAML
 import SetupHelpers
+import Testlib.Certs (fingerprintHex)
 import Testlib.Prelude
+import qualified Text.XML.DSig as XMLDSig
 
 -- | Test the /sso/get-by-email endpoint with multi-ingress setup
 testGetSsoCodeByEmailWithMultiIngress ::
@@ -35,6 +37,8 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
   let ernieZHost = "nginz-https.ernie.example.com"
       bertZHost = "nginz-https.bert.example.com"
 
+  credsWithCertErnie@(_, _, signedCertErnie) <- XMLDSig.mkSignCredsWithCert Nothing 96
+  credsWithCertBert@(_, _, signedCertBert) <- XMLDSig.mkSignCredsWithCert Nothing 96
   withModifiedBackend
     def
       { sparCfg =
@@ -59,6 +63,9 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
                         ]
                   ]
               )
+            >=> setField
+              "idpCertFingerprintAllowlist"
+              (fingerprintHex <$> [signedCertErnie, signedCertBert])
       }
     $ \domain -> do
       (owner, tid, _) <- createTeam domain 1
@@ -69,7 +76,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
       assertSuccess =<< setTeamFeatureStatus owner tid "validateSAMLemails" status
 
       -- Create IdP for ernie domain
-      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaErnie _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertErnie
       idpIdErnie <-
         createIdpWithZHostV2 owner (Just ernieZHost) idpmetaErnie `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
@@ -77,7 +84,7 @@ testGetSsoCodeByEmailWithMultiIngress (TaggedBool requireExternalEmailVerificati
           resp.json %. "id" >>= asString
 
       -- Create IdP for bert domain
-      SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadata
+      SAML.SampleIdP idpmetaBert _ _ _ <- SAML.makeSampleIdPMetadataWithCert credsWithCertBert
       idpIdBert <-
         createIdpWithZHostV2 owner (Just bertZHost) idpmetaBert `bindResponse` \resp -> do
           resp.status `shouldMatchInt` 201
