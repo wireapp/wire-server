@@ -17,6 +17,7 @@
 
 module Wire.MeetingsSubsystem.Interpreter
   ( interpretMeetingsSubsystem,
+    startTimeTolerance,
     MeetingError (..),
   )
 where
@@ -59,8 +60,11 @@ data MeetingError = InvalidTimes | EmptyUpdate | MeetingsFeatureDisabled
   deriving stock (Eq, Show)
 
 -- | Tolerance applied when validating that a meeting's start time is not in
--- the past. Absorbs minor clock skew between client and server (matches the
--- 60s precedent used by SAML2).
+-- the past. The check always uses the server's clock ('Now.get') as the
+-- reference; the client's clock is never trusted. The tolerance only absorbs
+-- minor clock skew between client and server and the network/processing delay
+-- between the client sending the request and the server observing it (matches
+-- the 60s precedent used by SAML2).
 startTimeTolerance :: NominalDiffTime
 startTimeTolerance = 60
 

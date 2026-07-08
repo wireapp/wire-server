@@ -214,16 +214,17 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
     result `shouldBe` Left InvalidTimes
 
-  it "creates a meeting if start time is within the grace period" $ do
+  it "accepts a meeting whose start time is exactly at the tolerance boundary" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
         zUser = toLocalUnsafe (Domain "wire.com") uid
-        -- 30s in the past is within the 60s tolerance
+        -- Exactly `startTimeTolerance` in the past: the check is strict (`<`),
+        -- so the boundary itself is still accepted.
         newMeeting =
           API.NewMeeting
-            { title = fromJust $ checked "Grace Meeting",
-              startTime = addUTCTime (negate 30) now,
+            { title = fromJust $ checked "Boundary Meeting",
+              startTime = addUTCTime (negate startTimeTolerance) now,
               endTime = addUTCTime 3600 now,
               recurrence = Nothing,
               invitedEmails = []
@@ -231,6 +232,24 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
     result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
     result `shouldSatisfy` isRight
+
+  it "rejects a meeting whose start time is just past the tolerance boundary" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid = Id $ read "00000000-0000-0000-0000-000000000001"
+        zUser = toLocalUnsafe (Domain "wire.com") uid
+        -- One second past the tolerance boundary.
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Just Past Boundary Meeting",
+              startTime = addUTCTime (negate (startTimeTolerance + 1)) now,
+              endTime = addUTCTime 3600 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    result <- runTestStack now gen Map.empty def $ createMeeting zUser newMeeting
+    result `shouldBe` Left InvalidTimes
 
   describe "getMeeting access control" $ do
     let now = UTCTime (fromGregorian 2026 1 1) 0
