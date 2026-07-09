@@ -53,6 +53,7 @@ data HasqlPoolMetrics = HasqlPoolMetrics
     establishedCounter :: Counter,
     terminationCounter :: Counter,
     connectionFailureCounter :: Counter,
+    acquisitionTimeoutCounter :: Counter,
     sessionFailureCounter :: Counter,
     sessionCounter :: Counter,
     connectionAcquisitionDuration :: Histogram,
@@ -83,17 +84,21 @@ recordHasqlPoolConnectionFailure :: HasqlPoolMetrics -> IO ()
 recordHasqlPoolConnectionFailure metrics =
   void $ addCounter metrics.connectionFailureCounter 1
 
-recordHasqlPoolSessionStarted :: Pool -> IO ()
-recordHasqlPoolSessionStarted pool =
-  void $ addCounter pool.metrics.sessionCounter 1
+recordHasqlPoolSessionStarted :: HasqlPoolMetrics -> IO ()
+recordHasqlPoolSessionStarted metrics =
+  void $ addCounter metrics.sessionCounter 1
 
-recordHasqlPoolSessionFailure :: Pool -> IO ()
-recordHasqlPoolSessionFailure pool =
-  void $ addCounter pool.metrics.sessionFailureCounter 1
+recordHasqlPoolSessionFailure :: HasqlPoolMetrics -> IO ()
+recordHasqlPoolSessionFailure metrics =
+  void $ addCounter metrics.sessionFailureCounter 1
 
-recordHasqlPoolSessionDuration :: Pool -> Double -> IO ()
-recordHasqlPoolSessionDuration pool secs =
-  observe pool.metrics.sessionDuration secs
+recordHasqlPoolSessionDuration :: HasqlPoolMetrics -> Double -> IO ()
+recordHasqlPoolSessionDuration metrics secs =
+  observe metrics.sessionDuration secs
+
+recordHasqlPoolAcquisitionTimeout :: HasqlPoolMetrics -> IO ()
+recordHasqlPoolAcquisitionTimeout metrics =
+  void $ addCounter metrics.acquisitionTimeoutCounter 1
 
 recordHasqlPoolStats :: Pool -> IO ()
 recordHasqlPoolStats pool = do
@@ -154,6 +159,7 @@ initPostgresPool config pgConfig mFpSecrets = do
         <*> register (counter $ Info "wire_hasql_pool_connection_established_count" "Number of established connections")
         <*> register (counter $ Info "wire_hasql_pool_connection_terminated_count" "Number of terminated connections")
         <*> register (counter $ Info "wire_hasql_pool_connection_failure_count" "Number of failed connection acquisition attempts")
+        <*> register (counter $ Info "wire_hasql_pool_acquisition_timeout_count" "Number of pool acquisition timeouts")
         <*> register (counter $ Info "wire_hasql_pool_session_failure_count" "Number of times a session has failed")
         <*> register (counter $ Info "wire_hasql_pool_session_count" "Number of times a session was created")
         <*> register (histogram (Info "wire_hasql_pool_connection_acquisition_seconds" "Time spent establishing new PostgreSQL connections") defaultBuckets)

@@ -88,6 +88,7 @@ postgresUsageErrorToHttpError err = case err of
     -- To prevent foreign key errors we should check the foreign key constraints before inserting
     StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
   ConnectionError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
 
 -- | Extract the wai error from an HttpError and convert into a
 -- servant error.  `RichError` extra data is discarded!

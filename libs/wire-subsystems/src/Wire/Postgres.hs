@@ -128,16 +128,17 @@ useWithResetAndRetry pool sess = go maxRetries
 
     useObservedNoRetry :: HasqlPoolExt.Pool -> Session a -> IO (Either Hasql.UsageError a)
     useObservedNoRetry p s = do
-      HasqlPoolExt.recordHasqlPoolSessionStarted p
+      HasqlPoolExt.recordHasqlPoolSessionStarted p.metrics
       result <-
         Hasql.useWithObserverAndPoolAcquisitionTimeout
-          (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration p (realToFrac $ HasqlObserver.latency observed))
+          (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration p.metrics (realToFrac $ HasqlObserver.latency observed))
           p.poolAcquisitionTimeout
           p.rawPool
           s
       case result of
         Left (Hasql.ConnectionError _) -> HasqlPoolExt.recordHasqlPoolConnectionFailure p.metrics
-        Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure p
+        Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure p.metrics
+        Left Hasql.AcquisitionTimeoutUsageError -> HasqlPoolExt.recordHasqlPoolAcquisitionTimeout pool.metrics
         Right _ -> pure ()
       pure result
 
@@ -164,16 +165,17 @@ runSession sess = do
 
 useObserved :: HasqlPoolExt.Pool -> Session a -> IO (Either Hasql.UsageError a)
 useObserved pool sess = do
-  HasqlPoolExt.recordHasqlPoolSessionStarted pool
+  HasqlPoolExt.recordHasqlPoolSessionStarted pool.metrics
   result <-
     Hasql.useWithObserverAndPoolAcquisitionTimeout
-      (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration pool (realToFrac $ HasqlObserver.latency observed))
+      (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration pool.metrics (realToFrac $ HasqlObserver.latency observed))
       pool.poolAcquisitionTimeout
       pool.rawPool
       sess
   case result of
     Left (Hasql.ConnectionError _) -> HasqlPoolExt.recordHasqlPoolConnectionFailure pool.metrics
-    Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure pool
+    Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure pool.metrics
+    Left Hasql.AcquisitionTimeoutUsageError -> HasqlPoolExt.recordHasqlPoolAcquisitionTimeout pool.metrics
     Right _ -> pure ()
   pure result
 
