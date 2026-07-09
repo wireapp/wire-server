@@ -39,6 +39,7 @@ import Data.Credentials (Credentials (..))
 import Data.Id
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
 import Imports

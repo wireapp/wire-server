@@ -101,6 +101,12 @@
       url = "github:wireapp/hsaml2/use-crypton-asn1";
       flake = false;
     };
+
+    hasql-resource-pool = {
+      # Update this to the upstream repo/rev once the PR is merged there.
+      url = "github:wireapp/hasql-resource-pool?rev=209927f0e36da389d70235fd28034a78d1cc54af";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, tom-bombadil, sbomnix, ... }:

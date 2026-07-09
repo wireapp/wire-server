@@ -130,8 +130,9 @@ useWithResetAndRetry pool sess = go maxRetries
     useObservedNoRetry p s = do
       HasqlPoolExt.recordHasqlPoolSessionStarted p
       result <-
-        Hasql.useWithObserver
+        Hasql.useWithObserverAndPoolAcquisitionTimeout
           (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration p (realToFrac $ HasqlObserver.latency observed))
+          p.poolAcquisitionTimeout
           p.rawPool
           s
       case result of
@@ -165,8 +166,9 @@ useObserved :: HasqlPoolExt.Pool -> Session a -> IO (Either Hasql.UsageError a)
 useObserved pool sess = do
   HasqlPoolExt.recordHasqlPoolSessionStarted pool
   result <-
-    Hasql.useWithObserver
+    Hasql.useWithObserverAndPoolAcquisitionTimeout
       (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration pool (realToFrac $ HasqlObserver.latency observed))
+      pool.poolAcquisitionTimeout
       pool.rawPool
       sess
   case result of

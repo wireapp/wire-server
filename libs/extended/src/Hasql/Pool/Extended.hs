@@ -62,6 +62,10 @@ data HasqlPoolMetrics = HasqlPoolMetrics
 data Pool = Pool
   { rawPool :: HasqlPool.Pool,
     metrics :: HasqlPoolMetrics,
+    -- | Pool acquisition timeout in seconds, rounded up from the configured
+    -- duration. This is used by the session runner to bound waiting for an
+    -- available connection slot.
+    poolAcquisitionTimeout :: Word16,
     -- we periodically store the total number of live connections
     -- to be able to approximate the terminated count
     totalConnectionsStats :: IORef Int
@@ -126,9 +130,9 @@ initPostgresPool config pgConfig mFpSecrets = do
       (instrumentedConnectionGetter metrics (Hasql.Connection.acquire pgSettings))
       ( config.size,
         realToFrac config.idlenessTimeout.duration,
-        poolAcquireSettings config.acquisitionTimeout
+        unusedSettings
       )
-  let pool = Pool {rawPool, metrics, totalConnectionsStats}
+  let pool = Pool {rawPool, metrics, poolAcquisitionTimeout = acquisitionTimeoutSeconds config.acquisitionTimeout, totalConnectionsStats}
   startHasqlPoolStatsReporter pool
   pure pool
   where
@@ -155,16 +159,16 @@ initPostgresPool config pgConfig mFpSecrets = do
         <*> register (histogram (Info "wire_hasql_pool_connection_acquisition_seconds" "Time spent establishing new PostgreSQL connections") defaultBuckets)
         <*> register (histogram (Info "wire_hasql_pool_session_seconds" "Time spent using PostgreSQL sessions") defaultBuckets)
 
-    poolAcquireSettings acquisitionTimeout =
+    unusedSettings =
       -- The custom getter above performs the actual connection establishment.
-      -- This record configures pool behavior, including acquisition timing.
+      -- The API forces us to pass this record, but it is actually not used in acquireWith
       HasqlPool.ConnectionSettings
         { host = "",
           port = 5432,
           user = "",
           password = "",
           dbName = "",
-          connAcqTimeout = acquisitionTimeoutSeconds acquisitionTimeout,
+          connAcqTimeout = 0,
           txIdleTimeout = HasqlPool.TimeoutSetting 0 HasqlPool.Seconds,
           stmtTimeout = HasqlPool.TimeoutSetting 0 HasqlPool.Seconds,
           sslMode = "prefer",
