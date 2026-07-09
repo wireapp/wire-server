@@ -105,6 +105,7 @@ library
     Wire.API.Event.Federation
     Wire.API.Event.Gundeck
     Wire.API.Event.LeaveReason
+    Wire.API.Event.Meeting
     Wire.API.Event.Team
     Wire.API.Event.WebSocketProtocol
     Wire.API.FederationStatus
@@ -461,6 +462,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.EmailUpdate_user
     Test.Wire.API.Golden.Generated.Event_conversation
     Test.Wire.API.Golden.Generated.Event_featureConfig
+    Test.Wire.API.Golden.Generated.Event_meeting
     Test.Wire.API.Golden.Generated.Event_team
     Test.Wire.API.Golden.Generated.Event_user
     Test.Wire.API.Golden.Generated.EventType_team

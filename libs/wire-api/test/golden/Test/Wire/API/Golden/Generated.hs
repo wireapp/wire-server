@@ -83,6 +83,7 @@ import Test.Wire.API.Golden.Generated.EventType_team qualified
 import Test.Wire.API.Golden.Generated.EventType_user qualified
 import Test.Wire.API.Golden.Generated.Event_conversation qualified
 import Test.Wire.API.Golden.Generated.Event_featureConfig qualified
+import Test.Wire.API.Golden.Generated.Event_meeting qualified
 import Test.Wire.API.Golden.Generated.Event_team qualified
 import Test.Wire.API.Golden.Generated.Event_user qualified
 import Test.Wire.API.Golden.Generated.Feature_team qualified
@@ -1497,6 +1498,15 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_9, "testObject_Event_conversation_9.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_11, "testObject_Event_conversation_11.json"),
             (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_10, "testObject_Event_conversation_10.json")
+          ],
+      testGroup "Golden: Event_meeting" $
+        testObjects
+          [ (Test.Wire.API.Golden.Generated.Event_meeting.testObject_Event_meeting_1, "testObject_Event_meeting_1.json"),
+            (Test.Wire.API.Golden.Generated.Event_meeting.testObject_Event_meeting_2, "testObject_Event_meeting_2.json"),
+            (Test.Wire.API.Golden.Generated.Event_meeting.testObject_Event_meeting_3, "testObject_Event_meeting_3.json"),
+            (Test.Wire.API.Golden.Generated.Event_meeting.testObject_Event_meeting_4, "testObject_Event_meeting_4.json"),
+            (Test.Wire.API.Golden.Generated.Event_meeting.testObject_Event_meeting_5, "testObject_Event_meeting_5.json"),
+            (Test.Wire.API.Golden.Generated.Event_meeting.testObject_Event_meeting_6, "testObject_Event_meeting_6.json")
           ],
       testGroup "Golden: QualifiedUserClientPrekeyMapV4" $
         testObjects
