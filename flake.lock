@@ -218,17 +218,17 @@
     "hasql-resource-pool": {
       "flake": false,
       "locked": {
-        "lastModified": 1783526891,
-        "narHash": "sha256-Xa5VXbadJ1RPUUgInk0/kBYuus2Aw3sU2ZT6/KqkUWA=",
+        "lastModified": 1783610992,
+        "narHash": "sha256-xpnT7V2EddKVzK5cvaPeRYpCyRbWyqkQJrsBMpSbWXg=",
         "owner": "wireapp",
         "repo": "hasql-resource-pool",
-        "rev": "209927f0e36da389d70235fd28034a78d1cc54af",
+        "rev": "5b5d3df0fff81801986a0110acae5420215f01c5",
         "type": "github"
       },
       "original": {
         "owner": "wireapp",
         "repo": "hasql-resource-pool",
-        "rev": "209927f0e36da389d70235fd28034a78d1cc54af",
+        "rev": "5b5d3df0fff81801986a0110acae5420215f01c5",
         "type": "github"
       }
     },

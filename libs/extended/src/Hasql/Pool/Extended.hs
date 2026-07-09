@@ -20,13 +20,13 @@ module Hasql.Pool.Extended where
 import Data.Aeson
 import Data.Map as Map
 import Data.Misc
-import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Hasql.Connection qualified
 import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Pool qualified as HasqlPool
 import Imports
 import PostgresqlConnectionString qualified
 import Prometheus
+import UnliftIO.IO (getMonotonicTime)
 import Util.Options
 
 data PoolConfig = PoolConfig
@@ -51,7 +51,6 @@ data HasqlPoolMetrics = HasqlPoolMetrics
   { readyForUseGauge :: Gauge,
     inUseGauge :: Gauge,
     establishedCounter :: Counter,
-    terminationCounter :: Counter,
     connectionFailureCounter :: Counter,
     acquisitionTimeoutCounter :: Counter,
     sessionFailureCounter :: Counter,
@@ -66,10 +65,7 @@ data Pool = Pool
     -- | Pool acquisition timeout in seconds, rounded up from the configured
     -- duration. This is used by the session runner to bound waiting for an
     -- available connection slot.
-    poolAcquisitionTimeout :: Word16,
-    -- we periodically store the total number of live connections
-    -- to be able to approximate the terminated count
-    totalConnectionsStats :: IORef Int
+    poolAcquisitionTimeout :: Duration
   }
 
 recordHasqlPoolConnectionAcquisition :: HasqlPoolMetrics -> Double -> IO ()
@@ -107,11 +103,6 @@ recordHasqlPoolStats pool = do
   poolStats <- HasqlPool.stats pool.rawPool
   setGauge pool.metrics.readyForUseGauge (fromIntegral poolStats.available)
   setGauge pool.metrics.inUseGauge (fromIntegral poolStats.currentUsage)
-  let total = poolStats.currentUsage + poolStats.available
-  prevTotal <- readIORef pool.totalConnectionsStats
-  let delta = total - prevTotal
-  when (delta < 0) $ void (addCounter pool.metrics.terminationCounter (fromIntegral (abs delta)))
-  writeIORef pool.totalConnectionsStats (poolStats.currentUsage + poolStats.available)
 
 startHasqlPoolStatsReporter :: Pool -> IO ()
 startHasqlPoolStatsReporter pool = void $ forkIO $ forever $ do
@@ -129,7 +120,6 @@ initPostgresPool config pgConfig mFpSecrets = do
         HasqlConnSettings.connectionString (PostgresqlConnectionString.toUrl $ PostgresqlConnectionString.fromKeyValueParams pgConfig)
           <> foldMap HasqlConnSettings.password mPw
   metrics <- mkHasqlPoolMetrics
-  totalConnectionsStats <- newIORef 0
   rawPool <-
     HasqlPool.acquireWith
       (instrumentedConnectionGetter metrics (Hasql.Connection.acquire pgSettings))
@@ -137,15 +127,15 @@ initPostgresPool config pgConfig mFpSecrets = do
         realToFrac config.idlenessTimeout.duration,
         unusedSettings
       )
-  let pool = Pool {rawPool, metrics, poolAcquisitionTimeout = acquisitionTimeoutSeconds config.acquisitionTimeout, totalConnectionsStats}
+  let pool = Pool {rawPool, metrics, poolAcquisitionTimeout = config.acquisitionTimeout}
   startHasqlPoolStatsReporter pool
   pure pool
   where
     instrumentedConnectionGetter metrics getter = do
-      started <- getCurrentTime
+      started <- getMonotonicTime
       res <- getter
-      ended <- getCurrentTime
-      recordHasqlPoolConnectionAcquisition metrics (realToFrac (diffUTCTime ended started))
+      ended <- getMonotonicTime
+      recordHasqlPoolConnectionAcquisition metrics (ended - started)
       case res of
         Right _ -> recordHasqlPoolConnectionEstablished metrics
         Left _ -> recordHasqlPoolConnectionFailure metrics
@@ -157,7 +147,6 @@ initPostgresPool config pgConfig mFpSecrets = do
         <$> register (gauge $ Info "wire_hasql_pool_ready_for_use" "Number of hasql pool connections ready for use")
         <*> register (gauge $ Info "wire_hasql_pool_in_use" "Number of hasql pool connections in use")
         <*> register (counter $ Info "wire_hasql_pool_connection_established_count" "Number of established connections")
-        <*> register (counter $ Info "wire_hasql_pool_connection_terminated_count" "Number of terminated connections")
         <*> register (counter $ Info "wire_hasql_pool_connection_failure_count" "Number of failed connection acquisition attempts")
         <*> register (counter $ Info "wire_hasql_pool_acquisition_timeout_count" "Number of pool acquisition timeouts")
         <*> register (counter $ Info "wire_hasql_pool_session_failure_count" "Number of times a session has failed")
@@ -180,10 +169,3 @@ initPostgresPool config pgConfig mFpSecrets = do
           sslMode = "prefer",
           sslRootCert = ""
         }
-
-    acquisitionTimeoutSeconds d
-      | d.duration <= 0 = 0
-      | otherwise =
-          min
-            (maxBound :: Word16)
-            (fromInteger $ ceiling (realToFrac d.duration :: Double))

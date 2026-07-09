@@ -104,7 +104,8 @@
 
     hasql-resource-pool = {
       # Update this to the upstream repo/rev once the PR is merged there.
-      url = "github:wireapp/hasql-resource-pool?rev=209927f0e36da389d70235fd28034a78d1cc54af";
+      # https://github.com/avanov/hasql-resource-pool/pull/6
+      url = "github:wireapp/hasql-resource-pool?rev=5b5d3df0fff81801986a0110acae5420215f01c5";
       flake = false;
     };
   };
