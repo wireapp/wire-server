@@ -526,8 +526,8 @@ spec =
                 notifs `shouldBe` mempty
 
         describe "IdP cert fingerprint allowlist" $ do
-          let withAllow :: Maybe Spar.Options.CertFingerprintAllowlist -> Spar.Options.Opts
-              withAllow allow = defaultTestOpts {Spar.Options.idpCertFingerprintAllowlist = allow}
+          let withAllow :: Spar.Options.Opts -> Maybe Spar.Options.CertFingerprintAllowlist -> Spar.Options.Opts
+              withAllow opts allow = opts {Spar.Options.idpCertFingerprintAllowlist = allow}
 
               generateArbitraryIdPInfo :: IO IdPMetadataInfo
               generateArbitraryIdPInfo = do
@@ -587,32 +587,32 @@ spec =
           describe "create" $ do
             it "accepts any cert when allowlist is Nothing" $ do
               idpInfo <- generateArbitraryIdPInfo
-              (_logs, res) <- runCreate (withAllow Nothing) idpInfo
+              (_logs, res) <- runCreate (defaultTestOpts `withAllow` Nothing) idpInfo
               res `shouldSatisfy` isRight
 
             it "accepts any cert when allowlist is empty" $ do
               idpInfo <- generateArbitraryIdPInfo
               let empty = Spar.Options.CertFingerprintAllowlist Set.empty
-              (_logs, res) <- runCreate (withAllow (Just empty)) idpInfo
+              (_logs, res) <- runCreate (defaultTestOpts `withAllow` (Just empty)) idpInfo
               res `shouldSatisfy` isRight
 
             it "accepts when all fingerprints are allowlisted" $ do
               idpInfo <- generateArbitraryIdPInfo
               let allow = allCertsAllowlist idpInfo
-              (_logs, res) <- runCreate (withAllow (Just allow)) idpInfo
+              (_logs, res) <- runCreate (defaultTestOpts `withAllow` (Just allow)) idpInfo
               res `shouldSatisfy` isRight
 
             it "accepts when all multi-cert fingerprints are allowlisted" $ do
               idpInfo <- generateTwoCertIdPInfo
               let allow = allCertsAllowlist idpInfo
-              (_logs, res) <- runCreate (withAllow (Just allow)) idpInfo
+              (_logs, res) <- runCreate (defaultTestOpts `withAllow` (Just allow)) idpInfo
               res `shouldSatisfy` isRight
 
             it "rejects when no fingerprint matches and logs the refusal" $ do
               idpInfo@(IdPMetadataValue _ m) <- generateArbitraryIdPInfo
               let allow = singletonAllowlist bogusFingerprint
                   fingerprint = certToFingerprint . NonEmptyL.head $ m._edCertAuthnResponse
-              (logs, res) <- runCreate (withAllow (Just allow)) idpInfo
+              (logs, res) <- runCreate (defaultTestOpts `withAllow` (Just allow)) idpInfo
               res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed fingerprint))
               let logged = TL.decodeUtf8 $ LBS.concat (map snd logs)
               logged `shouldSatisfy` (("cert fingerprint not in allowlist, fingerprint=" <> fingerprint) `TL.isInfixOf`)
@@ -621,50 +621,85 @@ spec =
               idpInfo@(IdPMetadataValue _ m) <- generateTwoCertIdPInfo
               let allow = singletonAllowlist (firstCertFingerprint idpInfo)
                   secondCertFingerprint = certToFingerprint . head . NonEmptyL.tail $ m._edCertAuthnResponse
-              (logs, res) <- runCreate (withAllow (Just allow)) idpInfo
+              (logs, res) <- runCreate (defaultTestOpts `withAllow` (Just allow)) idpInfo
               res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed secondCertFingerprint))
               let logged = TL.decodeUtf8 $ LBS.concat (map snd logs)
               logged `shouldSatisfy` (("cert fingerprint not in allowlist, fingerprint=" <> secondCertFingerprint) `TL.isInfixOf`)
+
+            describe "multi-ingress" $ do
+              it "accepts when all fingerprints are allowlisted" $ do
+                idpInfo <- generateArbitraryIdPInfo
+                let allow = allCertsAllowlist idpInfo
+                    optsWithMultiIngress =
+                      defaultTestOpts
+                        { Spar.Options.saml = multiIngressSamlConfig,
+                          Spar.Options.idpCertFingerprintAllowlist = Just allow
+                        }
+                (_logs, _notifs, res) <-
+                  interpretWithLoggingMockOptsE optsWithMultiIngress Nothing $
+                    idpCreate multiIngressSamlConfig tid zUser miHost1 idpInfo Nothing apiVersionV2 idpHandle
+                res `shouldSatisfy` isRight
+
+              let testRejectEmptyAllowlist testName allowlist =
+                    it testName $ do
+                      idpInfo@(IdPMetadataValue _ m) <- generateArbitraryIdPInfo
+                      let optsWithMultiIngress =
+                            defaultTestOpts
+                              { Spar.Options.saml = multiIngressSamlConfig,
+                                Spar.Options.idpCertFingerprintAllowlist = allowlist
+                              }
+                          fingerprint = certToFingerprint . NonEmptyL.head $ m._edCertAuthnResponse
+                      (logs, _notifs, res) <-
+                        interpretWithLoggingMockOptsE optsWithMultiIngress Nothing $
+                          idpCreate multiIngressSamlConfig tid zUser miHost1 idpInfo Nothing apiVersionV2 idpHandle
+                      res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed fingerprint))
+                      let logged = TL.decodeUtf8 $ LBS.concat (map snd logs)
+                      logged `shouldSatisfy` (("Refusing IdP request: multi-ingress enabled and allowlist empty" :: TL.Text) `TL.isInfixOf`)
+
+              testRejectEmptyAllowlist "rejects when allowlist is Nothing" Nothing
+              testRejectEmptyAllowlist
+                "rejects when allowlist is empty"
+                (Just (Spar.Options.CertFingerprintAllowlist Set.empty))
 
           describe "update" $ do
             it "accepts any cert when allowlist is Nothing" $ do
               idpInfoCrt <- generateArbitraryIdPInfo
               idpInfoUpd <- generateArbitraryIdPInfo
-              (_logs, res) <- runCreateUpdate (withAllow Nothing) idpInfoCrt idpInfoUpd
+              (_logs, res) <- runCreateUpdate (defaultTestOpts `withAllow` Nothing) idpInfoCrt idpInfoUpd
               res `shouldSatisfy` isRight
 
             it "accepts any cert when allowlist is empty" $ do
               idpInfoCrt <- generateArbitraryIdPInfo
               idpInfoUpd <- generateArbitraryIdPInfo
-              (_logs, res) <- runCreateUpdate (withAllow (Just mempty)) idpInfoCrt idpInfoUpd
+              (_logs, res) <- runCreateUpdate (defaultTestOpts `withAllow` (Just mempty)) idpInfoCrt idpInfoUpd
               res `shouldSatisfy` isRight
 
             it "accepts when all fingerprints are allowlisted" $ do
               idpInfoCrt <- generateArbitraryIdPInfo
               idpInfoUpd <- generateArbitraryIdPInfo
               let allow = allCertsAllowlist idpInfoCrt <> allCertsAllowlist idpInfoUpd
-              (_logs, res) <- runCreateUpdate (withAllow (Just allow)) idpInfoCrt idpInfoUpd
+              (_logs, res) <- runCreateUpdate (defaultTestOpts `withAllow` (Just allow)) idpInfoCrt idpInfoUpd
               res `shouldSatisfy` isRight
 
             it "accepts when all multi-cert fingerprints are allowlisted" $ do
               idpInfoCrt <- generateTwoCertIdPInfo
               idpInfoUpd <- generateTwoCertIdPInfo
               let allow = allCertsAllowlist idpInfoCrt <> allCertsAllowlist idpInfoUpd
-              (_logs, res) <- runCreateUpdate (withAllow (Just allow)) idpInfoCrt idpInfoUpd
+              (_logs, res) <- runCreateUpdate (defaultTestOpts `withAllow` (Just allow)) idpInfoCrt idpInfoUpd
               res `shouldSatisfy` isRight
 
             it "rejects when no fingerprint matches" $ do
               idpInfo@(IdPMetadataValue _ m) <- generateArbitraryIdPInfo
               let fingerprint = certToFingerprint . NonEmptyL.head $ m._edCertAuthnResponse
               (_logs1, _notifs1, createdE) <-
-                interpretWithLoggingMockOptsE (withAllow Nothing) Nothing $
+                interpretWithLoggingMockOptsE (defaultTestOpts `withAllow` Nothing) Nothing $
                   idpCreate singleIngressSamlConfig tid zUser host idpInfo Nothing apiVersionV2 idpHandle
               case createdE of
                 Left e -> expectationFailure ("unexpected create failure: " <> show e)
                 Right idp -> do
                   let allow = singletonAllowlist bogusFingerprint
                   (_logs2, _notifs2, res) <-
-                    interpretWithLoggingMockOptsE (withAllow (Just allow)) Nothing $ do
+                    interpretWithLoggingMockOptsE (defaultTestOpts `withAllow` (Just allow)) Nothing $ do
                       insertConfig idp
                       idpUpdate singleIngressSamlConfig zUser host idpInfo (idp._idpId) Nothing
                   res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed fingerprint))
@@ -674,16 +709,68 @@ spec =
               let partialAllow = singletonAllowlist (firstCertFingerprint idpInfo)
                   secondCertFingerprint = certToFingerprint . head . NonEmptyL.tail $ m._edCertAuthnResponse
               (_logs1, _notifs1, createdE) <-
-                interpretWithLoggingMockOptsE (withAllow Nothing) Nothing $
+                interpretWithLoggingMockOptsE (defaultTestOpts `withAllow` Nothing) Nothing $
                   idpCreate singleIngressSamlConfig tid zUser host idpInfo Nothing apiVersionV2 idpHandle
               case createdE of
                 Left e -> expectationFailure ("unexpected create failure: " <> show e)
                 Right idp -> do
                   (_logs2, _notifs2, res) <-
-                    interpretWithLoggingMockOptsE (withAllow (Just partialAllow)) Nothing $ do
+                    interpretWithLoggingMockOptsE (defaultTestOpts `withAllow` (Just partialAllow)) Nothing $ do
                       insertConfig idp
                       idpUpdate singleIngressSamlConfig zUser host idpInfo (idp._idpId) Nothing
                   res `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed secondCertFingerprint))
+
+            describe "multi-ingress" $ do
+              it "accepts when all fingerprints are allowlisted" $ do
+                idpInfoCrt <- generateArbitraryIdPInfo
+                idpInfoUpd <- generateArbitraryIdPInfo
+                let allow = allCertsAllowlist idpInfoCrt <> allCertsAllowlist idpInfoUpd
+                    optsWithMultiIngress =
+                      defaultTestOpts
+                        { Spar.Options.saml = multiIngressSamlConfig,
+                          Spar.Options.idpCertFingerprintAllowlist = Just allow
+                        }
+                (_logs, _notifs, res) <-
+                  interpretWithLoggingMockOptsE optsWithMultiIngress Nothing $ do
+                    idp <- idpCreate multiIngressSamlConfig tid zUser miHost1 idpInfoCrt Nothing apiVersionV2 idpHandle
+                    idpUpdate multiIngressSamlConfig zUser miHost1 idpInfoUpd (idp._idpId) Nothing
+                res `shouldSatisfy` isRight
+
+              let testRejectEmptyAllowlistOnUpdate testName updateAllowlist =
+                    it testName $ do
+                      idpInfoCrt <- generateArbitraryIdPInfo
+                      idpInfoUpd@(IdPMetadataValue _ m) <- generateArbitraryIdPInfo
+                      let allowCrt = allCertsAllowlist idpInfoCrt
+                          fingerprint = certToFingerprint . NonEmptyL.head $ m._edCertAuthnResponse
+                          optsForCreate =
+                            defaultTestOpts
+                              { Spar.Options.saml = multiIngressSamlConfig,
+                                Spar.Options.idpCertFingerprintAllowlist = Just allowCrt
+                              }
+                          optsForUpdate =
+                            defaultTestOpts
+                              { Spar.Options.saml = multiIngressSamlConfig,
+                                Spar.Options.idpCertFingerprintAllowlist = updateAllowlist
+                              }
+                      (_logsCrt, _notifsCrt, createE) <-
+                        interpretWithLoggingMockOptsE optsForCreate Nothing $
+                          idpCreate multiIngressSamlConfig tid zUser miHost1 idpInfoCrt Nothing apiVersionV2 idpHandle
+                      case createE of
+                        Left e -> expectationFailure ("unexpected create failure: " <> show e)
+                        Right idp -> do
+                          (logsUpd, _notifsUpd, updateE) <-
+                            interpretWithLoggingMockOptsE optsForUpdate Nothing $ do
+                              insertConfig idp
+                              idpUpdate multiIngressSamlConfig zUser miHost1 idpInfoUpd (idp._idpId) Nothing
+                          updateE `shouldBe` Left (SAML.CustomError (SparIdPCertNotAllowed fingerprint))
+                          let logged = TL.decodeUtf8 $ LBS.concat (map snd logsUpd)
+                          logged `shouldSatisfy` (("Refusing IdP request: multi-ingress enabled and allowlist empty" :: TL.Text) `TL.isInfixOf`)
+
+              testRejectEmptyAllowlistOnUpdate "rejects when allowlist is Nothing" Nothing
+
+              testRejectEmptyAllowlistOnUpdate
+                "rejects when allowlist is empty"
+                (Just (Spar.Options.CertFingerprintAllowlist Set.empty))
 
           describe "authresp" $ do
             let makeIdp :: IdPMetadataInfo -> IO IdP
@@ -720,7 +807,7 @@ spec =
                   raw <- generate (arbitrary :: Gen (MultipartData Mem))
                   let dummyBody = either error id (fromMultipart raw :: Either String SAML.AuthnResponseBody)
                   user <- generate arbitrary
-                  let opts = withAllow allow
+                  let opts = defaultTestOpts `withAllow` allow
                       uref = SAML.UserRef m._edIssuer (SAML.unspecifiedNameID "test-user")
                       user' = user {userTeam = Just authrspTestTeamId}
                       verdict = SAML.AccessGranted uref
@@ -799,6 +886,53 @@ spec =
                     let logged = TL.decodeUtf8 $ LBS.concat (map snd logs)
                     logged `shouldNotSatisfy` ("cert fingerprint not in allowlist" `TL.isInfixOf`)
                   other -> expectationFailure $ "expected CustomServant (VerifyHandlerGranted), got: " <> show other
+
+              describe "multi-ingress" $ do
+                let makeAuthRespRequestMultiIngress teamIdParam idpInfo@(IdPMetadataValue _ m) allow = do
+                      idp <- makeIdp idpInfo
+                      ass <- makeControlledAssertion
+                      raw <- generate (arbitrary :: Gen (MultipartData Mem))
+                      let dummyBody = either error id (fromMultipart raw :: Either String SAML.AuthnResponseBody)
+                      user <- generate arbitrary
+                      let opts =
+                            (defaultTestOpts `withAllow` allow)
+                              { Spar.Options.saml = multiIngressSamlConfig
+                              }
+                          uref = SAML.UserRef m._edIssuer (SAML.unspecifiedNameID "test-user")
+                          user' = user {userTeam = Just authrspTestTeamId}
+                          verdict = SAML.AccessGranted uref
+                      interpretAuthrespE opts (Just user') (ass NonEmptyL.:| [], idp, verdict) $ do
+                        SAMLUserStore.insert uref (userId user')
+                        authresp teamIdParam dummyBody (Just miDomain1)
+
+                it ("accepts when all fingerprints are allowlisted - teamId param " <> show requestParamTeamId) $ do
+                  idpInfo <- generateArbitraryIdPInfo
+                  let allow = allCertsAllowlist idpInfo
+                  (logs, res) <- makeAuthRespRequestMultiIngress requestParamTeamId idpInfo $ Just allow
+                  case res of
+                    Left (SAML.CustomServant servantErr) -> do
+                      errHTTPCode servantErr `shouldBe` 200
+                      errReasonPhrase servantErr `shouldBe` "success"
+                      let logged = TL.decodeUtf8 $ LBS.concat (map snd logs)
+                      logged `shouldNotSatisfy` ("cert fingerprint not in allowlist" `TL.isInfixOf`)
+                    other -> expectationFailure $ "expected success, got: " <> show other
+
+                let testRejectEmptyAllowlistAuthresp testName allowlist =
+                      it (testName <> " - teamId param " <> show requestParamTeamId) $ do
+                        idpInfo <- generateArbitraryIdPInfo
+                        (logs, res) <- makeAuthRespRequestMultiIngress requestParamTeamId idpInfo allowlist
+                        case res of
+                          Left (SAML.CustomServant servantErr) -> do
+                            errHTTPCode servantErr `shouldBe` 403
+                            errReasonPhrase servantErr `shouldBe` "idp-cert-not-allowed"
+                            let logged = TL.decodeUtf8 $ LBS.concat (map snd logs)
+                            logged `shouldSatisfy` (("Refusing IdP request: multi-ingress enabled and allowlist empty" :: TL.Text) `TL.isInfixOf`)
+                          other -> expectationFailure $ "expected idp-cert-not-allowed error, got: " <> show other
+
+                testRejectEmptyAllowlistAuthresp "rejects when allowlist is Nothing" Nothing
+                testRejectEmptyAllowlistAuthresp
+                  "rejects when allowlist is empty"
+                  (Just (Spar.Options.CertFingerprintAllowlist Set.empty))
 
 type LogLine = (Level, LByteString)
 

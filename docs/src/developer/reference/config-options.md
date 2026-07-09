@@ -1346,16 +1346,19 @@ configured in `nginz`'s Helm chart in the
 
 #### IdP certificate fingerprint allowlist
 
-This optional feature restricts which X.509 certificates can be used in IdP
-metadata. When configured, all certificates in IdP descriptors must have a
-SHA-1 fingerprint present in the allowlist, or IdP creation/update and SAML
+This feature restricts which X.509 certificates can be used in IdP metadata.
+When configured, all certificates in IdP descriptors must have a SHA-1
+fingerprint present in the allowlist, or IdP creation/update and SAML
 AuthnResponse (`/sso/finalize-login`) requests will be rejected.
 
 This limits team admins in their choice of IdPs. E.g. a malicious team admin
 couldn't provision bad IdPs, as possible IdP certificates are restricted by the
 allowlist.
 
-The feature is disabled by default in Helm (the attribute can be left out as well):
+**For multi-ingress setups, this feature is mandatory** to prevent
+security-relevant configuration mistakes. For regular (non-multi-ingress)
+setups, it is optional and disabled by default in Helm (the attribute can be
+left out as well):
 
 ```yaml
 config:
@@ -1608,6 +1611,9 @@ There can be at most one IdP per multi-ingress domain and team. Creating more re
 error. Though, IdPs can be reconfigured as long as this invariant holds.
 
 Putting it differently: We require an unambiguous mapping `(team, domain) -> IdP`.
+
+For multi-ingress setups, the [`idpCertFingerprintAllowlist`](#idp-certificate-fingerprint-allowlist)
+must be configured to restrict which X.509 certificates can be used in IdP metadata.
 
 ### Webapp
 
