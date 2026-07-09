@@ -51,7 +51,6 @@ library
     , extra
     , galley-types
     , hasql
-    , hasql-pool
     , hasql-resource-pool
     , HsOpenSSL
     , http-client

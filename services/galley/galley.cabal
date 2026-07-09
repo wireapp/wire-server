@@ -212,7 +212,6 @@ library
     , extended
     , galley-types                          >=0.65.0
     , hasql
-    , hasql-pool
     , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
