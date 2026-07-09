@@ -33,7 +33,7 @@ import Data.Misc (HttpsUrl)
 import Data.Pool qualified as Pool
 import Data.Text.Encoding qualified as Text
 import HTTP2.Client.Manager
-import Hasql.Pool qualified as HasqlPool
+import Hasql.Connection qualified as Hasql
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
 import Imports
@@ -92,7 +92,7 @@ data Env = Env
     cassandra :: ClientState,
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
-    hasqlPool :: HasqlPool.Pool,
+    hasqlPool :: Hasql.Pool,
     arbiterConnStr :: ByteString.ByteString,
     arbiterPool :: Pool.Pool Hasql.Connection,
     -- Dedicated AMQP channels per concern

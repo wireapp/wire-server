@@ -22,10 +22,8 @@ import Data.ByteString qualified as ByteString
 import Data.Map qualified as Map
 import Data.Misc
 import Data.Pool qualified as Pool
-import Data.Set qualified as Set
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (diffUTCTime, getCurrentTime, secondsToDiffTime)
-import Data.UUID
 import Hasql.Connection qualified
 import Hasql.Connection qualified as Hasql
 import Hasql.Connection.Settings qualified as HasqlConnSettings
@@ -52,7 +50,6 @@ defaultArbiterConnectionPoolConfig =
   PoolConfig
     { size = 10,
       acquisitionTimeout = Duration (secondsToDiffTime 5),
-      agingTimeout = Duration (secondsToDiffTime 300),
       idlenessTimeout = Duration (secondsToDiffTime 60)
     }
 
