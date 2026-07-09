@@ -33,7 +33,6 @@
 , prometheus-client
 , QuickCheck
 , ram
-, resource-pool
 , retry
 , servant
 , servant-client
@@ -82,7 +81,6 @@ mkDerivation {
     postgresql-connection-string
     prometheus-client
     ram
-    resource-pool
     retry
     servant
     servant-client

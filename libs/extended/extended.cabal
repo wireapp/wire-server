@@ -113,7 +113,6 @@ library
     , postgresql-connection-string
     , prometheus-client
     , ram
-    , resource-pool
     , retry
     , servant
     , servant-client

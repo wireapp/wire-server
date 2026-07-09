@@ -33,7 +33,6 @@
 , federator
 , filepath
 , galley-types
-, hasql
 , hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
@@ -69,7 +68,6 @@
 , ram
 , random
 , raw-strings-qq
-, resource-pool
 , retry
 , safe-exceptions
 , servant
@@ -138,7 +136,6 @@ mkDerivation {
     exceptions
     extended
     galley-types
-    hasql
     hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
@@ -160,7 +157,6 @@ mkDerivation {
     polysemy-wire-zoo
     prometheus-client
     raw-strings-qq
-    resource-pool
     retry
     safe-exceptions
     servant

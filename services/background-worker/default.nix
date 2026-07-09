@@ -20,7 +20,6 @@
 , extra
 , federator
 , galley-types
-, hasql
 , hasql-resource-pool
 , HsOpenSSL
 , hspec
@@ -38,7 +37,6 @@
 , polysemy-wire-zoo
 , prometheus-client
 , QuickCheck
-, resource-pool
 , retry
 , servant
 , servant-client
@@ -82,7 +80,6 @@ mkDerivation {
     extended
     extra
     galley-types
-    hasql
     hasql-resource-pool
     HsOpenSSL
     http-client
@@ -94,7 +91,6 @@ mkDerivation {
     polysemy-conc
     polysemy-wire-zoo
     prometheus-client
-    resource-pool
     retry
     servant-client
     servant-server
