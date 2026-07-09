@@ -235,23 +235,34 @@ createMLSOne2OnePartner ::
   user ->
   convDomain ->
   App Value
-createMLSOne2OnePartner domain other convDomain = loop
+createMLSOne2OnePartner domain other convDomain = do
+  desiredConvDomain <- make convDomain & asString
+  go (0 :: Int) desiredConvDomain
   where
-    loop = do
-      u <- randomUser domain def
-      connectTwoUsers u other
-      apiVersion <- getAPIVersionFor domain
-      conv <-
-        if apiVersion < 6
-          then getMLSOne2OneConversation other u >>= getJSON 200
-          else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
+    maxAttempts = 128
+    go n desiredConvDomain
+      | n >= maxAttempts =
+          assertFailure $
+            "createMLSOne2OnePartner: gave up after "
+              <> show maxAttempts
+              <> " attempts to place the 1-1 conversation on domain "
+              <> desiredConvDomain
+      | otherwise = do
+          u <- randomUser domain def
+          connectTwoUsers u other
+          apiVersion <- getAPIVersionFor domain
+          conv <-
+            if apiVersion < 6
+              then getMLSOne2OneConversation other u >>= getJSON 200
+              else getMLSOne2OneConversation other u >>= getJSON 200 >>= (%. "conversation")
 
-      desiredConvDomain <- make convDomain & asString
-      actualConvDomain <- conv %. "qualified_id.domain" & asString
+          actualConvDomain <- conv %. "qualified_id.domain" & asString
 
-      if desiredConvDomain == actualConvDomain
-        then pure u
-        else loop
+          if desiredConvDomain == actualConvDomain
+            then pure u
+            else do
+              putConnection other u "blocked" >>= assertSuccess
+              go (n + 1) desiredConvDomain
 
 -- Copied from `src/CargoHold/API/V3.hs` and inlined to avoid pulling in `types-common`
 randomToken :: (HasCallStack) => App String
