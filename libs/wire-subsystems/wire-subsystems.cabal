@@ -371,6 +371,7 @@ library
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
     Wire.JobSubsystem
+    Wire.JobSubsystem.ArbiterAdapter
     Wire.JobSubsystem.Interpreter
     Wire.JobSubsystem.Workers
     Wire.LegalHold
