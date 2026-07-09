@@ -50,7 +50,6 @@ library
     , extended
     , extra
     , galley-types
-    , hasql
     , hasql-resource-pool
     , HsOpenSSL
     , http-client
@@ -62,7 +61,6 @@ library
     , polysemy-conc
     , polysemy-wire-zoo
     , prometheus-client
-    , resource-pool
     , retry
     , servant-client
     , servant-server

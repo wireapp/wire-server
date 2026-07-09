@@ -388,8 +388,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
         }
     jobSubsystemConfig =
       JobSubsystemConfig
-        { jobSubsystemArbiterPool = env.arbiterPool,
-          jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+        { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
         }
     backendQueueEnv =
       BackendNotificationQueueAccess.Env

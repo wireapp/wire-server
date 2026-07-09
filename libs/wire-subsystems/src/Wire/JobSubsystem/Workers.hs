@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,7 +31,6 @@ where
 import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Core.Job.Types (JobRead)
 import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
-import Arbiter.Hasql.HasqlDb qualified as ArbiterHasql
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
@@ -37,22 +38,21 @@ import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString qualified as ByteString
 import Data.Kind (Type)
-import Data.Pool qualified as Pool
 import Data.Proxy (Proxy (..))
 import Data.Text qualified as T
 import Data.Time.Clock (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
-import Hasql.Connection qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
 import Wire.API.Jobs (MeetingsCleanupJob (..))
+import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
 
 data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,
     recurringJobRunnerSchedule :: CronSchedule,
-    recurringJobRunnerArbiterPool :: Pool.Pool Hasql.Connection,
     recurringJobRunnerArbiterConnStr :: ByteString.ByteString,
     recurringJobRunnerSchemaName :: Text,
     recurringJobRunnerPollInterval :: NominalDiffTime,
@@ -63,7 +63,6 @@ data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
 
 data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
   { oneOffJobRunnerLogger :: Log.Logger,
-    oneOffJobRunnerArbiterPool :: Pool.Pool Hasql.Connection,
     oneOffJobRunnerArbiterConnStr :: ByteString.ByteString,
     oneOffJobRunnerSchemaName :: Text,
     oneOffJobRunnerPollInterval :: NominalDiffTime,
@@ -82,11 +81,11 @@ runRecurringJobRunner ::
     FromJSON MeetingsCleanupJob,
     ToJSON MeetingsCleanupJob
   ) =>
-  Proxy registry ->
+  HasqlPoolExt.Pool ->
   RecurringJobRunnerConfig registry ->
   (MeetingsCleanupJob -> IO ()) ->
   IO (IO ())
-runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
+runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
   Log.info recurringJobRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
       . Log.field "job_name" recurringJobRunnerJobName
@@ -94,10 +93,13 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
       . Log.field "schedule" (show recurringJobRunnerSchedule)
 
   let arbiterEnv =
-        ArbiterHasql.createHasqlEnvWithPool
-          registry
-          recurringJobRunnerArbiterPool
-          recurringJobRunnerSchemaName
+        WireArbiterEnv
+          { schemaName = recurringJobRunnerSchemaName,
+            connectionPool = postgresPool,
+            activeConn = Nothing,
+            transactionDepth = 0,
+            preparedStatements = False
+          }
 
   let workerHandler _conn job =
         liftIO $ do
@@ -126,7 +128,7 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
     -- keep polling as the baseline and treat notifications as a latency
     -- optimization rather than a correctness requirement.
     ArbiterMigrations.runMigrationsForRegistry
-      registry
+      (Proxy @registry)
       recurringJobRunnerArbiterConnStr
       recurringJobRunnerSchemaName
       ArbiterMigrations.defaultMigrationConfig
@@ -138,7 +140,7 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
         workerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
-              (ArbiterHasql.HasqlDb registry IO)
+              (WireArbiter registry)
               MeetingsCleanupJob
               ()
           )
@@ -152,7 +154,7 @@ runRecurringJobRunner registry RecurringJobRunnerConfig {..} runJob = do
 
   workerAsync <-
     Async.async $
-      ArbiterHasql.runHasqlDb arbiterEnv $
+      runWireArbiter arbiterEnv $
         ArbiterWorker.runWorkerPool workerConfig'
 
   pure $ do
@@ -166,21 +168,24 @@ runOneOffJobRunner ::
     FromJSON payload,
     ToJSON payload
   ) =>
-  Proxy registry ->
+  HasqlPoolExt.Pool ->
   OneOffJobRunnerConfig registry payload ->
   (JobRead payload -> IO ()) ->
   IO (IO ())
-runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
+runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
   Log.info oneOffJobRunnerLogger $
     Log.msg (Log.val "Starting one-off jobs worker")
       . Log.field "job_name" oneOffJobRunnerJobName
       . Log.field "queue_name" oneOffJobRunnerQueueName
 
   let arbiterEnv =
-        ArbiterHasql.createHasqlEnvWithPool
-          registry
-          oneOffJobRunnerArbiterPool
-          oneOffJobRunnerSchemaName
+        WireArbiterEnv
+          { schemaName = oneOffJobRunnerSchemaName,
+            connectionPool = postgresPool,
+            activeConn = Nothing,
+            transactionDepth = 0,
+            preparedStatements = False
+          }
   let workerHandler _conn job =
         liftIO $ do
           Log.info oneOffJobRunnerLogger $
@@ -191,7 +196,7 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
 
   void $
     ArbiterMigrations.runMigrationsForRegistry
-      registry
+      (Proxy @registry)
       oneOffJobRunnerArbiterConnStr
       oneOffJobRunnerSchemaName
       ArbiterMigrations.defaultMigrationConfig
@@ -203,7 +208,7 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
         workerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
-              (ArbiterHasql.HasqlDb registry IO)
+              (WireArbiter registry)
               payload
               ()
           )
@@ -212,7 +217,7 @@ runOneOffJobRunner registry OneOffJobRunnerConfig {..} runJob = do
 
   workerAsync <-
     Async.async $
-      ArbiterHasql.runHasqlDb arbiterEnv $
+      runWireArbiter arbiterEnv $
         ArbiterWorker.runWorkerPool workerConfig'
 
   pure $ do

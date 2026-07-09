@@ -85,7 +85,6 @@ testEnv = do
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
       arbiterConnStr = BS.empty
-      arbiterPool = undefined
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
       featureFlags = def
       conversationSubsystemConfig =

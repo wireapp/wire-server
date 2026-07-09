@@ -54,7 +54,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import Data.Text qualified as Text
-import Data.Text.Encoding qualified as TextEncoding
 import Galley.Effects.Queue qualified as GE
 import Galley.Env
 import Galley.External.LegalHoldService.Internal qualified as LHInternal
@@ -64,7 +63,7 @@ import Galley.Queue qualified as Q
 import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
-import Hasql.Pool.Extended (defaultArbiterConnectionPoolConfig, initPostgresConnectionPool, initPostgresPool, postgresqlConnectionString)
+import Hasql.Pool.Extended (initPostgresPool)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
@@ -329,8 +328,6 @@ createEnv o l = do
   h2mgr <- initHttp2Manager
   codeURIcfg <- validateOptions o
   postgres <- initPostgresPool o._postgresqlPool o._postgresql o._postgresqlPassword
-  galleyJobsApiConnStr <- postgresqlConnectionString o._postgresql o._postgresqlPassword
-  galleyJobsApiPool <- initPostgresConnectionPool defaultArbiterConnectionPoolConfig (TextEncoding.encodeUtf8 galleyJobsApiConnStr)
   let disableTlsV1 = True
   Env (RequestId defRequestId) o l mgr h2mgr (o ^. O.federator) (o ^. O.brig) cass postgres
     <$> Q.new 16000
@@ -340,7 +337,6 @@ createEnv o l = do
     <*> traverse (mkRabbitMqChannelMVar l (Just "galley")) (o ^. rabbitmq)
     <*> pure codeURIcfg
     <*> newRateLimitEnv (o ^. settings . passwordHashingRateLimit)
-    <*> pure galleyJobsApiPool
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l =
@@ -559,8 +555,7 @@ evalGalley e =
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
         . interpretJobSubsystem
           JobSubsystemConfig
-            { jobSubsystemArbiterPool = e ^. jobsApiPool,
-              jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+            { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
             }
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod

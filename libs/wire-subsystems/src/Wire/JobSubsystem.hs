@@ -32,10 +32,8 @@ where
 import Arbiter.Core.Job.Types (JobRead)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
-import Data.Pool qualified as Pool
 import Data.Qualified
 import Data.Time.Clock (UTCTime)
-import Hasql.Connection qualified as Hasql
 import Imports
 import Polysemy
 import Wire.API.Jobs
@@ -44,8 +42,7 @@ import Wire.JobSubsystem.Workers
 type CleanupAction = IO ()
 
 data JobSubsystemConfig = JobSubsystemConfig
-  { jobSubsystemArbiterPool :: Pool.Pool Hasql.Connection,
-    jobSubsystemSchemaName :: Text
+  { jobSubsystemSchemaName :: Text
   }
 
 data JobWorkersConfig = JobWorkersConfig

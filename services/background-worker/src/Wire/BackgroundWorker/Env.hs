@@ -30,10 +30,8 @@ import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
-import Data.Pool qualified as Pool
 import Data.Text.Encoding qualified as Text
 import HTTP2.Client.Manager
-import Hasql.Connection qualified as Hasql
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
 import Imports
@@ -94,7 +92,6 @@ data Env = Env
     cassandraBrig :: ClientState,
     hasqlPool :: Hasql.Pool,
     arbiterConnStr :: ByteString.ByteString,
-    arbiterPool :: Pool.Pool Hasql.Connection,
     -- Dedicated AMQP channels per concern
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
@@ -197,7 +194,6 @@ mkEnv opts galleyOpts = do
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
   arbiterConnStr <- Text.encodeUtf8 <$> postgresqlConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
-  arbiterPool <- initPostgresConnectionPool defaultArbiterConnectionPoolConfig arbiterConnStr
   Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $

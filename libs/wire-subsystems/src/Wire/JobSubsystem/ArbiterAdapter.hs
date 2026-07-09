@@ -19,6 +19,7 @@ import Arbiter.Core.QueueRegistry (JobPayloadRegistry)
 import Arbiter.Hasql.Decode qualified as Decode
 import Arbiter.Hasql.Encode qualified as Encode
 import Control.Exception (mask, onException, try)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Reader
 import Data.Text qualified as T
 import Hasql.Connection qualified as HasqlConn
@@ -45,8 +46,12 @@ newtype WireArbiter (registry :: JobPayloadRegistry) a = WireArbiter
     ( Functor,
       Applicative,
       Monad,
+      MonadCatch,
       MonadIO,
-      MonadReader WireArbiterEnv
+      MonadMask,
+      MonadReader WireArbiterEnv,
+      MonadThrow,
+      MonadUnliftIO
     )
 
 runWireArbiter :: WireArbiterEnv -> WireArbiter registry a -> IO a

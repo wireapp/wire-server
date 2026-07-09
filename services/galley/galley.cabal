@@ -211,7 +211,6 @@ library
     , exceptions                            >=0.4
     , extended
     , galley-types                          >=0.65.0
-    , hasql
     , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
@@ -233,7 +232,6 @@ library
     , polysemy-wire-zoo
     , prometheus-client
     , raw-strings-qq                        >=1.0
-    , resource-pool
     , retry                                 >=0.5
     , safe-exceptions                       >=0.1
     , servant
