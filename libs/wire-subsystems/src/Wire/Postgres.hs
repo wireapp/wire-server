@@ -138,7 +138,7 @@ useWithResetAndRetry pool sess = go maxRetries
       case result of
         Left (Hasql.ConnectionError _) -> HasqlPoolExt.recordHasqlPoolConnectionFailure p.metrics
         Left (Hasql.SessionError _) -> HasqlPoolExt.recordHasqlPoolSessionFailure p.metrics
-        Left Hasql.AcquisitionTimeoutUsageError -> HasqlPoolExt.recordHasqlPoolAcquisitionTimeout pool.metrics
+        Left Hasql.AcquisitionTimeoutUsageError -> HasqlPoolExt.recordHasqlPoolAcquisitionTimeout p.metrics
         Right _ -> pure ()
       pure result
 

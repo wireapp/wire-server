@@ -110,7 +110,7 @@ recordHasqlPoolStats pool = do
   let total = poolStats.currentUsage + poolStats.available
   prevTotal <- readIORef pool.totalConnectionsStats
   let delta = total - prevTotal
-  when (delta < 0) $ replicateM_ (abs delta) (addCounter pool.metrics.terminationCounter 1)
+  when (delta < 0) $ void (addCounter pool.metrics.terminationCounter (fromIntegral (abs delta)))
   writeIORef pool.totalConnectionsStats (poolStats.currentUsage + poolStats.available)
 
 startHasqlPoolStatsReporter :: Pool -> IO ()
@@ -183,4 +183,7 @@ initPostgresPool config pgConfig mFpSecrets = do
 
     acquisitionTimeoutSeconds d
       | d.duration <= 0 = 0
-      | otherwise = fromInteger $ ceiling (realToFrac d.duration :: Double)
+      | otherwise =
+          min
+            (maxBound :: Word16)
+            (fromInteger $ ceiling (realToFrac d.duration :: Double))
