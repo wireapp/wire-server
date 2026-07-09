@@ -33,7 +33,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
-import Control.Monad.Catch (catch, catchAll, throwM)
+import Control.Monad.Catch (catch, throwM)
 import Control.Monad.Codensity
 import Control.Monad.Extra
 import Control.Monad.Reader
@@ -419,17 +419,25 @@ ensureBackendReachable domain = do
               . (addJSONObject [])
         checkStatus <- appToIO $ do
           submit "POST" req `bindResponse` \res -> do
-            -- If we get 533 here it means federation is not available between domains
-            -- but ingress is working, since we're processing the request.
-            let is200 = res.status == 200
-            mInner <- lookupField res.json "inner" `catchAll` const (pure Nothing)
-            isFedDenied <- case mInner of
-              Nothing -> pure False
-              Just inner -> do
-                label <- inner %. "label" & asString
-                pure $ res.status == 533 && label == "federation-denied"
-
-            pure (is200 || isFedDenied)
+            -- During warmup the federator may transiently return a non-JSON
+            -- body (e.g. Prometheus metrics text), JSON null, or an empty
+            -- body.  Only consider the backend reachable once brig is
+            -- actually serving the api-version endpoint, so the retry loop
+            -- keeps going until warmup is genuinely complete.
+            case res.json of
+              Just (Object _)
+                | res.status == 200 ->
+                    isJust <$> lookupField res.json "supported"
+              Just (Object _) | res.status == 533 -> do
+                -- Federation is not available between domains, but ingress
+                -- is working since we're processing the request.
+                mInner <- lookupField res.json "inner"
+                case mInner of
+                  Just inner -> do
+                    label <- inner %. "label" & asString
+                    pure $ label == "federation-denied"
+                  Nothing -> pure False
+              _ -> pure False
         eith <- liftIO (E.try checkStatus)
         pure $ either (\(_e :: HTTP.HttpException) -> False) id eith
       origins = [env.domain1, env.domain2]
