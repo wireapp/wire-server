@@ -21,6 +21,7 @@ import Arbiter.Hasql.Encode qualified as Encode
 import Control.Exception (mask, onException, try)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Reader
+import Data.Misc (durationToCeilingSeconds)
 import Data.Text qualified as T
 import Hasql.Connection qualified as HasqlConn
 import Hasql.Decoders qualified as Decoders
@@ -109,7 +110,7 @@ withPoolConnection pool f = do
   result <-
     liftIO $
       HasqlPool.withConnectionWithPoolAcquisitionTimeout
-        pool.poolAcquisitionTimeout
+        (durationToCeilingSeconds pool.poolAcquisitionTimeout)
         pool.rawPool
         (fmap Right . f)
   case result of

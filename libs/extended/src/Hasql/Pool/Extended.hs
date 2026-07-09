@@ -20,7 +20,6 @@ module Hasql.Pool.Extended where
 import Data.Aeson
 import Data.Map qualified as Map
 import Data.Misc
-import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Hasql.Connection qualified
 import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Pool qualified as HasqlPool
