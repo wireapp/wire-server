@@ -1,3 +1,7 @@
+import functools
+
+
+@functools.total_ordering
 class frozendict(dict):
     def __init__(self, data):
         super().__init__(data)
