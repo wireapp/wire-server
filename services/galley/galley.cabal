@@ -210,7 +210,7 @@ library
     , exceptions                            >=0.4
     , extended
     , galley-types                          >=0.65.0
-    , hasql-pool
+    , hasql-resource-pool
     , hs-opentelemetry-instrumentation-wai
     , hs-opentelemetry-sdk
     , HsOpenSSL                             >=0.11

@@ -19,7 +19,7 @@
 , extra
 , federator
 , galley-types
-, hasql-pool
+, hasql-resource-pool
 , HsOpenSSL
 , hspec
 , http-client
@@ -78,7 +78,7 @@ mkDerivation {
     extended
     extra
     galley-types
-    hasql-pool
+    hasql-resource-pool
     HsOpenSSL
     http-client
     http2-manager

@@ -215,6 +215,23 @@
         "type": "github"
       }
     },
+    "hasql-resource-pool": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783610992,
+        "narHash": "sha256-xpnT7V2EddKVzK5cvaPeRYpCyRbWyqkQJrsBMpSbWXg=",
+        "owner": "wireapp",
+        "repo": "hasql-resource-pool",
+        "rev": "5b5d3df0fff81801986a0110acae5420215f01c5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "wireapp",
+        "repo": "hasql-resource-pool",
+        "rev": "5b5d3df0fff81801986a0110acae5420215f01c5",
+        "type": "github"
+      }
+    },
     "hsaml2": {
       "flake": false,
       "locked": {
@@ -356,6 +373,7 @@
         "cryptostore": "cryptostore",
         "flake-utils": "flake-utils",
         "hasql-migration": "hasql-migration",
+        "hasql-resource-pool": "hasql-resource-pool",
         "hsaml2": "hsaml2",
         "hspec-wai": "hspec-wai",
         "http-client": "http-client",

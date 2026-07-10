@@ -129,7 +129,7 @@ common common-all
     , HaskellNet-SSL
     , hasql
     , hasql-migration
-    , hasql-pool
+    , hasql-resource-pool
     , hasql-th
     , hasql-transaction
     , hex

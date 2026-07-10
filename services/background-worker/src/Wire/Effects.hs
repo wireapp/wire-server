@@ -36,7 +36,7 @@ import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
 import Galley.Types.Error (InternalError, internalErrorDescription, legalHoldServiceUnavailable)
 import Hasql.Pool (UsageError)
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Network.HTTP.Client qualified as Http
 import Network.Wai.Utilities.JSONResponse (JSONResponse (..))
@@ -229,7 +229,7 @@ type BackgroundWorkerEffects =
      Input ClientState,
      Input (FeatureDefaults LegalholdConfig),
      Input (Local ()),
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      P.TinyLog,
      Error RateLimitExceeded,
      Error UnreachableBackendsLegacy,
@@ -302,7 +302,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @UnreachableBackendsLegacy (const ("Unreachable backends legacy" :: Text))
     . mapError @RateLimitExceeded (const ("Rate limit exceeded" :: Text))
     . interpretTinyLog
-    . runInputConst @Hasql.Pool env.hasqlPool
+    . runInputConst @HasqlPoolExt.Pool env.hasqlPool
     . runInputConst @(Local ()) (toLocalUnsafe env.federationDomain ())
     . runInputConst @(FeatureDefaults LegalholdConfig) (env.conversationSubsystemConfig.legalholdDefaults)
     . runInputConst @ClientState env.cassandraGalley

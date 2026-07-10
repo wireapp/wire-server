@@ -369,13 +369,6 @@ poolConfigParser =
       )
     <*> option
       (eitherReader (parseDuration . Text.pack))
-      ( long "pg-pool-aging-timeout"
-          <> metavar "Duration"
-          <> help "Pool aging timeout in seconds"
-          <> value (unsafeParseDuration "1d")
-      )
-    <*> option
-      (eitherReader (parseDuration . Text.pack))
       ( long "pg-pool-idleness-timeout"
           <> metavar "Duration"
           <> help "Pool idleness timeout in seconds"

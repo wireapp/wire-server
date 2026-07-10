@@ -32,7 +32,7 @@
 , federator
 , filepath
 , galley-types
-, hasql-pool
+, hasql-resource-pool
 , hs-opentelemetry-instrumentation-wai
 , hs-opentelemetry-sdk
 , HsOpenSSL
@@ -134,7 +134,7 @@ mkDerivation {
     exceptions
     extended
     galley-types
-    hasql-pool
+    hasql-resource-pool
     hs-opentelemetry-instrumentation-wai
     hs-opentelemetry-sdk
     HsOpenSSL

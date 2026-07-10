@@ -39,9 +39,9 @@ import Data.Credentials (Credentials (..))
 import Data.Id
 import Database.Bloodhound qualified as ES
 import Database.Bloodhound.Internal.Client (BHEnv (..))
-import Hasql.Pool
-import Hasql.Pool qualified as Hasql
+import Hasql.Pool (UsageError)
 import Hasql.Pool.Extended
+import Hasql.Pool.Extended qualified as Hasql
 import Imports
 import Network.HTTP.Client (Manager)
 import Polysemy
@@ -93,6 +93,11 @@ type BrigIndexEffectStack =
 
 type SemDeps = (Manager, ClientState, Hasql.Pool, BHEnv, IndexedUserStoreConfig, RequestId, IndexName)
 
+newtype PostgresUsageException = PostgresUsageException UsageError
+  deriving (Show)
+
+instance Exception PostgresUsageException
+
 mkSemDeps :: ESConnectionSettings -> CassandraSettings -> PostgresSettings -> Logger -> IO SemDeps
 mkSemDeps esConn cas pg logger = do
   mgr <- initHttpManagerWithTLSConfig esConn.esInsecureSkipVerifyTls esConn.esCaCert
@@ -127,7 +132,7 @@ runSem (mgr, casClient, pgPool, bhEnv, indexedUserStoreConfig, reqId, migrationI
   runFinal
     . embedToFinal
     . throwErrorToIOFinal @ClientError
-    . throwErrorToIOFinal @UsageError
+    . throwPostgresUsageErrorToIOFinal
     . runInputConst pgPool
     . loggerToTinyLogReqId reqId logger
     . ignoreMetrics
@@ -146,6 +151,12 @@ throwErrorToIOFinal :: (Exception e, Member (Final IO) r) => InterpreterFor (Err
 throwErrorToIOFinal action = do
   runError action >>= \case
     Left e -> embedFinal $ throwIO e
+    Right a -> pure a
+
+throwPostgresUsageErrorToIOFinal :: (Member (Final IO) r) => InterpreterFor (Error UsageError) r
+throwPostgresUsageErrorToIOFinal action = do
+  runError action >>= \case
+    Left e -> embedFinal $ throwIO (PostgresUsageException e)
     Right a -> pure a
 
 runCommand :: Logger -> Command -> IO ()

@@ -45,6 +45,7 @@ import Galley.Cassandra
 import Galley.Env
 import Galley.Monad
 import Galley.Queue qualified as Q
+import Hasql.Pool.Extended (rawPool)
 import Imports
 import Network.HTTP.Media.RenderHeader qualified as HTTPMedia
 import Network.HTTP.Types qualified as HTTP
@@ -74,7 +75,7 @@ run :: Opts -> IO ()
 run opts = lowerCodensity do
   tracer <- withTracerC
   (app, env) <- mkApp opts
-  lift $ runAllMigrations env._hasqlPool env._applog
+  lift $ runAllMigrations env._hasqlPool.rawPool env._applog
   let settings' =
         newSettings $
           defaultServer

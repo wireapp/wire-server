@@ -33,7 +33,6 @@ cassandraBrig:
 postgresqlPool:
   size: 5
   acquisitionTimeout: 10s
-  agingTimeout: 1d
   idlenessTimeout: 10m
 
 rabbitmq:

@@ -63,6 +63,7 @@ import Galley.Types.Error
 import HTTP2.Client.Manager (Http2Manager, http2ManagerWithSSLCtx)
 import Hasql.Pool qualified as Hasql
 import Hasql.Pool.Extended (initPostgresPool)
+import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports hiding (forkIO)
 import Network.AMQP.Extended (mkRabbitMqChannelMVar)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -267,7 +268,7 @@ type GalleyEffects =
      ErrorS 'InvalidOperation,
      Error RpcException,
      Input ClientState,
-     Input Hasql.Pool,
+     Input HasqlPoolExt.Pool,
      Input Env,
      Input ConversationSubsystemConfig,
      Error MigrationLockError,

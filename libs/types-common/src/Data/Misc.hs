@@ -50,6 +50,7 @@ module Data.Misc
     mkDurationLiteral,
     unsafeDurationLiteral,
     durationToMicros,
+    durationToCeilingSeconds,
 
     -- * HttpsUrl
     HttpsUrl (..),
@@ -329,6 +330,17 @@ unsafeParseDuration txt =
 durationToMicros :: Duration -> Int
 durationToMicros =
   fromInteger . flip div 1_000_000 . diffTimeToPicoseconds . duration
+
+-- | Convert a 'Duration' to whole seconds, rounding up and clamping a bounded integral type.
+-- Non-positive durations map to zero.
+durationToCeilingSeconds :: forall a. (Bounded a, Integral a) => Duration -> a
+durationToCeilingSeconds d
+  | duration d <= 0 = 0
+  | otherwise =
+      fromInteger $
+        min
+          (toInteger (maxBound :: a))
+          (ceiling (duration d) :: Integer)
 
 instance FromJSON Duration where
   parseJSON = withText "Duration" $ either fail pure . parseDuration

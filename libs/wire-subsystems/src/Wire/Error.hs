@@ -35,7 +35,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Error qualified as Wai
-import Network.Wai.Utilities.Exception
 import Network.Wai.Utilities.JSONResponse
 import Network.Wai.Utilities.Server
 import Servant (ServerError (..))
@@ -82,14 +81,14 @@ httpErrorToJSONResponse e@(RichError werr _ headers) =
 
 postgresUsageErrorToHttpError :: UsageError -> HttpError
 postgresUsageErrorToHttpError err = case err of
-  SessionUsageError _se ->
+  SessionError _se ->
     -- FUTUREWORK: should this case should be more nuanced?  eg., if a foreign key is dangling, should we
     -- return "404 not found", not "database crashed"?
     -- The problem is that the SessionError is not typed to easily be parsed
     -- To prevent foreign key errors we should check the foreign key constraints before inserting
-    StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> displayExceptionNoBacktrace err))
-  ConnectionUsageError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> displayExceptionNoBacktrace err))
-  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> displayExceptionNoBacktrace err))
+    StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  ConnectionError _ -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
+  AcquisitionTimeoutUsageError -> StdError (Wai.mkError status500 "server-error" (LT.pack $ "postgres: " <> show err))
 
 -- | Extract the wai error from an HttpError and convert into a
 -- servant error.  `RichError` extra data is discarded!

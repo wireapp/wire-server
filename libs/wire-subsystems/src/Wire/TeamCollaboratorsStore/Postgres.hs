@@ -29,21 +29,17 @@ import Data.Set
 import Data.Set qualified as Set
 import Data.UUID
 import Data.Vector hiding (mapM)
-import Hasql.Pool
 import Hasql.Statement
 import Hasql.TH
 import Imports
 import Polysemy
 import Polysemy.Error (Error, throw)
-import Polysemy.Input
 import Wire.API.Team.Collaborator
 import Wire.Postgres
 import Wire.TeamCollaboratorsStore
 
 interpretTeamCollaboratorsStoreToPostgres ::
-  ( Member (Embed IO) r,
-    Member (Input Pool) r,
-    Member (Error UsageError) r,
+  ( PGConstraints r,
     Member (Error TeamCollaboratorsError) r
   ) =>
   InterpreterFor TeamCollaboratorsStore r
@@ -101,10 +97,7 @@ createTeamCollaboratorImpl userId teamId permissions = do
           |]
 
 getAllTeamCollaboratorsImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   TeamId ->
   Sem r [TeamCollaborator]
 getAllTeamCollaboratorsImpl teamId = do
@@ -118,10 +111,7 @@ getAllTeamCollaboratorsImpl teamId = do
           |]
 
 updateTeamCollaboratorImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UserId ->
   TeamId ->
   Set CollaboratorPermission ->
@@ -140,10 +130,7 @@ updateTeamCollaboratorImpl userId teamId permissions = do
           |]
 
 removeTeamCollaboratorImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UserId ->
   TeamId ->
   Sem r ()
@@ -181,10 +168,7 @@ postgreslRepToCollaboratorPermission =
   (collaboratorPermissionMap Bimap.! {- `!` throws if the element isn't found -})
 
 getTeamCollaborationsImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   UserId ->
   Sem r [TeamCollaborator]
 getTeamCollaborationsImpl teamId = do
@@ -198,10 +182,7 @@ getTeamCollaborationsImpl teamId = do
           |]
 
 getTeamCollaboratorsWithIdsImpl ::
-  ( Member (Input Pool) r,
-    Member (Embed IO) r,
-    Member (Error UsageError) r
-  ) =>
+  (PGConstraints r) =>
   Set TeamId ->
   Set UserId ->
   Sem r [TeamCollaborator]

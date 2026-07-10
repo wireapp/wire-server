@@ -1,0 +1,3 @@
+The PostgreSQL connection pool implementation was switched to `hasql-resource-pool`.
+The `agingTimeout` setting is now ignored and should be treated as deprecated.
+Pool metrics now include acquisition/session latency.
