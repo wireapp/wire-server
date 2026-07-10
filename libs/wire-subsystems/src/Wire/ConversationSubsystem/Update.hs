@@ -1238,6 +1238,7 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
             tid
             (qUnqualified (tUntagged lcnv))
             deletionScheduledFor
+            reminderTimeout
             reminderAt
 
     timeoutToNominalDiffTime :: PreventAdminlessTimeout -> NominalDiffTime

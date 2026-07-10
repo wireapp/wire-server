@@ -33,7 +33,7 @@ import Arbiter.Core.Job.Types (JobRead)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime)
 import Imports
 import Polysemy
 import Wire.API.Jobs
@@ -59,7 +59,7 @@ data JobWorkerHandlers = JobWorkerHandlers
 
 data JobSubsystem m a where
   ScheduleAdminlessDeletionJob :: Local UserId -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ()
-  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> UTCTimeMillis -> UTCTime -> JobSubsystem m ()
+  ScheduleAdminlessReminderJob :: Local UserId -> TeamId -> ConvId -> UTCTimeMillis -> NominalDiffTime -> UTCTime -> JobSubsystem m ()
   StartJobWorkers :: JobWorkersConfig -> JobWorkerHandlers -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem

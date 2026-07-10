@@ -30,6 +30,7 @@ import Arbiter.Core qualified as ArbiterCore
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
+import Data.Text qualified as Text
 import Data.Time
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
@@ -56,7 +57,7 @@ interpretJobSubsystem conf =
   interpret
     \case
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
-      ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor scheduledFor
+      ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor reminderTimeout scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor reminderTimeout scheduledFor
       StartJobWorkers cfg handlers -> do
         pool <- input
         embed $ runJobWorkers pool cfg handlers
@@ -83,6 +84,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
   let arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified lusr)))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
+            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" teamId convId,
             ArbiterCore.maxAttempts = Just 3
           }
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) arbiterJob
@@ -95,9 +97,10 @@ scheduleAdminlessReminderJob ::
   TeamId ->
   ConvId ->
   UTCTimeMillis ->
+  NominalDiffTime ->
   UTCTime ->
   Sem r ()
-scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletionScheduledFor scheduledFor = do
+scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletionScheduledFor reminderTimeout scheduledFor = do
   pool <- input @HasqlPoolExt.Pool
   let arbiterEnv =
         WireArbiterEnv
@@ -110,6 +113,15 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
   let arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) deletionScheduledFor))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
+            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey teamId convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3
           }
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) arbiterJob
+
+adminlessJobDedupKey :: Text -> TeamId -> ConvId -> Text
+adminlessJobDedupKey jobType teamId convId =
+  "adminless-" <> jobType <> ":" <> idToText teamId <> ":" <> idToText convId
+
+adminlessReminderJobDedupKey :: TeamId -> ConvId -> NominalDiffTime -> Text
+adminlessReminderJobDedupKey teamId convId reminderTimeout =
+  adminlessJobDedupKey "reminder" teamId convId <> ":" <> Text.pack (show reminderTimeout)
