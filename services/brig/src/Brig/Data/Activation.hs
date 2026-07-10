@@ -53,6 +53,7 @@ data ActivationError
   | InvalidActivationCodeWrongCode
   | InvalidActivationEmail !EmailAddress !String
   | InvalidActivationPhone !Phone
+  | InvalidActivationManagedByScim
 
 activationErrorToRegisterError :: ActivationError -> RegisterError
 activationErrorToRegisterError = \case
@@ -61,6 +62,7 @@ activationErrorToRegisterError = \case
   InvalidActivationCodeWrongCode -> RegisterErrorInvalidActivationCodeWrongCode
   InvalidActivationEmail _ _ -> RegisterErrorInvalidEmail
   InvalidActivationPhone _ -> RegisterErrorInvalidPhone
+  InvalidActivationManagedByScim -> RegisterErrorInvalidActivationManagedByScim
 
 data ActivationEvent
   = AccountActivated !User
@@ -100,6 +102,12 @@ activateKey k c u = do
           let a' = a {userIdentity = Just ident}
           pure . Just $ AccountActivated a'
         Just _ -> do
+          -- A SCIM-managed user's email can only be changed through SCIM. Reject any
+          -- activation that would change a SCIM-managed user's email (defense in depth;
+          -- pending email-update tokens are also invalidated when a user is put under SCIM
+          -- control).
+          when (userManagedBy a == ManagedByScim) $
+            throwE InvalidActivationManagedByScim
           let profileNeedsUpdate = Just (emailKeyOrig key) /= userEmail a
               oldKey :: Maybe EmailKey = mkEmailKey <$> userEmail a
            in handleExistingIdentity uid profileNeedsUpdate oldKey key

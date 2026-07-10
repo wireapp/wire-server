@@ -108,6 +108,10 @@ setStoredUserHandle newHandle user = user {handle = Just newHandle}
 hasPendingInvitation :: StoredUser -> Bool
 hasPendingInvitation u = u.status == Just PendingInvitation
 
+-- | The pending (unvalidated) email address of a stored user, if any.
+storedUserEmailUnvalidated :: StoredUser -> Maybe EmailAddress
+storedUserEmailUnvalidated u = u.emailUnvalidated
+
 mkUserFromStored :: Domain -> Locale -> StoredUser -> User
 mkUserFromStored domain defaultLocale storedUser =
   let expiration = if storedUser.status == Just Ephemeral then storedUser.expires else Nothing

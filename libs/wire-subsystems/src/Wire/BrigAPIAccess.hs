@@ -151,6 +151,7 @@ data BrigAPIAccess m a where
   SetName :: UserId -> Name -> BrigAPIAccess m ()
   SetHandle :: UserId -> Handle -> BrigAPIAccess m ()
   SetManagedBy :: UserId -> ManagedBy -> BrigAPIAccess m ()
+  DeletePendingEmailUpdate :: UserId -> BrigAPIAccess m ()
   SetSSOId :: UserId -> UserSSOId -> BrigAPIAccess m ()
   SetRichInfo :: UserId -> RichInfo -> BrigAPIAccess m ()
   SetLocale :: UserId -> Maybe Locale -> BrigAPIAccess m ()

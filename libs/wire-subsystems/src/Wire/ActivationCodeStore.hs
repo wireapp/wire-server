@@ -54,5 +54,11 @@ data ActivationCodeStore :: Effect where
     -- | The user with whom to associate the activation code.
     Maybe UserId ->
     ActivationCodeStore m Activation
+  -- | Delete a pending activation code for a given 'EmailKey', if any.
+  -- This is used to invalidate a pending email-address update (e.g. when a
+  -- user is put under SCIM control).
+  DeleteActivationCode ::
+    EmailKey ->
+    ActivationCodeStore m ()
 
 makeSem ''ActivationCodeStore
