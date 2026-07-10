@@ -136,7 +136,7 @@ runQueryStatement prepare conn sql params codec = do
   result <- HasqlConn.use conn (Session.statement () stmt)
   case result of
     Right rows -> pure rows
-    Left err -> fail $ "hasql query error: " <> show err
+    Left err -> throwInternal $ "hasql query error: " <> T.pack (show err)
 
 runExecStatement :: HasqlConn.Connection -> Text -> Params -> IO Int64
 runExecStatement conn sql params = do
@@ -144,7 +144,7 @@ runExecStatement conn sql params = do
   result <- HasqlConn.use conn (Session.statement () stmt)
   case result of
     Right n -> pure n
-    Left err -> fail $ "hasql statement error: " <> show err
+    Left err -> throwInternal $ "hasql statement error: " <> T.pack (show err)
 
 runRawSql :: HasqlConn.Connection -> Text -> IO ()
 runRawSql conn sql = do
@@ -152,7 +152,7 @@ runRawSql conn sql = do
   result <- HasqlConn.use conn (Session.statement () stmt)
   case result of
     Right () -> pure ()
-    Left err -> fail $ "hasql sql error: " <> show err
+    Left err -> throwInternal $ "hasql sql error: " <> T.pack (show err)
 
 beginCommitOrRollback :: HasqlConn.Connection -> IO a -> IO a
 beginCommitOrRollback conn action = mask $ \restore -> do

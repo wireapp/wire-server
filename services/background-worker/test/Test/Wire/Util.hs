@@ -19,12 +19,12 @@
 
 module Test.Wire.Util where
 
-import Data.ByteString qualified as BS
 import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Misc
 import Data.Proxy
 import Data.Range
+import Data.Secret (secretText)
 import Imports
 import Network.HTTP.Client hiding (Proxy)
 import System.Logger.Class qualified as Logger
@@ -84,7 +84,7 @@ testEnv = do
       guestLinkTTLSeconds = Nothing
       passwordHashingOptions = PasswordHashingScrypt
       checkGroupInfo = Nothing
-      arbiterConnStr = BS.empty
+      arbiterConnStr = secretText ""
       convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
       featureFlags = def
       conversationSubsystemConfig =

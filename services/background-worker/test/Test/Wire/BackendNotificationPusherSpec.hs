@@ -25,7 +25,6 @@ import Control.Exception
 import Control.Monad.Trans.Except
 import Data.Aeson ((.=))
 import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Lazy qualified as LBS
 import Data.Default
@@ -33,6 +32,7 @@ import Data.Domain
 import Data.Id
 import Data.Misc
 import Data.Range
+import Data.Secret (secretText)
 import Data.Sequence qualified as Seq
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -385,7 +385,7 @@ spec = do
           guestLinkTTLSeconds = Nothing
           passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
-          arbiterConnStr = BS.empty
+          arbiterConnStr = secretText ""
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
           featureFlags = def
           conversationSubsystemConfig =
@@ -449,7 +449,7 @@ spec = do
           guestLinkTTLSeconds = Nothing
           passwordHashingOptions = PasswordHashingScrypt
           checkGroupInfo = Nothing
-          arbiterConnStr = BS.empty
+          arbiterConnStr = secretText ""
           convCodeURI = Left (fromRight (error "Failed to parse test HttpsUrl") $ httpsUrlFromText "https://localhost")
           featureFlags = def
           conversationSubsystemConfig =

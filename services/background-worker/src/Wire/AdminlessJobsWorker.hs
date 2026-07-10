@@ -40,10 +40,6 @@ runAdminlessDeletionJob extEnv job = do
     Log.msg (Log.val "Running adminless deletion job")
       . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
       . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
-  Log.info env.logger $
-    Log.msg (Log.val "Adminless deletion job payload")
-      . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
-      . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
       . Log.field "orig_user_id" (show (adminlessDeletionJobOrigUserId jobPayload))
       . Log.field "scheduled_for" (show (notVisibleUntil job))
   result <-

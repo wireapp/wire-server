@@ -20,6 +20,7 @@ module Hasql.Pool.Extended where
 import Data.Aeson
 import Data.Map qualified as Map
 import Data.Misc
+import Data.Secret (SecretText, secretText)
 import Hasql.Connection qualified
 import Hasql.Connection.Settings qualified as HasqlConnSettings
 import Hasql.Pool qualified as HasqlPool
@@ -50,13 +51,12 @@ instance FromJSON PoolConfig where
 -- | Render a PostgreSQL connection string in libpq key-value format.
 --
 -- Passwords from the optional secret file are inserted into the key-value map
--- before rendering so the resulting connection string can be reused by code
--- that expects a plain connection string.
-postgresqlConnectionString :: Map Text Text -> Maybe FilePathSecrets -> IO Text
-postgresqlConnectionString pgConfig mFpSecrets = do
+-- before rendering. The result is wrapped because it may contain the password.
+postgresqlConnectionStringWithPassword :: Map Text Text -> Maybe FilePathSecrets -> IO SecretText
+postgresqlConnectionStringWithPassword pgConfig mFpSecrets = do
   mPw <- for mFpSecrets initCredentials
   let pgConfig' = maybe pgConfig (\pw -> Map.insert "password" pw pgConfig) mPw
-  pure . PostgresqlConnectionString.toKeyValueString $
+  pure . secretText . PostgresqlConnectionString.toKeyValueString $
     PostgresqlConnectionString.fromKeyValueParams pgConfig'
 
 data HasqlPoolMetrics = HasqlPoolMetrics

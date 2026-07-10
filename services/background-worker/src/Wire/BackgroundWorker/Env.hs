@@ -25,12 +25,11 @@ import Cassandra.Util (defInitCassandra)
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Trans.Control
-import Data.ByteString qualified as ByteString
 import Data.Domain (Domain)
 import Data.Id (TeamId)
 import Data.Map.Strict qualified as Map
 import Data.Misc (HttpsUrl)
-import Data.Text.Encoding qualified as Text
+import Data.Secret (SecretText)
 import HTTP2.Client.Manager
 import Hasql.Pool.Extended
 import Hasql.Pool.Extended qualified as Hasql
@@ -91,7 +90,8 @@ data Env = Env
     cassandraGalley :: ClientState,
     cassandraBrig :: ClientState,
     hasqlPool :: Hasql.Pool,
-    arbiterConnStr :: ByteString.ByteString,
+    -- May contain the PostgreSQL password. Do not unwrap outside the Arbiter boundary.
+    arbiterConnStr :: SecretText,
     -- Dedicated AMQP channels per concern
     amqpJobsPublisherChannel :: MVar Q.Channel,
     amqpBackendNotificationsChannel :: MVar Q.Channel,
@@ -193,7 +193,7 @@ mkEnv opts galleyOpts = do
       checkGroupInfo = galleyOpts._settings._checkGroupInfo
   workerRunningGauge <- mkWorkerRunningGauge
   hasqlPool <- initPostgresPool opts.postgresqlPool galleyOpts._postgresql galleyOpts._postgresqlPassword
-  arbiterConnStr <- Text.encodeUtf8 <$> postgresqlConnectionString galleyOpts._postgresql galleyOpts._postgresqlPassword
+  arbiterConnStr <- postgresqlConnectionStringWithPassword galleyOpts._postgresql galleyOpts._postgresqlPassword
   Log.info logger $ Log.msg @Text "Opening RabbitMQ channel: background-worker-jobs-publisher..."
   amqpJobsPublisherChannel <-
     mkRabbitMqChannelMVar logger (Just "background-worker-jobs-publisher") $

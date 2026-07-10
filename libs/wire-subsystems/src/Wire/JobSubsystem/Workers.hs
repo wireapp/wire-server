@@ -36,10 +36,11 @@ import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
 import Data.Aeson (FromJSON, ToJSON)
-import Data.ByteString qualified as ByteString
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
+import Data.Secret (SecretText, revealSecretText)
 import Data.Text qualified as T
+import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
@@ -53,7 +54,8 @@ import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWi
 data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,
     recurringJobRunnerSchedule :: CronSchedule,
-    recurringJobRunnerArbiterConnStr :: ByteString.ByteString,
+    -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
+    recurringJobRunnerArbiterConnStr :: SecretText,
     recurringJobRunnerSchemaName :: Text,
     recurringJobRunnerPollInterval :: NominalDiffTime,
     recurringJobRunnerWorkerThreads :: Int,
@@ -63,7 +65,8 @@ data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
 
 data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
   { oneOffJobRunnerLogger :: Log.Logger,
-    oneOffJobRunnerArbiterConnStr :: ByteString.ByteString,
+    -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
+    oneOffJobRunnerArbiterConnStr :: SecretText,
     oneOffJobRunnerSchemaName :: Text,
     oneOffJobRunnerPollInterval :: NominalDiffTime,
     oneOffJobRunnerWorkerThreads :: Int,
@@ -86,6 +89,7 @@ runRecurringJobRunner ::
   (MeetingsCleanupJob -> IO ()) ->
   IO (IO ())
 runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
+  let arbiterConnStr = Text.encodeUtf8 (revealSecretText recurringJobRunnerArbiterConnStr)
   Log.info recurringJobRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
       . Log.field "job_name" recurringJobRunnerJobName
@@ -129,13 +133,13 @@ runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
     -- optimization rather than a correctness requirement.
     ArbiterMigrations.runMigrationsForRegistry
       (Proxy @registry)
-      recurringJobRunnerArbiterConnStr
+      arbiterConnStr
       recurringJobRunnerSchemaName
       ArbiterMigrations.defaultMigrationConfig
 
   workerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
-        recurringJobRunnerArbiterConnStr
+        arbiterConnStr
         recurringJobRunnerWorkerThreads
         workerHandler ::
         IO
@@ -173,6 +177,7 @@ runOneOffJobRunner ::
   (JobRead payload -> IO ()) ->
   IO (IO ())
 runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
+  let arbiterConnStr = Text.encodeUtf8 (revealSecretText oneOffJobRunnerArbiterConnStr)
   Log.info oneOffJobRunnerLogger $
     Log.msg (Log.val "Starting one-off jobs worker")
       . Log.field "job_name" oneOffJobRunnerJobName
@@ -197,13 +202,13 @@ runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
   void $
     ArbiterMigrations.runMigrationsForRegistry
       (Proxy @registry)
-      oneOffJobRunnerArbiterConnStr
+      arbiterConnStr
       oneOffJobRunnerSchemaName
       ArbiterMigrations.defaultMigrationConfig
 
   workerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
-        oneOffJobRunnerArbiterConnStr
+        arbiterConnStr
         oneOffJobRunnerWorkerThreads
         workerHandler ::
         IO
