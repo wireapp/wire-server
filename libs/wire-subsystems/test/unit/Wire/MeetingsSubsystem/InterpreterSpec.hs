@@ -219,12 +219,12 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         gen = mkStdGen 42
         uid = Id $ read "00000000-0000-0000-0000-000000000001"
         zUser = toLocalUnsafe (Domain "wire.com") uid
-        -- Exactly `startTimeTolerance` in the past: the check is strict (`<`),
+        -- Exactly `expectedStartTimeTolerance` in the past: the check is strict (`<`),
         -- so the boundary itself is still accepted.
         newMeeting =
           API.NewMeeting
             { title = fromJust $ checked "Boundary Meeting",
-              startTime = addUTCTime (negate startTimeTolerance) now,
+              startTime = addUTCTime (negate expectedStartTimeTolerance) now,
               endTime = addUTCTime 3600 now,
               recurrence = Nothing,
               invitedEmails = []
@@ -242,7 +242,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         newMeeting =
           API.NewMeeting
             { title = fromJust $ checked "Just Past Boundary Meeting",
-              startTime = addUTCTime (negate (startTimeTolerance + 1)) now,
+              startTime = addUTCTime (negate (expectedStartTimeTolerance + 1)) now,
               endTime = addUTCTime 3600 now,
               recurrence = Nothing,
               invitedEmails = []
@@ -277,7 +277,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
-        passTime 11000
+        passTime validityWindow
         getMeeting zUser1 meeting.meeting.id
 
       result `shouldBe` Right Nothing
@@ -471,7 +471,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
-        passTime 11000
+        passTime validityWindow
         updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Test")) Nothing)
 
       result `shouldBe` Right Nothing
@@ -611,7 +611,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
-        passTime 11000
+        passTime validityWindow
         deleteMeeting zUser1 testConnId meeting.meeting.id
 
       result `shouldBe` Right False
@@ -710,7 +710,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
-        passTime 11000
+        passTime validityWindow
         addInvitedEmails zUser1 meeting.meeting.id [email1]
 
       result `shouldBe` Right False
@@ -837,7 +837,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
-        passTime 11000
+        passTime validityWindow
         removeInvitedEmails zUser1 meeting.meeting.id [email1]
 
       result `shouldBe` Right False
@@ -964,7 +964,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result <- runTestStack now gen Map.empty teamConfig $ do
         meeting <- createMeeting zUser1 newMeeting
-        passTime 11000
+        passTime validityWindow
         replaceInvitedEmails zUser1 meeting.meeting.id [email2]
 
       result `shouldBe` Right False
@@ -1035,7 +1035,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           getMeeting zUser meeting.meeting.id
       case result of
         Left err -> fail $ "Error: " <> show err
@@ -1046,7 +1046,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           _meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           listMeetings zUser
       case result of
         Left err -> fail $ "Error: " <> show err
@@ -1056,7 +1056,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           updateMeeting zUser meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
       fmap isJust result `shouldBe` Right True
 
@@ -1064,7 +1064,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           addInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
@@ -1072,7 +1072,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           deleteMeeting zUser (ConnId "test-conv") meeting.meeting.id
       result `shouldBe` Right True
 
@@ -1080,7 +1080,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           removeInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
@@ -1088,7 +1088,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting boundedRecurrence)
-          passTime 11000
+          passTime validityWindow
           replaceInvitedEmails zUser meeting.meeting.id [unsafeEmailAddress "user" "example.com"]
       result `shouldBe` Right True
 
@@ -1096,7 +1096,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting openEndedRecurrence)
-          passTime 11000
+          passTime validityWindow
           getMeeting zUser meeting.meeting.id
       fmap isJust result `shouldBe` Right True
 
@@ -1105,7 +1105,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         runTestStack now gen Map.empty teamConfig $ do
           recurring <- createMeeting zUser (futureMeeting boundedRecurrence)
           _plain <- createMeeting zUser (futureMeeting Nothing)
-          passTime 11000
+          passTime validityWindow
           -- cutoff is past the endTime (now+7200) so the non-recurring
           -- meeting is picked up, but well before the recurrence window.
           deleted <- cleanupOldMeetings (addUTCTime 7300 now) 100
@@ -1122,10 +1122,10 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
           meeting <- createMeeting zUser (futureMeeting openEndedRecurrence)
-          passTime 11000
+          passTime validityWindow
           -- Even with a cutoff well past the endTime, open-ended
           -- recurrence is never picked up.
-          deleted <- cleanupOldMeetings (addUTCTime 11000 now) 100
+          deleted <- cleanupOldMeetings (addUTCTime validityWindow now) 100
           remaining <- getMeeting zUser meeting.meeting.id
           pure (deleted, fmap (.id) remaining, meeting.meeting.id)
       case result of
@@ -1302,3 +1302,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               replaceInvitedEmails zUserTeam meeting.meeting.id [unsafeEmailAddress "test" "example.com"]
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
+
+-- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
+expectedStartTimeTolerance :: NominalDiffTime
+expectedStartTimeTolerance = 60
+
+-- | Validity window, beyond this one-time meeting belong to the past
+validityWindow :: NominalDiffTime
+validityWindow = 11000
