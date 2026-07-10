@@ -70,7 +70,7 @@ where
 import Control.Monad.Trans.State
 import Data.Functor.Contravariant
 import Data.Id
-import Data.Misc (Duration (..))
+import Data.Misc
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (UTCTime)
@@ -133,7 +133,7 @@ useWithResetAndRetry pool sess = go maxRetries
       result <-
         Hasql.useWithObserverAndPoolAcquisitionTimeout
           (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration p.metrics (realToFrac $ HasqlObserver.latency observed))
-          (durationToAcquisitionTimeoutSeconds p.poolAcquisitionTimeout)
+          (durationToCeilingSeconds p.poolAcquisitionTimeout)
           p.rawPool
           s
       case result of
@@ -170,7 +170,7 @@ useObserved pool sess = do
   result <-
     Hasql.useWithObserverAndPoolAcquisitionTimeout
       (Just \observed -> HasqlPoolExt.recordHasqlPoolSessionDuration pool.metrics (realToFrac $ HasqlObserver.latency observed))
-      (durationToAcquisitionTimeoutSeconds pool.poolAcquisitionTimeout)
+      (durationToCeilingSeconds pool.poolAcquisitionTimeout)
       pool.rawPool
       sess
   case result of
@@ -224,14 +224,6 @@ runPipeline ::
   Sem r a
 runPipeline p =
   runSession $ pipeline p
-
-durationToAcquisitionTimeoutSeconds :: Duration -> Int
-durationToAcquisitionTimeoutSeconds d
-  | d.duration <= 0 = 0
-  | otherwise =
-      min
-        (maxBound :: Int)
-        (fromInteger $ ceiling (realToFrac d.duration :: Double))
 
 class PostgresValue a where
   postgresType :: Text
