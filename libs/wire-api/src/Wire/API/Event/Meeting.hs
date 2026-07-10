@@ -28,7 +28,8 @@ module Wire.API.Event.Meeting
   )
 where
 
-import Data.Aeson (FromJSON, ToJSON (toJSON), Value (Object))
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson.KeyMap qualified as KeyMap
 import Data.Id (MeetingId)
 import Data.Json.Util (ToJSONObject (toJSONObject), utcTimeSchema)
 import Data.OpenApi qualified as S
@@ -68,17 +69,18 @@ data Event = Event
   deriving (Arbitrary) via (GenericUniform Event)
 
 instance ToSchema Event where
-  schema =
-    object $
-      Event
-        <$> (.evtType) .= field "type" schema
-        <*> (.evtTime) .= field "time" utcTimeSchema
-        <*> (.evtQualifiedId) .= field "qualified_id" schema
+  schema = object eventObjectSchema
+
+eventObjectSchema :: ObjectSchema SwaggerDoc Event
+eventObjectSchema =
+  Event
+    <$> (.evtType) .= field "type" schema
+    <*> (.evtTime) .= field "time" utcTimeSchema
+    <*> (.evtQualifiedId) .= field "qualified_id" schema
 
 instance ToJSONObject Event where
-  toJSONObject e = case toJSON e of
-    Object o -> o
-    _ -> KeyMap.fromList []
+  toJSONObject =
+    KeyMap.fromList . fromMaybe [] . schemaOut eventObjectSchema
 
 newEvent :: UTCTime -> EventType -> Qualified MeetingId -> Event
 newEvent time ty qid = Event ty time qid
