@@ -1350,8 +1350,7 @@ adminlessAutopromoteOrSendReminder ::
   Sem r ()
 adminlessAutopromoteOrSendReminder lusr lcnv deletionScheduledFor = adminlessTryAutopromote lusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder _ = do
-      conv <- getConversationWithError lcnv
+    orAlternativelySendReminder conv = do
       now <- Now.get
       let event =
             Event
