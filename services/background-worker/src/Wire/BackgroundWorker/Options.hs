@@ -106,7 +106,15 @@ data ScheduledJobsConfig = ScheduledJobsConfig
     pollInterval :: Duration
   }
   deriving (Show, Generic)
-  deriving (FromJSON) via Generically ScheduledJobsConfig
+
+instance FromJSON ScheduledJobsConfig where
+  parseJSON =
+    withObject "ScheduledJobsConfig" $ \o -> do
+      pollInterval <- o .: "pollInterval"
+      when (duration pollInterval <= 0) $
+        parserThrowError [Key "pollInterval"] $
+          "pollInterval must be greater than 0, got: " <> show pollInterval
+      pure ScheduledJobsConfig {..}
 
 data MeetingsCleanupConfig = MeetingsCleanupConfig
   { -- | Delete meetings older than this many hours
