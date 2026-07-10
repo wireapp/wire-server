@@ -1,8 +1,0 @@
-{
-    "qualified_id": {
-        "domain": "example.com",
-        "id": "00000003-0000-0000-0000-000000000003"
-    },
-    "time": "2026-03-05T15:05:21Z",
-    "type": "meeting.delete"
-}

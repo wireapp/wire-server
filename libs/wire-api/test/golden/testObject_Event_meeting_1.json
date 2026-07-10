@@ -1,8 +1,0 @@
-{
-    "qualified_id": {
-        "domain": "example.com",
-        "id": "00000001-0000-0000-0000-000000000001"
-    },
-    "time": "2026-01-01T00:00:00Z",
-    "type": "meeting.create"
-}

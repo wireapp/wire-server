@@ -1,8 +1,0 @@
-{
-    "qualified_id": {
-        "domain": "wire.com",
-        "id": "00000006-0000-0000-0000-000000000006"
-    },
-    "time": "2026-06-11T01:00:00Z",
-    "type": "meeting.delete"
-}
