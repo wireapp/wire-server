@@ -1,0 +1,1 @@
+Reject meeting creation and update when the start time is in the past (with a 60-second tolerance for clock skew). Previously, meetings could be created with arbitrary past start times.

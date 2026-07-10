@@ -162,6 +162,17 @@ testMeetingsConfigDisabledBlocksCreate = do
 
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
+-- Test that creating a meeting with a start time in the past is rejected
+testMeetingCreatePastStartTime :: (HasCallStack) => App ()
+testMeetingCreatePastStartTime = do
+  (owner, _tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime (negate 3600) now
+      endTime = addUTCTime 3600 now
+      newMeeting = defaultMeetingJson "Past Meeting" startTime endTime []
+
+  postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
+
 testMeetingRecurrence :: (HasCallStack) => App ()
 testMeetingRecurrence = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
@@ -473,15 +484,15 @@ testMeetingCleanup = do
     -- 2 minutes timeout
     (owner, _tid, _members) <- createTeam OwnDomain 1
     now <- liftIO getCurrentTime
-    -- Create a meeting that ends now.
+    -- Create a meeting that starts now and ends 1s later.
     -- Configured retention is 0.0014 hours (~5 seconds).
     -- cutoffTime will be now' - 5s.
     -- We need end_date < cutoffTime.
-    -- If we wait 6 seconds, now' = now + 6s.
-    -- cutoffTime = now + 6s - 5s = now + 1s.
-    -- end_date (now) < cutoffTime (now + 1s).
-    let startTime = addUTCTime (negate 3600) now
-        endTime = now
+    -- If we wait 7 seconds, now' = now + 7s.
+    -- cutoffTime = now + 7s - 5s = now + 2s.
+    -- end_date (now + 1s) < cutoffTime (now + 2s).
+    let startTime = now
+        endTime = addUTCTime 1 now
         newMeeting = defaultMeetingJson "Cleanup Test" startTime endTime []
 
     r1 <- postMeetings owner newMeeting
@@ -489,8 +500,8 @@ testMeetingCleanup = do
     meeting <- getJSON 201 r1
     (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-    -- Wait 6 seconds to ensure meeting is old enough
-    liftIO $ threadDelay 6_000_000
+    -- Wait 7 seconds to ensure meeting is old enough
+    liftIO $ threadDelay 7_000_000
 
     -- Wait for cleanup job to run
     waitForCleanupJob OwnDomain
@@ -538,9 +549,9 @@ testMeetingExpiration :: (HasCallStack) => App ()
 testMeetingExpiration = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   now <- liftIO getCurrentTime
-  let startTime = addUTCTime (negate 3600) now
+  let startTime = now
       -- meetingValidityPeriodSeconds is configured to 5 seconds in galley.integration.yaml
-      endTime = now
+      endTime = addUTCTime 1 now
       newMeeting = defaultMeetingJson "Expiring Meeting" startTime endTime []
 
   r1 <- postMeetings owner newMeeting
@@ -548,11 +559,11 @@ testMeetingExpiration = do
   meeting <- getJSON 201 r1
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- Check it is accessible immediately (endDate = now, so valid until now + 5s)
+  -- Check it is accessible immediately (endTime = now+1, well within the 5s validity)
   getMeeting owner domain meetingId >>= assertStatus 200
 
-  -- Wait 6 seconds
-  liftIO $ threadDelay 6_000_000
+  -- Wait 7 seconds so endTime (now+1) is past the validity cutoff (now+7-5 = now+2)
+  liftIO $ threadDelay 7_000_000
 
   -- Check it is expired
   getMeeting owner domain meetingId >>= assertStatus 404
@@ -564,11 +575,11 @@ testMeetingListRecurringNotExpired :: (HasCallStack) => App ()
 testMeetingListRecurringNotExpired = do
   (owner, _tid, _members) <- createTeam OwnDomain 1
   now <- liftIO getCurrentTime
-  -- endTime = now: it only becomes "past" after the threadDelay below;
-  -- the recurrence window stays open for 30 days.
+  -- startTime = now, endTime = now+1: the slot only becomes "past" after the
+  -- threadDelay below; the recurrence window stays open for 30 days.
   -- meetingValidityPeriodSeconds is 5s in galley.integration.yaml.
-  let startTime = addUTCTime (negate 3600) now
-      endTime = now
+  let startTime = now
+      endTime = addUTCTime 1 now
       recurrenceUntil = Time.formatTime Time.defaultTimeLocale "%FT%TZ" $ addUTCTime (30 * nominalDay) now
       recurrence =
         object
@@ -588,8 +599,8 @@ testMeetingListRecurringNotExpired = do
   meeting <- postMeetings owner newMeeting >>= getJSON 201
   (meetingId, domain) <- getMeetingIdAndDomain meeting
 
-  -- Wait beyond the validity period so a non-recurring meeting would expire.
-  liftIO $ threadDelay 6_000_000
+  -- Wait 7s beyond the validity period so a non-recurring meeting would expire.
+  liftIO $ threadDelay 7_000_000
 
   -- Still accessible directly.
   getMeeting owner domain meetingId >>= assertStatus 200

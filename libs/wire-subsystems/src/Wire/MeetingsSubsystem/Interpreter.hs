@@ -17,6 +17,7 @@
 
 module Wire.MeetingsSubsystem.Interpreter
   ( interpretMeetingsSubsystem,
+    startTimeTolerance,
     MeetingError (..),
   )
 where
@@ -57,6 +58,15 @@ import Wire.TeamSubsystem qualified as TeamSubsystem
 
 data MeetingError = InvalidTimes | EmptyUpdate | MeetingsFeatureDisabled
   deriving stock (Eq, Show)
+
+-- | Tolerance applied when validating that a meeting's start time is not in
+-- the past. The check always uses the server's clock ('Now.get') as the
+-- reference; the client's clock is never trusted. The tolerance only absorbs
+-- minor clock skew between client and server and the network/processing delay
+-- between the client sending the request and the server observing it (matches
+-- the 60s precedent used by SAML2).
+startTimeTolerance :: NominalDiffTime
+startTimeTolerance = 60
 
 -- | Whether a meeting is still alive at the given cutoff. A meeting is alive
 -- when its 'Store.effectiveEndTime' is at or after the cutoff, or 'Nothing'
@@ -115,6 +125,7 @@ createMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member Now r,
     Member (Error MeetingError) r
   ) =>
   Local UserId ->
@@ -126,6 +137,10 @@ createMeetingImpl zUser newMeeting = do
   checkMeetingsEnabled conversationTeamId
   -- Validate that endTime > startTime
   when (newMeeting.endTime <= newMeeting.startTime) $
+    throw InvalidTimes
+  -- Validate that startTime is not in the past (within tolerance)
+  now <- Now.get
+  when (newMeeting.startTime < addUTCTime (negate startTimeTolerance) now) $
     throw InvalidTimes
 
   -- Determine trial status: personal users (no team) create trial meetings.
@@ -202,6 +217,11 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
     when (fromMaybe meeting.startTime update.startTime >= fromMaybe meeting.endTime update.endTime) $
       lift $
         throw InvalidTimes
+    -- Validate that the updated start time (if provided) is not in the past
+    for_ update.startTime $ \t ->
+      when (t < addUTCTime (negate startTimeTolerance) now) $
+        lift $
+          throw InvalidTimes
 
     guard $ meeting.creator == tUnqualified zUser
     updatedMeeting <-
