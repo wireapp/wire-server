@@ -39,11 +39,19 @@ import Polysemy.Input (input)
 import Wire.API.Jobs
 import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkerHandlers (..), JobWorkersConfig (..))
 import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
-import Wire.JobSubsystem.Workers (runOneOffJobRunner, runRecurringJobRunner)
+import Wire.JobSubsystem.Workers
+  ( RecurringJobRunnerConfig (..),
+    runOneOffJobRunner,
+    runRecurringJobRunner,
+    runScheduledJobsMigrations,
+  )
 import Wire.Postgres (PGConstraints)
 
 runJobWorkers :: HasqlPoolExt.Pool -> JobWorkersConfig -> JobWorkerHandlers -> IO CleanupAction
 runJobWorkers pool JobWorkersConfig {..} JobWorkerHandlers {..} = do
+  runScheduledJobsMigrations
+    (recurringJobRunnerArbiterConnStr recurringJobRunnerConfig)
+    (recurringJobRunnerSchemaName recurringJobRunnerConfig)
   cleanupRecurring <- runRecurringJobRunner @ScheduledJobsRegistry pool recurringJobRunnerConfig recurringJobRunnerRunJob
   cleanupDeletion <- runOneOffJobRunner @ScheduledJobsRegistry pool adminlessDeletionJobRunnerConfig adminlessDeletionJobRunnerRunJob
   cleanupReminder <- runOneOffJobRunner @ScheduledJobsRegistry pool adminlessReminderJobRunnerConfig adminlessReminderJobRunnerRunJob

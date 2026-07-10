@@ -23,6 +23,7 @@
 module Wire.JobSubsystem.Workers
   ( RecurringJobRunnerConfig (..),
     OneOffJobRunnerConfig (..),
+    runScheduledJobsMigrations,
     runRecurringJobRunner,
     runOneOffJobRunner,
   )
@@ -35,6 +36,7 @@ import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
+import Control.Exception (throwIO)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
@@ -46,9 +48,10 @@ import GHC.TypeLits (KnownSymbol)
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
+import System.IO.Error (userError)
 import System.Logger qualified as Log
 import UnliftIO.Async qualified as Async
-import Wire.API.Jobs (MeetingsCleanupJob (..))
+import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry)
 import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
 
 data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
@@ -73,6 +76,22 @@ data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
     oneOffJobRunnerJobName :: Text,
     oneOffJobRunnerQueueName :: Text
   }
+
+-- | Apply all migrations for the scheduled-jobs registry before constructing
+-- any worker pools or accepting scheduled jobs.
+runScheduledJobsMigrations :: SecretText -> Text -> IO ()
+runScheduledJobsMigrations connStr schemaName = do
+  result <-
+    ArbiterMigrations.runMigrationsForRegistry
+      (Proxy @ScheduledJobsRegistry)
+      (Text.encodeUtf8 $ revealSecretText connStr)
+      schemaName
+      ArbiterMigrations.defaultMigrationConfig
+  case result of
+    ArbiterMigrations.MigrationSuccess -> pure ()
+    ArbiterMigrations.MigrationError err ->
+      throwIO . userError $
+        "Arbiter migrations failed for schema " <> T.unpack schemaName <> ": " <> err
 
 -- This runner is specialized to the meetings cleanup payload for now.
 -- If we add another cron job later, we can either reuse this helper with a
@@ -126,16 +145,6 @@ runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
           ) of
           Left err -> error $ "Invalid cron schedule for " <> T.unpack recurringJobRunnerJobName <> ": " <> err
           Right job -> job
-
-  void $
-    -- Arbiter can optionally use LISTEN/NOTIFY to wake workers sooner, but we
-    -- keep polling as the baseline and treat notifications as a latency
-    -- optimization rather than a correctness requirement.
-    ArbiterMigrations.runMigrationsForRegistry
-      (Proxy @registry)
-      arbiterConnStr
-      recurringJobRunnerSchemaName
-      ArbiterMigrations.defaultMigrationConfig
 
   workerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
@@ -198,13 +207,6 @@ runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
               . Log.field "job_name" oneOffJobRunnerJobName
               . Log.field "queue_name" oneOffJobRunnerQueueName
           runJob job
-
-  void $
-    ArbiterMigrations.runMigrationsForRegistry
-      (Proxy @registry)
-      arbiterConnStr
-      oneOffJobRunnerSchemaName
-      ArbiterMigrations.defaultMigrationConfig
 
   workerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
