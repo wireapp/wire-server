@@ -37,6 +37,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as ST
 import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
+import qualified Data.Vector as V
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
@@ -467,16 +468,23 @@ testSparScimCreateGetSearchUserGroup = do
   -- Test getting a single SCIM group by id
   gid <- respGroup1.json %. "id" & asString
   gottenGroup1 <- getScimUserGroup OwnDomain tok gid
-  respGroup1.json `shouldMatch` gottenGroup1.json
+  do
+    expected <- normalizeValue respGroup1.json
+    actual <- normalizeValue gottenGroup1.json
+    expected `shouldMatch` actual
 
   -- Test filter (get in bulk) SCIM groups
   -- 1. Match "group", results in finding all three groups created above.
-  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp ->
-    (allThreeResp.json %. "Resources" & asList) `shouldMatchSet` [createdGroup1, createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"group\"") `bindResponse` \allThreeResp -> do
+    resources <- (allThreeResp.json %. "Resources" & asList) >>= mapM normalizeValue
+    expected <- mapM normalizeValue [createdGroup1, createdGroup2, createdGroup3]
+    resources `shouldMatchSet` expected
 
   -- 2. Match "another group", results in finding "another group" and "yet another group".
-  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo ->
-    (justTwo.json %. "Resources" & asList) `shouldMatchSet` [createdGroup2, createdGroup3]
+  filterScimUserGroup OwnDomain tok (Just "displayName co \"another group\"") `bindResponse` \justTwo -> do
+    resources <- (justTwo.json %. "Resources" & asList) >>= mapM normalizeValue
+    expected <- mapM normalizeValue [createdGroup2, createdGroup3]
+    resources `shouldMatchSet` expected
 
   -- 3. Empty groups should have empty member list.
   respGroup4 <- createScimUserGroup OwnDomain tok $ mkScimGroup "empty group" []
@@ -622,6 +630,20 @@ testSparScimUpdateUserGroup = do
       resp.json %. "displayName" `shouldMatch` "My even funkier group"
       memberValues <- (resp.json %. "members") >>= asListOf (\m -> m %. "value" >>= asString)
       memberValues `shouldMatchSet` [charlieId, dianaId]
+
+-- | Normalize on `Value` level
+--
+-- Recursively sorts all JSON arrays. This produces a canonical form, where the
+-- initial order of elements doesn't matter. Only use this function when that's
+-- desired (i.e. there is no value in the order of elements).
+normalizeValue :: (MakesValue a) => a -> App A.Value
+normalizeValue a = normalizeValueArrays <$> make a
+  where
+    normalizeValueArrays :: A.Value -> A.Value
+    normalizeValueArrays (A.Object o) = A.Object (normalizeValueArrays <$> o)
+    normalizeValueArrays (A.Array arr) =
+      A.Array . V.fromList . sort $ V.toList (normalizeValueArrays <$> arr)
+    normalizeValueArrays v = v
 
 testSparScimUpdateUserGroupRejectsInvalidMembers :: (HasCallStack) => App ()
 testSparScimUpdateUserGroupRejectsInvalidMembers = do
