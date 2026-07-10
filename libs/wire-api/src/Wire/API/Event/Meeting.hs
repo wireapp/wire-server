@@ -78,7 +78,7 @@ instance ToSchema Event where
 instance ToJSONObject Event where
   toJSONObject e = case toJSON e of
     Object o -> o
-    _ -> error "Wire.API.Event.Meeting.Event.toJSON did not produce an Object"
+    _ -> KeyMap.fromList []
 
 newEvent :: UTCTime -> EventType -> Qualified MeetingId -> Event
 newEvent time ty qid = Event ty time qid
