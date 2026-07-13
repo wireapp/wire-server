@@ -1203,6 +1203,7 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
   conv <- getConversationWithError lcnv
   for_ conv.metadata.cnvmTeam $ \tid -> do
     (feature :: LockableFeature PreventAdminlessGroupsConfig) <- getFeatureForTeam tid
+    -- we cannot use the onAdminless helper here because this check happens _before_ removing the potential admin
     when (feature.status == FeatureStatusEnabled && isLeavingLastConversationAdmin (qUnqualified victim) conv) $ do
       eligibleMembers <- eligibleAdminFallbackMembers lcnv (Just (qUnqualified victim)) conv
       case (responseMode, eligibleMembers) of
@@ -1215,26 +1216,35 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
         (RemoveMemberEligibleMembersResponse, _ : _) ->
           throw $ AdminlessConversation (fmap fst eligibleMembers)
         (RemoveMemberLegacyResponse, []) ->
-          scheduleDeletion tid feature
+          scheduleDeletion lcnv (Just lusr) tid feature
         (RemoveMemberEligibleMembersResponse, []) ->
-          scheduleDeletion tid feature
-  where
-    scheduleDeletion tid feature = do
-      now <- Now.get
-      let deletionTimeout = timeoutToNominalDiffTime feature.config.deletionTimeout
-          scheduledFor = addUTCTime deletionTimeout now
-          deletionScheduledFor = toUTCTimeMillis scheduledFor
-      void $ scheduleAdminlessDeletionJob (Just lusr) tid (qUnqualified (tUntagged lcnv)) scheduledFor
-      for_ feature.config.reminderTimeouts $
-        scheduleReminder now tid deletionScheduledFor deletionTimeout
+          scheduleDeletion lcnv (Just lusr) tid feature
 
-    scheduleReminder now tid deletionScheduledFor deletionTimeout reminderTimeoutCfg = do
+scheduleDeletion ::
+  ( Member Now r,
+    Member JobSubsystem r
+  ) =>
+  Local ConvId ->
+  Maybe (Local UserId) ->
+  TeamId ->
+  LockableFeature PreventAdminlessGroupsConfig ->
+  Sem r ()
+scheduleDeletion lcnv mlusr tid feature = do
+  now <- Now.get
+  let deletionTimeout = timeoutToNominalDiffTime feature.config.deletionTimeout
+      scheduledFor = addUTCTime deletionTimeout now
+      deletionScheduledFor = toUTCTimeMillis scheduledFor
+  void $ scheduleAdminlessDeletionJob mlusr tid (qUnqualified (tUntagged lcnv)) scheduledFor
+  for_ feature.config.reminderTimeouts $
+    scheduleReminder now deletionScheduledFor deletionTimeout
+  where
+    scheduleReminder now deletionScheduledFor deletionTimeout reminderTimeoutCfg = do
       let reminderTimeout = timeoutToNominalDiffTime reminderTimeoutCfg
       when (reminderTimeout < deletionTimeout) $ do
         let reminderAt = addUTCTime (deletionTimeout - reminderTimeout) now
         void $
           scheduleAdminlessReminderJob
-            (Just lusr)
+            mlusr
             tid
             (qUnqualified (tUntagged lcnv))
             deletionScheduledFor
