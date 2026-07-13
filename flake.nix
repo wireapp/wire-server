@@ -12,7 +12,7 @@
       inputs.flake-utils.follows = "flake-utils";
     };
     sbomnix = {
-      url = "github:tiiuae/sbomnix/v1.7.4";
+      url = "github:tiiuae/sbomnix/v1.8.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
