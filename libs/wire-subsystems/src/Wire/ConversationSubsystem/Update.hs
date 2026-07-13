@@ -1181,6 +1181,26 @@ isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
     && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
 
+_reconcileAdminlessGroups ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member BrigAPIAccess r,
+    Member Random r,
+    Member NotificationSubsystem r,
+    Member Now r,
+    Member E.ExternalAccess r,
+    Member BackendNotificationQueueAccess r,
+    Member FeaturesConfigSubsystem r,
+    Member (Input (Local ())) r
+  ) =>
+  TeamId -> Sem r ()
+_reconcileAdminlessGroups tid = do
+  teamConvIds <- E.getTeamConversations tid
+  for_ teamConvIds $ \cnv -> do
+    lcnv <- qualifyLocal cnv
+    adminlessTryAutopromote todo lcnv $ \conv feature eligibleMembers -> pure ()
+
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,
     Member (Error AdminlessConversation) r,
@@ -1296,7 +1316,7 @@ adminlessTryAutopromote ::
   ) =>
   Maybe (Local UserId) ->
   Local ConvId ->
-  (StoredConversation -> Sem r ()) ->
+  (StoredConversation -> LockableFeature PreventAdminlessGroupsConfig -> [(Qualified UserId, User.Name)] -> Sem r ()) ->
   Sem r ()
 adminlessTryAutopromote mlusr lcnv altAction = do
   onAdminless lcnv $ \conv feature eligibleMembers -> do
@@ -1317,7 +1337,7 @@ adminlessTryAutopromote mlusr lcnv altAction = do
             (convBotsAndMembers conv)
             (ConversationMemberUpdate (tUntagged lusr) update)
             def
-      [] -> altAction conv
+      [] -> altAction conv feature eligibleMembers
 
 adminlessAutopromoteOrDelete ::
   ( Member ConversationStore r,
@@ -1338,7 +1358,7 @@ adminlessAutopromoteOrDelete ::
   Sem r ()
 adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orAlternativelyDeleteConv
   where
-    orAlternativelyDeleteConv conv = do
+    orAlternativelyDeleteConv conv _ _ = do
       removeConversation (qualifyAs lcnv conv)
       for_ mlusr $ \lusr ->
         sendConversationActionNotifications
@@ -1369,7 +1389,7 @@ adminlessAutopromoteOrSendReminder ::
   Sem r ()
 adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder conv = for_ mlusr \lusr -> do
+    orAlternativelySendReminder conv _ _ = for_ mlusr \lusr -> do
       now <- Now.get
       let event =
             Event
