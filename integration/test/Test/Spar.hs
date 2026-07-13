@@ -1564,3 +1564,47 @@ testScimUserChangeNameOnRegisteringIgnoredV16 = do
   registerUserWithVersioned (ExplicitVersion 16) OwnDomain email code newProfilename `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 201
     resp.json %. "name" `shouldMatch` scimUserDisplayName
+
+-- | A pending email update (emailUnvalidated + activation code) must be
+-- invalidated when the user transitions to SCIM control.  Getting a Wire-managed
+-- user via the SCIM API triggers 'getUserById' -> 'synthesizeStoredUser' ->
+-- 'ManagedByScim' -> 'deletePendingEmailUpdate' in spar, which calls the brig
+-- internal endpoint that deletes both the activation code and the pending
+-- email entry.  See WPB-21744 / PR #5333.
+testSparScimInvalidatesPendingEmail :: (HasCallStack) => App ()
+testSparScimInvalidatesPendingEmail = do
+  -- 1. Create a team with an owner and one Wire-managed member.
+  (owner, _tid, [mem]) <- createTeam OwnDomain 2
+  memberId <- mem %. "id" >>= asString
+  memberEmail <- mem %. "email" >>= asString
+
+  -- 2. Login as the member and initiate an email update.  This creates a
+  --    pending emailUnvalidated entry plus an activation code for the new email.
+  (cookie, token) <-
+    login mem memberEmail defPassword `bindResponse` \resp -> do
+      resp.status `shouldMatchInt` 200
+      tok <- resp.json %. "access_token" & asString
+      let c = fromJust $ getCookie "zuid" resp
+      pure ("zuid=" <> c, tok)
+  newEmail <- randomEmail
+  updateEmail mem newEmail cookie token >>= assertSuccess
+
+  -- 3. Verify the activation code exists for the pending (unvalidated) email.
+  getActivationCode OwnDomain newEmail >>= assertStatus 200
+
+  -- 4. Transition the member to SCIM control.  Reading the user through the
+  --    SCIM API triggers getUserById -> synthesizeStoredUser -> (since the user
+  --    is email-only and not yet SCIM-managed) setManagedBy ManagedByScim and
+  --    deletePendingEmailUpdate.
+  tok <- createScimTokenV6 owner def >>= getJSON 200 >>= (%. "token") >>= asString
+  getScimUser OwnDomain tok memberId >>= assertStatus 200
+
+  -- 5. The activation code for the pending email has been invalidated.
+  getActivationCode OwnDomain newEmail >>= assertStatus 404
+
+  -- 6. The member's email is unchanged: the SCIM transition must not promote
+  --    the unvalidated email, only drop the pending update.
+  bindResponse (getUsersId OwnDomain [memberId]) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    u <- resp.json & asList >>= assertOne
+    u %. "email" `shouldMatch` memberEmail

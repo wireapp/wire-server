@@ -129,7 +129,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
-import Wire.StoredUser (storedUserEmailUnvalidated)
+import Wire.StoredUser (StoredUser (emailUnvalidated))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
@@ -909,7 +909,7 @@ deletePendingEmailUpdateH ::
   (Handler r) NoContent
 deletePendingEmailUpdateH uid = do
   mUser <- lift . liftSem $ UserStore.getUser uid
-  for_ (storedUserEmailUnvalidated =<< mUser) $ \email ->
+  for_ (emailUnvalidated =<< mUser) $ \email ->
     lift . liftSem $ do
       ActivationCode.deleteActivationCode (mkEmailKey email)
       UserStore.deleteEmailUnvalidated uid
