@@ -233,7 +233,8 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.endTime
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
-    pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
+    syncedConv <- lift $ syncMeetingConversationTitle zUser conv update.title
+    pure $ storedMeetingToMeetingWithConversation zUser syncedConv updatedMeeting
 
 deleteMeetingImpl ::
   ( Member Store.MeetingsStore r,
@@ -323,6 +324,21 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "conversationId" (toByteString' convId)
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
+
+syncMeetingConversationTitle ::
+  ( Member ConversationSubsystem r
+  ) =>
+  Local UserId ->
+  StoredConversation ->
+  Maybe (Range 1 256 Text) ->
+  Sem r StoredConversation
+syncMeetingConversationTitle zUser conv mNewTitle =
+  case mNewTitle of
+    Just newTitle | conv.metadata.cnvmName /= Just newTitle -> do
+      let lConvId = qualifyAs zUser conv.id_
+      ConversationSubsystem.internalRenameConversation zUser lConvId (ConversationRename newTitle)
+      fromMaybe conv <$> ConversationSubsystem.internalGetConversation conv.id_
+    _ -> pure conv
 
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting

@@ -211,6 +211,10 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.deleteLocalConversation lusr con lcnv
   InternalDeleteLocalConversation lcnv ->
     mapErrors $ Action.updateLocalConversationDeleteUnchecked lcnv
+  InternalRenameConversation lusr lcnv rename ->
+    mapErrors $
+      void $
+        Action.updateLocalConversationRename lcnv (tUntagged lusr) Nothing rename
   GetMLSPublicKeys fmt ->
     mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->

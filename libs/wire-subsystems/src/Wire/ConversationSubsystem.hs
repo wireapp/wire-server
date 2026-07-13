@@ -341,6 +341,11 @@ data ConversationSubsystem m a where
   InternalDeleteLocalConversation ::
     Local ConvId ->
     ConversationSubsystem m ()
+  InternalRenameConversation ::
+    Local UserId ->
+    Local ConvId ->
+    ConversationRename ->
+    ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))

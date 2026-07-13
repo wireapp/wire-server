@@ -40,7 +40,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (NonNegative, counterexample, getNonNegative, ioProperty, (.&&.), (===), (==>))
 import Text.Email.Parser (unsafeEmailAddress)
-import Wire.API.Conversation (Access (InviteAccess, PrivateAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
+import Wire.API.Conversation (Access (InviteAccess, PrivateAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess), cnvName)
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
 import Wire.API.Meeting qualified as API
@@ -509,6 +509,28 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
 
       result `shouldBe` Right Nothing
+
+    it "syncs conversation name when meeting title is updated" $ do
+      let newMeeting =
+            API.NewMeeting
+              { title = fromJust $ checked "Original Meeting",
+                startTime = addUTCTime 3600 now,
+                endTime = addUTCTime 7200 now,
+                recurrence = Nothing,
+                invitedEmails = []
+              }
+          updatedTitle = fromJust $ checked "Renamed Meeting"
+
+      result <- runTestStack now gen Map.empty teamConfig $ do
+        meeting <- createMeeting zUser1 newMeeting
+        updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just updatedTitle) Nothing)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right Nothing -> fail "Expected Just meeting, got Nothing"
+        Right (Just updated) -> do
+          updated.meeting.title `shouldBe` updatedTitle
+          cnvName updated.conversation `shouldBe` Just updatedTitle
 
     prop "applies valid update, preserves unchanged fields" $ \(update :: API.UpdateMeeting) ->
       let baseMeeting =
