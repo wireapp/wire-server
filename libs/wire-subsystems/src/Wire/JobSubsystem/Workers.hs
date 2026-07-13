@@ -36,8 +36,9 @@ import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
-import Control.Exception (throwIO)
+import Control.Exception (bracket, throwIO)
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Hashable qualified as Hashable
 import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Data.Secret (SecretText, revealSecretText)
@@ -45,11 +46,17 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
+import Hasql.Connection qualified as HasqlConnection
+import Hasql.Connection.Settings qualified as HasqlConnectionSettings
 import Hasql.Pool.Extended qualified as HasqlPoolExt
+import Hasql.Session qualified as HasqlSession
+import Hasql.Statement qualified as HasqlStatement
+import Hasql.TH
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
 import System.IO.Error (userError)
 import System.Logger qualified as Log
+import System.Timeout (timeout)
 import UnliftIO.Async qualified as Async
 import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry)
 import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
@@ -80,18 +87,96 @@ data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
 -- | Apply all migrations for the scheduled-jobs registry before constructing
 -- any worker pools or accepting scheduled jobs.
 runScheduledJobsMigrations :: SecretText -> Text -> IO ()
-runScheduledJobsMigrations connStr schemaName = do
-  result <-
-    ArbiterMigrations.runMigrationsForRegistry
-      (Proxy @ScheduledJobsRegistry)
-      (Text.encodeUtf8 $ revealSecretText connStr)
-      schemaName
-      ArbiterMigrations.defaultMigrationConfig
-  case result of
-    ArbiterMigrations.MigrationSuccess -> pure ()
-    ArbiterMigrations.MigrationError err ->
-      throwIO . userError $
-        "Arbiter migrations failed for schema " <> T.unpack schemaName <> ": " <> err
+runScheduledJobsMigrations connStr schemaName =
+  withArbiterMigrationLock connStr schemaName $ do
+    result <-
+      ArbiterMigrations.runMigrationsForRegistry
+        (Proxy @ScheduledJobsRegistry)
+        (Text.encodeUtf8 $ revealSecretText connStr)
+        schemaName
+        ArbiterMigrations.defaultMigrationConfig
+    case result of
+      ArbiterMigrations.MigrationSuccess -> pure ()
+      ArbiterMigrations.MigrationError err ->
+        throwIO . userError $
+          "Arbiter migrations failed for schema " <> T.unpack schemaName <> ": " <> err
+
+-- | Serialize Arbiter schema migrations across all background-worker instances.
+--
+-- Arbiter's migration API opens its own PostgreSQL connection, so the lock is
+-- held on a separate dedicated connection for the entire migration call. This
+-- is sufficient because every Wire Server migration caller enters through this
+-- wrapper. The connection is kept open until the lock is released; otherwise a
+-- session-level advisory lock would be released before the migrations finish.
+withArbiterMigrationLock :: SecretText -> Text -> IO a -> IO a
+withArbiterMigrationLock connStr schemaName action = do
+  bracket acquireConnection HasqlConnection.release $ \lockConnection -> do
+    bracket
+      (acquireArbiterMigrationLockWithTimeout lockConnection)
+      (const $ runAdvisoryLockStatement lockConnection releaseArbiterMigrationLock)
+      (const action)
+  where
+    lockId :: Int64
+    lockId = fromIntegral . Hashable.hash $ ("wire-server:arbiter-migrations:" <> schemaName :: Text)
+
+    acquireArbiterMigrationLockWithTimeout :: HasqlConnection.Connection -> IO ()
+    acquireArbiterMigrationLockWithTimeout connection = do
+      acquired <- timeout arbiterMigrationLockWaitTimeoutMicros retryUntilAcquired
+      case acquired of
+        Just () -> pure ()
+        Nothing ->
+          throwIO . userError $
+            "Timed out waiting for the Arbiter migration lock for schema " <> T.unpack schemaName
+      where
+        retryUntilAcquired :: IO ()
+        retryUntilAcquired = do
+          acquired <- runAdvisoryLockStatement connection tryArbiterMigrationLock
+          if acquired
+            then pure ()
+            else do
+              threadDelay arbiterMigrationLockRetryIntervalMicros
+              retryUntilAcquired
+
+        -- Do not let a stuck migration block service startup indefinitely. The
+        -- migration itself is not subject to this timeout once the lock is held.
+        arbiterMigrationLockRetryIntervalMicros :: Int
+        arbiterMigrationLockRetryIntervalMicros = 1_000_000
+
+        arbiterMigrationLockWaitTimeoutMicros :: Int
+        arbiterMigrationLockWaitTimeoutMicros = 1 * 60 * 1_000_000
+
+    acquireConnection :: IO HasqlConnection.Connection
+    acquireConnection = do
+      connectionResult <- HasqlConnection.acquire . HasqlConnectionSettings.connectionString $ revealSecretText connStr
+      either
+        ( \err ->
+            throwIO . userError $
+              "Failed to acquire PostgreSQL connection for Arbiter migration lock: " <> show err
+        )
+        pure
+        connectionResult
+
+    runAdvisoryLockStatement ::
+      HasqlConnection.Connection ->
+      HasqlStatement.Statement Int64 a ->
+      IO a
+    runAdvisoryLockStatement connection statement = do
+      result <- HasqlConnection.use connection (HasqlSession.statement lockId statement)
+      either
+        ( \err ->
+            throwIO . userError $
+              "Arbiter migration advisory lock query failed: " <> show err
+        )
+        pure
+        result
+
+    tryArbiterMigrationLock :: HasqlStatement.Statement Int64 Bool
+    tryArbiterMigrationLock =
+      [singletonStatement|SELECT (pg_try_advisory_lock($1 :: bigint) :: bool)|]
+
+    releaseArbiterMigrationLock :: HasqlStatement.Statement Int64 ()
+    releaseArbiterMigrationLock =
+      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
 
 -- This runner is specialized to the meetings cleanup payload for now.
 -- If we add another cron job later, we can either reuse this helper with a
