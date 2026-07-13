@@ -1030,6 +1030,16 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
                 interval = 1,
                 until = Nothing
               }
+        meetingAt endOffset r =
+          API.NewMeeting
+            { title = fromJust $ checked "Meeting",
+              startTime = addUTCTime (endOffset - 3600) now,
+              endTime = addUTCTime endOffset now,
+              recurrence = r,
+              invitedEmails = []
+            }
+        recurUntil t =
+          Just (API.Recurrence {freq = API.Daily, interval = 1, until = Just t})
 
     it "getMeeting returns a recurring meeting whose slot passed but window is open" $ do
       result <-
@@ -1133,6 +1143,26 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (deleted, remainingId, meetingId) -> do
           deleted `shouldBe` 0
           remainingId `shouldBe` Just meetingId
+
+    it "cleanupOldMeetings deletes in effectiveEndTime order, not endTime order" $ do
+      result <-
+        runTestStack now gen Map.empty teamConfig $ do
+          -- endTime now-4000, no recurrence  -> effectiveEndTime now-4000 (earliest)
+          plain <- createMeeting zUser (meetingAt (-4000) Nothing)
+          -- endTime now-5000, until now-3500 -> effectiveEndTime now-3500 (later)
+          recur <- createMeeting zUser (meetingAt (-5000) (recurUntil (addUTCTime (-3500) now)))
+          _deleted <- cleanupOldMeetings now 1
+          plainRemains <- isJust <$> getMeeting zUser plain.meeting.id
+          recurRemains <- isJust <$> getMeeting zUser recur.meeting.id
+          pure (plainRemains, recurRemains)
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (plainRemains, recurRemains) -> do
+          -- plain has the earlier effectiveEndTime, so it is deleted first;
+          -- recur survives. With the old endTime sort, recur (endTime now-5000)
+          -- would be deleted first instead.
+          plainRemains `shouldBe` False
+          recurRemains `shouldBe` True
 
     prop "aliveness follows effectiveEndTime across get/list/cleanup" $
       \(recurrence :: Maybe API.Recurrence) (advance :: NonNegative Int) ->

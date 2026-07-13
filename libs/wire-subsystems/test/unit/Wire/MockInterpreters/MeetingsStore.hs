@@ -120,6 +120,6 @@ inMemoryMeetingsStoreInterpreter = interpret $ \case
   GetOldMeetings cutoffTime batchSize ->
     gets $
       take batchSize
-        . List.sortOn (.endTime)
+        . List.sortOn effectiveEndTime
         . filter (\sm -> maybe False (< cutoffTime) (effectiveEndTime sm))
         . Map.elems

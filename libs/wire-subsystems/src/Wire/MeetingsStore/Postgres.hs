@@ -408,11 +408,17 @@ getOldMeetingsImpl cutoffTime batchSize = do
     n = fromIntegral batchSize :: Int32
     session :: Session [StoredMeeting]
     session = do
+      -- Two separate queries so each branch can use its dedicated partial index:
+      --   * non-recurring  -> idx_meetings_end_time_nonrecurring (end_time)
+      --   * recurring      -> idx_meetings_recurrence_eff_end
+      --                        (GREATEST(end_time, recurrence_until))
+      -- A single OR query would match neither partial index and force a scan.
+      -- Results are merged and re-sorted by 'effectiveEndTime' below. See WPB-26823.
       nonRecurring <- statement (cutoffTime, n) nonRecurringOldStatement
       recurring <- statement (cutoffTime, n) recurringOldStatement
       pure $
         take batchSize $
-          List.sortOn (.endTime) (V.toList nonRecurring <> V.toList recurring)
+          List.sortOn effectiveEndTime (V.toList nonRecurring <> V.toList recurring)
     nonRecurringOldStatement :: Statement (UTCTime, Int32) (V.Vector StoredMeeting)
     nonRecurringOldStatement =
       refineResult
