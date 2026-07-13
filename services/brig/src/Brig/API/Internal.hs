@@ -145,7 +145,6 @@ import Wire.VerificationCodeGen
 import Wire.VerificationCodeSubsystem
 
 servantSitemap ::
-  App.Env ->
   forall r p.
   ( Member BlockListStore r,
     Member (Concurrency 'Unsafe) r,
@@ -192,7 +191,7 @@ servantSitemap ::
     Member ClientSubsystem r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap _env =
+servantSitemap =
   istatusAPI
     :<|> ejpdAPI
     :<|> accountAPI
