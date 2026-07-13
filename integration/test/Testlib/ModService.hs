@@ -300,8 +300,8 @@ defaultOverrides resource =
     setLogLevel :: ServiceOverrides
     setLogLevel =
       def
-        { sparCfg = setField "saml.logLevel" ("Warn" :: String),
-          brigCfg = setField "logLevel" ("Warn" :: String),
+        { sparCfg = setField "saml.logLevel" ("Info" :: String),
+          brigCfg = setField "logLevel" ("Debug" :: String),
           cannonCfg = setField "logLevel" ("Warn" :: String),
           cargoholdCfg = setField "logLevel" ("Warn" :: String),
           galleyCfg = setField "logLevel" ("Warn" :: String),

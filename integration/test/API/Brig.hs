@@ -156,10 +156,13 @@ getSelfClients u =
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/delete_self
 deleteUser :: (HasCallStack, MakesValue user) => user -> App Response
-deleteUser user = do
+deleteUser user = deleteUserWithPassword user (Just defPassword)
+
+deleteUserWithPassword :: (HasCallStack, MakesValue user) => user -> Maybe String -> App Response
+deleteUserWithPassword user mPassword = do
   req <- baseRequest user Brig Versioned "/self"
   submit "DELETE" $
-    req & addJSONObject ["password" .= defPassword]
+    req & addJSONObject ["password" .= mPassword]
 
 -- | https://staging-nginz-https.zinfra.io/v5/api/swagger-ui/#/default/post_clients
 addClient ::

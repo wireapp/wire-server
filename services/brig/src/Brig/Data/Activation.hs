@@ -36,6 +36,7 @@ import Data.Text.Lazy qualified as LT
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
+import System.Logger.Class qualified as Log
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Password
@@ -80,7 +81,9 @@ activateKey ::
   Maybe UserId ->
   ExceptT ActivationError (AppT r) (Maybe ActivationEvent)
 activateKey k c u = do
+  -- lift $ Log.warn $ Log.msg (Log.val "activation will be verified") . Log.field "key" (show k) . Log.field "code" (show c)
   (emailKey, mUser) <- wrapClientE (verifyCode k c)
+  -- lift $ Log.warn $ Log.msg (Log.val "activation verified") . Log.field "key" (show k) . Log.field "code" (show c)
   pickUser (emailKey, mUser) >>= activate
   where
     pickUser :: (t, Maybe UserId) -> ExceptT ActivationError (AppT r) (t, UserId)
@@ -90,7 +93,15 @@ activateKey k c u = do
     activate (key, uid) = do
       luid <- qualifyLocal uid
       a <- lift (liftSem $ User.getAccountNoFilter luid) >>= maybe (throwE invalidUser) pure
-      unless (userStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
+      -- this is never 'PendingActivation' in the flow this function is used in.
+      unless (userStatus a == Active) $ do
+        lift $
+          Log.warn $
+            Log.msg (Log.val "-------> User is not active")
+              . Log.field "key" (show k)
+              . Log.field "code" (show c)
+              . Log.field "user" (show uid)
+              . Log.field "status" (show $ userStatus a)
         throwE invalidCode
       case userIdentity a of
         Nothing -> do
@@ -144,18 +155,19 @@ verifyCode ::
   ExceptT ActivationError m (EmailKey, Maybe UserId)
 verifyCode key code = do
   s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
+  threadDelay 100_000
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
         | c == code -> mkScope t k u
         | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
-        | otherwise -> revoke >> throwE invalidCode
-    Nothing -> throwE invalidCode
+        | otherwise -> revoke >> error "502" -- throwE invalidCode
+    Nothing -> error "500" -- throwE invalidCode
   where
     mkScope "email" k u = case emailAddressText k of
       Just e -> pure (mkEmailKey e, u)
-      Nothing -> throwE invalidCode
-    mkScope _ _ _ = throwE invalidCode
+      Nothing -> error "501" -- throwE invalidCode
+    mkScope _ _ _ = error "503" -- throwE invalidCode
     countdown = lift . retry x5 . write keyInsert . params LocalQuorum
     revoke = lift $ deleteActivationPair key
     keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
