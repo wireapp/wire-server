@@ -57,7 +57,6 @@ actError InvalidActivationCodeWrongUser = StdError (errorToWai @'E.InvalidActiva
 actError InvalidActivationCodeWrongCode = StdError (errorToWai @'E.InvalidActivationCodeWrongCode)
 actError (InvalidActivationEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 actError (InvalidActivationPhone _) = StdError (errorToWai @'E.InvalidPhone)
-actError InvalidActivationManagedByScim = StdError (errorToWai @'E.EmailManagedByScim)
 
 pwResetError :: PasswordResetError -> HttpError
 pwResetError InvalidPasswordResetKey = StdError (errorToWai @'E.InvalidPasswordResetKey)
