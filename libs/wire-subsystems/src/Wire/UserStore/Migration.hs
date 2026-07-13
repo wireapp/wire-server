@@ -100,6 +100,7 @@ getUserData uid = do
         Nothing -> pure False
         Just h -> do
           mClaimedBy <- runIdentity <$$> query1 selectHandleClaim (params LocalQuorum (Identity h))
+          -- TODO: log if the handle is claimed by someone else.
           pure $ mClaimedBy == Just uid
       richInfo <- runIdentity <$$> query1 selectRichInfo (params LocalQuorum (Identity uid))
       pure $ Just RawUserData {id = uid, ..}
@@ -123,14 +124,14 @@ getUserData uid = do
     selectRichInfo :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
     selectRichInfo = "SELECT json FROM rich_info where user = ?"
 
-data InvalidUserError = UserHasNoName | UserHasNoActiavted
+data InvalidUserError = UserHasNoName | UserHasNoActivated
   deriving (Show)
 
 mkUserRowPG :: UserId -> UserRowCass -> Bool -> Maybe RichInfoAssocList -> Either InvalidUserError UserRowPG
 mkUserRowPG id_ cass@UserRowCass {..} isHandleClaimed richInfo = run . runError $ do
   pgName <- note UserHasNoName cass.name
-  pgActivated <- note UserHasNoActiavted cass.activated
-  createdAt <- note UserHasNoActiavted $ writetimeToUTC <$> cass.activatedWriteTime
+  pgActivated <- note UserHasNoActivated cass.activated
+  createdAt <- note UserHasNoActivated $ writetimeToUTC <$> cass.activatedWriteTime
   pure $
     UserRowPG
       { accentId = fromMaybe defaultAccentId cass.accentId,
