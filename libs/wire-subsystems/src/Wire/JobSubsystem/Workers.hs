@@ -36,7 +36,7 @@ import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
-import Control.Exception (bracket, throwIO)
+import Control.Exception (bracket, bracket_, throwIO)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Hashable qualified as Hashable
 import Data.Kind (Type)
@@ -111,10 +111,10 @@ runScheduledJobsMigrations connStr schemaName =
 withArbiterMigrationLock :: SecretText -> Text -> IO a -> IO a
 withArbiterMigrationLock connStr schemaName action = do
   bracket acquireConnection HasqlConnection.release $ \lockConnection -> do
-    bracket
+    bracket_
       (acquireArbiterMigrationLockWithTimeout lockConnection)
-      (const $ runAdvisoryLockStatement lockConnection releaseArbiterMigrationLock)
-      (const action)
+      (runAdvisoryLockStatement lockConnection releaseArbiterMigrationLock)
+      action
   where
     lockId :: Int64
     lockId = fromIntegral . Hashable.hash $ ("wire-server:arbiter-migrations:" <> schemaName :: Text)
