@@ -1,0 +1,2 @@
+Fix `#sbom` Nix env / sbomnix usage by upgrading to latest stable version of
+the latter. The issue was introduced by upgrading `nixpkgs` to 26.05.
