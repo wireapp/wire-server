@@ -74,7 +74,7 @@ nginx_conf:
   #     endpoints:
   #       backendURL: "https://nginz-https.red.example.com"
   #       backendWSURL: "https://nginz-ssl.red.example.com"
-  #       blackListURL: "https://clientblacklist.red.example.com/prod"
+  #       blackListURL: "https://clientblacklist.example.com/prod"
   #       teamsURL: "https://teams.red.example.com"
   #       accountsURL: "https://account.red.example.com"
   #       websiteURL: "https://red.example.com"
