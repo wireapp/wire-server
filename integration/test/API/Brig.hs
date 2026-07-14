@@ -1218,22 +1218,6 @@ removeUserFromGroup user gid uid = do
   req <- baseRequest user Brig Versioned $ joinHttpPath ["user-groups", gid, "users", uid]
   submit "DELETE" req
 
-addTeamCollaborator :: (MakesValue owner, MakesValue collaborator, HasCallStack) => owner -> String -> collaborator -> [String] -> App Response
-addTeamCollaborator owner tid collaborator permissions = do
-  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
-  (_, collabId) <- objQid collaborator
-  submit "POST" $
-    req
-      & addJSONObject
-        [ "user" .= collabId,
-          "permissions" .= permissions
-        ]
-
-getAllTeamCollaborators :: (MakesValue owner) => owner -> String -> App Response
-getAllTeamCollaborators owner tid = do
-  req <- baseRequest owner Brig Versioned $ joinHttpPath ["teams", tid, "collaborators"]
-  submit "GET" req
-
 data NewApp = NewApp
   { name :: String,
     assets :: Maybe [Value],
