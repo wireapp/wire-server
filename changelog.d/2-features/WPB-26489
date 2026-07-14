@@ -1,1 +1,1 @@
-Introduce Arbiter-backed schedulable background jobs, migrate meetings cleanup to the new job runner, and add the initial adminless reminder and deletion jobs.
+Introduce schedulable background jobs, migrate meetings cleanup to the new job runner, and add the initial adminless reminder and deletion jobs.
