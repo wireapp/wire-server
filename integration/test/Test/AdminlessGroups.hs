@@ -123,7 +123,7 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
     >>= assertSuccess
 
   let newApp :: NewApp
-      newApp = def {name = "adminless-reminder-app", description = "non-eligible reminder recipient"}
+      newApp = def {name = "adminless-reminder-app", description = "not eligible for promotion"}
   app <- bindResponse (createApp alice tid newApp) $ \resp -> do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
