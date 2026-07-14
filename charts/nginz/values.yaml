@@ -446,12 +446,6 @@ nginx_conf:
     - path: /search
       envs:
       - all
-    - path: /teams/([^/]*)/collaborators$
-      envs:
-      - all
-    - path: /teams/([^/]*)/collaborators/([^/]*)
-      envs:
-      - all
     - path: /teams/([^/]*)/apps$
       envs:
       - all
@@ -683,6 +677,12 @@ nginx_conf:
       envs:
       - all
     - path: /teams/([^/]*)/channels/search$
+      envs:
+      - all
+    - path: /teams/([^/]*)/collaborators$
+      envs:
+      - all
+    - path: /teams/([^/]*)/collaborators/([^/]*)
       envs:
       - all
     - path: /teams/([^/]*)/members(.*)

@@ -62,7 +62,6 @@ import Wire.API.Routes.Internal.Galley.TeamsIntra qualified as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig (TeamsAPI)
 import Wire.API.Team
-import Wire.API.Team.Collaborator
 import Wire.API.Team.Invitation
 import Wire.API.Team.Invitation qualified as Public (Invitation (..))
 import Wire.API.Team.Member (teamMembers)
@@ -81,7 +80,6 @@ import Wire.IndexedUserStore (IndexedUserStore, getTeamSize)
 import Wire.InvitationStore (InvitationStore (..), PaginatedResult (..), StoredInvitation (..))
 import Wire.InvitationStore qualified as Store
 import Wire.Sem.Concurrency
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamInvitationSubsystem.Interpreter (toInvitation)
 import Wire.TeamSubsystem (TeamSubsystem)
@@ -101,7 +99,6 @@ servantAPI ::
     Member (Input (Local ())) r,
     Member (Error UserSubsystemError) r,
     Member IndexedUserStore r,
-    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   ServerT TeamsAPI (Handler r)
@@ -115,8 +112,6 @@ servantAPI =
     :<|> Named @"head-team-invitations" (lift . liftSem . headInvitationByEmail)
     :<|> Named @"get-team-size" (\uid tid -> lift . liftSem $ teamSizePublic uid tid)
     :<|> Named @"accept-team-invitation" (\luid req -> lift $ liftSem $ acceptTeamInvitation luid req.password req.code)
-    :<|> Named @"add-team-collaborator" (\zuid tid (NewTeamCollaborator uid perms) -> lift . liftSem $ createTeamCollaborator zuid uid tid perms)
-    :<|> Named @"get-team-collaborators" (\zuid tid -> lift . liftSem $ getAllTeamCollaborators zuid tid)
 
 teamSizePublic ::
   ( Member (Error UserSubsystemError) r,
