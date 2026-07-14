@@ -1,1 +1,1 @@
-Background-worker scheduled jobs now run through Arbiter. The background-worker configuration includes `scheduledJobs.pollInterval`, which controls how often the scheduler wakes up to look for due jobs.
+Background-worker now runs some scheduled jobs. The background-worker configuration includes `scheduledJobs.pollInterval`, which controls how often the scheduler wakes up to look for due jobs.
