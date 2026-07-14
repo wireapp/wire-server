@@ -17,13 +17,15 @@
 
 module Test.Wire.API.Roundtrip.Aeson (tests) where
 
-import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
+import Data.Aeson (FromJSON, Result (..), ToJSON, fromJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
+import Data.Default (def)
 import Data.Id (ConvId)
 import Data.Misc
 import Data.OpenApi (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty qualified as T
+import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 import Wire.API.Asset qualified as Asset
@@ -60,6 +62,7 @@ import Wire.API.SystemSettings qualified as SystemSettings
 import Wire.API.Team qualified as Team
 import Wire.API.Team.Conversation qualified as Team.Conversation
 import Wire.API.Team.Feature qualified as Team.Feature
+import Wire.API.Team.FeatureFlags qualified as Team.FeatureFlags
 import Wire.API.Team.Invitation qualified as Team.Invitation
 import Wire.API.Team.LegalHold qualified as Team.LegalHold
 import Wire.API.Team.LegalHold.External qualified as Team.LegalHold.External
@@ -379,8 +382,18 @@ tests =
       testRoundTrip @User.UpdateConnectionsInternal,
       testRoundTrip @Team.TeamSize,
       testRoundTrip @Team.LegalHold.Internal.LegalHoldService,
-      testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest
+      testRoundTrip @Team.LegalHold.Internal.LegalHoldClientRequest,
+      testFeatureFlagsCanonicalJsonRoundtrip
     ]
+
+testFeatureFlagsCanonicalJsonRoundtrip :: T.TestTree
+testFeatureFlagsCanonicalJsonRoundtrip =
+  testCase "FeatureFlags accepts its canonical JSON representation" $
+    case fromJSON (toJSON expected) of
+      Error err -> assertFailure $ "Could not decode canonical FeatureFlags JSON: " <> err
+      Success actual -> assertEqual "Roundtrip result should be the same as the original" actual expected
+  where
+    expected = def @Team.FeatureFlags.FeatureFlags
 
 testRoundTrip ::
   forall a.
