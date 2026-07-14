@@ -192,7 +192,6 @@ import Wire.Sem.Paging.Cassandra
 import Wire.Sem.Random (Random)
 import Wire.SessionStore (SessionStore)
 import Wire.SparAPIAccess
-import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.TeamSubsystem qualified as TeamSubsystem
@@ -416,7 +415,6 @@ servantSitemap ::
     Member CryptoSign r,
     Member Random r,
     Member UserGroupSubsystem r,
-    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r,
     Member AppSubsystem r,
     Member ClientStore r,
