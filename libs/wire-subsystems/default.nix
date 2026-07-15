@@ -15,8 +15,6 @@
 , arbiter-hasql
 , arbiter-migrations
 , arbiter-worker
-, asn1-encoding
-, asn1-types
 , async
 , attoparsec
 , base
@@ -163,8 +161,6 @@ mkDerivation {
     arbiter-hasql
     arbiter-migrations
     arbiter-worker
-    asn1-encoding
-    asn1-types
     async
     attoparsec
     base
@@ -299,8 +295,6 @@ mkDerivation {
     arbiter-hasql
     arbiter-migrations
     arbiter-worker
-    asn1-encoding
-    asn1-types
     async
     attoparsec
     base
