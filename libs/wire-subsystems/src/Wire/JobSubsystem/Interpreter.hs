@@ -38,13 +38,8 @@ import Polysemy
 import Polysemy.Input (Input, input)
 import Wire.API.Jobs
 import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkerHandlers (..), JobWorkersConfig (..))
-import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
+import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Workers
-  ( RecurringJobRunnerConfig (..),
-    runOneOffJobRunner,
-    runRecurringJobRunner,
-    runScheduledJobsMigrations,
-  )
 import Wire.Postgres (PGConstraints)
 
 runJobWorkers :: HasqlPoolExt.Pool -> JobWorkersConfig -> JobWorkerHandlers -> IO CleanupAction
@@ -82,17 +77,12 @@ scheduleAdminlessDeletionJob ::
 scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId scheduledFor = do
   requestId <- input @RequestId
   pool <- input
-  let arbiterEnv =
-        WireArbiterEnv
-          { schemaName = jobSubsystemSchemaName,
-            connectionPool = pool,
-            activeConn = Nothing,
-            transactionDepth = 0
-          }
-  let arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
+  let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
+      groupKey = "adminless-deletion:" <> idToText convId
+      arbiterJob =
+        (ArbiterCore.defaultGroupedJob groupKey (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
-            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" teamId convId,
+            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" convId,
             ArbiterCore.maxAttempts = Just 3
           }
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) arbiterJob
@@ -111,25 +101,20 @@ scheduleAdminlessReminderJob ::
 scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletionScheduledFor reminderTimeout scheduledFor = do
   requestId <- input @RequestId
   pool <- input @HasqlPoolExt.Pool
-  let arbiterEnv =
-        WireArbiterEnv
-          { schemaName = jobSubsystemSchemaName,
-            connectionPool = pool,
-            activeConn = Nothing,
-            transactionDepth = 0
-          }
-  let arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))
+  let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
+      groupKey = "adminless-reminder:" <> idToText convId
+      arbiterJob =
+        (ArbiterCore.defaultGroupedJob groupKey (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
-            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey teamId convId reminderTimeout,
+            ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3
           }
   embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) arbiterJob
 
-adminlessJobDedupKey :: Text -> TeamId -> ConvId -> Text
-adminlessJobDedupKey jobType teamId convId =
-  "adminless-" <> jobType <> ":" <> idToText teamId <> ":" <> idToText convId
+adminlessJobDedupKey :: Text -> ConvId -> Text
+adminlessJobDedupKey jobType convId =
+  "adminless-" <> jobType <> ":" <> idToText convId
 
-adminlessReminderJobDedupKey :: TeamId -> ConvId -> NominalDiffTime -> Text
-adminlessReminderJobDedupKey teamId convId reminderTimeout =
-  adminlessJobDedupKey "reminder" teamId convId <> ":" <> Text.pack (show reminderTimeout)
+adminlessReminderJobDedupKey :: ConvId -> NominalDiffTime -> Text
+adminlessReminderJobDedupKey convId reminderTimeout =
+  adminlessJobDedupKey "reminder" convId <> ":" <> Text.pack (show reminderTimeout)

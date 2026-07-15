@@ -39,6 +39,15 @@ data WireArbiterEnv = WireArbiterEnv
     transactionDepth :: Int
   }
 
+mkNewWireArbiterEnv :: Text -> HasqlPoolExt.Pool -> WireArbiterEnv
+mkNewWireArbiterEnv schema pool =
+  WireArbiterEnv
+    { schemaName = schema,
+      connectionPool = pool,
+      activeConn = Nothing,
+      transactionDepth = 0
+    }
+
 newtype WireArbiter (registry :: JobPayloadRegistry) a = WireArbiter
   { unWireArbiter :: ReaderT WireArbiterEnv IO a
   }

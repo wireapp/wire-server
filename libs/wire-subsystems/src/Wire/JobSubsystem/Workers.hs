@@ -60,7 +60,7 @@ import System.Logger qualified as Log
 import System.Timeout (timeout)
 import UnliftIO.Async qualified as Async
 import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry)
-import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
+import Wire.JobSubsystem.ArbiterAdapter
 
 data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,
@@ -202,15 +202,8 @@ runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
       . Log.field "queue_name" recurringJobRunnerQueueName
       . Log.field "schedule" (show recurringJobRunnerSchedule)
 
-  let arbiterEnv =
-        WireArbiterEnv
-          { schemaName = recurringJobRunnerSchemaName,
-            connectionPool = postgresPool,
-            activeConn = Nothing,
-            transactionDepth = 0
-          }
-
-  let workerHandler _conn job =
+  let arbiterEnv = mkNewWireArbiterEnv recurringJobRunnerSchemaName postgresPool
+      workerHandler _conn job =
         liftIO $ do
           Log.info recurringJobRunnerLogger $
             Log.msg (Log.val "Running scheduled job")
@@ -279,14 +272,8 @@ runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
       . Log.field "job_name" oneOffJobRunnerJobName
       . Log.field "queue_name" oneOffJobRunnerQueueName
 
-  let arbiterEnv =
-        WireArbiterEnv
-          { schemaName = oneOffJobRunnerSchemaName,
-            connectionPool = postgresPool,
-            activeConn = Nothing,
-            transactionDepth = 0
-          }
-  let workerHandler _conn job =
+  let arbiterEnv = mkNewWireArbiterEnv oneOffJobRunnerSchemaName postgresPool
+      workerHandler _conn job =
         liftIO $ do
           Log.info oneOffJobRunnerLogger $
             Log.msg (Log.val "Running one-off job")
