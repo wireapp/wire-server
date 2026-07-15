@@ -406,13 +406,13 @@ removeConversation lconv = do
         E.deleteAllProposals groupId
 
   let cid = storedConv.id_
-  for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidParent -> do
+  for_ (storedConv & mlsMetadata <&> cnvmlsGroupId . fst) $ \gidMainConv -> do
     sconvs <- E.listSubConversations cid
     for_ (Map.assocs sconvs) $ \(subid, mlsData) -> do
       let gidSub = cnvmlsGroupId mlsData
       E.deleteSubConversation cid subid
       deleteGroup gidSub
-    deleteGroup gidParent
+    deleteGroup gidMainConv
 
   key <- E.makeKey (CodeReferentConv (tUnqualified lcnv))
   E.deleteCode key
