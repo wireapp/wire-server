@@ -137,12 +137,11 @@ data ScheduledJobsJitter
   deriving (Eq, Show, Generic)
 
 instance FromJSON ScheduledJobsJitter where
-  parseJSON = withText "ScheduledJobsJitter" $ \value ->
-    case value of
-      "none" -> pure ScheduledJobsNoJitter
-      "full" -> pure ScheduledJobsFullJitter
-      "equal" -> pure ScheduledJobsEqualJitter
-      _ -> fail "expected one of: none, full, equal"
+  parseJSON = withText "ScheduledJobsJitter" $ \case
+    "none" -> pure ScheduledJobsNoJitter
+    "full" -> pure ScheduledJobsFullJitter
+    "equal" -> pure ScheduledJobsEqualJitter
+    _ -> fail "expected one of: none, full, equal"
 
 instance FromJSON ScheduledJobsConfig where
   parseJSON =
