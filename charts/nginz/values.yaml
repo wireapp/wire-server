@@ -866,7 +866,12 @@ nginx_conf:
       - all
       versioned: false
       strip_version: true
+    - path: /i/team/([^/]*)/billing
+      envs:
+      - staging
+      disable_zauth: true
       basic_auth: true
+      versioned: false
     galeb:
     - path: /consent(.*)
       envs:
