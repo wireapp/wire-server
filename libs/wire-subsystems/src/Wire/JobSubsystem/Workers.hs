@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -30,7 +31,7 @@ module Wire.JobSubsystem.Workers
 where
 
 import Arbiter.Core qualified as ArbiterCore
-import Arbiter.Core.Job.Types (JobRead)
+import Arbiter.Core.Job.Types (JobRead, RegistryAdmissionPolicies)
 import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
 import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
@@ -184,6 +185,7 @@ withArbiterMigrationLock connStr schemaName action = do
 runRecurringJobRunner ::
   forall registry.
   ( RegistryTables registry,
+    RegistryAdmissionPolicies registry,
     KnownSymbol (TableForPayload MeetingsCleanupJob registry),
     FromJSON MeetingsCleanupJob,
     ToJSON MeetingsCleanupJob
@@ -205,8 +207,7 @@ runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
           { schemaName = recurringJobRunnerSchemaName,
             connectionPool = postgresPool,
             activeConn = Nothing,
-            transactionDepth = 0,
-            preparedStatements = False
+            transactionDepth = 0
           }
 
   let workerHandler _conn job =
@@ -262,6 +263,7 @@ runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
 runOneOffJobRunner ::
   forall registry (payload :: Type).
   ( RegistryTables registry,
+    RegistryAdmissionPolicies registry,
     KnownSymbol (TableForPayload payload registry),
     FromJSON payload,
     ToJSON payload
@@ -282,8 +284,7 @@ runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
           { schemaName = oneOffJobRunnerSchemaName,
             connectionPool = postgresPool,
             activeConn = Nothing,
-            transactionDepth = 0,
-            preparedStatements = False
+            transactionDepth = 0
           }
   let workerHandler _conn job =
         liftIO $ do

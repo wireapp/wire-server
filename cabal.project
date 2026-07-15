@@ -101,7 +101,7 @@ package types-common-journal
 source-repository-package
   type: git
   location: https://github.com/velveteer/arbiter.git
-  tag: 96097411a0480e182d0cbce819c45023fe8aeec7
+  tag: 296034ea3a15b5c10f42cc0ea46d2dfc48e9493f
   subdir:
     arbiter-core
     arbiter-hasql

@@ -87,8 +87,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
           { schemaName = jobSubsystemSchemaName,
             connectionPool = pool,
             activeConn = Nothing,
-            transactionDepth = 0,
-            preparedStatements = False
+            transactionDepth = 0
           }
   let arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
@@ -117,8 +116,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
           { schemaName = jobSubsystemSchemaName,
             connectionPool = pool,
             activeConn = Nothing,
-            transactionDepth = 0,
-            preparedStatements = False
+            transactionDepth = 0
           }
   let arbiterJob =
         (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))

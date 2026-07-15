@@ -36,8 +36,7 @@ data WireArbiterEnv = WireArbiterEnv
   { schemaName :: Text,
     connectionPool :: HasqlPoolExt.Pool,
     activeConn :: Maybe HasqlConn.Connection,
-    transactionDepth :: Int,
-    preparedStatements :: Bool
+    transactionDepth :: Int
   }
 
 newtype WireArbiter (registry :: JobPayloadRegistry) a = WireArbiter
@@ -67,7 +66,12 @@ instance MonadArbiter (WireArbiter registry) where
   executeQuery sql params codec = do
     env <- ask
     withConn env $ \conn ->
-      runQueryStatement env.preparedStatements conn sql params codec
+      runQueryStatement False conn sql params codec
+
+  executeQueryPrepared sql params codec = do
+    env <- ask
+    withConn env $ \conn ->
+      runQueryStatement True conn sql params codec
 
   executeStatement sql params = do
     env <- ask

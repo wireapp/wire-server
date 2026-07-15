@@ -19,17 +19,17 @@
     "arbiter": {
       "flake": false,
       "locked": {
-        "lastModified": 1782164937,
-        "narHash": "sha256-6TOIjB+p0+yZo58hNOWshsa7JWTtMM5wYpkdEEcH8Pk=",
+        "lastModified": 1783611005,
+        "narHash": "sha256-zXAL4NEMhlgSZC2CpmOca67qK6dkUMXVRGTEzf1sMZs=",
         "owner": "velveteer",
         "repo": "arbiter",
-        "rev": "96097411a0480e182d0cbce819c45023fe8aeec7",
+        "rev": "296034ea3a15b5c10f42cc0ea46d2dfc48e9493f",
         "type": "github"
       },
       "original": {
         "owner": "velveteer",
         "repo": "arbiter",
-        "rev": "96097411a0480e182d0cbce819c45023fe8aeec7",
+        "rev": "296034ea3a15b5c10f42cc0ea46d2dfc48e9493f",
         "type": "github"
       }
     },
