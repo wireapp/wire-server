@@ -38,6 +38,9 @@ testOnLastAdminLeaveReturnEligibleMembers = do
   localUser <- randomUser OwnDomain def
   connectTwoUsers alice localUser
 
+  -- ephemeral user is not eligible
+  tmpUser <- ephemeralUser OwnDomain
+
   -- a remote user is not eligible
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
@@ -49,13 +52,26 @@ testOnLastAdminLeaveReturnEligibleMembers = do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
-  clients@(alice1 : _) <- traverse (createMLSClient def) [alice, bob, localUser, remoteUser, app]
+  clients@(alice1 : tmpUser1 : _) <- traverse (createMLSClient def) [alice, tmpUser, bob, localUser, remoteUser, app]
   for_ clients (uploadNewKeyPackage def)
 
-  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
   createGroup def alice1 convId
   void $ createAddCommit alice1 convId [bob, app, localUser, remoteUser] >>= sendAndConsumeCommitBundle
+
+  (key, code) <- bindResponse (postConversationCode alice conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    (,) <$> (res %. "data.key" & asString) <*> (res %. "data.code" & asString)
+  postJoinCodeConv tmpUser key code >>= assertSuccess
+  void $ createExternalCommit convId tmpUser1 Nothing >>= sendAndConsumeCommitBundle
+
+  GalleyI.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    actual <- traverse (\m -> m %. "qualified_id") members
+    expected <- traverse (\m -> m %. "qualified_id") [alice, tmpUser, bob, localUser, remoteUser, app]
+    actual `shouldMatchSet` expected
 
   assertAttemptToLeaveFails conv alice [bob, localUser]
 
@@ -128,20 +144,36 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
-  [alice1, app1] <- traverse (createMLSClient def) [alice, app]
-  traverse_ (uploadNewKeyPackage def) [alice1, app1]
+  tmpUser <- ephemeralUser OwnDomain
 
-  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  clients@(alice1 : tmpUser1 : _) <- traverse (createMLSClient def) [alice, tmpUser, app]
+  traverse_ (uploadNewKeyPackage def) clients
+
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
   createGroup def alice1 convId
   void $ createAddCommit alice1 convId [app] >>= sendAndConsumeCommitBundle
 
-  withWebSockets [app] $ \[wsApp] -> do
+  (key, code) <- bindResponse (postConversationCode alice conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    (,) <$> (res %. "data.key" & asString) <*> (res %. "data.code" & asString)
+  postJoinCodeConv tmpUser key code >>= assertSuccess
+  void $ createExternalCommit convId tmpUser1 Nothing >>= sendAndConsumeCommitBundle
+
+  GalleyI.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    actual <- traverse (\m -> m %. "qualified_id") members
+    expected <- traverse (\m -> m %. "qualified_id") [app, alice, tmpUser]
+    actual `shouldMatchSet` expected
+
+  withWebSockets [app, tmpUser] $ \[wsApp, wsTmpUser] -> do
     -- alice leaves the conversation, no error, group will be marked for deletion
     bindResponse (removeMember alice conv alice) $ \resp -> do
       resp.status `shouldMatchInt` 200
 
     void $ awaitNMatches 2 isConvAdminlessReminderNotif wsApp
+    void $ awaitNMatches 2 isConvAdminlessReminderNotif wsTmpUser
 
     retryT $ do
       bindResponse (GalleyI.getConversation conv) $ \resp -> do
