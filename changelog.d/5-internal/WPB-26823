@@ -1,5 +1,5 @@
 Added partial indexes and rewrote the meetings cleanup query so the background
-worker stays fully index-driven as the `meetings` table grows:
+worker stays fully index-backed as the `meetings` table grows:
 - `idx_meetings_recurrence_eff_end` on `GREATEST(end_time, recurrence_until)`
   for bounded recurring meetings (covers the recurring branches of the list and
   cleanup queries).
@@ -7,4 +7,4 @@ worker stays fully index-driven as the `meetings` table grows:
   so cleanup can find expired non-recurring meetings without scanning
   not-yet-expired recurring rows whose original slot is long past.
 `getOldMeetingsImpl` now issues one bounded, index-backed query per meeting kind
-and merges the two batches in Haskell.
+and merges the two batches.

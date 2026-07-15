@@ -19,7 +19,7 @@
 -- listMeetingsByUserImpl, listMeetingsByConversationImpl and
 -- getOldMeetingsImpl, which filter/order on
 -- GREATEST(end_time, recurrence_until). Non-recurring meetings keep using
--- idx_meetings_end_time. See WPB-26823.
+-- idx_meetings_end_time.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_meetings_recurrence_eff_end
     ON meetings (GREATEST(end_time, recurrence_until))
     WHERE recurrence_frequency IS NOT NULL

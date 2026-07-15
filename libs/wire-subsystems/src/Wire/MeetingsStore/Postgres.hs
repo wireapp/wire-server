@@ -413,7 +413,7 @@ getOldMeetingsImpl cutoffTime batchSize = do
       --   * recurring      -> idx_meetings_recurrence_eff_end
       --                        (GREATEST(end_time, recurrence_until))
       -- A single OR query would match neither partial index and force a scan.
-      -- Results are merged and re-sorted by 'effectiveEndTime' below. See WPB-26823.
+      -- Results are merged and re-sorted by 'effectiveEndTime' below.
       nonRecurring <- statement (cutoffTime, n) nonRecurringOldStatement
       recurring <- statement (cutoffTime, n) recurringOldStatement
       pure $

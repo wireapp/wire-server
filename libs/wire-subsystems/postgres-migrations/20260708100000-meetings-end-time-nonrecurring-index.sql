@@ -18,7 +18,7 @@
 -- Partial index for the non-recurring branch of getOldMeetingsImpl, so the
 -- cleanup worker can find expired non-recurring meetings ordered by end_time
 -- without scanning not-yet-expired recurring meetings (which carry an old
--- end_time but a recurrence window still open in the future). See WPB-26823.
+-- end_time but a recurrence window still open in the future).
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_meetings_end_time_nonrecurring
     ON meetings (end_time)
     WHERE recurrence_frequency IS NULL;
