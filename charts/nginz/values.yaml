@@ -866,6 +866,7 @@ nginx_conf:
       - all
       versioned: false
       strip_version: true
+      basic_auth: true
     galeb:
     - path: /consent(.*)
       envs:
