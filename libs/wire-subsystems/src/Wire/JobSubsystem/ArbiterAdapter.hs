@@ -74,23 +74,14 @@ instance MonadArbiter (WireArbiter registry) where
     withConn env $ \conn ->
       runExecStatement conn sql params
 
-  withDbTransaction (WireArbiter action) = WireArbiter $ do
+  withDbTransaction action = do
     env <- ask
     case activeConn env of
-      Nothing ->
-        unWireArbiter $
-          withPoolConnection env.connectionPool $ \conn ->
-            beginCommitOrRollback conn $
-              runReaderT action env {activeConn = Just conn, transactionDepth = 1}
+      Nothing -> withRunInIO $ \run ->
+        run $ withPoolConnection env.connectionPool $ \conn -> run (beginCommitOrRollback conn action)
       Just conn
-        | transactionDepth env <= 0 ->
-            liftIO $
-              beginCommitOrRollback conn $
-                runReaderT action env {transactionDepth = 1}
-        | otherwise ->
-            liftIO $
-              beginSavepointTransaction (transactionDepth env) conn $
-                runReaderT action env {transactionDepth = transactionDepth env + 1}
+        | transactionDepth env <= 0 -> beginCommitOrRollback conn action
+        | otherwise -> beginSavepointTransaction conn action
 
   runHandlerWithConnection handler jobs = do
     env <- ask
@@ -154,8 +145,17 @@ runRawSql conn sql = do
     Right () -> pure ()
     Left err -> throwInternal $ "hasql sql error: " <> T.pack (show err)
 
-beginCommitOrRollback :: HasqlConn.Connection -> IO a -> IO a
-beginCommitOrRollback conn action = mask $ \restore -> do
+beginCommitOrRollback :: HasqlConn.Connection -> WireArbiter registry a -> WireArbiter registry a
+beginCommitOrRollback conn action = do
+  withRunInIO $ \run ->
+    beginCommitOrRollbackIO conn $
+      run $
+        local
+          (\e -> e {activeConn = Just conn, transactionDepth = 1})
+          action
+
+beginCommitOrRollbackIO :: HasqlConn.Connection -> IO a -> IO a
+beginCommitOrRollbackIO conn action = mask $ \restore -> do
   runRawSql conn "BEGIN"
   result <- restore action `onException` rollbackSafely
   runRawSql conn "COMMIT"
@@ -165,8 +165,19 @@ beginCommitOrRollback conn action = mask $ \restore -> do
       _ <- try (runRawSql conn "ROLLBACK") :: IO (Either SomeException ())
       pure ()
 
-beginSavepointTransaction :: Int -> HasqlConn.Connection -> IO a -> IO a
-beginSavepointTransaction depth conn action = mask $ \restore -> do
+beginSavepointTransaction :: HasqlConn.Connection -> WireArbiter registry a -> WireArbiter registry a
+beginSavepointTransaction conn action = do
+  env <- ask
+  let depth = transactionDepth env
+  withRunInIO $ \run ->
+    beginSavepointTransactionIO depth conn $
+      run $
+        local
+          (\e -> e {activeConn = Just conn, transactionDepth = depth + 1})
+          action
+
+beginSavepointTransactionIO :: Int -> HasqlConn.Connection -> IO a -> IO a
+beginSavepointTransactionIO depth conn action = mask $ \restore -> do
   let spName = "arbiter_sp_" <> T.pack (show depth)
   runRawSql conn ("SAVEPOINT " <> spName)
   result <-
