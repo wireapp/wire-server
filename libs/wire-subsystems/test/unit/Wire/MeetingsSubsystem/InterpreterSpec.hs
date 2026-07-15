@@ -1147,11 +1147,11 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
     it "cleanupOldMeetings deletes in effectiveEndTime order, not endTime order" $ do
       result <-
         runTestStack now gen Map.empty teamConfig $ do
-          -- endTime now-4000, no recurrence  -> effectiveEndTime now-4000 (earliest)
-          plain <- createMeeting zUser (meetingAt (-4000) Nothing)
-          -- endTime now-5000, until now-3500 -> effectiveEndTime now-3500 (later)
-          recur <- createMeeting zUser (meetingAt (-5000) (recurUntil (addUTCTime (-3500) now)))
-          _deleted <- cleanupOldMeetings now 1
+          -- endTime now+8000, no recurrence -> effectiveEndTime now+8000 (earliest)
+          plain <- createMeeting zUser (meetingAt 8000 Nothing)
+          -- endTime now+4000, until now+10000 -> effectiveEndTime now+10000 (later)
+          recur <- createMeeting zUser (meetingAt 4000 (recurUntil (addUTCTime 10000 now)))
+          _deleted <- cleanupOldMeetings (addUTCTime 11000 now) 1
           plainRemains <- isJust <$> getMeeting zUser plain.meeting.id
           recurRemains <- isJust <$> getMeeting zUser recur.meeting.id
           pure (plainRemains, recurRemains)
@@ -1159,7 +1159,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Left err -> fail $ "Error: " <> show err
         Right (plainRemains, recurRemains) -> do
           -- plain has the earlier effectiveEndTime, so it is deleted first;
-          -- recur survives. With the old endTime sort, recur (endTime now-5000)
+          -- recur survives. With the old endTime sort, recur (endTime now+4000)
           -- would be deleted first instead.
           plainRemains `shouldBe` False
           recurRemains `shouldBe` True
