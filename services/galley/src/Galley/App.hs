@@ -195,6 +195,7 @@ type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
      JobSubsystem,
+     Input RequestId,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -553,6 +554,7 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . runInputConst (e ^. reqId)
         . interpretJobSubsystem
           JobSubsystemConfig
             { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName

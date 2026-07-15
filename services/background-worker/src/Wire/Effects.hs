@@ -217,6 +217,7 @@ type BackgroundWorkerEffects =
      TeamJournal,
      LegalHoldStore,
      JobSubsystem,
+     Input RequestId,
      TeamCollaboratorsStore,
      TeamStore,
      ConversationStore,
@@ -331,6 +332,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
+    . runInputConst @RequestId requestId
     . interpretJobSubsystem jobSubsystemConfig
     . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing

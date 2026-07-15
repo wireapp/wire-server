@@ -32,17 +32,20 @@ conversationId = Id . fromJust $ UUID.fromString "00000000-0000-0000-0000-000000
 originUserId :: UserId
 originUserId = Id . fromJust $ UUID.fromString "00000000-0000-0000-0000-000000000003"
 
+requestId :: RequestId
+requestId = RequestId "golden-adminless-job"
+
 deletionScheduledFor :: UTCTimeMillis
 deletionScheduledFor = fromJust $ readUTCTimeMillis "2026-07-14T12:00:00.000Z"
 
 testObject_AdminlessDeletionJob_1 :: AdminlessDeletionJob
-testObject_AdminlessDeletionJob_1 = AdminlessDeletionJob teamId conversationId Nothing
+testObject_AdminlessDeletionJob_1 = AdminlessDeletionJob teamId conversationId Nothing requestId
 
 testObject_AdminlessDeletionJob_2 :: AdminlessDeletionJob
-testObject_AdminlessDeletionJob_2 = AdminlessDeletionJob teamId conversationId (Just originUserId)
+testObject_AdminlessDeletionJob_2 = AdminlessDeletionJob teamId conversationId (Just originUserId) requestId
 
 testObject_AdminlessReminderJob_1 :: AdminlessReminderJob
-testObject_AdminlessReminderJob_1 = AdminlessReminderJob teamId conversationId Nothing deletionScheduledFor
+testObject_AdminlessReminderJob_1 = AdminlessReminderJob teamId conversationId Nothing deletionScheduledFor requestId
 
 testObject_AdminlessReminderJob_2 :: AdminlessReminderJob
-testObject_AdminlessReminderJob_2 = AdminlessReminderJob teamId conversationId (Just originUserId) deletionScheduledFor
+testObject_AdminlessReminderJob_2 = AdminlessReminderJob teamId conversationId (Just originUserId) deletionScheduledFor requestId

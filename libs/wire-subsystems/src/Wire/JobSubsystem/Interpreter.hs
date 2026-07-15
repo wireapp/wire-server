@@ -35,7 +35,7 @@ import Data.Time
 import Hasql.Pool.Extended qualified as HasqlPoolExt
 import Imports
 import Polysemy
-import Polysemy.Input (input)
+import Polysemy.Input (Input, input)
 import Wire.API.Jobs
 import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkerHandlers (..), JobWorkersConfig (..))
 import Wire.JobSubsystem.ArbiterAdapter (WireArbiter, WireArbiterEnv (..), runWireArbiter)
@@ -58,7 +58,7 @@ runJobWorkers pool JobWorkersConfig {..} JobWorkerHandlers {..} = do
   pure $ cleanupRecurring >> cleanupDeletion >> cleanupReminder
 
 interpretJobSubsystem ::
-  (PGConstraints r) =>
+  (PGConstraints r, Member (Input RequestId) r) =>
   JobSubsystemConfig ->
   InterpreterFor JobSubsystem r
 interpretJobSubsystem conf =
@@ -72,7 +72,7 @@ interpretJobSubsystem conf =
 
 scheduleAdminlessDeletionJob ::
   forall r.
-  (PGConstraints r) =>
+  (PGConstraints r, Member (Input RequestId) r) =>
   JobSubsystemConfig ->
   Maybe (Local UserId) ->
   TeamId ->
@@ -80,6 +80,7 @@ scheduleAdminlessDeletionJob ::
   UTCTime ->
   Sem r ()
 scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId scheduledFor = do
+  requestId <- input @RequestId
   pool <- input
   let arbiterEnv =
         WireArbiterEnv
@@ -90,7 +91,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
             preparedStatements = False
           }
   let arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr)))
+        (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" teamId convId,
             ArbiterCore.maxAttempts = Just 3
@@ -99,7 +100,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
 
 scheduleAdminlessReminderJob ::
   forall r.
-  (PGConstraints r) =>
+  (PGConstraints r, Member (Input RequestId) r) =>
   JobSubsystemConfig ->
   Maybe (Local UserId) ->
   TeamId ->
@@ -109,6 +110,7 @@ scheduleAdminlessReminderJob ::
   UTCTime ->
   Sem r ()
 scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletionScheduledFor reminderTimeout scheduledFor = do
+  requestId <- input @RequestId
   pool <- input @HasqlPoolExt.Pool
   let arbiterEnv =
         WireArbiterEnv
@@ -119,7 +121,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
             preparedStatements = False
           }
   let arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor))
+        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey teamId convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3

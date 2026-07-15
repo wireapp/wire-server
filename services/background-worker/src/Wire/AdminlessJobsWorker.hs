@@ -23,7 +23,6 @@ where
 
 import Arbiter.Core.Exceptions (throwRetryable)
 import Arbiter.Core.Job.Types (JobRead, notVisibleUntil, payload)
-import Data.Id (RequestId (..))
 import Data.Qualified (toLocalUnsafe)
 import Imports
 import System.Logger qualified as Log
@@ -41,10 +40,11 @@ runAdminlessDeletionJob extEnv job = do
       . Log.field "team_id" (show job.payload.adminlessDeletionJobTeamId)
       . Log.field "conversation_id" (show job.payload.adminlessDeletionJobConversationId)
       . Log.field "orig_user_id" (show job.payload.adminlessDeletionJobOrigUserId)
+      . Log.field "request_id" (show job.payload.adminlessDeletionJobRequestId)
       . Log.field "scheduled_for" (show job.notVisibleUntil)
   result <-
     liftIO $
-      runBackgroundWorkerEffects env extEnv (RequestId "adminless-deletion") Nothing $
+      runBackgroundWorkerEffects env extEnv job.payload.adminlessDeletionJobRequestId Nothing $
         do
           Log.debug env.logger $
             Log.msg (Log.val "Adminless deletion job: invoking conversation delete")
@@ -66,10 +66,11 @@ runAdminlessReminderJob extEnv job = do
     Log.msg (Log.val "Running adminless reminder job")
       . Log.field "team_id" (show job.payload.adminlessReminderJobTeamId)
       . Log.field "conversation_id" (show job.payload.adminlessReminderJobConversationId)
+      . Log.field "request_id" (show job.payload.adminlessReminderJobRequestId)
       . Log.field "deletion_scheduled_for" (show job.payload.adminlessReminderJobDeletionScheduledFor)
   result <-
     liftIO $
-      runBackgroundWorkerEffects env extEnv (RequestId "adminless-reminder") Nothing $
+      runBackgroundWorkerEffects env extEnv job.payload.adminlessReminderJobRequestId Nothing $
         do
           internalNotifyAdminlessReminder
             (toLocalUnsafe env.federationDomain <$> job.payload.adminlessReminderJobOrigUserId)

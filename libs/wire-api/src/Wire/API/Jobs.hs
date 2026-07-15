@@ -56,22 +56,21 @@ instance FromJSON MeetingsCleanupJob where
   parseJSON _ = fail "MeetingsCleanupJob expects null"
 
 -- | Payload for adminless deletions.
--- Keep the JSON encoding backwards compatible. Arbiter persists these payloads
--- and workers decode them later, so changing field names or shapes without a
--- migration will break already scheduled jobs.
--- The origin user is optional for jobs created by system reconciliation. The
--- current worker path still requires an origin user to emit user-originated
--- conversation events.
+-- Arbiter persists these payloads and workers decode them later, so changes to
+-- field names or shapes require a coordinated rollout. The origin user is
+-- optional for jobs created by system reconciliation; the request ID is always
+-- captured when a job is scheduled.
 data AdminlessDeletionJob = AdminlessDeletionJob
   { adminlessDeletionJobTeamId :: TeamId,
     adminlessDeletionJobConversationId :: ConvId,
-    adminlessDeletionJobOrigUserId :: Maybe UserId
+    adminlessDeletionJobOrigUserId :: Maybe UserId,
+    adminlessDeletionJobRequestId :: RequestId
   }
   deriving stock (Eq, Generic, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AdminlessDeletionJob)
 
 instance Arbitrary AdminlessDeletionJob where
-  arbitrary = AdminlessDeletionJob <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = AdminlessDeletionJob <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance ToSchema AdminlessDeletionJob where
   schema =
@@ -80,25 +79,25 @@ instance ToSchema AdminlessDeletionJob where
         <$> (.adminlessDeletionJobTeamId) .= field "team_id" schema
         <*> (.adminlessDeletionJobConversationId) .= field "conversation_id" schema
         <*> (.adminlessDeletionJobOrigUserId) .= maybe_ (optField "orig_user_id" schema)
+        <*> (.adminlessDeletionJobRequestId) .= field "request_id" schema
 
 -- | Payload for adminless reminders.
--- Keep the JSON encoding backwards compatible. Arbiter persists these payloads
--- and workers decode them later, so changing field names or shapes without a
--- migration will break already scheduled jobs.
--- The origin user is optional for jobs created by system reconciliation. The
--- current worker path still requires an origin user to emit user-originated
--- conversation events.
+-- Arbiter persists these payloads and workers decode them later, so changes to
+-- field names or shapes require a coordinated rollout. The origin user is
+-- optional for jobs created by system reconciliation; the request ID is always
+-- captured when a job is scheduled.
 data AdminlessReminderJob = AdminlessReminderJob
   { adminlessReminderJobTeamId :: TeamId,
     adminlessReminderJobConversationId :: ConvId,
     adminlessReminderJobOrigUserId :: Maybe UserId,
-    adminlessReminderJobDeletionScheduledFor :: UTCTimeMillis
+    adminlessReminderJobDeletionScheduledFor :: UTCTimeMillis,
+    adminlessReminderJobRequestId :: RequestId
   }
   deriving stock (Eq, Generic, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AdminlessReminderJob)
 
 instance Arbitrary AdminlessReminderJob where
-  arbitrary = AdminlessReminderJob <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = AdminlessReminderJob <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance ToSchema AdminlessReminderJob where
   schema =
@@ -108,6 +107,7 @@ instance ToSchema AdminlessReminderJob where
         <*> (.adminlessReminderJobConversationId) .= field "conversation_id" schema
         <*> (.adminlessReminderJobOrigUserId) .= maybe_ (optField "orig_user_id" schema)
         <*> (.adminlessReminderJobDeletionScheduledFor) .= field "deletion_scheduled_for" schema
+        <*> (.adminlessReminderJobRequestId) .= field "request_id" schema
 
 -- | Registry for the scheduled jobs we expose via Arbiter.
 type ScheduledJobsRegistry =
