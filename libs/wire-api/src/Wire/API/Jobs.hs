@@ -21,7 +21,7 @@
 
 module Wire.API.Jobs where
 
-import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
 import Data.Json.Util
 import Data.OpenApi qualified as S
@@ -53,16 +53,13 @@ adminlessReminderQueueName = Text.pack $ symbolVal (Proxy @AdminlessReminderQueu
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
   deriving stock (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MeetingsCleanupJob)
+
+instance ToSchema MeetingsCleanupJob where
+  schema = object $ pure MeetingsCleanupJob
 
 instance Arbitrary MeetingsCleanupJob where
   arbitrary = pure MeetingsCleanupJob
-
-instance ToJSON MeetingsCleanupJob where
-  toJSON MeetingsCleanupJob = Null
-
-instance FromJSON MeetingsCleanupJob where
-  parseJSON Null = pure MeetingsCleanupJob
-  parseJSON _ = fail "MeetingsCleanupJob expects null"
 
 -- | Payload for adminless deletions.
 -- Arbiter persists these payloads and workers decode them later, so changes to
