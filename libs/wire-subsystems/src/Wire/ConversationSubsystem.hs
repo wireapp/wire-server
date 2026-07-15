@@ -343,11 +343,11 @@ data ConversationSubsystem m a where
     Local ConvId ->
     ConversationSubsystem m ()
   InternalDeleteLocalAdminlessGroup ::
-    Local UserId ->
+    Maybe (Local UserId) ->
     Local ConvId ->
     ConversationSubsystem m ()
   InternalNotifyAdminlessReminder ::
-    Local UserId ->
+    Maybe (Local UserId) ->
     Local ConvId ->
     UTCTimeMillis ->
     ConversationSubsystem m ()

@@ -59,10 +59,13 @@ instance FromJSON MeetingsCleanupJob where
 -- Keep the JSON encoding backwards compatible. Arbiter persists these payloads
 -- and workers decode them later, so changing field names or shapes without a
 -- migration will break already scheduled jobs.
+-- The origin user is optional for jobs created by system reconciliation. The
+-- current worker path still requires an origin user to emit user-originated
+-- conversation events.
 data AdminlessDeletionJob = AdminlessDeletionJob
   { adminlessDeletionJobTeamId :: TeamId,
     adminlessDeletionJobConversationId :: ConvId,
-    adminlessDeletionJobOrigUserId :: UserId
+    adminlessDeletionJobOrigUserId :: Maybe UserId
   }
   deriving stock (Eq, Generic, Show)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema AdminlessDeletionJob)
@@ -76,16 +79,19 @@ instance ToSchema AdminlessDeletionJob where
       AdminlessDeletionJob
         <$> (.adminlessDeletionJobTeamId) .= field "team_id" schema
         <*> (.adminlessDeletionJobConversationId) .= field "conversation_id" schema
-        <*> (.adminlessDeletionJobOrigUserId) .= field "orig_user_id" schema
+        <*> (.adminlessDeletionJobOrigUserId) .= maybe_ (optField "orig_user_id" schema)
 
 -- | Payload for adminless reminders.
 -- Keep the JSON encoding backwards compatible. Arbiter persists these payloads
 -- and workers decode them later, so changing field names or shapes without a
 -- migration will break already scheduled jobs.
+-- The origin user is optional for jobs created by system reconciliation. The
+-- current worker path still requires an origin user to emit user-originated
+-- conversation events.
 data AdminlessReminderJob = AdminlessReminderJob
   { adminlessReminderJobTeamId :: TeamId,
     adminlessReminderJobConversationId :: ConvId,
-    adminlessReminderJobOrigUserId :: UserId,
+    adminlessReminderJobOrigUserId :: Maybe UserId,
     adminlessReminderJobDeletionScheduledFor :: UTCTimeMillis
   }
   deriving stock (Eq, Generic, Show)
@@ -100,7 +106,7 @@ instance ToSchema AdminlessReminderJob where
       AdminlessReminderJob
         <$> (.adminlessReminderJobTeamId) .= field "team_id" schema
         <*> (.adminlessReminderJobConversationId) .= field "conversation_id" schema
-        <*> (.adminlessReminderJobOrigUserId) .= field "orig_user_id" schema
+        <*> (.adminlessReminderJobOrigUserId) .= maybe_ (optField "orig_user_id" schema)
         <*> (.adminlessReminderJobDeletionScheduledFor) .= field "deletion_scheduled_for" schema
 
 -- | Registry for the scheduled jobs we expose via Arbiter.

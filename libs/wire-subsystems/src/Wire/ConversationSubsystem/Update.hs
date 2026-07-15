@@ -1224,7 +1224,7 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
       let deletionTimeout = timeoutToNominalDiffTime feature.config.deletionTimeout
           scheduledFor = addUTCTime deletionTimeout now
           deletionScheduledFor = toUTCTimeMillis scheduledFor
-      void $ scheduleAdminlessDeletionJob lusr tid (qUnqualified (tUntagged lcnv)) scheduledFor
+      void $ scheduleAdminlessDeletionJob (Just lusr) tid (qUnqualified (tUntagged lcnv)) scheduledFor
       for_ feature.config.reminderTimeouts $
         scheduleReminder now tid deletionScheduledFor deletionTimeout
 
@@ -1234,7 +1234,7 @@ guardPreventAdminlessGroups responseMode lcnv lusr victim = do
         let reminderAt = addUTCTime (deletionTimeout - reminderTimeout) now
         void $
           scheduleAdminlessReminderJob
-            lusr
+            (Just lusr)
             tid
             (qUnqualified (tUntagged lcnv))
             deletionScheduledFor
@@ -1275,11 +1275,11 @@ adminlessTryAutopromote ::
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r
   ) =>
-  Local UserId ->
+  Maybe (Local UserId) ->
   Local ConvId ->
   (StoredConversation -> Sem r ()) ->
   Sem r ()
-adminlessTryAutopromote lusr lcnv altAction = do
+adminlessTryAutopromote mlusr lcnv altAction = do
   onAdminless lcnv $ \conv feature eligibleMembers -> do
     case eligibleMembers of
       x : xs -> do
@@ -1288,7 +1288,7 @@ adminlessTryAutopromote lusr lcnv altAction = do
             update = (OtherMemberUpdate (Just roleNameWireAdmin))
         for_ autopromotionCandidates $ \candidate -> do
           E.setOtherMember lcnv candidate update
-        void $
+        for_ mlusr \lusr ->
           sendConversationActionNotifications
             (sing @'ConversationMemberUpdateTag)
             (tUntagged lusr)
@@ -1314,14 +1314,14 @@ adminlessAutopromoteOrDelete ::
     Member ProposalStore r,
     Member CodeStore r
   ) =>
-  Local UserId ->
+  Maybe (Local UserId) ->
   Local ConvId ->
   Sem r ()
-adminlessAutopromoteOrDelete lusr lcnv = adminlessTryAutopromote lusr lcnv orAlternativelyDeleteConv
+adminlessAutopromoteOrDelete mlusr lcnv = adminlessTryAutopromote mlusr lcnv orAlternativelyDeleteConv
   where
     orAlternativelyDeleteConv conv = do
       removeConversation (qualifyAs lcnv conv)
-      void $
+      for_ mlusr $ \lusr ->
         sendConversationActionNotifications
           (sing @'ConversationDeleteTag)
           (tUntagged lusr)
@@ -1344,13 +1344,13 @@ adminlessAutopromoteOrSendReminder ::
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r
   ) =>
-  Local UserId ->
+  Maybe (Local UserId) ->
   Local ConvId ->
   UTCTimeMillis ->
   Sem r ()
-adminlessAutopromoteOrSendReminder lusr lcnv deletionScheduledFor = adminlessTryAutopromote lusr lcnv orAlternativelySendReminder
+adminlessAutopromoteOrSendReminder mlusr lcnv deletionScheduledFor = adminlessTryAutopromote mlusr lcnv orAlternativelySendReminder
   where
-    orAlternativelySendReminder conv = do
+    orAlternativelySendReminder conv = for_ mlusr \lusr -> do
       now <- Now.get
       let event =
             Event

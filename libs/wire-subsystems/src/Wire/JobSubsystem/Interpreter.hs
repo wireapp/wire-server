@@ -74,7 +74,7 @@ scheduleAdminlessDeletionJob ::
   forall r.
   (PGConstraints r) =>
   JobSubsystemConfig ->
-  Local UserId ->
+  Maybe (Local UserId) ->
   TeamId ->
   ConvId ->
   UTCTime ->
@@ -90,7 +90,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
             preparedStatements = False
           }
   let arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified lusr)))
+        (ArbiterCore.defaultGroupedJob adminlessDeletionQueueName (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr)))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" teamId convId,
             ArbiterCore.maxAttempts = Just 3
@@ -101,7 +101,7 @@ scheduleAdminlessReminderJob ::
   forall r.
   (PGConstraints r) =>
   JobSubsystemConfig ->
-  Local UserId ->
+  Maybe (Local UserId) ->
   TeamId ->
   ConvId ->
   UTCTimeMillis ->
@@ -119,7 +119,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
             preparedStatements = False
           }
   let arbiterJob =
-        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified lusr) deletionScheduledFor))
+        (ArbiterCore.defaultGroupedJob adminlessReminderQueueName (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor))
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey teamId convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3

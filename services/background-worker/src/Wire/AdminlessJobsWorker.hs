@@ -21,6 +21,7 @@ module Wire.AdminlessJobsWorker
   )
 where
 
+import Arbiter.Core.Exceptions (throwRetryable)
 import Arbiter.Core.Job.Types (JobRead, notVisibleUntil, payload)
 import Data.Id (RequestId (..))
 import Data.Qualified (toLocalUnsafe)
@@ -35,49 +36,47 @@ import Wire.ExternalAccess.External (ExtEnv)
 runAdminlessDeletionJob :: ExtEnv -> JobRead AdminlessDeletionJob -> AppT IO ()
 runAdminlessDeletionJob extEnv job = do
   env <- ask
-  let jobPayload = payload job
-  Log.info env.logger $
+  Log.debug env.logger $
     Log.msg (Log.val "Running adminless deletion job")
-      . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
-      . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
-      . Log.field "orig_user_id" (show (adminlessDeletionJobOrigUserId jobPayload))
-      . Log.field "scheduled_for" (show (notVisibleUntil job))
+      . Log.field "team_id" (show job.payload.adminlessDeletionJobTeamId)
+      . Log.field "conversation_id" (show job.payload.adminlessDeletionJobConversationId)
+      . Log.field "orig_user_id" (show job.payload.adminlessDeletionJobOrigUserId)
+      . Log.field "scheduled_for" (show job.notVisibleUntil)
   result <-
     liftIO $
       runBackgroundWorkerEffects env extEnv (RequestId "adminless-deletion") Nothing $
         do
-          Log.info env.logger $
+          Log.debug env.logger $
             Log.msg (Log.val "Adminless deletion job: invoking conversation delete")
-              . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
-              . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
+              . Log.field "team_id" (show job.payload.adminlessDeletionJobTeamId)
+              . Log.field "conversation_id" (show job.payload.adminlessDeletionJobConversationId)
           internalDeleteLocalAdminlessGroup
-            (toLocalUnsafe env.federationDomain (adminlessDeletionJobOrigUserId jobPayload))
-            (toLocalUnsafe env.federationDomain (adminlessDeletionJobConversationId jobPayload))
-          Log.info env.logger $
+            (toLocalUnsafe env.federationDomain <$> job.payload.adminlessDeletionJobOrigUserId)
+            (toLocalUnsafe env.federationDomain job.payload.adminlessDeletionJobConversationId)
+          Log.debug env.logger $
             Log.msg (Log.val "Adminless deletion job finished")
-              . Log.field "team_id" (show (adminlessDeletionJobTeamId jobPayload))
-              . Log.field "conversation_id" (show (adminlessDeletionJobConversationId jobPayload))
-  either (liftIO . fail . show) pure result
+              . Log.field "team_id" (show job.payload.adminlessDeletionJobTeamId)
+              . Log.field "conversation_id" (show job.payload.adminlessDeletionJobConversationId)
+  either (liftIO . throwRetryable) pure result
 
 runAdminlessReminderJob :: ExtEnv -> JobRead AdminlessReminderJob -> AppT IO ()
 runAdminlessReminderJob extEnv job = do
   env <- ask
-  let jobPayload = payload job
-  Log.info env.logger $
+  Log.debug env.logger $
     Log.msg (Log.val "Running adminless reminder job")
-      . Log.field "team_id" (show (adminlessReminderJobTeamId jobPayload))
-      . Log.field "conversation_id" (show (adminlessReminderJobConversationId jobPayload))
-      . Log.field "deletion_scheduled_for" (show (adminlessReminderJobDeletionScheduledFor jobPayload))
+      . Log.field "team_id" (show job.payload.adminlessReminderJobTeamId)
+      . Log.field "conversation_id" (show job.payload.adminlessReminderJobConversationId)
+      . Log.field "deletion_scheduled_for" (show job.payload.adminlessReminderJobDeletionScheduledFor)
   result <-
     liftIO $
       runBackgroundWorkerEffects env extEnv (RequestId "adminless-reminder") Nothing $
         do
           internalNotifyAdminlessReminder
-            (toLocalUnsafe env.federationDomain (adminlessReminderJobOrigUserId jobPayload))
-            (toLocalUnsafe env.federationDomain (adminlessReminderJobConversationId jobPayload))
-            (adminlessReminderJobDeletionScheduledFor jobPayload)
-          Log.info env.logger $
+            (toLocalUnsafe env.federationDomain <$> job.payload.adminlessReminderJobOrigUserId)
+            (toLocalUnsafe env.federationDomain job.payload.adminlessReminderJobConversationId)
+            job.payload.adminlessReminderJobDeletionScheduledFor
+          Log.debug env.logger $
             Log.msg (Log.val "Adminless reminder job finished")
-              . Log.field "team_id" (show (adminlessReminderJobTeamId jobPayload))
-              . Log.field "conversation_id" (show (adminlessReminderJobConversationId jobPayload))
-  either (liftIO . fail . show) pure result
+              . Log.field "team_id" (show job.payload.adminlessReminderJobTeamId)
+              . Log.field "conversation_id" (show job.payload.adminlessReminderJobConversationId)
+  either (liftIO . throwRetryable) pure result

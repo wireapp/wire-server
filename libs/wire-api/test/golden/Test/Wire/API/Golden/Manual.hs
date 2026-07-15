@@ -21,6 +21,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Wire.API.Golden.Manual.Activate_user
+import Test.Wire.API.Golden.Manual.AdminlessJobs
 import Test.Wire.API.Golden.Manual.App
 import Test.Wire.API.Golden.Manual.CannonId
 import Test.Wire.API.Golden.Manual.ClientCapability
@@ -73,6 +74,16 @@ tests =
     "Manual golden tests"
     [ testGroup "NewApp" $
         testObjects [(testObject_NewApp_1, "testObject_NewApp_1.json")],
+      testGroup "AdminlessDeletionJob" $
+        testObjects
+          [ (testObject_AdminlessDeletionJob_1, "testObject_AdminlessDeletionJob_1.json"),
+            (testObject_AdminlessDeletionJob_2, "testObject_AdminlessDeletionJob_2.json")
+          ],
+      testGroup "AdminlessReminderJob" $
+        testObjects
+          [ (testObject_AdminlessReminderJob_1, "testObject_AdminlessReminderJob_1.json"),
+            (testObject_AdminlessReminderJob_2, "testObject_AdminlessReminderJob_2.json")
+          ],
       testGroup "CreatedApp" $
         testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")],
       testGroup "AppInfo" $
