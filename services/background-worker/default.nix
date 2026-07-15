@@ -6,6 +6,7 @@
 , aeson
 , amqp
 , arbiter-core
+, arbiter-worker
 , base
 , bilge
 , bytestring
@@ -68,6 +69,7 @@ mkDerivation {
     aeson
     amqp
     arbiter-core
+    arbiter-worker
     base
     bilge
     bytestring

@@ -38,6 +38,7 @@ library
       aeson
     , amqp
     , arbiter-core
+    , arbiter-worker
     , base
     , bilge
     , bytestring

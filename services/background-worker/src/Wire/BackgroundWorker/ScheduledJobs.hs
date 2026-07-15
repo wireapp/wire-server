@@ -21,26 +21,21 @@
 module Wire.BackgroundWorker.ScheduledJobs (startWorker) where
 
 import Arbiter.Core qualified as ArbiterCore
+import Arbiter.Worker qualified as ArbiterWorker
 import Data.Id (RequestId (..))
-import Data.Misc (Duration, durationToMicros)
+import Data.Misc (Duration, duration)
+import Data.Range (fromRange)
 import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Wire.API.Jobs
 import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
-import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..), ScheduledJobsConfig (..))
+import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..), ScheduledJobsConfig (..), ScheduledJobsJitter (..))
 import Wire.Effects (runBackgroundWorkerEffects)
 import Wire.ExternalAccess.External (initExtEnv)
 import Wire.JobSubsystem
 import Wire.JobSubsystem.Workers
 import Wire.MeetingsCleanupWorker
-
--- | Initial worker pool size for the scheduled-jobs queues.
---
--- Keep this explicit so the next tuning pass has a single obvious place to
--- change the parallelism for meetings cleanup and adminless jobs.
-scheduledJobsWorkerThreads :: Int
-scheduledJobsWorkerThreads = 1
 
 startWorker :: ScheduledJobsConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
 startWorker scheduledConfig config = do
@@ -63,6 +58,21 @@ startWorker scheduledConfig config = do
               runAppT env $
                 runAdminlessReminderJob extEnv job
           }
+      workerSettings =
+        ScheduledJobWorkerSettings
+          { scheduledJobWorkerThreads = fromRange scheduledConfig.workerThreads,
+            scheduledJobPollInterval = scheduledJobsDuration scheduledConfig.pollInterval,
+            scheduledJobVisibilityTimeout = scheduledJobsDuration scheduledConfig.visibilityTimeout,
+            scheduledJobHeartbeatInterval = scheduledJobsDuration scheduledConfig.jobHeartbeatInterval,
+            scheduledJobWorkerHeartbeatInterval = scheduledJobsDuration scheduledConfig.workerHeartbeatInterval,
+            scheduledJobBackoffBase = scheduledConfig.backoffBase,
+            scheduledJobBackoffCap = scheduledJobsDuration scheduledConfig.backoffCap,
+            scheduledJobJitter = scheduledJobsJitter scheduledConfig.jitter,
+            scheduledJobGracefulShutdownTimeout = fmap scheduledJobsDuration scheduledConfig.gracefulShutdownTimeout,
+            scheduledJobReaperInterval = scheduledJobsDuration scheduledConfig.reaperInterval,
+            scheduledJobReaperTimeout = scheduledJobsDuration scheduledConfig.reaperTimeout,
+            scheduledJobWorkerStaleThreshold = scheduledJobsDuration scheduledConfig.workerStaleThreshold
+          }
       workersConfig =
         JobWorkersConfig
           { recurringJobRunnerConfig =
@@ -74,8 +84,7 @@ startWorker scheduledConfig config = do
                   -- pulled from the JobSubsystem interpreter.
                   recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
                   recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  recurringJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
-                  recurringJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
+                  recurringJobRunnerSettings = workerSettings,
                   recurringJobRunnerJobName = "meetings-cleanup",
                   recurringJobRunnerQueueName = meetingsCleanupQueueName
                 },
@@ -87,8 +96,7 @@ startWorker scheduledConfig config = do
                   -- pulled from the JobSubsystem interpreter.
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  oneOffJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
-                  oneOffJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
+                  oneOffJobRunnerSettings = workerSettings,
                   oneOffJobRunnerJobName = "adminless-deletion",
                   oneOffJobRunnerQueueName = adminlessDeletionQueueName
                 },
@@ -97,8 +105,7 @@ startWorker scheduledConfig config = do
                 { oneOffJobRunnerLogger = env.logger,
                   oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
                   oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  oneOffJobRunnerPollInterval = scheduledJobsPollIntervalSeconds scheduledConfig.pollInterval,
-                  oneOffJobRunnerWorkerThreads = scheduledJobsWorkerThreads,
+                  oneOffJobRunnerSettings = workerSettings,
                   oneOffJobRunnerJobName = "adminless-reminder",
                   oneOffJobRunnerQueueName = adminlessReminderQueueName
                 }
@@ -109,7 +116,11 @@ startWorker scheduledConfig config = do
         startJobWorkers workersConfig jobHandlers
   either (liftIO . fail . show) pure result
 
--- | Convert the explicit background-worker config into the Arbiter poll
--- interval in seconds.
-scheduledJobsPollIntervalSeconds :: Duration -> NominalDiffTime
-scheduledJobsPollIntervalSeconds = (/ 1_000_000) . fromIntegral . durationToMicros
+scheduledJobsDuration :: Duration -> NominalDiffTime
+scheduledJobsDuration = realToFrac . duration
+
+scheduledJobsJitter :: ScheduledJobsJitter -> ArbiterWorker.Jitter
+scheduledJobsJitter = \case
+  ScheduledJobsNoJitter -> ArbiterWorker.NoJitter
+  ScheduledJobsFullJitter -> ArbiterWorker.FullJitter
+  ScheduledJobsEqualJitter -> ArbiterWorker.EqualJitter

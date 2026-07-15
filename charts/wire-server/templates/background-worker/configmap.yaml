@@ -97,6 +97,18 @@ data:
       # Arbiter dispatcher poll interval for all scheduled jobs.
       # Lower values reduce discovery latency, but increase DB polling.
       pollInterval: {{ .scheduledJobs.pollInterval }}
+      # Number of worker threads per scheduled-job queue.
+      workerThreads: {{ .scheduledJobs.workerThreads }}
+      visibilityTimeout: {{ .scheduledJobs.visibilityTimeout }}
+      jobHeartbeatInterval: {{ .scheduledJobs.jobHeartbeatInterval }}
+      workerHeartbeatInterval: {{ .scheduledJobs.workerHeartbeatInterval }}
+      backoffBase: {{ .scheduledJobs.backoffBase }}
+      backoffCap: {{ .scheduledJobs.backoffCap }}
+      jitter: {{ .scheduledJobs.jitter }}
+      gracefulShutdownTimeout: {{ .scheduledJobs.gracefulShutdownTimeout }}
+      reaperInterval: {{ .scheduledJobs.reaperInterval }}
+      reaperTimeout: {{ .scheduledJobs.reaperTimeout }}
+      workerStaleThreshold: {{ .scheduledJobs.workerStaleThreshold }}
     {{- with .meetingsCleanup }}
     meetingsCleanup:
 {{ toYaml . | indent 6 }}

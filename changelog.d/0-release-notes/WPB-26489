@@ -1,1 +1,1 @@
-Background-worker now runs some scheduled jobs. The background-worker configuration includes `scheduledJobs.pollInterval`, which controls how often the scheduler wakes up to look for due jobs.
+Background-worker now runs some scheduled jobs. The background-worker configuration exposes the job dispatcher, worker, retry, shutdown, and reaper settings under `scheduledJobs`; all settings default to the current behavior. `scheduledJobs.workerThreads` defaults to `1`, so no operator action is required when the default parallelism is sufficient.

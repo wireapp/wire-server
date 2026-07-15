@@ -1,6 +1,5 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -22,7 +21,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.JobSubsystem.Workers
-  ( RecurringJobRunnerConfig (..),
+  ( ScheduledJobWorkerSettings (..),
+    RecurringJobRunnerConfig (..),
     OneOffJobRunnerConfig (..),
     runScheduledJobsMigrations,
     runRecurringJobRunner,
@@ -62,14 +62,33 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry)
 import Wire.JobSubsystem.ArbiterAdapter
 
+-- | Runtime settings shared by every scheduled-job runner in a process.
+--
+-- These values deliberately mirror the Arbiter worker defaults that we use.
+-- Keeping them in one record ensures recurring and one-off queues do not
+-- silently drift apart as settings are added or tuned.
+data ScheduledJobWorkerSettings = ScheduledJobWorkerSettings
+  { scheduledJobWorkerThreads :: Int,
+    scheduledJobPollInterval :: NominalDiffTime,
+    scheduledJobVisibilityTimeout :: NominalDiffTime,
+    scheduledJobHeartbeatInterval :: NominalDiffTime,
+    scheduledJobWorkerHeartbeatInterval :: NominalDiffTime,
+    scheduledJobBackoffBase :: Double,
+    scheduledJobBackoffCap :: NominalDiffTime,
+    scheduledJobJitter :: ArbiterWorker.Jitter,
+    scheduledJobGracefulShutdownTimeout :: Maybe NominalDiffTime,
+    scheduledJobReaperInterval :: NominalDiffTime,
+    scheduledJobReaperTimeout :: NominalDiffTime,
+    scheduledJobWorkerStaleThreshold :: NominalDiffTime
+  }
+
 data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
   { recurringJobRunnerLogger :: Log.Logger,
     recurringJobRunnerSchedule :: CronSchedule,
     -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
     recurringJobRunnerArbiterConnStr :: SecretText,
     recurringJobRunnerSchemaName :: Text,
-    recurringJobRunnerPollInterval :: NominalDiffTime,
-    recurringJobRunnerWorkerThreads :: Int,
+    recurringJobRunnerSettings :: ScheduledJobWorkerSettings,
     recurringJobRunnerJobName :: Text,
     recurringJobRunnerQueueName :: Text
   }
@@ -79,8 +98,7 @@ data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
     -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
     oneOffJobRunnerArbiterConnStr :: SecretText,
     oneOffJobRunnerSchemaName :: Text,
-    oneOffJobRunnerPollInterval :: NominalDiffTime,
-    oneOffJobRunnerWorkerThreads :: Int,
+    oneOffJobRunnerSettings :: ScheduledJobWorkerSettings,
     oneOffJobRunnerJobName :: Text,
     oneOffJobRunnerQueueName :: Text
   }
@@ -194,41 +212,41 @@ runRecurringJobRunner ::
   RecurringJobRunnerConfig registry ->
   (MeetingsCleanupJob -> IO ()) ->
   IO (IO ())
-runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
-  let arbiterConnStr = Text.encodeUtf8 (revealSecretText recurringJobRunnerArbiterConnStr)
-  Log.info recurringJobRunnerLogger $
+runRecurringJobRunner postgresPool runnerConfig runJob = do
+  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.recurringJobRunnerArbiterConnStr)
+  Log.info runnerConfig.recurringJobRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
-      . Log.field "job_name" recurringJobRunnerJobName
-      . Log.field "queue_name" recurringJobRunnerQueueName
-      . Log.field "schedule" (show recurringJobRunnerSchedule)
+      . Log.field "job_name" runnerConfig.recurringJobRunnerJobName
+      . Log.field "queue_name" runnerConfig.recurringJobRunnerQueueName
+      . Log.field "schedule" (show runnerConfig.recurringJobRunnerSchedule)
 
-  let arbiterEnv = mkNewWireArbiterEnv recurringJobRunnerSchemaName postgresPool
+  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.recurringJobRunnerSchemaName postgresPool
       workerHandler _conn job =
         liftIO $ do
-          Log.info recurringJobRunnerLogger $
+          Log.info runnerConfig.recurringJobRunnerLogger $
             Log.msg (Log.val "Running scheduled job")
-              . Log.field "job_name" recurringJobRunnerJobName
-              . Log.field "queue_name" recurringJobRunnerQueueName
+              . Log.field "job_name" runnerConfig.recurringJobRunnerJobName
+              . Log.field "queue_name" runnerConfig.recurringJobRunnerQueueName
           runJob (ArbiterCore.payload job)
 
       cronJob =
         case ArbiterWorkerCron.cronJob
-          recurringJobRunnerJobName
-          (serializeCronSchedule recurringJobRunnerSchedule)
+          runnerConfig.recurringJobRunnerJobName
+          (serializeCronSchedule runnerConfig.recurringJobRunnerSchedule)
           ArbiterWorkerCron.SkipOverlap
           ( \_ scheduledFor ->
-              (ArbiterCore.defaultGroupedJob recurringJobRunnerQueueName MeetingsCleanupJob)
+              (ArbiterCore.defaultGroupedJob runnerConfig.recurringJobRunnerQueueName MeetingsCleanupJob)
                 { ArbiterCore.notVisibleUntil = Just scheduledFor,
                   ArbiterCore.maxAttempts = Just 3
                 }
           ) of
-          Left err -> error $ "Invalid cron schedule for " <> T.unpack recurringJobRunnerJobName <> ": " <> err
+          Left err -> error $ "Invalid cron schedule for " <> T.unpack runnerConfig.recurringJobRunnerJobName <> ": " <> err
           Right job -> job
 
   workerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
         arbiterConnStr
-        recurringJobRunnerWorkerThreads
+        runnerConfig.recurringJobRunnerSettings.scheduledJobWorkerThreads
         workerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
@@ -239,7 +257,7 @@ runRecurringJobRunner postgresPool RecurringJobRunnerConfig {..} runJob = do
     )
   let workerConfig' =
         applyExplicitDefaults
-          recurringJobRunnerPollInterval
+          runnerConfig.recurringJobRunnerSettings
           workerConfig
             { ArbiterWorkerConfig.cronJobs = [cronJob]
             }
@@ -265,82 +283,81 @@ runOneOffJobRunner ::
   OneOffJobRunnerConfig registry payload ->
   (JobRead payload -> IO ()) ->
   IO (IO ())
-runOneOffJobRunner postgresPool OneOffJobRunnerConfig {..} runJob = do
-  let arbiterConnStr = Text.encodeUtf8 (revealSecretText oneOffJobRunnerArbiterConnStr)
-  Log.info oneOffJobRunnerLogger $
+runOneOffJobRunner postgresPool runnerConfig runJob = do
+  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.oneOffJobRunnerArbiterConnStr)
+  Log.info runnerConfig.oneOffJobRunnerLogger $
     Log.msg (Log.val "Starting one-off jobs worker")
-      . Log.field "job_name" oneOffJobRunnerJobName
-      . Log.field "queue_name" oneOffJobRunnerQueueName
+      . Log.field "job_name" runnerConfig.oneOffJobRunnerJobName
+      . Log.field "queue_name" runnerConfig.oneOffJobRunnerQueueName
 
-  let arbiterEnv = mkNewWireArbiterEnv oneOffJobRunnerSchemaName postgresPool
+  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.oneOffJobRunnerSchemaName postgresPool
       workerHandler _conn job =
         liftIO $ do
-          Log.info oneOffJobRunnerLogger $
+          Log.info runnerConfig.oneOffJobRunnerLogger $
             Log.msg (Log.val "Running one-off job")
-              . Log.field "job_name" oneOffJobRunnerJobName
-              . Log.field "queue_name" oneOffJobRunnerQueueName
+              . Log.field "job_name" runnerConfig.oneOffJobRunnerJobName
+              . Log.field "queue_name" runnerConfig.oneOffJobRunnerQueueName
           runJob job
 
   workerConfig <-
-    ( ArbiterWorker.defaultWorkerConfig
-        arbiterConnStr
-        oneOffJobRunnerWorkerThreads
-        workerHandler ::
-        IO
-          ( ArbiterWorker.WorkerConfig
-              (WireArbiter registry)
-              payload
-              ()
+    applyExplicitDefaults runnerConfig.oneOffJobRunnerSettings
+      <$> ( ArbiterWorker.defaultWorkerConfig
+              arbiterConnStr
+              runnerConfig.oneOffJobRunnerSettings.scheduledJobWorkerThreads
+              workerHandler ::
+              IO
+                ( ArbiterWorker.WorkerConfig
+                    (WireArbiter registry)
+                    payload
+                    ()
+                )
           )
-    )
-  let workerConfig' = applyExplicitDefaults oneOffJobRunnerPollInterval workerConfig
 
   workerAsync <-
     Async.async $
       runWireArbiter arbiterEnv $
-        ArbiterWorker.runWorkerPool workerConfig'
+        ArbiterWorker.runWorkerPool workerConfig
 
   pure $ do
-    ArbiterWorker.shutdownWorker workerConfig'
+    ArbiterWorker.shutdownWorker workerConfig
     Async.cancel workerAsync
 
--- | Make the effective Arbiter defaults explicit in our code, even when we
--- keep the same values as 'defaultWorkerConfig'.
---
--- This is intentionally redundant with Arbiter's own defaults. The point is to
--- show the runtime behavior in our repository and keep the knobs in one place
--- if we need to tune them later.
 applyExplicitDefaults ::
-  NominalDiffTime ->
+  ScheduledJobWorkerSettings ->
   ArbiterWorker.WorkerConfig m payload result ->
   ArbiterWorker.WorkerConfig m payload result
-applyExplicitDefaults pollInterval cfg =
+applyExplicitDefaults settings cfg =
   cfg
     { -- How often the dispatcher wakes up to look for newly visible jobs.
       -- Lower values reduce discovery latency at the cost of more DB traffic.
-      ArbiterWorkerConfig.pollInterval = pollInterval,
+      ArbiterWorkerConfig.pollInterval = settings.scheduledJobPollInterval,
       -- How long a claimed job stays invisible while a worker processes it.
       -- Must exceed the job heartbeat interval so active jobs are not reclaimed.
-      ArbiterWorkerConfig.visibilityTimeout = 60,
+      ArbiterWorkerConfig.visibilityTimeout = settings.scheduledJobVisibilityTimeout,
       -- How often a running job refreshes its visibility timeout.
       -- Keeps long-running jobs from being reclaimed mid-flight.
-      ArbiterWorkerConfig.jobHeartbeatInterval = 30,
+      ArbiterWorkerConfig.jobHeartbeatInterval = settings.scheduledJobHeartbeatInterval,
       -- How often the worker process updates its own heartbeat and pause state.
       -- This drives liveness, re-registration, and paused-state reconciliation.
-      ArbiterWorkerConfig.workerHeartbeatInterval = 10,
+      ArbiterWorkerConfig.workerHeartbeatInterval = settings.scheduledJobWorkerHeartbeatInterval,
       -- Retry strategy for transient worker failures.
       -- Arbiter uses exponential backoff with jitter by default.
-      ArbiterWorkerConfig.backoffStrategy = ArbiterWorker.exponentialBackoff 2.0 1_048_576,
+      ArbiterWorkerConfig.backoffStrategy =
+        ArbiterWorker.exponentialBackoff
+          settings.scheduledJobBackoffBase
+          settings.scheduledJobBackoffCap,
       -- Jitter mode for retry delays.
       -- Equal jitter smooths retry spikes without making them too aggressive.
-      ArbiterWorkerConfig.jitter = ArbiterWorker.EqualJitter,
+      ArbiterWorkerConfig.jitter = settings.scheduledJobJitter,
       -- How long the worker waits for in-flight jobs during shutdown.
       -- If set, the pool exits after this grace period instead of waiting forever.
-      ArbiterWorkerConfig.gracefulShutdownTimeout = Just 30,
+      ArbiterWorkerConfig.gracefulShutdownTimeout = settings.scheduledJobGracefulShutdownTimeout,
       -- How often the reaper runs. It refreshes groups, sweeps stale workers,
       -- and moves exhausted jobs to the DLQ.
-      ArbiterWorkerConfig.reaperInterval = 300,
+      ArbiterWorkerConfig.reaperInterval = settings.scheduledJobReaperInterval,
+      -- Maximum time allowed for one reaper pass.
+      ArbiterWorkerConfig.reaperTimeout = settings.scheduledJobReaperTimeout,
       -- How old a worker heartbeat may be before it is considered stale.
       -- Stale workers are swept from the registry by the reaper.
-      ArbiterWorkerConfig.workerStaleThreshold = 300
+      ArbiterWorkerConfig.workerStaleThreshold = settings.scheduledJobWorkerStaleThreshold
     }

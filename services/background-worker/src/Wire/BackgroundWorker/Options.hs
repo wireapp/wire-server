@@ -22,7 +22,7 @@ module Wire.BackgroundWorker.Options where
 import Data.Aeson
 import Data.Aeson.Types (JSONPathElement (Key), parserThrowError)
 import Data.Misc
-import Data.Range (Range)
+import Data.Range (Range, unsafeRange)
 import GHC.Generics
 import Hasql.Pool.Extended
 import Imports
@@ -103,17 +103,79 @@ data BackgroundJobsConfig = BackgroundJobsConfig
 data ScheduledJobsConfig = ScheduledJobsConfig
   { -- | Arbiter dispatcher poll interval for scheduled jobs.
     -- Lower values reduce discovery latency for due jobs.
-    pollInterval :: Duration
+    pollInterval :: Duration,
+    -- | Number of worker threads in each scheduled-job queue.
+    workerThreads :: Range 1 1000 Int,
+    -- | How long a claimed job remains invisible while it is processed.
+    visibilityTimeout :: Duration,
+    -- | How often a running job refreshes its visibility timeout.
+    jobHeartbeatInterval :: Duration,
+    -- | How often a worker refreshes its own heartbeat.
+    workerHeartbeatInterval :: Duration,
+    -- | Base used by Arbiter's exponential retry backoff.
+    backoffBase :: Double,
+    -- | Upper bound for Arbiter's exponential retry backoff.
+    backoffCap :: Duration,
+    -- | Jitter mode used for retry delays.
+    jitter :: ScheduledJobsJitter,
+    -- | Maximum time to wait for in-flight jobs during shutdown.
+    -- 'Nothing' waits indefinitely.
+    gracefulShutdownTimeout :: Maybe Duration,
+    -- | How often the Arbiter reaper runs.
+    reaperInterval :: Duration,
+    -- | Maximum time allowed for one reaper pass.
+    reaperTimeout :: Duration,
+    -- | How old a worker heartbeat may be before it is considered stale.
+    workerStaleThreshold :: Duration
   }
   deriving (Show, Generic)
+
+data ScheduledJobsJitter
+  = ScheduledJobsNoJitter
+  | ScheduledJobsFullJitter
+  | ScheduledJobsEqualJitter
+  deriving (Eq, Show, Generic)
+
+instance FromJSON ScheduledJobsJitter where
+  parseJSON = withText "ScheduledJobsJitter" $ \value ->
+    case value of
+      "none" -> pure ScheduledJobsNoJitter
+      "full" -> pure ScheduledJobsFullJitter
+      "equal" -> pure ScheduledJobsEqualJitter
+      _ -> fail "expected one of: none, full, equal"
 
 instance FromJSON ScheduledJobsConfig where
   parseJSON =
     withObject "ScheduledJobsConfig" $ \o -> do
-      pollInterval <- o .: "pollInterval"
-      when (duration pollInterval <= 0) $
-        parserThrowError [Key "pollInterval"] $
-          "pollInterval must be greater than 0, got: " <> show pollInterval
+      pollInterval <- o .:? "pollInterval" .!= unsafeParseDuration "5s"
+      workerThreads <- o .:? "workerThreads" .!= unsafeRange 1
+      visibilityTimeout <- o .:? "visibilityTimeout" .!= unsafeParseDuration "60s"
+      jobHeartbeatInterval <- o .:? "jobHeartbeatInterval" .!= unsafeParseDuration "30s"
+      workerHeartbeatInterval <- o .:? "workerHeartbeatInterval" .!= unsafeParseDuration "10s"
+      backoffBase <- o .:? "backoffBase" .!= 2.0
+      backoffCap <- o .:? "backoffCap" .!= unsafeParseDuration "1048576s"
+      jitter <- o .:? "jitter" .!= ScheduledJobsEqualJitter
+      gracefulShutdownTimeout <-
+        o .:? "gracefulShutdownTimeout" .!= Just (unsafeParseDuration "30s")
+      reaperInterval <- o .:? "reaperInterval" .!= unsafeParseDuration "300s"
+      reaperTimeout <- o .:? "reaperTimeout" .!= unsafeParseDuration "300s"
+      workerStaleThreshold <- o .:? "workerStaleThreshold" .!= unsafeParseDuration "300s"
+      let validatePositive key value =
+            when (duration value <= 0) $
+              parserThrowError [Key key] $
+                show key <> " must be greater than 0, got: " <> show value
+      validatePositive "pollInterval" pollInterval
+      validatePositive "visibilityTimeout" visibilityTimeout
+      validatePositive "jobHeartbeatInterval" jobHeartbeatInterval
+      validatePositive "workerHeartbeatInterval" workerHeartbeatInterval
+      validatePositive "backoffCap" backoffCap
+      validatePositive "reaperInterval" reaperInterval
+      validatePositive "reaperTimeout" reaperTimeout
+      validatePositive "workerStaleThreshold" workerStaleThreshold
+      for_ gracefulShutdownTimeout $ validatePositive "gracefulShutdownTimeout"
+      when (backoffBase <= 0) $
+        parserThrowError [Key "backoffBase"] $
+          "backoffBase must be greater than 0, got: " <> show backoffBase
       pure ScheduledJobsConfig {..}
 
 data MeetingsCleanupConfig = MeetingsCleanupConfig

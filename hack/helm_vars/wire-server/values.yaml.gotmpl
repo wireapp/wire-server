@@ -646,6 +646,19 @@ background-worker:
       concurrency: 8
       jobTimeout: 60s
       maxAttempts: 3
+    scheduledJobs:
+      pollInterval: 5s
+      workerThreads: 1
+      visibilityTimeout: 60s
+      jobHeartbeatInterval: 30s
+      workerHeartbeatInterval: 10s
+      backoffBase: 2.0
+      backoffCap: 1048576s
+      jitter: equal
+      gracefulShutdownTimeout: 30s
+      reaperInterval: 300s
+      reaperTimeout: 300s
+      workerStaleThreshold: 300s
     meetingsCleanup:
       cleanOlderThanHours: 0.0014
       batchSize: 100

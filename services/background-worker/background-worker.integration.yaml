@@ -68,6 +68,17 @@ backgroundJobs:
 # Scheduled-jobs dispatcher configuration for integration
 scheduledJobs:
   pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
+  workerThreads: 1 # Keep one worker per scheduled-job queue in integration tests
+  visibilityTimeout: 60s
+  jobHeartbeatInterval: 30s
+  workerHeartbeatInterval: 10s
+  backoffBase: 2.0
+  backoffCap: 1048576s
+  jitter: equal
+  gracefulShutdownTimeout: 30s
+  reaperInterval: 300s
+  reaperTimeout: 300s
+  workerStaleThreshold: 300s
 
 # Meetings cleanup configuration for integration
 meetingsCleanup:

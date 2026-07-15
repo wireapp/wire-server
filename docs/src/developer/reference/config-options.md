@@ -2210,6 +2210,21 @@ backgroundJobs:
   jobTimeout: 60s    # per attempt
   maxAttempts: 3     # total attempts incl. first run
 
+# Scheduled jobs
+scheduledJobs:
+  pollInterval: 5s   # how often due jobs are discovered
+  workerThreads: 1   # worker threads per scheduled-job queue
+  visibilityTimeout: 60s       # how long a claimed job stays invisible
+  jobHeartbeatInterval: 30s    # refresh interval for running jobs
+  workerHeartbeatInterval: 10s # refresh interval for worker liveness
+  backoffBase: 2.0             # exponential retry backoff base
+  backoffCap: 1048576s         # maximum exponential retry backoff
+  jitter: equal                # none, full, or equal retry jitter
+  gracefulShutdownTimeout: 30s # maximum shutdown grace period
+  reaperInterval: 300s         # Arbiter reaper interval
+  reaperTimeout: 300s          # maximum duration of one reaper pass
+  workerStaleThreshold: 300s   # worker heartbeat staleness threshold
+
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
@@ -2235,4 +2250,6 @@ Notes
 - The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
+- `scheduledJobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
 - `scheduledJobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
+- `scheduledJobs.workerThreads` controls the number of worker threads for each scheduled-job queue. The default is `1`; increasing it allows jobs in the same queue to run in parallel when their group keys permit it.
