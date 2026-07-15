@@ -90,6 +90,7 @@ import Wire.API.UserGroup (UserGroup)
 import Wire.API.UserGroup.Pagination
 import Wire.API.UserMap
 import Wire.ActivationCodeStore (ActivationCodeStore)
+import Wire.ActivationCodeStore qualified as ActivationCode
 import Wire.AppStore (AppStore)
 import Wire.AppStore qualified as AppStore
 import Wire.AppSubsystem (AppSubsystem)
@@ -128,6 +129,7 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import Wire.SparAPIAccess (SparAPIAccess)
+import Wire.StoredUser (StoredUser (emailUnvalidated))
 import Wire.TeamInvitationSubsystem
 import Wire.TeamSubsystem (TeamSubsystem)
 import Wire.UserGroupSubsystem
@@ -282,6 +284,7 @@ accountAPI =
     :<|> Named @"iPutUserSsoId" updateSSOIdH
     :<|> Named @"iDeleteUserSsoId" deleteSSOIdH
     :<|> Named @"iPutManagedBy" updateManagedByH
+    :<|> Named @"iDeletePendingEmailUpdate" deletePendingEmailUpdateH
     :<|> Named @"iPutRichInfo" updateRichInfoH
     :<|> Named @"iPutHandle" updateHandleH
     :<|> Named @"iPutUserName" updateUserNameH
@@ -897,6 +900,20 @@ deleteSSOIdH uid = lift $ do
 updateManagedByH :: (Member UserStore r) => UserId -> ManagedByUpdate -> (Handler r) NoContent
 updateManagedByH uid (ManagedByUpdate managedBy) = do
   NoContent <$ lift (liftSem $ UserStore.updateManagedBy uid managedBy)
+
+deletePendingEmailUpdateH ::
+  ( Member UserStore r,
+    Member ActivationCodeStore r
+  ) =>
+  UserId ->
+  (Handler r) NoContent
+deletePendingEmailUpdateH uid = do
+  mUser <- lift . liftSem $ UserStore.getUser uid
+  for_ (emailUnvalidated =<< mUser) $ \email ->
+    lift . liftSem $ do
+      ActivationCode.deleteActivationCode (mkEmailKey email)
+      UserStore.deleteEmailUnvalidated uid
+  pure NoContent
 
 updateRichInfoH :: (Member UserStore r) => UserId -> RichInfoUpdate -> (Handler r) NoContent
 updateRichInfoH uid rup =
