@@ -25,21 +25,30 @@ import Data.Aeson (FromJSON, ToJSON, Value (Null), parseJSON, toJSON)
 import Data.Id
 import Data.Json.Util
 import Data.OpenApi qualified as S
+import Data.Proxy
 import Data.Schema
+import Data.Text as Text
+import GHC.TypeLits
 import Imports
 import Test.QuickCheck (Arbitrary (..))
 
 -- | Shared queue name for the scheduled meetings cleanup job.
+type MeetingsCleanupQueueName = "meetings_cleanup_jobs"
+
 meetingsCleanupQueueName :: Text
-meetingsCleanupQueueName = "meetings_cleanup_jobs"
+meetingsCleanupQueueName = Text.pack $ symbolVal (Proxy @MeetingsCleanupQueueName)
 
 -- | Shared queue name for the adminless deletion job.
+type AdminlessDeletionQueueName = "adminless_deletion_jobs"
+
 adminlessDeletionQueueName :: Text
-adminlessDeletionQueueName = "adminless_deletion_jobs"
+adminlessDeletionQueueName = Text.pack $ symbolVal (Proxy @AdminlessDeletionQueueName)
 
 -- | Shared queue name for the adminless reminder job.
+type AdminlessReminderQueueName = "adminless_reminder_jobs"
+
 adminlessReminderQueueName :: Text
-adminlessReminderQueueName = "adminless_reminder_jobs"
+adminlessReminderQueueName = Text.pack $ symbolVal (Proxy @AdminlessReminderQueueName)
 
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
@@ -111,7 +120,7 @@ instance ToSchema AdminlessReminderJob where
 
 -- | Registry for the scheduled jobs we expose via Arbiter.
 type ScheduledJobsRegistry =
-  '[ '("meetings_cleanup_jobs", MeetingsCleanupJob),
-     '("adminless_deletion_jobs", AdminlessDeletionJob),
-     '("adminless_reminder_jobs", AdminlessReminderJob)
+  '[ '(MeetingsCleanupQueueName, MeetingsCleanupJob),
+     '(AdminlessReminderQueueName, AdminlessDeletionJob),
+     '(AdminlessDeletionQueueName, AdminlessReminderJob)
    ]
