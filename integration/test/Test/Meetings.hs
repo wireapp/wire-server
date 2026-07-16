@@ -10,7 +10,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import qualified Data.Time.Format as Time
 import MLS.Util
-import Notifications (isConvCreateMeetingNotif)
+import Notifications (isConvCreateMeetingNotif, isMeetingCreateNotif, isMeetingDeleteNotif, isMeetingUpdateNotif)
 import SetupHelpers
 import System.Timeout (timeout)
 import Testlib.Prelude
@@ -31,6 +31,7 @@ testMeetingCreate = do
       resp <- postMeetings owner newMeeting
       assertSuccess resp
       void $ awaitMatch isConvCreateMeetingNotif ws
+      void $ awaitMatch isMeetingCreateNotif ws
       getJSON 201 resp
 
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
@@ -213,8 +214,11 @@ testMeetingRecurrence = do
             "recurrence" .= updatedRecurrence
           ]
 
-  r2 <- putMeeting owner domain meetingId updatedMeeting
-  assertSuccess r2
+  r2 <- withWebSocket owner $ \ws -> do
+    resp <- putMeeting owner domain meetingId updatedMeeting
+    assertSuccess resp
+    void $ awaitMatch isMeetingUpdateNotif ws
+    pure resp
 
   updated <- getJSON 200 r2
   updated %. "title" `shouldMatch` ("Updated Standup" :: String)
@@ -454,7 +458,9 @@ testMeetingDelete = do
   assertSuccess r1
   meeting <- getJSON 201 r1
   (meetingId, domain) <- getMeetingIdAndDomain meeting
-  deleteMeeting owner domain meetingId >>= assertStatus 200
+  withWebSocket owner $ \ws -> do
+    deleteMeeting owner domain meetingId >>= assertStatus 200
+    void $ awaitMatch isMeetingDeleteNotif ws
   getMeeting owner domain meetingId >>= assertStatus 404
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()

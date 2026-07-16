@@ -17,6 +17,7 @@
 
 module Wire.MeetingsSubsystem.InterpreterSpec (spec) where
 
+import Data.Aeson (Result (..), Value (Object), fromJSON)
 import Data.ByteString.Char8 qualified as C
 import Data.Default (def)
 import Data.Domain (Domain (..))
@@ -43,6 +44,7 @@ import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Conversation (Access (InviteAccess, PrivateAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
+import Wire.API.Event.Conversation qualified as ConvEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -54,6 +56,7 @@ import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
 import Wire.MeetingsSubsystem.Interpreter
 import Wire.MockInterpreters
+import Wire.NotificationSubsystem (NotificationSubsystem, Push (..))
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
@@ -67,11 +70,13 @@ type TestStack =
      ConversationSubsystem,
      TeamSubsystem,
      FeaturesConfigSubsystem,
+     NotificationSubsystem,
      TinyLog,
      Error MeetingError,
      State (Map MeetingId Store.StoredMeeting),
      State (Map ConvId StoredConversation),
      State (Map ConvId (Set UserId)),
+     State [Push],
      GalleyAPIAccess,
      Now,
      State UTCTime,
@@ -117,16 +122,34 @@ runTestStack now gen teams configs =
     . evalState now
     . interpretNowAsState
     . miniGalleyAPIAccess teams configs
+    . evalState ([] :: [Push])
     . evalState Map.empty
     . evalState Map.empty
     . evalState Map.empty
     . runError @MeetingError
     . discardTinyLogs
+    . inMemoryNotificationSubsystemInterpreter
     . interpretFeaturesConfigSubsystemPure configs
     . interpretTeamSubsystemToGalleyAPI
     . inMemoryConversationSubsystemInterpreter
     . inMemoryMeetingsStoreInterpreter
     . interpretMeetingsSubsystem 3600
+
+-- | Decode all 'Push' payloads that are conversation events carrying meeting
+-- lifecycle data.
+extractMeetingEvents :: [Push] -> [ConvEvent.Event]
+extractMeetingEvents pushes =
+  [ e
+  | push <- pushes,
+    Success e <- [fromJSON (Object push.json)],
+    isMeetingEvent e
+  ]
+  where
+    isMeetingEvent e = case e.evtData of
+      ConvEvent.EdMeetingCreate _ -> True
+      ConvEvent.EdMeetingUpdate _ -> True
+      ConvEvent.EdMeetingDelete _ -> True
+      _ -> False
 
 spec :: Spec
 spec = describe "MeetingsSubsystem.Interpreter" $ do
@@ -1332,6 +1355,101 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
               replaceInvitedEmails zUserTeam meeting.meeting.id [unsafeEmailAddress "test" "example.com"]
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
+
+  describe "meeting events" $ do
+    let now = UTCTime (fromGregorian 2026 1 1) 0
+        gen = mkStdGen 42
+        uid1 = Id $ read "00000000-0000-0000-0000-000000000001"
+        uid2 = Id $ read "00000000-0000-0000-0000-000000000002"
+        zUser1 = toLocalUnsafe (Domain "wire.com") uid1
+        zUser2 = toLocalUnsafe (Domain "wire.com") uid2
+        teamId = Id $ read "00000000-0000-0000-0000-000000000100"
+        teamMember1 = mkTeamMember uid1 fullPermissions Nothing UserLegalHoldDisabled
+        teamMember2 = mkTeamMember uid2 fullPermissions Nothing UserLegalHoldDisabled
+        teamConfig =
+          npUpdate @MeetingsConfig (LockableFeature FeatureStatusEnabled LockStatusUnlocked def) def
+        newMeeting =
+          API.NewMeeting
+            { title = fromJust $ checked "Event Test Meeting",
+              startTime = addUTCTime 3600 now,
+              endTime = addUTCTime 7200 now,
+              recurrence = Nothing,
+              invitedEmails = []
+            }
+
+    it "emits a meeting.create event on successful create" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
+          meeting <- createMeeting zUser1 newMeeting
+          pushes <- get @[Push]
+          pure (meeting, pushes)
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right (meeting, pushes) -> do
+          let events = extractMeetingEvents pushes
+          length events `shouldBe` 1
+          case (head events).evtData of
+            ConvEvent.EdMeetingCreate mid -> mid `shouldBe` meeting.meeting.id
+            other -> fail $ "expected EdMeetingCreate, got " <> show other
+
+    it "emits a meeting.update event on successful update" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
+          meeting <- createMeeting zUser1 newMeeting
+          put @[Push] []
+          _ <- updateMeeting zUser1 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Updated")) Nothing)
+          get @[Push]
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right pushes -> do
+          let events = extractMeetingEvents pushes
+          length events `shouldBe` 1
+          case (head events).evtData of
+            ConvEvent.EdMeetingUpdate _ -> pure ()
+            other -> fail $ "expected EdMeetingUpdate, got " <> show other
+
+    it "emits a meeting.delete event on successful delete" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember1]) teamConfig $ do
+          meeting <- createMeeting zUser1 newMeeting
+          put @[Push] []
+          _ <- deleteMeeting zUser1 (ConnId "test-conn") meeting.meeting.id
+          get @[Push]
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right pushes -> do
+          let events = extractMeetingEvents pushes
+          length events `shouldBe` 1
+          case (head events).evtData of
+            ConvEvent.EdMeetingDelete _ -> pure ()
+            other -> fail $ "expected EdMeetingDelete, got " <> show other
+
+    it "does not emit an event when updateMeeting fails (non-creator)" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+          meeting <- createMeeting zUser1 newMeeting
+          put @[Push] []
+          _ <- updateMeeting zUser2 meeting.meeting.id (API.UpdateMeeting Nothing Nothing (Just (unsafeRange "Hijack")) Nothing)
+          get @[Push]
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right pushes -> extractMeetingEvents pushes `shouldBe` []
+
+    it "does not emit an event when deleteMeeting fails (non-creator)" $ do
+      result <-
+        runTestStack now gen (Map.singleton teamId [teamMember1, teamMember2]) teamConfig $ do
+          meeting <- createMeeting zUser1 newMeeting
+          put @[Push] []
+          _ <- deleteMeeting zUser2 (ConnId "test-conn") meeting.meeting.id
+          get @[Push]
+
+      case result of
+        Left err -> fail $ "Error: " <> show err
+        Right pushes -> extractMeetingEvents pushes `shouldBe` []
 
 -- | Synchronize with 'Wire.MeetingsSubsystem.Interpreter.startTimeTolerance'
 expectedStartTimeTolerance :: NominalDiffTime

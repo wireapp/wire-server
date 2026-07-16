@@ -27,6 +27,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Domain (Domain)
 import Data.Id
+import Data.Json.Util (toJSONObject)
 import Data.Map qualified as Map
 import Data.Qualified (Local, Qualified (..), inputQualifyLocal, qualifyAs, tDomain, tUnqualified)
 import Data.Range (Range, unsafeRange)
@@ -41,7 +42,9 @@ import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Event.Conversation qualified as ConvEvent
 import Wire.API.Meeting qualified as API
+import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
 import Wire.API.Team.Feature (FeatureStatus (..), LockableFeature (..), MeetingsConfig)
 import Wire.API.User (BaseProtocolTag (BaseProtocolMLSTag), EmailAddress)
@@ -50,6 +53,7 @@ import Wire.ConversationSubsystem qualified as ConversationSubsystem
 import Wire.FeaturesConfigSubsystem (FeaturesConfigSubsystem, getFeatureForTeam)
 import Wire.MeetingsStore qualified as Store
 import Wire.MeetingsSubsystem
+import Wire.NotificationSubsystem
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredConversation
@@ -93,6 +97,7 @@ interpretMeetingsSubsystem ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member NotificationSubsystem r,
     Member Now r,
     Member TinyLog r,
     Member (Error MeetingError) r,
@@ -125,6 +130,7 @@ createMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member NotificationSubsystem r,
     Member Now r,
     Member (Error MeetingError) r
   ) =>
@@ -186,6 +192,9 @@ createMeetingImpl zUser newMeeting = do
       newMeeting.invitedEmails
       trial
 
+  let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
+  pushMeetingEvent zUser Nothing storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId (ConvEvent.EdMeetingCreate qMeetingId)
+
   pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
 updateMeetingImpl ::
@@ -193,6 +202,7 @@ updateMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
@@ -233,6 +243,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.endTime
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
+    lift $ pushMeetingEvent zUser Nothing conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId (ConvEvent.EdMeetingUpdate meetingId)
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::
@@ -240,6 +251,7 @@ deleteMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
+    Member NotificationSubsystem r,
     Member TinyLog r,
     Member (Error MeetingError) r,
     Member Now r
@@ -268,6 +280,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
           void $
             ConversationSubsystem.deleteLocalConversation zUser connId lConvId
       lift $ Store.deleteMeeting (qUnqualified meetingId)
+      lift $ pushMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId (ConvEvent.EdMeetingDelete meetingId)
   pure $ isJust result
 
 getMeetingImpl ::
@@ -323,6 +336,43 @@ getMeetingConversationOrFail meetingId convId = do
           . Log.field "conversationId" (toByteString' convId)
           . Log.field "meetingId" (toByteString' (qUnqualified meetingId))
       pure Nothing
+
+-- | Push a meeting lifecycle event to all local members of the meeting's
+-- conversation via the 'NotificationSubsystem'. Meetings are not federated, so
+-- only local members are notified.
+pushMeetingEvent ::
+  ( Member NotificationSubsystem r,
+    Member Now r
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  [LocalMember] ->
+  Qualified ConvId ->
+  Maybe TeamId ->
+  ConvEvent.EventData ->
+  Sem r ()
+pushMeetingEvent lUser conn members qConvId mTeamId edata = do
+  now <- Now.get
+  let evt =
+        ConvEvent.Event
+          { evtConv = qConvId,
+            evtSubConv = Nothing,
+            evtFrom =
+              ConvEvent.EventFromUser
+                (Qualified (tUnqualified lUser) (tDomain lUser)),
+            evtTime = now,
+            evtTeam = mTeamId,
+            evtData = edata
+          }
+  pushNotifications
+    [ def
+        { origin = Just (tUnqualified lUser),
+          json = toJSONObject evt,
+          recipients = map localMemberToRecipient members,
+          route = PushV2.RouteDirect,
+          conn
+        }
+    ]
 
 -- Helper function to convert StoredMeeting to API.Meeting
 storedMeetingToMeeting :: Domain -> Store.StoredMeeting -> API.Meeting
