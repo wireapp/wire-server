@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "nginz.fullname" . }}-nginx-syntax-test
+  labels:
+    {{- include "nginz.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+  - name: nginx-test
+    image: "{{ .Values.images.nginz.repository }}:{{ .Values.images.nginz.tag }}"
+    volumeMounts:
+    - name: config
+      mountPath: /etc/wire/nginz/conf
+    - name: secrets
+      mountPath: /etc/wire/nginz/secrets
+    command:
+    - nginz
+    - -t
+    - -c
+    - /etc/wire/nginz/conf/nginx.conf
+  volumes:
+  - name: config
+    configMap:
+      name: nginz
+  - name: secrets
+    secret:
+      secretName: nginz
+  restartPolicy: Never
