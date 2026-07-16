@@ -93,7 +93,7 @@ allowGuests :: CreateConv -> CreateConv
 allowGuests cc =
   cc
     { access = Just ["code"],
-      accessRole = Just ["team_member", "guest"]
+      accessRole = Just ["team_member", "non_team_member", "service"]
     }
 
 instance MakesValue CreateConv where
