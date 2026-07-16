@@ -1,0 +1,5 @@
+Reorder SSO nginx locations to enforce correct rate limiting:
+`/sso/get-by-email` needs to appear before `/sso` in nginx's config, because
+regex locations are matched in order (first-match), not by specificity. In
+previous order `/sso` caught before `/sso/get-by-email` applied the specific
+5r/m rate limit, leaving it on the generic 50r/s limit.
