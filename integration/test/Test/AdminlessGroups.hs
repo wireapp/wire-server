@@ -175,9 +175,12 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
     void $ awaitNMatches 2 isConvAdminlessReminderNotif wsApp
     void $ awaitNMatches 2 isConvAdminlessReminderNotif wsTmpUser
 
-    retryT $ do
-      bindResponse (GalleyI.getConversation conv) $ \resp -> do
-        resp.status `shouldMatchInt` 404
+    -- The deletion event is sent after the conversation has been removed. The
+    -- suite's local timeout is only 2s, but this job is scheduled 10s ahead.
+    -- Use a longer timeout here and avoid racing the final HTTP assertion.
+    void $ awaitMatchFor 15 isConvDeleteNotif wsApp
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
 
 testOnLastAdminLeaveFeatureDisabled :: (HasCallStack) => App ()
 testOnLastAdminLeaveFeatureDisabled = do

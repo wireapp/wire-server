@@ -104,7 +104,7 @@ data ScheduledJobsConfig = ScheduledJobsConfig
   { -- | Arbiter dispatcher poll interval for scheduled jobs.
     -- Lower values reduce discovery latency for due jobs.
     pollInterval :: Duration,
-    -- | Number of worker threads in each scheduled-job queue.
+    -- | Number of worker threads in the shared scheduled-job queue.
     workerThreads :: Range 1 1000 Int,
     -- | How long a claimed job remains invisible while it is processed.
     visibilityTimeout :: Duration,

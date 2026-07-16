@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -22,11 +23,9 @@
 
 module Wire.JobSubsystem.Workers
   ( ScheduledJobWorkerSettings (..),
-    RecurringJobRunnerConfig (..),
-    OneOffJobRunnerConfig (..),
+    ScheduledJobsRunnerConfig (..),
     runScheduledJobsMigrations,
-    runRecurringJobRunner,
-    runOneOffJobRunner,
+    runScheduledJobsRunner,
   )
 where
 
@@ -40,7 +39,6 @@ import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
 import Control.Exception (bracket, bracket_, throwIO)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Hashable qualified as Hashable
-import Data.Kind (Type)
 import Data.Proxy (Proxy (..))
 import Data.Secret (SecretText, revealSecretText)
 import Data.Text qualified as T
@@ -59,14 +57,14 @@ import System.IO.Error (userError)
 import System.Logger qualified as Log
 import System.Timeout (timeout)
 import UnliftIO.Async qualified as Async
-import Wire.API.Jobs (MeetingsCleanupJob (..), ScheduledJobsRegistry)
+import Wire.API.Jobs
 import Wire.JobSubsystem.ArbiterAdapter
 
 -- | Runtime settings shared by every scheduled-job runner in a process.
 --
 -- These values deliberately mirror the Arbiter worker defaults that we use.
--- Keeping them in one record ensures recurring and one-off queues do not
--- silently drift apart as settings are added or tuned.
+-- Keeping them in one record ensures all scheduled job types use the same
+-- execution policy as settings are added or tuned.
 data ScheduledJobWorkerSettings = ScheduledJobWorkerSettings
   { scheduledJobWorkerThreads :: Int,
     scheduledJobPollInterval :: NominalDiffTime,
@@ -82,25 +80,13 @@ data ScheduledJobWorkerSettings = ScheduledJobWorkerSettings
     scheduledJobWorkerStaleThreshold :: NominalDiffTime
   }
 
-data RecurringJobRunnerConfig registry = RecurringJobRunnerConfig
-  { recurringJobRunnerLogger :: Log.Logger,
-    recurringJobRunnerSchedule :: CronSchedule,
+data ScheduledJobsRunnerConfig registry = ScheduledJobsRunnerConfig
+  { scheduledJobsRunnerLogger :: Log.Logger,
+    scheduledJobsRunnerSchedule :: CronSchedule,
     -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
-    recurringJobRunnerArbiterConnStr :: SecretText,
-    recurringJobRunnerSchemaName :: Text,
-    recurringJobRunnerSettings :: ScheduledJobWorkerSettings,
-    recurringJobRunnerJobName :: Text,
-    recurringJobRunnerQueueName :: Text
-  }
-
-data OneOffJobRunnerConfig registry (payload :: Type) = OneOffJobRunnerConfig
-  { oneOffJobRunnerLogger :: Log.Logger,
-    -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
-    oneOffJobRunnerArbiterConnStr :: SecretText,
-    oneOffJobRunnerSchemaName :: Text,
-    oneOffJobRunnerSettings :: ScheduledJobWorkerSettings,
-    oneOffJobRunnerJobName :: Text,
-    oneOffJobRunnerQueueName :: Text
+    scheduledJobsRunnerArbiterConnStr :: SecretText,
+    scheduledJobsRunnerSchemaName :: Text,
+    scheduledJobsRunnerSettings :: ScheduledJobWorkerSettings
   }
 
 -- | Apply all migrations for the scheduled-jobs registry before constructing
@@ -197,67 +183,70 @@ withArbiterMigrationLock connStr schemaName action = do
     releaseArbiterMigrationLock =
       [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
 
--- This runner is specialized to the meetings cleanup payload for now.
--- If we add another cron job later, we can either reuse this helper with a
--- shared payload type or factor out the common Arbiter setup first.
-runRecurringJobRunner ::
+-- | Start the single worker pool for all scheduled jobs.
+--
+-- Cron jobs and directly inserted one-off jobs use the same Arbiter queue. The
+-- payload sum type is dispatched here, while the callbacks retain typed job
+-- values at the service boundary.
+runScheduledJobsRunner ::
   forall registry.
   ( RegistryTables registry,
     RegistryAdmissionPolicies registry,
-    KnownSymbol (TableForPayload MeetingsCleanupJob registry),
-    FromJSON MeetingsCleanupJob,
-    ToJSON MeetingsCleanupJob
+    KnownSymbol (TableForPayload ScheduledJobPayload registry),
+    FromJSON ScheduledJobPayload,
+    ToJSON ScheduledJobPayload
   ) =>
   HasqlPoolExt.Pool ->
-  RecurringJobRunnerConfig registry ->
-  (MeetingsCleanupJob -> IO ()) ->
+  ScheduledJobsRunnerConfig registry ->
+  JobWorkerHandlers ->
   IO (IO ())
-runRecurringJobRunner postgresPool runnerConfig runJob = do
-  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.recurringJobRunnerArbiterConnStr)
-  Log.info runnerConfig.recurringJobRunnerLogger $
+runScheduledJobsRunner postgresPool runnerConfig JobWorkerHandlers {..} = do
+  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.scheduledJobsRunnerArbiterConnStr)
+  Log.info runnerConfig.scheduledJobsRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
-      . Log.field "job_name" runnerConfig.recurringJobRunnerJobName
-      . Log.field "queue_name" runnerConfig.recurringJobRunnerQueueName
-      . Log.field "schedule" (show runnerConfig.recurringJobRunnerSchedule)
+      . Log.field "queue_name" scheduledJobsQueueName
+      . Log.field "schedule" (show runnerConfig.scheduledJobsRunnerSchedule)
 
-  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.recurringJobRunnerSchemaName postgresPool
-      workerHandler _conn job =
-        liftIO $ do
-          Log.info runnerConfig.recurringJobRunnerLogger $
-            Log.msg (Log.val "Running scheduled job")
-              . Log.field "job_name" runnerConfig.recurringJobRunnerJobName
-              . Log.field "queue_name" runnerConfig.recurringJobRunnerQueueName
-          runJob (ArbiterCore.payload job)
+  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.scheduledJobsRunnerSchemaName postgresPool
+      workerHandler _conn job = liftIO $ do
+        Log.info runnerConfig.scheduledJobsRunnerLogger $
+          Log.msg (Log.val "Running scheduled job")
+            . Log.field "queue_name" scheduledJobsQueueName
+            . Log.field "payload_type" (scheduledJobPayloadTypeName job.payload)
+        case job.payload of
+          MeetingsCleanup payload -> scheduledJobsRunMeetingsCleanup payload
+          AdminlessDeletion payload -> scheduledJobsRunAdminlessDeletion (mapJobPayload (const payload) job)
+          AdminlessReminder payload -> scheduledJobsRunAdminlessReminder (mapJobPayload (const payload) job)
 
-      cronJob =
-        case ArbiterWorkerCron.cronJob
-          runnerConfig.recurringJobRunnerJobName
-          (serializeCronSchedule runnerConfig.recurringJobRunnerSchedule)
-          ArbiterWorkerCron.SkipOverlap
-          ( \_ scheduledFor ->
-              (ArbiterCore.defaultGroupedJob runnerConfig.recurringJobRunnerQueueName MeetingsCleanupJob)
-                { ArbiterCore.notVisibleUntil = Just scheduledFor,
-                  ArbiterCore.maxAttempts = Just 3
-                }
-          ) of
-          Left err -> error $ "Invalid cron schedule for " <> T.unpack runnerConfig.recurringJobRunnerJobName <> ": " <> err
-          Right job -> job
+  cronJob <-
+    case ArbiterWorkerCron.cronJob
+      "meetings-cleanup"
+      (serializeCronSchedule runnerConfig.scheduledJobsRunnerSchedule)
+      ArbiterWorkerCron.SkipOverlap
+      ( \_ scheduledFor ->
+          (ArbiterCore.defaultGroupedJob "meetings-cleanup" (MeetingsCleanup MeetingsCleanupJob))
+            { ArbiterCore.notVisibleUntil = Just scheduledFor,
+              ArbiterCore.maxAttempts = Just 3
+            }
+      ) of
+      Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
+      Right job -> pure job
 
   workerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
         arbiterConnStr
-        runnerConfig.recurringJobRunnerSettings.scheduledJobWorkerThreads
+        runnerConfig.scheduledJobsRunnerSettings.scheduledJobWorkerThreads
         workerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
               (WireArbiter registry)
-              MeetingsCleanupJob
+              ScheduledJobPayload
               ()
           )
     )
   let workerConfig' =
         applyExplicitDefaults
-          runnerConfig.recurringJobRunnerSettings
+          runnerConfig.scheduledJobsRunnerSettings
           workerConfig
             { ArbiterWorkerConfig.cronJobs = [cronJob]
             }
@@ -271,56 +260,34 @@ runRecurringJobRunner postgresPool runnerConfig runJob = do
     ArbiterWorker.shutdownWorker workerConfig'
     Async.cancel workerAsync
 
-runOneOffJobRunner ::
-  forall registry (payload :: Type).
-  ( RegistryTables registry,
-    RegistryAdmissionPolicies registry,
-    KnownSymbol (TableForPayload payload registry),
-    FromJSON payload,
-    ToJSON payload
-  ) =>
-  HasqlPoolExt.Pool ->
-  OneOffJobRunnerConfig registry payload ->
-  (JobRead payload -> IO ()) ->
-  IO (IO ())
-runOneOffJobRunner postgresPool runnerConfig runJob = do
-  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.oneOffJobRunnerArbiterConnStr)
-  Log.info runnerConfig.oneOffJobRunnerLogger $
-    Log.msg (Log.val "Starting one-off jobs worker")
-      . Log.field "job_name" runnerConfig.oneOffJobRunnerJobName
-      . Log.field "queue_name" runnerConfig.oneOffJobRunnerQueueName
+scheduledJobPayloadTypeName :: ScheduledJobPayload -> Text
+scheduledJobPayloadTypeName = \case
+  MeetingsCleanup _ -> "meetings_cleanup"
+  AdminlessDeletion _ -> "adminless_deletion"
+  AdminlessReminder _ -> "adminless_reminder"
 
-  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.oneOffJobRunnerSchemaName postgresPool
-      workerHandler _conn job =
-        liftIO $ do
-          Log.info runnerConfig.oneOffJobRunnerLogger $
-            Log.msg (Log.val "Running one-off job")
-              . Log.field "job_name" runnerConfig.oneOffJobRunnerJobName
-              . Log.field "queue_name" runnerConfig.oneOffJobRunnerQueueName
-          runJob job
-
-  workerConfig <-
-    applyExplicitDefaults runnerConfig.oneOffJobRunnerSettings
-      <$> ( ArbiterWorker.defaultWorkerConfig
-              arbiterConnStr
-              runnerConfig.oneOffJobRunnerSettings.scheduledJobWorkerThreads
-              workerHandler ::
-              IO
-                ( ArbiterWorker.WorkerConfig
-                    (WireArbiter registry)
-                    payload
-                    ()
-                )
-          )
-
-  workerAsync <-
-    Async.async $
-      runWireArbiter arbiterEnv $
-        ArbiterWorker.runWorkerPool workerConfig
-
-  pure $ do
-    ArbiterWorker.shutdownWorker workerConfig
-    Async.cancel workerAsync
+mapJobPayload :: (a -> b) -> JobRead a -> JobRead b
+mapJobPayload f job =
+  ArbiterCore.Job
+    { ArbiterCore.primaryKey = job.primaryKey,
+      ArbiterCore.payload = f job.payload,
+      ArbiterCore.queueName = job.queueName,
+      ArbiterCore.groupKey = job.groupKey,
+      ArbiterCore.insertedAt = job.insertedAt,
+      ArbiterCore.updatedAt = job.updatedAt,
+      ArbiterCore.attempts = job.attempts,
+      ArbiterCore.lastError = job.lastError,
+      ArbiterCore.priority = job.priority,
+      ArbiterCore.lastAttemptedAt = job.lastAttemptedAt,
+      ArbiterCore.notVisibleUntil = job.notVisibleUntil,
+      ArbiterCore.dedupKey = job.dedupKey,
+      ArbiterCore.maxAttempts = job.maxAttempts,
+      ArbiterCore.parentId = job.parentId,
+      ArbiterCore.parentState = job.parentState,
+      ArbiterCore.suspended = job.suspended,
+      ArbiterCore.claimedBy = job.claimedBy,
+      ArbiterCore.admission = job.admission
+    }
 
 applyExplicitDefaults ::
   ScheduledJobWorkerSettings ->

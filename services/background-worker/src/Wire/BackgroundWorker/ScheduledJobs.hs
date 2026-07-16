@@ -27,7 +27,6 @@ import Data.Misc (Duration, duration)
 import Data.Range (fromRange)
 import Data.Time.Clock (NominalDiffTime)
 import Imports
-import Wire.API.Jobs
 import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
 import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..), ScheduledJobsConfig (..), ScheduledJobsJitter (..))
@@ -48,13 +47,13 @@ startWorker scheduledConfig config = do
           }
       jobHandlers =
         JobWorkerHandlers
-          { recurringJobRunnerRunJob = \_ ->
+          { scheduledJobsRunMeetingsCleanup = \_ ->
               runAppT env $
                 runCleanupOldMeetings cleanupConfig,
-            adminlessDeletionJobRunnerRunJob = \job ->
+            scheduledJobsRunAdminlessDeletion = \job ->
               runAppT env $
                 runAdminlessDeletionJob extEnv job,
-            adminlessReminderJobRunnerRunJob = \job ->
+            scheduledJobsRunAdminlessReminder = \job ->
               runAppT env $
                 runAdminlessReminderJob extEnv job
           }
@@ -75,39 +74,16 @@ startWorker scheduledConfig config = do
           }
       workersConfig =
         JobWorkersConfig
-          { recurringJobRunnerConfig =
-              RecurringJobRunnerConfig
-                { recurringJobRunnerLogger = env.logger,
-                  recurringJobRunnerSchedule = config.schedule,
+          { scheduledJobsRunnerConfig =
+              ScheduledJobsRunnerConfig
+                { scheduledJobsRunnerLogger = env.logger,
+                  scheduledJobsRunnerSchedule = config.schedule,
                   -- Arbiter still uses the connection string for LISTEN/NOTIFY.
                   -- The actual job DB access goes through the shared Hasql pool
                   -- pulled from the JobSubsystem interpreter.
-                  recurringJobRunnerArbiterConnStr = env.arbiterConnStr,
-                  recurringJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  recurringJobRunnerSettings = workerSettings,
-                  recurringJobRunnerJobName = "meetings-cleanup",
-                  recurringJobRunnerQueueName = meetingsCleanupQueueName
-                },
-            adminlessDeletionJobRunnerConfig =
-              OneOffJobRunnerConfig
-                { oneOffJobRunnerLogger = env.logger,
-                  -- Arbiter still uses the connection string for LISTEN/NOTIFY.
-                  -- The actual job DB access goes through the shared Hasql pool
-                  -- pulled from the JobSubsystem interpreter.
-                  oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
-                  oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  oneOffJobRunnerSettings = workerSettings,
-                  oneOffJobRunnerJobName = "adminless-deletion",
-                  oneOffJobRunnerQueueName = adminlessDeletionQueueName
-                },
-            adminlessReminderJobRunnerConfig =
-              OneOffJobRunnerConfig
-                { oneOffJobRunnerLogger = env.logger,
-                  oneOffJobRunnerArbiterConnStr = env.arbiterConnStr,
-                  oneOffJobRunnerSchemaName = ArbiterCore.defaultSchemaName,
-                  oneOffJobRunnerSettings = workerSettings,
-                  oneOffJobRunnerJobName = "adminless-reminder",
-                  oneOffJobRunnerQueueName = adminlessReminderQueueName
+                  scheduledJobsRunnerArbiterConnStr = env.arbiterConnStr,
+                  scheduledJobsRunnerSchemaName = ArbiterCore.defaultSchemaName,
+                  scheduledJobsRunnerSettings = workerSettings
                 }
           }
   result <-

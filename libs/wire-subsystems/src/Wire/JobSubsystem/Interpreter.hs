@@ -37,20 +37,20 @@ import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
 import Wire.API.Jobs
-import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkerHandlers (..), JobWorkersConfig (..))
+import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkersConfig (..))
 import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Workers
 import Wire.Postgres (PGConstraints)
 
 runJobWorkers :: HasqlPoolExt.Pool -> JobWorkersConfig -> JobWorkerHandlers -> IO CleanupAction
-runJobWorkers pool JobWorkersConfig {..} JobWorkerHandlers {..} = do
+runJobWorkers pool JobWorkersConfig {..} handlers = do
   runScheduledJobsMigrations
-    (recurringJobRunnerArbiterConnStr recurringJobRunnerConfig)
-    (recurringJobRunnerSchemaName recurringJobRunnerConfig)
-  cleanupRecurring <- runRecurringJobRunner @ScheduledJobsRegistry pool recurringJobRunnerConfig recurringJobRunnerRunJob
-  cleanupDeletion <- runOneOffJobRunner @ScheduledJobsRegistry pool adminlessDeletionJobRunnerConfig adminlessDeletionJobRunnerRunJob
-  cleanupReminder <- runOneOffJobRunner @ScheduledJobsRegistry pool adminlessReminderJobRunnerConfig adminlessReminderJobRunnerRunJob
-  pure $ cleanupRecurring >> cleanupDeletion >> cleanupReminder
+    scheduledJobsRunnerConfig.scheduledJobsRunnerArbiterConnStr
+    scheduledJobsRunnerConfig.scheduledJobsRunnerSchemaName
+  runScheduledJobsRunner @ScheduledJobsRegistry
+    pool
+    scheduledJobsRunnerConfig
+    handlers
 
 interpretJobSubsystem ::
   (PGConstraints r, Member (Input RequestId) r) =>
@@ -80,7 +80,10 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
   let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
       groupKey = "adminless-deletion:" <> idToText convId
       arbiterJob =
-        (ArbiterCore.defaultGroupedJob groupKey (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
+        ( ArbiterCore.defaultGroupedJob
+            groupKey
+            (AdminlessDeletion (AdminlessDeletionJob teamId convId (tUnqualified <$> lusr) requestId))
+        )
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" convId,
             ArbiterCore.maxAttempts = Just 3
@@ -104,7 +107,10 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
   let arbiterEnv = mkNewWireArbiterEnv jobSubsystemSchemaName pool
       groupKey = "adminless-reminder:" <> idToText convId
       arbiterJob =
-        (ArbiterCore.defaultGroupedJob groupKey (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))
+        ( ArbiterCore.defaultGroupedJob
+            groupKey
+            (AdminlessReminder (AdminlessReminderJob teamId convId (tUnqualified <$> lusr) deletionScheduledFor requestId))
+        )
           { ArbiterCore.notVisibleUntil = Just scheduledFor,
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3

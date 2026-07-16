@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- This file is part of the Wire Server implementation.
@@ -21,6 +22,9 @@
 
 module Wire.API.Jobs where
 
+import Arbiter.Core.Job.Types (JobRead)
+import Control.Arrow ((&&&))
+import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
 import Data.Json.Util
@@ -30,25 +34,15 @@ import Data.Schema
 import Data.Text as Text
 import GHC.TypeLits
 import Imports
-import Test.QuickCheck (Arbitrary (..))
+import Test.QuickCheck (oneof)
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
--- | Shared queue name for the scheduled meetings cleanup job.
-type MeetingsCleanupQueueName = "meetings_cleanup_jobs"
+-- | All scheduled jobs share one physical Arbiter queue. The payload tag keeps
+-- the logical job type explicit without requiring one queue per job type.
+type ScheduledJobsQueueName = "scheduled_jobs"
 
-meetingsCleanupQueueName :: Text
-meetingsCleanupQueueName = Text.pack $ symbolVal (Proxy @MeetingsCleanupQueueName)
-
--- | Shared queue name for the adminless deletion job.
-type AdminlessDeletionQueueName = "adminless_deletion_jobs"
-
-adminlessDeletionQueueName :: Text
-adminlessDeletionQueueName = Text.pack $ symbolVal (Proxy @AdminlessDeletionQueueName)
-
--- | Shared queue name for the adminless reminder job.
-type AdminlessReminderQueueName = "adminless_reminder_jobs"
-
-adminlessReminderQueueName :: Text
-adminlessReminderQueueName = Text.pack $ symbolVal (Proxy @AdminlessReminderQueueName)
+scheduledJobsQueueName :: Text
+scheduledJobsQueueName = Text.pack $ symbolVal (Proxy @ScheduledJobsQueueName)
 
 -- | Empty payload because the schedule itself carries all execution context.
 data MeetingsCleanupJob = MeetingsCleanupJob
@@ -115,9 +109,71 @@ instance ToSchema AdminlessReminderJob where
         <*> (.adminlessReminderJobDeletionScheduledFor) .= field "deletion_scheduled_for" schema
         <*> (.adminlessReminderJobRequestId) .= field "request_id" schema
 
+-- | Tagged payload persisted in Arbiter's JSONB queue. Keep the type tags and
+-- nested data shape stable when changing scheduled jobs.
+data ScheduledJobPayload
+  = MeetingsCleanup MeetingsCleanupJob
+  | AdminlessDeletion AdminlessDeletionJob
+  | AdminlessReminder AdminlessReminderJob
+  deriving stock (Eq, Generic, Show)
+
+data ScheduledJobPayloadTag
+  = MeetingsCleanupTag
+  | AdminlessReminderTag
+  | AdminlessDeletionTag
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via GenericUniform ScheduledJobPayloadTag
+
+instance ToSchema ScheduledJobPayloadTag where
+  schema =
+    enum @Text $
+      mconcat
+        [ element "meetings_cleanup" MeetingsCleanupTag,
+          element "adminless_deletion" AdminlessDeletionTag,
+          element "adminless_reminder" AdminlessReminderTag
+        ]
+
+makePrisms ''ScheduledJobPayload
+
+scheduledJobPayloadObjectSchema :: ObjectSchema SwaggerDoc ScheduledJobPayload
+scheduledJobPayloadObjectSchema =
+  snd <$> (toTag &&& id) .= bind (fst .= tagObjectSchema) (snd .= dispatch toSchema)
+  where
+    tagObjectSchema :: ObjectSchema SwaggerDoc ScheduledJobPayloadTag
+    tagObjectSchema = field "type" schema
+
+    toTag :: ScheduledJobPayload -> ScheduledJobPayloadTag
+    toTag =
+      \case
+        MeetingsCleanup {} -> MeetingsCleanupTag
+        AdminlessDeletion {} -> AdminlessDeletionTag
+        AdminlessReminder {} -> AdminlessReminderTag
+
+    toSchema :: ScheduledJobPayloadTag -> ObjectSchema SwaggerDoc ScheduledJobPayload
+    toSchema = \case
+      MeetingsCleanupTag -> tag _MeetingsCleanup (field "data" schema)
+      AdminlessDeletionTag -> tag _AdminlessDeletion (field "data" schema)
+      AdminlessReminderTag -> tag _AdminlessReminder (field "data" schema)
+
+instance ToSchema ScheduledJobPayload where
+  schema = object scheduledJobPayloadObjectSchema
+
+deriving via (Schema ScheduledJobPayload) instance FromJSON ScheduledJobPayload
+
+deriving via (Schema ScheduledJobPayload) instance ToJSON ScheduledJobPayload
+
+deriving via (Schema ScheduledJobPayload) instance S.ToSchema ScheduledJobPayload
+
+instance Arbitrary ScheduledJobPayload where
+  arbitrary = oneof [MeetingsCleanup <$> arbitrary, AdminlessDeletion <$> arbitrary, AdminlessReminder <$> arbitrary]
+
 -- | Registry for the scheduled jobs we expose via Arbiter.
 type ScheduledJobsRegistry =
-  '[ '(MeetingsCleanupQueueName, MeetingsCleanupJob),
-     '(AdminlessReminderQueueName, AdminlessDeletionJob),
-     '(AdminlessDeletionQueueName, AdminlessReminderJob)
+  '[ '(ScheduledJobsQueueName, ScheduledJobPayload)
    ]
+
+data JobWorkerHandlers = JobWorkerHandlers
+  { scheduledJobsRunMeetingsCleanup :: MeetingsCleanupJob -> IO (),
+    scheduledJobsRunAdminlessDeletion :: JobRead AdminlessDeletionJob -> IO (),
+    scheduledJobsRunAdminlessReminder :: JobRead AdminlessReminderJob -> IO ()
+  }

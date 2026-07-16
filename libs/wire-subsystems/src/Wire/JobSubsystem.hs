@@ -29,7 +29,6 @@ module Wire.JobSubsystem
   )
 where
 
-import Arbiter.Core.Job.Types (JobRead)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
@@ -46,15 +45,7 @@ data JobSubsystemConfig = JobSubsystemConfig
   }
 
 data JobWorkersConfig = JobWorkersConfig
-  { recurringJobRunnerConfig :: RecurringJobRunnerConfig ScheduledJobsRegistry,
-    adminlessDeletionJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessDeletionJob,
-    adminlessReminderJobRunnerConfig :: OneOffJobRunnerConfig ScheduledJobsRegistry AdminlessReminderJob
-  }
-
-data JobWorkerHandlers = JobWorkerHandlers
-  { recurringJobRunnerRunJob :: MeetingsCleanupJob -> IO (),
-    adminlessDeletionJobRunnerRunJob :: JobRead AdminlessDeletionJob -> IO (),
-    adminlessReminderJobRunnerRunJob :: JobRead AdminlessReminderJob -> IO ()
+  { scheduledJobsRunnerConfig :: ScheduledJobsRunnerConfig ScheduledJobsRegistry
   }
 
 data JobSubsystem m a where

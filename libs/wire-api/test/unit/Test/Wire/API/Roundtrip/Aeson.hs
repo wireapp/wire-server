@@ -160,6 +160,7 @@ tests =
       testRoundTrip @Jobs.MeetingsCleanupJob,
       testRoundTripWithSwagger @Jobs.AdminlessDeletionJob,
       testRoundTripWithSwagger @Jobs.AdminlessReminderJob,
+      testRoundTrip @Jobs.ScheduledJobPayload,
       testRoundTrip @EJPD.EJPDContact,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,

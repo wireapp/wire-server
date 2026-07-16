@@ -28,6 +28,7 @@ module Testlib.Cannon
     awaitNMatchesResult,
     awaitNMatches,
     awaitMatch,
+    awaitMatchFor,
     awaitAnyEvent,
     awaitAtLeastNMatchesResult,
     awaitAtLeastNMatches,
@@ -320,7 +321,18 @@ awaitNMatchesResult ::
   (Value -> App Bool) ->
   WebSocket ->
   App AwaitResult
-awaitNMatchesResult nExpected checkMatch ws = go nExpected [] []
+awaitNMatchesResult nExpected checkMatch ws = do
+  tSecs <- asks timeOutSeconds
+  awaitNMatchesResultFor tSecs nExpected checkMatch ws
+
+awaitNMatchesResultFor ::
+  (HasCallStack) =>
+  Int ->
+  Int ->
+  (Value -> App Bool) ->
+  WebSocket ->
+  App AwaitResult
+awaitNMatchesResultFor tSecs nExpected checkMatch ws = go nExpected [] []
   where
     go 0 nonMatches matches = do
       refill nonMatches
@@ -332,7 +344,6 @@ awaitNMatchesResult nExpected checkMatch ws = go nExpected [] []
             nonMatches = reverse nonMatches
           }
     go nLeft nonMatches matches = do
-      tSecs <- asks timeOutSeconds
       mEvent <- awaitAnyEvent tSecs ws
       case mEvent of
         Just event ->
@@ -486,6 +497,16 @@ awaitMatch ::
   WebSocket ->
   App Value
 awaitMatch checkMatch ws = head <$> awaitNMatches 1 checkMatch ws
+
+awaitMatchFor ::
+  (HasCallStack) =>
+  Int ->
+  (Value -> App Bool) ->
+  WebSocket ->
+  App Value
+awaitMatchFor tSecs checkMatch ws = do
+  res <- awaitNMatchesResultFor tSecs 1 checkMatch ws
+  withWebSocketFailureContext ws $ head <$> assertAwaitResult res
 
 assertNoEvent ::
   (HasCallStack) =>

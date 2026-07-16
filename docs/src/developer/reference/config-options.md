@@ -2213,7 +2213,7 @@ backgroundJobs:
 # Scheduled jobs
 scheduledJobs:
   pollInterval: 5s   # how often due jobs are discovered
-  workerThreads: 1   # worker threads per scheduled-job queue
+  workerThreads: 1   # worker threads for the shared scheduled-job queue
   visibilityTimeout: 60s       # how long a claimed job stays invisible
   jobHeartbeatInterval: 30s    # refresh interval for running jobs
   workerHeartbeatInterval: 10s # refresh interval for worker liveness
@@ -2228,6 +2228,20 @@ scheduledJobs:
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
+
+### Scheduled jobs PostgreSQL connections
+
+Each `background-worker` instance that runs scheduled jobs uses one additional
+PostgreSQL connection for Arbiter scheduler and notification coordination. This
+connection is in addition to the connections configured by `postgresqlPool`,
+and should be included when sizing PostgreSQL's `max_connections` and the
+service's connection budget.
+
+`scheduledJobs.workerThreads` controls how many scheduled jobs may be processed
+in parallel; it does not allocate one PostgreSQL connection per thread. The
+threads share the scheduled-job worker's database resources, so increasing the
+thread count increases possible job and database workload, but not the number
+of connections opened by the scheduled-job worker.
 
 The `migrationOptions.timeout` setting limits how long a single migration
 attempt may run after it has acquired the migration lock. If the timeout is
@@ -2252,4 +2266,4 @@ Notes
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
 - `scheduledJobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
 - `scheduledJobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
-- `scheduledJobs.workerThreads` controls the number of worker threads for each scheduled-job queue. The default is `1`; increasing it allows jobs in the same queue to run in parallel when their group keys permit it.
+- `scheduledJobs.workerThreads` controls the number of worker threads for the shared scheduled-job queue. The default is `1`; increasing it allows jobs to run in parallel when their group keys permit it.
