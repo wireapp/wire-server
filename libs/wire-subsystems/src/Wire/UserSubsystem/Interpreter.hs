@@ -59,6 +59,7 @@ import Wire.API.Federation.API.Brig qualified as FedBrig
 import Wire.API.Federation.Error
 import Wire.API.Routes.FederationDomainConfig
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamStatus (..))
+import Wire.API.Team.Collaborator
 import Wire.API.Team.Export
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -96,6 +97,7 @@ import Wire.Sem.Metrics qualified as Metrics
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now qualified as Now
 import Wire.StoredUser
+import Wire.TeamCollaboratorsSubsystem
 import Wire.TeamSubsystem
 import Wire.UserGroupStore (UserGroupStore, getUserGroupIdsForUsers)
 import Wire.UserKeyStore
@@ -110,7 +112,8 @@ import Wire.UserSubsystem.UserSubsystemConfig
 import Witherable (wither)
 
 runUserSubsystem ::
-  ( Member AppStore r,
+  ( Member TeamCollaboratorsSubsystem r,
+    Member AppStore r,
     Member UserStore r,
     Member UserKeyStore r,
     Member GalleyAPIAccess r,
@@ -377,6 +380,7 @@ getLocalAppProfilesImpl ::
     Member (Concurrency Unsafe) r,
     Member (Input (Local any)) r,
     Member AppSubsystem r,
+    Member TeamCollaboratorsSubsystem r,
     Member TeamSubsystem r
   ) =>
   Local UserId ->
@@ -400,7 +404,12 @@ getLocalAppProfilesImpl self tid = do
               Just app -> profile {profileApp = Just (storedAppToAppInfo app)}
               Nothing -> profile
 
-  pure (injectPreloadedApp <$> profiles)
+  collaboratingApps :: [UserProfile] <- do
+    allIds <- (.gUser) <$$> getAllTeamCollaborators self tid
+    allProfiles <- getUserProfilesLocalPart (Just self) (qualifyAs self allIds)
+    pure (filter (isJust . (.profileApp)) allProfiles)
+
+  pure ((injectPreloadedApp <$> profiles) <> collaboratingApps)
 
 getUserProfilesFromDomain ::
   ( Member (Error FederationError) r,
