@@ -148,8 +148,8 @@ runUserSubsystem authInterpreter appInterpreter clientInterpreter =
         getUserProfilesImpl self others
       GetLocalUserProfiles others ->
         getLocalUserProfilesImpl others
-      GetLocalAppProfiles ltid ->
-        getLocalAppProfilesOnlyImpl ltid
+      GetLocalAppProfiles self ltid ->
+        getLocalAppProfilesImpl self ltid
       GetAccountsBy getBy ->
         getAccountsByImpl getBy
       GetAccountsByEmailNoFilter emails ->
@@ -366,22 +366,29 @@ getLocalUserProfilesImpl ::
   Sem r [UserProfile]
 getLocalUserProfilesImpl = getUserProfilesLocalPart Nothing
 
-getLocalAppProfilesOnlyImpl ::
+getLocalAppProfilesImpl ::
   forall r any.
   ( Member AppStore r,
     Member UserStore r,
     Member (Input UserSubsystemConfig) r,
     Member DeleteQueue r,
+    Member (Error UserSubsystemError) r,
     Member Now r,
     Member (Concurrency Unsafe) r,
     Member (Input (Local any)) r,
     Member AppSubsystem r,
     Member TeamSubsystem r
   ) =>
-  Local TeamId ->
+  Local UserId ->
+  TeamId ->
   Sem r [UserProfile]
-getLocalAppProfilesOnlyImpl ltid = do
-  apps <- AppStore.getApps (tUnqualified ltid)
+getLocalAppProfilesImpl self tid = do
+  UserStore.getUserTeam (tUnqualified self) >>= \requestingUserTeam ->
+    unless (requestingUserTeam == Just tid) $
+      throw UserSubsystemProfileNotFound
+
+  let ltid = qualifyAs self tid
+  apps :: [AppStore.StoredApp] <- AppStore.getApps tid
   profiles <- getUserProfilesLocalPart Nothing (ltid $> map (.id) apps)
   let appsMap :: Map UserId AppStore.StoredApp
       appsMap = Map.fromList ((\app -> (app.id, app)) <$> apps)

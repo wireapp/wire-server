@@ -68,7 +68,7 @@ inMemoryUserSubsystemInterpreter =
     GetLocalUserProfiles luids ->
       toProfile . mkUserFromStored testDomain testLocale
         <$$> UserStore.getUsers (tUnqualified luids)
-    GetLocalAppProfiles _ ->
+    GetLocalAppProfiles _ _ ->
       error "GetLocalAppProfiles: implement on demand (userSubsystemInterpreter)"
     GetAccountsBy (tUnqualified -> GetBy NoPendingInvitations True True uids []) ->
       mkUserFromStored testDomain testLocale <$$> UserStore.getUsers uids
