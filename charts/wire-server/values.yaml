@@ -911,6 +911,9 @@ spar:
 
 background-worker:
   replicaCount: 1
+  # Must exceed scheduledJobs.gracefulShutdownTimeout so Kubernetes does not
+  # force-kill the worker before it can finish shutting down.
+  terminationGracePeriodSeconds: 40
   image:
     repository: quay.io/wire/background-worker
     tag: do-not-use

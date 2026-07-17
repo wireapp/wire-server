@@ -628,6 +628,8 @@ federator:
 
 background-worker:
   replicaCount: 1
+  # Integration backends do not need graceful scheduled-job shutdown
+  terminationGracePeriodSeconds: 0
   resources:
     requests: {}
   imagePullPolicy: {{ .Values.imagePullPolicy }}
