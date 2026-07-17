@@ -317,6 +317,12 @@ galley:
       disabledAPIVersions: []
       meetings:
         validityPeriod: "5s"
+        email:
+          from: meetings@example.com
+          replyTo: noreply@example.com
+          transport:
+            sesQueue: integration-galley-meetings-events
+            sesEndpoint: http://fake-aws-ses:4569
 
       # These values are insecure, against anyone getting hold of the hash,
       # but its not a concern for the integration tests.
@@ -449,6 +455,7 @@ galley:
       username: {{ .Values.rabbitmqUsername }}
       password: {{ .Values.rabbitmqPassword }}
     pgPassword: posty-the-gres
+    smtpPassword: dummy-smtp-password
   {{- if .Values.uploadXml }}
   tests:
     config:

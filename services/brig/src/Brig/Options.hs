@@ -57,7 +57,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.AuthenticationSubsystem.Config (ZAuthSettings)
 import Wire.AuthenticationSubsystem.Cookie.Limit
-import Wire.EmailSending.SMTP (SMTPConnType (..))
+import Wire.EmailSending.Options (EmailOpts)
 import Wire.EmailSubsystem.Template (TeamOpts)
 import Wire.PostgresMigrationOpts
 import Wire.RateLimit.Interpreter
@@ -108,41 +108,6 @@ data AWSOpts = AWSOpts
   deriving (Show, Generic)
 
 instance FromJSON AWSOpts
-
-data EmailAWSOpts = EmailAWSOpts
-  { -- | Event feedback queue for SES
-    --   (e.g. for email bounces and complaints)
-    sesQueue :: !Text,
-    -- | AWS SES endpoint
-    sesEndpoint :: !AWSEndpoint
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailAWSOpts
-
-data EmailSMTPCredentials = EmailSMTPCredentials
-  { -- | Username to authenticate
-    --   against the SMTP server
-    smtpUsername :: !Text,
-    -- | File containing password to
-    --   authenticate against the SMTP server
-    smtpPassword :: !FilePathSecrets
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailSMTPCredentials
-
-data EmailSMTPOpts = EmailSMTPOpts
-  { -- | Hostname of the SMTP server to connect to
-    smtpEndpoint :: !Endpoint,
-    smtpCredentials :: !(Maybe EmailSMTPCredentials),
-    -- | Which type of connection to use
-    --   against the SMTP server {tls,ssl,plain}
-    smtpConnType :: !SMTPConnType
-  }
-  deriving (Show, Generic)
-
-instance FromJSON EmailSMTPOpts
 
 data StompOpts = StompOpts
   { host :: !Text,
@@ -223,16 +188,6 @@ data ProviderOpts = ProviderOpts
   deriving (Show, Generic)
 
 instance FromJSON ProviderOpts
-
-data EmailOpts
-  = EmailAWS EmailAWSOpts
-  | EmailSMTP EmailSMTPOpts
-  deriving (Show, Generic)
-
-instance FromJSON EmailOpts where
-  parseJSON o =
-    EmailAWS <$> parseJSON o
-      <|> EmailSMTP <$> parseJSON o
 
 data EmailSMSOpts = EmailSMSOpts
   { email :: !EmailOpts,

@@ -249,6 +249,36 @@ The lock status for individual teams can be changed via the internal API (`PUT /
 
 The feature status for individual teams can be changed via the public API (if the feature is unlocked).
 
+### Meetings email sender and transport
+
+The optional `settings.meetings.email` block enables emailing meeting
+invitations to external addresses. `from` is required; `replyTo` is optional.
+`transport` is an AWS SES or SMTP value (the same shape Brig uses for its
+email transport). When the block is absent, no meeting invitation emails are
+sent.
+
+```yaml
+# galley.yaml
+settings:
+  meetings:
+    email:
+      from: meetings@example.com
+      replyTo: noreply@example.com
+      transport:               # SES:
+        sesQueue: wire-meetings-email-feedback
+        sesEndpoint: email.us-east-1.amazonaws.com
+      # transport:             # SMTP (xor SES):
+      #   smtpEndpoint: { host: smtp.example.com, port: 587 }
+      #   smtpConnType: tls
+      #   smtpCredentials:
+      #     smtpUsername: meetings
+      #     smtpPassword: /etc/wire/galley/secrets/smtp-password.txt
+```
+
+For SMTP, provision `galley.secrets.smtpPassword` (mounted at
+`/etc/wire/galley/secrets/smtp-password.txt`). Email sending itself lands in a
+follow-up.
+
 ### Meetings Premium (deprecated)
 
 > **Deprecated (WPB-26771).** The `meetingsPremium` feature flag no longer
