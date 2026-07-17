@@ -183,18 +183,23 @@ withArbiterMigrationLock connStr schemaName action = do
     releaseArbiterMigrationLock =
       [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
 
--- | Start the single worker pool for all scheduled jobs.
+-- | Start the worker pools for the scheduled-job queues.
 --
--- Cron jobs and directly inserted one-off jobs use the same Arbiter queue. The
--- payload sum type is dispatched here, while the callbacks retain typed job
--- values at the service boundary.
+-- Each domain queue has its own Arbiter table and worker pool. The meetings
+-- pool owns the recurring cleanup cron job, while the conversations pool owns
+-- the adminless one-off jobs. Both pools are supervised by Arbiter's
+-- multi-pool runner, so they share the process lifecycle without sharing a
+-- payload type or queue.
 runScheduledJobsRunner ::
   forall registry.
   ( RegistryTables registry,
     RegistryAdmissionPolicies registry,
-    KnownSymbol (TableForPayload ScheduledJobPayload registry),
-    FromJSON ScheduledJobPayload,
-    ToJSON ScheduledJobPayload
+    KnownSymbol (TableForPayload MeetingsJobPayload registry),
+    KnownSymbol (TableForPayload ConversationsJobPayload registry),
+    FromJSON MeetingsJobPayload,
+    ToJSON MeetingsJobPayload,
+    FromJSON ConversationsJobPayload,
+    ToJSON ConversationsJobPayload
   ) =>
   HasqlPoolExt.Pool ->
   ScheduledJobsRunnerConfig registry ->
@@ -204,17 +209,24 @@ runScheduledJobsRunner postgresPool runnerConfig JobWorkerHandlers {..} = do
   let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.scheduledJobsRunnerArbiterConnStr)
   Log.info runnerConfig.scheduledJobsRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
-      . Log.field "queue_name" scheduledJobsQueueName
+      . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
       . Log.field "schedule" (show runnerConfig.scheduledJobsRunnerSchedule)
 
   let arbiterEnv = mkNewWireArbiterEnv runnerConfig.scheduledJobsRunnerSchemaName postgresPool
-      workerHandler _conn job = liftIO $ do
+      meetingsWorkerHandler _conn job = liftIO $ do
         Log.info runnerConfig.scheduledJobsRunnerLogger $
           Log.msg (Log.val "Running scheduled job")
-            . Log.field "queue_name" scheduledJobsQueueName
-            . Log.field "payload_type" (scheduledJobPayloadTypeName job.payload)
+            . Log.field "queue_name" meetingsQueueName
+            . Log.field "payload_type" (meetingsJobPayloadTypeName job.payload)
         case job.payload of
           MeetingsCleanup payload -> scheduledJobsRunMeetingsCleanup payload
+
+      conversationsWorkerHandler _conn job = liftIO $ do
+        Log.info runnerConfig.scheduledJobsRunnerLogger $
+          Log.msg (Log.val "Running scheduled job")
+            . Log.field "queue_name" conversationsQueueName
+            . Log.field "payload_type" (conversationsJobPayloadTypeName job.payload)
+        case job.payload of
           AdminlessDeletion payload -> scheduledJobsRunAdminlessDeletion (mapJobPayload (const payload) job)
           AdminlessReminder payload -> scheduledJobsRunAdminlessReminder (mapJobPayload (const payload) job)
 
@@ -232,37 +244,69 @@ runScheduledJobsRunner postgresPool runnerConfig JobWorkerHandlers {..} = do
       Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
       Right job -> pure job
 
-  workerConfig <-
+  meetingsWorkerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
         arbiterConnStr
         runnerConfig.scheduledJobsRunnerSettings.scheduledJobWorkerThreads
-        workerHandler ::
+        meetingsWorkerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
               (WireArbiter registry)
-              ScheduledJobPayload
+              MeetingsJobPayload
               ()
           )
     )
-  let workerConfig' =
+
+  conversationsWorkerConfig <-
+    ( ArbiterWorker.defaultWorkerConfig
+        arbiterConnStr
+        runnerConfig.scheduledJobsRunnerSettings.scheduledJobWorkerThreads
+        conversationsWorkerHandler ::
+        IO
+          ( ArbiterWorker.WorkerConfig
+              (WireArbiter registry)
+              ConversationsJobPayload
+              ()
+          )
+    )
+
+  let meetingsWorkerConfig' =
         applyExplicitDefaults
           runnerConfig.scheduledJobsRunnerSettings
-          workerConfig
+          meetingsWorkerConfig
             { ArbiterWorkerConfig.cronJobs = [cronJob]
             }
+      conversationsWorkerConfig' =
+        applyExplicitDefaults
+          runnerConfig.scheduledJobsRunnerSettings
+          conversationsWorkerConfig
+      workerPools =
+        [ ArbiterWorker.namedWorkerPool meetingsWorkerConfig',
+          ArbiterWorker.namedWorkerPool conversationsWorkerConfig'
+        ]
+      shutdownWorkerPools _ = do
+        ArbiterWorker.shutdownWorker meetingsWorkerConfig'
+        ArbiterWorker.shutdownWorker conversationsWorkerConfig'
 
   workerAsync <-
     Async.async $
       runWireArbiter arbiterEnv $
-        ArbiterWorker.runWorkerPool workerConfig'
+        ArbiterWorker.runWorkerPools
+          (Proxy @registry)
+          workerPools
+          shutdownWorkerPools
 
   pure $ do
-    ArbiterWorker.shutdownWorker workerConfig'
+    ArbiterWorker.shutdownWorker meetingsWorkerConfig'
+    ArbiterWorker.shutdownWorker conversationsWorkerConfig'
     Async.cancel workerAsync
 
-scheduledJobPayloadTypeName :: ScheduledJobPayload -> Text
-scheduledJobPayloadTypeName = \case
+meetingsJobPayloadTypeName :: MeetingsJobPayload -> Text
+meetingsJobPayloadTypeName = \case
   MeetingsCleanup _ -> "meetings_cleanup"
+
+conversationsJobPayloadTypeName :: ConversationsJobPayload -> Text
+conversationsJobPayloadTypeName = \case
   AdminlessDeletion _ -> "adminless_deletion"
   AdminlessReminder _ -> "adminless_reminder"
 

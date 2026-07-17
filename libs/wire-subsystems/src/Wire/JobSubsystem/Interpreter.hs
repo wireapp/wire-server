@@ -88,7 +88,7 @@ scheduleAdminlessDeletionJob JobSubsystemConfig {..} lusr teamId convId schedule
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessJobDedupKey "deletion" convId,
             ArbiterCore.maxAttempts = Just 3
           }
-  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) arbiterJob
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) @ScheduledJobsRegistry @ConversationsJobPayload arbiterJob
 
 scheduleAdminlessReminderJob ::
   forall r.
@@ -115,7 +115,7 @@ scheduleAdminlessReminderJob JobSubsystemConfig {..} lusr teamId convId deletion
             ArbiterCore.dedupKey = Just . ArbiterCore.IgnoreDuplicate $ adminlessReminderJobDedupKey convId reminderTimeout,
             ArbiterCore.maxAttempts = Just 3
           }
-  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) arbiterJob
+  embed $ void $ runWireArbiter arbiterEnv $ ArbiterCore.insertJob @(WireArbiter ScheduledJobsRegistry) @ScheduledJobsRegistry @ConversationsJobPayload arbiterJob
 
 adminlessJobDedupKey :: Text -> ConvId -> Text
 adminlessJobDedupKey jobType convId =

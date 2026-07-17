@@ -1,2 +1,3 @@
 Background-worker now runs some scheduled jobs. The background-worker configuration exposes the job dispatcher, worker, retry, shutdown, and reaper settings under `scheduledJobs`; all settings default to the current behavior. `scheduledJobs.workerThreads` defaults to `1`, so no operator action is required when the default parallelism is sufficient.
+Scheduled jobs currently use separate `meetings` and `conversations` queues, with one worker pool assigned to each queue.
 Each background-worker instance uses one additional PostgreSQL connection for scheduled-job coordination; increasing `workerThreads` does not increase the connection count.

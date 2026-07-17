@@ -84,11 +84,14 @@ tests =
           [ (testObject_AdminlessReminderJob_1, "testObject_AdminlessReminderJob_1.json"),
             (testObject_AdminlessReminderJob_2, "testObject_AdminlessReminderJob_2.json")
           ],
-      testGroup "ScheduledJobPayload" $
+      testGroup "MeetingsJobPayload" $
         testObjects
-          [ (testObject_ScheduledJobPayload_MeetingsCleanup_1, "testObject_ScheduledJobPayload_MeetingsCleanup_1.json"),
-            (testObject_ScheduledJobPayload_AdminlessDeletion_1, "testObject_ScheduledJobPayload_AdminlessDeletion_1.json"),
-            (testObject_ScheduledJobPayload_AdminlessReminder_1, "testObject_ScheduledJobPayload_AdminlessReminder_1.json")
+          [ (testObject_MeetingsJobPayload_MeetingsCleanup_1, "testObject_ScheduledJobPayload_MeetingsCleanup_1.json")
+          ],
+      testGroup "ConversationsJobPayload" $
+        testObjects
+          [ (testObject_ConversationsJobPayload_AdminlessDeletion_1, "testObject_ScheduledJobPayload_AdminlessDeletion_1.json"),
+            (testObject_ConversationsJobPayload_AdminlessReminder_1, "testObject_ScheduledJobPayload_AdminlessReminder_1.json")
           ],
       testGroup "CreatedApp" $
         testObjects [(testObject_CreatedApp_1, "testObject_CreatedApp_1.json")],

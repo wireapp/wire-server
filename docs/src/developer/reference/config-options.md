@@ -2213,7 +2213,7 @@ backgroundJobs:
 # Scheduled jobs
 scheduledJobs:
   pollInterval: 5s   # how often due jobs are discovered
-  workerThreads: 1   # worker threads for the shared scheduled-job queue
+  workerThreads: 1   # worker threads for each scheduled-job queue
   visibilityTimeout: 60s       # how long a claimed job stays invisible
   jobHeartbeatInterval: 30s    # refresh interval for running jobs
   workerHeartbeatInterval: 10s # refresh interval for worker liveness
@@ -2224,6 +2224,11 @@ scheduledJobs:
   reaperInterval: 300s         # Arbiter reaper interval
   reaperTimeout: 300s          # maximum duration of one reaper pass
   workerStaleThreshold: 300s   # worker heartbeat staleness threshold
+
+Scheduled jobs are currently split into two domain queues: `meetings`, which
+contains meeting cleanup jobs, and `conversations`, which contains adminless
+reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
+`workerThreads` value applies independently to both pools.
 
 # Required for addressing local vs remote backends
 federationDomain: example.org
@@ -2266,4 +2271,4 @@ Notes
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
 - `scheduledJobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
 - `scheduledJobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
-- `scheduledJobs.workerThreads` controls the number of worker threads for the shared scheduled-job queue. The default is `1`; increasing it allows jobs to run in parallel when their group keys permit it.
+- `scheduledJobs.workerThreads` controls the number of worker threads in each scheduled-job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.
