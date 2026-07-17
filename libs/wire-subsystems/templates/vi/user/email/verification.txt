@@ -2,17 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-XÁC MINH ĐỊA CHỈ EMAL CỦA BẠN
-${email} đã được dùng để đăng ký ${brand}. Nhập mã này để xác minh địa chỉ email
-và tạo tài khoản của bạn.
+VERIFY YOUR EMAIL
+${email} was used to register on ${brand}. Enter this code to verify your email
+and create your account.
 
 ${code}
 
-Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
-[${misuse}]
-${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

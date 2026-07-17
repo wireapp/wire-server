@@ -1,1 +1,1 @@
-${code} to twój kod weryfikacyjny ${brand}
+${code} is your ${brand} verification code

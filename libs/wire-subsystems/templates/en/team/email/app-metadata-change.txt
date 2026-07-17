@@ -1,0 +1,21 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+DETAILS CHANGED FOR AN APP
+${actor} has changed the details of an app from your team.
+
+New name: ${new_app_name}
+Previous name: ${previous_app_name}
+Date: ${date}
+
+Team name: ${team_name}
+Team ID: ${team_id}
+
+Open Team Management [${url}]If you have any questions, please contact us [${support}].
+
+
+--------------------------------------------------------------------------------
+
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

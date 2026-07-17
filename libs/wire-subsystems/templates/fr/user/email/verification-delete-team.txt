@@ -2,9 +2,9 @@
 
 ${brand_label_url} [${brand_url}]
 
-VÉRIFIER LA SUPPRESSION DE L'ÉQUIPE
-${email} a été utilisé pour supprimer votre équipe ${brand}. Entrez ce code pour
-vérifier votre adresse courriel et supprimer l'équipe.
+VERIFY TEAM DELETION
+${email} was used to delete your ${brand} team. Enter this code to verify your
+email and delete the team.
 
 ${code}
 
@@ -13,6 +13,5 @@ Si vous avez des questions, veuillez nous contacter [${support}].
 
 --------------------------------------------------------------------------------
 
-Règles de confidentialité et conditions d'utilisation [${legal}] · Signaler un
-abus [${misuse}]
-${copyright}. TOUS DROITS RÉSERVÉS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

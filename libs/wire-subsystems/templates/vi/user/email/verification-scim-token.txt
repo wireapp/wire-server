@@ -2,17 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-XÁC MINH VỀ VIỆC TẠO SCIM TOKEN
-${email} được sử dụng để tạo một mã SCIM token. Nhập đoạn mã này để xác minh
-email và tạo mã token.
+VERIFY SCIM TOKEN CREATION
+${email} was used to generate a SCIM token. Enter this code to verify your email
+and create the token.
 
 ${code}
 
-Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
-[${misuse}]
-${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

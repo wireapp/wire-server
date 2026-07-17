@@ -2,20 +2,19 @@
 
 ${brand_label_url} [${brand_url}]
 
-PATVIRTINKITE SAVO EL. PAŠTĄ
-${email} buvo panaudotas, registruojantis „${brand}“.
-Norėdami patvirtinti savo adresą, spustelėkite mygtuką.
+VERIFY YOUR EMAIL
+${email} was used to register on ${brand}.
+Click the button to verify your address.
 
-Patvirtinti [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verify [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
-Jei turite klausimų, susisiekite su mumis [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumo politika ir naudojimosi sąlygos [${legal}] · Pranešti apie
-piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

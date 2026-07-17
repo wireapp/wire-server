@@ -2,20 +2,19 @@
 
 ${brand_label_url} [${brand_url}]
 
-XÁC MINH ĐỊA CHỈ EMAL CỦA BẠN
-${email} đã được dùng để đăng ký ${brand}.
-Nhấp vào nút để xác minh địa chỉ của bạn.
+VERIFY YOUR EMAIL
+${email} was used to register on ${brand}.
+Click the button to verify your address.
 
-Xác minh [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verify [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
-Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
-[${misuse}]
-${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

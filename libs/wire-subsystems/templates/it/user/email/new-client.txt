@@ -2,17 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-NUOVO DISPOSITIVO
-Il tuo account ${brand} è stato utilizzato in data:
+NEW DEVICE
+Your ${brand} account was used on:
 
 ${date}
 
 ${model}
 
-Potresti avere installato ${brand} su un nuovo dispositivo o averlo installato
-di nuovo su uno utilizzato precedentemente. Se questo non è il caso, vai nelle
-impostazioni di ${brand} rimuovi quel dispositivo e reimposta la tua password
-[${forgot}].
+You may have installed ${brand} on a new device or installed it again on an
+existing one. If that was not the case, go to ${brand} Settings, remove the
+device and reset your password [${forgot}].
 
 Se hai domande, per favore contattaci [${support}].
 

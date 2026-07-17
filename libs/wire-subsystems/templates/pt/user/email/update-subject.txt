@@ -1,1 +1,1 @@
-Seu novo endereço de email no ${brand}
+Your new email address on ${brand}

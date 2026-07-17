@@ -1,1 +1,1 @@
-Hesabı sil?
+Delete account?

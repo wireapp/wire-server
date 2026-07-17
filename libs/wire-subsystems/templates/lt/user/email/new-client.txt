@@ -2,22 +2,21 @@
 
 ${brand_label_url} [${brand_url}]
 
-NAUJAS ĮRENGINYS
-Jūsų „${brand}“ paskyra buvo naudota:
+NEW DEVICE
+Your ${brand} account was used on:
 
 ${date}
 
 ${model}
 
-Tikriausiai įdiegėte „${brand}“ naujame įrenginyje arba įdiegėte iš naujo
-esančiame įrenginyje. Jei to nedarėte, eikit į „${brand}“ nustatymus,
-pašalinkite įrenginį ir pakeiskite savo slaptažodį [${forgot}].
+You may have installed ${brand} on a new device or installed it again on an
+existing one. If that was not the case, go to ${brand} Settings, remove the
+device and reset your password [${forgot}].
 
-Jei turite klausimų, susisiekite su mumis [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumo politika ir naudojimosi sąlygos [${legal}] · Pranešti apie
-piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

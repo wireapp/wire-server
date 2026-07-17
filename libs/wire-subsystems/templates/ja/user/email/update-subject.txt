@@ -1,1 +1,1 @@
-${brand} での新しいメールアドレス
+Your new email address on ${brand}

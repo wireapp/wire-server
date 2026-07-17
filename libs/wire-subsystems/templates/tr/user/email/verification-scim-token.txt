@@ -8,8 +8,7 @@ and create the token.
 
 ${code}
 
-Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
-[${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------

@@ -1,1 +1,1 @@
-あなたの ${brand} アカウント
+Your ${brand} Account

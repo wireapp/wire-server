@@ -2,17 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-PATVIRTINKITE SAVO EL. PAŠTĄ
-${email} buvo užregistruotas „${brand}“ sistemoje. Norėdami patvirtinti savo el.
-paštą ir susikurti paskyrą, įveskite šį kodą.
+VERIFY YOUR EMAIL
+${email} was used to register on ${brand}. Enter this code to verify your email
+and create your account.
 
 ${code}
 
-Jei turite klausimų, susisiekite su mumis [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumo politika ir naudojimosi sąlygos [${legal}] · Pranešti apie
-piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

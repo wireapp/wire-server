@@ -8,11 +8,10 @@ and create the token.
 
 ${code}
 
-Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
-[${misuse}]
-${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

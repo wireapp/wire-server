@@ -8,11 +8,10 @@ your email and log in.
 
 ${code}
 
-Jei turite klausimų, susisiekite su mumis [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumo politika ir naudojimosi sąlygos [${legal}] · Pranešti apie
-piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

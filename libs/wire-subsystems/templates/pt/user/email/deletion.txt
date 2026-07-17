@@ -3,22 +3,20 @@
 ${brand_label_url} [${brand_url}]
 
 EXCLUIR SUA CONTA
-Nós recebemos uma solicitação para excluir sua conta ${brand}. Clique no botão
-abaixo em até 10 minutos para excluir todas as suas conversas, conteúdo e
-conexões.
+We’ve received a request to delete your ${brand} account. Clique no botão abaixo
+em até 10 minutos para excluir todas as suas conversas, conteúdo e conexões.
 
-Excluir conta [${url}]Se você não conseguir selecionar o botão, copie e cole
-este link no seu navegador:
+Excluir conta [${url}]If you can’t select the button, copy and paste this link
+to your browser:
 
 ${url}
 
-Se você não solicitou isso, redefina sua senha [${forgot}].
+If you didn’t request this, reset your password [${forgot}].
 
-Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
-[${misuse}]
-${copyright}. TODOS OS DIREITOS RESERVADOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

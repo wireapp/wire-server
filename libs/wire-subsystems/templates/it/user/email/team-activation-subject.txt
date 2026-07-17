@@ -1,1 +1,1 @@
-Profilo di ${brand}
+${brand} Account

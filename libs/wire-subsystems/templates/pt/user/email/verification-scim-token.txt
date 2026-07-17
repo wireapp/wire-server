@@ -2,17 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFICAR CRIAÇÃO DO TOKEN SCIM
-${email} foi usado para gerar um token SCIM. Insira este código para verificar
-seu e-mail e criar o token.
+VERIFY SCIM TOKEN CREATION
+${email} was used to generate a SCIM token. Enter this code to verify your email
+and create the token.
 
 ${code}
 
-Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
-[${misuse}]
-${copyright}. TODOS OS DIREITOS RESERVADOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

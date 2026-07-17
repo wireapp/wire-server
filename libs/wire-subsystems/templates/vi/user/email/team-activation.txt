@@ -2,20 +2,18 @@
 
 ${brand_label_url} [${brand_url}]
 
-TÀI KHOẢN MỚI CỦA BẠN TRÊN ${brand}
-Một nhóm ${brand} đã được tại với ${email}. Vui lòng xác minh địa chỉ email của
-bạn.
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Please verify your email.
 
-Xác minh [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verify [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
-Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
-[${misuse}]
-${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

@@ -2,23 +2,21 @@
 
 ${brand_label_url} [${brand_url}]
 
-IŠTRINTI JŪSŲ PASKYRĄ
-Mes gavome užklausą ištrinti jūsų ${brand} paskyrą. Norėdami ištrinti visus savo
-pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite žemiau esantį
-mygtuką.
+DELETE YOUR ACCOUNT
+We’ve received a request to delete your ${brand} account. Click the button below
+within 10 minutes to delete all your conversations, content and connections.
 
-Ištrinti paskyrą [${url}]If you can’t select the button, copy and paste this
-link to your browser:
+Delete account [${url}]If you can’t select the button, copy and paste this link
+to your browser:
 
 ${url}
 
-Jeigu jūs nebuvote to užklausę, atstatykite savo slaptažodį [${forgot}].
+If you didn’t request this, reset your password [${forgot}].
 
-Jei turite klausimų, susisiekite su mumis [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumo politika ir naudojimosi sąlygos [${legal}] · Pranešti apie
-piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

@@ -2,23 +2,21 @@
 
 ${brand_label_url} [${brand_url}]
 
-XOÁ TÀI KHOẢN CỦA BẠN
-Chúng tôi nhận được một yêu cầu xoá tài khoản ${brand} của bạn. Nhấp vào nút
-phía bên dưới trong vòng 10 phút để xoá toàn bộ cuộc hội thoại, nội dung và mọi
-kết nối của bạn.
+DELETE YOUR ACCOUNT
+We’ve received a request to delete your ${brand} account. Click the button below
+within 10 minutes to delete all your conversations, content and connections.
 
-Xoá tài khoản [${url}]If you can’t select the button, copy and paste this link
+Delete account [${url}]If you can’t select the button, copy and paste this link
 to your browser:
 
 ${url}
 
-Nếu bạn không thực hiện yêu cầu này, thay đổi mật khẩu của bạn ngay [${forgot}].
+If you didn’t request this, reset your password [${forgot}].
 
-Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
-[${misuse}]
-${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

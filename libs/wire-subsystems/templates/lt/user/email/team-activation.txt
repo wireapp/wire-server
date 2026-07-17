@@ -2,20 +2,18 @@
 
 ${brand_label_url} [${brand_url}]
 
-JŪSŲ NAUJA „${brand}“ PASKYRA
-Naudojant ${email}, buvo sukurta nauja „${brand}“ komanda. Patvirtinkite savo
-el. paštą.
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Please verify your email.
 
-Patvirtinti [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verify [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
-Jei turite klausimų, susisiekite su mumis [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumo politika ir naudojimosi sąlygos [${legal}] · Pranešti apie
-piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

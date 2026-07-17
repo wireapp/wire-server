@@ -2,19 +2,19 @@
 
 ${brand_label_url} [${brand_url}]
 
-メールアドレス認証
-${email} は、${brand} への登録に使用されました。
-ボタンをクリックしてメールアドレスの認証を行ってください。
+VERIFY YOUR EMAIL
+${email} was used to register on ${brand}.
+Click the button to verify your address.
 
-認証 [${url}]If you can’t select the button, copy and paste this link to your
+Verify [${url}]If you can’t select the button, copy and paste this link to your
 browser:
 
 ${url}
 
-ご不明な点がございましたら、 こちら [${support}] から私たちにご連絡ください。
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-プライバシーポリシーと利用規約 [${legal}] · 不具合を報告する [${misuse}]
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
 ${copyright}. ALL RIGHTS RESERVED.

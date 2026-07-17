@@ -8,10 +8,10 @@ email and delete the team.
 
 ${code}
 
-ご不明な点がございましたら、 こちら [${support}] から私たちにご連絡ください。
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-プライバシーポリシーと利用規約 [${legal}] · 不具合を報告する [${misuse}]
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
 ${copyright}. ALL RIGHTS RESERVED.

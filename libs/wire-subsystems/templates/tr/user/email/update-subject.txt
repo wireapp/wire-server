@@ -1,1 +1,1 @@
-${brand} üzerindeki yeni e-posta adresiniz
+Your new email address on ${brand}

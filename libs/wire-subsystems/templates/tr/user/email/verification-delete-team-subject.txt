@@ -1,1 +1,1 @@
-${brand} doğrulama kodu ${code}
+your ${brand} verification code is ${code}

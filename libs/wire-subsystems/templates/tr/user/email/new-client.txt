@@ -2,19 +2,18 @@
 
 ${brand_label_url} [${brand_url}]
 
-YENI CIHAZ
-${brand} hesabınız şunun üzerinde kullanıldı:
+NEW DEVICE
+Your ${brand} account was used on:
 
 ${date}
 
 ${model}
 
-${brand} cihazını yeni bir cihaza kurmuş veya tekrar mevcut bir cihaza kurmuş
-olabilirsiniz. Öyle değilse, ${brand} Ayarlar bölümüne gidin, cihazı kaldırın ve 
-şifrenizi sıfırlayın [${forgot}].
+You may have installed ${brand} on a new device or installed it again on an
+existing one. If that was not the case, go to ${brand} Settings, remove the
+device and reset your password [${forgot}].
 
-Herhangi bir sorunuz veya yardıma ihtiyacınız varsa, lütfen bize ulaşın
-[${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------

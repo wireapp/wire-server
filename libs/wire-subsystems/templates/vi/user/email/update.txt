@@ -2,20 +2,19 @@
 
 ${brand_label_url} [${brand_url}]
 
-XÁC MINH ĐỊA CHỈ EMAL CỦA BẠN
-${email} đã được đăng ký như là địa chỉ email mới của bạn trên ${brand}. Nhấp
-vào nút phía bên dưới để xác minh địa chỉ email của bạn.
+VERIFY YOUR EMAIL
+${email} was registered as your new email address on ${brand}. Click the button
+below to verify your address.
 
-Xác minh [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verify [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
-Nếu bạn có bất kỳ thắc mắc nào, xin vui lòng liên hệ với chúng tôi [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Chính sách riêng tư và điều khoản sử dụng [${legal}] · Báo cáo Lạm dụng
-[${misuse}]
-${copyright}. ĐÃ ĐƯỢC ĐĂNG KÝ BẢN QUYỀN.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

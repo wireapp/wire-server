@@ -2,20 +2,18 @@
 
 ${brand_label_url} [${brand_url}]
 
-SUA NOVA CONTA EM ${brand}
-Um nova conta na equipe ${brand} foi criada com ${email}. Por favor, verifique
-seu e-mail.
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Por favor, verifique seu e-mail.
 
-Verificar [${url}]Se você não conseguir selecionar o botão, copie e cole este
-link no seu navegador:
+Verificar [${url}]If you can’t select the button, copy and paste this link to
+your browser:
 
 ${url}
 
-Se você tiver alguma dúvida, por favor, entre em contato conosco [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Política de privacidade e termos de uso [${legal}] · Reportar uso indevido
-[${misuse}]
-${copyright}. TODOS OS DIREITOS RESERVADOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

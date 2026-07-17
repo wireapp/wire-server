@@ -2,22 +2,21 @@
 
 ${brand_label_url} [${brand_url}]
 
-USUŃ SWOJE KONTO
-Otrzymaliśmy prośbę o usunięcie konta ${brand}. Kliknij przycisk poniżej w ciągu
-10 minut, aby usunąć wszystkie konwersacje, treści i połączenia.
+DELETE YOUR ACCOUNT
+We’ve received a request to delete your ${brand} account. Click the button below
+within 10 minutes to delete all your conversations, content and connections.
 
-Usuń konto [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Delete account [${url}]If you can’t select the button, copy and paste this link
+to your browser:
 
 ${url}
 
-Jeśli nie poprosiłeś o to, zresetuj swoje hasło [${forgot}].
+If you didn’t request this, reset your password [${forgot}].
 
-Jeśli masz jakieś pytania, prosimy skontaktuj się z nami [${support}].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Polityka prywatności i warunki użytkowania [${legal}] · Zgłoś niewłaściwe użycie
-[${misuse}]
-${copyright}. WSZELKIE PRAWA ZASTRZEŻONE.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

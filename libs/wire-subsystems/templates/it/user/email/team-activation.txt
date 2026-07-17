@@ -2,12 +2,11 @@
 
 ${brand_label_url} [${brand_url}]
 
-IL TUO NUOVO PROFILO SU ${brand}
-Un nuovo team di ${brand} è stato creato con ${email}. Sei pregato di verificare
-la tua email.
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Please verify your email.
 
-Verifica [${url}]If you can’t select the button, copy and paste this link to
-your browser:
+Verify [${url}]If you can’t select the button, copy and paste this link to your
+browser:
 
 ${url}
 
