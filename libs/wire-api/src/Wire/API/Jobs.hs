@@ -130,7 +130,7 @@ taggedJobPayloadObjectSchema toTag toSchema =
     tagObjectSchema = field "type" schema
 
 -- | Payload persisted in the meetings queue. Keep the type tag and nested data
--- shape stable when changing scheduled jobs. The sum makes the queue
+-- shape stable when changing job payloads. The sum makes the queue
 -- extensible without changing its JSON envelope.
 data MeetingsJobPayload
   = MeetingsCleanup MeetingsCleanupJob
@@ -173,7 +173,7 @@ instance Arbitrary MeetingsJobPayload where
   arbitrary = MeetingsCleanup <$> arbitrary
 
 -- | Payload persisted in the conversations queue. Keep the type tags and
--- nested data shapes stable when changing scheduled jobs.
+-- nested data shapes stable when changing job payloads.
 data ConversationsJobPayload
   = AdminlessDeletion AdminlessDeletionJob
   | AdminlessReminder AdminlessReminderJob

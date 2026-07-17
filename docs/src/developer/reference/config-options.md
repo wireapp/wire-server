@@ -2213,7 +2213,7 @@ backgroundJobs:
 # Jobs
 jobs:
   pollInterval: 5s   # how often due jobs are discovered
-  workerThreads: 1   # worker threads for each scheduled-job queue
+  workerThreads: 1   # worker threads for each job queue
   visibilityTimeout: 60s       # how long a claimed job stays invisible
   jobHeartbeatInterval: 30s    # refresh interval for running jobs
   workerHeartbeatInterval: 10s # refresh interval for worker liveness
@@ -2225,7 +2225,7 @@ jobs:
   reaperTimeout: 300s          # maximum duration of one reaper pass
   workerStaleThreshold: 300s   # worker heartbeat staleness threshold
 
-Scheduled jobs are currently split into two domain queues: `meetings`, which
+Jobs are currently split into two domain queues: `meetings`, which
 contains meeting cleanup jobs, and `conversations`, which contains adminless
 reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
 `workerThreads` value applies independently to both pools.
@@ -2244,19 +2244,19 @@ migrated to Arbiter.
 federationDomain: example.org
 ```
 
-### Scheduled jobs PostgreSQL connections
+### Job runner PostgreSQL connections
 
-Each `background-worker` instance that runs scheduled jobs uses one additional
+Each `background-worker` instance that runs Arbiter jobs uses one additional
 PostgreSQL connection for Arbiter scheduler and notification coordination. This
 connection is in addition to the connections configured by `postgresqlPool`,
 and should be included when sizing PostgreSQL's `max_connections` and the
 service's connection budget.
 
-`jobs.workerThreads` controls how many scheduled jobs may be processed
+`jobs.workerThreads` controls how many jobs may be processed
 in parallel; it does not allocate one PostgreSQL connection per thread. The
-threads share the scheduled-job worker's database resources, so increasing the
+threads share the job worker's database resources, so increasing the
 thread count increases possible job and database workload, but not the number
-of connections opened by the scheduled-job worker.
+of connections opened by the job worker.
 
 The `migrationOptions.timeout` setting limits how long a single migration
 attempt may run after it has acquired the migration lock. If the timeout is

@@ -52,10 +52,10 @@ import Wire.JobSubsystem.ArbiterAdapter
 import Wire.JobSubsystem.Migrations (runJobMigrations)
 import Wire.MeetingsCleanupWorker
 
--- | Runtime settings shared by every scheduled-job runner in a process.
+-- | Runtime settings shared by every job runner in a process.
 --
 -- These values deliberately mirror the Arbiter worker defaults that we use.
--- Keeping them in one record ensures all scheduled job types use the same
+-- Keeping them in one record ensures all job types use the same
 -- execution policy as settings are added or tuned.
 data JobWorkerSettings = JobWorkerSettings
   { jobWorkerThreads :: Int,
@@ -129,7 +129,7 @@ toJobJitter = \case
   JobFullJitter -> ArbiterWorker.FullJitter
   JobEqualJitter -> ArbiterWorker.EqualJitter
 
--- | Start the worker pools for the scheduled-job queues.
+-- | Start the worker pools for the job queues.
 --
 -- Each domain queue has its own Arbiter table and worker pool. The meetings
 -- pool owns the recurring cleanup cron job, while the conversations pool owns
@@ -150,15 +150,15 @@ runJobRunner ::
   IO (IO ())
 runJobRunner env extEnv runnerConfig cleanupConfig = do
   let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.jobRunnerArbiterConnStr)
-  Log.info runnerConfig.jobRunnerLogger $
-    Log.msg (Log.val "Starting scheduled jobs worker")
+    Log.info runnerConfig.jobRunnerLogger $
+    Log.msg (Log.val "Starting job worker")
       . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
       . Log.field "schedule" (show runnerConfig.jobRunnerSchedule)
 
   let arbiterEnv = mkNewWireArbiterEnv runnerConfig.jobRunnerSchemaName env.hasqlPool
       meetingsWorkerHandler _conn job = liftIO $ do
         Log.info runnerConfig.jobRunnerLogger $
-          Log.msg (Log.val "Running scheduled job")
+          Log.msg (Log.val "Running job")
             . Log.field "queue_name" meetingsQueueName
             . Log.field "payload_type" (meetingsJobPayloadTypeName job.payload)
         case job.payload of
@@ -166,7 +166,7 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
 
       conversationsWorkerHandler _conn job = liftIO $ do
         Log.info runnerConfig.jobRunnerLogger $
-          Log.msg (Log.val "Running scheduled job")
+          Log.msg (Log.val "Running job")
             . Log.field "queue_name" conversationsQueueName
             . Log.field "payload_type" (conversationsJobPayloadTypeName job.payload)
         case job.payload of

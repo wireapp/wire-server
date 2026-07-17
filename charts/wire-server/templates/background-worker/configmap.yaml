@@ -94,10 +94,10 @@ data:
 {{ toYaml . | indent 6 }}
     {{- end }}
     jobs:
-      # Arbiter dispatcher poll interval for all scheduled jobs.
+      # Arbiter dispatcher poll interval for all jobs.
       # Lower values reduce discovery latency, but increase DB polling.
       pollInterval: {{ .jobs.pollInterval }}
-      # Number of worker threads per scheduled-job queue.
+      # Number of worker threads per job queue.
       workerThreads: {{ .jobs.workerThreads }}
       visibilityTimeout: {{ .jobs.visibilityTimeout }}
       jobHeartbeatInterval: {{ .jobs.jobHeartbeatInterval }}

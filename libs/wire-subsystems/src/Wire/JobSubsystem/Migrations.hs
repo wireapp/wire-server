@@ -40,8 +40,8 @@ import System.IO.Error (userError)
 import System.Timeout (timeout)
 import Wire.API.Jobs (JobRegistry)
 
--- | Apply all migrations for the scheduled-jobs registry before constructing
--- any worker pools or accepting scheduled jobs.
+-- | Apply all migrations for the job registry before constructing any worker
+-- pools or accepting jobs.
 runJobMigrations :: SecretText -> Text -> IO ()
 runJobMigrations connStr schemaName =
   withArbiterMigrationLock connStr schemaName $ do

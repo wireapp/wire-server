@@ -68,7 +68,7 @@ backgroundJobs:
 # Job dispatcher configuration for integration
 jobs:
   pollInterval: 1s # Poll every second so due jobs are discovered promptly in tests
-  workerThreads: 1 # Keep one worker per scheduled-job queue in integration tests
+  workerThreads: 1 # Keep one worker per job queue in integration tests
   visibilityTimeout: 60s
   jobHeartbeatInterval: 30s
   workerHeartbeatInterval: 10s

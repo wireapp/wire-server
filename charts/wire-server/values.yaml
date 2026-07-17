@@ -1005,12 +1005,12 @@ background-worker:
       # Total attempts, including the first try
       maxAttempts: 3
 
-    # Scheduled-jobs dispatcher configuration.
+    # Job dispatcher configuration.
     jobs:
-      # Arbiter dispatcher poll interval for all scheduled jobs.
+      # Arbiter dispatcher poll interval for all jobs.
       # Lower values reduce discovery latency, but increase DB polling.
       pollInterval: 5s
-      # Number of worker threads per scheduled-job queue.
+      # Number of worker threads per job queue.
       workerThreads: 1
       # How long a claimed job remains invisible while it is processed.
       visibilityTimeout: 60s
