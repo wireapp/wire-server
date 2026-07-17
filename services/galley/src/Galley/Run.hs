@@ -68,7 +68,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
-import Wire.JobSubsystem.Workers (runScheduledJobsMigrations)
+import Wire.JobSubsystem.Migrations (runScheduledJobsMigrations)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley
 import Wire.PostgresMigrations (runAllMigrations)

@@ -33,7 +33,7 @@ import Wire.BackgroundWorker.Env
 import Wire.BackgroundWorker.Health qualified as Health
 import Wire.BackgroundWorker.Jobs.Consumer qualified as Jobs
 import Wire.BackgroundWorker.Options
-import Wire.BackgroundWorker.ScheduledJobs qualified as ScheduledJobs
+import Wire.BackgroundWorker.Workers as Workers
 import Wire.DeadUserNotificationWatcher qualified as DeadUserNotificationWatcher
 import Wire.Options.Galley qualified as Galley
 import Wire.PostgresMigrations qualified as Migrations
@@ -85,7 +85,7 @@ run opts galleyOpts = do
   cleanupScheduledJobs <-
     runAppT env $
       withNamedLogger "scheduled-jobs" $
-        ScheduledJobs.startWorker opts.scheduledJobs opts.meetingsCleanup
+        Workers.startWorker opts.scheduledJobs opts.meetingsCleanup
   let cleanup =
         void $
           runConcurrently $

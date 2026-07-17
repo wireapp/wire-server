@@ -18,14 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.JobSubsystem
-  ( CleanupAction,
-    JobSubsystemConfig (..),
+  ( JobSubsystemConfig (..),
     JobSubsystem (..),
-    JobWorkerHandlers (..),
-    JobWorkersConfig (..),
     scheduleAdminlessDeletionJob,
     scheduleAdminlessReminderJob,
-    startJobWorkers,
   )
 where
 
@@ -35,22 +31,13 @@ import Data.Qualified
 import Data.Time.Clock (NominalDiffTime, UTCTime)
 import Imports
 import Polysemy
-import Wire.API.Jobs
-import Wire.JobSubsystem.Workers
-
-type CleanupAction = IO ()
 
 data JobSubsystemConfig = JobSubsystemConfig
   { jobSubsystemSchemaName :: Text
   }
 
-data JobWorkersConfig = JobWorkersConfig
-  { scheduledJobsRunnerConfig :: ScheduledJobsRunnerConfig ScheduledJobsRegistry
-  }
-
 data JobSubsystem m a where
   ScheduleAdminlessDeletionJob :: Maybe (Local UserId) -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ()
   ScheduleAdminlessReminderJob :: Maybe (Local UserId) -> TeamId -> ConvId -> UTCTimeMillis -> NominalDiffTime -> UTCTime -> JobSubsystem m ()
-  StartJobWorkers :: JobWorkersConfig -> JobWorkerHandlers -> JobSubsystem m CleanupAction
 
 makeSem ''JobSubsystem

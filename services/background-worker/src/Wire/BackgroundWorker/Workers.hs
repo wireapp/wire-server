@@ -1,6 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RecordWildCards #-}
+
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -21,44 +21,37 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.JobSubsystem.Workers
-  ( ScheduledJobWorkerSettings (..),
-    ScheduledJobsRunnerConfig (..),
-    runScheduledJobsMigrations,
-    runScheduledJobsRunner,
-  )
-where
+module Wire.BackgroundWorker.Workers (startWorker) where
 
 import Arbiter.Core qualified as ArbiterCore
 import Arbiter.Core.Job.Types (JobRead, RegistryAdmissionPolicies)
 import Arbiter.Core.QueueRegistry (RegistryTables, TableForPayload)
-import Arbiter.Migrations qualified as ArbiterMigrations
 import Arbiter.Worker qualified as ArbiterWorker
 import Arbiter.Worker.Config qualified as ArbiterWorkerConfig
 import Arbiter.Worker.Cron qualified as ArbiterWorkerCron
-import Control.Exception (bracket, bracket_, throwIO)
-import Data.Aeson (FromJSON, ToJSON)
-import Data.Hashable qualified as Hashable
+import Control.Exception (throwIO)
+import Data.Misc (Duration, duration)
 import Data.Proxy (Proxy (..))
+import Data.Range (fromRange)
 import Data.Secret (SecretText, revealSecretText)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as Text
 import Data.Time.Clock (NominalDiffTime)
 import GHC.TypeLits (KnownSymbol)
-import Hasql.Connection qualified as HasqlConnection
-import Hasql.Connection.Settings qualified as HasqlConnectionSettings
-import Hasql.Pool.Extended qualified as HasqlPoolExt
-import Hasql.Session qualified as HasqlSession
-import Hasql.Statement qualified as HasqlStatement
-import Hasql.TH
 import Imports
 import System.Cron (CronSchedule, serializeCronSchedule)
 import System.IO.Error (userError)
 import System.Logger qualified as Log
-import System.Timeout (timeout)
 import UnliftIO.Async qualified as Async
 import Wire.API.Jobs
+import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
+import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
+import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..), ScheduledJobsConfig (..), ScheduledJobsJitter (..))
+import Wire.BackgroundWorker.Util
+import Wire.ExternalAccess.External
 import Wire.JobSubsystem.ArbiterAdapter
+import Wire.JobSubsystem.Migrations (runScheduledJobsMigrations)
+import Wire.MeetingsCleanupWorker
 
 -- | Runtime settings shared by every scheduled-job runner in a process.
 --
@@ -89,99 +82,53 @@ data ScheduledJobsRunnerConfig registry = ScheduledJobsRunnerConfig
     scheduledJobsRunnerSettings :: ScheduledJobWorkerSettings
   }
 
--- | Apply all migrations for the scheduled-jobs registry before constructing
--- any worker pools or accepting scheduled jobs.
-runScheduledJobsMigrations :: SecretText -> Text -> IO ()
-runScheduledJobsMigrations connStr schemaName =
-  withArbiterMigrationLock connStr schemaName $ do
-    result <-
-      ArbiterMigrations.runMigrationsForRegistry
-        (Proxy @ScheduledJobsRegistry)
-        (Text.encodeUtf8 $ revealSecretText connStr)
-        schemaName
-        ArbiterMigrations.defaultMigrationConfig
-    case result of
-      ArbiterMigrations.MigrationSuccess -> pure ()
-      ArbiterMigrations.MigrationError err ->
-        throwIO . userError $
-          "Arbiter migrations failed for schema " <> T.unpack schemaName <> ": " <> err
+startWorker :: ScheduledJobsConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
+startWorker scheduledConfig meetingsCleanupConfig = do
+  env <- ask
+  extEnv <- liftIO $ initExtEnv True
+  let cleanupConfig =
+        CleanupConfig
+          { retentionHours = meetingsCleanupConfig.cleanOlderThanHours,
+            batchSize = meetingsCleanupConfig.batchSize
+          }
+      workerSettings =
+        ScheduledJobWorkerSettings
+          { scheduledJobWorkerThreads = fromRange scheduledConfig.workerThreads,
+            scheduledJobPollInterval = scheduledJobsDuration scheduledConfig.pollInterval,
+            scheduledJobVisibilityTimeout = scheduledJobsDuration scheduledConfig.visibilityTimeout,
+            scheduledJobHeartbeatInterval = scheduledJobsDuration scheduledConfig.jobHeartbeatInterval,
+            scheduledJobWorkerHeartbeatInterval = scheduledJobsDuration scheduledConfig.workerHeartbeatInterval,
+            scheduledJobBackoffBase = scheduledConfig.backoffBase,
+            scheduledJobBackoffCap = scheduledJobsDuration scheduledConfig.backoffCap,
+            scheduledJobJitter = scheduledJobsJitter scheduledConfig.jitter,
+            scheduledJobGracefulShutdownTimeout = fmap scheduledJobsDuration scheduledConfig.gracefulShutdownTimeout,
+            scheduledJobReaperInterval = scheduledJobsDuration scheduledConfig.reaperInterval,
+            scheduledJobReaperTimeout = scheduledJobsDuration scheduledConfig.reaperTimeout,
+            scheduledJobWorkerStaleThreshold = scheduledJobsDuration scheduledConfig.workerStaleThreshold
+          }
+      workersConfig =
+        ScheduledJobsRunnerConfig
+          { scheduledJobsRunnerLogger = env.logger,
+            scheduledJobsRunnerSchedule = meetingsCleanupConfig.schedule,
+            -- Arbiter still uses the connection string for LISTEN/NOTIFY.
+            -- The actual job DB access goes through the shared Hasql pool
+            -- passed from the background-worker environment.
+            scheduledJobsRunnerArbiterConnStr = env.arbiterConnStr,
+            scheduledJobsRunnerSchemaName = ArbiterCore.defaultSchemaName,
+            scheduledJobsRunnerSettings = workerSettings
+          } ::
+          ScheduledJobsRunnerConfig ScheduledJobsRegistry
+  liftIO $ runScheduledJobsMigrations env.arbiterConnStr ArbiterCore.defaultSchemaName
+  liftIO $ runScheduledJobsRunner env extEnv workersConfig cleanupConfig
 
--- | Serialize Arbiter schema migrations across all background-worker instances.
---
--- Arbiter's migration API opens its own PostgreSQL connection, so the lock is
--- held on a separate dedicated connection for the entire migration call. This
--- is sufficient because every Wire Server migration caller enters through this
--- wrapper. The connection is kept open until the lock is released; otherwise a
--- session-level advisory lock would be released before the migrations finish.
-withArbiterMigrationLock :: SecretText -> Text -> IO a -> IO a
-withArbiterMigrationLock connStr schemaName action = do
-  bracket acquireConnection HasqlConnection.release $ \lockConnection -> do
-    bracket_
-      (acquireArbiterMigrationLockWithTimeout lockConnection)
-      (runAdvisoryLockStatement lockConnection releaseArbiterMigrationLock)
-      action
-  where
-    lockId :: Int64
-    lockId = fromIntegral . Hashable.hash $ ("wire-server:arbiter-migrations:" <> schemaName :: Text)
+scheduledJobsDuration :: Duration -> NominalDiffTime
+scheduledJobsDuration = realToFrac . duration
 
-    acquireArbiterMigrationLockWithTimeout :: HasqlConnection.Connection -> IO ()
-    acquireArbiterMigrationLockWithTimeout connection = do
-      acquired <- timeout arbiterMigrationLockWaitTimeoutMicros retryUntilAcquired
-      case acquired of
-        Just () -> pure ()
-        Nothing ->
-          throwIO . userError $
-            "Timed out waiting for the Arbiter migration lock for schema " <> T.unpack schemaName
-      where
-        retryUntilAcquired :: IO ()
-        retryUntilAcquired = do
-          acquired <- runAdvisoryLockStatement connection tryArbiterMigrationLock
-          if acquired
-            then pure ()
-            else do
-              threadDelay arbiterMigrationLockRetryIntervalMicros
-              retryUntilAcquired
-
-        -- Do not let a stuck migration block service startup indefinitely. The
-        -- migration itself is not subject to this timeout once the lock is held.
-        arbiterMigrationLockRetryIntervalMicros :: Int
-        arbiterMigrationLockRetryIntervalMicros = 1_000_000
-
-        arbiterMigrationLockWaitTimeoutMicros :: Int
-        arbiterMigrationLockWaitTimeoutMicros = 1 * 60 * 1_000_000
-
-    acquireConnection :: IO HasqlConnection.Connection
-    acquireConnection = do
-      connectionResult <- HasqlConnection.acquire . HasqlConnectionSettings.connectionString $ revealSecretText connStr
-      either
-        ( \err ->
-            throwIO . userError $
-              "Failed to acquire PostgreSQL connection for Arbiter migration lock: " <> show err
-        )
-        pure
-        connectionResult
-
-    runAdvisoryLockStatement ::
-      HasqlConnection.Connection ->
-      HasqlStatement.Statement Int64 a ->
-      IO a
-    runAdvisoryLockStatement connection statement = do
-      result <- HasqlConnection.use connection (HasqlSession.statement lockId statement)
-      either
-        ( \err ->
-            throwIO . userError $
-              "Arbiter migration advisory lock query failed: " <> show err
-        )
-        pure
-        result
-
-    tryArbiterMigrationLock :: HasqlStatement.Statement Int64 Bool
-    tryArbiterMigrationLock =
-      [singletonStatement|SELECT (pg_try_advisory_lock($1 :: bigint) :: bool)|]
-
-    releaseArbiterMigrationLock :: HasqlStatement.Statement Int64 ()
-    releaseArbiterMigrationLock =
-      [resultlessStatement|SELECT (1 :: integer) FROM (SELECT pg_advisory_unlock($1 :: bigint))|]
+scheduledJobsJitter :: ScheduledJobsJitter -> ArbiterWorker.Jitter
+scheduledJobsJitter = \case
+  ScheduledJobsNoJitter -> ArbiterWorker.NoJitter
+  ScheduledJobsFullJitter -> ArbiterWorker.FullJitter
+  ScheduledJobsEqualJitter -> ArbiterWorker.EqualJitter
 
 -- | Start the worker pools for the scheduled-job queues.
 --
@@ -195,31 +142,28 @@ runScheduledJobsRunner ::
   ( RegistryTables registry,
     RegistryAdmissionPolicies registry,
     KnownSymbol (TableForPayload MeetingsJobPayload registry),
-    KnownSymbol (TableForPayload ConversationsJobPayload registry),
-    FromJSON MeetingsJobPayload,
-    ToJSON MeetingsJobPayload,
-    FromJSON ConversationsJobPayload,
-    ToJSON ConversationsJobPayload
+    KnownSymbol (TableForPayload ConversationsJobPayload registry)
   ) =>
-  HasqlPoolExt.Pool ->
+  Env ->
+  ExtEnv ->
   ScheduledJobsRunnerConfig registry ->
-  JobWorkerHandlers ->
+  CleanupConfig ->
   IO (IO ())
-runScheduledJobsRunner postgresPool runnerConfig JobWorkerHandlers {..} = do
+runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
   let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.scheduledJobsRunnerArbiterConnStr)
   Log.info runnerConfig.scheduledJobsRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
       . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
       . Log.field "schedule" (show runnerConfig.scheduledJobsRunnerSchedule)
 
-  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.scheduledJobsRunnerSchemaName postgresPool
+  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.scheduledJobsRunnerSchemaName env.hasqlPool
       meetingsWorkerHandler _conn job = liftIO $ do
         Log.info runnerConfig.scheduledJobsRunnerLogger $
           Log.msg (Log.val "Running scheduled job")
             . Log.field "queue_name" meetingsQueueName
             . Log.field "payload_type" (meetingsJobPayloadTypeName job.payload)
         case job.payload of
-          MeetingsCleanup payload -> scheduledJobsRunMeetingsCleanup payload
+          MeetingsCleanup _ -> runAppT env $ runCleanupOldMeetings cleanupConfig
 
       conversationsWorkerHandler _conn job = liftIO $ do
         Log.info runnerConfig.scheduledJobsRunnerLogger $
@@ -227,8 +171,8 @@ runScheduledJobsRunner postgresPool runnerConfig JobWorkerHandlers {..} = do
             . Log.field "queue_name" conversationsQueueName
             . Log.field "payload_type" (conversationsJobPayloadTypeName job.payload)
         case job.payload of
-          AdminlessDeletion payload -> scheduledJobsRunAdminlessDeletion (mapJobPayload (const payload) job)
-          AdminlessReminder payload -> scheduledJobsRunAdminlessReminder (mapJobPayload (const payload) job)
+          AdminlessDeletion payload -> runAppT env $ runAdminlessDeletionJob extEnv (mapJobPayload (const payload) job)
+          AdminlessReminder payload -> runAppT env $ runAdminlessReminderJob extEnv (mapJobPayload (const payload) job)
 
   cronJob <-
     case ArbiterWorkerCron.cronJob

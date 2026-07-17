@@ -94,7 +94,6 @@ common common-all
     , arbiter-core
     , arbiter-hasql
     , arbiter-migrations
-    , arbiter-worker
     , async
     , attoparsec
     , base
@@ -371,7 +370,7 @@ library
     Wire.JobSubsystem
     Wire.JobSubsystem.ArbiterAdapter
     Wire.JobSubsystem.Interpreter
-    Wire.JobSubsystem.Workers
+    Wire.JobSubsystem.Migrations
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra

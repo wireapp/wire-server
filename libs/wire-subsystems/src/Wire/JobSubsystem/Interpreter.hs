@@ -22,7 +22,6 @@
 
 module Wire.JobSubsystem.Interpreter
   ( interpretJobSubsystem,
-    runJobWorkers,
   )
 where
 
@@ -37,20 +36,9 @@ import Imports
 import Polysemy
 import Polysemy.Input (Input, input)
 import Wire.API.Jobs
-import Wire.JobSubsystem (CleanupAction, JobSubsystem (..), JobSubsystemConfig (..), JobWorkersConfig (..))
+import Wire.JobSubsystem (JobSubsystem (..), JobSubsystemConfig (..))
 import Wire.JobSubsystem.ArbiterAdapter
-import Wire.JobSubsystem.Workers
 import Wire.Postgres (PGConstraints)
-
-runJobWorkers :: HasqlPoolExt.Pool -> JobWorkersConfig -> JobWorkerHandlers -> IO CleanupAction
-runJobWorkers pool JobWorkersConfig {..} handlers = do
-  runScheduledJobsMigrations
-    scheduledJobsRunnerConfig.scheduledJobsRunnerArbiterConnStr
-    scheduledJobsRunnerConfig.scheduledJobsRunnerSchemaName
-  runScheduledJobsRunner @ScheduledJobsRegistry
-    pool
-    scheduledJobsRunnerConfig
-    handlers
 
 interpretJobSubsystem ::
   (PGConstraints r, Member (Input RequestId) r) =>
@@ -61,9 +49,6 @@ interpretJobSubsystem conf =
     \case
       ScheduleAdminlessDeletionJob lusr tid cid scheduledFor -> scheduleAdminlessDeletionJob conf lusr tid cid scheduledFor
       ScheduleAdminlessReminderJob lusr tid cid deletionScheduledFor reminderTimeout scheduledFor -> scheduleAdminlessReminderJob conf lusr tid cid deletionScheduledFor reminderTimeout scheduledFor
-      StartJobWorkers cfg handlers -> do
-        pool <- input
-        embed $ runJobWorkers pool cfg handlers
 
 scheduleAdminlessDeletionJob ::
   forall r.

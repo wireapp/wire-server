@@ -14,7 +14,6 @@
 , arbiter-core
 , arbiter-hasql
 , arbiter-migrations
-, arbiter-worker
 , async
 , attoparsec
 , base
@@ -160,7 +159,6 @@ mkDerivation {
     arbiter-core
     arbiter-hasql
     arbiter-migrations
-    arbiter-worker
     async
     attoparsec
     base
@@ -294,7 +292,6 @@ mkDerivation {
     arbiter-core
     arbiter-hasql
     arbiter-migrations
-    arbiter-worker
     async
     attoparsec
     base

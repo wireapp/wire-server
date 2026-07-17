@@ -271,7 +271,6 @@ interpretJobSubsystem =
       pure ()
     ScheduleAdminlessReminderJob {} ->
       pure ()
-    StartJobWorkers _ _ -> pure (pure ())
 
 interpretRandom ::
   Sem (Random ': r) a ->

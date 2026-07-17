@@ -20,8 +20,8 @@ library
     Wire.BackgroundWorker.Jobs.Consumer
     Wire.BackgroundWorker.Jobs.Registry
     Wire.BackgroundWorker.Options
-    Wire.BackgroundWorker.ScheduledJobs
     Wire.BackgroundWorker.Util
+    Wire.BackgroundWorker.Workers
     Wire.DeadUserNotificationWatcher
     Wire.Effects
     Wire.MeetingsCleanupWorker

@@ -227,9 +227,3 @@ type ScheduledJobsRegistry =
   '[ '(MeetingsQueueName, MeetingsJobPayload),
      '(ConversationsQueueName, ConversationsJobPayload)
    ]
-
-data JobWorkerHandlers = JobWorkerHandlers
-  { scheduledJobsRunMeetingsCleanup :: MeetingsCleanupJob -> IO (),
-    scheduledJobsRunAdminlessDeletion :: JobRead AdminlessDeletionJob -> IO (),
-    scheduledJobsRunAdminlessReminder :: JobRead AdminlessReminderJob -> IO ()
-  }
