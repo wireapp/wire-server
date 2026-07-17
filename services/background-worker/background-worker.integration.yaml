@@ -73,7 +73,7 @@ scheduledJobs:
   jobHeartbeatInterval: 30s
   workerHeartbeatInterval: 10s
   backoffBase: 2.0
-  backoffCap: 1048576s
+  backoffCap: 86400s
   jitter: equal
   gracefulShutdownTimeout: 30s
   reaperInterval: 300s

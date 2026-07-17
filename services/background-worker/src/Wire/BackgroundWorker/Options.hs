@@ -152,7 +152,7 @@ instance FromJSON ScheduledJobsConfig where
       jobHeartbeatInterval <- o .:? "jobHeartbeatInterval" .!= unsafeParseDuration "30s"
       workerHeartbeatInterval <- o .:? "workerHeartbeatInterval" .!= unsafeParseDuration "10s"
       backoffBase <- o .:? "backoffBase" .!= 2.0
-      backoffCap <- o .:? "backoffCap" .!= unsafeParseDuration "1048576s"
+      backoffCap <- o .:? "backoffCap" .!= unsafeParseDuration "86400s"
       jitter <- o .:? "jitter" .!= ScheduledJobsEqualJitter
       gracefulShutdownTimeout <-
         o .:? "gracefulShutdownTimeout" .!= Just (unsafeParseDuration "30s")

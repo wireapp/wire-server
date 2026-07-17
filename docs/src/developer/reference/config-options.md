@@ -2218,7 +2218,7 @@ scheduledJobs:
   jobHeartbeatInterval: 30s    # refresh interval for running jobs
   workerHeartbeatInterval: 10s # refresh interval for worker liveness
   backoffBase: 2.0             # exponential retry backoff base
-  backoffCap: 1048576s         # maximum exponential retry backoff
+  backoffCap: 86400s           # maximum exponential retry backoff
   jitter: equal                # none, full, or equal retry jitter
   gracefulShutdownTimeout: 30s # maximum shutdown grace period
   reaperInterval: 300s         # Arbiter reaper interval
