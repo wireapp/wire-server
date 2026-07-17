@@ -69,8 +69,8 @@ import Wire.AuthenticationSubsystem.Interpreter
 import Wire.BackendNotificationQueueAccess (BackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq (interpretBackendNotificationQueueAccess)
 import Wire.BackendNotificationQueueAccess.RabbitMq qualified as BackendNotificationQueueAccess
-import Wire.BackgroundJobsPublisher (BackgroundJobsPublisher)
-import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
+import Wire.BackgroundJobsPublisher (BackgroundJobPublisher)
+import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BlockListStore
 import Wire.BlockListStore.Cassandra
 import Wire.ClientStore (ClientStore)
@@ -205,7 +205,7 @@ type BrigLowerLevelEffects =
      Wire.Events.Events,
      NotificationSubsystem,
      BackendNotificationQueueAccess,
-     BackgroundJobsPublisher,
+     BackgroundJobPublisher,
      RateLimit,
      UserKeyStore,
      UserStore,
@@ -489,7 +489,7 @@ runBrigToIO e (AppT ma) = do
               . userStoreInterpreter
               . interpretUserKeyStoreCassandra e.casClient
               . interpretRateLimit e.rateLimitEnv
-              . interpretBackgroundJobsPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
+              . interpretBackgroundJobPublisherRabbitMQ e.requestId e.amqpJobsPublisherChannel
               . interpretBackendNotificationQueueAccess (Just backendNotificationQueueEnv)
               . runNotificationSubsystemGundeck (defaultNotificationSubsystemConfig e.requestId)
               . runEvents

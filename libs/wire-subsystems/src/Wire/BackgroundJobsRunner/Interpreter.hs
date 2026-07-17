@@ -42,7 +42,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Team.HardTruncationLimit (hardTruncationLimit)
 import Wire.API.UserGroup
 import Wire.BackgroundJobsPublisher
-import Wire.BackgroundJobsRunner (BackgroundJobsRunner (..))
+import Wire.BackgroundJobsRunner (BackgroundJobRunner (..))
 import Wire.ConversationStore (ConversationStore, upsertMembers)
 import Wire.ConversationSubsystem
 import Wire.Sem.Random
@@ -50,33 +50,33 @@ import Wire.StoredConversation
 import Wire.UserGroupStore (UserGroupStore, getUserGroup, getUserGroupChannels)
 import Wire.UserList (toUserList)
 
-interpretBackgroundJobsRunner ::
+interpretBackgroundJobRunner ::
   ( Member UserGroupStore r,
-    Member BackgroundJobsPublisher r,
+    Member BackgroundJobPublisher r,
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
     Member Random r,
     Member TinyLog r
   ) =>
-  InterpreterFor BackgroundJobsRunner r
-interpretBackgroundJobsRunner = interpret $ \case
-  RunJob job -> runJob job
+  InterpreterFor BackgroundJobRunner r
+interpretBackgroundJobRunner = interpret $ \case
+  RunJob job -> runBackgroundJob job
 
-runJob ::
+runBackgroundJob ::
   ( Member UserGroupStore r,
-    Member BackgroundJobsPublisher r,
+    Member BackgroundJobPublisher r,
     Member (Input (Local ())) r,
     Member ConversationStore r,
     Member ConversationSubsystem r,
     Member Random r,
     Member TinyLog r
   ) =>
-  Job ->
+  BackgroundJob ->
   Sem r ()
-runJob job = case job.payload of
-  JobSyncUserGroupAndChannel payload -> runSyncUserGroupAndChannel payload
-  JobSyncUserGroup payload -> runSyncUserGroup payload
+runBackgroundJob job = case job.payload of
+  BackgroundJobSyncUserGroupAndChannel payload -> runSyncUserGroupAndChannel payload
+  BackgroundJobSyncUserGroup payload -> runSyncUserGroup payload
 
 runSyncUserGroupAndChannel ::
   ( Member UserGroupStore r,
@@ -145,7 +145,7 @@ runSyncUserGroupAndChannel (SyncUserGroupAndChannel {..}) = do
 
 runSyncUserGroup ::
   ( Member UserGroupStore r,
-    Member BackgroundJobsPublisher r,
+    Member BackgroundJobPublisher r,
     Member Random r,
     Member TinyLog r
   ) =>
@@ -162,4 +162,4 @@ runSyncUserGroup SyncUserGroup {..} = do
   for_ channels $ \convId -> do
     let syncUserGroupAndChannel = SyncUserGroupAndChannel {..}
     jobId <- newId
-    publishJob jobId (JobSyncUserGroupAndChannel syncUserGroupAndChannel)
+    publishJob jobId (BackgroundJobSyncUserGroupAndChannel syncUserGroupAndChannel)

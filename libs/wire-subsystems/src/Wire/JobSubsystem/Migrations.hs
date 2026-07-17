@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.JobSubsystem.Migrations
-  ( runScheduledJobsMigrations,
+  ( runJobMigrations,
   )
 where
 
@@ -38,16 +38,16 @@ import Hasql.TH
 import Imports
 import System.IO.Error (userError)
 import System.Timeout (timeout)
-import Wire.API.Jobs (ScheduledJobsRegistry)
+import Wire.API.Jobs (JobRegistry)
 
 -- | Apply all migrations for the scheduled-jobs registry before constructing
 -- any worker pools or accepting scheduled jobs.
-runScheduledJobsMigrations :: SecretText -> Text -> IO ()
-runScheduledJobsMigrations connStr schemaName =
+runJobMigrations :: SecretText -> Text -> IO ()
+runJobMigrations connStr schemaName =
   withArbiterMigrationLock connStr schemaName $ do
     result <-
       ArbiterMigrations.runMigrationsForRegistry
-        (Proxy @ScheduledJobsRegistry)
+        (Proxy @JobRegistry)
         (Text.encodeUtf8 $ revealSecretText connStr)
         schemaName
         ArbiterMigrations.defaultMigrationConfig

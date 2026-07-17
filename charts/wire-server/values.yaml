@@ -911,7 +911,7 @@ spar:
 
 background-worker:
   replicaCount: 1
-  # Must exceed scheduledJobs.gracefulShutdownTimeout so Kubernetes does not
+  # Must exceed jobs.gracefulShutdownTimeout so Kubernetes does not
   # force-kill the worker before it can finish shutting down.
   terminationGracePeriodSeconds: 40
   image:
@@ -1006,7 +1006,7 @@ background-worker:
       maxAttempts: 3
 
     # Scheduled-jobs dispatcher configuration.
-    scheduledJobs:
+    jobs:
       # Arbiter dispatcher poll interval for all scheduled jobs.
       # Lower values reduce discovery latency, but increase DB polling.
       pollInterval: 5s

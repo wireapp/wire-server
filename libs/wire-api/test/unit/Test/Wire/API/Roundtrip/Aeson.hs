@@ -378,7 +378,7 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testRoundTrip @BackgroundJobs.Job,
+      testRoundTrip @BackgroundJobs.BackgroundJob,
       testRoundTrip @User.ManagedByUpdate,
       testRoundTrip @User.Auth.ReAuthUser,
       testRoundTrip @User.RichInfoUpdate,

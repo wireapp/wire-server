@@ -23,7 +23,6 @@
 
 module Wire.API.Jobs where
 
-import Arbiter.Core.Job.Types (JobRead)
 import Control.Arrow ((&&&))
 import Control.Lens (makePrisms)
 import Data.Aeson (FromJSON, ToJSON)
@@ -222,8 +221,8 @@ deriving via (Schema ConversationsJobPayload) instance S.ToSchema ConversationsJ
 instance Arbitrary ConversationsJobPayload where
   arbitrary = oneof [AdminlessDeletion <$> arbitrary, AdminlessReminder <$> arbitrary]
 
--- | Registry for the scheduled jobs we expose via Arbiter.
-type ScheduledJobsRegistry =
+-- | Registry for the jobs we expose via Arbiter.
+type JobRegistry =
   '[ '(MeetingsQueueName, MeetingsJobPayload),
      '(ConversationsQueueName, ConversationsJobPayload)
    ]

@@ -45,11 +45,11 @@ import UnliftIO.Async qualified as Async
 import Wire.API.Jobs
 import Wire.AdminlessJobsWorker (runAdminlessDeletionJob, runAdminlessReminderJob)
 import Wire.BackgroundWorker.Env (AppT, Env (..), runAppT)
-import Wire.BackgroundWorker.Options (MeetingsCleanupConfig (..), ScheduledJobsConfig (..), ScheduledJobsJitter (..))
+import Wire.BackgroundWorker.Options (JobConfig (..), JobJitter (..), MeetingsCleanupConfig (..))
 import Wire.BackgroundWorker.Util
 import Wire.ExternalAccess.External
 import Wire.JobSubsystem.ArbiterAdapter
-import Wire.JobSubsystem.Migrations (runScheduledJobsMigrations)
+import Wire.JobSubsystem.Migrations (runJobMigrations)
 import Wire.MeetingsCleanupWorker
 
 -- | Runtime settings shared by every scheduled-job runner in a process.
@@ -57,31 +57,31 @@ import Wire.MeetingsCleanupWorker
 -- These values deliberately mirror the Arbiter worker defaults that we use.
 -- Keeping them in one record ensures all scheduled job types use the same
 -- execution policy as settings are added or tuned.
-data ScheduledJobWorkerSettings = ScheduledJobWorkerSettings
-  { scheduledJobWorkerThreads :: Int,
-    scheduledJobPollInterval :: NominalDiffTime,
-    scheduledJobVisibilityTimeout :: NominalDiffTime,
-    scheduledJobHeartbeatInterval :: NominalDiffTime,
-    scheduledJobWorkerHeartbeatInterval :: NominalDiffTime,
-    scheduledJobBackoffBase :: Double,
-    scheduledJobBackoffCap :: NominalDiffTime,
-    scheduledJobJitter :: ArbiterWorker.Jitter,
-    scheduledJobGracefulShutdownTimeout :: Maybe NominalDiffTime,
-    scheduledJobReaperInterval :: NominalDiffTime,
-    scheduledJobReaperTimeout :: NominalDiffTime,
-    scheduledJobWorkerStaleThreshold :: NominalDiffTime
+data JobWorkerSettings = JobWorkerSettings
+  { jobWorkerThreads :: Int,
+    jobPollInterval :: NominalDiffTime,
+    jobVisibilityTimeout :: NominalDiffTime,
+    jobHeartbeatInterval :: NominalDiffTime,
+    jobWorkerHeartbeatInterval :: NominalDiffTime,
+    jobBackoffBase :: Double,
+    jobBackoffCap :: NominalDiffTime,
+    jobJitter :: ArbiterWorker.Jitter,
+    jobGracefulShutdownTimeout :: Maybe NominalDiffTime,
+    jobReaperInterval :: NominalDiffTime,
+    jobReaperTimeout :: NominalDiffTime,
+    jobWorkerStaleThreshold :: NominalDiffTime
   }
 
-data ScheduledJobsRunnerConfig registry = ScheduledJobsRunnerConfig
-  { scheduledJobsRunnerLogger :: Log.Logger,
-    scheduledJobsRunnerSchedule :: CronSchedule,
+data JobRunnerConfig registry = JobRunnerConfig
+  { jobRunnerLogger :: Log.Logger,
+    jobRunnerSchedule :: CronSchedule,
     -- May contain the PostgreSQL password. Keep it wrapped until the Arbiter boundary.
-    scheduledJobsRunnerArbiterConnStr :: SecretText,
-    scheduledJobsRunnerSchemaName :: Text,
-    scheduledJobsRunnerSettings :: ScheduledJobWorkerSettings
+    jobRunnerArbiterConnStr :: SecretText,
+    jobRunnerSchemaName :: Text,
+    jobRunnerSettings :: JobWorkerSettings
   }
 
-startWorker :: ScheduledJobsConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
+startWorker :: JobConfig -> MeetingsCleanupConfig -> AppT IO CleanupAction
 startWorker scheduledConfig meetingsCleanupConfig = do
   env <- ask
   extEnv <- liftIO $ initExtEnv True
@@ -91,43 +91,43 @@ startWorker scheduledConfig meetingsCleanupConfig = do
             batchSize = meetingsCleanupConfig.batchSize
           }
       workerSettings =
-        ScheduledJobWorkerSettings
-          { scheduledJobWorkerThreads = fromRange scheduledConfig.workerThreads,
-            scheduledJobPollInterval = scheduledJobsDuration scheduledConfig.pollInterval,
-            scheduledJobVisibilityTimeout = scheduledJobsDuration scheduledConfig.visibilityTimeout,
-            scheduledJobHeartbeatInterval = scheduledJobsDuration scheduledConfig.jobHeartbeatInterval,
-            scheduledJobWorkerHeartbeatInterval = scheduledJobsDuration scheduledConfig.workerHeartbeatInterval,
-            scheduledJobBackoffBase = scheduledConfig.backoffBase,
-            scheduledJobBackoffCap = scheduledJobsDuration scheduledConfig.backoffCap,
-            scheduledJobJitter = scheduledJobsJitter scheduledConfig.jitter,
-            scheduledJobGracefulShutdownTimeout = fmap scheduledJobsDuration scheduledConfig.gracefulShutdownTimeout,
-            scheduledJobReaperInterval = scheduledJobsDuration scheduledConfig.reaperInterval,
-            scheduledJobReaperTimeout = scheduledJobsDuration scheduledConfig.reaperTimeout,
-            scheduledJobWorkerStaleThreshold = scheduledJobsDuration scheduledConfig.workerStaleThreshold
+        JobWorkerSettings
+          { jobWorkerThreads = fromRange scheduledConfig.workerThreads,
+            jobPollInterval = jobDuration scheduledConfig.pollInterval,
+            jobVisibilityTimeout = jobDuration scheduledConfig.visibilityTimeout,
+            jobHeartbeatInterval = jobDuration scheduledConfig.jobHeartbeatInterval,
+            jobWorkerHeartbeatInterval = jobDuration scheduledConfig.workerHeartbeatInterval,
+            jobBackoffBase = scheduledConfig.backoffBase,
+            jobBackoffCap = jobDuration scheduledConfig.backoffCap,
+            jobJitter = toJobJitter scheduledConfig.jitter,
+            jobGracefulShutdownTimeout = fmap jobDuration scheduledConfig.gracefulShutdownTimeout,
+            jobReaperInterval = jobDuration scheduledConfig.reaperInterval,
+            jobReaperTimeout = jobDuration scheduledConfig.reaperTimeout,
+            jobWorkerStaleThreshold = jobDuration scheduledConfig.workerStaleThreshold
           }
       workersConfig =
-        ScheduledJobsRunnerConfig
-          { scheduledJobsRunnerLogger = env.logger,
-            scheduledJobsRunnerSchedule = meetingsCleanupConfig.schedule,
+        JobRunnerConfig
+          { jobRunnerLogger = env.logger,
+            jobRunnerSchedule = meetingsCleanupConfig.schedule,
             -- Arbiter still uses the connection string for LISTEN/NOTIFY.
             -- The actual job DB access goes through the shared Hasql pool
             -- passed from the background-worker environment.
-            scheduledJobsRunnerArbiterConnStr = env.arbiterConnStr,
-            scheduledJobsRunnerSchemaName = ArbiterCore.defaultSchemaName,
-            scheduledJobsRunnerSettings = workerSettings
+            jobRunnerArbiterConnStr = env.arbiterConnStr,
+            jobRunnerSchemaName = ArbiterCore.defaultSchemaName,
+            jobRunnerSettings = workerSettings
           } ::
-          ScheduledJobsRunnerConfig ScheduledJobsRegistry
-  liftIO $ runScheduledJobsMigrations env.arbiterConnStr ArbiterCore.defaultSchemaName
-  liftIO $ runScheduledJobsRunner env extEnv workersConfig cleanupConfig
+          JobRunnerConfig JobRegistry
+  liftIO $ runJobMigrations env.arbiterConnStr ArbiterCore.defaultSchemaName
+  liftIO $ runJobRunner env extEnv workersConfig cleanupConfig
 
-scheduledJobsDuration :: Duration -> NominalDiffTime
-scheduledJobsDuration = realToFrac . duration
+jobDuration :: Duration -> NominalDiffTime
+jobDuration = realToFrac . duration
 
-scheduledJobsJitter :: ScheduledJobsJitter -> ArbiterWorker.Jitter
-scheduledJobsJitter = \case
-  ScheduledJobsNoJitter -> ArbiterWorker.NoJitter
-  ScheduledJobsFullJitter -> ArbiterWorker.FullJitter
-  ScheduledJobsEqualJitter -> ArbiterWorker.EqualJitter
+toJobJitter :: JobJitter -> ArbiterWorker.Jitter
+toJobJitter = \case
+  JobNoJitter -> ArbiterWorker.NoJitter
+  JobFullJitter -> ArbiterWorker.FullJitter
+  JobEqualJitter -> ArbiterWorker.EqualJitter
 
 -- | Start the worker pools for the scheduled-job queues.
 --
@@ -136,7 +136,7 @@ scheduledJobsJitter = \case
 -- the adminless one-off jobs. Both pools are supervised by Arbiter's
 -- multi-pool runner, so they share the process lifecycle without sharing a
 -- payload type or queue.
-runScheduledJobsRunner ::
+runJobRunner ::
   forall registry.
   ( RegistryTables registry,
     RegistryAdmissionPolicies registry,
@@ -145,19 +145,19 @@ runScheduledJobsRunner ::
   ) =>
   Env ->
   ExtEnv ->
-  ScheduledJobsRunnerConfig registry ->
+  JobRunnerConfig registry ->
   CleanupConfig ->
   IO (IO ())
-runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
-  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.scheduledJobsRunnerArbiterConnStr)
-  Log.info runnerConfig.scheduledJobsRunnerLogger $
+runJobRunner env extEnv runnerConfig cleanupConfig = do
+  let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.jobRunnerArbiterConnStr)
+  Log.info runnerConfig.jobRunnerLogger $
     Log.msg (Log.val "Starting scheduled jobs worker")
       . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
-      . Log.field "schedule" (show runnerConfig.scheduledJobsRunnerSchedule)
+      . Log.field "schedule" (show runnerConfig.jobRunnerSchedule)
 
-  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.scheduledJobsRunnerSchemaName env.hasqlPool
+  let arbiterEnv = mkNewWireArbiterEnv runnerConfig.jobRunnerSchemaName env.hasqlPool
       meetingsWorkerHandler _conn job = liftIO $ do
-        Log.info runnerConfig.scheduledJobsRunnerLogger $
+        Log.info runnerConfig.jobRunnerLogger $
           Log.msg (Log.val "Running scheduled job")
             . Log.field "queue_name" meetingsQueueName
             . Log.field "payload_type" (meetingsJobPayloadTypeName job.payload)
@@ -165,7 +165,7 @@ runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
           MeetingsCleanup _ -> runAppT env $ runCleanupOldMeetings cleanupConfig
 
       conversationsWorkerHandler _conn job = liftIO $ do
-        Log.info runnerConfig.scheduledJobsRunnerLogger $
+        Log.info runnerConfig.jobRunnerLogger $
           Log.msg (Log.val "Running scheduled job")
             . Log.field "queue_name" conversationsQueueName
             . Log.field "payload_type" (conversationsJobPayloadTypeName job.payload)
@@ -176,7 +176,7 @@ runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
   cronJob <-
     case ArbiterWorkerCron.cronJob
       "meetings-cleanup"
-      (serializeCronSchedule runnerConfig.scheduledJobsRunnerSchedule)
+      (serializeCronSchedule runnerConfig.jobRunnerSchedule)
       ArbiterWorkerCron.SkipOverlap
       ( \_ scheduledFor ->
           (ArbiterCore.defaultGroupedJob "meetings-cleanup" (MeetingsCleanup MeetingsCleanupJob))
@@ -190,7 +190,7 @@ runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
   meetingsWorkerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
         arbiterConnStr
-        runnerConfig.scheduledJobsRunnerSettings.scheduledJobWorkerThreads
+        runnerConfig.jobRunnerSettings.jobWorkerThreads
         meetingsWorkerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
@@ -203,7 +203,7 @@ runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
   conversationsWorkerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
         arbiterConnStr
-        runnerConfig.scheduledJobsRunnerSettings.scheduledJobWorkerThreads
+        runnerConfig.jobRunnerSettings.jobWorkerThreads
         conversationsWorkerHandler ::
         IO
           ( ArbiterWorker.WorkerConfig
@@ -215,13 +215,13 @@ runScheduledJobsRunner env extEnv runnerConfig cleanupConfig = do
 
   let meetingsWorkerConfig' =
         applyExplicitDefaults
-          runnerConfig.scheduledJobsRunnerSettings
+          runnerConfig.jobRunnerSettings
           meetingsWorkerConfig
             { ArbiterWorkerConfig.cronJobs = [cronJob]
             }
       conversationsWorkerConfig' =
         applyExplicitDefaults
-          runnerConfig.scheduledJobsRunnerSettings
+          runnerConfig.jobRunnerSettings
           conversationsWorkerConfig
       workerPools =
         [ ArbiterWorker.namedWorkerPool meetingsWorkerConfig',
@@ -277,41 +277,41 @@ mapJobPayload f job =
     }
 
 applyExplicitDefaults ::
-  ScheduledJobWorkerSettings ->
+  JobWorkerSettings ->
   ArbiterWorker.WorkerConfig m payload result ->
   ArbiterWorker.WorkerConfig m payload result
 applyExplicitDefaults settings cfg =
   cfg
     { -- How often the dispatcher wakes up to look for newly visible jobs.
       -- Lower values reduce discovery latency at the cost of more DB traffic.
-      ArbiterWorkerConfig.pollInterval = settings.scheduledJobPollInterval,
+      ArbiterWorkerConfig.pollInterval = settings.jobPollInterval,
       -- How long a claimed job stays invisible while a worker processes it.
       -- Must exceed the job heartbeat interval so active jobs are not reclaimed.
-      ArbiterWorkerConfig.visibilityTimeout = settings.scheduledJobVisibilityTimeout,
+      ArbiterWorkerConfig.visibilityTimeout = settings.jobVisibilityTimeout,
       -- How often a running job refreshes its visibility timeout.
       -- Keeps long-running jobs from being reclaimed mid-flight.
-      ArbiterWorkerConfig.jobHeartbeatInterval = settings.scheduledJobHeartbeatInterval,
+      ArbiterWorkerConfig.jobHeartbeatInterval = settings.jobHeartbeatInterval,
       -- How often the worker process updates its own heartbeat and pause state.
       -- This drives liveness, re-registration, and paused-state reconciliation.
-      ArbiterWorkerConfig.workerHeartbeatInterval = settings.scheduledJobWorkerHeartbeatInterval,
+      ArbiterWorkerConfig.workerHeartbeatInterval = settings.jobWorkerHeartbeatInterval,
       -- Retry strategy for transient worker failures.
       -- Arbiter uses exponential backoff with jitter by default.
       ArbiterWorkerConfig.backoffStrategy =
         ArbiterWorker.exponentialBackoff
-          settings.scheduledJobBackoffBase
-          settings.scheduledJobBackoffCap,
+          settings.jobBackoffBase
+          settings.jobBackoffCap,
       -- Jitter mode for retry delays.
       -- Equal jitter smooths retry spikes without making them too aggressive.
-      ArbiterWorkerConfig.jitter = settings.scheduledJobJitter,
+      ArbiterWorkerConfig.jitter = settings.jobJitter,
       -- How long the worker waits for in-flight jobs during shutdown.
       -- If set, the pool exits after this grace period instead of waiting forever.
-      ArbiterWorkerConfig.gracefulShutdownTimeout = settings.scheduledJobGracefulShutdownTimeout,
+      ArbiterWorkerConfig.gracefulShutdownTimeout = settings.jobGracefulShutdownTimeout,
       -- How often the reaper runs. It refreshes groups, sweeps stale workers,
       -- and moves exhausted jobs to the DLQ.
-      ArbiterWorkerConfig.reaperInterval = settings.scheduledJobReaperInterval,
+      ArbiterWorkerConfig.reaperInterval = settings.jobReaperInterval,
       -- Maximum time allowed for one reaper pass.
-      ArbiterWorkerConfig.reaperTimeout = settings.scheduledJobReaperTimeout,
+      ArbiterWorkerConfig.reaperTimeout = settings.jobReaperTimeout,
       -- How old a worker heartbeat may be before it is considered stale.
       -- Stale workers are swept from the registry by the reaper.
-      ArbiterWorkerConfig.workerStaleThreshold = settings.scheduledJobWorkerStaleThreshold
+      ArbiterWorkerConfig.workerStaleThreshold = settings.jobWorkerStaleThreshold
     }

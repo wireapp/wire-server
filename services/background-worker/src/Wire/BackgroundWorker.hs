@@ -82,10 +82,10 @@ run opts galleyOpts = do
     runAppT env $
       withNamedLogger "background-job-consumer" $
         Jobs.startWorker amqpEP
-  cleanupScheduledJobs <-
+  cleanupJobRunner <-
     runAppT env $
-      withNamedLogger "scheduled-jobs" $
-        Workers.startWorker opts.scheduledJobs opts.meetingsCleanup
+      withNamedLogger "job-runner" $
+        Workers.startWorker opts.jobs opts.meetingsCleanup
   let cleanup =
         void $
           runConcurrently $
@@ -96,8 +96,8 @@ run opts galleyOpts = do
               <*> Concurrently cleanUpConvCodesMigration
               <*> Concurrently cleanupTeamFeaturesMigration
               <*> Concurrently cleanupDomainRegistrationMigration
+              <*> Concurrently cleanupJobRunner
               <*> Concurrently cleanupJobs
-              <*> Concurrently cleanupScheduledJobs
 
   let server = defaultServer (T.unpack opts.backgroundWorker.host) opts.backgroundWorker.port env.logger
   let settings = newSettings server

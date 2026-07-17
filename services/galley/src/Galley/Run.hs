@@ -68,7 +68,7 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import Wire.AWS (awsEnv)
-import Wire.JobSubsystem.Migrations (runScheduledJobsMigrations)
+import Wire.JobSubsystem.Migrations (runJobMigrations)
 import Wire.OpenTelemetry (withTracerC)
 import Wire.Options.Galley
 import Wire.PostgresMigrations (runAllMigrations)
@@ -83,7 +83,7 @@ run opts = lowerCodensity do
       postgresqlConnectionStringWithPassword
         (opts ^. postgresql)
         (opts ^. postgresqlPassword)
-  lift $ runScheduledJobsMigrations arbiterConnStr ArbiterCore.defaultSchemaName
+  lift $ runJobMigrations arbiterConnStr ArbiterCore.defaultSchemaName
   let settings' =
         newSettings $
           defaultServer

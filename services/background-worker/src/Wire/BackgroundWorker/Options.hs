@@ -55,7 +55,7 @@ data Opts = Opts
     migrateConversationCodes :: !Bool,
     migrateTeamFeatures :: !Bool,
     migrateDomainRegistration :: !Bool,
-    scheduledJobs :: ScheduledJobsConfig,
+    jobs :: JobConfig,
     meetingsCleanup :: MeetingsCleanupConfig,
     backgroundJobs :: BackgroundJobsConfig
   }
@@ -100,7 +100,7 @@ data BackgroundJobsConfig = BackgroundJobsConfig
   deriving (Show, Generic)
   deriving (FromJSON) via Generically BackgroundJobsConfig
 
-data ScheduledJobsConfig = ScheduledJobsConfig
+data JobConfig = JobConfig
   { -- | Arbiter dispatcher poll interval for scheduled jobs.
     -- Lower values reduce discovery latency for due jobs.
     pollInterval :: Duration,
@@ -117,7 +117,7 @@ data ScheduledJobsConfig = ScheduledJobsConfig
     -- | Upper bound for Arbiter's exponential retry backoff.
     backoffCap :: Duration,
     -- | Jitter mode used for retry delays.
-    jitter :: ScheduledJobsJitter,
+    jitter :: JobJitter,
     -- | Maximum time to wait for in-flight jobs during shutdown.
     -- 'Nothing' waits indefinitely.
     gracefulShutdownTimeout :: Maybe Duration,
@@ -130,22 +130,22 @@ data ScheduledJobsConfig = ScheduledJobsConfig
   }
   deriving (Show, Generic)
 
-data ScheduledJobsJitter
-  = ScheduledJobsNoJitter
-  | ScheduledJobsFullJitter
-  | ScheduledJobsEqualJitter
+data JobJitter
+  = JobNoJitter
+  | JobFullJitter
+  | JobEqualJitter
   deriving (Eq, Show, Generic)
 
-instance FromJSON ScheduledJobsJitter where
-  parseJSON = withText "ScheduledJobsJitter" $ \case
-    "none" -> pure ScheduledJobsNoJitter
-    "full" -> pure ScheduledJobsFullJitter
-    "equal" -> pure ScheduledJobsEqualJitter
+instance FromJSON JobJitter where
+  parseJSON = withText "JobJitter" $ \case
+    "none" -> pure JobNoJitter
+    "full" -> pure JobFullJitter
+    "equal" -> pure JobEqualJitter
     _ -> fail "expected one of: none, full, equal"
 
-instance FromJSON ScheduledJobsConfig where
+instance FromJSON JobConfig where
   parseJSON =
-    withObject "ScheduledJobsConfig" $ \o -> do
+    withObject "JobConfig" $ \o -> do
       pollInterval <- o .:? "pollInterval" .!= unsafeParseDuration "5s"
       workerThreads <- o .:? "workerThreads" .!= unsafeRange 1
       visibilityTimeout <- o .:? "visibilityTimeout" .!= unsafeParseDuration "60s"
@@ -153,7 +153,7 @@ instance FromJSON ScheduledJobsConfig where
       workerHeartbeatInterval <- o .:? "workerHeartbeatInterval" .!= unsafeParseDuration "10s"
       backoffBase <- o .:? "backoffBase" .!= 2.0
       backoffCap <- o .:? "backoffCap" .!= unsafeParseDuration "86400s"
-      jitter <- o .:? "jitter" .!= ScheduledJobsEqualJitter
+      jitter <- o .:? "jitter" .!= JobEqualJitter
       gracefulShutdownTimeout <-
         o .:? "gracefulShutdownTimeout" .!= Just (unsafeParseDuration "30s")
       reaperInterval <- o .:? "reaperInterval" .!= unsafeParseDuration "300s"
@@ -175,7 +175,7 @@ instance FromJSON ScheduledJobsConfig where
       when (backoffBase <= 0) $
         parserThrowError [Key "backoffBase"] $
           "backoffBase must be greater than 0, got: " <> show backoffBase
-      pure ScheduledJobsConfig {..}
+      pure JobConfig {..}
 
 data MeetingsCleanupConfig = MeetingsCleanupConfig
   { -- | Delete meetings older than this many hours
