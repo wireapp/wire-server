@@ -2230,6 +2230,16 @@ contains meeting cleanup jobs, and `conversations`, which contains adminless
 reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
 `workerThreads` value applies independently to both pools.
 
+`backgroundJobs` and `scheduledJobs` configure different job systems. The
+`backgroundJobs` consumer receives immediate user-group synchronization jobs
+from RabbitMQ and controls their in-process concurrency, timeout, and retry
+behavior. `scheduledJobs` runs Arbiter-backed PostgreSQL jobs that may be
+scheduled for a future time, including recurring jobs, and controls their
+dispatcher, worker-pool, visibility, retry, and reaper behavior. The systems
+are separate because they currently use different transports and execution
+semantics. They could be merged in the future if the user-group jobs are
+migrated to Arbiter.
+
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
