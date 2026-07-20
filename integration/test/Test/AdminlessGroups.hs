@@ -20,7 +20,9 @@ module Test.AdminlessGroups where
 import API.Brig
 import API.Galley
 import API.GalleyInternal hiding (getConversation)
+import qualified API.GalleyInternal as GalleyI
 import MLS.Util
+import Notifications
 import SetupHelpers hiding (deleteUser)
 import Testlib.Prelude
 
@@ -36,6 +38,9 @@ testOnLastAdminLeaveReturnEligibleMembers = do
   localUser <- randomUser OwnDomain def
   connectTwoUsers alice localUser
 
+  -- ephemeral user is not eligible
+  tmpUser <- ephemeralUser OwnDomain
+
   -- a remote user is not eligible
   remoteUser <- randomUser OtherDomain def
   connectTwoUsers alice remoteUser
@@ -47,13 +52,26 @@ testOnLastAdminLeaveReturnEligibleMembers = do
     resp.status `shouldMatchInt` 200
     resp.json %. "user"
 
-  clients@(alice1 : _) <- traverse (createMLSClient def) [alice, bob, localUser, remoteUser, app]
+  clients@(alice1 : tmpUser1 : _) <- traverse (createMLSClient def) [alice, tmpUser, bob, localUser, remoteUser, app]
   for_ clients (uploadNewKeyPackage def)
 
-  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
   createGroup def alice1 convId
   void $ createAddCommit alice1 convId [bob, app, localUser, remoteUser] >>= sendAndConsumeCommitBundle
+
+  (key, code) <- bindResponse (postConversationCode alice conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    (,) <$> (res %. "data.key" & asString) <*> (res %. "data.code" & asString)
+  postJoinCodeConv tmpUser key code >>= assertSuccess
+  void $ createExternalCommit convId tmpUser1 Nothing >>= sendAndConsumeCommitBundle
+
+  GalleyI.getConversation conv `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    actual <- traverse (\m -> m %. "qualified_id") members
+    expected <- traverse (\m -> m %. "qualified_id") [alice, tmpUser, bob, localUser, remoteUser, app]
+    actual `shouldMatchSet` expected
 
   assertAttemptToLeaveFails conv alice [bob, localUser]
 
@@ -100,19 +118,69 @@ testOnLastAdminLeaveNoEligibleMembersExist = do
   (alice, tid, _) <- createTeam OwnDomain 1
 
   setTeamFeatureLockStatus alice tid "preventAdminlessGroups" "unlocked"
-  patchTeamFeature OwnDomain tid "preventAdminlessGroups" (object ["status" .= "enabled"]) >>= assertSuccess
+  patchTeamFeature
+    OwnDomain
+    tid
+    "preventAdminlessGroups"
+    ( object
+        [ "status" .= "enabled",
+          "config"
+            .= object
+              -- The reminders are due early (+1s and +2s), while deletion is
+              -- later (+10s). This gives Arbiter's 1s polling and serial
+              -- grouped-job processing enough room to emit both reminders
+              -- before the conversation is deleted.
+              [ "deletionTimeoutDuration" .= "10s",
+                "reminderTimeoutDurations" .= ["9s", "8s"],
+                "promotionStrategy" .= "random"
+              ]
+        ]
+    )
+    >>= assertSuccess
 
-  alice1 <- createMLSClient def alice
-  void $ uploadNewKeyPackage def alice1
+  let newApp :: NewApp
+      newApp = def {name = "adminless-reminder-app", description = "not eligible for promotion"}
+  app <- bindResponse (createApp alice tid newApp) $ \resp -> do
+    resp.status `shouldMatchInt` 200
+    resp.json %. "user"
 
-  conv <- postConversation alice defMLS {team = Just tid} >>= getJSON 201
+  tmpUser <- ephemeralUser OwnDomain
+
+  clients@(alice1 : tmpUser1 : _) <- traverse (createMLSClient def) [alice, tmpUser, app]
+  traverse_ (uploadNewKeyPackage def) clients
+
+  conv <- postConversation alice (allowAll defMLS) {team = Just tid} >>= getJSON 201
   convId <- objConvId conv
   createGroup def alice1 convId
-  void $ createAddCommit alice1 convId [] >>= sendAndConsumeCommitBundle
+  void $ createAddCommit alice1 convId [app] >>= sendAndConsumeCommitBundle
 
-  -- alice leaves the conversation, no error, group will be marked for deletion
-  bindResponse (removeMember alice conv alice) $ \resp -> do
+  (key, code) <- bindResponse (postConversationCode alice conv Nothing Nothing) $ \resp -> do
+    res <- getJSON 201 resp
+    (,) <$> (res %. "data.key" & asString) <*> (res %. "data.code" & asString)
+  postJoinCodeConv tmpUser key code >>= assertSuccess
+  void $ createExternalCommit convId tmpUser1 Nothing >>= sendAndConsumeCommitBundle
+
+  GalleyI.getConversation conv `bindResponse` \resp -> do
     resp.status `shouldMatchInt` 200
+    members <- resp.json %. "members.others" >>= asList
+    actual <- traverse (\m -> m %. "qualified_id") members
+    expected <- traverse (\m -> m %. "qualified_id") [app, alice, tmpUser]
+    actual `shouldMatchSet` expected
+
+  withWebSockets [app, tmpUser] $ \[wsApp, wsTmpUser] -> do
+    -- alice leaves the conversation, no error, group will be marked for deletion
+    bindResponse (removeMember alice conv alice) $ \resp -> do
+      resp.status `shouldMatchInt` 200
+
+    void $ awaitNMatches 2 isConvAdminlessReminderNotif wsApp
+    void $ awaitNMatches 2 isConvAdminlessReminderNotif wsTmpUser
+
+    -- The deletion event is sent after the conversation has been removed. The
+    -- suite's local timeout is only 2s, but this job is scheduled 10s ahead.
+    -- Use a longer timeout here and avoid racing the final HTTP assertion.
+    void $ awaitMatchFor 15 isConvDeleteNotif wsApp
+    bindResponse (GalleyI.getConversation conv) $ \resp -> do
+      resp.status `shouldMatchInt` 404
 
 testOnLastAdminLeaveFeatureDisabled :: (HasCallStack) => App ()
 testOnLastAdminLeaveFeatureDisabled = do

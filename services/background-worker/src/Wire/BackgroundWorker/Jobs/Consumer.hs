@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.BackgroundWorker.Jobs.Consumer (startWorker, BackgroundJobsMetrics (..)) where
+module Wire.BackgroundWorker.Jobs.Consumer (startWorker, BackgroundJobMetrics (..)) where
 
 import Control.Concurrent.Timeout qualified as Timeout
 import Control.Retry
@@ -39,7 +39,7 @@ import Wire.BackgroundWorker.Jobs.Registry
 import Wire.BackgroundWorker.Options
 import Wire.BackgroundWorker.Util (CleanupAction)
 
-data BackgroundJobsMetrics = BackgroundJobsMetrics
+data BackgroundJobMetrics = BackgroundJobMetrics
   { workersBusy :: Gauge,
     concurrencyConfigured :: Gauge,
     jobsReceived :: Vector Text Counter,
@@ -51,7 +51,7 @@ data BackgroundJobsMetrics = BackgroundJobsMetrics
     jobDuration :: Vector Text Histogram
   }
 
-mkMetrics :: IO BackgroundJobsMetrics
+mkMetrics :: IO BackgroundJobMetrics
 mkMetrics = do
   workersBusy <- register (gauge $ Info {metricName = "wire_background_jobs_workers_busy", metricHelp = "In-flight background jobs"})
   concurrencyConfigured <- register (gauge $ Info {metricName = "wire_background_jobs_concurrency_configured", metricHelp = "Configured concurrency for this process"})
@@ -62,7 +62,7 @@ mkMetrics = do
   jobsInvalid <- register (vector "job_type" $ counter $ Info "wire_background_jobs_invalid_total" "Invalid jobs received")
   jobsRedelivered <- register (vector "job_type" $ counter $ Info "wire_background_jobs_redelivered_total" "Jobs marked redelivered by broker")
   jobDuration <- register (vector "job_type" $ histogram (Info "wire_background_jobs_duration_seconds" "Job duration seconds") defaultBuckets)
-  pure BackgroundJobsMetrics {..}
+  pure BackgroundJobMetrics {..}
 
 startWorker :: AmqpEndpoint -> AppT IO CleanupAction
 startWorker rabbitmqOpts = do
@@ -107,16 +107,16 @@ startWorker rabbitmqOpts = do
       Log.info $ Log.msg (Log.val "Background job consumer cleanup")
       markAsNotWorking BackgroundJobConsumer
 
-handleDelivery :: BackgroundJobsMetrics -> BackgroundJobsConfig -> (Q.Message, Q.Envelope) -> AppT IO ()
+handleDelivery :: BackgroundJobMetrics -> BackgroundJobsConfig -> (Q.Message, Q.Envelope) -> AppT IO ()
 handleDelivery metrics cfg (msg, env) = do
-  case Aeson.eitherDecode @Job (Q.msgBody msg) of
+  case Aeson.eitherDecode @BackgroundJob (Q.msgBody msg) of
     Left err -> do
       withLabel metrics.jobsInvalid "invalid" incCounter
       Log.err $ Log.msg (Log.val "Invalid background job JSON") . Log.field "error" err
       Timeout.threadDelay (200 # MilliSecond) -- avoid tight redelivery loop
       liftIO $ Q.rejectEnv env True
     Right job -> do
-      let lbl = jobPayloadLabel job.payload
+      let lbl = backgroundJobPayloadLabel job.payload
       when (Q.envRedelivered env) $ withLabel metrics.jobsRedelivered lbl incCounter
       withLabel metrics.jobsReceived lbl incCounter
       UnliftIO.bracket_ (incGauge metrics.workersBusy) (decGauge metrics.workersBusy) $ do
@@ -130,7 +130,7 @@ handleDelivery metrics cfg (msg, env) = do
             Log.err $ Log.msg (Log.val "Background job failed after retries") . Log.field "error" e
             liftIO $ Q.rejectEnv env False
   where
-    runAttempts :: Text -> Job -> AppT IO (Either Text ())
+    runAttempts :: Text -> BackgroundJob -> AppT IO (Either Text ())
     runAttempts lbl job = do
       let retries = max 0 (fromRange cfg.maxAttempts - 1)
           policy = limitRetries retries <> fullJitterBackoff 100000 -- 100ms base

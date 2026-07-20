@@ -7,6 +7,7 @@
 , aeson-qq
 , amazonka
 , amqp
+, arbiter-core
 , async
 , base
 , base64-bytestring
@@ -121,6 +122,7 @@ mkDerivation {
     aeson
     amazonka
     amqp
+    arbiter-core
     async
     base
     bilge

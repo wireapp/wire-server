@@ -91,6 +91,9 @@ common common-all
     , amazonka-ses
     , amazonka-sqs
     , amqp
+    , arbiter-core
+    , arbiter-hasql
+    , arbiter-migrations
     , async
     , attoparsec
     , base
@@ -109,6 +112,7 @@ common common-all
     , contravariant
     , cookie
     , cql
+    , cron
     , crypton
     , crypton-asn1-encoding
     , crypton-asn1-types
@@ -363,6 +367,10 @@ library
     Wire.InternalEvent
     Wire.InvitationStore
     Wire.InvitationStore.Cassandra
+    Wire.JobSubsystem
+    Wire.JobSubsystem.ArbiterAdapter
+    Wire.JobSubsystem.Interpreter
+    Wire.JobSubsystem.Migrations
     Wire.LegalHold
     Wire.LegalHoldStore
     Wire.LegalHoldStore.Cassandra

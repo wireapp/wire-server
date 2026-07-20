@@ -71,6 +71,7 @@ import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget (FireAndForget)
 import Wire.HashPassword (HashPassword)
+import Wire.JobSubsystem (JobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem as NS
 import Wire.Options.Galley (GuestLinkTTLSeconds)
@@ -115,6 +116,7 @@ interpretConversationSubsystem ::
     Member TeamStore r,
     Member ConvStore.MLSCommitLockStore r,
     Member FederationSubsystem r,
+    Member JobSubsystem r,
     Member Resource r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member UserClientIndexStore r,
@@ -211,6 +213,10 @@ interpretConversationSubsystem = interpret $ \case
     mapErrors $ Update.deleteLocalConversation lusr con lcnv
   InternalDeleteLocalConversation lcnv ->
     mapErrors $ Action.updateLocalConversationDeleteUnchecked lcnv
+  InternalDeleteLocalAdminlessGroup lusr lcnv ->
+    mapErrors $ Update.adminlessAutopromoteOrDelete lusr lcnv
+  InternalNotifyAdminlessReminder lusr lcnv deletionScheduledFor ->
+    mapErrors $ Update.adminlessAutopromoteOrSendReminder lusr lcnv deletionScheduledFor
   GetMLSPublicKeys fmt ->
     mapErrors $ MLS.getMLSPublicKeys fmt
   ResetMLSConversation lusr reset ->

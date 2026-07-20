@@ -21,21 +21,21 @@ module Wire.BackgroundWorker.Jobs.Registry
 where
 
 import Imports
-import Wire.API.BackgroundJobs (Job (..))
-import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobsPublisherRabbitMQ)
+import Wire.API.BackgroundJobs (BackgroundJob (..))
+import Wire.BackgroundJobsPublisher.RabbitMQ (interpretBackgroundJobPublisherRabbitMQ)
 import Wire.BackgroundJobsRunner (runJob)
-import Wire.BackgroundJobsRunner.Interpreter hiding (runJob)
+import Wire.BackgroundJobsRunner.Interpreter (interpretBackgroundJobRunner)
 import Wire.BackgroundWorker.Env (AppT, Env (..))
 import Wire.Effects
 import Wire.ExternalAccess.External
 
-dispatchJob :: Job -> AppT IO (Either Text ())
+dispatchJob :: BackgroundJob -> AppT IO (Either Text ())
 dispatchJob job = do
   env <- ask @Env
   let disableTlsV1 = True
   extEnv <- liftIO (initExtEnv disableTlsV1)
   liftIO
     $ runBackgroundWorkerEffects env extEnv job.requestId (Just job.jobId)
-      . interpretBackgroundJobsPublisherRabbitMQ job.requestId env.amqpJobsPublisherChannel
-      . interpretBackgroundJobsRunner
+      . interpretBackgroundJobPublisherRabbitMQ job.requestId env.amqpJobsPublisherChannel
+      . interpretBackgroundJobRunner
     $ runJob job

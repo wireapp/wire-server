@@ -167,11 +167,10 @@ instance Default (FeatureDefaults SearchVisibilityAvailableConfig) where
 
 instance ParseFeatureDefaults (FeatureDefaults SearchVisibilityAvailableConfig) where
   parseFeatureDefaults obj = do
-    -- Runtime feature JSON uses the canonical feature key. Keep accepting the
-    -- legacy configuration key used by existing service YAML files.
-    mCanonical <- obj .:? "searchVisibility"
+    -- Accept both the current feature key and the legacy team-scoped key.
+    mCurrent <- obj .:? "searchVisibility"
     mLegacy <- obj .:? "teamSearchVisibility"
-    pure $ fromMaybe def (mCanonical <|> mLegacy)
+    pure $ fromMaybe def (mCurrent <|> mLegacy)
 
 instance FromJSON (FeatureDefaults SearchVisibilityAvailableConfig) where
   parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityAvailableByDefault

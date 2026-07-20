@@ -108,6 +108,11 @@
       url = "github:wireapp/hasql-resource-pool?rev=5b5d3df0fff81801986a0110acae5420215f01c5";
       flake = false;
     };
+
+    arbiter = {
+      url = "github:velveteer/arbiter?rev=296034ea3a15b5c10f42cc0ea46d2dfc48e9493f";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, nixpkgs_24_11, flake-utils, tom-bombadil, sbomnix, ... }:

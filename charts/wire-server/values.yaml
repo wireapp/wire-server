@@ -911,6 +911,9 @@ spar:
 
 background-worker:
   replicaCount: 1
+  # Must exceed jobs.gracefulShutdownTimeout so Kubernetes does not
+  # force-kill the worker before it can finish shutting down.
+  terminationGracePeriodSeconds: 40
   image:
     repository: quay.io/wire/background-worker
     tag: do-not-use
@@ -1001,6 +1004,31 @@ background-worker:
       jobTimeout: 60s
       # Total attempts, including the first try
       maxAttempts: 3
+
+    # Job dispatcher configuration.
+    jobs:
+      # Arbiter dispatcher poll interval for all jobs.
+      # Lower values reduce discovery latency, but increase DB polling.
+      pollInterval: 5s
+      # Number of worker threads per job queue.
+      workerThreads: 1
+      # How long a claimed job remains invisible while it is processed.
+      visibilityTimeout: 60s
+      # How often a running job refreshes its visibility timeout.
+      jobHeartbeatInterval: 30s
+      # How often a worker refreshes its own heartbeat.
+      workerHeartbeatInterval: 10s
+      # Base and cap for exponential retry backoff.
+      backoffBase: 2.0
+      backoffCap: 86400s
+      # Retry jitter: none, full, or equal.
+      jitter: equal
+      # Maximum time to wait for in-flight jobs during shutdown.
+      gracefulShutdownTimeout: 30s
+      # How often the Arbiter reaper runs and how long worker heartbeats remain valid.
+      reaperInterval: 300s
+      reaperTimeout: 300s
+      workerStaleThreshold: 300s
 
     # Meetings cleanup configuration
     meetingsCleanup:

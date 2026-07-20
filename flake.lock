@@ -16,6 +16,23 @@
         "type": "github"
       }
     },
+    "arbiter": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783611005,
+        "narHash": "sha256-zXAL4NEMhlgSZC2CpmOca67qK6dkUMXVRGTEzf1sMZs=",
+        "owner": "velveteer",
+        "repo": "arbiter",
+        "rev": "296034ea3a15b5c10f42cc0ea46d2dfc48e9493f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "velveteer",
+        "repo": "arbiter",
+        "rev": "296034ea3a15b5c10f42cc0ea46d2dfc48e9493f",
+        "type": "github"
+      }
+    },
     "bloodhound": {
       "flake": false,
       "locked": {
@@ -367,6 +384,7 @@
     "root": {
       "inputs": {
         "amazonka": "amazonka",
+        "arbiter": "arbiter",
         "bloodhound": "bloodhound",
         "cql": "cql",
         "cql-io": "cql-io",

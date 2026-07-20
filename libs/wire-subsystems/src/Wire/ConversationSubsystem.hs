@@ -32,6 +32,7 @@ import Data.Code qualified as Code
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Id
+import Data.Json.Util (UTCTimeMillis)
 import Data.Misc (IpAddr)
 import Data.Qualified
 import Data.Range
@@ -340,6 +341,15 @@ data ConversationSubsystem m a where
     ConversationSubsystem m (UpdateResult Event)
   InternalDeleteLocalConversation ::
     Local ConvId ->
+    ConversationSubsystem m ()
+  InternalDeleteLocalAdminlessGroup ::
+    Maybe (Local UserId) ->
+    Local ConvId ->
+    ConversationSubsystem m ()
+  InternalNotifyAdminlessReminder ::
+    Maybe (Local UserId) ->
+    Local ConvId ->
+    UTCTimeMillis ->
     ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->

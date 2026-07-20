@@ -44,6 +44,7 @@ import Wire.API.Event.Conversation qualified as Event.Conversation
 import Wire.API.Event.Team qualified as Event.Team
 import Wire.API.Event.WebSocketProtocol qualified as EventWebSocketProtocol
 import Wire.API.FederationStatus qualified as FederationStatus
+import Wire.API.Jobs qualified as Jobs
 import Wire.API.Locale qualified as Locale
 import Wire.API.Message qualified as Message
 import Wire.API.OAuth qualified as OAuth
@@ -156,6 +157,11 @@ tests =
       testRoundTrip @Conversation.Role.ConversationRolesList,
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @CustomBackend.CustomBackend,
+      testRoundTrip @Jobs.MeetingsCleanupJob,
+      testRoundTripWithSwagger @Jobs.AdminlessDeletionJob,
+      testRoundTripWithSwagger @Jobs.AdminlessReminderJob,
+      testRoundTrip @Jobs.MeetingsJobPayload,
+      testRoundTrip @Jobs.ConversationsJobPayload,
       testRoundTrip @EJPD.EJPDContact,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
@@ -372,7 +378,7 @@ tests =
       testRoundTrip @TeamsIntra.TeamStatusUpdate,
       testRoundTrip @TeamsIntra.TeamData,
       testRoundTrip @TeamsIntra.TeamName,
-      testRoundTrip @BackgroundJobs.Job,
+      testRoundTrip @BackgroundJobs.BackgroundJob,
       testRoundTrip @User.ManagedByUpdate,
       testRoundTrip @User.Auth.ReAuthUser,
       testRoundTrip @User.RichInfoUpdate,

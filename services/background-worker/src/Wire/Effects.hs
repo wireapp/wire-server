@@ -20,6 +20,7 @@ module Wire.Effects
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge qualified
 import Bilge.Retry
 import Cassandra (ClientState)
@@ -90,9 +91,12 @@ import Wire.GalleyAPIAccess.Rpc (interpretGalleyAPIAccessToRpc)
 import Wire.GundeckAPIAccess
 import Wire.HashPassword (HashPassword)
 import Wire.HashPassword.Interpreter (runHashPassword)
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
+import Wire.MigrationLock (MigrationLockError)
 import Wire.NotificationSubsystem (NotificationSubsystem)
 import Wire.NotificationSubsystem.Interpreter
 import Wire.Options.Galley (GuestLinkTTLSeconds)
@@ -124,6 +128,8 @@ import Wire.TeamCollaboratorsSubsystem.Interpreter (interpretTeamCollaboratorsSu
 import Wire.TeamFeatureStore (TeamFeatureStore)
 import Wire.TeamFeatureStore.Cassandra (interpretTeamFeatureStoreToCassandra)
 import Wire.TeamFeatureStore.Error (TeamFeatureStoreError)
+import Wire.TeamFeatureStore.Migrating (interpretTeamFeatureStoreToCassandraAndPostgres)
+import Wire.TeamFeatureStore.Postgres (interpretTeamFeatureStoreToPostgres)
 import Wire.TeamJournal (TeamJournal)
 import Wire.TeamJournal.Aws (interpretTeamJournal)
 import Wire.TeamStore (TeamStore)
@@ -210,6 +216,8 @@ type BackgroundWorkerEffects =
      Now,
      TeamJournal,
      LegalHoldStore,
+     JobSubsystem,
+     Input RequestId,
      TeamCollaboratorsStore,
      TeamStore,
      ConversationStore,
@@ -242,6 +250,7 @@ type BackgroundWorkerEffects =
      Error (Tagged CodeStoreNotFound ()),
      Error TeamFeatureStoreError,
      Error TeamCollaboratorsError,
+     Error MigrationLockError,
      Error UnreachableBackends,
      Error InternalError,
      Error MigrationError,
@@ -290,6 +299,7 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . mapError @MigrationError (T.pack . show)
     . mapError @InternalError (TL.toStrict . internalErrorDescription)
     . mapError @UnreachableBackends (T.pack . show)
+    . mapError @MigrationLockError (const ("Migration lock error" :: Text))
     . mapError @TeamCollaboratorsError (const ("Team collaborators error" :: Text))
     . mapError @TeamFeatureStoreError (const ("Team feature store error" :: Text))
     . mapError @(Tagged 'CodeStoreNotFound ()) (const ("Code store not found" :: Text))
@@ -317,11 +327,13 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretProposalStoreToCassandra
     . interpretServiceStoreToCassandra env.cassandraBrig
     . interpretUserGroupStoreToPostgres
-    . interpretTeamFeatureStoreToCassandra
+    . interpretTeamFeatureStore
     . interpretUserClientIndexStoreToCassandra env.cassandraGalley
     . interpretConversationStoreByMigration env.postgresMigration.conversation env.cassandraGalley
     . interpretTeamStoreToCassandra
     . interpretTeamCollaboratorsStoreToPostgres
+    . runInputConst @RequestId requestId
+    . interpretJobSubsystem jobSubsystemConfig
     . interpretLegalHoldStoreToCassandra (env.conversationSubsystemConfig.legalholdDefaults)
     . interpretTeamJournal Nothing
     . nowToIO
@@ -355,11 +367,15 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
     . interpretTeamCollaboratorsSubsystem
     . interpretConversationSubsystem
   where
-    convCodesStoreInterpreter =
-      case env.postgresMigration.conversationCodes of
-        CassandraStorage -> interpretCodeStoreToCassandra
-        MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
-        PostgresqlStorage -> interpretCodeStoreToPostgres
+    interpretTeamFeatureStore = case env.postgresMigration.teamFeatures of
+      CassandraStorage -> interpretTeamFeatureStoreToCassandra
+      MigrationToPostgresql -> interpretTeamFeatureStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretTeamFeatureStoreToPostgres
+
+    convCodesStoreInterpreter = case env.postgresMigration.conversationCodes of
+      CassandraStorage -> interpretCodeStoreToCassandra
+      MigrationToPostgresql -> interpretCodeStoreToCassandraAndPostgres
+      PostgresqlStorage -> interpretCodeStoreToPostgres
     legalHoldEnv =
       let makeReq fpr url rb = makeVerifiedRequestIO env.logger extEnv fpr url rb
           makeReqFresh fpr url rb = makeVerifiedRequestFreshManagerIO env.logger fpr url rb
@@ -371,6 +387,10 @@ runBackgroundWorkerEffects env extEnv requestId mJobId =
           federatorEndpoint = Just env.federatorInternal,
           http2Manager = env.http2Manager,
           requestId = requestId
+        }
+    jobSubsystemConfig =
+      JobSubsystemConfig
+        { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
         }
     backendQueueEnv =
       BackendNotificationQueueAccess.Env

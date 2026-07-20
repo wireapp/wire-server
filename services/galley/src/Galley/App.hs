@@ -42,6 +42,7 @@ module Galley.App
   )
 where
 
+import Arbiter.Core qualified as ArbiterCore
 import Bilge hiding (Request, header, host, options, port, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import Cassandra.Util (initCassandraForService)
@@ -124,6 +125,8 @@ import Wire.FireAndForget
 import Wire.GundeckAPIAccess (GundeckAPIAccess, runGundeckAPIAccess)
 import Wire.HashPassword
 import Wire.HashPassword.Interpreter
+import Wire.JobSubsystem (JobSubsystem, JobSubsystemConfig (..))
+import Wire.JobSubsystem.Interpreter (interpretJobSubsystem)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.LegalHoldStore.Cassandra (interpretLegalHoldStoreToCassandra)
 import Wire.LegalHoldStore.Env (LegalHoldEnv (..))
@@ -191,6 +194,8 @@ import Wire.UserGroupStore.Postgres (interpretUserGroupStoreToPostgres)
 type GalleyEffects =
   '[ MeetingsSubsystem,
      ConversationSubsystem,
+     JobSubsystem,
+     Input RequestId,
      FederationSubsystem,
      TeamCollaboratorsSubsystem,
      Input AllTeamFeatures,
@@ -549,6 +554,11 @@ evalGalley e =
         . runInputSem getAllTeamFeaturesForServer
         . interpretTeamCollaboratorsSubsystem
         . runFederationSubsystem conversationSubsystemConfig.federationProtocols
+        . runInputConst (e ^. reqId)
+        . interpretJobSubsystem
+          JobSubsystemConfig
+            { jobSubsystemSchemaName = ArbiterCore.defaultSchemaName
+            }
         . interpretConversationSubsystem
         . Meeting.interpretMeetingsSubsystem meetingValidityPeriod
   where

@@ -2210,9 +2210,53 @@ backgroundJobs:
   jobTimeout: 60s    # per attempt
   maxAttempts: 3     # total attempts incl. first run
 
+# Jobs
+jobs:
+  pollInterval: 5s   # how often due jobs are discovered
+  workerThreads: 1   # worker threads for each job queue
+  visibilityTimeout: 60s       # how long a claimed job stays invisible
+  jobHeartbeatInterval: 30s    # refresh interval for running jobs
+  workerHeartbeatInterval: 10s # refresh interval for worker liveness
+  backoffBase: 2.0             # exponential retry backoff base
+  backoffCap: 86400s           # maximum exponential retry backoff
+  jitter: equal                # none, full, or equal retry jitter
+  gracefulShutdownTimeout: 30s # maximum shutdown grace period
+  reaperInterval: 300s         # Arbiter reaper interval
+  reaperTimeout: 300s          # maximum duration of one reaper pass
+  workerStaleThreshold: 300s   # worker heartbeat staleness threshold
+
+Jobs are currently split into two domain queues: `meetings`, which
+contains meeting cleanup jobs, and `conversations`, which contains adminless
+reminder and deletion jobs. Each queue has its own Arbiter worker pool. The
+`workerThreads` value applies independently to both pools.
+
+`backgroundJobs` and `jobs` configure different job systems. The
+`backgroundJobs` consumer receives immediate user-group synchronization jobs
+from RabbitMQ and controls their in-process concurrency, timeout, and retry
+behavior. `jobs` runs Arbiter-backed PostgreSQL jobs that may be
+scheduled for a future time, including recurring jobs, and controls their
+dispatcher, worker-pool, visibility, retry, and reaper behavior. The systems
+are separate because they currently use different transports and execution
+semantics. They could be merged in the future if the user-group jobs are
+migrated to Arbiter.
+
 # Required for addressing local vs remote backends
 federationDomain: example.org
 ```
+
+### Job runner PostgreSQL connections
+
+Each `background-worker` instance that runs Arbiter jobs uses one additional
+PostgreSQL connection for Arbiter scheduler and notification coordination. This
+connection is in addition to the connections configured by `postgresqlPool`,
+and should be included when sizing PostgreSQL's `max_connections` and the
+service's connection budget.
+
+`jobs.workerThreads` controls how many jobs may be processed
+in parallel; it does not allocate one PostgreSQL connection per thread. The
+threads share the job worker's database resources, so increasing the
+thread count increases possible job and database workload, but not the number
+of connections opened by the job worker.
 
 The `migrationOptions.timeout` setting limits how long a single migration
 attempt may run after it has acquired the migration lock. If the timeout is
@@ -2235,3 +2279,6 @@ Notes
 - The `migrate...` flags control the corresponding PostgreSQL backfill jobs for the current migration settings; leave them `false` for new installs and after migration.
 - `concurrency`, `jobTimeout`, and `maxAttempts` control parallelism and retry behavior of the consumer.
 - `brig` and `gundeck` endpoints default to in-cluster services; override via `background-worker.config.brig` and `.gundeck` if your service DNS/ports differ.
+- `jobs` controls the Arbiter dispatcher, worker, retry, shutdown, and reaper settings. All fields default to the values shown above.
+- `jobs.pollInterval` controls how often the background worker wakes up to check for due jobs.
+- `jobs.workerThreads` controls the number of worker threads in each job queue. The default is `1`; increasing it allows jobs in that queue to run in parallel when their group keys permit it.

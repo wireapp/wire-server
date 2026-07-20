@@ -65,7 +65,7 @@ interpretUserGroupSubsystem ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
     Member GalleyAPIAccess r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   InterpreterFor UserGroupSubsystem r
 interpretUserGroupSubsystem = interpret $ \case
@@ -113,7 +113,7 @@ createUserGroup ::
     Member (Input (Local ())) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   UserId ->
   NewUserGroup ->
@@ -131,7 +131,7 @@ createUserGroupFullImpl ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
     Member Random.Random r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   ManagedBy ->
   TeamId {- home team of the user group.-} ->
@@ -368,7 +368,7 @@ addUser ::
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -393,7 +393,7 @@ addUsers ::
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -422,7 +422,7 @@ updateUsers ::
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -438,7 +438,7 @@ updateUsersNoAccessControl ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
     Member Random.Random r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -463,7 +463,7 @@ removeUser ::
     Member (Error UserGroupSubsystemError) r,
     Member NotificationSubsystem r,
     Member TeamSubsystem r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   UserId ->
   UserGroupId ->
@@ -525,7 +525,7 @@ updateChannels ::
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member GalleyAPIAccess r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   Bool ->
   UserId ->
@@ -554,7 +554,7 @@ updateChannels appendOnly performer groupId channelIds = do
 
 triggerSyncUserGroup ::
   ( Member Random.Random r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   TeamId ->
   Maybe UserId ->
@@ -562,7 +562,7 @@ triggerSyncUserGroup ::
   Sem r ()
 triggerSyncUserGroup teamId actor userGroupId = do
   jobId <- Random.newId
-  publishJob jobId $ JobSyncUserGroup SyncUserGroup {..}
+  publishJob jobId $ BackgroundJobSyncUserGroup SyncUserGroup {..}
 
 resetUserGroupInternal ::
   ( Member Store.UserGroupStore r,
@@ -570,7 +570,7 @@ resetUserGroupInternal ::
     Member TeamSubsystem r,
     Member NotificationSubsystem r,
     Member Random.Random r,
-    Member BackgroundJobsPublisher r
+    Member BackgroundJobPublisher r
   ) =>
   UpdateGroupInternalRequest ->
   Sem r ()
