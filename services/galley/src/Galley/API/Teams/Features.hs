@@ -491,23 +491,21 @@ instance SetFeatureConfig AppsConfig where
     SetFeatureForTeamConstraints AppsConfig (r :: EffectRow) =
       (Member BrigAPIAccess r)
 
-  prepareFeature tid feat = do
-    let newStatus = case feat.status of
-          FeatureStatusEnabled -> Active
-          FeatureStatusDisabled -> Suspended
-    appIds <- getAppIdsForTeam tid
-    -- NB: this will work as long as the only reason for suspending
-    -- apps is "payment plan expired", but should we ever introduce a
-    -- suspend button for team admins to let them temporarily disable
-    -- apps without deinstalling them, then we need to keep track of
-    -- the suspend reason and filter for the right one here.
-    --
-    -- NB(2): this is not terribly efficient, but it's a rarely called
-    -- operation with usually small numbers of apps.  tweak
-    -- opportunities: (a) only call this loop if enablement actually
-    -- changes; (b) do the loop over all appIds in postgres with one
-    -- query.
-    for_ appIds $ \uid -> setAccountStatus uid newStatus
+  prepareFeature tid feat = case feat.status of
+    -- WPB-25579: re-enabling the feature must NOT re-activate apps.  An app may
+    -- have been suspended for reasons other than this feature being disabled
+    -- (e.g. suspended individually), so we never blanket-reactivate here.
+    FeatureStatusEnabled ->
+      -- Do nothing.  Some apps may have been suspended for reasons
+      -- unrelated to the feature flag flipping.
+      pure ()
+    FeatureStatusDisabled -> do
+      appIds <- getAppIdsForTeam tid
+      -- NB: this is not terribly efficient, but it's a rarely called operation
+      -- with usually small numbers of apps.  tweak opportunities: (a) only call
+      -- this loop if enablement actually changes; (b) loop over all
+      -- appIds in postgres with one query.
+      for_ appIds $ \uid -> setAccountStatus uid Suspended
 
 instance SetFeatureConfig SimplifiedUserConnectionRequestQRCodeConfig
 
