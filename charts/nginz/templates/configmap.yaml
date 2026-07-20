@@ -42,8 +42,8 @@ data:
       )
       "title" .Values.nginx_conf.deeplink.title
     }}
-    {{- if hasKey .Values.nginx_conf.deeplink "supportEmail" }}
-    {{- $_ := set $deeplink "supportEmail" .Values.nginx_conf.deeplink.supportEmail }}
+    {{- with .Values.nginx_conf.deeplink.supportEmail }}
+    {{- $_ := set $deeplink "supportEmail" . }}
     {{- end }}
     {{- if hasKey .Values.nginx_conf.deeplink "apiProxy" }}
     {{- $_ := set $deeplink "apiProxy" (dict
@@ -80,8 +80,8 @@ data:
       )
       "title" $config.title
     }}
-    {{- if hasKey $config "supportEmail" }}
-    {{- $_ := set $deeplink "supportEmail" $config.supportEmail }}
+    {{- with $config.supportEmail }}
+    {{- $_ := set $deeplink "supportEmail" . }}
     {{- end }}
     {{- if hasKey $config "apiProxy" }}
     {{- $_ := set $deeplink "apiProxy" (dict
