@@ -153,7 +153,10 @@ tests =
         testObjects
           [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json"),
             (testObject_Event_conversation_manual_2, "testObject_Event_conversation_manual_2.json"),
-            (testObject_Event_conversation_manual_3, "testObject_Event_conversation_manual_3.json")
+            (testObject_Event_conversation_manual_3, "testObject_Event_conversation_manual_3.json"),
+            (testObject_Event_meeting_create_manual_1, "testObject_Event_meeting_create_manual_1.json"),
+            (testObject_Event_meeting_update_manual_1, "testObject_Event_meeting_update_manual_1.json"),
+            (testObject_Event_meeting_delete_manual_1, "testObject_Event_meeting_delete_manual_1.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects

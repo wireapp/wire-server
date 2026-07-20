@@ -570,10 +570,17 @@ taggedEventDataSchema =
       ProtocolUpdate -> tag _EdProtocolUpdate (unnamed (unProtocolUpdate <$> P.ProtocolUpdate .= schema))
       AddPermissionUpdate -> tag _EdAddPermissionUpdate (unnamed schema)
       ConvHistoryUpdate -> tag _EdConvHistoryUpdate (unnamed schema)
-      MeetingCreate -> tag _EdMeetingCreate (unnamed schema)
-      MeetingUpdate -> tag _EdMeetingUpdate (unnamed schema)
-      MeetingDelete -> tag _EdMeetingDelete (unnamed schema)
+      MeetingCreate -> tag _EdMeetingCreate meetingEventDataSchema
+      MeetingUpdate -> tag _EdMeetingUpdate meetingEventDataSchema
+      MeetingDelete -> tag _EdMeetingDelete meetingEventDataSchema
       ConvAdminlessReminder -> tag _EdAdminlessReminder (unnamed schema)
+
+-- | All meeting lifecycle events ('EdMeetingCreate', 'EdMeetingUpdate',
+-- 'EdMeetingDelete') carry only the meeting's qualified ID. It is rendered
+-- under a @qualified_id@ field, consistent with the rest of the API (see
+-- the @Meeting@, @Conversation@, and @Member@ types).
+meetingEventDataSchema :: ValueSchema SwaggerDoc (Qualified MeetingId)
+meetingEventDataSchema = unnamed (object (field "qualified_id" schema))
 
 memberLeaveSchema :: ValueSchema NamedSwaggerDoc (EdMemberLeftReason, QualifiedUserIdList)
 memberLeaveSchema =

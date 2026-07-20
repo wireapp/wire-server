@@ -59,3 +59,36 @@ testObject_Event_conversation_manual_3 =
       evtData = EdProtocolUpdate P.ProtocolMixedTag,
       evtTeam = Nothing
     }
+
+testObject_Event_meeting_create_manual_1 :: Event
+testObject_Event_meeting_create_manual_1 =
+  Event
+    { evtConv = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "example.com"}},
+      evtSubConv = Nothing,
+      evtFrom = EventFromUser $ Qualified {qUnqualified = Id (fromJust (UUID.fromString "a471447c-aa30-4592-81b0-dec6c1c02bca")), qDomain = Domain {_domainText = "example.com"}},
+      evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
+      evtData = EdMeetingCreate (Qualified {qUnqualified = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")), qDomain = Domain {_domainText = "example.com"}}),
+      evtTeam = Nothing
+    }
+
+testObject_Event_meeting_update_manual_1 :: Event
+testObject_Event_meeting_update_manual_1 =
+  Event
+    { evtConv = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "example.com"}},
+      evtSubConv = Nothing,
+      evtFrom = EventFromUser $ Qualified {qUnqualified = Id (fromJust (UUID.fromString "a471447c-aa30-4592-81b0-dec6c1c02bca")), qDomain = Domain {_domainText = "example.com"}},
+      evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
+      evtData = EdMeetingUpdate (Qualified {qUnqualified = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")), qDomain = Domain {_domainText = "example.com"}}),
+      evtTeam = Nothing
+    }
+
+testObject_Event_meeting_delete_manual_1 :: Event
+testObject_Event_meeting_delete_manual_1 =
+  Event
+    { evtConv = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "example.com"}},
+      evtSubConv = Nothing,
+      evtFrom = EventFromUser $ Qualified {qUnqualified = Id (fromJust (UUID.fromString "a471447c-aa30-4592-81b0-dec6c1c02bca")), qDomain = Domain {_domainText = "example.com"}},
+      evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
+      evtData = EdMeetingDelete (Qualified {qUnqualified = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")), qDomain = Domain {_domainText = "example.com"}}),
+      evtTeam = Nothing
+    }
