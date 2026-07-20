@@ -123,6 +123,7 @@ import Wire.ConversationSubsystem.Action.Kick
 import Wire.ConversationSubsystem.Action.Leave
 import Wire.ConversationSubsystem.Action.Notify
 import Wire.ConversationSubsystem.Action.Reset
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError)
 import Wire.ConversationSubsystem.MLS.Conversation
 import Wire.ConversationSubsystem.MLS.Migration
 import Wire.ConversationSubsystem.MLS.Removal
@@ -198,6 +199,7 @@ instance IsConversationAction 'ConversationJoinTag where
         Member (Input ConversationSubsystemConfig) r,
         Member E.BrigAPIAccess r,
         Member (Error FederationError) r,
+        Member (Error ConversationSubsystemError) r,
         Member (ErrorS 'NotATeamMember) r,
         Member (ErrorS 'NotConnected) r,
         Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
@@ -246,10 +248,9 @@ instance IsConversationAction 'ConversationJoinTag where
     case action of
       ConversationJoin _ _ InternalAdd -> throwS @'ConvNotFound
       ConversationJoin _ _ ExternalAdd -> ensureManageChannelsPermission conv tm
-  ensureAllowed loc action conv (ActorContext (Just origUser) _mTm) =
-    mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $ do
-      ensureConvRoleNotElevated origUser (role action)
-      checkGroupIdSupport loc conv action
+  ensureAllowed loc action conv (ActorContext (Just origUser) _mTm) = do
+    ensureConvRoleNotElevated origUser (role action)
+    checkGroupIdSupport loc conv action
   ensureAllowed _ _ _ (ActorContext Nothing Nothing) = throwS @'ConvNotFound
 
   skipConversationRoleCheck conv =
@@ -1001,6 +1002,7 @@ updateLocalConversationJoin ::
   ( Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationJoinTag))) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member FederationSubsystem r,
@@ -1345,6 +1347,7 @@ updateLocalConversationUncheckedJoin ::
   ( Member BackendNotificationQueueAccess r,
     Member (Error FederationError) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission 'ConversationJoinTag))) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member FederationSubsystem r,

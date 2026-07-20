@@ -85,6 +85,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..), catchCSE)
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.GroupInfo
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (GroupInfoCheckEnabled)
@@ -561,6 +562,7 @@ updateConversation ::
     Member CodeStore r,
     Member E.FireAndForget r,
     Member (Error FederationError) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error InvalidInput) r,
     Member ExternalAccess r,
     Member (FederationAPIAccess FederatorClient) r,
@@ -669,15 +671,15 @@ updateConversation origDomain updateRequest = do
 type MLSBundleStaticErrors =
   Append
     MLSMessageStaticErrors
-    '[ ErrorS 'MLSWelcomeMismatch,
-       ErrorS 'MLSIdentityMismatch,
+    '[ ErrorS 'MLSIdentityMismatch,
        ErrorS 'GroupIdVersionNotSupported,
        ErrorS 'MLSInvalidLeafNodeSignature,
        ErrorS 'MLSGroupConversationMismatch
      ]
 
 handleMLSMessageErrors ::
-  ( r1
+  ( Member (Error ConversationSubsystemError) r,
+    r1
       ~ Append
           MLSBundleStaticErrors
           ( Error MLSOutOfSyncError
@@ -707,6 +709,11 @@ handleMLSMessageErrors =
     . runError @GroupInfoDiagnostics
     . fmap (either MLSMessageResponseOutOfSyncError Imports.id)
     . runError @MLSOutOfSyncError
+    . catchCSE
+      ( \case
+          ConversationSubsystemErrorMLSInvalidLeafNodeIndex -> Just MLSInvalidLeafNodeIndex
+          _ -> Nothing
+      )
     . mapToGalleyError @MLSBundleStaticErrors
 
 sendMLSCommitBundle ::
@@ -717,9 +724,7 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -784,9 +789,7 @@ sendMLSMessage ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
@@ -821,7 +824,7 @@ sendMLSMessage remoteDomain msr = handleMLSMessageErrors $ do
 
 sendMLSTargetedMessage ::
   ( Members MLSMessageStaticErrors r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member E.ConversationStore r,

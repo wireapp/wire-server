@@ -87,6 +87,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Commit.Core (getCommitData)
 import Wire.ConversationSubsystem.MLS.Commit.ExternalCommit
 import Wire.ConversationSubsystem.MLS.Commit.InternalCommit
@@ -182,7 +183,7 @@ postMLSMessageFromLocalUser v lusr c conn smsg = do
 postMLSTargetedMessagesFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -212,7 +213,7 @@ postMLSTargetedMessagesFromLocalUser lusr client batch = do
 postMLSTransientTargetedMessageFromLocalUser ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member BackendNotificationQueueAccess r,
@@ -243,7 +244,7 @@ postMLSTransientTargetedMessageFromLocalUser lusr client batch = do
 validateAndPropagateTransientTargetedMessages ::
   ( Members MLSMessageStaticErrors r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Error FederationError) r,
     Member BackendNotificationQueueAccess r,
     Member ConversationStore r,
@@ -313,7 +314,7 @@ validateAndPropagateTransientTargetedMessages sender client ctype groupId messag
 
 validateTargetedMessage ::
   ( Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSProtocolError) r
@@ -337,10 +338,10 @@ validateTargetedMessage sender client convOrSub message = do
     Just (RegularClient senderClient)
       | senderClient == expectedClient -> pure ()
       | otherwise -> throwS @'MLSClientSenderUserMismatch
-    _ -> throwS @'MLSInvalidLeafNodeIndex
+    _ -> throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
   recipientClient <- case imLookup convOrSub.indexMap message.recipient of
     Just (RegularClient recipient) -> pure recipient
-    _ -> throwS @'MLSInvalidLeafNodeIndex
+    _ -> throw ConversationSubsystemErrorMLSInvalidLeafNodeIndex
   unless (message.recipientId == encodeMLS' recipientClient) $
     throw $
       mlsProtocolError "targeted message recipient identity does not match its leaf index"
@@ -384,7 +385,7 @@ postMLSTargetedMessagesToRemoteConv lusr client _ctype batch rConvOrSubId = do
 validateAndPropagateTargetedMessages ::
   ( Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSUnsupportedMessage) r,
     Member (Error MLSProtocolError) r,

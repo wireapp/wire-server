@@ -103,6 +103,7 @@ import Wire.CodeStore.Code (codeConvId)
 import Wire.CodeStore.Code qualified as Data
 import Wire.ConversationStore qualified as ConversationStore
 import Wire.ConversationStore.MLS.Types
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.Fetch (getConversationIdsImpl)
 import Wire.ConversationSubsystem.MLS
 import Wire.ConversationSubsystem.MLS.Enabled (assertMLSEnabled, getMLSPrivateKeys, isMLSEnabled)
@@ -676,7 +677,7 @@ getConversationByReusableCode ::
     Member CodeStore r,
     Member ConversationStore.ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
-    Member (ErrorS 'InvalidConversationPassword) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'GuestLinksDisabled) r,
@@ -813,7 +814,7 @@ getMLSOne2OneOwnConversation ::
     Member (Error InternalError) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'NotConnected) r,
-    Member (ErrorS 'MLSFederatedOne2OneNotSupported) r,
+    Member (Error ConversationSubsystemError) r,
     Member (E.FederationAPIAccess FederatorClient) r,
     Member TeamStore r,
     Member P.TinyLog r,
@@ -826,7 +827,7 @@ getMLSOne2OneOwnConversation ::
 getMLSOne2OneOwnConversation lself qother = do
   if isLocal lself qother
     then getMLSOne2OneConversationInternal lself qother
-    else throwS @MLSFederatedOne2OneNotSupported
+    else throw ConversationSubsystemErrorMLSFederatedOne2OneNotSupported
 
 getMLSOne2OneConversationInternal ::
   forall r.

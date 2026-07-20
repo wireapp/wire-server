@@ -55,6 +55,7 @@ import Wire.API.Unreachable
 import Wire.ConversationStore
 import Wire.ConversationStore.MLS.Types
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.CheckClients
 import Wire.ConversationSubsystem.MLS.Commit.Core
 import Wire.ConversationSubsystem.MLS.Conversation
@@ -156,7 +157,7 @@ processInternalCommit senderIdentity con lConvOrSub ciphersuite ciphersuiteUpdat
                     clientsInConv
                     (cnvmlsGroupId convOrSub.mlsMeta)
                     epoch
-                  throwS @'MLSClientMismatch
+                  throw ConversationSubsystemErrorMLSClientMismatch
 
                 pure qtarget
 
