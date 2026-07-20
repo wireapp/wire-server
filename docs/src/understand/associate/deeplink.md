@@ -80,6 +80,10 @@ Note on the meaning of the URLs used below:
 
 : Arbitrary string that may show up in a few places in the app. Should be used as an identifier of the backend servers in question.
 
+`supportEmail` (optional)
+
+: An email address used by clients for support-related contact actions. If it is not configured, the `supportEmail` key is omitted from `deeplink.json`.
+
 ### With Added Proxy
 
 `apiProxy:host (optional)`
@@ -112,6 +116,7 @@ nginz:
         accountsURL: "https://account.example.com"
         blackListURL: "https://clientblacklist.example.com/prod"
         websiteURL: "https://example.com"
+      supportEmail: "support@example.com" # (optional)
       apiProxy: # (optional)
         host: "socks5.proxy.com"
         port: 1080
@@ -160,6 +165,7 @@ nginz:
           teamsURL: "https://teams.red.example.com"
           accountsURL: "https://account.red.example.com"
           websiteURL: "https://red.example.com"
+        supportEmail: "support@red.example.com" # (optional)
         title: "Production red.example.com"
         apiProxy: # (optional)
           host: "socks5.proxy.com"
