@@ -150,7 +150,7 @@ runJobRunner ::
   IO (IO ())
 runJobRunner env extEnv runnerConfig cleanupConfig = do
   let arbiterConnStr = Text.encodeUtf8 (revealSecretText runnerConfig.jobRunnerArbiterConnStr)
-    Log.info runnerConfig.jobRunnerLogger $
+  Log.info runnerConfig.jobRunnerLogger $
     Log.msg (Log.val "Starting job worker")
       . Log.field "queue_names" (T.intercalate "," [meetingsQueueName, conversationsQueueName])
       . Log.field "schedule" (show runnerConfig.jobRunnerSchedule)
@@ -173,19 +173,18 @@ runJobRunner env extEnv runnerConfig cleanupConfig = do
           AdminlessDeletion payload -> runAppT env $ runAdminlessDeletionJob extEnv (mapJobPayload (const payload) job)
           AdminlessReminder payload -> runAppT env $ runAdminlessReminderJob extEnv (mapJobPayload (const payload) job)
 
-  cronJob <-
-    case ArbiterWorkerCron.cronJob
-      "meetings-cleanup"
-      (serializeCronSchedule runnerConfig.jobRunnerSchedule)
-      ArbiterWorkerCron.SkipOverlap
-      ( \_ scheduledFor ->
-          (ArbiterCore.defaultGroupedJob "meetings-cleanup" (MeetingsCleanup MeetingsCleanupJob))
-            { ArbiterCore.notVisibleUntil = Just scheduledFor,
-              ArbiterCore.maxAttempts = Just 3
-            }
-      ) of
-      Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
-      Right job -> pure job
+  cronJob <- case ArbiterWorkerCron.cronJob
+    "meetings-cleanup"
+    (serializeCronSchedule runnerConfig.jobRunnerSchedule)
+    ArbiterWorkerCron.SkipOverlap
+    ( \_ scheduledFor ->
+        (ArbiterCore.defaultGroupedJob "meetings-cleanup" (MeetingsCleanup MeetingsCleanupJob))
+          { ArbiterCore.notVisibleUntil = Just scheduledFor,
+            ArbiterCore.maxAttempts = Just 3
+          }
+    ) of
+    Left err -> throwIO . userError $ "Invalid cron schedule for meetings-cleanup: " <> err
+    Right job -> pure job
 
   meetingsWorkerConfig <-
     ( ArbiterWorker.defaultWorkerConfig
