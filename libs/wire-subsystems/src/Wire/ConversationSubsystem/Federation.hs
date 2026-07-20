@@ -76,6 +76,7 @@ import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.CodeStore
 import Wire.ConversationStore qualified as E
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Enabled
 import Wire.ConversationSubsystem.MLS.GroupInfo
 import Wire.ConversationSubsystem.MLS.GroupInfoCheck (GroupInfoCheckEnabled)
@@ -581,9 +582,7 @@ sendMLSCommitBundle ::
     Member ExternalAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member (FederationAPIAccess FederatorClient) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
@@ -647,9 +646,7 @@ sendMLSMessage ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (FederationAPIAccess FederatorClient) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSInvalidLeafNodeIndex) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Error ConversationSubsystemError) r,
     Member NotificationSubsystem r,
     Member (Input (Local ())) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,

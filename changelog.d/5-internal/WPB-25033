@@ -1,0 +1,11 @@
+Galley conversation subsystem: throw `ConversationSubsystemError` constructors
+directly instead of relying on `mapErrors` for a set of standalone exceptions
+(`ChannelsNotEnabled`, `NotAnMlsConversation`, `MLSNonEmptyMemberList`,
+`NoBindingTeamMembers`, `BroadcastLimitExceeded`,
+`MLSFederatedOne2OneNotSupported`, `CreateConversationCodeConflict`,
+`InvalidTarget`, `MLSClientMismatch`, `MLSInvalidLeafNodeIndex`,
+`MLSUnsupportedProposal`, `MLSFederatedResetNotSupported`,
+`InvalidConversationPassword`, `AdminlessConversation`). The corresponding
+`ErrorS`/`Error` entries and `mapError` lines are removed from
+`Wire.ConversationSubsystem.Errors`. No API, schema, or config change; the
+mapped error responses are observationally identical.

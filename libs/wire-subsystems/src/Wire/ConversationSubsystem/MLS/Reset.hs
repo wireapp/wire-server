@@ -39,6 +39,7 @@ import Wire.BackendNotificationQueueAccess
 import Wire.BrigAPIAccess (BrigAPIAccess)
 import Wire.ConversationStore
 import Wire.ConversationSubsystem.Action
+import Wire.ConversationSubsystem.Errors (ConversationSubsystemError (..))
 import Wire.ConversationSubsystem.MLS.Enabled (assertMLSEnabled)
 import Wire.ConversationSubsystem.MLS.Util
 import Wire.ConversationSubsystem.Update
@@ -59,7 +60,7 @@ resetMLSConversation ::
     Member (Error MLSProtocolError) r,
     Member (Error InternalError) r,
     Member (ErrorS InvalidOperation) r,
-    Member (ErrorS MLSFederatedResetNotSupported) r,
+    Member (Error ConversationSubsystemError) r,
     Member (Input (Maybe (MLSKeysByPurpose MLSPrivateKeys))) r,
     Member (ErrorS MLSNotEnabled) r,
     Member BackendNotificationQueueAccess r,
@@ -108,7 +109,7 @@ resetRemoteMLSConversation ::
     Member (ErrorS (ActionDenied LeaveConversation)) r,
     Member (ErrorS InvalidOperation) r,
     Member (ErrorS ConvNotFound) r,
-    Member (ErrorS MLSFederatedResetNotSupported) r,
+    Member (Error ConversationSubsystemError) r,
     Member (ErrorS MLSStaleMessage) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
@@ -133,12 +134,12 @@ resetRemoteMLSConversation rcnv lusr reset =
       reset
   where
     handleFedError ::
-      ( Member (ErrorS MLSFederatedResetNotSupported) r,
+      ( Member (Error ConversationSubsystemError) r,
         Member (Error FederationError) r
       ) =>
       Either FederationError x ->
       Sem r ()
     handleFedError (Left (FederationCallFailure FederatorClientVersionMismatch)) =
-      throwS @MLSFederatedResetNotSupported
+      throw ConversationSubsystemErrorMLSFederatedResetNotSupported
     handleFedError (Left e) = throw e
     handleFedError (Right _) = pure ()
