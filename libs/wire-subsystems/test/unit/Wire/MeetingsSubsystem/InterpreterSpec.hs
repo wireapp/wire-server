@@ -1256,7 +1256,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
       result `shouldBe` Left MeetingsFeatureDisabled
 
-    it "throws MeetingsFeatureDisabled on getMeeting for team user with meetings disabled" $ do
+    it "returns Nothing on getMeeting for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsEnabled $
           createMeeting zUserTeam newMeeting
@@ -1268,7 +1268,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
             runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
               getMeeting zUserTeam meeting.meeting.id
 
-          result2 `shouldBe` Left MeetingsFeatureDisabled
+          result2 `shouldBe` Right Nothing
 
     it "throws MeetingsFeatureDisabled on updateMeeting for team user with meetings disabled" $ do
       result <-
@@ -1298,12 +1298,12 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
 
           result2 `shouldBe` Left MeetingsFeatureDisabled
 
-    it "throws MeetingsFeatureDisabled on listMeetings for team user with meetings disabled" $ do
+    it "returns [] on listMeetings for team user with meetings disabled" $ do
       result <-
         runTestStack now gen (Map.singleton teamId [teamMember]) meetingsDisabled $
           listMeetings zUserTeam
 
-      result `shouldBe` Left MeetingsFeatureDisabled
+      result `shouldBe` Right []
 
     it "throws MeetingsFeatureDisabled on addInvitedEmails for team user with meetings disabled" $ do
       result <-
