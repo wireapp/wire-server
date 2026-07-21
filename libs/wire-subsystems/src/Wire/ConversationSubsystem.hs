@@ -351,6 +351,10 @@ data ConversationSubsystem m a where
     Local ConvId ->
     UTCTimeMillis ->
     ConversationSubsystem m ()
+  SetupAdminlessGroupsCleanup ::
+    Maybe (Local UserId) ->
+    TeamId ->
+    ConversationSubsystem m ()
   GetMLSPublicKeys ::
     Maybe MLSPublicKeyFormat ->
     ConversationSubsystem m (MLSKeysByPurpose (MLSKeys SomeKey))

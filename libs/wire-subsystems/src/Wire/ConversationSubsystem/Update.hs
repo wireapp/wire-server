@@ -44,6 +44,7 @@ module Wire.ConversationSubsystem.Update
     updateCellsState,
     adminlessAutopromoteOrDelete,
     adminlessAutopromoteOrSendReminder,
+    setupAdminlessGroupsCleanup,
 
     -- * Managing Members
     addQualifiedMembersUnqualified,
@@ -1182,7 +1183,7 @@ isAdminlessCheckCandidate conv =
   conv.metadata.cnvmType == RegularConv
     && maybe True (== GroupConversation) conv.metadata.cnvmGroupConvType
 
-_reconcileAdminlessGroups ::
+setupAdminlessGroupsCleanup ::
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
@@ -1193,14 +1194,17 @@ _reconcileAdminlessGroups ::
     Member E.ExternalAccess r,
     Member BackendNotificationQueueAccess r,
     Member FeaturesConfigSubsystem r,
-    Member (Input (Local ())) r
+    Member (Input (Local ())) r,
+    Member JobSubsystem r
   ) =>
-  TeamId -> Sem r ()
-_reconcileAdminlessGroups tid = do
+  Maybe (Local UserId) ->
+  TeamId ->
+  Sem r ()
+setupAdminlessGroupsCleanup mUsr tid = do
   teamConvIds <- E.getTeamConversations tid
   for_ teamConvIds $ \cnv -> do
     lcnv <- qualifyLocal cnv
-    adminlessTryAutopromote todo lcnv $ \conv feature eligibleMembers -> pure ()
+    adminlessTryAutopromote mUsr lcnv $ \_ feature _ -> scheduleDeletion lcnv mUsr tid feature
 
 guardPreventAdminlessGroups ::
   ( Member ConversationStore r,

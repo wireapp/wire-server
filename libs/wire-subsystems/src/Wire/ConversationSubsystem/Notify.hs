@@ -97,9 +97,7 @@ notifyConversationActionImpl tag eventFrom notifyOrigDomain con lconv targetsLoc
   pure $ LocalConversationUpdate {lcuEvent = e, lcuUpdate = update}
 
 pushSystemEvent ::
-  ( Member ExternalAccess r,
-    Member NotificationSubsystem r
-  ) =>
+  (Member NotificationSubsystem r) =>
   Maybe ConnId ->
   SystemEvent ->
   Set UserId ->
