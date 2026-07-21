@@ -72,6 +72,7 @@ import Wire.FeaturesConfigSubsystem.Utils (resolveServerFeature)
 import Wire.FederationAPIAccess (FederationAPIAccess)
 import Wire.FederationSubsystem (FederationSubsystem)
 import Wire.FireAndForget
+import Wire.JobSubsystem (JobSubsystem, scheduleAdminlessSetupJob)
 import Wire.LegalHoldStore (LegalHoldStore)
 import Wire.NotificationSubsystem
 import Wire.Options.Galley
@@ -114,6 +115,7 @@ patchFeatureInternal tid patch = do
   prepareFeature tid patchedFeature
   patchDbFeature tid patch
   (returnedFeature :: LockableFeature cfg) <- getFeatureForTeam tid
+  afterFeatureSet @cfg Nothing tid dbFeatureWithDefaults returnedFeature
   pushFeatureEvent @cfg tid (mkUpdateEvent tid returnedFeature)
   pure returnedFeature
   where
@@ -146,7 +148,7 @@ setFeature ::
 setFeature uid tid feat = do
   zusrMembership <- TeamSubsystem.internalGetTeamMember uid tid
   void $ TeamSubsystem.permissionCheck ChangeTeamFeature zusrMembership
-  setFeatureUnchecked tid feat
+  setFeatureUnchecked (Just uid) tid feat
 
 setFeatureInternal ::
   forall cfg r.
@@ -165,7 +167,7 @@ setFeatureInternal ::
   Sem r (LockableFeature cfg)
 setFeatureInternal tid feat = do
   TeamSubsystem.assertTeamExists tid
-  setFeatureUnchecked tid feat
+  setFeatureUnchecked Nothing tid feat
 
 setFeatureUnchecked ::
   forall cfg r.
@@ -179,13 +181,14 @@ setFeatureUnchecked ::
     Member NotificationSubsystem r,
     Member TeamSubsystem r
   ) =>
+  Maybe UserId ->
   TeamId ->
   Feature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureUnchecked tid feat = do
+setFeatureUnchecked originUser tid feat = do
   (feat0 :: LockableFeature cfg) <- getFeatureForTeam tid
   guardLockStatus feat0.lockStatus
-  setFeatureForTeam @cfg tid (withLockStatus feat0.lockStatus feat)
+  setFeatureForTeam @cfg originUser tid feat0 (withLockStatus feat0.lockStatus feat)
 
 updateLockStatus ::
   forall cfg r.
@@ -258,12 +261,15 @@ setFeatureForTeam ::
     Member TeamFeatureStore r,
     Member TeamSubsystem r
   ) =>
+  Maybe UserId ->
   TeamId ->
   LockableFeature cfg ->
+  LockableFeature cfg ->
   Sem r (LockableFeature cfg)
-setFeatureForTeam tid feat = do
+setFeatureForTeam originUser tid oldFeature feat = do
   prepareFeature tid feat
   newFeat <- persistFeature tid feat
+  afterFeatureSet @cfg originUser tid oldFeature newFeat
   pushFeatureEvent @cfg tid (mkUpdateEvent tid newFeat)
   pure newFeat
 
@@ -288,6 +294,21 @@ class (GetFeatureConfig cfg) => SetFeatureConfig cfg where
     Sem r ()
   default prepareFeature :: TeamId -> LockableFeature cfg -> Sem r ()
   prepareFeature _tid _feat = pure ()
+
+  afterFeatureSet ::
+    (SetFeatureForTeamConstraints cfg r) =>
+    Maybe UserId ->
+    TeamId ->
+    LockableFeature cfg ->
+    LockableFeature cfg ->
+    Sem r ()
+  default afterFeatureSet ::
+    Maybe UserId ->
+    TeamId ->
+    LockableFeature cfg ->
+    LockableFeature cfg ->
+    Sem r ()
+  afterFeatureSet _originUser _tid _oldFeature _newFeature = pure ()
 
 instance SetFeatureConfig SSOConfig where
   type
@@ -420,7 +441,21 @@ instance SetFeatureConfig MLSConfig where
 
 instance SetFeatureConfig ChannelsConfig
 
-instance SetFeatureConfig PreventAdminlessGroupsConfig
+instance SetFeatureConfig PreventAdminlessGroupsConfig where
+  type SetFeatureForTeamConstraints PreventAdminlessGroupsConfig r = Member JobSubsystem r
+
+  afterFeatureSet originUser tid oldFeature newFeature =
+    case (oldFeature.status, newFeature.status) of
+      (FeatureStatusDisabled, FeatureStatusEnabled) ->
+        scheduleAdminlessSetupJob originUser tid
+      (FeatureStatusEnabled, FeatureStatusDisabled) ->
+        todo "adminless teardown"
+      (FeatureStatusEnabled, FeatureStatusEnabled)
+        | oldFeature.config /= newFeature.config -> do
+            todo "adminless teardown"
+            scheduleAdminlessSetupJob originUser tid
+        | otherwise -> pure ()
+      _ -> pure ()
 
 instance SetFeatureConfig ExposeInvitationURLsToTeamAdminConfig
 

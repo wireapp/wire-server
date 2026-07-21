@@ -38,7 +38,7 @@ data JobSubsystemConfig = JobSubsystemConfig
   }
 
 data JobSubsystem m a where
-  ScheduleAdminlessSetupJob :: Maybe (Local UserId) -> TeamId -> JobSubsystem m ()
+  ScheduleAdminlessSetupJob :: Maybe UserId -> TeamId -> JobSubsystem m ()
   ScheduleAdminlessDeletionJob :: Maybe (Local UserId) -> TeamId -> ConvId -> UTCTime -> JobSubsystem m ()
   ScheduleAdminlessReminderJob :: Maybe (Local UserId) -> TeamId -> ConvId -> UTCTimeMillis -> NominalDiffTime -> UTCTime -> JobSubsystem m ()
 
