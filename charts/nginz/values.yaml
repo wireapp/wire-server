@@ -62,6 +62,7 @@ nginx_conf:
   #     accountsURL: "https://account.example.com"
   #     blackListURL: "https://clientblacklist.example.com/prod"
   #     websiteURL: "https://example.com"
+  #   supportEmail: "support@example.com" # (optional)
   #   apiProxy: # (optional)
   #     host: "socks5.proxy.com"
   #     port: 1080
@@ -78,6 +79,7 @@ nginx_conf:
   #       teamsURL: "https://teams.red.example.com"
   #       accountsURL: "https://account.red.example.com"
   #       websiteURL: "https://red.example.com"
+  #     supportEmail: "support@red.example.com" # (optional)
   #     title: "Production red.example.com"
   #     apiProxy: # (optional)
   #       host: "socks5.proxy.com"
