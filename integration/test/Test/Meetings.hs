@@ -188,10 +188,10 @@ testMeetingsReadsWhenDisabled = do
   I.setTeamFeatureConfig owner tid "meetings" disabled >>= assertStatus 200
 
   -- Read paths treat a disabled feature as "no meetings": list -> 200 [], get -> 404.
-  listResp <- getMeetingsList owner
-  assertSuccess listResp
-  meetings <- listResp.json & asList
-  length (meetings :: [Value]) `shouldMatchInt` 0
+  getMeetingsList owner `bindResponse` \resp -> do
+    resp.status `shouldMatchInt` 200
+    meetings <- resp.json & asList
+    length meetings `shouldMatchInt` 0
 
   getMeeting owner domain meetingId >>= assertLabel 404 "meeting-not-found"
 
