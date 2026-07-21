@@ -49,8 +49,8 @@ import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
-import Test.Wire.API.Golden.Manual.MeetingEvent
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.MeetingEvent
 import Test.Wire.API.Golden.Manual.Pagination
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
