@@ -140,7 +140,7 @@ runTestStack now gen teams configs =
 -- @type@ tags that the meeting 'EventType' enum rejects.
 extractMeetingEvents :: [Push] -> [MeetingEvent.Event]
 extractMeetingEvents pushes =
-  [ e | push <- pushes, Success e <- [fromJSON (Object push.json)] ]
+  [e | push <- pushes, Success e <- [fromJSON (Object push.json)]]
 
 spec :: Spec
 spec = describe "MeetingsSubsystem.Interpreter" $ do
