@@ -1192,10 +1192,10 @@ spec = describe "UserSubsystem.Interpreter" do
                     ]
                 result :: ([UserId], [UserId]) =
                   runNoFederationStack localBackend teams config $ do
-                    let f tid caller =
+                    let getAppId tid caller =
                           qUnqualified . (.profileQualifiedId)
                             <$$> getLocalAppProfiles caller tid
                      in (,)
-                          <$> f teamAId teamAOwnerId
-                          <*> f teamBId teamBOwnerId
+                          <$> getAppId teamAId teamAOwnerId
+                          <*> getAppId teamBId teamBOwnerId
              in result === ([appUser.id], [appUser.id])
