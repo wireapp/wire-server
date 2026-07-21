@@ -22,3 +22,8 @@ podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
+
+postgresql:
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql

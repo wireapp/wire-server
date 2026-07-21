@@ -1,3 +1,6 @@
 redis-cluster:
   usePassword: false
   fullnameOverride: "redis-cluster"
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis-cluster

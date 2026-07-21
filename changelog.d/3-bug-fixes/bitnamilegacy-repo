@@ -1,0 +1,5 @@
+Use *bitnamilegacy* *docker.io* repository for bitnami images. The
+`docker.io/bitnami` repository is deprecated and offline;
+`docker.io/bitnamilegacy` provides the old images for continued compatibility.
+Updated RabbitMQ, Redis, PostgreSQL, and kubectl images to use the legacy
+repository.
