@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 {-# LANGUAGE StrictData #-}
 
 module Wire.API.Event.Meeting
@@ -23,7 +22,7 @@ module Wire.API.Event.Meeting
     EventType (..),
 
     -- * Envelope
-    EventFrom (..)
+    EventFrom (..),
   )
 where
 
@@ -119,4 +118,3 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
-
