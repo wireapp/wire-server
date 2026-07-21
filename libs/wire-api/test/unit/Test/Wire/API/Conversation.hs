@@ -86,9 +86,6 @@ testIsCellsConversationEvent =
         OtrMessageAdd -> isCellsConversationEvent e === False
         ProtocolUpdate -> isCellsConversationEvent e === False
         Typing -> isCellsConversationEvent e === False
-        MeetingCreate -> isCellsConversationEvent e === False
-        MeetingUpdate -> isCellsConversationEvent e === False
-        MeetingDelete -> isCellsConversationEvent e === False
 
 --------------------------------------------------------------------------------
 -- Legacy conversion tests

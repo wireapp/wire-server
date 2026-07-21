@@ -31,8 +31,10 @@ testMeetingCreate = do
       resp <- postMeetings owner newMeeting
       assertSuccess resp
       void $ awaitMatch isConvCreateMeetingNotif ws
-      void $ awaitMatch isMeetingCreateNotif ws
-      getJSON 201 resp
+      m <- getJSON 201 resp
+      createNotif <- awaitMatch isMeetingCreateNotif ws
+      assertMeetingNotif createNotif (m %. "qualified_id")
+      pure m
 
   meeting %. "title" `shouldMatch` ("Team Standup" :: String)
   meeting %. "qualified_creator" %. "id" `shouldMatch` ownerId
@@ -95,6 +97,18 @@ assertConversationMatchesLegacy meeting = do
   convId <- meeting %. "conversation" %. "qualified_id"
   legacyConvId <- meeting %. "qualified_conversation"
   convId `shouldMatch` legacyConvId
+
+-- | Assert a meeting lifecycle notification carries the meeting's qualified id flat
+-- at payload.0.qualified_id and has NO "data" wrapper (proves the no-nesting
+-- contract).
+assertMeetingNotif ::
+  (HasCallStack, MakesValue notif, MakesValue qid) =>
+  notif ->
+  qid ->
+  App ()
+assertMeetingNotif notif qid = do
+  notif %. "payload.0.qualified_id" `shouldMatch` qid
+  assertFieldMissing notif "payload.0.data"
 
 -- | Helper to create a default new meeting JSON object
 defaultMeetingJson :: String -> UTCTime -> UTCTime -> [String] -> Value
@@ -217,7 +231,8 @@ testMeetingRecurrence = do
   r2 <- withWebSocket owner $ \ws -> do
     resp <- putMeeting owner domain meetingId updatedMeeting
     assertSuccess resp
-    void $ awaitMatch isMeetingUpdateNotif ws
+    updateNotif <- awaitMatch isMeetingUpdateNotif ws
+    assertMeetingNotif updateNotif (object ["id" .= meetingId, "domain" .= domain])
     pure resp
 
   updated <- getJSON 200 r2
@@ -460,7 +475,8 @@ testMeetingDelete = do
   (meetingId, domain) <- getMeetingIdAndDomain meeting
   withWebSocket owner $ \ws -> do
     deleteMeeting owner domain meetingId >>= assertStatus 200
-    void $ awaitMatch isMeetingDeleteNotif ws
+    deleteNotif <- awaitMatch isMeetingDeleteNotif ws
+    assertMeetingNotif deleteNotif (object ["id" .= meetingId, "domain" .= domain])
   getMeeting owner domain meetingId >>= assertStatus 404
 
 testMeetingDeleteNotFound :: (HasCallStack) => App ()

@@ -44,7 +44,7 @@ import Text.Email.Parser (unsafeEmailAddress)
 import Wire.API.Conversation (Access (InviteAccess, PrivateAccess), Conversation (metadata, qualifiedId), ConversationMetadata (cnvmAccess))
 import Wire.API.Error (ErrorS)
 import Wire.API.Error.Galley (GalleyError (TeamMemberNotFound, TeamNotFound))
-import Wire.API.Event.Conversation qualified as ConvEvent
+import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.Team.Feature
 import Wire.API.Team.Member (TeamMember, mkTeamMember)
@@ -135,21 +135,12 @@ runTestStack now gen teams configs =
     . inMemoryMeetingsStoreInterpreter
     . interpretMeetingsSubsystem 3600
 
--- | Decode all 'Push' payloads that are conversation events carrying meeting
--- lifecycle data.
-extractMeetingEvents :: [Push] -> [ConvEvent.Event]
+-- | Decode all 'Push' payloads that are meeting lifecycle events. Any push that
+-- decodes as a 'MeetingEvent.Event' is one: conversation events use distinct
+-- @type@ tags that the meeting 'EventType' enum rejects.
+extractMeetingEvents :: [Push] -> [MeetingEvent.Event]
 extractMeetingEvents pushes =
-  [ e
-  | push <- pushes,
-    Success e <- [fromJSON (Object push.json)],
-    isMeetingEvent e
-  ]
-  where
-    isMeetingEvent e = case e.evtData of
-      ConvEvent.EdMeetingCreate _ -> True
-      ConvEvent.EdMeetingUpdate _ -> True
-      ConvEvent.EdMeetingDelete _ -> True
-      _ -> False
+  [ e | push <- pushes, Success e <- [fromJSON (Object push.json)] ]
 
 spec :: Spec
 spec = describe "MeetingsSubsystem.Interpreter" $ do
@@ -1389,9 +1380,8 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right (meeting, pushes) -> do
           let events = extractMeetingEvents pushes
           length events `shouldBe` 1
-          case (head events).evtData of
-            ConvEvent.EdMeetingCreate mid -> mid `shouldBe` meeting.meeting.id
-            other -> fail $ "expected EdMeetingCreate, got " <> show other
+          (head events).evtType `shouldBe` MeetingEvent.Create
+          (head events).evtMeeting `shouldBe` meeting.meeting.id
 
     it "emits a meeting.update event on successful update" $ do
       result <-
@@ -1406,9 +1396,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right pushes -> do
           let events = extractMeetingEvents pushes
           length events `shouldBe` 1
-          case (head events).evtData of
-            ConvEvent.EdMeetingUpdate _ -> pure ()
-            other -> fail $ "expected EdMeetingUpdate, got " <> show other
+          (head events).evtType `shouldBe` MeetingEvent.Update
 
     it "emits a meeting.delete event on successful delete" $ do
       result <-
@@ -1423,9 +1411,7 @@ spec = describe "MeetingsSubsystem.Interpreter" $ do
         Right pushes -> do
           let events = extractMeetingEvents pushes
           length events `shouldBe` 1
-          case (head events).evtData of
-            ConvEvent.EdMeetingDelete _ -> pure ()
-            other -> fail $ "expected EdMeetingDelete, got " <> show other
+          (head events).evtType `shouldBe` MeetingEvent.Delete
 
     it "does not emit an event when updateMeeting fails (non-creator)" $ do
       result <-
