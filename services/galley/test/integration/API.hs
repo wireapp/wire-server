@@ -29,7 +29,6 @@ import API.CustomBackend qualified as CustomBackend
 import API.Federation qualified as Federation
 import API.MLS qualified
 import API.MessageTimer qualified as MessageTimer
-import API.Meetings qualified as Meetings
 import API.Roles qualified as Roles
 import API.SQS
 import API.Teams qualified as Teams
@@ -119,7 +118,6 @@ tests s =
       Roles.tests s,
       CustomBackend.tests s,
       Federation.tests s,
-      Meetings.tests s,
       API.MLS.tests s
     ]
   where

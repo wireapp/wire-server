@@ -163,6 +163,51 @@ testMeetingsConfigDisabledBlocksCreate = do
 
   postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
 
+-- | Read endpoints (@GET /meetings/list@, @GET /meetings/{domain}/{id}@) treat a
+-- team with the @meetings@ feature disabled as "no meetings" (list -> @200 []@,
+-- get -> @404 meeting-not-found@) instead of @403 invalid-op@, while write
+-- endpoints (@POST /meetings@) keep the hard gate and still return @403
+-- invalid-op@. See WPB-27329.
+testMeetingsReadsWhenDisabled :: (HasCallStack) => App ()
+testMeetingsReadsWhenDisabled = do
+  (owner, tid, _members) <- createTeam OwnDomain 1
+  now <- liftIO getCurrentTime
+  let startTime = addUTCTime 3600 now
+      endTime = addUTCTime 7200 now
+      newMeeting = defaultMeetingJson "test meeting" startTime endTime []
+
+  -- Enabled (default): create a meeting to use as the read target later.
+  meeting <- postMeetings owner newMeeting >>= getJSON 201
+  (meetingId, domain) <- getMeetingIdAndDomain meeting
+
+  -- Positive control while enabled: the created meeting is directly findable.
+  getMeeting owner domain meetingId >>= assertStatus 200
+
+  -- Disable the meetings feature for the team.
+  let disabled = object ["status" .= "disabled", "lockStatus" .= "unlocked"]
+  I.setTeamFeatureConfig owner tid "meetings" disabled >>= assertStatus 200
+
+  -- Read paths treat a disabled feature as "no meetings": list -> 200 [], get -> 404.
+  listResp <- getMeetingsList owner
+  assertSuccess listResp
+  meetings <- listResp.json & asList
+  length (meetings :: [Value]) `shouldMatchInt` 0
+
+  getMeeting owner domain meetingId >>= assertLabel 404 "meeting-not-found"
+
+  -- Write paths keep the hard gate: create -> 403 invalid-op (unchanged behavior).
+  postMeetings owner newMeeting >>= assertLabel 403 "invalid-op"
+
+  -- Re-enable: the previously-created meeting is readable again.
+  let enabled = object ["status" .= "enabled", "lockStatus" .= "unlocked"]
+  I.setTeamFeatureConfig owner tid "meetings" enabled >>= assertStatus 200
+
+  listResp2 <- getMeetingsList owner
+  assertSuccess listResp2
+  meetings2 <- listResp2.json & asList
+  fetchedIds <- forM meetings2 $ \m -> m %. "qualified_id" %. "id" >>= asString
+  (meetingId `elem` fetchedIds) `shouldMatch` True
+
 -- Test that creating a meeting with a start time in the past is rejected
 testMeetingCreatePastStartTime :: (HasCallStack) => App ()
 testMeetingCreatePastStartTime = do

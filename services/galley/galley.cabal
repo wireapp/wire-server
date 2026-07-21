@@ -285,7 +285,6 @@ executable galley-integration
     API.Federation
     API.Federation.Util
     API.MessageTimer
-    API.Meetings
     API.MLS
     API.MLS.Mocks
     API.MLS.Util
