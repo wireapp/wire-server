@@ -84,13 +84,23 @@ checkMeetingsEnabled ::
   ) =>
   Maybe TeamId ->
   Sem r ()
-checkMeetingsEnabled maybeTeamId = do
+checkMeetingsEnabled maybeTeamId =
+  unlessM (meetingsFeatureEnabled maybeTeamId) $
+    throw MeetingsFeatureDisabled
+
+-- | Like 'checkMeetingsEnabled' but returns the resolved status instead of
+-- throwing. Used by read paths (list, get) that treat a disabled feature as
+-- "no meetings" rather than as a forbidden operation.
+meetingsFeatureEnabled ::
+  (Member FeaturesConfigSubsystem r) =>
+  Maybe TeamId ->
+  Sem r Bool
+meetingsFeatureEnabled maybeTeamId =
   case maybeTeamId of
-    Nothing -> pure ()
+    Nothing -> pure True
     Just teamId -> do
       meetingFeature <- getFeatureForTeam @_ @MeetingsConfig teamId
-      unless (meetingFeature.status == FeatureStatusEnabled) $
-        throw MeetingsFeatureDisabled
+      pure (meetingFeature.status == FeatureStatusEnabled)
 
 interpretMeetingsSubsystem ::
   ( Member Store.MeetingsStore r,
@@ -288,7 +298,6 @@ getMeetingImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -297,23 +306,24 @@ getMeetingImpl ::
   Sem r (Maybe API.Meeting)
 getMeetingImpl zUser meetingId validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
-  checkMeetingsEnabled maybeTeamId
-  -- Get meeting from store
-  runMaybeT $ do
-    storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
-    now <- lift Now.get
-    let cutoff = addUTCTime (negate validityPeriod) now
-    guard $ isAlive cutoff storedMeeting
-    guard $ qDomain meetingId == tDomain zUser
-    -- Check authorization: user must be creator OR member of the associated conversation
-    let isCreator = storedMeeting.creator == tUnqualified zUser
-    if isCreator
-      then pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting
-      else do
-        -- Check if user is a member of the conversation
-        let convId = storedMeeting.conversationId
-        void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
-        pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
+  enabled <- meetingsFeatureEnabled maybeTeamId
+  if enabled
+    then runMaybeT $ do
+      storedMeeting <- MaybeT $ Store.getMeeting (qUnqualified meetingId)
+      now <- lift Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      guard $ isAlive cutoff storedMeeting
+      guard $ qDomain meetingId == tDomain zUser
+      -- Check authorization: user must be creator OR member of the associated conversation
+      let isCreator = storedMeeting.creator == tUnqualified zUser
+      if isCreator
+        then pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting
+        else do
+          -- Check if user is a member of the conversation
+          let convId = storedMeeting.conversationId
+          void $ MaybeT $ ConversationSubsystem.internalGetLocalMember convId (tUnqualified zUser)
+          pure $ storedMeetingToMeeting (tDomain zUser) storedMeeting -- User is a member, authorized
+    else pure Nothing
 
 -- | Look up the 'StoredConversation' associated with a meeting. When the
 -- conversation cannot be found (a data-integrity anomaly), a warning is logged
@@ -414,7 +424,6 @@ listMeetingsImpl ::
     Member ConversationSubsystem r,
     Member TeamSubsystem r,
     Member FeaturesConfigSubsystem r,
-    Member (Error MeetingError) r,
     Member Now r
   ) =>
   Local UserId ->
@@ -422,17 +431,20 @@ listMeetingsImpl ::
   Sem r [API.Meeting]
 listMeetingsImpl zUser validityPeriod = do
   maybeTeamId <- TeamSubsystem.internalGetOneUserTeam (tUnqualified zUser)
-  checkMeetingsEnabled maybeTeamId
-  now <- Now.get
-  let cutoff = addUTCTime (negate validityPeriod) now
-  -- List all meetings created by the user
-  createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
-  -- Loop over local conversations accessible by the user, then filter to only keep meetings.
-  memberMeetings <- getAllMemberMeetings zUser cutoff
-  -- Combine and deduplicate
-  let allMeetings = map (storedMeetingToMeeting (tDomain zUser)) createdMeetings <> memberMeetings
-      uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
-  pure uniqueMeetings
+  enabled <- meetingsFeatureEnabled maybeTeamId
+  if enabled
+    then do
+      now <- Now.get
+      let cutoff = addUTCTime (negate validityPeriod) now
+      -- List all meetings created by the user
+      createdMeetings <- Store.listMeetingsByUser (tUnqualified zUser) cutoff
+      -- Loop over local conversations accessible by the user, then filter to only keep meetings.
+      memberMeetings <- getAllMemberMeetings zUser cutoff
+      -- Combine and deduplicate
+      let allMeetings = map (storedMeetingToMeeting (tDomain zUser)) createdMeetings <> memberMeetings
+          uniqueMeetings = Map.elems $ Map.fromList [(m.id, m) | m <- allMeetings]
+      pure uniqueMeetings
+    else pure []
 
 getAllMemberMeetings ::
   ( Member Store.MeetingsStore r,
