@@ -26,7 +26,7 @@ spec:
     - host: {{ .Values.config.dns.federator }}
       http:
         paths:
-          - path: /
+          - path: /federation
             pathType: Prefix
             backend:
               service:
