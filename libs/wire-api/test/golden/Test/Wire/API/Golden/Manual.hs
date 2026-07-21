@@ -50,6 +50,7 @@ import Test.Wire.API.Golden.Manual.ListUsersById
 import Test.Wire.API.Golden.Manual.LoginId_user
 import Test.Wire.API.Golden.Manual.Login_user
 import Test.Wire.API.Golden.Manual.MLSKeys
+import Test.Wire.API.Golden.Manual.MeetingEvent
 import Test.Wire.API.Golden.Manual.Pagination
 import Test.Wire.API.Golden.Manual.Presence
 import Test.Wire.API.Golden.Manual.Push
@@ -154,6 +155,12 @@ tests =
           [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json"),
             (testObject_Event_conversation_manual_2, "testObject_Event_conversation_manual_2.json"),
             (testObject_Event_conversation_manual_3, "testObject_Event_conversation_manual_3.json")
+          ],
+      testGroup "MeetingEvent" $
+        testObjects
+          [ (testObject_Event_meeting_create_manual_1, "testObject_Event_meeting_create_manual_1.json"),
+            (testObject_Event_meeting_update_manual_1, "testObject_Event_meeting_update_manual_1.json"),
+            (testObject_Event_meeting_delete_manual_1, "testObject_Event_meeting_delete_manual_1.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects

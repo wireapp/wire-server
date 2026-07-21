@@ -42,7 +42,7 @@ import Polysemy.TinyLog qualified as TinyLog
 import System.Logger qualified as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Event.Conversation qualified as ConvEvent
+import Wire.API.Event.Meeting qualified as MeetingEvent
 import Wire.API.Meeting qualified as API
 import Wire.API.Push.V2 qualified as PushV2
 import Wire.API.Routes.MultiTablePaging qualified as MultiTablePaging
@@ -193,7 +193,7 @@ createMeetingImpl zUser newMeeting = do
       trial
 
   let qMeetingId = Qualified storedMeeting.id (tDomain zUser)
-  pushMeetingEvent zUser Nothing storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId (ConvEvent.EdMeetingCreate qMeetingId)
+  pushMeetingEvent zUser Nothing storedConv.localMembers (Qualified storedConv.id_ (tDomain zUser)) conversationTeamId MeetingEvent.Create qMeetingId
 
   pure $ storedMeetingToMeetingWithConversation zUser storedConv storedMeeting
 
@@ -243,7 +243,7 @@ updateMeetingImpl zUser meetingId update validityPeriod = do
           update.endTime
           update.recurrence
     conv <- MaybeT $ getMeetingConversationOrFail meetingId updatedMeeting.conversationId
-    lift $ pushMeetingEvent zUser Nothing conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId (ConvEvent.EdMeetingUpdate meetingId)
+    lift $ pushMeetingEvent zUser Nothing conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Update meetingId
     pure $ storedMeetingToMeetingWithConversation zUser conv updatedMeeting
 
 deleteMeetingImpl ::
@@ -280,7 +280,7 @@ deleteMeetingImpl zUser connId meetingId validityPeriod = do
           void $
             ConversationSubsystem.deleteLocalConversation zUser connId lConvId
       lift $ Store.deleteMeeting (qUnqualified meetingId)
-      lift $ pushMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId (ConvEvent.EdMeetingDelete meetingId)
+      lift $ pushMeetingEvent zUser (Just connId) conv.localMembers (Qualified conv.id_ (tDomain zUser)) maybeTeamId MeetingEvent.Delete meetingId
   pure $ isJust result
 
 getMeetingImpl ::
@@ -349,20 +349,21 @@ pushMeetingEvent ::
   [LocalMember] ->
   Qualified ConvId ->
   Maybe TeamId ->
-  ConvEvent.EventData ->
+  MeetingEvent.EventType ->
+  Qualified MeetingId ->
   Sem r ()
-pushMeetingEvent lUser conn members qConvId mTeamId edata = do
+pushMeetingEvent lUser conn members qConvId mTeamId meetingType qMeetingId = do
   now <- Now.get
   let evt =
-        ConvEvent.Event
-          { evtConv = qConvId,
-            evtSubConv = Nothing,
+        MeetingEvent.Event
+          { evtType = meetingType,
+            evtMeeting = qMeetingId,
+            evtConv = qConvId,
             evtFrom =
-              ConvEvent.EventFromUser
+              MeetingEvent.EventFromUser
                 (Qualified (tUnqualified lUser) (tDomain lUser)),
             evtTime = now,
-            evtTeam = mTeamId,
-            evtData = edata
+            evtTeam = mTeamId
           }
   pushNotifications
     [ def
